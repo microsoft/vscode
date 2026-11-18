@@ -17,6 +17,11 @@ export const connectionCloseReasons = [
 ] as const;
 export type ConnectionCloseReason = typeof connectionCloseReasons[number];
 
+export const connectionHandshakeMethods = ['initialize', 'reconnect'] as const;
+export type ConnectionHandshakeMethod = typeof connectionHandshakeMethods[number];
+export const connectionHandshakeStates = ['waiting', 'chunksReceived', 'otherMessagesReceived', 'responseReceived'] as const;
+export type ConnectionHandshakeState = typeof connectionHandshakeStates[number];
+
 export interface IConnectionDiagnosticState {
 	readonly connectionState?: 'connecting' | 'connected' | 'reconnecting' | 'incompatible' | 'closed';
 	readonly authenticationRestorePending?: boolean;
@@ -39,6 +44,8 @@ export interface IConnectionDiagnosticEvent extends IConnectionDiagnosticState {
 	readonly connectionOperation?: 'connect' | 'recover';
 	/** Source-owned initiating close boundary, never inferred from error text. */
 	readonly closeReason?: ConnectionCloseReason;
+	readonly handshakeMethod?: ConnectionHandshakeMethod;
+	readonly handshakeState?: ConnectionHandshakeState;
 	readonly sessionResource?: string;
 	readonly chatResource?: string;
 	readonly turnId?: string;

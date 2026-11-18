@@ -107,13 +107,25 @@ suite('CopilotModelRouter', () => {
 		});
 	});
 
-	test('the switch policy stays on near ties and holds in long chats', () => {
+	test('the switch policy stays on near ties and right after a switch', () => {
 		const pick: IModelRouterPick = { model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 } };
 		assert.deepStrictEqual([
-			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: undefined, switches: 0 }),
-			decideModelRouterSwitch({ currentModel: 'opus', pick: { ...pick, probabilities: { haiku: 0.6, opus: 0.5 } }, turnsSinceSwitch: undefined, switches: 0 }),
-			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: 1, switches: 1 }),
-		], ['switch', 'stay', 'stay']);
+			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: undefined }),
+			decideModelRouterSwitch({ currentModel: 'opus', pick: { ...pick, probabilities: { haiku: 0.6, opus: 0.5 } }, turnsSinceSwitch: undefined }),
+			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: 1 }),
+			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: 2 }),
+		], ['switch', 'stay', 'stay', 'switch']);
+	});
+
+	test('a chat that has moved many times still moves, once it has stayed put for two turns', async () => {
+		const picker = new FakePicker({ model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 } });
+		const moved = () => routedTurn({ router: 'daily', chosenModel: 'opus', switchedFrom: 'haiku' });
+		const stayed = () => routedTurn({ router: 'daily', chosenModel: 'opus', kept: true });
+		const route = async (previousTurns: Turn[]) => (await resolve({ file: routerFile('switching: auto\n'), previousTurns, picker, text: 'rename this variable' })).selection?.id;
+		assert.deepStrictEqual({
+			rightAfterAMove: await route([moved(), moved(), moved(), moved(), stayed()]),
+			twoTurnsLater: await route([moved(), moved(), moved(), moved(), stayed(), stayed()]),
+		}, { rightAfterAMove: 'opus', twoTurnsLater: 'haiku' });
 	});
 
 	test('switching to this router, from another router or a hand-picked model, routes afresh', async () => {
@@ -211,12 +223,17 @@ suite('CopilotModelRouter', () => {
 	test('tells the decision about the turn and about each model, when there is something to tell', async () => {
 		const priced = models.map((candidate, index): IAgentModelInfo => ({ ...candidate, _meta: { priceCategory: index === 0 ? 'low' : 'high' } }));
 		const picker = new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } });
-		const route = (available: readonly IAgentModelInfo[], situation?: IModelRouterSituation) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file: routerFile(), text: 'fix this', models: available, previousTurns: [], picker, situation });
+		const route = (available: readonly IAgentModelInfo[], situation?: IModelRouterSituation, file = routerFile()) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'fix this', models: available, previousTurns: [], picker, situation });
 		await route(priced, { attachments: [{ kind: 'image', count: 1 }], mode: 'plan' });
 		await route(models, {});
+		// Autopilot says nothing about the work, so only a router that names it is told.
+		await route(models, { mode: 'autopilot', workspace: 'shop' });
+		await route(models, { mode: 'autopilot', workspace: 'shop' }, routerFile('guidance: Use opus for anything sent in Autopilot mode.\n'));
 		assert.deepStrictEqual(picker.requests.map(request => ({ situation: request.situation, facts: request.candidates.map(candidate => candidate.facts) })), [
 			{ situation: ['Attached: 1 image', 'Plan mode: the agent plans first and carries the plan out when the user is ready'], facts: ['low cost', 'high cost'] },
 			{ situation: undefined, facts: [undefined, undefined] },
+			{ situation: ['Workspace: shop'], facts: [undefined, undefined] },
+			{ situation: ['Autopilot mode: the agent works on its own until the task is done', 'Workspace: shop'], facts: [undefined, undefined] },
 		]);
 	});
 

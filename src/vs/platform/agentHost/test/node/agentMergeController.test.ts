@@ -4,48 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { NullLogService } from '../../../log/common/log.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { constObservable, observableValue } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeMissingPullRequestNotice, agentMergeSingleSignOnNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState, agentMergeGateFragments } from '../../common/agentMerge.js';
-import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
+import { PullRequestMutationApi, PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
+import { PullRequestSnapshot, PullRequestSubscription, firstCredentialFailure } from '../../../github/common/githubPullRequestService.js';
+import { IGitHubClient } from '../../../github/common/githubService.js';
+import { isSamlEnforcementError } from '../../../github/common/githubTransport.js';
+import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import type { IAgent } from '../../common/agent.js';
-import { AgentHostArtifactIntegrationsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { URI } from '../../../../base/common/uri.js';
-import { constObservable, observableValue } from '../../../../base/common/observable.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
+import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMissingPullRequestNotice, agentMergeRootConfigSchema, agentMergeSingleSignOnNotice, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { createPullRequestOperationMeta } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ChatOriginKind, SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, MessageKind, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
-import { IGitHubClient } from '../../../github/common/githubService.js';
-import { createTestGitHubService } from './testGitHubService.js';
-import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
-import { PullRequestSnapshot, PullRequestSubscription, firstCredentialFailure } from '../../../github/common/githubPullRequestService.js';
-import { PullRequestMutationApi, PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
-import { isSamlEnforcementError } from '../../../github/common/githubTransport.js';
-import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
+import { ChatOriginKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
-import { AgentMergeController } from '../../node/agentMergeController.js';
 import { AgentHostGitHubService, type IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { AgentMergeTools } from '../../node/agentMergeTools.js';
-import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
-import { createPullRequestOperationMeta } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { AgentMergeController } from '../../node/agentMergeController.js';
+import { AgentMergeTools } from '../../node/agentMergeTools.js';
 import { PullRequestChatContribution } from '../../node/chatContributions/pullRequest/pullRequestChatContribution.js';
-import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createTestGitHubService } from './testGitHubService.js';
 
 let sessionCounter = 0;
 
@@ -633,8 +634,8 @@ suite('AgentMergeController', () => {
 			noopGitService,
 			createTestGitHubService(new class extends mock<IGitHubClient>() {
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
-					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
-						return { account: snapshot.ref, token: 'test-token', generation: 1, signal };
+					override async getCredential(cancellationToken: CancellationToken): Promise<GitHubCredential> {
+						return { account: snapshot.ref, token: 'test-token', generation: 1, cancellationToken };
 					}
 				}();
 				override readonly pullRequests = new class extends mock<IPullRequestResources>() {
@@ -895,7 +896,7 @@ suite('AgentMergeController', () => {
 				const duringTurn = {
 					enabled: h.folderState()?.enabled,
 					active: h.controller.getTurnContext(h.peerChat) === context,
-					signalAborted: context.signal.aborted,
+					signalAborted: context.cancellationToken.isCancellationRequested,
 					disabledNotices: h.notices.filter(notice => notice.kind === AgentSystemNotificationKind.AgentMergeDisabled).length,
 				};
 
@@ -1075,8 +1076,8 @@ suite('AgentMergeController', () => {
 		const tokens: (string | undefined)[] = [];
 		const service = createTestGitHubService(new class extends mock<IGitHubClient>() {
 			override readonly credentials = new class extends mock<IGitHubCredentials>() {
-				override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
-					return { account: snapshot.ref, token: 'host-repo', generation: 1, signal };
+				override async getCredential(cancellationToken: CancellationToken): Promise<GitHubCredential> {
+					return { account: snapshot.ref, token: 'host-repo', generation: 1, cancellationToken };
 				}
 			}();
 			override readonly pullRequests = new class extends mock<IPullRequestResources>() {
@@ -1092,10 +1093,10 @@ suite('AgentMergeController', () => {
 		service.getAgentMergeCredentialSource = chat => github.getAgentMergeCredentialSource(chat);
 		service.captureSessionCredentialSource = (...args) => github.captureSessionCredentialSource(...args);
 		const acquire = service.acquireRepositoryClient;
-		service.acquireRepositoryClient = (signal, source, session) => {
-			disposables.add(github.acquireRepositoryClient(signal, source, session));
+		service.acquireRepositoryClient = (cancellationToken, source, session) => {
+			disposables.add(github.acquireRepositoryClient(cancellationToken, source, session));
 			tokens.push(source?.getCredential({ resource: endpoint.getRepoResource().resource })?.token);
-			return acquire(signal, source, session);
+			return acquire(cancellationToken, source, session);
 		};
 		const h = createControllerHarness(disposables, snapshot, Event.None, service);
 		const chat = buildDefaultChatUri(h.session);
@@ -1964,9 +1965,9 @@ suite('AgentMergeController', () => {
 			gitService,
 			githubService ?? createTestGitHubService(new class extends mock<IGitHubClient>() {
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
-					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
+					override async getCredential(cancellationToken: CancellationToken): Promise<GitHubCredential> {
 						assert.ok(snapshot);
-						return { account: snapshot.ref, token: 'test-token', generation: 1, signal };
+						return { account: snapshot.ref, token: 'test-token', generation: 1, cancellationToken };
 					}
 				}();
 				override readonly pullRequests = new class extends mock<IPullRequestResources>() {
@@ -2052,9 +2053,9 @@ suite('AgentMergeController', () => {
 			createTestGitHubService(new class extends mock<IGitHubClient>() {
 				override readonly mutations = mutations ?? new class extends mock<PullRequestMutationApi>() { }();
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
-					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
+					override async getCredential(cancellationToken: CancellationToken): Promise<GitHubCredential> {
 						await beforeCredential?.();
-						return { account: snapshot.get().ref, token: 'test-token', generation: 1, signal };
+						return { account: snapshot.get().ref, token: 'test-token', generation: 1, cancellationToken };
 					}
 				}();
 				override readonly pullRequests = new class extends mock<IPullRequestResources>() {

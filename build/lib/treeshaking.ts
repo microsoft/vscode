@@ -57,6 +57,11 @@ export interface ITreeShakingOptions {
 	 * regex pattern to ignore certain imports e.g. `.css` imports
 	 */
 	importIgnorePattern: RegExp;
+
+	/**
+	 * Rewrites each source file before it is shaken, e.g. to select Monaco-only code.
+	 */
+	transformSource?: (fileName: string, contents: string) => string;
 }
 
 export interface ITreeShakingResult {
@@ -109,11 +114,15 @@ export function shake(options: ITreeShakingOptions): ITreeShakingResult {
 function createTypeScriptLanguageService(ts: typeof import('typescript'), options: ITreeShakingOptions): ts.LanguageService {
 	// Discover referenced files
 	const FILES: IFileMap = new Map();
+	const read = (filePath: string) => {
+		const contents = fs.readFileSync(filePath).toString();
+		return options.transformSource ? options.transformSource(filePath, contents) : contents;
+	};
 
 	// Add entrypoints
 	options.entryPoints.forEach(entryPoint => {
 		const filePath = path.join(options.sourcesRoot, entryPoint);
-		FILES.set(path.normalize(filePath), fs.readFileSync(filePath).toString());
+		FILES.set(path.normalize(filePath), read(filePath));
 	});
 
 	// Add fake usage files
@@ -129,7 +138,7 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
 
 	const basePath = path.join(options.sourcesRoot, '..');
 	const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, basePath).options;
-	const host = new TypeScriptLanguageServiceHost(ts, FILES, compilerOptions);
+	const host = new TypeScriptLanguageServiceHost(ts, FILES, compilerOptions, options.transformSource);
 	return ts.createLanguageService(host);
 }
 

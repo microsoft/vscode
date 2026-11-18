@@ -1028,6 +1028,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._cancelBackend();
 		this._teardown();
 		this._setState(ChatSpeechToTextState.Idle);
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.dictationDisconnected);
 		this._notificationService.error(message);
 	}
 
@@ -1291,6 +1292,10 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 		this._logService.error('[chat-stt] failed to stream audio to transcription', err);
+		// A dropped connection leaves the socket closing, so the next audio chunk fails before a close event arrives.
+		if (this._activeBackend === 'mai' && !this._transcriptionClient.isConnected) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.dictationDisconnected);
+		}
 		this._failSession('audio', localize('chatStt.audioError', "Speech-to-text stopped because audio could not be sent for transcription: {0}", toErrorMessage(err instanceof Error ? err : new Error(String(err)))));
 	}
 

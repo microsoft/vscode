@@ -20,6 +20,7 @@ import { ActionType, type ActionEnvelope } from '../../common/state/sessionActio
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
+import type { IAgentHostArtifactRecordedReport } from '../../node/agentHostTelemetryReporter.js';
 import { SessionArtifacts } from '../../node/shared/sessionArtifacts.js';
 import { SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
 import type { AgentService } from '../../node/agentService.js';
@@ -713,5 +714,49 @@ suite('Session Artifact Removal', () => {
 			sourceEnded: stateManager.getSessionState(session.toString()) === undefined,
 			target: readSessionArtifacts(stateManager.getSessionState(target.toString())?._meta).filter(artifact => artifact.chat === chat).map(artifact => artifact.id),
 		}, { sourceEnded: true, target: ['queued'] });
+	});
+
+	test('attributes a recording queued while its chat moved to the session it moved to', async () => {
+		const database = new TestSessionDatabase();
+		const { service, session, stateManager, artifactAccessor } = await createFixture(database);
+		const target = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+		const chat = buildDefaultChatUri(session);
+		const recorded: IAgentHostArtifactRecordedReport[] = [];
+		const group = createArtifactServerToolGroup({ isEnabled: () => true, persist: artifactAccessor.persist, reportArtifactRecorded: report => recorded.push(report) });
+		const held = await SessionArtifacts.hold(stateManager, [session.toString()]);
+		const queued = Promise.resolve(group.execute(stateManager, { sessionUri: session.toString(), chatUri: chat, turnId: 'turn' }, ArtifactServerToolName.AddArtifactOrReference, {
+			type: 'website', label: 'Queued', isArtifact: false, link: 'https://example.com/queued',
+		}));
+
+		stateManager.transferSession(session.toString(), target.toString(), [chat], undefined, true);
+		held.dispose();
+		await queued;
+
+		assert.deepStrictEqual(recorded.map(report => ({ session: report.session, provider: report.provider })), [{ session: target.toString(), provider: 'copilot' }]);
+	});
+
+	test('resolves only the removal that removed an entry when removals of it overlap', async () => {
+		const writeStarted = new DeferredPromise<void>();
+		const finishWrite = new DeferredPromise<void>();
+		class DelayedDatabase extends TestSessionDatabase {
+			delayNextArtifactWrite = false;
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
+				if (this.delayNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
+					this.delayNextArtifactWrite = false;
+					await writeStarted.complete();
+					await finishWrite.p;
+				}
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
+			}
+		}
+		const database = new DelayedDatabase();
+		const { service, session } = await createFixture(database);
+		database.delayNextArtifactWrite = true;
+		const first = service.removeSessionArtifact(session, 'pr');
+		await writeStarted.p;
+		const second = service.removeSessionArtifact(session, 'pr');
+		await finishWrite.complete();
+
+		assert.deepStrictEqual((await Promise.all([first, second])).map(removed => removed?.id), ['pr', undefined]);
 	});
 });

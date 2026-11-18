@@ -18,7 +18,7 @@ import { Disposable, DisposableStore, IDisposable, markAsSingleton, toDisposable
 import { stringify } from '../../base/common/marshalling.js';
 import { Mimes } from '../../base/common/mime.js';
 import { FileAccess, Schemas } from '../../base/common/network.js';
-import { isWindows } from '../../base/common/platform.js';
+import { isMacintosh, isWindows } from '../../base/common/platform.js';
 import { basename, isEqual } from '../../base/common/resources.js';
 import { URI } from '../../base/common/uri.js';
 import { CodeDataTransfers, Extensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat, LocalSelectionTransfer, createDraggedEditorInputFromRawResourcesData, extractEditorsAndFilesDropData } from '../../platform/dnd/browser/dnd.js';
@@ -126,6 +126,32 @@ export function registerPassThroughDropTarget(element: HTMLElement, letsThrough:
 export function isPassThroughDrag(element: HTMLElement, event: DragEvent): boolean {
 	for (const [pane, letsThrough] of passThroughDropTargets) {
 		if (pane.contains(element) && letsThrough(event)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/** The key, as it shows, that lets a drag through a placement overlay while it is held (see {@link isPassThroughModifierHeld}). */
+export const PASS_THROUGH_MODIFIER_LABEL = isMacintosh ? '⇧' : 'Shift';
+
+/** Whether the key that lets a drag through a placement overlay is held, such as to drop into an editor or to attach to a chat. */
+export function isPassThroughModifierHeld(event: DragEvent): boolean {
+	return event.shiftKey;
+}
+
+/**
+ * Whether a placement overlay over `scope` lets the drag through to an input under it, such as a chat input that attaches
+ * what is dragged: the {@link PASS_THROUGH_MODIFIER_LABEL key} is held, and the drag is over the
+ * {@link IInputDropTarget.area area} of a registered input inside `scope` that takes it, where {@link InputDropTargetHints}
+ * says so.
+ */
+export function isPassThroughToInputDrag(event: DragEvent, scope: HTMLElement): boolean {
+	if (!isPassThroughModifierHeld(event)) {
+		return false;
+	}
+	for (const [input, target] of inputDropTargets) {
+		if (scope.contains(input) && isOver(target.area ?? input, event) && target.accepts(event)) {
 			return true;
 		}
 	}

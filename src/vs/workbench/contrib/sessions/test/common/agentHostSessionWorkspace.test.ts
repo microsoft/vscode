@@ -10,7 +10,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { buildAgentHostChatWorkspace, buildAgentHostChatWorkspaceWithScratchFolders, buildAgentHostSessionWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
+import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace, buildAgentHostChatWorkspaceWithScratchFolders, buildAgentHostSessionWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
 import { getSessionWorkspaceKind, IGitHubInfo, ISessionWorkspace, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 
 suite('Agent Host Session Workspace', () => {
@@ -85,6 +85,28 @@ suite('Agent Host Session Workspace', () => {
 			uri: other.toString(),
 			label: 'other',
 			folders: [{ workingDirectory: other.toString(), branchName: 'feature', gitHubInfo: otherGitHubInfo.get() }],
+		});
+	});
+
+	test('requires trust for working directories, not for a project the host reports without any', () => {
+		const options = { requiresWorkspaceTrust: true, fallbackIcon: Codicon.remote };
+		const build = (project: { uri: URI; displayName: string }, workingDirectories: readonly URI[] | undefined) =>
+			buildAgentHostSessionWorkspace(project, workingDirectories, options, constObservable(undefined));
+		const repositoryUrl = { uri: URI.parse('https://github.com/microsoft/vscode'), displayName: 'microsoft/vscode' };
+		const repository = { uri: primary, displayName: 'repo' };
+
+		assert.deepStrictEqual({
+			urlWithoutWorkingDirectories: build(repositoryUrl, undefined)?.requiresWorkspaceTrust,
+			urlWithEmptyWorkingDirectories: build(repositoryUrl, [])?.requiresWorkspaceTrust,
+			urlWithWorkingDirectory: build(repositoryUrl, [primary])?.requiresWorkspaceTrust,
+			repositoryWorkingInItself: build(repository, [primary])?.requiresWorkspaceTrust,
+			keyChangesWhenItsWorkingDirectoryArrives: agentHostSessionWorkspaceKey(build(repository, undefined)) !== agentHostSessionWorkspaceKey(build(repository, [primary])),
+		}, {
+			urlWithoutWorkingDirectories: false,
+			urlWithEmptyWorkingDirectories: false,
+			urlWithWorkingDirectory: true,
+			repositoryWorkingInItself: true,
+			keyChangesWhenItsWorkingDirectoryArrives: true,
 		});
 	});
 

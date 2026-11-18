@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { UriTemplate } from '../../../../../../base/common/uriTemplate.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
@@ -11,13 +13,16 @@ import { cancelOnDispose, CancellationToken } from '../../../../../../base/commo
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { getErrorMessage, isCancellationError } from '../../../../../../base/common/errors.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey, IPermissionsValue } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { readMcpServerLogsChannelTemplate } from '../../../../../../platform/agentHost/common/otlp/mcpServerLogsChannel.js';
+import { iterateOtlpLogRecords, logLevelToOtlpLevelName, severityNumberToLogLevel, type IOtlpLogRecord } from '../../../../../../platform/agentHost/common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type AgentProvider, type IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
 import { readRuntimePluginEnablement, withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
+import { withCustomizationTeamProvided } from '../../../../../../platform/agentHost/common/meta/customizationTeamMeta.js';
 import { getAgentHostCustomizationUri } from '../../../common/agentHostSessionCustomizations.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
@@ -35,7 +40,7 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ILogger, ILoggerService, ILogService } from '../../../../../../platform/log/common/log.js';
+import { canLog, ILogger, ILoggerService, ILogService, log, LogLevel } from '../../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { CopilotConnectorsError, ICopilotConnectorsService } from '../../aiCustomization/copilotConnectorsService.js';
 import { AuthenticationSession } from '../../../../../services/authentication/common/authentication.js';
@@ -205,6 +210,7 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 
 export interface IAgentHostCustomizationTarget {
 	readonly backendSession: URI;
+	readonly connection?: IAgentConnection;
 	readonly defaultChatResource?: URI;
 	readonly clientId?: string;
 	readonly customizations: readonly Customization[];
@@ -263,12 +269,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	readonly onDidChangeCustomizations: Event<void> = this._onDidChangeCustomizations.event;
 
 	private readonly _mcpLogRegistry: AgentHostMcpServerLogRegistry;
-	/**
-	 * Sessions whose MCP diagnostics we mirror into per-server Output channels.
-	 * A session is tracked once the user reveals a server's output; from then
-	 * on every state change is recorded via {@link onDidChangeCustomizations},
-	 * so subsequent failures and recoveries land in the channel history.
-	 */
+	/** Sessions with advertised diagnostic logs or a revealed per-server Output channel. */
 	private readonly _mcpDiagnosticSessions = new ResourceSet();
 	private readonly _mcpAutoAuthentication = new Map<string, IMcpAutoAuthenticationAttempt>();
 	private _copilotConnectorAuthorizationInstance: AgentHostCopilotConnectorAuthorization | undefined;
@@ -341,6 +342,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!target) {
 			return [];
 		}
+		this._trackMcpDiagnostics(sessionResource, target);
 		return getPresentableMcpServerCustomizations(target.customizations)
 			.map(({ server, plugin, isTopLevel }): IAgentHostMcpServer => {
 				const source = URI.parse(server.uri);
@@ -474,22 +476,28 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!entry) {
 			return Promise.resolve();
 		}
-		const { server, plugin } = entry;
+		const { server } = entry;
 		// Ensure the session is tracked and its channels exist, then reveal.
-		this._trackMcpDiagnostics(sessionResource, target);
-		const channelId = this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state });
+		this._trackMcpDiagnostics(sessionResource, target, true);
+		const channelId = channelIdForMcpServer(sessionResource.toString(), server.id);
 		return this._mcpLogRegistry.show(channelId, beforeShow);
 	}
 
-	/**
-	 * Registers `sessionResource` for MCP diagnostics mirroring and records the
-	 * currently-observed state of each of its servers. Idempotent: registering
-	 * an already-tracked session simply re-records (dedup'd by state signature).
-	 */
-	private _trackMcpDiagnostics(sessionResource: URI, target: IAgentHostCustomizationTarget): void {
+	/** Starts recording sessions with advertised diagnostic channels or explicitly revealed output. */
+	protected _trackMcpDiagnostics(sessionResource: URI, target: Pick<IAgentHostCustomizationTarget, 'connection' | 'customizations'>, revealed = false): void {
+		const servers = flattenMcpServerCustomizations(target.customizations);
+		if (!revealed && !this._mcpDiagnosticSessions.has(sessionResource) && !servers.some(({ server }) => readMcpServerLogsChannelTemplate(server._meta))) {
+			return;
+		}
 		this._mcpDiagnosticSessions.add(sessionResource);
-		for (const { server, plugin } of flattenMcpServerCustomizations(target.customizations)) {
-			this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state });
+		// Containers republish without children while loading; only retire entries once the snapshot settles.
+		const settled = target.customizations.every(customization => customization.type === CustomizationType.McpServer
+			|| customization.children !== undefined && customization.load?.kind !== CustomizationLoadStatus.Loading);
+		if (settled) {
+			this._mcpLogRegistry.retainForSession(sessionResource, servers.map(({ server }) => server.id));
+		}
+		for (const { server, plugin } of servers) {
+			this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state, connection: target.connection, logsTemplate: readMcpServerLogsChannelTemplate(server._meta) });
 		}
 	}
 
@@ -497,11 +505,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	private _recordMcpDiagnostics(): void {
 		for (const sessionResource of this._mcpDiagnosticSessions) {
 			const target = this._resolveTarget(sessionResource);
-			if (!target) {
-				continue;
-			}
-			for (const { server, plugin } of flattenMcpServerCustomizations(target.customizations)) {
-				this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state });
+			if (target) {
+				this._trackMcpDiagnostics(sessionResource, target);
 			}
 		}
 	}
@@ -776,17 +781,19 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					? { kind: CustomizationLoadStatus.Error, message: localize('runtimePluginMissing', "This plugin is no longer installed.") } as const
 					: customization.load?.kind === CustomizationLoadStatus.Error ? customization.load
 						: { kind: effectiveEnabled === undefined ? CustomizationLoadStatus.Loading : CustomizationLoadStatus.Loaded } as const;
+			const meta = withRuntimePluginEnablement(customization._meta, {
+				...runtime,
+				globalEnabled: installation?.enabled ?? runtime.globalEnabled,
+				managedDesiredEnabled: installation ? installation.managedDesiredEnabled : runtime.managedDesiredEnabled,
+				effectiveEnabled,
+				repositoryEnabled: installation?.repositoryEnabled,
+			});
 			return {
 				...customization,
 				load,
 				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: effectiveEnabled ?? false }],
-				_meta: withRuntimePluginEnablement(customization._meta, {
-					...runtime,
-					globalEnabled: installation?.enabled ?? runtime.globalEnabled,
-					managedDesiredEnabled: installation ? installation.managedDesiredEnabled : runtime.managedDesiredEnabled,
-					effectiveEnabled,
-					repositoryEnabled: installation?.repositoryEnabled,
-				}),
+				// The inventory is newer than the published customization, so it decides Team provenance when it lists the plugin.
+				_meta: installation ? withCustomizationTeamProvided(meta, installation.team) : meta,
 			};
 		});
 	}
@@ -1142,6 +1149,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const defaultChatResource = sessionState && getSessionChatResource(sessionState, DEFAULT_CHAT_ID, sessionState.defaultChat);
 		return {
 			backendSession: target.backendSession,
+			connection: target.connection,
 			defaultChatResource: defaultChatResource ? URI.parse(defaultChatResource.toString()) : undefined,
 			clientId: target.connection.clientId,
 			customizations: sessionState?.customizations ?? [],
@@ -1292,7 +1300,13 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const store = new DisposableStore();
 		const ref = store.add(target.connection.getSubscription(StateComponents.Session, target.backendSession, 'AgentHostCustomizationService'));
 		const sub = ref.object;
+		const recordMcpDiagnostics = () => {
+			const value = sub.value;
+			const state = value && !(value instanceof Error) ? value : sub.verifiedValue;
+			this._trackMcpDiagnostics(sessionResource, { connection: target.connection, customizations: state?.customizations ?? [] });
+		};
 		store.add(Event.any(sub.onDidChange, sub.onDidError ?? Event.None)(() => {
+			recordMcpDiagnostics();
 			this._fireCustomizationsChanged();
 			this._fireCustomAgentsChanged();
 		}));
@@ -1306,6 +1320,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			dispose: () => store.dispose(),
 		};
 		this._sessionStateSubscriptions.set(sessionResource, entry);
+		recordMcpDiagnostics();
 		return entry;
 	}
 
@@ -1343,19 +1358,32 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 
 registerSingleton(IAgentHostCustomizationService, WorkbenchAgentHostCustomizationService, InstantiationType.Delayed);
 
+interface IMcpServerLogEntry {
+	readonly logger: ILogger;
+	readonly store: DisposableStore;
+	readonly connectionStore: MutableDisposable<DisposableStore>;
+	readonly subscription: MutableDisposable<DisposableStore>;
+	connection?: IAgentConnection;
+	logsTemplate?: string;
+	channel?: string;
+	revealed: boolean;
+	lastSignature?: string;
+}
+
 /**
  * Owns one hidden Output channel per (agent-host session, MCP server) pair.
- * {@link record} appends a line whenever a server's observable state changes
- * (its lifecycle kind, error, or enablement) so opening the channel shows the
- * server's history including any failure detail. {@link show} reveals the
- * (otherwise hidden) channel, and {@link disposeForSession} tears down every
- * channel belonging to a session that is going away.
+ * {@link record} appends a line whenever a server's observable state changes,
+ * and, when the host advertises a diagnostic logs channel in the server's
+ * `_meta`, subscribes to it: eagerly while the channel's log level is Debug or
+ * Trace, otherwise once the user reveals the channel via {@link show}.
+ * {@link disposeForSession} tears down every channel belonging to a session.
  */
 class AgentHostMcpServerLogRegistry extends Disposable {
 
-	private readonly _entries = new Map<string, { readonly logger: ILogger; readonly dispose: () => void; lastSignature: string | undefined }>();
-	/** Channel ids grouped by owning session key, so a session teardown can dispose them all. */
+	private readonly _entries = new Map<string, IMcpServerLogEntry>();
 	private readonly _bySession = new Map<string, Set<string>>();
+	/** Log channel subscriptions shared by entries for the same server, per connection and channel. */
+	private readonly _channelSubscriptions = new Map<IAgentConnection, Map<string, { refs: number; readonly subscribed: Promise<void> }>>();
 
 	constructor(
 		@ILoggerService private readonly _loggerService: ILoggerService,
@@ -1369,29 +1397,26 @@ class AgentHostMcpServerLogRegistry extends Disposable {
 		}));
 	}
 
-	/**
-	 * Ensures a hidden diagnostics channel exists for the MCP server identified
-	 * by `(sessionResource, rawId)` and records a line whenever its state
-	 * changes (including the first observed state). Returns the stable channel
-	 * id for the service to reveal via {@link show} -- the id is internal.
-	 */
-	record(server: { readonly sessionResource: URI; readonly rawId: string; readonly name: string; readonly enabled: boolean; readonly state: McpServerState }): string {
+	record(server: { readonly sessionResource: URI; readonly rawId: string; readonly name: string; readonly enabled: boolean; readonly state: McpServerState; readonly connection?: IAgentConnection; readonly logsTemplate?: string }): string {
 		const sessionKey = server.sessionResource.toString();
 		const channelId = channelIdForMcpServer(sessionKey, server.rawId);
 		let entry = this._entries.get(channelId);
 		if (!entry) {
-			const logger = this._loggerService.createLogger(channelId, {
+			const store = new DisposableStore();
+			const logger = store.add(this._loggerService.createLogger(channelId, {
 				hidden: true,
 				name: localize('agentHost.mcpServer.outputChannel', "MCP: {0}", server.name),
-			});
-			// Mirror the workbench MCP server pattern: a logger disposed but not
-			// deregistered is reused as a no-op instance, so deregister on dispose.
-			const dispose = () => {
-				logger.dispose();
-				this._loggerService.deregisterLogger(channelId);
+			}));
+			// Disposed loggers must also be deregistered, or createLogger reuses a no-op instance.
+			store.add(toDisposable(() => this._loggerService.deregisterLogger(channelId)));
+			entry = {
+				logger, store, revealed: false,
+				connectionStore: store.add(new MutableDisposable<DisposableStore>()),
+				subscription: store.add(new MutableDisposable<DisposableStore>()),
 			};
-			entry = { logger, dispose, lastSignature: undefined };
 			this._entries.set(channelId, entry);
+			const currentEntry = entry;
+			store.add(logger.onDidChangeLogLevel(() => this._updateSubscription(currentEntry)));
 			let group = this._bySession.get(sessionKey);
 			if (!group) {
 				group = new Set();
@@ -1399,6 +1424,37 @@ class AgentHostMcpServerLogRegistry extends Disposable {
 			}
 			group.add(channelId);
 		}
+
+		entry.logsTemplate = server.logsTemplate;
+		if (entry.connection !== server.connection) {
+			entry.subscription.clear();
+			entry.connectionStore.clear();
+			entry.connection = server.connection;
+			const connection = server.connection;
+			if (connection?.onDidReceiveOtlpLogs) {
+				const store = new DisposableStore();
+				entry.connectionStore.value = store;
+				const currentEntry = entry;
+				store.add(connection.onDidReceiveOtlpLogs(params => {
+					if (!currentEntry.channel || URI.parse(params.channel).toString() !== currentEntry.channel) {
+						return;
+					}
+					for (const record of iterateOtlpLogRecords(params.payload)) {
+						const level = severityNumberToLogLevel(record.severityNumber);
+						if (canLog(currentEntry.logger.getLevel(), level)) {
+							log(currentEntry.logger, level, formatMcpServerLogRecord(record));
+						}
+					}
+				}));
+				if (connection.connectionAvailable) {
+					store.add(autorun(reader => {
+						connection.connectionAvailable?.read(reader);
+						this._updateSubscription(currentEntry);
+					}));
+				}
+			}
+		}
+		this._updateSubscription(entry);
 
 		const { signature, message, isError } = describeMcpServerState(server.name, server.enabled, server.state);
 		if (entry.lastSignature !== signature) {
@@ -1412,17 +1468,104 @@ class AgentHostMcpServerLogRegistry extends Disposable {
 		return channelId;
 	}
 
-	/** Reveals the diagnostics channel `channelId`, making its hidden logger visible. */
-	async show(channelId: string, beforeShow?: () => Promise<void>): Promise<void> {
-		if (!this._entries.has(channelId)) {
+	private _updateSubscription(entry: IMcpServerLogEntry): void {
+		const connection = entry.connection;
+		const level = entry.logger.getLevel();
+		if (!entry.logsTemplate || !connection?.subscribeStateless || !connection.unsubscribe || !connection.onDidReceiveOtlpLogs
+			|| connection.connectionAvailable?.get() === false || level === LogLevel.Off
+			|| (!entry.revealed && level !== LogLevel.Debug && level !== LogLevel.Trace)) {
+			entry.subscription.clear();
 			return;
 		}
+		let channel: URI;
+		try {
+			channel = URI.parse(UriTemplate.parse(entry.logsTemplate).resolve({ level: logLevelToOtlpLevelName(level) ?? 'info' }));
+		} catch {
+			entry.subscription.clear();
+			return;
+		}
+		if (entry.channel === channel.toString()) {
+			return;
+		}
+		const store = new DisposableStore();
+		entry.subscription.value = store;
+		entry.channel = channel.toString();
+		const subscription = this._acquireChannel(connection, channel);
+		store.add(toDisposable(() => {
+			entry.channel = undefined;
+			subscription.dispose();
+		}));
+		subscription.subscribed.catch(error => {
+			if (entry.subscription.value === store) {
+				entry.subscription.clear();
+				entry.logger.warn(localize('agentHost.mcpServer.logsSubscriptionFailed', "Failed to subscribe to server diagnostics: {0}", getErrorMessage(error)));
+			}
+		});
+	}
+
+	private _acquireChannel(connection: IAgentConnection, channel: URI): { readonly subscribed: Promise<void>; dispose(): void } {
+		const key = channel.toString();
+		let byChannel = this._channelSubscriptions.get(connection);
+		if (!byChannel) {
+			byChannel = new Map();
+			this._channelSubscriptions.set(connection, byChannel);
+		}
+		let shared = byChannel.get(key);
+		if (!shared) {
+			shared = { refs: 0, subscribed: connection.subscribeStateless?.(channel) ?? Promise.resolve() };
+			byChannel.set(key, shared);
+		}
+		shared.refs++;
+		const acquired = shared;
+		let disposed = false;
+		return {
+			subscribed: acquired.subscribed,
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				if (--acquired.refs > 0) {
+					return;
+				}
+				byChannel.delete(key);
+				if (!byChannel.size) {
+					this._channelSubscriptions.delete(connection);
+				}
+				try {
+					connection.unsubscribe?.(channel);
+				} catch {
+					// Unsubscribing after disconnection is best-effort.
+				}
+			},
+		};
+	}
+
+	async show(channelId: string, beforeShow?: () => Promise<void>): Promise<void> {
+		const entry = this._entries.get(channelId);
+		if (!entry) {
+			return;
+		}
+		entry.revealed = true;
+		this._updateSubscription(entry);
 		this._loggerService.setVisibility(channelId, true);
 		await beforeShow?.();
 		await this._outputService.showChannel(channelId);
 	}
 
-	/** Disposes every channel/logger owned by `sessionResource` (session teardown). */
+	retainForSession(sessionResource: URI, rawIds: readonly string[]): void {
+		const sessionKey = sessionResource.toString();
+		const retained = new Set(rawIds.map(rawId => channelIdForMcpServer(sessionKey, rawId)));
+		const group = this._bySession.get(sessionKey);
+		for (const channelId of group ?? []) {
+			if (!retained.has(channelId)) {
+				this._entries.get(channelId)?.store.dispose();
+				this._entries.delete(channelId);
+				group?.delete(channelId);
+			}
+		}
+	}
+
 	disposeForSession(sessionResource: URI): void {
 		this._disposeSessionKey(sessionResource.toString());
 	}
@@ -1434,10 +1577,19 @@ class AgentHostMcpServerLogRegistry extends Disposable {
 		}
 		this._bySession.delete(sessionKey);
 		for (const channelId of group) {
-			this._entries.get(channelId)?.dispose();
+			this._entries.get(channelId)?.store.dispose();
 			this._entries.delete(channelId);
 		}
 	}
+}
+
+/**
+ * Renders a diagnostic record for an Output channel. Subscriptions replay retained history,
+ * so records that are not current keep their original time ahead of the logger's own timestamp.
+ */
+function formatMcpServerLogRecord(record: IOtlpLogRecord): string {
+	const timestamp = record.timeUnixNano.length > 6 ? Number(record.timeUnixNano.slice(0, -6)) : NaN;
+	return Number.isFinite(timestamp) && Date.now() - timestamp > 1000 ? `[${new Date(timestamp).toISOString()}] ${record.body}` : record.body;
 }
 
 /**

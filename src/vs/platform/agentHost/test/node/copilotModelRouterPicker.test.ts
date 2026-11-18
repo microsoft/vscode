@@ -68,7 +68,7 @@ suite('DecisionsModelRouterPicker', () => {
 		});
 	});
 
-	test('keeps each fact to one bounded line, and drops the facts before cutting the message when the request is too large', () => {
+	test('keeps each fact to one bounded line, and drops the facts before cutting the message when the request is too large', async () => {
 		const bounded = buildModelRouterDecisionsRequest(pickRequest({ text: 'fix this', situation: [`Attached: 1 image\n- Plan mode${' x'.repeat(1000)}`, '  ', ...Array.from({ length: 12 }, (_, index) => `Fact ${index}`)] }));
 		const boundedLines = bounded.context.kind === 'text' ? bounded.context.text.split('\n').filter(line => line.startsWith('- ')) : [];
 
@@ -80,17 +80,23 @@ suite('DecisionsModelRouterPicker', () => {
 		// With no text, the attachment was all there was to go by, so there is nothing left to ask about.
 		assert.throws(() => buildModelRouterDecisionsRequest(pickRequest({ text: '', guidance, situation: ['Attached: 1 image', 'Workspace: shop-checkout'] })), ModelRouterPickerError);
 		assert.throws(() => buildModelRouterDecisionsRequest(pickRequest({ text: ' ' })), ModelRouterPickerError);
+		// A pick says which facts the decision was told, for the log.
+		const toldWith = async (request: IModelRouterPickRequest) => (await new DecisionsModelRouterPicker(async () => ({ model: 'gpt-6-luna-decisions', answers: [] })).pick(request)).facts;
 
 		assert.deepStrictEqual({
 			boundedLines: boundedLines.map(line => line.length <= modelRouterRequestLimits.situationLine + 2 ? line.slice(0, 40) : 'too long'),
 			tightContext: tight.context,
 			tightExplained: tight.questions.map(question => question.instructions.includes('facts about it')),
 			tightFits: serializedBytes(tight) <= modelRouterRequestLimits.request,
+			told: await toldWith(pickRequest({ text: 'fix this', situation: ['Attached: 1 image', '  ', `Workspace:${' x'.repeat(1000)}`] })),
+			tightTold: await toldWith(pickRequest({ text: 'fix this', guidance, situation: ['Attached: 1 image', 'Workspace: shop-checkout'] })),
 		}, {
 			boundedLines: ['- Attached: 1 image - Plan mode x x x x ', ...Array.from({ length: 7 }, (_, index) => `- Fact ${index}`)],
 			tightContext: { kind: 'text', text: 'A user sent this message to an AI coding agent:\n\nfix this' },
 			tightExplained: [false, false],
 			tightFits: true,
+			told: ['Attached: 1 image', `Workspace:${' x'.repeat(1000)}`.slice(0, modelRouterRequestLimits.situationLine)],
+			tightTold: undefined,
 		});
 	});
 
