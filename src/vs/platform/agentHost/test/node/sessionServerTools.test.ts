@@ -112,6 +112,7 @@ suite('SessionServerTools', () => {
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
 			isChatMoveEnabled: overrides?.isChatMoveEnabled ?? (() => true),
+			getSessionModelOptions: overrides?.getSessionModelOptions ?? (() => 'off'),
 			supportsChatMoves: overrides?.supportsChatMoves ?? (() => true),
 			checkChatMove: overrides?.checkChatMove ?? (async () => { }),
 			isKnownSessionLink: overrides?.isKnownSessionLink ?? (() => true),

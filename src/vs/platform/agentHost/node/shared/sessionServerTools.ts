@@ -16,6 +16,7 @@ import { fromAgentHostChatHarness, toAgentHostChatHarness } from '../../common/a
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
+import type { AgentHostSessionModelOptions } from '../../common/agentHostSchema.js';
 import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
@@ -471,6 +472,8 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly setSessionSpawnDepth: (session: URI, depth: number) => void;
 	/** Whether moving chats is enabled (`chatMoves.enabled`), read on every call. */
 	readonly isChatMoveEnabled: () => boolean;
+	/** Whether agents can choose model options in `create_session`, and how they find models (`sessionModelOptions`), read on every call. */
+	readonly getSessionModelOptions: () => AgentHostSessionModelOptions;
 	/** Whether the session's agent supports more than one chat per session, so its chats can move. */
 	readonly supportsChatMoves: (session: URI) => boolean;
 	/**
