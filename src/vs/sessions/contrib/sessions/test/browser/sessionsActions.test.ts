@@ -59,7 +59,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { getSessionsPickerChatWindow, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
+import { getSessionsPickerChatWindow, MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ArchiveChatAction, ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
@@ -339,6 +339,7 @@ suite('Sessions - Actions', () => {
 			ARCHIVE_CHAT_COMMAND_ID,
 			'sessionsViewPane.moveChatUp',
 			'sessionsViewPane.moveChatDown',
+			MOVE_CHAT_TO_SESSION_ACTION_ID,
 			PROMOTE_CHAT_TO_SESSION_ACTION_ID,
 			RENAME_CHAT_COMMAND_ID,
 			'sessions.list.deleteChat',
@@ -356,7 +357,8 @@ suite('Sessions - Actions', () => {
 			{ id: ARCHIVE_CHAT_COMMAND_ID, group: '1_state', order: 2 },
 			{ id: 'sessionsViewPane.moveChatUp', group: '2_organize', order: 1 },
 			{ id: 'sessionsViewPane.moveChatDown', group: '2_organize', order: 2 },
-			{ id: PROMOTE_CHAT_TO_SESSION_ACTION_ID, group: '2_organize', order: 3 },
+			{ id: MOVE_CHAT_TO_SESSION_ACTION_ID, group: '2_organize', order: 3 },
+			{ id: PROMOTE_CHAT_TO_SESSION_ACTION_ID, group: '2_organize', order: 4 },
 			{ id: RENAME_CHAT_COMMAND_ID, group: '4_manage', order: 1 },
 			{ id: 'sessions.list.deleteChat', group: '4_manage', order: 2 },
 		]);
@@ -371,6 +373,7 @@ suite('Sessions - Actions', () => {
 			'sessionsViewPane.markAllNestedRead',
 			'sessionsViewPane.pinSession',
 			'sessionsViewPane.unpinSession',
+			MOVE_SESSION_INTO_SESSION_ACTION_ID,
 			RENAME_SESSION_COMMAND_ID,
 			'sessionsViewPane.deleteSession',
 		]);
@@ -393,6 +396,7 @@ suite('Sessions - Actions', () => {
 			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_state', order: 2 },
 			{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1 },
 			{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1 },
+			{ id: MOVE_SESSION_INTO_SESSION_ACTION_ID, group: '2_organize', order: 3 },
 			{ id: RENAME_SESSION_COMMAND_ID, group: '4_manage', order: 2 },
 			{ id: 'sessionsViewPane.deleteSession', group: '4_manage', order: 3 },
 		]);
