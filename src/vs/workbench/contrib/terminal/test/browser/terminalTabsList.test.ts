@@ -9,7 +9,7 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastDeepPartial } from '../../../../../base/test/common/mock.js';
@@ -162,7 +162,7 @@ suite('TerminalTabbedView', () => {
 		container.style.height = '0px';
 		view.layout(500, 200);
 		assert.strictEqual(list.renderHeight, 0);
-		const expanded = Event.toPromise(Event.filter(list.onDidScroll, e => e.heightChanged && e.height === 196), store);
+		const expanded = Event.toPromise(Event.filter(list.onDidScroll, e => e.heightChanged && e.height === 196), store.add(new DisposableStore()));
 		container.style.transition = 'height 80ms linear';
 		container.style.height = '200px';
 		await expanded;
