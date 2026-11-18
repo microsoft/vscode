@@ -69,7 +69,7 @@ function closeRemoved(removed: WorkspaceFolder[], remaining: WorkspaceFolder[], 
 		const onRemove = tracker.onDidChangeWorkspaceFolders({ added: [], removed }, containers, uri => roots[removed.findIndex(f => f.uri.toString() === uri.toString())], () => false);
 		const onLocations = tracker.onDidChangeWorkspaceFolderLocations([folder('C:\\Repo\\WT2', 0, ['C:\\Repo\\Primary', 'C:\\Repo\\WT1', 'C:\\Repo\\WT2', '\\\\server\\share\\wt3']), ...containers]);
 
-		assert.deepStrictEqual({ onRemove, onLocations }, { onRemove: { close: [], leave: [] }, onLocations: { close: [], leave: ['C:/repo/wt1', 'c:\\repo\\primary', '\\\\Server\\Share\\WT3\\'] } });
+		assert.deepStrictEqual({ onRemove, onLocations }, { onRemove: { close: [], leave: [], switched: false }, onLocations: { close: [], leave: ['C:/repo/wt1', 'c:\\repo\\primary', '\\\\Server\\Share\\WT3\\'] } });
 	});
 
 	test('leaves the repository of a nested worktree for its primary location, even with an editor of it visible', () => {
@@ -79,7 +79,7 @@ function closeRemoved(removed: WorkspaceFolder[], remaining: WorkspaceFolder[], 
 
 		const toLeave = tracker.onDidChangeWorkspaceFolders({ added: [primary], removed: [nested] }, [primary], () => 'C:\\Repo\\Primary\\.worktrees\\w1', () => true);
 
-		assert.deepStrictEqual(toLeave, { close: [], leave: ['C:\\Repo\\Primary\\.worktrees\\w1'] });
+		assert.deepStrictEqual(toLeave, { close: [], leave: ['C:\\Repo\\Primary\\.worktrees\\w1'], switched: true });
 	});
 
 	test('leaves the repository of a nested worktree that is left before the locations are known, once they are', () => {
@@ -89,7 +89,7 @@ function closeRemoved(removed: WorkspaceFolder[], remaining: WorkspaceFolder[], 
 		const onSwitch = tracker.onDidChangeWorkspaceFolders({ added: [primary], removed: [folder('C:\\Repo\\Primary\\.worktrees\\w1')] }, [primary], () => 'C:\\Repo\\Primary\\.worktrees\\w1', () => false);
 		const onLocations = tracker.onDidChangeWorkspaceFolderLocations([folder('c:\\repo\\primary', 0, ['C:/Repo/Primary', 'c:\\repo\\primary\\.WORKTREES\\w1\\'])]);
 
-		assert.deepStrictEqual({ onSwitch, onLocations }, { onSwitch: { close: [], leave: [] }, onLocations: { close: [], leave: ['C:\\Repo\\Primary\\.worktrees\\w1'] } });
+		assert.deepStrictEqual({ onSwitch, onLocations }, { onSwitch: { close: [], leave: [], switched: false }, onLocations: { close: [], leave: ['C:\\Repo\\Primary\\.worktrees\\w1'] } });
 	});
 
 	test('takes a warm repository by its root, ignoring drive letter and path casing and separators', () => {

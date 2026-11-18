@@ -480,7 +480,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private async onDidChangeWorkspaceFolders({ added, removed }: WorkspaceFoldersChangeEvent): Promise<void> {
 		try {
 			const activeRepositories = this.getVisibleEditorRepositories();
-			const { close, leave } = this.workspaceFolderRepositories.onDidChangeWorkspaceFolders(
+			const { close, leave, switched } = this.workspaceFolderRepositories.onDidChangeWorkspaceFolders(
 				{ added, removed },
 				workspace.workspaceFolders || [],
 				uri => this.getOpenRepository(uri),
@@ -496,7 +496,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			const possibleRepositoryFolders = this.workspaceFolderRepositories.getAddedFoldersToOpen(added, this.openRepositories.flatMap(r => [r.repository.root, r.repository.rootRealPath ?? r.repository.root]));
 			this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
 
-			if (leave.length === 0 && show.length === 0) {
+			if (!switched && leave.length === 0 && show.length === 0) {
 				await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
 				return;
 			}

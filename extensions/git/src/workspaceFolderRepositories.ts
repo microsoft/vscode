@@ -47,25 +47,32 @@ export class WorkspaceFolderRepositories<T> {
 
 	/**
 	 * Returns the repositories of the folders removed in `e` to close now and the ones of the locations
-	 * that the folders left, to keep warm. Retains the ones that a visible editor belongs to, unless
+	 * that the folders left, to keep warm, and whether a folder switched location, also when the repository
+	 * of the location it left is not open yet. Retains the ones that a visible editor belongs to, unless
 	 * their folder switched location.
 	 */
-	onDidChangeWorkspaceFolders(e: WorkspaceFoldersChangeEvent, workspaceFolders: readonly WorkspaceFolder[], getRepository: (folder: Uri) => T | undefined, hasVisibleEditor: (repository: T) => boolean, isShown: (repository: T) => boolean = () => true): { close: T[]; leave: T[] } {
+	onDidChangeWorkspaceFolders(e: WorkspaceFoldersChangeEvent, workspaceFolders: readonly WorkspaceFolder[], getRepository: (folder: Uri) => T | undefined, hasVisibleEditor: (repository: T) => boolean, isShown: (repository: T) => boolean = () => true): { close: T[]; leave: T[]; switched: boolean } {
 		this.forgetRepositoriesInWorkspace(workspaceFolders);
 
 		const close = new Set<T>();
 		const leave = new Set<T>();
+		let switched = false;
 		for (const folder of e.removed) {
 			// The location that is left is kept warm, also when it is nested in the new location, and its editors are replaced by the ones of the new location
 			const target = this.getFolderLocationSwitchTarget(folder, e.added);
 			const isSwitch = !!target;
+			switched ||= isSwitch;
 			const handedOver = [...this.handovers].filter(([, location]) => pathEquals(location, folder.uri.fsPath)).map(([r]) => r);
 			for (const repository of handedOver) {
 				if (target) {
 					this.handovers.set(repository, target.uri.fsPath);
-				} else {
-					// The folder is gone: the repositories shown in place of its location go with it
-					this.handovers.delete(repository);
+					continue;
+				}
+
+				// The folder is gone, or at a location that is not known as one of its own: a repository shown in place
+				// of its location stays open when it is one of the workspace, for example the folder is back at it
+				this.handovers.delete(repository);
+				if (!this.isInWorkspace(repository, workspaceFolders)) {
 					(hasVisibleEditor(repository) ? this.retained : close).add(repository);
 				}
 			}
@@ -95,7 +102,7 @@ export class WorkspaceFolderRepositories<T> {
 			}
 		}
 
-		return { close: [...close], leave: [...leave] };
+		return { close: [...close], leave: [...leave], switched };
 	}
 
 	/**
@@ -131,10 +138,14 @@ export class WorkspaceFolderRepositories<T> {
 	/**
 	 * Completes a switch of folders to other locations: returns the repositories among `candidates` and the handed
 	 * over ones to show, and the others to keep warm. The folders can have changed again meanwhile, so this follows
-	 * the current folders rather than the switch: a folder is at the deepest ready repository that contains it among
-	 * these and the `openRepositories` that are not kept warm. A repository is not ready while it is `pending` or
-	 * at one of the `pendingLocations`, still opening or awaiting its first status. A handed over repository stays
-	 * shown while the location its folder is at is pending, and is kept warm once it is not, unless it is current.
+	 * the current folders rather than the switch that completes:
+	 * - a location that a folder switched to is pending while its repository is opening or awaiting its first
+	 *   status (`pendingLocations`, `pending`), and ready after;
+	 * - a folder at a pending location is at no repository yet; the repository shown for the folder when it
+	 *   switched away is handed over to the location it is at now (see `onDidChangeWorkspaceFolders`) and stays shown;
+	 * - a folder at a ready location is at the deepest ready repository that contains it, among the candidates, the
+	 *   handed over ones and the `openRepositories` that are not kept warm; it is shown if it is one of the first two;
+	 * - a handover ends once the location it is to is ready: its repository is kept warm, unless it is current.
 	 */
 	completeSwitch(workspaceFolders: readonly WorkspaceFolder[], candidates: readonly T[], openRepositories: readonly T[], pending: readonly T[], pendingLocations: readonly string[]): { show: T[]; warm: T[] } {
 		const handovers = [...this.handovers].filter(([r]) => openRepositories.includes(r));
@@ -145,6 +156,10 @@ export class WorkspaceFolderRepositories<T> {
 
 		const show = new Set<T>();
 		for (const folder of workspaceFolders) {
+			// A folder at a pending location is at no repository yet: the repositories handed over to it stay shown
+			if (isPendingLocation(folder.uri.fsPath)) {
+				continue;
+			}
 			const current = repositories
 				.filter(r => isReady(r) && isDescendant(this.getRoot(r), folder.uri.fsPath))
 				.sort((a, b) => this.getRoot(b).length - this.getRoot(a).length)[0];
