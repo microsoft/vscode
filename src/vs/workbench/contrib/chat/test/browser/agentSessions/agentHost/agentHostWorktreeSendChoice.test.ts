@@ -182,7 +182,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			disposables.add(onboardingPresentationRegistry.register(disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService))));
+			disposables.add(onboardingPresentationRegistry.register(disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService))));
 		} else {
 			instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
 				runScenario: (id: string) => running ??= run(id).finally(() => { running = undefined; }),

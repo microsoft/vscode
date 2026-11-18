@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, CreateSessionOptions, SessionEvent, SessionEventPayload, SessionEventType } from '@microsoft/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -87,7 +87,7 @@ export class CopilotSessionWrapper extends Disposable {
 		readonly launchImageGenerationEnabled: boolean,
 		readonly launchImageGenerationWatermark: boolean,
 		/** The trust the SDK session was created with for its working directory; `undefined` for a resume or no grant. */
-		readonly launchWorkingDirectoryTrust: SessionConfig['trustWorkingDirectory'],
+		readonly launchWorkingDirectoryTrust: NonNullable<CreateSessionOptions['filesystem']>['trustWorkingDirectory'],
 		/** Whether the SDK session was created with session telemetry, which carries its restricted telemetry. */
 		readonly launchSessionTelemetryEnabled: boolean,
 		readonly launchMcpSkillsEnabled: boolean,
@@ -382,11 +382,6 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onToolUserRequested: Event<SessionEventPayload<'tool.user_requested'>> | undefined;
 	get onToolUserRequested(): Event<SessionEventPayload<'tool.user_requested'>> {
 		return this._onToolUserRequested ??= this._sdkEvent('tool.user_requested');
-	}
-
-	private _onToolPartialResult: Event<SessionEventPayload<'tool.execution_partial_result'>> | undefined;
-	get onToolPartialResult(): Event<SessionEventPayload<'tool.execution_partial_result'>> {
-		return this._onToolPartialResult ??= this._sdkEvent('tool.execution_partial_result');
 	}
 
 	private _onToolShellOutput: Event<SessionEventPayload<'tool.shell_output'>> | undefined;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { ElicitationResult, ElicitationSchema } from '@github/copilot-sdk';
+import type { ElicitationResult, ElicitationSchema } from '@microsoft/copilot-sdk';
 import { timeout } from '../../../../base/common/async.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';

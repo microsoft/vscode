@@ -6,7 +6,7 @@
 import { compactAutoModeResolved, compactContextAttribution, createLocalModelTurnExecutionMeta, isAiCreditsStatus, type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import type { ILocalTurnExecution } from '../../common/localModel.js';
 import type { ILocalModelDirectRequestWait } from './localModelBridge/localModelProvider.js';
-import type { AttributedPermissionResult, CopilotClient, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationHandlerResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, MessageSource, PermissionDecisionSource, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, CopilotClient, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationHandlerResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, MessageSource, PermissionDecisionSource, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, PermissionResult, CreateSessionOptions, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@microsoft/copilot-sdk';
 import { attributePermissionResult, isPermissionDeniedKind, permissionResultToConfirmKind } from './copilotPermissionAttribution.js';
 import { attributePromptResult } from './copilotPromptAttribution.js';
 import { McpSkillCacheWriter } from '../shared/mcpSkillCache.js';
@@ -178,7 +178,7 @@ import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../comm
 
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type GitHubCredentialsUpdateResult = Awaited<ReturnType<CopilotSession['rpc']['gitHubAuth']['setCredentials']>>;
-type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
+type McpAuthHandler = NonNullable<NonNullable<CreateSessionOptions['mcp']>['onAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
 type McpAuthResult = Awaited<ReturnType<McpAuthHandler>>;
 type UserMcpServers = Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers'];
@@ -445,10 +445,10 @@ function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image'
 	return 'Tool produced the attached file';
 }
 
-type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
+type UserInputHandler = NonNullable<NonNullable<CreateSessionOptions['interaction']>['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
 type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
-type ShellAuthenticationHandler = NonNullable<SessionConfig['onShellAuthenticationRequest']>;
+type ShellAuthenticationHandler = NonNullable<NonNullable<CreateSessionOptions['interaction']>['onShellAuthenticationRequest']>;
 type ShellAuthenticationRequest = Parameters<ShellAuthenticationHandler>[0];
 type ShellAuthenticationInvocation = Parameters<ShellAuthenticationHandler>[1];
 type ShellAuthenticationResponse = Awaited<ReturnType<ShellAuthenticationHandler>>;
@@ -8242,7 +8242,7 @@ export class CopilotAgentSession extends Disposable {
 		return this._appliedModelSelection;
 	}
 
-	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: NonNullable<SessionConfig['capi']>['autoTier'] | null, requested?: ModelSelection): Promise<void> {
+	async setModel(model: string, reasoningEffort?: NonNullable<CreateSessionOptions['inference']>['reasoningEffort'], contextTier?: NonNullable<CreateSessionOptions['inference']>['contextTier'], autoTier?: NonNullable<NonNullable<CreateSessionOptions['github']>['capi']>['autoTier'] | null, requested?: ModelSelection): Promise<void> {
 		// The runtime rejects a BYOK model that is not registered on the session.
 		try {
 			await this.syncByokModels();
@@ -8255,7 +8255,11 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
 		try {
 			if (isAutoModel(model) && contextTier === 'default') {
-				const result = await this._awaitControlPlaneRpc('session.options.update', this._wrapper.session.rpc.options.update({ contextTier }));
+				const result = await this._awaitControlPlaneRpc('session.options.update', this._wrapper.session.rpc.options.update({
+					inference: {
+						contextTier: contextTier,
+					},
+				}));
 				if (!result.success) {
 					throw new Error('The runtime did not reset the context tier.');
 				}
@@ -9495,7 +9499,11 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const imageGeneration = { enabled, watermark };
-			const result = await this._awaitControlPlaneRpc('image generation settings', this._wrapper.session.rpc.options.update({ imageGeneration }));
+			const result = await this._awaitControlPlaneRpc('image generation settings', this._wrapper.session.rpc.options.update({
+				tools: {
+					imageGeneration: imageGeneration,
+				},
+			}));
 			if (!result.success) {
 				throw new Error('The runtime did not apply the image generation setting.');
 			}
@@ -9669,7 +9677,11 @@ export class CopilotAgentSession extends Disposable {
 			// Auto's service-provided tiers can route to HydraFusion, which needs SDK experimental mode.
 			const experimentalModeEnabled = true;
 			if (this._experimentalModeEnabled !== experimentalModeEnabled) {
-				const experimentalResult = await measureAgentProviderOperation(recorder, 'permissionOptions', () => this._wrapper.session.rpc.options.update({ isExperimentalMode: experimentalModeEnabled }));
+				const experimentalResult = await measureAgentProviderOperation(recorder, 'permissionOptions', () => this._wrapper.session.rpc.options.update({
+					experiments: {
+						enableExperimentalMode: experimentalModeEnabled,
+					},
+				}));
 				if (!experimentalResult.success) {
 					throw new Error('Copilot SDK rejected experimental mode required by the current session configuration');
 				}
@@ -9825,7 +9837,11 @@ export class CopilotAgentSession extends Disposable {
 					if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
 						return;
 					}
-					const result = await measureAgentProviderOperation(recorder, 'shellRpc', () => this._wrapper.session.rpc.options.update({ shell: { initScripts: [] } }));
+					const result = await measureAgentProviderOperation(recorder, 'shellRpc', () => this._wrapper.session.rpc.options.update({
+						tools: {
+							shell: { initScripts: [] },
+						},
+					}));
 					if (!result.success) {
 						throw new Error('Copilot SDK rejected shell init script update');
 					}
@@ -9849,7 +9865,11 @@ export class CopilotAgentSession extends Disposable {
 				if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
 					return;
 				}
-				const result = await measureAgentProviderOperation(recorder, 'shellRpc', () => this._wrapper.session.rpc.options.update({ shell: { initScripts: [ref] } }));
+				const result = await measureAgentProviderOperation(recorder, 'shellRpc', () => this._wrapper.session.rpc.options.update({
+					tools: {
+						shell: { initScripts: [ref] },
+					},
+				}));
 				if (!result.success) {
 					throw new Error('Copilot SDK rejected shell init script update');
 				}
@@ -12468,12 +12488,8 @@ export class CopilotAgentSession extends Disposable {
 			// needs only the subagent's own running component total emitted to its
 			// child session (via `parentToolCallId`) for the subagent tool to show
 			// its own cost.
-			const mappedParentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			const parentToolCallId = mappedParentToolCallId ?? e.data.parentToolCallId;
+			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			const isUnmappedSubagent = !!e.agentId && !parentToolCallId;
-			if (!mappedParentToolCallId && e.data.parentToolCallId && this._currentTurn.value) {
-				this._subagents.observeRootTurn(e.data.parentToolCallId, this._currentTurn.value.id);
-			}
 			if (isUnmappedSubagent) {
 				this._logService.warn(`[Copilot:${sessionId}] Unable to attribute direct assistant.usage for unknown subagent agentId=${e.agentId}; retaining inclusive root usage`);
 			}
@@ -14639,11 +14655,6 @@ export class CopilotAgentSession extends Disposable {
 				}, tracked.parentToolCallId);
 			}
 		};
-
-		store.add(wrapper.onToolPartialResult(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Tool partial result: ${e.data.toolCallId} (${e.data.partialOutput.length} chars)`);
-			appendShellOutput(e.data.toolCallId, () => this._nonPtyShellTerminals.append(e.data.toolCallId, e.data.partialOutput));
-		}));
 
 		store.add(wrapper.onToolShellOutput(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool shell output: ${e.data.toolCallId} #${e.data.sequence} (${e.data.text.length} chars)`);
