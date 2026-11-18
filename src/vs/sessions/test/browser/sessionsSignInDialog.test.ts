@@ -85,6 +85,7 @@ suite('Sessions - Sign-In Dialog', () => {
 			const backgroundBlocked = {
 				focus: progress.contains(dom.getActiveElement()),
 				pointer: !background.contains(mainWindow.document.elementFromPoint(backgroundBounds.x + backgroundBounds.width / 2, backgroundBounds.y + backgroundBounds.height / 2)),
+				keyup: !background.dispatchEvent(new mainWindow.KeyboardEvent('keyup', { key: ' ', keyCode: 32, bubbles: true, cancelable: true })),
 			};
 
 			const closed = showMobileDialogSheet(layoutService, {
@@ -101,6 +102,7 @@ suite('Sessions - Sign-In Dialog', () => {
 			buttons[1].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
 			const tabWraps = dom.getActiveElement() === first;
 			first.focus();
+			const keyupAllowed = first.dispatchEvent(new mainWindow.KeyboardEvent('keyup', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
 			first.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true }));
 			const reverseTabWraps = dom.getActiveElement() === buttons[1];
 
@@ -114,10 +116,10 @@ suite('Sessions - Sign-In Dialog', () => {
 			const result = await closed;
 
 			assert.deepStrictEqual({
-				backgroundBlocked, initialFocus, tabWraps, reverseTabWraps, hitTargets,
+				backgroundBlocked, initialFocus, tabWraps, reverseTabWraps, keyupAllowed, hitTargets,
 				result, progressCancelled, focusRestored: progress.contains(dom.getActiveElement()),
 			}, {
-				backgroundBlocked: { focus: true, pointer: true }, initialFocus: true, tabWraps: true, reverseTabWraps: true, hitTargets: [true, true],
+				backgroundBlocked: { focus: true, pointer: true, keyup: true }, initialFocus: true, tabWraps: true, reverseTabWraps: true, keyupAllowed: true, hitTargets: [true, true],
 				result: { button: chosenButton, checkboxChecked: undefined }, progressCancelled: 0, focusRestored: true,
 			});
 		});
