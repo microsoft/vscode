@@ -104,7 +104,9 @@ suite('Artifact Integration Protocol', () => {
 			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [{ ...change, details: [1] }], enabledRules } }),
 			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [change, change], enabledRules } }),
 			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [change], enabledRules: [{ integrationId: 'other', labels: [] }] } }),
-		], [true, false, false, false, true, false, false, false, false, false, false, false]);
+			isArtifactIntegrationRequest({ ...request, notice: { kind: 'status', content: 'Removed from the merge queue.' } }),
+			isArtifactIntegrationRequest({ ...request, notice: { kind: 'status', content: 'Removed from the merge queue.', changes: [change], enabledRules } }),
+		], [true, false, false, false, true, false, false, false, false, false, false, false, true, false]);
 	});
 
 	test('an update arriving before the acquire response is not overwritten by the older response', async () => {

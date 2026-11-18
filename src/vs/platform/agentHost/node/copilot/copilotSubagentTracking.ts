@@ -132,6 +132,12 @@ export class CopilotSubagentTracking extends Disposable {
 		return this._toolCallsByAgent.get(agentId);
 	}
 
+	seedToolCallId(agentId: string, toolCallId: string): void {
+		if (!this._toolCallsByAgent.has(agentId)) {
+			this._toolCallsByAgent.set(agentId, toolCallId);
+		}
+	}
+
 	getAgentId(toolCallId: string): string | undefined {
 		for (const [agentId, candidate] of this._toolCallsByAgent) {
 			if (candidate === toolCallId) {

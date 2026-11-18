@@ -34,7 +34,7 @@ import { ICustomViewService } from '../../../../../workbench/contrib/sessions/br
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionGroup } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
@@ -214,6 +214,36 @@ suite('Sessions list context menus', () => {
 		}
 	});
 
+	test('the menu of a session, also from the keyboard, does not reach a context menu of the view the list is in; one of empty space does', () => {
+		const { container, contextMenuService } = createList(false, true);
+		const reachedView: string[] = [];
+		const onViewContextMenu = (e: MouseEvent) => reachedView.push((e.target as HTMLElement).classList.contains('session-item') ? 'session' : 'empty');
+		container.addEventListener('contextmenu', onViewContextMenu);
+		const shown = () => {
+			const ids = contextMenuService.delegate?.getActions().map(action => action.id) ?? [];
+			contextMenuService.delegate?.onHide?.(false);
+			contextMenuService.delegate = undefined;
+			return ids;
+		};
+		const sessionRow = container.querySelector<HTMLElement>('.session-item')!;
+
+		dispatchContextMenu(sessionRow);
+		const session = shown();
+		selectRow(sessionRow);
+		const tree = container.querySelector<HTMLElement>('.monaco-list')!;
+		tree.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'F10', keyCode: 121, shiftKey: true }));
+		tree.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'F10', keyCode: 121, shiftKey: true }));
+		const keyboard = shown();
+		dispatchContextMenu(container.querySelector<HTMLElement>('.monaco-list-rows')!);
+		container.removeEventListener('contextmenu', onViewContextMenu);
+
+		assert.deepStrictEqual({ session, keyboard, reachedView }, {
+			session: ['extension.action', 'vs.actions.separator', 'sessions.addToGroupSubmenu', 'sessions.createGroup'],
+			keyboard: ['extension.action', 'vs.actions.separator', 'sessions.addToGroupSubmenu', 'sessions.createGroup'],
+			reachedView: ['empty'],
+		});
+	});
+
 	test('inbox does not offer unsupported group creation in empty space or category menus', () => {
 		const { container, contextMenuService } = createList(false, false, SessionsGrouping.Inbox);
 		dispatchContextMenu(container.querySelector<HTMLElement>('.monaco-list-rows')!);
@@ -224,6 +254,60 @@ suite('Sessions list context menus', () => {
 	});
 
 	for (const surface of ['context menu', 'toolbar'] as const) {
+		test(`Inbox only acknowledges the explicit Acknowledge action from the ${surface}`, async () => {
+			const sessions = [createTestSession('First').session, createTestSession('Second', { createdAt: new Date(1) }).session];
+			const harness = createListHarness(disposables, sessions);
+			const { instantiationService, store } = harness;
+			const model = store.add(instantiationService.createInstance(SessionsListModelService));
+			instantiationService.stub(ISessionsListModelService, model);
+			const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			SessionsViewGroupingContext.bindTo(contextKeyService).set(SessionsGrouping.Inbox);
+			instantiationService.stub(IContextKeyService, contextKeyService);
+			instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+			const contextMenuService = new TestContextMenuService();
+			instantiationService.stub(IContextMenuService, contextMenuService);
+			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ getViewWithId: () => null }));
+			const actionId = 'test.sessionAction';
+			store.add(MenuRegistry.appendMenuItem(surface === 'toolbar' ? Menus.SessionItemToolbar : Menus.SessionItemContextMenu, {
+				command: { id: actionId, title: 'Test Session Action', icon: Codicon.edit },
+				group: surface === 'toolbar' ? 'navigation' : '1_state',
+			}));
+			const invoked: string[][] = [];
+			instantiationService.stub(ICommandService, 'executeCommand', async (id: string, targets: ISession[]) => {
+				if (id === actionId) {
+					invoked.push(targets.map(session => session.sessionId));
+				} else {
+					await CommandsRegistry.getCommand(id)!.handler(instantiationService, targets);
+				}
+			});
+			const list = store.add(instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			list.setSelectedItems(sessions.map(session => ({ session: session.resource })));
+			await timeout(100);
+			const run = async (id: string, label: string) => {
+				const row = list.getItemRow({ session: sessions[0].resource })!;
+				if (surface === 'context menu') {
+					dispatchContextMenu(row);
+					const delegate = contextMenuService.delegate!;
+					const action = delegate.getActions().find(action => action.id === id)!;
+					await delegate.actionRunner!.run(action, delegate.getActionsContext?.());
+					delegate.onHide?.(false);
+				} else {
+					row.querySelector<HTMLElement>(`.session-title-toolbar [aria-label^="${label}"]`)!.click();
+					await timeout(0);
+				}
+			};
+			await run(actionId, 'Test Session Action');
+			const afterOtherAction = sessions.map(session => model.getInboxState(session)?.kind);
+			await run(ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, 'Acknowledge');
+			assert.deepStrictEqual({ invoked, afterOtherAction, acknowledged: sessions.map(session => model.getInboxState(session)?.kind) }, {
+				invoked: [sessions.map(session => session.sessionId)], afterOtherAction: [undefined, undefined], acknowledged: ['done', 'done'],
+			});
+		});
+
 		test(`Inbox pin and unpin preserve triage state from the ${surface}`, async () => {
 			const sessions = [createTestSession('First').session, createTestSession('Second', { createdAt: new Date(1) }).session];
 			const harness = createListHarness(disposables, sessions);

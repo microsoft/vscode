@@ -14,7 +14,7 @@
 
 /* Apply optical centering to toolbar content, not the window-control hit targets. */
 .agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > .titlebar-center,
-.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > :is(.titlebar-left, .titlebar-right) > :is(.left-toolbar-container, .titlebar-actions-container) {
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > :is(.titlebar-left, .titlebar-right) > :is(.menubar, .left-toolbar-container, .titlebar-actions-container) {
 	box-sizing: border-box;
 	padding-top: var(--vscode-spacing-size20);
 }
@@ -256,6 +256,55 @@
 /* Spacing between the left toolbar's actions. */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .actions-container {
 	gap: 4px;
+}
+
+/* Application menu: the first entry of the left toolbar, shaped like its actions. */
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact {
+	box-sizing: border-box;
+	width: auto;
+	min-width: 0;
+	margin-left: var(--vscode-spacing-size80);
+	align-items: center;
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact + .left-toolbar-container {
+	padding-left: var(--vscode-spacing-size40);
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button {
+	width: auto;
+	height: auto;
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button > .menubar-menu-title {
+	width: auto;
+	height: auto;
+	/* Like the toolbar's action labels: a 16px icon in a 22px target. */
+	padding: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-icon-foreground);
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact:not(:focus-within) > .menubar-menu-button:hover > .menubar-menu-title {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button.open > .menubar-menu-title {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+/* The shared title bar rule highlights the whole button while it is open or focused; the title shows the state instead. */
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button:is(.open, :focus) {
+	background-color: transparent;
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button:is(:hover, :focus, .open) > .menubar-menu-title {
+	/* The shared compact menu insets its outlines for the activity bar's larger entries; trace this smaller target instead. */
+	outline-offset: -1px !important;
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button:focus-visible > .menubar-menu-title {
+	outline: 1px solid var(--vscode-focusBorder) !important;
 }
 
 /* Remove the titlebar shadow in agent sessions */

@@ -182,7 +182,7 @@ export namespace ChatContextKeys {
 	/** Whether a chat widget shows a session chat, as the Agents window does, in whatever window: it then behaves as there. */
 	export const inSessionsChat = new RawContextKey<boolean>('chatInSessionsChat', false, { type: 'boolean', description: localize('chatInSessionsChat', "True when the chat widget shows a session chat, as the Agents Window does.") });
 	/** Whether an editor window shows the Sessions view, whose chat part replaces the Chat view: it is set as the window starts. */
-	export const agentsViewActive = new RawContextKey<boolean>('chatAgentsViewActive', false, { type: 'boolean', description: localize('chatAgentsViewActive', "True when the window shows the Agents view, whose chat part replaces the Chat view.") });
+	export const agentsViewActive = new RawContextKey<boolean>('chatAgentsViewActive', false, { type: 'boolean', description: localize('chatAgentsViewActive', "True when the window shows the Agents view, whose chat area replaces the Chat view.") });
 	export const hasCreatedSessionInAgentsWindow = new RawContextKey<boolean>('chatHasCreatedSessionInAgentsWindow', false, { type: 'boolean', description: localize('chatHasCreatedSessionInAgentsWindow', "True when the user has created at least one session in the Agents Window.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
 	export const isAgentSessionChild = new RawContextKey<boolean>('agentSessionIsChild', false, { type: 'boolean', description: localize('agentSessionIsChild', "True when the current agent session item is a child chat.") });

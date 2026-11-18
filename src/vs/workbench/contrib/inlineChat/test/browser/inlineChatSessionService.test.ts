@@ -80,6 +80,7 @@ import { continueInPanelChat, IInlineChatSession, IInlineChatSessionService } fr
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { IInlineChatSessionResolver, IInlineChatSessionResolution } from '../../browser/inlineChatSessionResolver.js';
 import { TestWorkerService } from './testWorkerService.js';
+import { ILocalChatAvailabilityService } from '../../../chat/common/localChatAvailability.js';
 
 const agentHostContribution: ResolvedChatSessionsExtensionPoint = {
 	type: SessionType.AgentHostCopilot,
@@ -403,7 +404,7 @@ suite('InlineChatSessionService', () => {
 suite('Inline Chat panel handoff', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHandoff(options: { sourceType?: string; modelTarget?: string } = {}) {
+	function createHandoff(options: { sourceType?: string; modelTarget?: string; settings?: Record<string, boolean>; localHidden?: boolean } = {}) {
 		const services = store.add(new TestInstantiationService());
 		const storage = store.add(new TestStorageService());
 		const disposedEditing = store.add(new Emitter<void>());
@@ -468,11 +469,13 @@ suite('Inline Chat panel handoff', () => {
 		services.stub(IConfigurationService, new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
 			[ChatConfiguration.EditorPreferCopilotHarness]: true,
+			...options.settings,
 		}));
 		services.stub(IChatSessionsService, { getChatSessionContribution: () => undefined, getAllChatSessionContributions: () => [] });
 		services.stub(IStorageService, storage);
 		services.stub(IWorkspaceContextService, new TestContextService());
 		services.stub(IAgentHostEnablementService, { enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
+		services.stub(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(options.localHidden ?? false) }));
 		services.stub(IManagedSettingsService, new NullManagedSettingsService());
 		services.stub(IAccountPolicyGateService, { gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
 		const session: IInlineChatSession = new class extends mock<IInlineChatSession>() {
@@ -559,6 +562,23 @@ suite('Inline Chat panel handoff', () => {
 			sent: fixture.sent,
 			disposed: fixture.disposed(),
 		}, { local: [], opened: [], sent: [], disposed: { source: false, target: false } });
+	});
+
+	test('while Local chats are hidden, no other agent available reports failure instead of falling back to Local; otherwise Local is the fallback', async () => {
+		const settings = { [ChatConfiguration.DefaultToCopilotHarness]: false, [ChatConfiguration.EditorPreferCopilotHarness]: false, [ChatConfiguration.EditorLocalAgentEnabled]: false };
+		const hidden = createHandoff({ settings, localHidden: true });
+		hidden.setAcquisition(async () => undefined);
+		await assert.rejects(continueInPanelChat(hidden.services, hidden.session), /Could not start the selected chat session/);
+		const shown = createHandoff({ settings });
+		await continueInPanelChat(shown.services, shown.session);
+
+		assert.deepStrictEqual({
+			hidden: { acquired: hidden.acquired.map(({ type }) => type), local: hidden.localReasons.length, opened: hidden.opened.length },
+			shown: { acquired: shown.acquired.map(({ type }) => type), local: shown.localReasons.length },
+		}, {
+			hidden: { acquired: [SessionType.AgentHostCopilot], local: 0, opened: 0 },
+			shown: { acquired: [], local: 1 },
+		});
 	});
 
 	test('disposing inline chat during acquisition releases the target without sending', async () => {

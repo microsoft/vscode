@@ -311,15 +311,23 @@ suite('CloudSandboxAgentHostService', () => {
 		const options = spy.getCalls().find(call => call.args[0] === AgentHostProtocolClient)?.args[3] as IAgentHostProtocolClientOptions;
 		assert.ok(options.prepareReconnect);
 		await options.prepareReconnect();
+		const makeTransport = spy.getCalls().find(call => call.args[0] === AgentHostProtocolClient)?.args[2] as () => IProtocolTransport;
+		store.add(makeTransport());
+		const transportOptions = spy.getCalls().find(call => call.args[0] === WebPubSubRelayTransport)?.args[1] as IWebPubSubRelayTransportOptions;
+		fixture.setState('reconnecting');
+		transportOptions.onHandshakeProgress?.('reconnect', 'waiting');
+		transportOptions.onHandshakeProgress?.('reconnect', 'responseReceived');
+		fixture.setState('connected');
 		created.transportDisposable.dispose();
 		fixture.service.dispose();
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(entry => [entry.method, entry.request.environmentId, entry.request.sessionId, entry.request.environmentKind]),
 			lifecycle: fixture.lifecycleEvents,
 			userLocalOutcome: fixture.events.filter(event => event.eventName === 'userLocalRelayConnectionOutcome').map(event => event.data?.outcome),
+			recoveryHandshake: fixture.events.find(event => event.data?.operation === 'recover')?.data?.lastHandshakeState,
 		}, {
 			requests: [['connect', environmentId, sessionId, 'user-local'], ['reconnect', environmentId, sessionId, 'user-local']],
-			lifecycle: [], userLocalOutcome: ['success'],
+			lifecycle: [], userLocalOutcome: ['success', 'success'], recoveryHandshake: 'responseReceived',
 		});
 	}));
 

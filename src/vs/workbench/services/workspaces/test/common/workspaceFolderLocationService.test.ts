@@ -61,6 +61,35 @@ suite('WorkspaceFolderLocationService', () => {
 		assert.deepStrictEqual({ labels: actual.map(l => l.label), reported }, { labels: ['A', 'B'], reported: ['fail'] });
 	});
 
+	test('getLocationGroups groups the locations by provider under its label, dedupes across providers and leaves out providers with none', async () => {
+		const service = disposables.add(createService());
+		disposables.add(service.registerProvider({ ...provider('x', [{ uri: a, label: 'A' }]), label: 'Worktrees' }));
+		disposables.add(service.registerProvider(provider('y', [{ uri: a, label: 'A' }, { uri: b, label: 'B' }])));
+		disposables.add(service.registerProvider({ ...provider('z', []), label: 'Empty' }));
+
+		const groups = await service.getLocationGroups(primary, CancellationToken.None);
+		const resolved = await service.resolveLocation(primary, a, CancellationToken.None);
+
+		assert.deepStrictEqual({ groups: groups.map(group => ({ label: group.label, locations: group.locations.map(l => l.label) })), resolvedGroup: resolved?.group }, {
+			groups: [{ label: 'Worktrees', locations: ['A'] }, { label: undefined, locations: ['B'] }],
+			resolvedGroup: 'Worktrees',
+		});
+	});
+
+	test('relays a change of the locations that a provider knows while it is registered', () => {
+		const service = disposables.add(createService());
+		const onDidChangeLocations = disposables.add(new Emitter<void>());
+		const provider: IWorkspaceFolderLocationProvider = { id: 'changing', provideLocations: async () => [], resolveLocation: async () => undefined, onDidChangeLocations: onDidChangeLocations.event };
+		let changes = 0;
+		disposables.add(service.onDidChangeLocations(() => changes++));
+		const registration = service.registerProvider(provider);
+		onDidChangeLocations.fire();
+		registration.dispose();
+		onDidChangeLocations.fire();
+
+		assert.strictEqual(changes, 1);
+	});
+
 	test('resolveLocation reports provider and built-in flag', async () => {
 		const service = disposables.add(createService());
 		const registration = disposables.add(service.registerProvider(provider('x', [{ uri: a, label: 'A' }]), { builtIn: true }));
@@ -91,6 +120,53 @@ suite('WorkspaceFolderLocationService', () => {
 		assert.deepStrictEqual({ events, set, cleared: service.getLocation(workspace.folders[0]) }, { events: ['/a:user', '/a:programmatic'], set: location, cleared: undefined });
 	});
 
+	test('the known locations do not depend on the location the folder is at', async () => {
+		const worktree = URI.file('/work/wt1');
+		const repo = URI.file('/work/repo');
+		const context = new TestContextService(new Workspace('id', [folder(repo)], false, null, () => false));
+		const labelService = new class extends mock<ILabelService>() {
+			override registerWorkspaceLabelDecorator() { return toDisposable(() => { }); }
+		}();
+		const service = disposables.add(new WorkspaceFolderLocationService(disposables.add(new UriIdentityService(disposables.add(new FileService(new NullLogService())))), context, labelService));
+		disposables.add(service.registerProvider(provider('x', [{ uri: worktree, label: 'wt1' }])));
+		let changes = 0;
+		disposables.add(service.onDidChangeLocations(() => changes++));
+		const read = () => service.getFolderLocations(context.getWorkspace().folders[0], CancellationToken.None);
+
+		const atPrimary = await read();
+		context.setWorkspace(new Workspace('id', [folder(worktree)], false, null, () => false, undefined, repo));
+		service.setLocation(context.getWorkspace().folders[0], { uri: worktree, label: 'wt1', providerId: 'x', builtIn: false }, 'user');
+		const atAlternate = await read();
+		context.setWorkspace(new Workspace('id', [folder(repo)], false, null, () => false));
+		service.setLocation(context.getWorkspace().folders[0], undefined, 'user');
+		const switchedBack = await read();
+
+		assert.deepStrictEqual({ atAlternate, switchedBack, changes }, { atAlternate: atPrimary, switchedBack: atPrimary, changes: 0 });
+		assert.deepStrictEqual(atPrimary.map(l => [l.uri.path, l.label]), [['/work/repo', 'repo'], ['/work/wt1', 'wt1']]);
+	});
+
+	test('the primary is labelled and deduplicated for Windows drive and UNC locations', async () => {
+		const file = (authority: string, path: string) => URI.from({ scheme: 'file', authority, path });
+		const worktree = file('', '/C:/work/wt1');
+		const cases = [
+			{ primary: file('', '/C:/work/repo'), label: 'repo', variants: [file('', '/c:/work/repo'), file('', '/C:/work/repo/')] },
+			{ primary: file('server', '/share/'), label: 'share', variants: [file('server', '/share')] },
+			{ primary: file('server', '/'), label: 'server', variants: [] }
+		];
+		const actual = [];
+		for (const { primary, variants } of cases) {
+			const service = disposables.add(createService(new Workspace('id', [folder(primary)], false, null, () => false)));
+			disposables.add(service.registerProvider(provider('x', [...variants.map(uri => ({ uri, label: 'variant' })), { uri: worktree, label: 'wt1' }])));
+			actual.push((await service.getFolderLocations(folder(primary), CancellationToken.None)).map(l => [l.uri.path, l.label]));
+		}
+
+		assert.deepStrictEqual(actual, [
+			[['/C:/work/repo', 'repo'], ['/C:/work/wt1', 'wt1']],
+			[['/share/', 'share'], ['/C:/work/wt1', 'wt1']],
+			[['/', 'server'], ['/C:/work/wt1', 'wt1']]
+		]);
+	});
+
 	test('folder identity and alternate location checks', () => {
 		const check = (workspace: Workspace) => disposables.add(createService(workspace)).isAtAlternateLocation(workspace.folders[0]);
 
@@ -112,13 +188,14 @@ suite('WorkspaceFolderLocationService', () => {
 		const before = decorator.getFolderLocationLabel(a);
 
 		service.setLocation(workspace.folders[0], { uri: a, label: 'A', description: 'x', providerId: 'x', builtIn: false });
+		const withDescription = decorator.getFolderLocationLabel(a);
 		const changed: string[] = [];
 		disposables.add(decorator.onDidChange(uri => changed.push(uri.path)));
 		service.setLocation(workspace.folders[0], { uri: a, label: 'A', providerId: 'x', builtIn: false });
 
 		assert.deepStrictEqual(
-			{ before, current: decorator.getFolderLocationLabel(a), byIdentity: decorator.getFolderLocationLabel(primary), other: decorator.getFolderLocationLabel(b), changed },
-			{ before: undefined, current: 'A', byIdentity: 'A', other: undefined, changed: ['/a'] });
+			{ before, withDescription, current: decorator.getFolderLocationLabel(a), byIdentity: decorator.getFolderLocationLabel(primary), other: decorator.getFolderLocationLabel(b), changed },
+			{ before: undefined, withDescription: 'A', current: 'A', byIdentity: 'A', other: undefined, changed: ['/a'] });
 	});
 
 	test('canSetLocation is true only for the folder of a local single-folder workspace', () => {

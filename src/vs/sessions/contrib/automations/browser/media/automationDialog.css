@@ -930,56 +930,9 @@
 	margin-bottom: 0;
 }
 
-.automation-form-duration-row > .automation-form-duration-input {
-	display: flex;
-	align-items: center;
-	flex: 0 1 80px;
+.automation-form-duration-row > .monaco-button {
+	width: auto;
 	min-width: 0;
-}
-
-.automation-form-duration-input > .ibwrapper {
-	flex: 1;
-	min-width: 0;
-}
-
-.automation-form-duration-row .automation-form-duration-input > .monaco-action-bar {
-	position: static;
-	height: auto;
-	margin-right: var(--vscode-spacing-size20);
-}
-
-.automation-dialog .automation-form-duration-input .monaco-action-bar .actions-container {
-	display: flex;
-	flex-direction: column;
-	padding-inline-start: 0;
-}
-
-.automation-form-duration-input .monaco-action-bar .action-item .codicon {
-	width: var(--vscode-codiconFontSize-compact);
-	height: var(--vscode-codiconFontSize-compact);
-	font-size: var(--vscode-codiconFontSize-compact);
-	padding: 0 var(--vscode-spacing-size40);
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.automation-form-duration-input input[type="number"] {
-	appearance: textfield;
-}
-
-.automation-form-duration-input input[type="number"]::-webkit-inner-spin-button,
-.automation-form-duration-input input[type="number"]::-webkit-outer-spin-button {
-	appearance: none;
-	margin: 0;
-}
-
-.automation-form-duration-unit > .monaco-select-box {
-	height: 26px;
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size240) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
-}
-
-.automation-form-duration-hint {
-	display: block;
-	margin-top: var(--vscode-spacing-size80);
 }
 
 /*

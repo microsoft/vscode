@@ -44,6 +44,18 @@
 	flex: 0 0 auto;
 }
 
+/* A header spanning the docked detail panel separates both from the content below, matching the split border. */
+.agent-sessions-workbench.dock-detail-panel .part.editor .title.header-spans-content-inset > .editor-group-header::after {
+	content: '';
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-agentsPanel-border);
+	pointer-events: none;
+}
+
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container.editor-tabs-compact-height .title > .editor-group-header {
 	min-height: var(--vscode-spacing-size280);
 }

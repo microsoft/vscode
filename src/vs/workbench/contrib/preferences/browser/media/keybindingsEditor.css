@@ -143,26 +143,6 @@
 	padding-left: 10px;
 }
 
-/** System-wide column styling **/
-
-.keybindings-editor .system-wide-header {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-}
-
-.keybindings-editor .system-wide {
-	padding-left: 4px;
-}
-
-.keybindings-editor .system-wide-info {
-	color: var(--vscode-descriptionForeground);
-}
-
-.keybindings-editor .system-wide-info .monaco-action-bar .action-item {
-	margin-right: 0;
-}
-
 /** When column styling **/
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when {

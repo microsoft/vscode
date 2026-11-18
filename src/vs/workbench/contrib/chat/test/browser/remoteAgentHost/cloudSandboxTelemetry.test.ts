@@ -909,6 +909,84 @@ suite('cloudSandbox telemetry', () => {
 		});
 	}));
 
+	test('user-local recovery preserves the initiating close and reports the latest handshake across retries', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		const connection = store.add(service.trackConnection('connection', 'agentsDesktop', 'existing', { environmentKind: 'user-local' }));
+		const diagnostic = (event: Omit<IConnectionDiagnosticEvent, 'operationId' | 'timestamp'>) => connection.recordConnectionDiagnostic({
+			operationId: 'private-operation', timestamp: Date.now(), detail: 'private diagnostic text', ...event,
+		});
+		connection.onConnectionStateChange('connected');
+		diagnostic({ phase: 'transport.closed', outcome: 'info', closeReason: 'watchdog' });
+		connection.onConnectionStateChange('reconnecting');
+		diagnostic({ phase: 'protocol.reconnect', outcome: 'started' });
+		diagnostic({ phase: 'protocol.handshake', outcome: 'info', handshakeMethod: 'reconnect', handshakeState: 'waiting' });
+		diagnostic({ phase: 'protocol.handshake', outcome: 'info', handshakeMethod: 'reconnect', handshakeState: 'otherMessagesReceived' });
+		await timeout(25);
+		diagnostic({ phase: 'transport.closed', outcome: 'info', closeReason: 'hostLaneClosed' });
+		diagnostic({ phase: 'protocol.reconnect', outcome: 'failed' });
+		await timeout(5);
+		diagnostic({ phase: 'protocol.reconnect', outcome: 'started' });
+		diagnostic({ phase: 'protocol.handshake', outcome: 'info', handshakeMethod: 'reconnect', handshakeState: 'waiting' });
+		diagnostic({ phase: 'protocol.handshake', outcome: 'info', handshakeMethod: 'reconnect', handshakeState: 'responseReceived' });
+		diagnostic({ phase: 'protocol.handshake', outcome: 'info', handshakeMethod: 'initialize', handshakeState: 'waiting' });
+		diagnostic({ phase: 'protocol.handshake', outcome: 'info', handshakeMethod: 'initialize', handshakeState: 'chunksReceived' });
+		await timeout(10);
+		diagnostic({ phase: 'transport.closed', outcome: 'info', closeReason: 'hostHandshakeTimeout' });
+		diagnostic({ phase: 'reconnect.timedOut', outcome: 'info' });
+		connection.onConnectionStateChange('failed');
+		service.dispose();
+		assert.deepStrictEqual({
+			outcomes: telemetry.events.filter(event => event.eventName === 'userLocalRelayConnectionOutcome').map(event => ({
+				operation: event.data?.operation, outcome: event.data?.outcome,
+				closeReason: event.data?.closeReason, lastCloseReason: event.data?.lastCloseReason,
+				lastHandshakeMethod: event.data?.lastHandshakeMethod, lastHandshakeState: event.data?.lastHandshakeState,
+				durationMs: event.data?.durationMs, protocolMs: event.data?.protocolMs, stop: event.data?.recoveryStopReason,
+			})),
+			health: telemetry.events.find(event => event.eventName === 'userLocalRelayConnectionHealth')?.data,
+			privateContent: JSON.stringify(telemetry.events).includes('private'),
+		}, {
+			outcomes: [
+				{ operation: 'connect', outcome: 'success', closeReason: undefined, lastCloseReason: undefined, lastHandshakeMethod: undefined, lastHandshakeState: undefined, durationMs: 0, protocolMs: 0, stop: undefined },
+				{ operation: 'recover', outcome: 'failure', closeReason: 'watchdog', lastCloseReason: 'hostHandshakeTimeout', lastHandshakeMethod: 'initialize', lastHandshakeState: 'chunksReceived', durationMs: 40, protocolMs: 35, stop: 'timeout' },
+			],
+			health: { environmentKind: 'user-local', connectedMs: 0, unexpectedDisconnects: 1, receivedFrames: 0 },
+			privateContent: false,
+		});
+	}));
+
+	test('handshake attribution is allowlisted, user-local and scoped to one operation', () => {
+		const results = [];
+		for (const sample of [
+			{ environmentKind: 'user-local', phase: 'protocol.handshake', method: 'reconnect', state: 'responseReceived' },
+			{ environmentKind: 'user-local', phase: 'protocol.handshake', method: 'private method', state: 'responseReceived' },
+			{ environmentKind: 'user-local', phase: 'protocol.handshake', method: 'reconnect', state: 'private state' },
+			{ environmentKind: 'user-local', phase: 'unrelated', method: 'reconnect', state: 'responseReceived' },
+			{ environmentKind: 'cloud', phase: 'protocol.handshake', method: 'reconnect', state: 'responseReceived' },
+		] as const) {
+			const telemetry = new TestTelemetryService();
+			const service = store.add(new CloudSandboxTelemetryService(telemetry));
+			const connection = store.add(service.trackConnection('connection', 'agentsDesktop', 'existing', { environmentKind: sample.environmentKind === 'user-local' ? sample.environmentKind : undefined }));
+			connection.onConnectionStateChange('connected');
+			connection.onConnectionStateChange('reconnecting');
+			const diagnostic: IConnectionDiagnosticEvent = { operationId: 'private-operation', phase: sample.phase, outcome: 'info', timestamp: Date.now() };
+			connection.recordConnectionDiagnostic(Object.assign(diagnostic, { handshakeMethod: sample.method, handshakeState: sample.state }));
+			connection.onConnectionStateChange('connected');
+			connection.onConnectionStateChange('reconnecting');
+			connection.onConnectionStateChange('failed');
+			service.dispose();
+			const outcomes = telemetry.events.filter(event => event.data?.operation === 'recover');
+			results.push({
+				handshakes: outcomes.map(event => [event.data?.lastHandshakeMethod, event.data?.lastHandshakeState]),
+				privateContent: JSON.stringify(telemetry.events).includes('private'),
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ handshakes: [['reconnect', 'responseReceived'], [undefined, undefined]], privateContent: false },
+			...Array.from({ length: 4 }, () => ({ handshakes: [[undefined, undefined], [undefined, undefined]], privateContent: false })),
+		]);
+	});
+
 	test('allowlists close attribution only at user-local close boundaries, not from text or unrelated diagnostics', () => {
 		const results = [];
 		for (const sample of [

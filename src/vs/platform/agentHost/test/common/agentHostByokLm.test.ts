@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getByokLmAgentModelId, getByokLmSelectionModelId, isByokLmAgentModelId, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { getByokLmAgentModelId, getByokLmSelectionModelId, isByokLmAgentModelId, resolveByokLmReportedModelId, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 
 suite('agentHostByokLm model ids', () => {
 
@@ -40,5 +40,33 @@ suite('agentHostByokLm model ids', () => {
 			],
 			copilot: [],
 		});
+	});
+
+	test('reads a reported model id as the selected BYOK model only when it is that model without its provider', () => {
+		const cases: [reported: string | undefined, selected: string | undefined][] = [
+			['gpt-5', 'acme/gpt-5'],
+			['gpt-5', 'azure/work/gpt-5'],
+			['work/gpt-5', 'azure/work/gpt-5'],
+			['models/gemini-flash', 'gemini/Google/models/gemini-flash'],
+			['acme/gpt-5', 'acme/gpt-5'],
+			['gpt-5', 'gpt-5'],
+			['gpt-5', 'acme/mini-gpt-5'],
+			['gpt-4o', 'acme/gpt-5'],
+			['gpt-5', undefined],
+			[undefined, 'acme/gpt-5'],
+		];
+
+		assert.deepStrictEqual(cases.map(([reported, selected]) => resolveByokLmReportedModelId(reported, selected)), [
+			'acme/gpt-5',
+			'azure/work/gpt-5',
+			'azure/work/gpt-5',
+			'gemini/Google/models/gemini-flash',
+			'acme/gpt-5',
+			'gpt-5',
+			'gpt-5',
+			'gpt-4o',
+			'gpt-5',
+			undefined,
+		]);
 	});
 });
