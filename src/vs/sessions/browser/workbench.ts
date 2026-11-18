@@ -1420,6 +1420,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			return;
 		}
 
+		if (this.layoutPolicy.viewportClass.get() === 'phone') {
+			this.closeMobileSidebarDrawer();
+		}
+
 		if (!this.partVisibility.editor) {
 			this.setEditorHidden(false, /* explicit */ true);
 			this.restoreAttachedEditorMaximizedState();
@@ -2893,6 +2897,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	 */
 	private _applyCustomViewGridVisibility(descriptor: ICustomViewDescriptor | undefined): void {
 		const visible = !!descriptor;
+		if (visible && this.workbenchGrid && this.layoutPolicy.viewportClass.get() === 'phone') {
+			this.closeMobileSidebarDrawer();
+		}
 		if (this.partVisibility.customViewGrid === visible) {
 			// Swapping one custom view for another only changes what is rendered.
 			this.customViewGridPartService.setView(descriptor);
