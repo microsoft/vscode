@@ -25,7 +25,7 @@
 		"jsonc-parser": "^3.3.1",
 		"monaco-editor": "0.44.0",
 		"openai": "^6.7.0",
-		"undici": "^7.24.1",
+		"undici": "^7.30.2",
 		"vscode-languageserver-protocol": "^3.17.5",
 		"vscode-languageserver-textdocument": "^1.0.12",
 		"vscode-languageserver-types": "^3.17.5",
@@ -43,7 +43,7 @@
 		"rimraf": "^6.0.1",
 		"tsx": "^4.22.4",
 		"typescript": "npm:@typescript/typescript6@^6.0.2",
-		"vite": "^8.0.16",
+		"vite": "^8.3.8",
 		"vitest": "^4.1.8"
 	},
 	"keywords": [

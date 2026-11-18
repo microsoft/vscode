@@ -283,7 +283,7 @@ importers:
         specifier: 3.1.4
         version: 3.1.4
       katex:
-        specifier: ^0.16.22
+        specifier: ^0.16.47
         version: 0.16.47
       kerberos:
         specifier: 2.1.1
@@ -325,8 +325,8 @@ importers:
         specifier: ^2.4.3
         version: 2.4.3
       zod:
-        specifier: ^4.4.3
-        version: 4.4.3
+        specifier: ^4.6.7
+        version: 4.6.7
 
   web:
     dependencies:
@@ -382,7 +382,7 @@ importers:
         specifier: 3.1.4
         version: 3.1.4
       katex:
-        specifier: ^0.16.22
+        specifier: ^0.16.47
         version: 0.16.47
       tas-client:
         specifier: 0.4.6
@@ -609,7 +609,7 @@ packages:
     resolution: {integrity: sha512-kgrAVy1L/v/8erAjo+I720ifTf7o4rvYUwgsuEu97XAEBtPT9sk3HhcSgFpxMydvNmwdJtXo9/AVee7JjocTrg==}
 
   '@vscode/sandbox-runtime@0.0.1':
-    resolution: {integrity: sha512-Jy3iKmNXGD1HcLJkT3YS2l+n5S7H41buvMsZER/EC3nx24fSu1vhg1y9RDzLDwq7wEh7CZTEJBwRcYjV9OAFvQ==}
+    resolution: {integrity: sha1-HnX0QRmHT3/Z8EQ5emw0H93Vz7M=}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -816,7 +816,7 @@ packages:
     resolution: {integrity: sha512-5dgndWOriYSm5cnYaJNhalLNDKOqFwyDB/rr1E9ZsGciGvKPs8R2xYGCacuf3z6K1YKDz182fd+fY3cn3pMqXQ==}
 
   katex@0.16.47:
-    resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
+    resolution: {integrity: sha1-ChOkLC3rT3TmHxYtRAuRZaVIAw8=}
     hasBin: true
 
   kerberos@2.1.1:
@@ -985,8 +985,8 @@ packages:
   tweetnacl@0.14.5:
     resolution: {integrity: sha512-KXXFFdAbFXY4geFIwoyNK+f5Z1b7swfXABfL7HXCmoIWMKU3dmS26672A4EeQtDzLKy7SXmfBu51JolvEKwtGA==}
 
-  undici@7.29.1:
-    resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==}
+  undici@7.30.2:
+    resolution: {integrity: sha512-mLyPQnHwUxaM/rideoK/+KL8DaAJLRl4aBCfmX444aCSLnIaomqPLtNRe2jdCYcsk5wZzXrDIQC8ZeYNRAYyIA==}
     engines: {node: '>=20.18.1'}
 
   universalify@2.0.1:
@@ -1041,10 +1041,7 @@ packages:
     resolution: {integrity: sha512-cIUrm3/81iF/BzuyORI7ppz1vGHAhA62JYzAFFC+rwJ2jQF1LcYxY9UXx4XyUXojkCnol0SvPuc+Toc7FO4W8g==}
 
   zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
-  zod@4.4.3:
-    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+    resolution: {integrity: sha1-JoQcP2/SKmonYOfMtxkXl2hHHjQ=}
 
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
@@ -1223,7 +1220,7 @@ snapshots:
       http-proxy-agent: 7.0.0
       https-proxy-agent: 7.0.2
       socks-proxy-agent: 8.0.4
-      undici: 7.29.1
+      undici: 7.30.2
     optionalDependencies:
       '@vscode/windows-ca-certs': 0.3.4
     transitivePeerDependencies:
@@ -1617,7 +1614,7 @@ snapshots:
 
   tweetnacl@0.14.5: {}
 
-  undici@7.29.1: {}
+  undici@7.30.2: {}
 
   universalify@2.0.1: {}
 
@@ -1649,7 +1646,5 @@ snapshots:
       buffer-crc32: 0.2.13
 
   zod@3.25.76: {}
-
-  zod@4.4.3: {}
 
   zod@4.6.7: {}

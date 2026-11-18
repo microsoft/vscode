@@ -13,7 +13,7 @@
     "@azure/core-auth": "^1.9.0",
     "@azure/cosmos": "^4",
     "@azure/identity": "^4.13.1",
-    "@azure/msal-node": "^5.2.2",
+    "@azure/msal-node": "^5.6.0",
     "@azure/storage-blob": "^12.25.0",
     "@electron/get": "^2.0.0",
     "@electron/osx-sign": "^2.0.0",
