@@ -8,16 +8,18 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { BrowserScreenshotContextContribution, ClipboardImageContextValuePick } from '../../../../workbench/contrib/chat/browser/actions/chatContext.js';
 import { IChatContextPickService } from '../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
+import { MobileFileContextValuePick } from './mobileFileContext.js';
 
-class MobileClipboardImageContextContribution extends Disposable {
+class MobileAttachmentContextContribution extends Disposable {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatContextPickService contextPickService: IChatContextPickService,
 	) {
 		super();
 		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick, false)));
+		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(MobileFileContextValuePick, undefined)));
 	}
 }
 
-registerWorkbenchContribution2('chat.mobileClipboardImageContext', MobileClipboardImageContextContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2('chat.mobileAttachmentContext', MobileAttachmentContextContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2('chat.mobileScreenshotContext', BrowserScreenshotContextContribution, WorkbenchPhase.AfterRestored);
