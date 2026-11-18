@@ -99,4 +99,10 @@ function closeRemoved(removed: WorkspaceFolder[], remaining: WorkspaceFolder[], 
 
 		assert.deepStrictEqual([tracker.takeWarm('c:/repo/wt1/'), tracker.takeWarm('\\\\SERVER\\Share\\WT3\\'), tracker.takeWarm('C:\\Repo\\WT1')], ['C:\\Repo\\WT1', '\\\\server\\share\\wt3', undefined]);
 	});
+
+	test('the current repository of a folder is the deepest one that contains it, ignoring drive letter and path casing', () => {
+		const tracker = new WorkspaceFolderRepositories<string>(root => root);
+
+		assert.deepStrictEqual([...tracker.getCurrentRepositories([folder('c:\\repo\\primary\\.WORKTREES\\w1')], ['C:\\Repo\\Primary', 'C:\\Repo\\Primary\\.worktrees\\w1'])], ['C:\\Repo\\Primary\\.worktrees\\w1']);
+	});
 });

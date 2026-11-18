@@ -203,9 +203,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 	private possibleGitRepositoryPaths = new Set<string>();
 
-	/** Identifies the latest switch of a workspace folder to another location. */
-	private folderLocationSwitchId = 0;
-
 	private readonly workspaceFolderRepositories = new WorkspaceFolderRepositories<OpenRepository>(r => r.repository.root);
 
 	private _onDidChangeState = new EventEmitter<State>();
@@ -498,7 +495,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			}
 
 			// A folder switched location: the location that is left stays shown until the new one is ready
-			const switchId = ++this.folderLocationSwitchId;
 			if (possibleRepositoryFolders.length > 0) {
 				await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath, false, false, true)));
 				const opened = possibleRepositoryFolders
@@ -506,12 +502,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 					.filter((r): r is OpenRepository => !!r && r.repository.isWarm && !show.includes(r));
 				await Promise.race([Promise.all(opened.map(r => r.repository.whenFirstStatus)), new Promise(c => setTimeout(c, 10000))]);
 				show.push(...opened);
-			}
-
-			if (switchId !== this.folderLocationSwitchId) {
-				// A newer switch shows its own location
-				[...show, ...leave].forEach(r => this.keepWarm(r));
-				return;
 			}
 
 			this.switchFolderLocation(show, leave);
@@ -522,16 +512,23 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	/**
-	 * Shows the repositories of the locations that folders switched to and keeps the ones of the
-	 * locations that they left warm, in one tick, so that the views change in one step.
+	 * Completes a switch of folders to other locations, in one tick so that the views change in one step: shows
+	 * the repositories that the workspace folders are at now and keeps the other ones warm. The folders can have
+	 * changed again while the repository of a location was opening, so this follows the current folders rather
+	 * than the switch that started it.
 	 */
 	private switchFolderLocation(show: readonly OpenRepository[], leave: readonly OpenRepository[]): void {
-		for (const openRepository of show) {
+		// A repository can have been closed meanwhile
+		const candidates = [...new Set([...show, ...leave])].filter(r => this.openRepositories.includes(r));
+		const current = this.workspaceFolderRepositories.getCurrentRepositories(workspace.workspaceFolders || [], candidates);
+
+		for (const openRepository of current) {
 			this.logger.trace(`[Model][switchFolderLocation] Showing repository: ${openRepository.repository.root}`);
+			this.workspaceFolderRepositories.takeWarm(openRepository.repository.root);
 			openRepository.repository.setWarm(false);
 		}
 
-		leave.forEach(r => this.keepWarm(r));
+		candidates.filter(r => !current.has(r)).forEach(r => this.keepWarm(r));
 	}
 
 	private keepWarm(openRepository: OpenRepository): void {

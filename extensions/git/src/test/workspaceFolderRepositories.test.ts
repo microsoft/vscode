@@ -16,6 +16,7 @@ const wt2 = Uri.file('/repo/wt2').fsPath;
 const wt3 = Uri.file('/repo/wt3').fsPath;
 const nested = path.join(primary, '.worktrees', 'w1');
 const other = Uri.file('/other').fsPath;
+const another = Uri.file('/another').fsPath;
 const submodule = path.join(primary, 'submodule');
 const knownLocations = [primary, wt1, wt2, wt3, nested];
 
@@ -47,13 +48,16 @@ function folderAt(fsPath: string, resolved = true): TestFolder {
 class TestWorkspace {
 
 	private readonly tracker = new WorkspaceFolderRepositories<string>(root => root);
-	private readonly repositoriesOnDisk = [primary, wt1, wt2, wt3, nested, submodule, other];
+	private readonly repositoriesOnDisk = [primary, wt1, wt2, wt3, nested, submodule, other, another];
 
 	/** The shown repositories. */
 	readonly repositories = new Set<string>();
 
 	/** The warm repositories, hidden, the least recently left first. */
 	readonly warm: string[] = [];
+
+	/** The hidden repositories of the locations that folders switch to, until the switch completes. */
+	private readonly opening = new Set<string>();
 
 	private visibleEditors: string[] = [];
 
@@ -63,6 +67,14 @@ class TestWorkspace {
 
 	/** `Model.onDidChangeWorkspaceFolders`, where a repository that is opened is ready right away. */
 	updateFolders(folders: TestFolder[]): void {
+		this.beginUpdateFolders(folders)();
+	}
+
+	/**
+	 * `Model.onDidChangeWorkspaceFolders` up to awaiting the first git status of the locations that open:
+	 * returns the completion, see `Model.switchFolderLocation`.
+	 */
+	beginUpdateFolders(folders: TestFolder[]): () => void {
 		const removed = this.folders.filter(f => !folders.includes(f));
 		const added = folders.filter(f => !this.folders.includes(f));
 		this.folders = folders;
@@ -72,11 +84,33 @@ class TestWorkspace {
 
 		const show = added.map(f => this.tracker.takeWarm(f.uri.fsPath)).filter((r): r is string => !!r);
 		show.forEach(r => this.warm.splice(this.warm.indexOf(r), 1));
-		const opened = this.tracker.getAddedFoldersToOpen(added, [...this.repositories, ...this.warm, ...show]).map(f => this.getRepositoryRoot(f.uri.fsPath));
+		const opened = this.tracker.getAddedFoldersToOpen(added, [...this.repositories, ...this.warm, ...this.opening, ...show]).map(f => this.getRepositoryRoot(f.uri.fsPath));
 
-		// The views change in one step
-		[...show, ...opened].forEach(r => this.repositories.add(r));
-		leave.forEach(r => this.keepWarm(r));
+		if (leave.length === 0 && show.length === 0) {
+			opened.forEach(r => this.repositories.add(r));
+			return () => { };
+		}
+
+		[...show, ...opened].forEach(r => this.opening.add(r));
+		return () => {
+			// A repository can have been closed meanwhile
+			const candidates = [...new Set([...show, ...opened, ...leave])].filter(r => this.repositories.has(r) || this.warm.includes(r) || this.opening.has(r));
+			[...show, ...opened].forEach(r => this.opening.delete(r));
+			this.completeSwitch(candidates);
+		};
+	}
+
+	/** `Model.switchFolderLocation`: the views change in one step, following the current folders. */
+	private completeSwitch(candidates: string[]): void {
+		const current = this.tracker.getCurrentRepositories(this.folders, candidates);
+		for (const repository of current) {
+			this.tracker.takeWarm(repository);
+			if (this.warm.includes(repository)) {
+				this.warm.splice(this.warm.indexOf(repository), 1);
+			}
+			this.repositories.add(repository);
+		}
+		candidates.filter(r => !current.has(r)).forEach(r => this.keepWarm(r));
 	}
 
 	setVisibleEditors(files: string[]): void {
@@ -107,12 +141,17 @@ class TestWorkspace {
 
 	private keepWarm(repository: string): void {
 		this.repositories.delete(repository);
-		this.warm.push(repository);
+		if (!this.warm.includes(repository)) {
+			this.warm.push(repository);
+		} else {
+			this.warm.push(this.warm.splice(this.warm.indexOf(repository), 1)[0]);
+		}
 		this.tracker.keepWarm(repository).forEach(r => this.close(r));
 	}
 
 	private close(repository: string): void {
 		this.repositories.delete(repository);
+		this.opening.delete(repository);
 		if (this.warm.includes(repository)) {
 			this.warm.splice(this.warm.indexOf(repository), 1);
 		}
@@ -124,7 +163,7 @@ class TestWorkspace {
 	}
 
 	private getOpenRepository(fsPath: string): string | undefined {
-		return this.getDeepest([...this.repositories, ...this.warm], fsPath);
+		return this.getDeepest([...this.repositories, ...this.warm, ...this.opening], fsPath);
 	}
 
 	private getDeepest(repositories: string[], fsPath: string): string | undefined {
@@ -218,6 +257,43 @@ suite('WorkspaceFolderRepositories', () => {
 		[wt1, wt2, wt3].forEach(location => ws.switchTo(location));
 
 		assert.deepStrictEqual(ws.switchTo(nested), { beforeEditorsSwap: [nested], afterEditorsSwap: [nested], afterLocations: [nested], warm: [wt1, wt2, wt3] });
+	});
+
+	test('a switch that completes after the folder switched back keeps the location it is at shown', () => {
+		const ws = new TestWorkspace([folderAt(primary)]);
+
+		const completeFirst = ws.beginUpdateFolders([folderAt(wt1, false)]);
+		ws.resolveLocations();
+		ws.updateFolders([folderAt(primary, false)]);
+		const beforeFirstCompletes = { shown: [...ws.repositories], warm: [...ws.warm] };
+		completeFirst();
+
+		assert.deepStrictEqual({ beforeFirstCompletes, after: { shown: [...ws.repositories], warm: ws.warm } }, {
+			beforeFirstCompletes: { shown: [primary], warm: [wt1] },
+			after: { shown: [primary], warm: [wt1] }
+		});
+	});
+
+	test('a switch that completes after the folder was replaced before its locations were known keeps the location it is at shown', () => {
+		const ws = new TestWorkspace([folderAt(primary)]);
+
+		const completeFirst = ws.beginUpdateFolders([folderAt(wt1, false)]);
+		ws.updateFolders([folder(primary)]);
+		completeFirst();
+
+		assert.deepStrictEqual({ shown: [...ws.repositories], warm: ws.warm }, { shown: [primary], warm: [] });
+	});
+
+	test('a switch completes for its folder while another folder changes', () => {
+		const otherFolder = folder(other, 1);
+		const ws = new TestWorkspace([folderAt(primary), otherFolder]);
+		const wt1Folder = folderAt(wt1, false);
+
+		const completeFirst = ws.beginUpdateFolders([wt1Folder, otherFolder]);
+		ws.updateFolders([wt1Folder, folder(another, 1)]);
+		completeFirst();
+
+		assert.deepStrictEqual({ shown: [...ws.repositories].sort(), warm: ws.warm }, { shown: [another, wt1].sort(), warm: [primary] });
 	});
 
 	test('closes a warm repository once it is not a known location anymore', () => {
@@ -322,6 +398,16 @@ suite('WorkspaceFolderRepositories locations', () => {
 		const onLocations = tracker.onDidChangeWorkspaceFolderLocations([folder(primary, 0, [primary, wt1, nested])]);
 
 		assert.deepStrictEqual({ onRemove, onLocations }, { onRemove: { close: [], leave: [] }, onLocations: { close: [], leave: [nested] } });
+	});
+
+	test('the current repositories are the deepest candidates that contain a workspace folder', () => {
+		const tracker = new WorkspaceFolderRepositories<string>(root => root);
+
+		assert.deepStrictEqual([
+			[...tracker.getCurrentRepositories([folder(nested)], [primary, nested, wt1])],
+			[...tracker.getCurrentRepositories([folder(primary)], [nested, wt1])],
+			[...tracker.getCurrentRepositories([folder(wt1), folder(path.join(primary, 'src'), 1)], [primary, wt1, wt2])],
+		], [[nested], [], [wt1, primary]]);
 	});
 
 	test('takes a warm repository by its root, keeps at most the capacity and closes the least recently left one first', () => {

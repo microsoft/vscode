@@ -108,6 +108,24 @@ export class WorkspaceFolderRepositories<T> {
 	}
 
 	/**
+	 * The repositories among `candidates` that the workspace folders are at: for each folder, the
+	 * deepest candidate that contains it. A switch that completes after the folders changed again
+	 * shows these and keeps the other candidates warm.
+	 */
+	getCurrentRepositories(workspaceFolders: readonly WorkspaceFolder[], candidates: readonly T[]): Set<T> {
+		const result = new Set<T>();
+		for (const folder of workspaceFolders) {
+			const current = candidates
+				.filter(r => isDescendant(this.getRoot(r), folder.uri.fsPath))
+				.sort((a, b) => this.getRoot(b).length - this.getRoot(a).length)[0];
+			if (current) {
+				result.add(current);
+			}
+		}
+		return result;
+	}
+
+	/**
 	 * Takes the warm repository whose root is `fsPath`, to show it.
 	 */
 	takeWarm(fsPath: string): T | undefined {

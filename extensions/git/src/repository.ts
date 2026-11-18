@@ -946,6 +946,7 @@ export class Repository implements Disposable {
 		isWarm = false
 	) {
 		this._isWarm = isWarm;
+		this.disposables.push(this._onDidChangeWarm);
 		this._operations = new OperationManager(this.logger);
 
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
