@@ -344,6 +344,11 @@ export interface IEditorGroupMenuIds {
 	readonly tabsBarContext?: MenuId;
 	/** Menu whose actions populate the add-tab (`+`) control in the tab bar. */
 	readonly tabsBarAddTab?: MenuId;
+	/**
+	 * Whether the add-tab menu lists the entry picked last first, as its default entry that a second press of the
+	 * add-tab control picks.
+	 */
+	readonly tabsBarAddTabRecentFirst?: boolean;
 }
 
 /**

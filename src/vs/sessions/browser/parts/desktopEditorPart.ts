@@ -64,7 +64,9 @@ export class DesktopMainEditorPart extends MainEditorPart {
 				headerLayout: Menus.SessionsEditorHeaderLayout,
 				editorActions: Menus.SessionsEditorTitle,
 				tabsBarContext: AgentsWindowMenus.SessionsEditorTabsBarContext,
-				tabsBarAddTab: AgentsWindowMenus.SessionsEditorTabsBarAddTab
+				tabsBarAddTab: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
+				// The Agents window keeps a plain add-tab menu
+				tabsBarAddTabRecentFirst: false
 			},
 			showHeader: true,
 			useModernUITabs: true,
