@@ -26251,14 +26251,15 @@ Use the attached image as context.
 			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, fusionId: 'incoming-fusion' }, { id: 'new-phase', parentId: 'new-route' });
 			mockSession.fire('user.message', { content: 'new request', delivery: 'idle', turnId: 'new-loop', interactionId: 'i2' }, { id: 'new-message', parentId: 'new-phase' });
 			const successor = session.currentTurnId!;
-			const successorTotals = JSON.stringify(session['_currentTurn'].value?.tokenTotals);
 			const start = signals.length;
 
 			const committed = { ...oldFusion, commitId: 'old-commit' };
 			mockSession.fire('tool.execution_start', { toolCallId: 'old-task', toolName: 'task_complete', arguments: { summary: 'Old summary' }, fusion: committed });
 			mockSession.fire('tool.execution_complete', { toolCallId: 'old-task', success: true, result: { content: 'done' }, fusion: committed });
 			mockSession.fire('session.task_complete', { summary: 'Old summary', success: true, outcome: 'completed' });
-			mockSession.fire('assistant.usage', { model: 'model-a', inputTokens: 10, outputTokens: 5, apiCallId: 'late-usage-call', fusion: oldFusion } as SessionEventPayload<'assistant.usage'>['data']);
+			const usage = { model: 'model-a', inputTokens: 10, outputTokens: 5, copilotUsage: { totalNanoAiu: 250_000_000 } };
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'late-usage-call', fusion: oldFusion });
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'ordinary-call' });
 			mockSession.fire('assistant.tool_call_delta', { toolCallId: 'late-stream', toolName: 'view', inputDelta: '{"path":"/old.ts"}' });
 			mockSession.fire('tool.execution_start', { toolCallId: 'late-stream', toolName: 'view', arguments: { path: '/old.ts' }, fusion: committed });
 			mockSession.fire('tool.execution_complete', { toolCallId: 'late-stream', success: true, result: { content: 'old file' }, fusion: committed });
@@ -26271,14 +26272,25 @@ Use the attached image as context.
 						|| (hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'late-stream' && (signal.action.type === ActionType.ChatToolCallStart || signal.action.type === ActionType.ChatToolCallComplete)))
 						? [{ type: signal.action.type, successor: signal.action.turnId === successor }]
 						: []),
-				successorTotalsUnchanged: JSON.stringify(session['_currentTurn'].value?.tokenTotals) === successorTotals,
+				usageTotals: getActions(signals.slice(start)).flatMap(action => {
+					if (action.type !== ActionType.ChatUsage) {
+						return [];
+					}
+					const meta = readUsageInfoMeta(action.usage);
+					return [{ tokens: meta.turnTokenTotals, credits: meta.copilotUsage?.totalNanoAiu }];
+				}),
 			}, {
 				signals: [
 					{ kind: 'model_call_completed', turnId: 'original', modelCallId: 'late-usage-call' },
+					{ type: ActionType.ChatUsage, successor: true },
+					{ type: ActionType.ChatUsage, successor: true },
 					{ type: ActionType.ChatToolCallStart, successor: true },
 					{ type: ActionType.ChatToolCallComplete, successor: true },
 				],
-				successorTotalsUnchanged: true,
+				usageTotals: [
+					{ tokens: [{ model: 'model-a', inputTokens: 10, cachedTokens: 0, outputTokens: 5 }], credits: 250_000_000 },
+					{ tokens: [{ model: 'model-a', inputTokens: 20, cachedTokens: 0, outputTokens: 10 }], credits: 500_000_000 },
+				],
 			});
 		});
 
