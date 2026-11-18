@@ -25,8 +25,11 @@ export class WorkspaceFolderRepositories<T> {
 	/** The warm repositories, the least recently left first. */
 	private readonly warm: T[] = [];
 
-	/** The repositories that stay shown in place of the pending repository of a location that a folder switched to. */
-	private fallbacks = new Set<T>();
+	/**
+	 * The shown repositories of locations that folders left, each with the location its folder is at now: they
+	 * stay shown until the repository of that location is ready. A further switch of the folder moves them on.
+	 */
+	private readonly handovers = new Map<T, string>();
 
 	constructor(
 		private readonly getRoot: (repository: T) => string,
@@ -47,14 +50,26 @@ export class WorkspaceFolderRepositories<T> {
 	 * that the folders left, to keep warm. Retains the ones that a visible editor belongs to, unless
 	 * their folder switched location.
 	 */
-	onDidChangeWorkspaceFolders(e: WorkspaceFoldersChangeEvent, workspaceFolders: readonly WorkspaceFolder[], getRepository: (folder: Uri) => T | undefined, hasVisibleEditor: (repository: T) => boolean): { close: T[]; leave: T[] } {
+	onDidChangeWorkspaceFolders(e: WorkspaceFoldersChangeEvent, workspaceFolders: readonly WorkspaceFolder[], getRepository: (folder: Uri) => T | undefined, hasVisibleEditor: (repository: T) => boolean, isShown: (repository: T) => boolean = () => true): { close: T[]; leave: T[] } {
 		this.forgetRepositoriesInWorkspace(workspaceFolders);
 
 		const close = new Set<T>();
 		const leave = new Set<T>();
 		for (const folder of e.removed) {
 			// The location that is left is kept warm, also when it is nested in the new location, and its editors are replaced by the ones of the new location
-			const isSwitch = this.isFolderLocationSwitch(folder, e.added);
+			const target = this.getFolderLocationSwitchTarget(folder, e.added);
+			const isSwitch = !!target;
+			const handedOver = [...this.handovers].filter(([, location]) => pathEquals(location, folder.uri.fsPath)).map(([r]) => r);
+			for (const repository of handedOver) {
+				if (target) {
+					this.handovers.set(repository, target.uri.fsPath);
+				} else {
+					// The folder is gone: the repositories shown in place of its location go with it
+					this.handovers.delete(repository);
+					(hasVisibleEditor(repository) ? this.retained : close).add(repository);
+				}
+			}
+
 			const repository = getRepository(folder.uri);
 			if (!repository) {
 				continue;
@@ -68,8 +83,11 @@ export class WorkspaceFolderRepositories<T> {
 			this.retained.delete(repository);
 			this.keptInWorkspace.delete(repository);
 
-			if (isSwitch) {
+			if (target) {
 				leave.add(repository);
+				if (isShown(repository)) {
+					this.handovers.set(repository, target.uri.fsPath);
+				}
 			} else if (hasVisibleEditor(repository)) {
 				this.retained.add(repository);
 			} else {
@@ -111,32 +129,38 @@ export class WorkspaceFolderRepositories<T> {
 	}
 
 	/**
-	 * Completes a switch of folders to other locations: returns the repositories among `candidates` to show and
-	 * the ones to keep warm. The folders can have changed again while a location was opening, so this follows the
-	 * current folders rather than the switch: a folder is at the deepest repository that contains it among the
-	 * candidates and the `openRepositories` that are not kept warm. While that repository is `pending`, still
-	 * awaiting its first status for another switch, the deepest ready one that contains the folder stays shown in
-	 * its place, until a later switch completes with the pending one ready.
+	 * Completes a switch of folders to other locations: returns the repositories among `candidates` and the handed
+	 * over ones to show, and the others to keep warm. The folders can have changed again meanwhile, so this follows
+	 * the current folders rather than the switch: a folder is at the deepest ready repository that contains it among
+	 * these and the `openRepositories` that are not kept warm. A repository is not ready while it is `pending` or
+	 * at one of the `pendingLocations`, still opening or awaiting its first status. A handed over repository stays
+	 * shown while the location its folder is at is pending, and is kept warm once it is not, unless it is current.
 	 */
-	completeSwitch(workspaceFolders: readonly WorkspaceFolder[], candidates: readonly T[], openRepositories: readonly T[], pending: readonly T[]): { show: T[]; warm: T[] } {
-		const affected = [...new Set([...candidates, ...[...this.fallbacks].filter(r => openRepositories.includes(r))])];
+	completeSwitch(workspaceFolders: readonly WorkspaceFolder[], candidates: readonly T[], openRepositories: readonly T[], pending: readonly T[], pendingLocations: readonly string[]): { show: T[]; warm: T[] } {
+		const handovers = [...this.handovers].filter(([r]) => openRepositories.includes(r));
+		const affected = [...new Set([...candidates, ...handovers.map(([r]) => r)])];
 		const repositories = [...new Set([...affected, ...openRepositories.filter(r => !this.warm.includes(r))])];
+		const isPendingLocation = (fsPath: string) => pendingLocations.some(l => pathEquals(l, fsPath));
+		const isReady = (r: T) => !pending.includes(r) && !isPendingLocation(this.getRoot(r));
+
 		const show = new Set<T>();
-		const fallbacks = new Set<T>();
 		for (const folder of workspaceFolders) {
-			const containing = repositories
-				.filter(r => isDescendant(this.getRoot(r), folder.uri.fsPath))
-				.sort((a, b) => this.getRoot(b).length - this.getRoot(a).length);
-			const current = containing.find(r => !pending.includes(r));
-			if (!current || !affected.includes(current)) {
-				continue;
-			}
-			show.add(current);
-			if (current !== containing[0]) {
-				fallbacks.add(current);
+			const current = repositories
+				.filter(r => isReady(r) && isDescendant(this.getRoot(r), folder.uri.fsPath))
+				.sort((a, b) => this.getRoot(b).length - this.getRoot(a).length)[0];
+			if (current && affected.includes(current)) {
+				show.add(current);
 			}
 		}
-		this.fallbacks = fallbacks;
+
+		for (const [repository, location] of handovers) {
+			if (isPendingLocation(location)) {
+				show.add(repository);
+			} else {
+				this.handovers.delete(repository);
+			}
+		}
+
 		return { show: [...show], warm: affected.filter(r => !show.has(r)) };
 	}
 
@@ -171,7 +195,7 @@ export class WorkspaceFolderRepositories<T> {
 	delete(repository: T): void {
 		this.retained.delete(repository);
 		this.keptInWorkspace.delete(repository);
-		this.fallbacks.delete(repository);
+		this.handovers.delete(repository);
 
 		const index = this.warm.indexOf(repository);
 		if (index !== -1) {
@@ -191,12 +215,12 @@ export class WorkspaceFolderRepositories<T> {
 	}
 
 	/**
-	 * Whether the removed folder `removed` is among the `added` ones at another of its known locations,
+	 * The folder among the `added` ones that the removed folder `removed` is at, at another of its known locations,
 	 * which is how a workspace folder switching its location is reported. A switch from a folder whose
 	 * locations are not known yet cannot be told from a replacement.
 	 */
-	private isFolderLocationSwitch(removed: WorkspaceFolder, added: readonly WorkspaceFolder[]): boolean {
-		return added.some(folder => !pathEquals(folder.uri.fsPath, removed.uri.fsPath)
+	private getFolderLocationSwitchTarget(removed: WorkspaceFolder, added: readonly WorkspaceFolder[]): WorkspaceFolder | undefined {
+		return added.find(folder => !pathEquals(folder.uri.fsPath, removed.uri.fsPath)
 			&& (removed.locations ?? []).some(location => pathEquals(location.uri.fsPath, folder.uri.fsPath)));
 	}
 

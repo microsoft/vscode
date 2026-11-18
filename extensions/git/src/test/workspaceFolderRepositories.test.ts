@@ -62,6 +62,9 @@ class TestWorkspace {
 	/** The opened repositories awaiting their first status, see `Model.pendingSwitchRepositories`. */
 	private readonly pending = new Set<string>();
 
+	/** The locations whose repository is opening or awaiting its first status, see `Model.pendingSwitchLocations`. */
+	private readonly pendingLocations: string[] = [];
+
 	private visibleEditors: string[] = [];
 
 	constructor(private folders: TestFolder[]) {
@@ -78,36 +81,60 @@ class TestWorkspace {
 	 * returns the completion, see `Model.switchFolderLocation`.
 	 */
 	beginUpdateFolders(folders: TestFolder[]): () => void {
+		const { register, complete } = this.beginOpeningFolders(folders);
+		register();
+		return complete;
+	}
+
+	/**
+	 * `Model.onDidChangeWorkspaceFolders` up to opening the repositories of the locations that open: `register`
+	 * opens them, after which they await their first git status, and `complete` completes the switch.
+	 */
+	beginOpeningFolders(folders: TestFolder[]): { register: () => void; complete: () => void } {
 		const removed = this.folders.filter(f => !folders.includes(f));
 		const added = folders.filter(f => !this.folders.includes(f));
 		this.folders = folders;
 
-		const { close, leave } = this.tracker.onDidChangeWorkspaceFolders({ added, removed }, folders, uri => this.getOpenRepository(uri.fsPath), r => this.hasVisibleEditor(r));
+		const { close, leave } = this.tracker.onDidChangeWorkspaceFolders({ added, removed }, folders, uri => this.getOpenRepository(uri.fsPath), r => this.hasVisibleEditor(r), r => this.repositories.has(r));
 		close.forEach(r => this.close(r));
 
 		const show = added.map(f => this.tracker.takeWarm(f.uri.fsPath)).filter((r): r is string => !!r);
 		show.forEach(r => this.warm.splice(this.warm.indexOf(r), 1));
-		const opened = this.tracker.getAddedFoldersToOpen(added, [...this.repositories, ...this.warm, ...this.opening, ...show]).map(f => this.getRepositoryRoot(f.uri.fsPath));
+		const toOpen = this.tracker.getAddedFoldersToOpen(added, [...this.repositories, ...this.warm, ...this.opening, ...show]).map(f => f.uri.fsPath);
+		const opened = toOpen.map(l => this.getRepositoryRoot(l));
 
 		if (leave.length === 0 && show.length === 0) {
 			opened.forEach(r => this.repositories.add(r));
-			return () => { };
+			return { register: () => { }, complete: () => { } };
 		}
 
-		[...show, ...opened].forEach(r => this.opening.add(r));
-		opened.forEach(r => this.pending.add(r));
-		return () => {
+		show.forEach(r => this.opening.add(r));
+		this.pendingLocations.push(...toOpen);
+		let registered = false;
+		const register = () => {
+			if (!registered) {
+				registered = true;
+				opened.forEach(r => {
+					this.opening.add(r);
+					this.pending.add(r);
+				});
+			}
+		};
+		const complete = () => {
+			register();
 			// A repository can have been closed meanwhile
 			const candidates = [...new Set([...show, ...opened, ...leave])].filter(r => this.repositories.has(r) || this.warm.includes(r) || this.opening.has(r));
 			[...show, ...opened].forEach(r => this.opening.delete(r));
 			opened.forEach(r => this.pending.delete(r));
+			toOpen.forEach(l => this.pendingLocations.splice(this.pendingLocations.indexOf(l), 1));
 			this.completeSwitch(candidates);
 		};
+		return { register, complete };
 	}
 
 	/** `Model.switchFolderLocation`: the views change in one step, following the current folders. */
 	private completeSwitch(candidates: string[]): void {
-		const { show, warm } = this.tracker.completeSwitch(this.folders, candidates, [...this.repositories, ...this.warm, ...this.opening], [...this.pending]);
+		const { show, warm } = this.tracker.completeSwitch(this.folders, candidates, [...this.repositories, ...this.warm, ...this.opening], [...this.pending], this.pendingLocations);
 		for (const repository of show) {
 			this.tracker.takeWarm(repository);
 			if (this.warm.includes(repository)) {
@@ -289,33 +316,43 @@ suite('WorkspaceFolderRepositories', () => {
 		assert.deepStrictEqual({ shown: [...ws.repositories], warm: ws.warm }, { shown: [primary], warm: [] });
 	});
 
-	test('a switch that completes after the folder switched on to a worktree nested in its location keeps the nested worktree shown', () => {
-		const ws = new TestWorkspace([folderAt(primary)]);
+	test('a switch that completes while the folder switched on again is opening keeps the left location shown until the location the folder is at now is ready', () => {
+		const scenario = (target: string, targetOpens: 'beforeFirstCompletes' | 'afterFirstCompletes', completesFirst: 'first' | 'target') => {
+			const state = (ws: TestWorkspace) => ({ shown: [...ws.repositories], warm: [...ws.warm].sort() });
+			const ws = new TestWorkspace([folderAt(primary)]);
+			const completeFirst = ws.beginUpdateFolders([folderAt(wt1, false)]);
+			ws.resolveLocations();
+			const second = ws.beginOpeningFolders([folderAt(target, false)]);
+			if (targetOpens === 'beforeFirstCompletes') {
+				second.register();
+			}
+			const [completeEarlier, completeLater] = completesFirst === 'first' ? [completeFirst, second.complete] : [second.complete, completeFirst];
+			completeEarlier();
+			const meanwhile = state(ws);
+			second.register();
+			const beforeLaterCompletes = state(ws);
+			completeLater();
+			ws.resolveLocations();
+			return { target, targetOpens, completesFirst, meanwhile, beforeLaterCompletes, settled: state(ws) };
+		};
+		const leftShown = { shown: [primary], warm: [wt1] };
+		const atTarget = (target: string) => ({ shown: [target], warm: [primary, wt1].sort() });
 
-		const completeFirst = ws.beginUpdateFolders([folderAt(wt1, false)]);
-		ws.resolveLocations();
-		ws.updateFolders([folderAt(nested, false)]);
-		completeFirst();
-		ws.resolveLocations();
-
-		assert.deepStrictEqual({ shown: [...ws.repositories], warm: [...ws.warm].sort() }, { shown: [nested], warm: [primary, wt1].sort() });
-	});
-
-	test('a switch that completes while the folder switched on to a worktree nested in its location is still opening keeps the left location shown until the nested worktree is ready', () => {
-		const ws = new TestWorkspace([folderAt(primary)]);
-
-		const completeFirst = ws.beginUpdateFolders([folderAt(wt1, false)]);
-		ws.resolveLocations();
-		const completeNested = ws.beginUpdateFolders([folderAt(nested, false)]);
-		completeFirst();
-		const whileNestedOpens = { shown: [...ws.repositories], warm: [...ws.warm].sort() };
-		completeNested();
-		ws.resolveLocations();
-
-		assert.deepStrictEqual({ whileNestedOpens, settled: { shown: [...ws.repositories], warm: [...ws.warm].sort() } }, {
-			whileNestedOpens: { shown: [primary], warm: [wt1] },
-			settled: { shown: [nested], warm: [primary, wt1].sort() }
-		});
+		assert.deepStrictEqual([
+			scenario(wt2, 'beforeFirstCompletes', 'first'),
+			scenario(wt2, 'afterFirstCompletes', 'first'),
+			scenario(wt2, 'beforeFirstCompletes', 'target'),
+			scenario(nested, 'beforeFirstCompletes', 'first'),
+			scenario(nested, 'afterFirstCompletes', 'first'),
+			scenario(nested, 'beforeFirstCompletes', 'target'),
+		], [
+			{ target: wt2, targetOpens: 'beforeFirstCompletes', completesFirst: 'first', meanwhile: leftShown, beforeLaterCompletes: leftShown, settled: atTarget(wt2) },
+			{ target: wt2, targetOpens: 'afterFirstCompletes', completesFirst: 'first', meanwhile: leftShown, beforeLaterCompletes: leftShown, settled: atTarget(wt2) },
+			{ target: wt2, targetOpens: 'beforeFirstCompletes', completesFirst: 'target', meanwhile: atTarget(wt2), beforeLaterCompletes: atTarget(wt2), settled: atTarget(wt2) },
+			{ target: nested, targetOpens: 'beforeFirstCompletes', completesFirst: 'first', meanwhile: leftShown, beforeLaterCompletes: leftShown, settled: atTarget(nested) },
+			{ target: nested, targetOpens: 'afterFirstCompletes', completesFirst: 'first', meanwhile: leftShown, beforeLaterCompletes: leftShown, settled: atTarget(nested) },
+			{ target: nested, targetOpens: 'beforeFirstCompletes', completesFirst: 'target', meanwhile: atTarget(nested), beforeLaterCompletes: atTarget(nested), settled: atTarget(nested) },
+		]);
 	});
 
 	test('a switch completes for its folder while another folder changes', () => {
@@ -435,19 +472,18 @@ suite('WorkspaceFolderRepositories locations', () => {
 	});
 
 	test('a switch completes with the candidates that are the deepest ready repository containing a workspace folder', () => {
-		const complete = (folders: TestFolder[], candidates: string[], open: string[], pending: string[] = [], tracker = new WorkspaceFolderRepositories<string>(root => root)) => tracker.completeSwitch(folders, candidates, open, pending);
+		const complete = (folders: TestFolder[], candidates: string[], open: string[], pending: string[] = [], pendingLocations: string[] = [], tracker = new WorkspaceFolderRepositories<string>(root => root)) => tracker.completeSwitch(folders, candidates, open, pending, pendingLocations);
 		const warmTracker = new WorkspaceFolderRepositories<string>(root => root);
 		warmTracker.keepWarm(nested);
-		const fallbackTracker = new WorkspaceFolderRepositories<string>(root => root);
 
 		assert.deepStrictEqual([
 			complete([folder(nested)], [primary, nested, wt1], [primary, nested, wt1]),
 			complete([folder(primary)], [nested, wt1], [nested, wt1]),
 			complete([folder(wt1), folder(path.join(primary, 'src'), 1)], [primary, wt1, wt2], [primary, wt1, wt2]),
 			complete([folder(nested)], [primary, wt1], [primary, wt1, nested]),
-			complete([folder(nested)], [primary, wt1], [primary, wt1, nested], [], warmTracker),
-			complete([folder(nested)], [primary, wt1], [primary, wt1, nested], [nested], fallbackTracker),
-			complete([folder(nested)], [nested, wt1], [primary, wt1, nested], [], fallbackTracker),
+			complete([folder(nested)], [primary, wt1], [primary, wt1, nested], [], [], warmTracker),
+			complete([folder(nested)], [primary, wt1], [primary, wt1, nested], [nested]),
+			complete([folder(nested)], [primary, wt1], [primary, wt1], [], [nested]),
 		], [
 			{ show: [nested], warm: [primary, wt1] },
 			{ show: [], warm: [nested, wt1] },
@@ -455,7 +491,24 @@ suite('WorkspaceFolderRepositories locations', () => {
 			{ show: [], warm: [primary, wt1] },
 			{ show: [primary], warm: [wt1] },
 			{ show: [primary], warm: [wt1] },
-			{ show: [nested], warm: [wt1, primary] },
+			{ show: [primary], warm: [wt1] },
+		]);
+	});
+
+	test('the shown repository of a location that a folder left stays shown until the location the folder is at now is ready, also after further switches', () => {
+		const tracker = new WorkspaceFolderRepositories<string>(root => root);
+		const switchFolder = (from: string, to: string) => tracker.onDidChangeWorkspaceFolders({ added: [folder(to)], removed: [folder(from, 0, [primary, to])] }, [folder(to)], uri => uri.fsPath === primary ? primary : undefined, () => false, r => r === primary);
+
+		switchFolder(primary, wt1);
+		switchFolder(wt1, wt2);
+		assert.deepStrictEqual([
+			tracker.completeSwitch([folder(wt2)], [wt1], [primary, wt1], [], [wt2]),
+			tracker.completeSwitch([folder(wt2)], [wt2], [primary, wt1, wt2], [], []),
+			tracker.completeSwitch([folder(wt2)], [wt2], [primary, wt1, wt2], [], []),
+		], [
+			{ show: [primary], warm: [wt1] },
+			{ show: [wt2], warm: [primary] },
+			{ show: [wt2], warm: [] },
 		]);
 	});
 

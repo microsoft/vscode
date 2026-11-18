@@ -205,6 +205,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 	private readonly workspaceFolderRepositories = new WorkspaceFolderRepositories<OpenRepository>(r => r.repository.root);
 
+	/** The locations that folders switched to whose repository is opening or awaiting its first status. */
+	private readonly pendingSwitchLocations: string[] = [];
+
 	/** The repositories of locations that folders switched to, awaiting their first status. */
 	private readonly pendingSwitchRepositories = new Set<OpenRepository>();
 
@@ -481,7 +484,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				{ added, removed },
 				workspace.workspaceFolders || [],
 				uri => this.getOpenRepository(uri),
-				r => activeRepositories.has(r.repository));
+				r => activeRepositories.has(r.repository),
+				r => !r.repository.isWarm);
 
 			close.forEach(r => r.dispose());
 
@@ -499,14 +503,18 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			// A folder switched location: the location that is left stays shown until the new one is ready
 			if (possibleRepositoryFolders.length > 0) {
-				await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath, false, false, true)));
-				const opened = possibleRepositoryFolders
-					.map(folder => this.getOpenRepository(folder.uri))
-					.filter((r): r is OpenRepository => !!r && r.repository.isWarm && !show.includes(r));
-				opened.forEach(r => this.pendingSwitchRepositories.add(r));
+				const locations = possibleRepositoryFolders.map(p => p.uri.fsPath);
+				this.pendingSwitchLocations.push(...locations);
+				let opened: OpenRepository[] = [];
 				try {
+					await Promise.all(locations.map(location => this.openRepository(location, false, false, true)));
+					opened = possibleRepositoryFolders
+						.map(folder => this.getOpenRepository(folder.uri))
+						.filter((r): r is OpenRepository => !!r && r.repository.isWarm && !show.includes(r));
+					opened.forEach(r => this.pendingSwitchRepositories.add(r));
 					await Promise.race([Promise.all(opened.map(r => r.repository.whenFirstStatus)), new Promise(c => setTimeout(c, 10000))]);
 				} finally {
+					locations.forEach(l => this.pendingSwitchLocations.splice(this.pendingSwitchLocations.indexOf(l), 1));
 					opened.forEach(r => this.pendingSwitchRepositories.delete(r));
 				}
 				show.push(...opened);
@@ -528,7 +536,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private switchFolderLocation(show: readonly OpenRepository[], leave: readonly OpenRepository[]): void {
 		// A repository can have been closed meanwhile
 		const candidates = [...new Set([...show, ...leave])].filter(r => this.openRepositories.includes(r));
-		const result = this.workspaceFolderRepositories.completeSwitch(workspace.workspaceFolders || [], candidates, this.openRepositories, [...this.pendingSwitchRepositories]);
+		const result = this.workspaceFolderRepositories.completeSwitch(workspace.workspaceFolders || [], candidates, this.openRepositories, [...this.pendingSwitchRepositories], this.pendingSwitchLocations);
 
 		for (const openRepository of result.show) {
 			this.logger.trace(`[Model][switchFolderLocation] Showing repository: ${openRepository.repository.root}`);

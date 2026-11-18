@@ -103,6 +103,6 @@ function closeRemoved(removed: WorkspaceFolder[], remaining: WorkspaceFolder[], 
 	test('the current repository of a folder is the deepest one that contains it, ignoring drive letter and path casing', () => {
 		const tracker = new WorkspaceFolderRepositories<string>(root => root);
 
-		assert.deepStrictEqual(tracker.completeSwitch([folder('c:\\repo\\primary\\.WORKTREES\\w1')], ['C:\\Repo\\Primary', 'C:\\Repo\\Primary\\.worktrees\\w1'], ['C:\\Repo\\Primary', 'C:\\Repo\\Primary\\.worktrees\\w1'], []), { show: ['C:\\Repo\\Primary\\.worktrees\\w1'], warm: ['C:\\Repo\\Primary'] });
+		assert.deepStrictEqual(tracker.completeSwitch([folder('c:\\repo\\primary\\.WORKTREES\\w1')], ['C:\\Repo\\Primary', 'C:\\Repo\\Primary\\.worktrees\\w1'], ['C:\\Repo\\Primary', 'C:\\Repo\\Primary\\.worktrees\\w1'], [], []), { show: ['C:\\Repo\\Primary\\.worktrees\\w1'], warm: ['C:\\Repo\\Primary'] });
 	});
 });
