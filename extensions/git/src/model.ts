@@ -7,7 +7,7 @@ import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitte
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, Limiter, pathEquals, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, Limiter, PendingOperations, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -230,6 +230,16 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		return eventToPromise(filterEvent(this.onDidChangeState, s => s === 'initialized') as Event<unknown>) as Promise<void>;
 	}
 
+	private readonly workspaceFolderChanges = new PendingOperations();
+
+	/**
+	 * Resolves once repositories for added workspace folders are opened,
+	 * for example after the folder switched to another worktree.
+	 */
+	whenWorkspaceFolderChangesSettled(): Promise<void> {
+		return this.workspaceFolderChanges.settled();
+	}
+
 	private remoteSourcePublishers = new Set<RemoteSourcePublisher>();
 
 	private _onDidAddRemoteSourcePublisher = new EventEmitter<RemoteSourcePublisher>();
@@ -292,7 +302,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this._parentRepositoriesManager = new ParentRepositoriesManager(globalState);
 		this._unsafeRepositoriesManager = new UnsafeRepositoriesManager();
 
-		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
+		workspace.onDidChangeWorkspaceFolders(e => this.workspaceFolderChanges.track(this.onDidChangeWorkspaceFolders(e)), this, this.disposables);
 		workspace.onDidChangeWorkspaceTrustedFolders(this.onDidChangeWorkspaceTrustedFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this.disposables);
