@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { cancelOnDispose, CancellationToken } from '../../../../base/common/cancellation.js';
-import { getGitHubCredential } from '../../../../base/common/defaultAccount.js';
+import { asGitHubAccount } from '../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -77,7 +77,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 				&& [...event.event.added ?? [], ...event.event.changed ?? [], ...event.event.removed ?? []].some(session =>
 					!this._defaultSessionAccountId || session.account.id === this._defaultSessionAccountId
 					|| session.id === this._defaultClient.value?.object.authorization.sessionId
-					|| session.id === getGitHubCredential(_defaultAccountService.currentDefaultAccount)?.sessionId
+					|| session.id === asGitHubAccount(_defaultAccountService.currentDefaultAccount)?.sessionId
 				), this._store)),
 		);
 		this._register(this.onDidChangeDefaultClient(() => {
@@ -162,20 +162,20 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 	}
 
 	private _getDefaultAccountKey(): string {
-		const account = getGitHubCredential(this._defaultAccountService.currentDefaultAccount);
+		const account = asGitHubAccount(this._defaultAccountService.currentDefaultAccount);
 		const provider = account?.authenticationProvider ?? this._defaultAccountService.getDefaultAccountAuthenticationProvider();
 		return JSON.stringify([provider.id, account?.sessionId, provider.enterprise, provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined]);
 	}
 
 	private async _getDefaultAccountOptions(cancellationToken: CancellationToken): Promise<{ options: GitHubClientOptions; accountId: string; generation: number }> {
 		CancellationToken.throwIfCanceled(cancellationToken);
-		const account = getGitHubCredential(this._defaultAccountService.currentDefaultAccount ?? await this._defaultAccountService.getDefaultAccount());
+		const account = asGitHubAccount(this._defaultAccountService.currentDefaultAccount ?? await this._defaultAccountService.getDefaultAccount());
 		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!account) {
 			throw new GitHubRequestError(localize('githubAuthenticationRequired', "Sign in to GitHub to load GitHub data."), 'authentication');
 		}
 		const generation = this._defaultClientGeneration;
-		const current = getGitHubCredential(this._defaultAccountService.currentDefaultAccount);
+		const current = asGitHubAccount(this._defaultAccountService.currentDefaultAccount);
 		if (!current || account.sessionId !== current.sessionId || account.authenticationProvider.id !== current.authenticationProvider.id) {
 			throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
 		}

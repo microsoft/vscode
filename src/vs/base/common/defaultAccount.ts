@@ -103,13 +103,15 @@ export interface IDefaultAccount {
 	readonly entitlementsData?: IEntitlementsData | null;
 }
 
-/** The part of a default account that the client uses for GitHub requests. */
-export type IDefaultAccountGitHubCredential = Pick<IDefaultAccount, 'authenticationProvider' | 'accountName' | 'sessionId' | 'enterprise'>;
+/** The fields of a default account that identify its GitHub account and the authentication session to use for it. */
+export type IGitHubDefaultAccount = Pick<IDefaultAccount, 'authenticationProvider' | 'accountName' | 'sessionId' | 'enterprise'>;
 
 /**
- * Returns what to use for GitHub requests made on behalf of the default account. Every default account is a GitHub
- * account today; read it through here so that an account signed in without GitHub access yields `undefined`.
+ * Returns the default account as a GitHub account, or `undefined` when there is no default account. Every default
+ * account is a GitHub account, so this returns the account it is given. Code that makes GitHub requests for the default
+ * account reads it through here, so that a default account that is not a GitHub account would yield `undefined` too.
+ * Callers that handle a missing default account differently from that case must check the account itself.
  */
-export function getGitHubCredential(account: IDefaultAccount | null | undefined): IDefaultAccountGitHubCredential | undefined {
+export function asGitHubAccount(account: IDefaultAccount | null | undefined): IGitHubDefaultAccount | undefined {
 	return account ?? undefined;
 }

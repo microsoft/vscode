@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getGitHubCredential, IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { asGitHubAccount, IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
 import { getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
@@ -35,12 +35,12 @@ export async function getGitHubEnvironmentSessions(authentication: IAuthenticati
 	const { providerId, scopes } = getGitHubEnvironmentAuthentication(product);
 	let account: AuthenticationSessionAccount | undefined;
 	if (defaultAccount) {
-		const credential = getGitHubCredential(defaultAccount);
-		if (credential?.authenticationProvider.id !== providerId) {
+		const gitHubAccount = asGitHubAccount(defaultAccount);
+		if (gitHubAccount?.authenticationProvider.id !== providerId) {
 			throw new GitHubEnvironmentAccountUnavailableError(localize('missionControlSharing.githubAccountRequired', "GitHub environment sharing requires a GitHub.com Copilot account."), 'nonGitHubAccount');
 		}
 		const allSessions = await authentication.getSessions(providerId, undefined, undefined, true);
-		account = allSessions.find(session => session.id === credential.sessionId)?.account;
+		account = allSessions.find(session => session.id === gitHubAccount.sessionId)?.account;
 		if (!account) {
 			throw new GitHubEnvironmentSharingError(localize('missionControlSharing.accountUnavailable', "The selected Copilot account is unavailable. Sign in to GitHub again to enable environment sharing."), 'accountUnavailable');
 		}

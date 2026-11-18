@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { getGitHubCredential } from '../../../../../../base/common/defaultAccount.js';
+import { asGitHubAccount } from '../../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -139,7 +139,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			this.historyScheduler.cancel();
 			this.discoveryAttempts = 0;
 			this.historyRefresh = undefined;
-			const account = getGitHubCredential(defaultAccountService.currentDefaultAccount);
+			const account = asGitHubAccount(defaultAccountService.currentDefaultAccount);
 			if (!account) {
 				this.accountInitialized.read(reader);
 			}
@@ -535,13 +535,14 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		const { definition, repository } = entry;
 		const schedule = cloudAutomationSchedule(definition.triggers);
 		const ownership = definition.ownership ?? definition.owner_type ?? 'user';
+		const accountName = asGitHubAccount(this.defaultAccountService.currentDefaultAccount)?.accountName;
 		return {
-			id: JSON.stringify([this.providerId, getGitHubCredential(this.defaultAccountService.currentDefaultAccount)?.accountName, repository.owner.toLowerCase(), repository.repo.toLowerCase(), definition.id]),
+			id: JSON.stringify([this.providerId, accountName, repository.owner.toLowerCase(), repository.repo.toLowerCase(), definition.id]),
 			name: definition.name, prompt: definition.prompt, schedule,
 			cloudTrigger: { triggers: definition.triggers ?? {}, requireActorWritePermission: definition.require_actor_write_permission },
 			ownership,
 			isCreatedByCurrentUser: !!definition.created_by.login
-				&& definition.created_by.login.toLowerCase() === getGitHubCredential(this.defaultAccountService.currentDefaultAccount)?.accountName.toLowerCase(),
+				&& definition.created_by.login.toLowerCase() === accountName?.toLowerCase(),
 			targetDisplay: { label: `${repository.owner}/${repository.repo}`, icon: Codicon.cloud },
 			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository.owner}/${repository.repo}/agents/automations/${definition.id}` }),
 			target: { kind: 'workspace', providerId: this.providerId, sessionTypeId: this.sessionTypeId, isolation: { kind: 'default' }, folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }) },
