@@ -8,7 +8,7 @@ import type { ResolveSessionConfigResult } from '../../../../platform/agentHost/
 export const USE_WORKTREE_SETTING = 'sessions.useWorktree';
 
 export const SESSIONS_DRAFTS_ENABLED_SETTING = 'sessions.drafts.enabled';
-export const SESSIONS_SEND_LATER_ENABLED_SETTING = 'sessions.sendLater.enabled';
+export { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../chat/common/constants.js';
 
 export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 
