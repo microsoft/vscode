@@ -2076,6 +2076,20 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/a/b.png?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).');
 		});
 
+		test('preserves named chat links instead of rewriting them as file references', () => {
+			const links = [
+				'[Review \\[permissions\\]](ahp-chat:/11111111-1111-5111-8111-111111111111)',
+				'[Legacy child](ahp-chat://subagent/opaque-parent/spawn-id)',
+			];
+			assert.deepStrictEqual(['local', 'remote-host'].flatMap(authority => links.map(link => ({
+				markdown: rewriteMarkdownLinks(`Read agent ${link}`, authority),
+				target: rewriteAgentHostLinkTarget(link.slice(link.indexOf('](') + 2, -1), authority),
+			}))), ['local', 'remote-host'].flatMap(() => links.map(link => ({
+				markdown: `Read agent ${link}`,
+				target: link.slice(link.indexOf('](') + 2, -1),
+			}))));
+		});
+
 		test('error turn produces error details in history', () => {
 			const turn = createTurn({
 				state: TurnState.Error,
@@ -2911,6 +2925,19 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta =>
 				toolCallStateToInvocation(createToolCallState({ _meta })).originMessage
 			), [undefined, undefined, undefined, undefined]);
+		});
+
+		test('MCP origin prefers the server display name and falls back to the server name', () => {
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			assert.deepStrictEqual([
+				{ mcpServerName: serverName, 'vscode.mcpServerDisplayName': 'Slack' },
+				{ mcpServerName: serverName, 'vscode.mcpServerDisplayName': '  ' },
+				{ mcpServerName: serverName },
+			].map(_meta => toolCallStateToInvocation(createToolCallState({ _meta })).originMessage), [
+				'Slack (MCP Server)',
+				`${serverName} (MCP Server)`,
+				`${serverName} (MCP Server)`,
+			]);
 		});
 
 		test('set_workspace confirmation hides implementation input', () => {

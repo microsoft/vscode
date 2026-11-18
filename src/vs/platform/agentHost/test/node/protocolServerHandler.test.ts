@@ -96,7 +96,8 @@ import { AgentHostFileSystemProvider, agentHostUri, type IRemoteFilesystemConnec
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo, AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import type { IAgentHostClientConnectionEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext, type IAgentHostSessionSubscribeTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
+import { buildMcpServerLogsChannelTemplate } from '../../common/otlp/mcpServerLogsChannel.js';
+import { iterateOtlpLogRecords, OtlpLogEmitter, type IOtlpLogRecord, type OtlpLogLevelName } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
@@ -540,6 +541,12 @@ class MockAgentService extends Disposable implements IAgentService {
 	}
 	async disposeTerminal(): Promise<void> { }
 	async invokeChangesetOperation(_params: InvokeChangesetOperationParams, _credentials?: IAgentHostCredentialSource): Promise<{}> { return {}; }
+	readonly mcpLogSubscriptions: { session: URI; serverName: string; level: OtlpLogLevelName; onRecords: (records: readonly IOtlpLogRecord[]) => void; disposed: boolean }[] = [];
+	subscribeMcpServerLogs(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void) {
+		const subscription = { session, serverName, level, onRecords, disposed: false };
+		this.mcpLogSubscriptions.push(subscription);
+		return toDisposable(() => { subscription.disposed = true; });
+	}
 	async handleMcpRequest(_channel: string, _method: string, _params: Record<string, unknown> | undefined): Promise<unknown> { throw new Error('Method not found'); }
 
 	override dispose(): void {
@@ -12748,6 +12755,54 @@ suite('ProtocolServerHandler', () => {
 			assert.ok(resp.error, 'response should be an error');
 			assert.strictEqual(resp.result, undefined);
 			assert.strictEqual(agentService.createSessionConfigs.length, 0, 'agent service should not have been called');
+		});
+	});
+
+	suite('MCP server logs channels', () => {
+		const records: readonly IOtlpLogRecord[] = [{ timeUnixNano: '1000', severityNumber: 5, severityText: 'debug', body: 'MCP frame' }];
+		// Clients normalize the expanded template through `URI`, which must not break the encoded segments.
+		const channel = URI.parse(buildMcpServerLogsChannelTemplate(sessionUri, 'plugin/server').replace('{level}', 'DEBUG')).toString();
+		const logs = (transport: MockProtocolTransport) => transport.sent.filter(isJsonRpcNotification).filter(message => message.method === 'otlp/exportLogs');
+
+		test('routes stateless logs only to the subscriber without a host OTLP emitter', async () => {
+			const a = connectClient('mcp-logs-a');
+			const b = connectClient('mcp-logs-b');
+			a.simulateMessage(request(2, 'subscribe', { channel }));
+			const response = await waitForResponse(a, 2);
+			const subscription = agentService.mcpLogSubscriptions[0];
+			subscription.onRecords(records);
+			assert.deepStrictEqual({
+				result: (response as { result: unknown }).result,
+				route: { session: subscription.session.toString(), serverName: subscription.serverName, level: subscription.level },
+				a: logs(a).map(message => message.method === 'otlp/exportLogs' ? { channel: message.params.channel, records: [...iterateOtlpLogRecords(message.params.payload)] } : undefined),
+				b: logs(b),
+			}, {
+				result: {}, route: { session: sessionUri, serverName: 'plugin/server', level: 'debug' },
+				a: [{ channel, records }], b: [],
+			});
+			a.simulateMessage(notification('unsubscribe', { channel }));
+			subscription.onRecords(records);
+			assert.deepStrictEqual({ disposed: subscription.disposed, count: logs(a).length }, { disposed: true, count: 1 });
+		});
+
+		test('restores initial subscriptions and disposes them on disconnect', () => {
+			const transport = connectClient('mcp-logs-initial', [channel]);
+			const subscription = agentService.mcpLogSubscriptions[0];
+			subscription.onRecords(records);
+			transport.simulateClose();
+			subscription.onRecords(records);
+			assert.deepStrictEqual({ disposed: subscription.disposed, count: logs(transport).length }, { disposed: true, count: 1 });
+		});
+
+		test('restores stateless log subscriptions on reconnect', async () => {
+			const original = connectClient('mcp-logs-reconnect', [channel]);
+			original.simulateClose();
+			const transport = new MockProtocolTransport();
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(2, 'reconnect', { clientId: 'mcp-logs-reconnect', lastSeenServerSeq: -1, subscriptions: [channel] }));
+			await waitForResponse(transport, 2);
+			agentService.mcpLogSubscriptions[1].onRecords(records);
+			assert.deepStrictEqual({ disposed: agentService.mcpLogSubscriptions.map(subscription => subscription.disposed), count: logs(transport).length }, { disposed: [true, false], count: 1 });
 		});
 	});
 

@@ -5,6 +5,7 @@
 
 import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationHandlerResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, MCPServerConfig, MCPStdioServerConfig, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { homedir } from 'os';
+import { getEagerMcpDiagnosticLevel } from './copilotMcpServerLogs.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -1298,13 +1299,23 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		try {
 			const raw = await this._sessionOpenTelemetry.withSdkResume(
 				session,
-				() => this._withTraceContext(plan.sessionId, () => this._openWithSandboxConfig(plan.sessionId, config, openConfig => plan.client.resumeSession(plan.sessionId, openConfig))),
+				() => this._withTraceContext(plan.sessionId, () => this._openWithSandboxConfig(plan.sessionId, config, openConfig => plan.client.resumeSession(plan.sessionId, { ...openConfig, ...this._eagerDiagnostics() }))),
 			);
 			outcome = 'success';
 			return raw;
 		} finally {
 			this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession settled: attemptId=${attemptId}, outcome=${outcome}, elapsedMs=${Math.round(stopWatch.elapsed())}`);
 		}
+	}
+
+	/**
+	 * Captures MCP diagnostics from launch while the host logs at Debug or Trace, so startup
+	 * traffic is retained before any client subscribes. Live sessions reapply the effective
+	 * level through `CopilotMcpServerLogs` once their wrapper is set.
+	 */
+	private _eagerDiagnostics(): Pick<SessionConfig, 'diagnostics'> {
+		const level = getEagerMcpDiagnosticLevel(this._logService.getLevel());
+		return level ? { diagnostics: { sources: { mcp: { level } } } } : {};
 	}
 
 	private _withTraceContext<T>(sessionId: string, fn: () => T): T {
@@ -1336,6 +1347,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		const raw = await this._withTraceContext(plan.sessionId, () => this._openWithSandboxConfig(plan.sessionId, config, openConfig => plan.client.createSession({
 			...openConfig,
+			...this._eagerDiagnostics(),
 			sessionId: plan.sessionId,
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
