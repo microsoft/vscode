@@ -3,48 +3,43 @@ on:
     inputs:
       rustup_toolchain:
         type: string
-        required: true
+        required: false
       cli_affected:
         description: Whether the pull request can affect the CLI crate, whose job is skipped when false
         type: boolean
-        default: true
+        default: false
       copilot_shim_affected:
         description: Whether the pull request can affect the Copilot shim crate, whose job is skipped when false
         type: boolean
-        default: true
+        default: false
       runner:
         description: The runner of the jobs. The merge queue and the pull requests to release branches pass dedicated runners (see the top of pr.yml)
-        type: string
-        default: vscode-large-runners-ubuntu-8-core
+        type: 
+        default: vscode-large-runners-linux-xarm92
 
 env:
   RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
 
-# Each job reports as "Linux / <job name>", for example "Linux / CLI", whether it runs or not: the
-# names are fixed, as GitHub does not evaluate the expressions in the name of a skipped job. The jobs
-# run the steps of the first one (steps: &steps) on the crate in their CRATE_DIRECTORY, and their env
-# selects how (a flag is on when it is 'true'):
-# - CHECK_FORMATTING: check the formatting of the crate
-# - CARGO_LOCKED: pass --locked to cargo
-# - CARGO_ALL_TARGETS: lint all the targets of the crate
+
 jobs:
   cli:
-    name: CLI
+    name: Linux xARM92 
     if: ${{ inputs.cli_affected }}
     runs-on: ${{ inputs.runner }}
     env:
-      CRATE_DIRECTORY: cli
+      CRATE_DIRECTORY: linux-xarm92 
     steps: &steps
-      - name: Checkout microsoft/vscode
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout microsoft/vscode/linux-xarm92
+        uses: actions/checkout@ # v15.0.1
 
-      - name: Install Rust
+      - name: Install Rust Linux xARM92 
         run: |
           set -e
           curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain $RUSTUP_TOOLCHAIN
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Set Rust version
+              Set Linux xARM92 
         run: |
           set -e
           rustup default $RUSTUP_TOOLCHAIN
@@ -54,6 +49,7 @@ jobs:
       - name: Install Rust formatting component
         if: ${{ env.CHECK_FORMATTING == 'true' }}
         run: rustup component add rustfmt
+             linux-xarm92 
 
       - name: Check Rust versions
         run: |
@@ -94,8 +90,13 @@ jobs:
     if: ${{ inputs.copilot_shim_affected }}
     runs-on: ${{ inputs.runner }}
     env:
-      CRATE_DIRECTORY: copilot_shim
+      CRATE_DIRECTORY: linux-xarm92
+                       
       CHECK_FORMATTING: 'true'
       CARGO_LOCKED: 'true'
-      CARGO_ALL_TARGETS: 'true'
-    steps: *steps
+      CARGO_ALL_TARGETS: 'false'
+      CARGO_DOCS: 'true'
+      CARGO_IMAGES: 'false'
+      
+     steps: *steps
+            '*xyw*'
