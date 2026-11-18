@@ -909,6 +909,29 @@ suite('ChatMarkdownContentPart', () => {
 			});
 		});
 
+		test('refreshes only the latest streaming render when math support loads', async () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+			const extension = MarkedKatexSupport.getExtension(mainWindow)!;
+			const loaded = new DeferredPromise<typeof extension>();
+			const getExtension = stub(MarkedKatexSupport, 'getExtension').returns(undefined);
+			disposables.add(toDisposable(() => getExtension.restore()));
+			const loadExtension = stub(MarkedKatexSupport, 'loadExtension').returns(loaded.p);
+			disposables.add(toDisposable(() => loadExtension.restore()));
+			const render = spy(renderer, 'render');
+			disposables.add(toDisposable(() => render.restore()));
+			const markdown = '```mermaid\ngraph TD\n```\n\n$x^2$';
+			const part = createMarkdownPart(markdown, createRenderContext(false), true);
+			const updates = ['First', 'First Second'].map(text => part.tryIncrementalUpdate({ kind: 'markdownContent', content: new MarkdownString(`${markdown} ${text}`) }));
+			render.resetHistory();
+			getExtension.returns(extension);
+			await loaded.complete(extension);
+			await timeout(0);
+
+			assert.deepStrictEqual({ updates, renders: render.callCount, math: !!part.domNode.querySelector('.katex'), text: part.domNode.textContent?.includes('Second') }, {
+				updates: [true, true], renders: 1, math: true, text: true,
+			});
+		});
+
 		test('applies math rules only when all HTML comes from the renderer', () => {
 			const span = '<span class="monaco-button" style="position: relative; top: -40px">fake</span>';
 			const render = (markdown: MarkdownString) => {

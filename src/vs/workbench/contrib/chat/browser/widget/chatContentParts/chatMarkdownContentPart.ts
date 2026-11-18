@@ -270,7 +270,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				: [];
 			if (hasMath && markedExtensions.length === 0) {
 				MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
-					.then(() => this.renderMarkdown())
+					.then(() => {
+						if (!store.isDisposed) {
+							this.renderMarkdown();
+						}
+					})
 					.catch(e => console.error('Failed to load MarkedKatexSupport extension:', e));
 			}
 
