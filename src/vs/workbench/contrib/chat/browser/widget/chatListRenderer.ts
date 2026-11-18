@@ -2079,7 +2079,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}));
 					templateData.transcriptNotice = notice;
 					templateData.elementDisposables.add(toDisposable(() => { templateData.transcriptNotice = undefined; }));
-					templateData.rowContainer.insertBefore(notice.domNode, templateData.footerToolbarContainer);
+					templateData.rowContainer.prepend(notice.domNode);
 				}
 			}
 		} else {
