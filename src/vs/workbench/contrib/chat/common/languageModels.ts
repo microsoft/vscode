@@ -25,6 +25,7 @@ import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js'
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { IModelRouterRouteSummary } from '../../../../platform/agentHost/common/modelRouter.js';
 import { parseProviderQualifiedModelId } from '../../../../platform/agentHost/common/providerQualifiedModelId.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -349,8 +350,10 @@ export interface ILanguageModelChatMetadata {
 		 */
 		readonly sourceId?: string;
 	};
-	/** A file that the model picker's Details opens instead of its details card, such as a model router's file. */
+	/** The file that defines the model, such as a model router's file, which its details in the model picker link to. */
 	readonly detailsResource?: UriComponents;
+	/** A model router's routes in its file's order, which its details in the model picker list. A chat starts on the first when none clearly fits. */
+	readonly modelRouterRoutes?: readonly IModelRouterRouteSummary[];
 	/**
 	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
 	 * original model is registered under in the renderer's LM service
