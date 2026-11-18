@@ -3395,6 +3395,7 @@ export class Repository implements Disposable {
 			return;
 		}
 
+		this.logger.trace(`[Repository][setWarm] ${isWarm ? 'Keeping repository warm' : 'Showing repository'}: ${this.root}`);
 		this._isWarm = isWarm;
 		this._sourceControl.isHidden = this.isHidden;
 		this._onDidChangeWarm.fire(isWarm);

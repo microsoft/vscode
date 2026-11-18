@@ -6,8 +6,8 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
-import { EventEmitter, Uri, WorkspaceFolder, WorkspaceFoldersChangeEvent } from 'vscode';
-import { IWorkspaceFolderRepositoriesHost, WorkspaceFolderRepositories } from '../workspaceFolderRepositories';
+import { EventEmitter, Uri, WorkspaceConfiguration, WorkspaceFolder, WorkspaceFolderLocationsChangeEvent, WorkspaceFoldersChangeEvent } from 'vscode';
+import { IRepositoryModel, IWarmRepository, IWorkspace, WorkspaceFolderRepositories } from '../workspaceFolderRepositories';
 import { isDescendant } from '../util';
 
 const primary = Uri.file('/repo/primary').fsPath;
@@ -45,41 +45,57 @@ async function flush(): Promise<void> {
 }
 
 /**
- * A workspace with the git model's repositories, where each repository is its root. Repositories open when
- * `register` is called for their location and are ready when `ready` is called for them, unless `autoOpen`.
+ * A repository at `root`, ready once its first git status ran.
  */
-class TestWorkspace implements IWorkspaceFolderRepositoriesHost<string> {
+class TestRepository implements IWarmRepository {
+	private readonly ready = new Deferred();
+	isReady = false;
 
-	folders: TestFolder[];
-	readonly open = new Map<string, { warm: boolean; ready: Deferred; isReady: boolean }>();
-	readonly opens = new Map<string, Deferred>();
-	readonly closedWhileCurrent: string[] = [];
-	opening = 0;
-
-	readonly model: WorkspaceFolderRepositories<string>;
-
-	private readonly _onDidChangeWorkspaceFolders = new EventEmitter<WorkspaceFoldersChangeEvent>();
-	readonly onDidChangeWorkspaceFolders = this._onDidChangeWorkspaceFolders.event;
-	private readonly _onDidChangeWorkspaceFolderLocations = new EventEmitter<void>();
-	readonly onDidChangeWorkspaceFolderLocations = this._onDidChangeWorkspaceFolderLocations.event;
-	detectingWorktrees = false;
-
-	constructor(folders: TestFolder[], private readonly autoOpen = true, firstStatusTimeout = 1e9) {
-		this.folders = folders;
-		this.model = new WorkspaceFolderRepositories<string>(this, 3, firstStatusTimeout);
-		for (const f of folders) {
-			this.register(deepest(repositoriesOnDisk, f.uri.fsPath)!, false, true);
+	constructor(readonly root: string, public isWarm: boolean, isReady: boolean) {
+		if (isReady) {
+			this.setReady();
 		}
 	}
 
-	getWorkspaceFolders() { return this.folders; }
-	isDetectingWorktrees() { return this.detectingWorktrees; }
-	getOpenRepositories() { return [...this.open.keys()]; }
-	getRoot(r: string) { return r; }
-	getOpenRepository(fsPath: string) { return deepest(this.open.keys(), fsPath); }
-	isWarm(r: string) { return this.open.get(r)!.warm; }
-	setWarm(r: string, warm: boolean) { this.open.get(r)!.warm = warm; }
-	whenFirstStatus(r: string) { return this.open.get(r)!.ready.promise; }
+	get whenFirstStatus() { return this.ready.promise; }
+	setWarm(isWarm: boolean) { this.isWarm = isWarm; }
+	setReady() { this.isReady = true; this.ready.resolve(); }
+}
+
+/**
+ * A workspace and its git model. Repositories open when `registerLocation` is called for their location and are
+ * ready when `ready` is called for them, unless `autoOpen`.
+ */
+class TestWorkspace implements IRepositoryModel<TestRepository> {
+
+	folders: TestFolder[];
+	readonly open = new Map<string, TestRepository>();
+	readonly opens = new Map<string, Deferred>();
+	readonly closedWhileCurrent: string[] = [];
+
+	readonly model: WorkspaceFolderRepositories<TestRepository>;
+
+	private readonly onDidChangeWorkspaceFolders = new EventEmitter<WorkspaceFoldersChangeEvent>();
+	private readonly onDidChangeWorkspaceFolderLocations = new EventEmitter<WorkspaceFolderLocationsChangeEvent>();
+
+	constructor(folders: TestFolder[], private readonly autoOpen = true, firstStatusTimeout = 1e9) {
+		this.folders = folders;
+		const ws = this;
+		const workspace: IWorkspace = {
+			get workspaceFolders() { return ws.folders; },
+			onDidChangeWorkspaceFolders: this.onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkspaceFolderLocations: this.onDidChangeWorkspaceFolderLocations.event,
+			getConfiguration: () => ({ get: () => false }) as unknown as WorkspaceConfiguration
+		};
+		this.model = new WorkspaceFolderRepositories(this, workspace, 3, firstStatusTimeout);
+		for (const f of folders) {
+			const root = deepest(repositoriesOnDisk, f.uri.fsPath)!;
+			this.open.set(root, new TestRepository(root, false, true));
+		}
+	}
+
+	get repositories() { return [...this.open.values()]; }
+	getRepository(fsPath: string) { const root = deepest(this.open.keys(), fsPath); return root ? this.open.get(root) : undefined; }
 
 	openRepository(fsPath: string): Promise<void> {
 		if (this.autoOpen) {
@@ -91,36 +107,22 @@ class TestWorkspace implements IWorkspaceFolderRepositoriesHost<string> {
 		return deferred.promise;
 	}
 
-	close(r: string) {
-		if (this.folders.some(f => deepest(repositoriesOnDisk, f.uri.fsPath) === r)) {
-			this.closedWhileCurrent.push(r);
-		}
-		this.open.delete(r);
-		this.model.delete(r);
-	}
-
-	showOpening(opening: Promise<void>) {
-		this.opening++;
-		const done = () => this.opening--;
-		opening.then(done, done);
+	disposeRepository(repository: TestRepository) {
+		this.close(repository.root);
 	}
 
 	/** The repository at `fsPath` opens, see `openRepository`. */
 	registerLocation(fsPath: string): void {
 		const root = deepest(repositoriesOnDisk, fsPath);
 		if (root && !this.open.has(root)) {
-			this.register(root, true, this.autoOpen);
+			this.open.set(root, new TestRepository(root, true, this.autoOpen));
 		}
 		this.opens.get(fsPath)?.resolve();
 		this.opens.delete(fsPath);
 	}
 
 	ready(root: string): void {
-		const r = this.open.get(root);
-		if (r) {
-			r.isReady = true;
-			r.ready.resolve();
-		}
+		this.open.get(root)?.setReady();
 	}
 
 	/** The folder at `index` moves to `fsPath`: `Model.onDidChangeWorkspaceFolders` handles a switch, or runs the code of `main`. */
@@ -129,44 +131,49 @@ class TestWorkspace implements IWorkspaceFolderRepositoriesHost<string> {
 		const added = folder(fsPath, index);
 		this.folders = this.folders.map((f, i) => i === index ? added : f);
 		const e = { added: [added], removed: [removed] };
-		this._onDidChangeWorkspaceFolders.fire(e);
+		this.onDidChangeWorkspaceFolders.fire(e);
 		const switches = this.model.getFolderLocationSwitches(e);
 		if (switches) {
 			this.model.switchFolderLocations(switches);
 			return;
 		}
 
-		const toOpen = this.getOpenRepository(added.uri.fsPath) ? undefined : deepest(repositoriesOnDisk, added.uri.fsPath);
-		const left = this.getOpenRepository(removed.uri.fsPath);
-		if (left && !this.folders.some(f => isDescendant(f.uri.fsPath, left))) {
-			this.close(left);
+		const toOpen = this.getRepository(added.uri.fsPath) ? undefined : deepest(repositoriesOnDisk, added.uri.fsPath);
+		const left = this.getRepository(removed.uri.fsPath);
+		if (left && !this.folders.some(f => isDescendant(f.uri.fsPath, left.root))) {
+			this.close(left.root);
 		}
 		if (toOpen && !this.open.has(toOpen)) {
-			this.register(toOpen, false, true);
+			this.open.set(toOpen, new TestRepository(toOpen, false, true));
 		}
 	}
 
 	/** The locations of the workspace folders become known. */
 	resolveLocations(): void {
 		this.folders.forEach(f => f.locations ??= knownLocations.map(l => ({ uri: Uri.file(l), name: path.basename(l) })));
-		this._onDidChangeWorkspaceFolderLocations.fire();
+		this.fireLocationsChange();
 	}
 
 	/** The known locations of the workspace folders change. */
 	fireLocationsChange(): void {
-		this._onDidChangeWorkspaceFolderLocations.fire();
+		this.onDidChangeWorkspaceFolderLocations.fire({ workspaceFolders: this.folders });
 	}
 
-	get shown(): string[] { return [...this.open].filter(([, r]) => !r.warm).map(([root]) => root); }
-	get warm(): string[] { return [...this.open].filter(([, r]) => r.warm).map(([root]) => root).sort(); }
+	get opening(): number { return this.model.isOpeningLocations ? 1 : 0; }
+	get shown(): string[] { return this.repositories.filter(r => !r.isWarm).map(r => r.root); }
+	get warm(): string[] { return this.repositories.filter(r => r.isWarm).map(r => r.root).sort(); }
 	get state() { return { shown: this.shown, warm: this.warm }; }
 
-	private register(root: string, warm: boolean, isReady: boolean): void {
-		const ready = new Deferred();
-		if (isReady) {
-			ready.resolve();
+	private close(root: string) {
+		const repository = this.open.get(root);
+		if (!repository) {
+			return;
 		}
-		this.open.set(root, { warm, ready, isReady });
+		if (this.folders.some(f => deepest(repositoriesOnDisk, f.uri.fsPath) === root)) {
+			this.closedWhileCurrent.push(root);
+		}
+		this.open.delete(root);
+		this.model.delete(repository);
 	}
 }
 
@@ -268,7 +275,7 @@ suite('WorkspaceFolderRepositories', () => {
 		ws.switchTo(wt1);
 		const read = (async () => {
 			await ws.model.whenSwitchesOpened();
-			return ws.getOpenRepository(path.join(wt1, 'file.txt'));
+			return ws.getRepository(path.join(wt1, 'file.txt'))?.root;
 		})();
 		ws.registerLocation(wt1);
 
