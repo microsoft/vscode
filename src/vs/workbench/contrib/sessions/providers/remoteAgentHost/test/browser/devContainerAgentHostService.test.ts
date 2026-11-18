@@ -386,6 +386,20 @@ suite('Dev Container Agent Host Service', () => {
 		});
 	});
 
+	test('drops the disposed client of an environment whose relay closed for good, so first use connects again', async () => {
+		const { service, remoteService, createdUris } = setupEnvironments(undefined, { localDocker: true });
+		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
+		await service.createEnvironment(LocalDevContainerEnvironmentHost);
+		const provider = service.provider!;
+		remoteService.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		const closed = { status: provider.status.kind, connected: !!provider.wiredConnection };
+		await provider.config.connectOnDemand!();
+		assert.deepStrictEqual({ closed, reopened: { status: provider.status.kind, connected: !!provider.wiredConnection, connections: createdUris.length } }, {
+			closed: { status: 'disconnected', connected: false },
+			reopened: { status: 'connected', connected: true, connections: 2 },
+		});
+	});
+
 	test('does not reconnect an environment whose deletion connects its host', async () => {
 		const host = { connect: () => { } };
 		const { service, remoteService, createdUris, createHostConnection } = setupEnvironments(async () => {

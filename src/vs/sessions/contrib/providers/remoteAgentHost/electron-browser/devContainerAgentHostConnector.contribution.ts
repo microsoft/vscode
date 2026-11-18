@@ -551,8 +551,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		});
 		const connect = async (config: IDevContainerAgentHostConfig, reconnect: boolean) => {
 			// Read on every connect, so a container created on reconnect follows the current setting.
-			// Environments keep their files in their own volume and do not use a state volume.
-			const persistUserState = !environment && this._configurationService.getValue<boolean>(DevContainerStateVolumeEnabledSettingId) === true;
+			const persistUserState = this._configurationService.getValue<boolean>(DevContainerStateVolumeEnabledSettingId) === true;
 			connectionIds.set(config.connectionId, persistUserState);
 			const stopWatch = StopWatch.create(false);
 			const report = (success: boolean, cancelled: boolean) => this._telemetryService.publicLog2<DevContainerConnectEvent, DevContainerConnectClassification>('vscodeAgents.devContainer/connect', {

@@ -346,7 +346,8 @@ export class DevContainerEnvironments extends Disposable {
 			const connection = connectionInfo && RemoteAgentHostConnectionStatus.isConnected(connectionInfo.status) ? this._remoteAgentHostService.getConnection(state.address) : undefined;
 			if (connection) {
 				state.provider.setConnection(connection, state.defaultDirectory ?? connectionInfo?.defaultDirectory);
-			} else if (!connectionInfo) {
+			} else if (!connectionInfo || !RemoteAgentHostConnectionStatus.isConnecting(connectionInfo.status) && !RemoteAgentHostConnectionStatus.isReconnecting(connectionInfo.status)) {
+				// A permanently closed relay leaves a disconnected entry whose client is disposed; clearing it lets first use connect again.
 				state.provider.clearConnection();
 			}
 		}

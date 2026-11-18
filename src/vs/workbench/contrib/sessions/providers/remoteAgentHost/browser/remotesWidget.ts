@@ -72,8 +72,8 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 		description: localize('remotes.empty.extensions.description', "Extensions that provide agent hosts list them here while they are enabled."),
 	},
 	devContainer: {
-		label: localize('remotes.empty.devContainers', "No Dev Containers."),
-		description: localize('remotes.empty.devContainers.description', "Use Create Dev Container in this section's header to create one on this computer or on a connected SSH, WSL, or tunnel host that has Docker."),
+		label: localize('remotes.empty.devContainers', "No Dev Containers yet."),
+		description: localize('remotes.empty.devContainers.description', "Run sessions in an Ubuntu container that keeps its files in a Docker volume."),
 	},
 };
 
@@ -106,7 +106,6 @@ export class RemotesWidget extends Disposable {
 	private failedKinds: readonly RemoteKind[] = [];
 	private hasRefreshed = false;
 	private signingInToTunnels = false;
-	private creatingDevContainer = false;
 
 	constructor(
 		container: HTMLElement,
@@ -191,7 +190,7 @@ export class RemotesWidget extends Disposable {
 		this.table = this._register(instantiationService.createInstance(WorkbenchTable<IRemoteTableRow>,
 			'RemotesTable', this.tableInner, {
 			headerRowHeight: 31, // Includes the header's bottom border.
-			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? row.entry.documentation ? 76 : 54 : 26,
+			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? row.entry.documentation || row.entry.description && row.entry.action ? 76 : 54 : 26,
 		}, columns, renderers, {
 			identityProvider: { getId: row => row.id },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: row => row.entry.type === 'remote' ? row.entry.remote.name : row.entry.label },
@@ -267,6 +266,8 @@ export class RemotesWidget extends Disposable {
 	private runRowAction(entry: RemoteTableEntry, action: RemoteRowAction): void {
 		if (entry.type === 'empty' && action === 'signIn') {
 			void this.signInToTunnels();
+		} else if (entry.type === 'empty' && action === 'createDevContainer' && entry.action?.enabled) {
+			void this.createDevContainer();
 		} else if (entry.type === 'group') {
 			if (action === 'toggleGroup') {
 				this.toggleGroup(entry.kind);
@@ -274,7 +275,7 @@ export class RemotesWidget extends Disposable {
 				void this.openConfiguration(entry.kind);
 			} else if (action === 'documentation' && entry.documentation) {
 				void this.openDocumentation(entry.documentation.href);
-			} else if (action === 'createDevContainer' && entry.create?.enabled) {
+			} else if (action === 'createDevContainer' && entry.canCreate) {
 				void this.createDevContainer();
 			}
 		} else if (entry.type === 'remote') {
@@ -301,7 +302,7 @@ export class RemotesWidget extends Disposable {
 			} else if (action === 'updateServer') {
 				void this.manageRemote(entry.remote.id, 'updateServer');
 			} else if (action === 'createDevContainer' && entry.remote.canCreateDevContainer) {
-				void this.manageRemote(entry.remote.id, 'createDevContainer');
+				void this.createDevContainer(entry.remote.id);
 			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh' || entry.remote.kind === 'devContainer') && entry.remote.canDelete)) {
 				void this.deleteRemote(entry.remote.id, entry.remote.kind);
 			}
@@ -470,7 +471,7 @@ export class RemotesWidget extends Disposable {
 				label: hasRemotes
 					? localize('remotes.tunnels.signInToRefresh', "Sign in to refresh your tunnels.")
 					: localize('remotes.tunnels.signInRequired', "Sign in to allow access to your tunnels."),
-				action: { label: localize('remotes.tunnels.signIn', "Sign In"), enabled: !this.signingInToTunnels },
+				action: { id: 'signIn', label: localize('remotes.tunnels.signIn', "Sign In"), enabled: !this.signingInToTunnels },
 				// Setup guidance only helps while the group is empty; the group's info action still opens it.
 				...(hasRemotes ? {} : { documentation: remoteSetup.tunnel.documentation }),
 			};
@@ -482,7 +483,15 @@ export class RemotesWidget extends Disposable {
 				documentation: remoteSetup[kind].documentation,
 			};
 		}
+		if (kind === 'devContainer' && this.model.canCreateDevContainer.get()) {
+			return { type: 'empty', id, ...remoteSetup[kind], action: { id: 'createDevContainer', label: localize('remotes.empty.devContainers.create', "Create Dev Container"), enabled: true } };
+		}
 		return { type: 'empty', id, ...remoteSetup[kind] };
+	}
+
+	/** Dev Containers are not discovered, so their empty state does not wait for a refresh. */
+	private showsEmptyEntry(kind: RemoteKind): boolean {
+		return this.hasRefreshed || this.failedKinds.includes(kind) || kind === 'devContainer';
 	}
 
 	private render(): void {
@@ -499,7 +508,7 @@ export class RemotesWidget extends Disposable {
 				type: 'group', id: `remote-group-${kind}`, kind, label: remoteKindLabels[kind],
 				count: groupRemotes.length, collapsed, refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
 				documentation: remoteSetup[kind].documentation,
-				...(kind === 'devContainer' && this.model.canCreateDevContainer.get() ? { create: { enabled: !this.creatingDevContainer } } : {}),
+				...(kind === 'devContainer' && this.model.canCreateDevContainer.get() ? { canCreate: true } : {}),
 			});
 			if (!collapsed) {
 				if (kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()) {
@@ -508,7 +517,7 @@ export class RemotesWidget extends Disposable {
 				entries.push(...(groupRemotes.length ? groupRemotes.map((remote): RemoteTableEntry => ({
 					type: 'remote', remote,
 					busy: this.pendingActions.has(remote.id) || this.pendingConnections.has(remote.id), connecting: this.pendingConnections.get(remote.id),
-				})) : kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get() ? [] : this.hasRefreshed || this.failedKinds.includes(kind) ? [this.getEmptyEntry(kind)] : []));
+				})) : kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get() ? [] : this.showsEmptyEntry(kind) ? [this.getEmptyEntry(kind)] : []));
 			}
 		}
 		this.rows = entries.map(entry => ({ id: entry.type === 'remote' ? entry.remote.id : entry.id, entry }));
@@ -530,7 +539,7 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async manageRemote(id: string, action: 'rename' | 'locationPreference' | 'githubEnvironment' | 'updateServer' | 'createDevContainer'): Promise<void> {
+	private async manageRemote(id: string, action: 'rename' | 'locationPreference' | 'githubEnvironment' | 'updateServer'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
@@ -546,8 +555,6 @@ export class RemotesWidget extends Disposable {
 				await this.model.setSharedAsGitHubEnvironment(id, !remote?.gitHubEnvironment);
 			} else if (action === 'updateServer') {
 				await this.model.updateServer(id);
-			} else if (action === 'createDevContainer') {
-				await this.model.createDevContainer(id);
 			} else {
 				await this.model.rename(id);
 			}
@@ -571,23 +578,16 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	/** Creates a Dev Container from the section header, which asks where to create it when there is more than one choice. */
-	private async createDevContainer(): Promise<void> {
-		if (this.creatingDevContainer) {
-			return;
-		}
-		this.creatingDevContainer = true;
-		this.render();
+	/**
+	 * Creates a Dev Container on a host, or from the section, asking where to create it when there is more than one choice.
+	 * Its new row shows its progress, so the create actions stay available for creating more in parallel.
+	 */
+	private async createDevContainer(id?: string): Promise<void> {
 		try {
-			await this.model.createDevContainer();
+			await this.model.createDevContainer(id);
 		} catch (error) {
 			if (!isCancellationError(error) && !this._store.isDisposed) {
 				this.notificationService.error(error);
-			}
-		} finally {
-			this.creatingDevContainer = false;
-			if (!this._store.isDisposed) {
-				this.render();
 			}
 		}
 	}
@@ -719,7 +719,7 @@ export class RemotesWidget extends Disposable {
 				return [];
 			}
 			const empty = kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()
-				? this.getEmptyEntry(kind, entries.length > 0) : entries.length || !this.hasRefreshed && !warning ? undefined : this.getEmptyEntry(kind);
+				? this.getEmptyEntry(kind, entries.length > 0) : entries.length || !this.showsEmptyEntry(kind) && !warning ? undefined : this.getEmptyEntry(kind);
 			const documentation = remoteSetup[kind].documentation;
 			return [
 				remoteKindLabels[kind],

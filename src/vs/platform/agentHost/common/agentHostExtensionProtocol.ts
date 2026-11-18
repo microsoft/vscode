@@ -61,7 +61,7 @@ export const DevContainerUserStateNotification = 'vscode/devContainers/userState
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
 export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()) });
-export const devContainerConnectEnvironmentParamsValidator = vObj({ connectionId: vString(), environmentId: vString(), image: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()) });
+export const devContainerConnectEnvironmentParamsValidator = vObj({ connectionId: vString(), environmentId: vString(), image: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()) });
 export const devContainerEnvironmentParamsValidator = vObj({ environmentId: vString() });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });
 export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });

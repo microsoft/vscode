@@ -239,6 +239,7 @@ suite('Dev Container Agent Host Connector', () => {
 			[DevContainerEnvironmentsEnabledSettingId]: true,
 			[DevContainerAgentHostEnabledSettingId]: true,
 			[RemoteAgentHostsEnabledSettingId]: true,
+			[DevContainerStateVolumeEnabledSettingId]: true,
 		});
 		const service = new class extends mock<IDevContainerAgentHostMainService>() {
 			override readonly onDidOutput = Event.None;
@@ -293,14 +294,14 @@ suite('Dev Container Agent Host Connector', () => {
 			available,
 			availableWhenDisabled: await connector.isAvailable(source),
 			localDocker: await connector.isLocalDockerAvailable(),
-			configs: configs.map(config => hasKey(config, { environmentId: true }) ? { environmentId: config.environmentId, image: config.image, name: config.name } : config),
+			configs: configs.map(config => hasKey(config, { environmentId: true }) ? { environmentId: config.environmentId, image: config.image, name: config.name, persistUserState: config.persistUserState } : config),
 			removed,
 			workspace: target.workspaceUri.path,
 		}, {
 			available: true,
 			availableWhenDisabled: false,
 			localDocker: true,
-			configs: [{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container on This Computer' }],
+			configs: [{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container on This Computer', persistUserState: true }],
 			removed: [{ environmentId: 'environment' }],
 			workspace: '/workspaces',
 		});

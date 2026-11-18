@@ -66,18 +66,18 @@ suite('DevContainerAgentHostProtocol', () => {
 	test('starts and removes environments without workspace trust, rejecting unsupported images and identifiers', async () => {
 		const trustRequests: string[] = [];
 		const { service, protocol } = setup(async workspace => { trustRequests.push(workspace); return false; });
-		const environment = { connectionId: 'environment-connection', environmentId: 'environment-1', image: devContainerEnvironmentImage, name: 'Dev Container on Build' };
+		const environment = { connectionId: 'environment-connection', environmentId: 'environment-1', image: devContainerEnvironmentImage, name: 'Dev Container on Build', persistUserState: true };
 		await protocol.handleRequest(DevContainerConnectEnvironmentExtensionMethod, environment);
 		await protocol.handleRequest(DevContainerRemoveEnvironmentExtensionMethod, { environmentId: 'environment-1' });
 		await assert.rejects(protocol.handleRequest(DevContainerConnectEnvironmentExtensionMethod, { ...environment, connectionId: 'untrusted-image', image: 'example.com/untrusted' })!, /image must be supported/);
 		await assert.rejects(protocol.handleRequest(DevContainerRemoveEnvironmentExtensionMethod, { environmentId: '../escape' })!, /environmentId must be a valid identifier/);
 		assert.deepStrictEqual({
 			trustRequests,
-			connects: service.connects.map(({ environmentId, image, name }: { environmentId?: string; image?: string; name: string }) => ({ environmentId, image, name })),
+			connects: service.connects.map(({ environmentId, image, name, persistUserState }: { environmentId?: string; image?: string; name: string; persistUserState?: boolean }) => ({ environmentId, image, name, persistUserState })),
 			removes: service.removes,
 		}, {
 			trustRequests: [],
-			connects: [{ environmentId: 'environment-1', image: devContainerEnvironmentImage, name: 'Dev Container on Build' }],
+			connects: [{ environmentId: 'environment-1', image: devContainerEnvironmentImage, name: 'Dev Container on Build', persistUserState: true }],
 			removes: [{ environmentId: 'environment-1' }],
 		});
 	});

@@ -105,7 +105,7 @@ export class DevContainerAgentHostProtocol extends Disposable {
 				if (!isDevContainerEnvironmentId(config.environmentId) || !devContainerEnvironmentImages.includes(config.image) || !config.name.trim() || config.name.includes('\0')) {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'environmentId must be a valid identifier, image must be supported, and name must be non-empty');
 				}
-				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), ...(config.sandboxEnabled !== undefined ? { sandboxEnabled: config.sandboxEnabled } : {}), environmentId: config.environmentId, image: config.image });
+				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), ...(config.sandboxEnabled !== undefined ? { sandboxEnabled: config.sandboxEnabled } : {}), ...(config.persistUserState !== undefined ? { persistUserState: config.persistUserState } : {}), environmentId: config.environmentId, image: config.image });
 			}
 			case DevContainerRemoveEnvironmentExtensionMethod: {
 				const result = devContainerEnvironmentParamsValidator.validate(params);

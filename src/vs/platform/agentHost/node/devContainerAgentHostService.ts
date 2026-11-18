@@ -352,7 +352,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				workspaceSelector = prepared.cliArgs;
 				repository = prepared.repository;
 			} else if (hasKey(config, { environmentId: true })) {
-				const prepared = await this._prepareEnvironment(config.connectionId, config, tokenSource.token, registerContainer, config.sandboxEnabled);
+				const prepared = await this._prepareEnvironment(config.connectionId, config, tokenSource.token, registerContainer, config.sandboxEnabled, config.persistUserState);
 				upResult = prepared;
 				workspaceSelector = prepared.cliArgs;
 			} else {
@@ -528,12 +528,34 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	protected _prepareEnvironment(connectionId: string, source: IDevContainerEnvironmentSource, token: CancellationToken, onContainerStarted: (containerId: string) => void, sandboxEnabled?: boolean): Promise<IPreparedDevContainerEnvironment> {
+	protected _prepareEnvironment(connectionId: string, source: IDevContainerEnvironmentSource, token: CancellationToken, onContainerStarted: (containerId: string) => void, sandboxEnabled?: boolean, persistUserState?: boolean): Promise<IPreparedDevContainerEnvironment> {
+		let errorValues: IDevContainerStateErrorValues | undefined;
 		return prepareDevContainerEnvironment(source, this._getEnvironmentCacheDirectory(source.environmentId), {
 			onContainerStarted,
 			docker: args => this._runReportedDocker(connectionId, args, token),
-			devcontainer: args => this._runDevContainer(connectionId, args, token),
-		}, sandboxEnabled);
+			devcontainer: async args => {
+				const stage = args[0] === 'up' ? 'up' : args[0] === 'run-user-commands' ? 'userCommands' : undefined;
+				if (!stage) {
+					return this._runDevContainer(connectionId, args, token);
+				}
+				const { stdout, stderr, code } = await this._runDevContainerStage<unknown>(connectionId, stage, !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
+				return { stdout, stderr, code };
+			},
+			linkUserState: async (containerId, remoteUser, selectorArgs, keepExistingFolders) => {
+				errorValues = {
+					// The override configuration has no remoteEnv, so only the image's metadata can set HOME.
+					homeFolder: await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, keepExistingFolders, token, {
+						selectorArgs,
+						environment: undefined,
+						remoteEnvSetsHome: () => this._containerMetadataSetsHome(containerId, token),
+					}),
+					user: remoteUser,
+				};
+			},
+			reportUserStateMount: error => this._onDidReportUserState.fire(error === undefined
+				? { connectionId, stage: 'mount', outcome: 'added', target: 'volume' }
+				: { connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'volume', errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) }),
+		}, sandboxEnabled, persistUserState);
 	}
 
 	private _getEnvironmentCacheDirectory(environmentId: string): string {
@@ -1277,12 +1299,18 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	/** Deletes an environment on request, including its workspace volume, even while other windows use it. */
 	private async _removeEnvironment(environmentId: string): Promise<boolean> {
 		const key = getSourceKey({ environmentId });
+		// Connections queued behind this removal must not recreate the environment, unless the removal fails and the client keeps it.
 		this._removedEnvironments.add(key);
-		const connectionIds = [...this._connectionWorkspaces]
-			.filter(([, workspace]) => workspace === key)
-			.map(([connectionId]) => connectionId);
-		await Promise.all(connectionIds.map(connectionId => this.disconnect(connectionId)));
-		await removeDevContainerEnvironment(environmentId, this._getEnvironmentCacheDirectory(environmentId), args => this._runDocker(args));
+		try {
+			const connectionIds = [...this._connectionWorkspaces]
+				.filter(([, workspace]) => workspace === key)
+				.map(([connectionId]) => connectionId);
+			await Promise.all(connectionIds.map(connectionId => this.disconnect(connectionId)));
+			await removeDevContainerEnvironment(environmentId, this._getEnvironmentCacheDirectory(environmentId), args => this._runDocker(args));
+		} catch (error) {
+			this._removedEnvironments.delete(key);
+			throw error;
+		}
 		this._containerIds.delete(key);
 		return true;
 	}

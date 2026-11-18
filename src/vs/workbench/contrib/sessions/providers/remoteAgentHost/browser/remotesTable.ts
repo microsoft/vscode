@@ -31,7 +31,7 @@ export interface IRemoteEmptyEntry {
 	readonly id: string;
 	readonly label: string;
 	readonly description?: string;
-	readonly action?: { readonly label: string; readonly enabled: boolean };
+	readonly action?: { readonly id: Extract<RemoteRowAction, 'signIn' | 'createDevContainer'>; readonly label: string; readonly enabled: boolean };
 	readonly documentation?: { readonly label: string; readonly href: string };
 }
 
@@ -46,8 +46,8 @@ export type RemoteTableEntry =
 		readonly refreshing: boolean;
 		readonly warning?: string;
 		readonly documentation?: IRemoteEmptyEntry['documentation'];
-		/** Present while a remote of this group's kind can be created from its header. */
-		readonly create?: { readonly enabled: boolean };
+		/** Whether a remote of this group's kind can be created from its header. */
+		readonly canCreate?: boolean;
 	}
 	| {
 		readonly type: 'remote';
@@ -78,6 +78,9 @@ type RemoteCellTemplate = {
 	);
 
 const connectionProgressIcon = ThemeIcon.modify(Codicon.loading, 'spin');
+
+/** Actions that fit the fixed-width actions column, including the overflow menu when there are more. */
+const maxVisibleActions = 6;
 
 function getGitHubEnvironmentState(remote: ICustomizationRemote): { readonly label: string; readonly icon: ThemeIcon; readonly error: boolean } | undefined {
 	const share = remote.gitHubEnvironment;
@@ -307,7 +310,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						template.actionLink = template.disposables.add(new Link(template.actionContainer, { label: entry.action.label, href: '#' }, {
 							opener: () => {
 								if (template.row?.entry.type === 'empty' && template.row.entry.action?.enabled) {
-									this.onAction(template.row.entry, 'signIn');
+									this.onAction(template.row.entry, template.row.entry.action.id);
 								}
 							},
 						}, this.hoverService, this.openerService));
@@ -380,7 +383,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				template.container.classList.toggle('remotes-visibility-column', showVisibility);
 				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
 				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
-				const showGroupCreate = template.column === 'actions' && entry.type === 'group' && !!entry.create;
+				const showGroupCreate = template.column === 'actions' && entry.type === 'group' && !!entry.canCreate;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
 				const isDevContainer = showConnection && entry.remote.kind === 'devContainer';
 				const showConnect = showConnection && !entry.remote.connectsWithHost;
@@ -395,7 +398,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				if (template.column === 'actions' && template.actionLayout !== actionLayout) {
 					template.actionLayout = actionLayout;
 					// Dev Containers have no meaningful address to copy, and those on remote hosts connect with their host.
-					template.toolbar.setActions(showConnection ? [
+					const actions = showConnection ? [
 						...(showConnect ? [template.action] : []),
 						...(showCreateDevContainer ? [template.createDevContainer] : []),
 						template.rename,
@@ -409,15 +412,19 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						...(showGroupCreate ? [template.createDevContainer] : []),
 						...(showDocumentation ? [template.documentation] : []),
 						...(showConfig ? [template.action] : []),
-					]);
+					];
+					// The fixed-width column fits six actions, so a longer list keeps five and moves the rest into the overflow menu.
+					const overflow = actions.length > maxVisibleActions ? actions.splice(maxVisibleActions - 1) : [];
+					template.toolbar.setActions(actions, overflow);
 				}
 				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showVisibility && !showConfig && !showDocumentation && !showGroupCreate && !showConnection);
 				if (template.column === 'actions' && entry.type === 'group' && entry.documentation) {
 					template.documentation.label = entry.documentation.label;
 				}
-				if (template.column === 'actions' && entry.type === 'group' && entry.create) {
+				if (showGroupCreate) {
+					// Stays enabled while a Dev Container starts, so more can be created in parallel.
 					template.createDevContainer.label = localize('remotes.createDevContainerInGroup', "Create Dev Container");
-					template.createDevContainer.enabled = entry.create.enabled;
+					template.createDevContainer.enabled = true;
 				}
 				template.action.enabled = true;
 				template.action.tooltip = '';
