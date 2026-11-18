@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier } from '../../../base/common/async.js';
+import { Barrier, Sequencer } from '../../../base/common/async.js';
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { IObservable, ISettableObservable, ITransaction, observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
@@ -624,6 +624,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	private readonly _proxy: ExtHostSCMShape;
 	private _repositories = new Map<number, ISCMRepository>();
 	private _repositoryBarriers = new Map<number, Barrier>();
+	private readonly _hiddenSequencer = new Sequencer();
 	private _repositoryDisposables = new Map<number, IDisposable>();
 	private readonly _disposables = new DisposableStore();
 
@@ -691,14 +692,17 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		provider.$updateSourceControl(features);
 	}
 
-	async $setSourceControlsHidden(changes: [number, boolean][]): Promise<void> {
-		await Promise.all(changes.map(([handle]) => this._repositoryBarriers.get(handle)?.wait()));
+	$setSourceControlsHidden(changes: [number, boolean][]): Promise<void> {
+		// In the order they were made, so that a change waiting for a source control to register does not override a later one
+		return this._hiddenSequencer.queue(async () => {
+			await Promise.all(changes.map(([handle]) => this._repositoryBarriers.get(handle)?.wait()));
 
-		// One transaction, so that showing a source control and hiding another one is a single change of the views
-		transaction(tx => {
-			for (const [handle, isHidden] of changes) {
-				(this._repositories.get(handle)?.provider as MainThreadSCMProvider | undefined)?.setHidden(isHidden, tx);
-			}
+			// One transaction, so that showing a source control and hiding another one is a single change of the views
+			transaction(tx => {
+				for (const [handle, isHidden] of changes) {
+					(this._repositories.get(handle)?.provider as MainThreadSCMProvider | undefined)?.setHidden(isHidden, tx);
+				}
+			});
 		});
 	}
 

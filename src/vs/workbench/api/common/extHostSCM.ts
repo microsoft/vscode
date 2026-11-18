@@ -888,6 +888,14 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	@debounce(100)
 	eventuallyAddResourceGroups(): void {
+		this.addResourceGroups();
+	}
+
+	private addResourceGroups(): void {
+		if (this.createdResourceGroups.size === 0) {
+			return;
+		}
+
 		const groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /*multiDiffEditorEnableViewChanges*/ boolean][] = [];
 		const splices: SCMRawResourceSplices[] = [];
 
@@ -923,6 +931,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	@debounce(100)
 	eventuallyUpdateResourceStates(): void {
+		this.updateResourceStates();
+	}
+
+	private updateResourceStates(): void {
 		const splices: SCMRawResourceSplices[] = [];
 
 		this.updatedResourceGroups.forEach(group => {
@@ -940,6 +952,15 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		}
 
 		this.updatedResourceGroups.clear();
+	}
+
+	/**
+	 * Sends the resource groups and resource states that are waiting to be sent right away,
+	 * for example before the source control is shown.
+	 */
+	flushResourceUpdates(): void {
+		this.addResourceGroups();
+		this.updateResourceStates();
 	}
 
 	getResourceGroup(handle: GroupHandle): ExtHostSourceControlResourceGroup | undefined {
@@ -1062,6 +1083,14 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			queueMicrotask(() => {
 				const changes = [...this._pendingHidden];
 				this._pendingHidden.clear();
+
+				// A source control that is shown has its resources before it appears
+				for (const [handle, isHidden] of changes) {
+					if (!isHidden) {
+						this._sourceControls.get(handle)?.flushResourceUpdates();
+					}
+				}
+
 				this._proxy.$setSourceControlsHidden(changes);
 			});
 		}
