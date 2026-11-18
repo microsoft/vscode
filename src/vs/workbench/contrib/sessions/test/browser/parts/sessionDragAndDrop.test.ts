@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DataTransfers } from '../../../../../../base/browser/dnd.js';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -62,11 +63,12 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			resolveSessionResourceIdentity: resource => ({ connectionAuthority: isEqual(resource, otherHostResource) ? 'remote' : 'local', backendSession: URI.parse('opaque-session:/session') }),
 		}));
 		const container = $('.session-view');
-		container.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px;';
+		// The size of the body type, which the window sets, and a chat type size, which the chat sets from `chat.fontSize`, that differ
+		container.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px;--vscode-fontSize-body1:13px;';
 		const group = $('.chat-group-view');
 		group.style.cssText = 'position:relative;width:100%;height:100%;';
 		const widget = $('.interactive-session');
-		widget.style.cssText = 'position:relative;width:100%;height:100%;';
+		widget.style.cssText = 'position:relative;width:100%;height:100%;font-size:20px;';
 		const transcript = $('.test-transcript', undefined, 'Transcript');
 		transcript.style.height = '180px';
 		const input = $('.test-chat-input');
@@ -123,7 +125,8 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			assert.ok(gridOverlay);
 			const coveringHit = document.elementFromPoint(inputPoint.clientX, inputPoint.clientY);
 			const gridCoversInput = !!coveringHit && gridOverlay.contains(coveringHit);
-			const inputHints = [...gridOverlay.querySelectorAll<HTMLElement>('.input-drop-target-hint')].map(hint => ({ text: hint.textContent, top: hint.style.top, height: hint.style.height, borderRadius: hint.style.borderRadius }));
+			const labelFontSize = (element: HTMLElement) => mainWindow.getComputedStyle(element.querySelector<HTMLElement>('.drop-overlay-label')!).fontSize;
+			const inputHints = [...gridOverlay.querySelectorAll<HTMLElement>('.input-drop-target-hint')].map(hint => ({ text: hint.textContent, fontSize: labelFontSize(hint), top: hint.style.top, height: hint.style.height, borderRadius: hint.style.borderRadius }));
 			dispatch(gridOverlay, 'dragover', dataTransfer);
 			const removedGridOverlay = !container.querySelector(overlayId);
 			const hit = document.elementFromPoint(inputPoint.clientX, inputPoint.clientY);
@@ -132,7 +135,7 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			const gridOverlayReturned = !!container.querySelector(overlayId);
 			dispatch(inputContent, 'dragover', dataTransfer);
 			const inputOverlay = widget.querySelector<HTMLElement>('.chat-dnd-overlay')!;
-			const inputFeedback = { visible: inputOverlay.classList.contains('visible'), text: inputOverlay.textContent, top: inputOverlay.style.top, height: inputOverlay.style.height, borderRadius: inputOverlay.style.borderRadius };
+			const inputFeedback = { visible: inputOverlay.classList.contains('visible'), text: inputOverlay.textContent, fontSize: labelFontSize(inputOverlay), top: inputOverlay.style.top, height: inputOverlay.style.height, borderRadius: inputOverlay.style.borderRadius };
 			const registered = isInputDropTarget(inputContent, new DragEvent('dragover', { dataTransfer }));
 			dispatch(inputContent, 'drop', dataTransfer);
 			await timeout(0);
@@ -154,11 +157,11 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			}, {
 				// The placement covers the input, and shows where it is, until the drag moves over the input, which then takes it;
 				// the drag is over the chat, which the key held lets it through to.
-				gridCoversInput: true, inputHints: [{ text: `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`, top: '200px', height: '80px', borderRadius: '0px 0px 8px 8px' }],
+				gridCoversInput: true, inputHints: [{ text: `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`, fontSize: '13px', top: '200px', height: '80px', borderRadius: '0px 0px 8px 8px' }],
 				removedGridOverlay: true, inputReceivesPointer: true, gridOverlayReturned: false,
 				// The feedback covers the input, shaped as it is, which takes the drop, not the transcript, whose drop the placement takes;
-				// it says what the hint over the input said.
-				inputFeedback: { visible: true, text: `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`, top: '200px', height: '80px', borderRadius: '0px 0px 8px 8px' },
+				// it says what the hint over the input said, at its size, though the chat's type is larger.
+				inputFeedback: { visible: true, text: `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`, fontSize: '13px', top: '200px', height: '80px', borderRadius: '0px 0px 8px 8px' },
 				inputMoves: [], placementReceivesPointer: true, moves: [scope], transcriptIsInput: false,
 				attachments: [{ kind: 'chatReference', name: 'Source Chat', value: backendResource.toString() }],
 				registered: true, removed: true,

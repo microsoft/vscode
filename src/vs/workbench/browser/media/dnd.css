@@ -30,10 +30,14 @@
 	border: 2px dashed var(--vscode-editorGroup-dropIntoPromptForeground);
 }
 
-/* What a drop overlay says, such as what a drop there does, or what holding a key does: a label over the overlay's tint. */
+/*
+ * What a drop overlay says, such as what a drop there does, or what holding a key does: a label over the overlay's tint.
+ * Its own type size, not one inherited: the same label shows in and outside a chat, whose type size is a setting.
+ */
 .drop-overlay-label {
 	max-width: calc(100% - 2 * var(--vscode-spacing-size80));
 	box-sizing: border-box;
+	font-size: var(--vscode-fontSize-body1);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	border: var(--vscode-strokeThickness) solid var(--vscode-editorGroup-dropIntoPromptBorder, transparent);
 	border-radius: var(--vscode-cornerRadius-small);
