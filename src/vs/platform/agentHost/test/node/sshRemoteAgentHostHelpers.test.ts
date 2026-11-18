@@ -17,6 +17,7 @@ import {
 	buildCLIDownloadUrl,
 	buildCleanupOldCLIsCommand,
 	buildFindFallbackCLICommand,
+	detectRemotePlatform,
 	filterLiveAgentHostEndpoints,
 	findNewAgentHostEndpoint,
 	formatAgentHostUrlHost,
@@ -29,6 +30,7 @@ import {
 	parseAgentEndpointsOutput,
 	redactToken,
 	resolveRemotePlatform,
+	resolveWindowsRemotePlatform,
 	runAgentEndpoints,
 	shellEscape,
 	validateAgentHostTelemetryLevel,
@@ -304,6 +306,118 @@ suite('SSH Remote Agent Host Helpers', () => {
 
 		test('returns undefined for unknown arch', () => {
 			assert.strictEqual(resolveRemotePlatform('Linux', 'ppc64le'), undefined);
+		});
+	});
+
+	suite('resolveWindowsRemotePlatform', () => {
+		const verOutput = 'Microsoft Windows [Version 10.0.19045.5737]';
+
+		test('detects Windows x64 (AMD64)', () => {
+			assert.deepStrictEqual(resolveWindowsRemotePlatform(verOutput, 'AMD64'), { os: 'win32', arch: 'x64' });
+		});
+
+		test('detects Windows arm64', () => {
+			assert.deepStrictEqual(resolveWindowsRemotePlatform(verOutput, 'ARM64'), { os: 'win32', arch: 'arm64' });
+		});
+
+		test('handles whitespace and casing in the inputs', () => {
+			assert.deepStrictEqual(resolveWindowsRemotePlatform(`\r\n${verOutput}\r\n`, '  amd64\r\n'), { os: 'win32', arch: 'x64' });
+		});
+
+		test('returns undefined for non-Windows ver output', () => {
+			assert.strictEqual(resolveWindowsRemotePlatform('Linux', 'AMD64'), undefined);
+			assert.strictEqual(resolveWindowsRemotePlatform('', 'AMD64'), undefined);
+		});
+
+		test('returns undefined for 32-bit Windows (no CLI artifact)', () => {
+			assert.strictEqual(resolveWindowsRemotePlatform(verOutput, 'x86'), undefined);
+		});
+
+		test('returns undefined for unknown architecture', () => {
+			assert.strictEqual(resolveWindowsRemotePlatform(verOutput, ''), undefined);
+			assert.strictEqual(resolveWindowsRemotePlatform(verOutput, 'IA64'), undefined);
+		});
+	});
+
+	suite('detectRemotePlatform', () => {
+		function fakeExec(responses: Record<string, { stdout: string; code: number }>): { exec: ISshExec; calls: string[] } {
+			const calls: string[] = [];
+			const exec: ISshExec = async (command: string, _opts?: { ignoreExitCode?: boolean }) => {
+				calls.push(command);
+				const response = responses[command] ?? { stdout: '', code: 0 };
+				return { stdout: response.stdout, stderr: '', code: response.code };
+			};
+			return { exec, calls };
+		}
+
+		test('detects Linux via uname and does not try the Windows fallback', async () => {
+			const { exec, calls } = fakeExec({
+				'uname -s': { stdout: 'Linux\n', code: 0 },
+				'uname -m': { stdout: 'x86_64\n', code: 0 },
+			});
+			assert.deepStrictEqual(await detectRemotePlatform(exec), { os: 'linux', arch: 'x64' });
+			assert.deepStrictEqual(calls, ['uname -s', 'uname -m']);
+		});
+
+		test('detects macOS via uname', async () => {
+			const { exec } = fakeExec({
+				'uname -s': { stdout: 'Darwin\n', code: 0 },
+				'uname -m': { stdout: 'arm64\n', code: 0 },
+			});
+			assert.deepStrictEqual(await detectRemotePlatform(exec), { os: 'darwin', arch: 'arm64' });
+		});
+
+		test('detects Windows via cmd /c ver when uname fails (PowerShell default shell)', async () => {
+			const { exec, calls } = fakeExec({
+				'uname -s': { stdout: '', code: 1 },
+				'cmd /c ver': { stdout: '\r\nMicrosoft Windows [Version 10.0.19045.5737]\r\n', code: 0 },
+				'cmd /c echo %PROCESSOR_ARCHITECTURE%': { stdout: 'AMD64\r\n', code: 0 },
+			});
+			assert.deepStrictEqual(await detectRemotePlatform(exec), { os: 'win32', arch: 'x64' });
+			assert.deepStrictEqual(calls, ['uname -s', 'cmd /c ver', 'cmd /c echo %PROCESSOR_ARCHITECTURE%']);
+		});
+
+		test('detects Windows arm64', async () => {
+			const { exec } = fakeExec({
+				'uname -s': { stdout: '', code: 1 },
+				'cmd /c ver': { stdout: 'Microsoft Windows [Version 10.0.26100.1]', code: 0 },
+				'cmd /c echo %PROCESSOR_ARCHITECTURE%': { stdout: 'ARM64', code: 0 },
+			});
+			assert.deepStrictEqual(await detectRemotePlatform(exec), { os: 'win32', arch: 'arm64' });
+		});
+
+		test('rejects when uname reports an unknown OS', async () => {
+			const { exec } = fakeExec({
+				'uname -s': { stdout: 'FreeBSD\n', code: 0 },
+				'uname -m': { stdout: 'amd64\n', code: 0 },
+			});
+			await assert.rejects(() => detectRemotePlatform(exec), /Unsupported remote platform: FreeBSD amd64/);
+		});
+
+		test('rejects when uname reports an unknown arch', async () => {
+			const { exec } = fakeExec({
+				'uname -s': { stdout: 'Linux\n', code: 0 },
+				'uname -m': { stdout: 'ppc64le\n', code: 0 },
+			});
+			await assert.rejects(() => detectRemotePlatform(exec), /Unsupported remote platform: Linux ppc64le/);
+		});
+
+		test('rejects when neither uname nor the Windows fallback detects a platform', async () => {
+			const { exec, calls } = fakeExec({
+				'uname -s': { stdout: '', code: 127 },
+				'cmd /c ver': { stdout: '', code: 127 },
+			});
+			await assert.rejects(() => detectRemotePlatform(exec), /Could not detect the remote operating system/);
+			assert.deepStrictEqual(calls, ['uname -s', 'cmd /c ver']);
+		});
+
+		test('rejects Windows with an unsupported architecture', async () => {
+			const { exec } = fakeExec({
+				'uname -s': { stdout: '', code: 1 },
+				'cmd /c ver': { stdout: 'Microsoft Windows [Version 10.0.19045.5737]', code: 0 },
+				'cmd /c echo %PROCESSOR_ARCHITECTURE%': { stdout: 'x86', code: 0 },
+			});
+			await assert.rejects(() => detectRemotePlatform(exec), /Unsupported remote platform: Windows \(x86\)/);
 		});
 	});
 
