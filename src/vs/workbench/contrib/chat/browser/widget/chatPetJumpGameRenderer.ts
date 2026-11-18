@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChatPetJumpPlatform, IChatPetJumpWall } from '../../common/chatPetJumpGame.js';
+import { isChatPetJumpPlatformVisible } from './chatPetJumpGameRenderUtils.js';
 
 export type ChatPetJumpGameRendererKind = 'dom' | 'lite-webgpu';
 
@@ -44,10 +45,10 @@ export class ChatPetJumpGameDomRenderer implements IChatPetJumpGameRenderer {
 	render(state: IChatPetJumpGameRenderState): void {
 		const visible = new Set<number>();
 		for (const platform of state.platforms) {
-			const top = state.anchor + state.cameraHeight - platform.height + platform.fallDistance;
-			if (top < -16 || top > state.height || platform.fallDistance >= state.petSize * 4) {
+			if (!isChatPetJumpPlatformVisible(platform, state)) {
 				continue;
 			}
+			const top = state.anchor + state.cameraHeight - platform.height + platform.fallDistance;
 			visible.add(platform.id);
 			let rendered = this.platforms.get(platform.id);
 			if (!rendered) {

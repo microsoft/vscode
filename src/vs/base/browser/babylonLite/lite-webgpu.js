@@ -1,2 +1,1626 @@
 /*! @license @babylonjs/lite 1.38.1 | Apache-2.0 | https://github.com/BabylonJS/Babylon-Lite */
-var At=Object.defineProperty;var g=(e,t)=>()=>(e&&(t=e(e=0)),t);var O=(e,t)=>{for(var r in t)At(e,r,{get:t[r],enumerable:!0})};function S(e,...t){let r=new Error(kt?.(e,t)??`#${e}`);throw r.lite=t,r}var kt,M=g(()=>{kt=null});var C,ne,se,A,R=g(()=>{C=Float32Array,ne=Float64Array,se=Uint16Array,A=Uint8Array});function ce(e){Et=e}var Et,me=g(()=>{});var U,B,k,pe,F=g(()=>{U=globalThis.GPUTextureUsage,B=globalThis.GPUBufferUsage,k=globalThis.GPUShaderStage,pe=globalThis.GPUColorWrite});function wt(e){let t=e.size;return"canvas"in t?t.canvas:t}function le(e){return{_descriptor:e,_resolveSize:wt,_colorTexture:null,_colorView:null,_depthTexture:null,_depthView:null,_width:0,_height:0}}var de=g(()=>{});var It,I,H=g(()=>{It="1.38.1",I=`Babylon Lite v${It}`});function fe(e){return"clientWidth"in e}function Gt(e){return e.endsWith("-srgb")?e:`${e}-srgb`}function ue(e,t,r){let o=t.getContext("webgpu");o||S(62),fe(t)&&t.setAttribute("data-engine",I);let i=r?.format??navigator.gpu.getPreferredCanvasFormat(),a=r?.srgb?Gt(i):i,s=r?.alphaMode??"opaque";o.configure({device:e._device,format:i,alphaMode:s,viewFormats:[a]});let n=r?.msaaSamples===1?1:4,c=le({lbl:"swapchain",format:a,samples:1,size:{width:0,height:0}});return c._eager=!0,{engine:e,canvas:t,format:a,msaaSamples:n,scRT:c,maxDevicePixelRatio:r?.maxDevicePixelRatio??1/0,_uniqueId:Lt++,_context:o,_configureFormat:i,_alphaMode:s,_renderingContexts:[]}}function W(e){let t=e._context.getCurrentTexture(),r=e.scRT;r._colorTexture=t,r._colorView=t.createView({format:e.format}),r._width=t.width,r._height=t.height}function ge(e){let t=e.canvas;if(!fe(t))return;let r=e._w??t.clientWidth,o=e._h??t.clientHeight;if(!(r>0&&o>0))return;let i=Math.min(globalThis.devicePixelRatio||1,e.maxDevicePixelRatio);X(e,r*i|0,o*i|0)}function X(e,t,r){let o=e.canvas,i=t|0,a=r|0;if(i>0&&a>0&&!(i===o.width&&a===o.height)){o.width=i,o.height=a,e.scRT._width=i,e.scRT._height=a;for(let s of e._renderingContexts)s._resize?.()}}var Lt,he=g(()=>{M();de();H();Lt=1});var _e={};O(_e,{MAT4_STORAGE_F64_BUILD_TAG:()=>Se,allocateF64Mat4:()=>Te});function Te(){return new ne(16)}var Se,Pe=g(()=>{R();Se="@@MAT4_STORAGE_F64@@";Te[Se]=!0});var ve,xe=g(()=>{ve=16});var ye={};O(ye,{applyLightFoOffset:()=>Ot,getFloatingOriginOffset:()=>Vt,lightFoVersion:()=>Nt,wrapRenderableForFO:()=>Ut});function Vt(e){let t=e.camera;if(!t)return{x:0,y:0,z:0};let r=t.worldMatrix;return{x:r[12],y:r[13],z:r[14]}}function Nt(e){let t=e.camera,r=t?t.worldMatrixVersion:-1,o=zt??=new WeakMap,i=o.get(e);return i?(i[0]!==t||i[1]!==r)&&(i[0]=t,i[1]=r,i[2]++):o.set(e,i=[t,r,0]),i[2]}function Ot(e,t){let r=t.camera?.worldMatrix;if(!r)return;let o=r[12],i=r[13],a=r[14],s=0;for(let n of t.lights){if(s>=ve)break;if(!n._writeLightUbo)continue;let c=4+s*16,m=e[c+3];if(m!==1&&m!==3){let f=n.worldMatrix;e[c]=f[12]-o,e[c+1]=f[13]-i,e[c+2]=f[14]-a}s++}}function Ut(e,t,r){let o=-1,i;return()=>{let a=t.camera,s=a?a.worldMatrixVersion:-1;(s!==o||a!==i)&&(r(),o=s,i=a),e()}}var zt,be=g(()=>{xe();zt=null});var Be={};O(Be,{makePackMeshWorld:()=>Ht,packMat4IntoF32WithOffset:()=>Y});function Y(e,t,r,o,i,a,s){let n=t,c=o,m=r;e[m+0]=n[c+0],e[m+1]=n[c+1],e[m+2]=n[c+2],e[m+3]=n[c+3],e[m+4]=n[c+4],e[m+5]=n[c+5],e[m+6]=n[c+6],e[m+7]=n[c+7],e[m+8]=n[c+8],e[m+9]=n[c+9],e[m+10]=n[c+10],e[m+11]=n[c+11],e[m+12]=n[c+12]-i,e[m+13]=n[c+13]-a,e[m+14]=n[c+14]-s,e[m+15]=n[c+15]}function Ht(e){return(t,r,o,i)=>{let a=e.camera;if(!a){Y(t,r,o,i,0,0,0);return}let s=a.worldMatrix;Y(t,r,o,i,s[12],s[13],s[14])}}var Me=g(()=>{});function Ce(e,t){return e._renderingContexts.indexOf(t)!==-1?!1:(e._renderingContexts.push(t),!0)}function Re(e,t){let r=e._renderingContexts,o=r.indexOf(t);return o===-1?!1:(r.splice(o,1),!0)}function Xt(e){return Wt.filter(t=>e.features.has(t))}async function Fe(e,t){let r=await navigator.gpu.requestAdapter({powerPreference:"high-performance",...q?q():{}});r||S(50);let o=q?.deviceFeatures?.(r,t)??Xt(r),i=await r.requestDevice({requiredFeatures:o,requiredLimits:t?.requiredLimits});`${I}`;let a=!!t?.useHighPrecisionMatrix,s=!!t?.useFloatingOrigin;if(s&&!a&&S(51),a){let{allocateF64Mat4:_}=await Promise.resolve().then(()=>(Pe(),_e));ce(_)}let n,c,m,f;if(s){let[{wrapRenderableForFO:_,lightFoVersion:u,applyLightFoOffset:d},{makePackMeshWorld:l}]=await Promise.all([Promise.resolve().then(()=>(be(),ye)),Promise.resolve().then(()=>(Me(),Be))]);n=_,c=l,m=u,f=d}let p={_device:i},h=[p];return Object.assign(p,{engine:p,surfaces:h,_surfaces:h,_device:i,_options:t,drawCallCount:0,gpuFrameTimeMs:0,useHighPrecisionMatrix:a,useFloatingOrigin:s,_animFrameId:0,_renderFn:null,_currentEncoder:void 0,_currentDelta:0,_cbs:[],_wrapRenderableForFO:n,_makePackMeshWorld:c,_lightFoVersion:m,_applyLightFoOffset:f},ue(p,e,t)),ge(p),W(p),p}function De(e,t,r){X(e,t,r)}function Ae(e){let t=e.canvas;return{width:t.width,height:t.height}}function $(e){e._animFrameId&&cancelAnimationFrame(e._animFrameId),e._animFrameId=0,e._renderFn=null,e._flushGpuRetirements?.(e)}function ke(e,t,r=e.surfaces){if(r!==e.surfaces)for(let o=r.length;o--;)r[o].engine!==e&&S(52);Yt(e,t,r)}function Yt(e,t,r=e._surfaces){let o=0;for(let s=r.length;s--;)o+=r[s]._renderingContexts.length;if(!o)return e.drawCallCount=0,e._flushGpuRetirements?.(e);let i=e._device.createCommandEncoder({label:"frame"});e._currentEncoder=i,e._currentDelta=t;let a=!1;try{e._gpuTimerBegin?.(i),o=0;for(let n=0;n<r.length;n++){let c=r[n];c._capturePreFrame?.(c),W(c);let m=c._renderingContexts;for(let f=0;f<m.length;f++){let p=m[f];p._update(),o+=p._drawCallsPre+p._record()}}let s=e._currentEncoder;for(let n=0;n<r.length;n++){let c=r[n];c._captureService?.(c,s)}e._gpuTimerEnd?.(s),e._cbs[0]=s.finish(),e._device.queue.submit(e._cbs),a=!0,e._flushGpuRetirements?.(e),e.drawCallCount=o,e._gpuTimerResolve?.()}finally{e._currentEncoder=void 0,e._finishOptionalFrame?.(a)}}var q,Wt,G=g(()=>{M();me();H();he();q=null,Wt=["float32-filterable","texture-compression-astc","texture-compression-bc","texture-compression-etc2","texture-compression-unaligned","timestamp-query","primitive-index"]});function L(e,t){return Math.ceil(e/t)*t}var K=g(()=>{});function Ee(e,t,r,o){let i=e._device.createBuffer({label:o,size:L(Math.max(t.byteLength,4),4),usage:r|B.COPY_DST,mappedAtCreation:!0});return new A(i.getMappedRange()).set(new A(t.buffer,t.byteOffset,t.byteLength)),i.unmap(),i}var we=g(()=>{R();F();K()});function Ie(){return qt??=new WeakMap}var qt,Ge=g(()=>{qt=null});function Le(e){let t=Ie();t.set(e,(t.get(e)??0)+1)}var Ve=g(()=>{Ge()});function Ne(e){Le(e.texture)}var ze=g(()=>{Ve()});function Ue(e,t={},r=""){let o=e._device,i=$t??=new WeakMap,a=i.get(o);a||i.set(o,a=new Map);let s=r;for(let c in Oe){let m=c;s+=`:${t[m]??Oe[m]}`}let n=a.get(s);return n||a.set(s,n=o.createSampler(t)),n}var $t,j,Q,Oe,He=g(()=>{$t=null,j="nearest",Q="clamp-to-edge",Oe={minFilter:j,magFilter:j,mipmapFilter:j,addressModeU:Q,addressModeV:Q,addressModeW:Q,maxAnisotropy:1}});function We(e){Kt(e.splice(0))}function Kt(e){for(let t of e)try{t()}catch(r){console.error("GPU resource retirement failed.",r)}}function Xe(e){let t=e._retirements,r=e._retiring;e._retirements=null,e._retiring=null,t&&We(t),r?.forEach(We)}var Ye=g(()=>{});function Ze(e,t,r){return e._device.createBuffer({label:r,size:L(t,16),usage:B.UNIFORM|B.COPY_DST})}var Je=g(()=>{F();K()});function et(){return jt}var jt,tt=g(()=>{jt=null});function ot(e,t){return(t<0||t>=e.frames.length)&&S(818,t,e.frames.length),t}function it(e){e.texture.texture.destroy()}var Z=g(()=>{M()});var nt,st=g(()=>{nt={color:{srcFactor:"src-alpha",dstFactor:"one-minus-src-alpha",operation:"add"},alpha:{srcFactor:"one",dstFactor:"one-minus-src-alpha",operation:"add"}}});var ct,mt=g(()=>{st();ct={_key:"alpha",_descriptor:nt}});function v(){return Zt}var Zt,V=g(()=>{Zt=null});function E(){return Jt}function pt(e,t={}){let r=t.depth??"none",o=t.blendMode??ct,i=Math.max(1,t.capacity??er),a={positionPx:[t.view?.positionPx?.[0]??0,t.view?.positionPx?.[1]??0],zoom:t.view?.zoom??1,rotation:t.view?.rotation??0},s=r==="none"?13:14,n=s*4,c=new C(i*s),m={_entityType:"sprite-2d-layer",atlas:e,depth:r,blendMode:o,opacity:t.opacity??1,visible:t.visible??!0,order:t.order??0,view:a,pivot:[t.pivot?.[0]??.5,t.pivot?.[1]??.5],layerZ:t.layerZ??.5,count:0,_capacity:i,_instanceFloatsPerSprite:s,_instanceStrideBytes:n,_instanceData:c,_savedSize:new C(i*2),_version:0,_dirtyMin:0,_dirtyMax:0};return v()?.initLayer(m,t),m}function tr(e,t){let r=e._capacity;for(;r<t;)r*=2;let o=new C(r*e._instanceFloatsPerSprite);o.set(e._instanceData),e._instanceData=o;let i=new C(r*2);i.set(e._savedSize),e._savedSize=i,e._capacity=r}function lt(e,t){e.count=t}function rr(e,t,r,o){let i=e._instanceData,a=t*e._instanceFloatsPerSprite,s=t*2,n=o===null,c=r.frame!==void 0?e.atlas.frames[ot(e.atlas,r.frame)]:null,m=r.positionPx?r.positionPx[0]:o[0],f=r.positionPx?r.positionPx[1]:o[1],p,h;r.sizePx?(p=r.sizePx[0],h=r.sizePx[1]):c?(p=c.sourceSizePx[0],h=c.sourceSizePx[1]):n?(p=0,h=0):(p=e._savedSize[s],h=e._savedSize[s+1]),e._savedSize[s]=p,e._savedSize[s+1]=h;let _;r.visible!==void 0?_=r.visible:n?_=!0:_=o[2]!==0||o[3]!==0;let u,d,l,T;c?(u=c.uvMin[0],d=c.uvMin[1],l=c.uvMax[0],T=c.uvMax[1]):n?(u=0,d=0,l=1,T=1):(u=o[4],d=o[5],l=o[6],T=o[7]);let P=u>l,x=d>T,y=!n&&o[4]>o[6],b=!n&&o[5]>o[7],D=r.flipX!==void 0?r.flipX===!0:y,Rt=r.flipY!==void 0?r.flipY===!0:b;if(P!==D){let z=u;u=l,l=z}if(x!==Rt){let z=d;d=T,T=z}let Ft=r.rotation??(o?o[8]:0),ae=e.depth!=="none",Dt=ae?r.z??(o?o[13]:e.layerZ):0;i[a+0]=m,i[a+1]=f,i[a+2]=_?p:0,i[a+3]=_?h:0,i[a+4]=u,i[a+5]=d,i[a+6]=l,i[a+7]=T,i[a+8]=Ft,r.color?(i[a+9]=r.color[0],i[a+10]=r.color[1],i[a+11]=r.color[2],i[a+12]=r.color[3]):n&&(i[a+9]=1,i[a+10]=1,i[a+11]=1,i[a+12]=1),ae&&(i[a+13]=Dt)}function or(e,t,r){e._dirtyMin>=e._dirtyMax?(e._dirtyMin=t,e._dirtyMax=r):(t<e._dirtyMin&&(e._dirtyMin=t),r>e._dirtyMax&&(e._dirtyMax=r)),e._version=e._version+1|0,E()?.dirty(e,t,r)}function dt(e,t){t.positionPx===void 0&&S(832);let r=e.count;return r>=e._capacity&&tr(e,r+1),rr(e,r,t,null),e._vertexExtension?._initInstance(e._instanceData,r*e._instanceFloatsPerSprite),lt(e,e.count+1),E()?.add(e,r),or(e,r,r+1),r}function ft(e){let t=e.count;e._dirtyMin=0,e._dirtyMax=0,e._handleHooks?.clear(),t!==0&&(e._savedSize.fill(0,0,t*2),lt(e,0),E()?.clear(e,t),e._version=e._version+1|0)}var Jt,er,J=g(()=>{M();R();Z();mt();V();Jt=null;er=16});function N(){return ir}var ir,ut=g(()=>{ir=null});function dr(e,t,r){return`${fr(e,t,r)} @fragment fn fs(in:O)->@location(0)vec4f{let s=textureSample(atlasTex,atlasSamp,in.uv);return s*in.tint*L.opacityMul;}`}function fr(e,t,r=!1,o){let i=`@group(${t})`,a=e?",@location(6)z:f32":"",s=r?",@location(7)o:vec2f":"",n=e?"1 - in.z":"0";return`struct Lr{viewPos:vec2f,viewScale:f32,viewRot:f32,screenSize:vec2f,pivot:vec2f,opacityMul:vec4f,aa:vec4f,};${i} @binding(0)var<uniform>L:Lr;${i} @binding(1)var atlasTex:texture_2d<f32>;${i} @binding(2)var atlasSamp:sampler;struct I{@builtin(vertex_index)vid:u32,@location(0)p:vec2f,@location(1)s:vec2f,@location(2)a:vec2f,@location(3)b:vec2f,@location(4)r:f32,@location(5)c:vec4f${a}${s}${o?._input??""}};struct O{@builtin(position)p:vec4f,@location(0)uv:vec2f,@location(1)tint:vec4f,${o?._output??""}};@vertex fn vs(in:I)->O{var q=array<vec2f,4>(vec2f(0,0),vec2f(1,0),vec2f(1,1),vec2f(0,1));let c=q[in.vid];let l=(c-L.pivot)*in.s;let cr=cos(in.r);let sr=sin(in.r);let r=vec2f(l.x*cr-l.y*sr,l.x*sr+l.y*cr);let p=in.p+r-L.viewPos;let lc=cos(L.viewRot);let ls=sin(L.viewRot);let v=vec2f(p.x*lc-p.y*ls,p.x*ls+p.y*lc)*L.viewScale;let n=vec2f(v.x/L.screenSize.x*2-1,1-v.y/L.screenSize.y*2);let uv=mix(in.a,in.b,c)${r?" + in.o":""};var out:O;out.p=vec4f(n,${n},1);out.uv=uv;out.tint=in.c;${o?._assignment??""} return out;}`}function ur(){return{_devices:new WeakMap}}function gr(e){e._devices=new WeakMap}function gt(){return w??=ur(),ee++,w}function te(){ee>0&&--ee===0&&w&&(gr(w),w=null)}function re(e,t,r,o,i,a,s=!1,n,c,m,f="greater-equal"){let p=hr(e,t),h=Sr(a,n),_=et(),u=a&&s&&o>1&&!!m&&!!_?.(m),d=Tr(r,o,i,a,s,h,u,m,f),l=p._pipelines.get(d);if(l)return l;let T=Pr(e,p,r,o,i,a,s,h,u,c,m,f);return p._pipelines.set(d,T),T}function ht(e,t,r,o,i,a){let s=o.atlas.texture,n=[{binding:0,resource:{buffer:i}},{binding:1,resource:s.view},{binding:2,resource:s.sampler}];if(a)for(let c of v().bindEntries(a,3))n.push(c);return e._device.createBindGroup({layout:t.getBindGroupLayout(r),entries:n})}function hr(e,t){let r=t._devices.get(e._device);return r||(r={_shaderModules:new Map,_pipelines:new Map},t._devices.set(e._device,r)),r}function Sr(e,t){return e?(t||S(847),t):null}function Tr(e,t,r,o,i,a,s,n,c="greater-equal"){let m=n?v()?.pipelineKeyPart(n)??"":"",f=n?._uvScrollAttr?"1":"0",p=n?N()?.pipelineKeyPart(n)??"0":"0";return`${e}:${t}:${r._key}:${o?1:0}:${i?1:0}:${a??"-"}:${o?c:"-"}:${s?"a":"n"}:cs${m}:uv${f}:cg${p}`}function _r(e,t,r,o){let i=o?v()?.shaderModule(e,r,o):null;if(i)return i;let a=o?N()?.shaderModule(e,r,o):null;if(a)return a;let s=o?._uvScrollAttr!=null,n=`${r?1:0}:${s?1:0}`,c=t._shaderModules.get(n);return c||(c=e._device.createShaderModule({code:dr(r,r?1:0,s)}),t._shaderModules.set(n,c)),c}function Pr(e,t,r,o,i,a,s,n,c,m,f,p="greater-equal"){let h=e._device,_=[{binding:0,visibility:k.VERTEX|k.FRAGMENT,buffer:{type:"uniform"}},{binding:1,visibility:k.FRAGMENT,texture:{sampleType:"float"}},{binding:2,visibility:k.FRAGMENT,sampler:{type:"filtering"}}],u=f?v()?.layoutEntries(f,3):null;if(u)for(let D of u)_.push(D);let d=h.createBindGroupLayout({entries:_}),l=_r(e,t,a,f);a&&!m&&S(848);let T=a?[m,d]:[d],P=[{shaderLocation:0,offset:ar,format:"float32x2"},{shaderLocation:1,offset:nr,format:"float32x2"},{shaderLocation:2,offset:sr,format:"float32x2"},{shaderLocation:3,offset:cr,format:"float32x2"},{shaderLocation:4,offset:mr,format:"float32"},{shaderLocation:5,offset:pr,format:"float32x4"}];a&&P.push({shaderLocation:6,offset:lr,format:"float32"}),f?._uvScrollAttr&&P.push(f._uvScrollAttr);let x=f?v()?.vertexAttribute(f):null;x&&P.push(x);let y=f?._instanceStrideBytes??(a?56:52),b={layout:h.createPipelineLayout({bindGroupLayouts:T}),vertex:{module:l,entryPoint:"vs",buffers:[{arrayStride:y,stepMode:"instance",attributes:P}]},fragment:{module:l,entryPoint:"fs",targets:[{format:r,blend:i._descriptor,writeMask:pe.ALL}]},primitive:{topology:"triangle-list",cullMode:"none"},multisample:c?{count:o,alphaToCoverageEnabled:!0}:{count:o}};return a&&(b.depthStencil={format:n,depthCompare:p,depthWriteEnabled:s}),h.createRenderPipeline(b)}function oe(e,t,r){return e.createBuffer({size:t._capacity*t._instanceStrideBytes,usage:B.VERTEX|B.COPY_DST,label:r})}function Tt(e,t,r,o,i){let a=t._capacity*t._instanceStrideBytes;return r.size>=a?{buffer:r,capacity:o,reallocated:!1}:(r.destroy(),{buffer:oe(e,t,i),capacity:t._capacity,reallocated:!0})}function _t(e,t,r,o){let i=E()?.upload(e,t,r,o);if(i!==void 0)return i;if(o===t._version)return o;if(t.count===0)return t._dirtyMin=0,t._dirtyMax=0,t._version;let a,s;if(o===-1?(a=0,s=t.count):(a=t._dirtyMin,s=Math.min(t._dirtyMax,t.count)),s>a){let n=a*t._instanceStrideBytes,c=(s-a)*t._instanceStrideBytes;e.queue.writeBuffer(r,n,t._instanceData.buffer,t._instanceData.byteOffset+n,c)}return t._dirtyMin=0,t._dirtyMax=0,t._version}function Pt(e,t,r,o){o[0]=e.view.positionPx[0],o[1]=e.view.positionPx[1],o[2]=e.view.zoom,o[3]=e.view.rotation,o[4]=t,o[5]=r,o[6]=e.pivot[0],o[7]=e.pivot[1];let i=e.opacity;e.blendMode._premultipliedOpacity?(o[8]=i,o[9]=i,o[10]=i,o[11]=i):(o[8]=1,o[9]=1,o[10]=1,o[11]=i),N()?.writeUbo(e,o)}function vt(e,t,r,o,i){let a=!i;if(!a){for(let s=0;s<16;s++)if(o[s]!==r[s]){a=!0;break}}return a&&(e.queue.writeBuffer(t,0,r.buffer,r.byteOffset,64),o.set(r)),!0}var ar,nr,sr,cr,mr,pr,lr,w,ee,St,xt=g(()=>{M();R();F();tt();V();J();ut();ar=0,nr=8,sr=16,cr=24,mr=32,pr=36,lr=52;w=null,ee=0;St=new se([0,1,2,0,2,3])});G();G();Ye();function qe(e){Xe(e),$(e);let t=e._surfaces;for(let r of t)r._renderingContexts.length=0,r._ro?.disconnect(),r._context.unconfigure();t.length=0;try{e._disposeManagedResources?.(),e._disposeStorageBuffers?.()}finally{e._device.destroy()}}function $e(e){let t=e._gpuEvents,r=e._device;t._device!==r&&(t._device?.removeEventListener("uncapturederror",t._onError),t._device=r,r.addEventListener("uncapturederror",t._onError),r.lost.then(o=>{if(t._device===r)for(let i of t._lost)i(o)}))}function Ke(e){let t=e._gpuEvents;if(!t){let r=new Set;t=e._gpuEvents={_errors:r,_lost:new Set,_device:null,_onError:o=>{let i=o.error;for(let a of r)a(i)}},e._attachGpuEvents=$e}return $e(e),t}function je(e,t){let r=Ke(e);return r._errors.add(t),()=>{r._errors.delete(t)}}function Qe(e,t){let r=Ke(e);return r._lost.add(t),()=>{r._lost.delete(t)}}M();F();ze();He();function rt(e,t,r,o,i={}){(r<1||o<1)&&S(895,r,o);let a=r*o*4;t.length<a&&S(896,a,r,o,t.length);let s=e._device,n=i.srgb?"rgba8unorm-srgb":"rgba8unorm",c=s.createTexture({size:{width:r,height:o},format:n,usage:U.TEXTURE_BINDING|U.COPY_DST});s.queue.writeTexture({texture:c},t,{bytesPerRow:r*4,rowsPerImage:o},{width:r,height:o});let m={addressModeU:i.addressModeU??"clamp-to-edge",addressModeV:i.addressModeV??"clamp-to-edge",minFilter:i.minFilter??"nearest",magFilter:i.magFilter??"nearest"},f=Ue(e,m),p={texture:c,view:c.createView(),sampler:f,width:r,height:o};return e._dlr?.p(p,t,i),Ne(p),p}Z();M();R();function Qt(e,t,r,o,i,a,s,n){let c=new Array(e.length),m=new Array(e.length),f=i,p=a,h=s,_=0;for(let d=0;d<e.length;d++){let l=e[d];(l.width<1||l.height<1)&&S(807,n,d,l.width,l.height);let T=l.srcX??0,P=l.srcY??0,x=l.srcStrideBytes??l.width*4;(T<0||P<0)&&S(808,n,d,T,P),(T+l.width)*4>x&&S(809,n,d,(T+l.width)*4,x);let y=(P+l.height-1)*x+(T+l.width)*4;if(l.pixels.length<y)throw new Error(`${n}: frame ${d} pixel buffer too short \u2014 need ${y} bytes (srcX=${T}, srcY=${P}, srcStride=${x}, w=${l.width}, h=${l.height}), got ${l.pixels.length}.`);f>0&&f+l.width>r&&(p+=h+t,f=0,h=0),l.width>r&&S(810,n,d,l.width,r),p+l.height>o&&S(811,n,d,l.width,l.height,o,p),c[d]=f,m[d]=p;let b=f+l.width;b>_&&(_=b),f=b+t,l.height>h&&(h=l.height)}let u=e.length===0?a:p+h;return{xs:c,ys:m,penX:f,penY:p,shelfHeight:h,contentWidth:_,contentHeight:u}}function at(e,t,r={}){let o=r.paddingPx??1,i=r.maxWidthPx??1024;t.length===0&&!r.capacityPx&&S(812);let a=r.capacityPx?Math.min(i,r.capacityPx[0]):i,s=Qt(t,o,a,Number.MAX_SAFE_INTEGER,0,0,0,"createSpriteAtlasFromFrames"),n=r.capacityPx?r.capacityPx[0]:Math.max(1,s.contentWidth),c=r.capacityPx?r.capacityPx[1]:Math.max(1,s.contentHeight);(n<1||c<1)&&S(813,n,c),(s.contentWidth>n||s.contentHeight>c)&&S(814,n,c,s.contentWidth,s.contentHeight);let m=new A(n*c*4);for(let u=0;u<t.length;u++){let d=t[u],l=d.srcX??0,T=d.srcY??0,P=d.srcStrideBytes??d.width*4,x=d.width*4;for(let y=0;y<d.height;y++){let b=(T+y)*P+l*4,D=((s.ys[u]+y)*n+s.xs[u])*4;m.set(d.pixels.subarray(b,b+x),D)}}let f=r.sampling??"nearest",p=rt(e,m,n,c,{minFilter:f,magFilter:f,srgb:r.srgb??!1}),h=new Array(t.length);for(let u=0;u<t.length;u++){let d=t[u];h[u]={name:d.name,uvMin:[s.xs[u]/n,s.ys[u]/c],uvMax:[(s.xs[u]+d.width)/n,(s.ys[u]+d.height)/c],sourceSizePx:[d.width,d.height],pivot:d.pivot??[.5,.5]}}let _={penX:s.penX,penY:s.penY,shelfHeight:s.shelfHeight,maxWidth:a,padding:o};return{texture:p,textureSizePx:[n,c],frames:h,premultipliedAlpha:r.premultipliedAlpha??!1,_packState:_,_frames:h}}J();M();R();F();G();we();Je();V();xt();var vr="sprite-renderer";function xr(e,t){let r=e._layerGpu.get(t);if(!r){let i=t._capacity;r={layer:t,instanceBuffer:oe(e._surface.engine._device,t),instanceBufferCapacity:i,uniformBuffer:Ze(e._surface.engine,64),bindGroup:null,uploadedVersion:-1,fx:v()?.createLayerFx(e._surface.engine,"sprite-layer-fx-ubo",t)??null,pipeline:null,lastUbo:new C(16),uboUploaded:!1,renderBundle:null,bundleCount:-1},e._layerGpu.set(t,r)}let o=Tt(e._surface.engine._device,t,r.instanceBuffer,r.instanceBufferCapacity);return o.reallocated&&(r.instanceBuffer=o.buffer,r.instanceBufferCapacity=o.capacity,r.uploadedVersion=-1,r.renderBundle=null),r}function yr(e,t,r){let o=t.layer;t.uploadedVersion=_t(e._surface.engine._device,o,t.instanceBuffer,t.uploadedVersion),Pt(o,e._targetWidth,e._targetHeight,yt),t.uboUploaded=vt(e._surface.engine._device,t.uniformBuffer,yt,t.lastUbo,t.uboUploaded),t.fx&&v().updateFx(t.fx,o,r)}function br(e){e.instanceBuffer.destroy(),e.uniformBuffer.destroy(),e.fx&&v().disposeFx(e.fx)}var yt=new C(16);function Br(e,t,r){return t.bindGroup||(t.bindGroup=ht(e._surface.engine,r,0,t.layer,t.uniformBuffer,t.fx)),t.bindGroup}function Mr(e,t){return e.order!==t.order?e.order-t.order:0}function bt(e,t){let r=e.engine;ie(t.layers);let o=Ee(r,St,B.INDEX),i=e.canvas,a=t.layers.slice(),s={_kind:vr,_surface:e,_indexBuffer:o,_pipelineCache:gt(),_layerGpu:new Map,_visibleBundles:[],_targetWidth:i.width,_targetHeight:i.height,_disposed:!1,_clear:t.clear??!0,_targetView:null,_beforeUpdate:[],_disposeCallbacks:[],layers:a,_layers:a,clearColor:t.clearValue??{r:0,g:0,b:0,a:1},_drawCallsPre:0,_update(){Rr(s)},_record(){return Fr(s)}};try{for(let n of s.layers)re(r,s._pipelineCache,e.format,1,n.blendMode,!1,!1,void 0,void 0,n)}catch(n){throw te(),o.destroy(),n}return s}function ie(e){for(let t of e)Cr(t)}function Cr(e){e.depth!=="none"&&S(851)}function Rr(e){if(e._disposed)return;let t=e._surface.engine._currentDelta??0;for(let o of e._beforeUpdate)o(t);ie(e.layers);let r=Ae(e._surface);e._targetWidth=r.width,e._targetHeight=r.height,e.layers.length>1&&e._layers.sort(Mr);for(let o of e.layers)!o.visible||o.count===0||yr(e,xr(e,o),t)}function Fr(e){if(e._disposed)return 0;ie(e.layers);let t=e._surface.engine._currentEncoder,r=e._targetView??e._surface.scRT._colorView,o=t.beginRenderPass({colorAttachments:[{view:r,clearValue:e.clearColor,loadOp:e._clear?"clear":"load",storeOp:"store"}]}),i=0,a=e._visibleBundles;a.length=0;for(let s of e.layers){if(!s.visible||s.count===0)continue;let n=e._layerGpu.get(s);if(!n)continue;let c=1,m=re(e._surface.engine,e._pipelineCache,e._surface.format,c,s.blendMode,!1,!1,void 0,void 0,s);n.pipeline!==m&&(n.pipeline=m,n.bindGroup=null,n.renderBundle=null);let f=Br(e,n,m);if(n.renderBundle==null||n.bundleCount!==s.count){let p=e._surface.engine._device.createRenderBundleEncoder({colorFormats:[e._surface.format],sampleCount:c});p.setIndexBuffer(e._indexBuffer,"uint16"),p.setPipeline(m),p.setBindGroup(0,f),p.setVertexBuffer(0,n.instanceBuffer),p.drawIndexed(6,s.count,0,0,0),n.renderBundle=p.finish(),n.bundleCount=s.count}a.push(n.renderBundle),i++}return a.length>0&&o.executeBundles(a),o.end(),i}function Bt(e){Ce(e._surface,e)}function Mt(e){Re(e._surface,e)}function Ct(e){if(e._disposed)return;Mt(e),e._disposed=!0;let t=e._disposeCallbacks.slice();e._disposeCallbacks.length=0;for(let r of t)r();for(let r of e._layerGpu.values())br(r);e._layerGpu.clear(),e._visibleBundles.length=0,e._beforeUpdate.length=0,e._indexBuffer.destroy(),te(),e._layers.length=0}export{dt as addSprite2DIndex,ft as clearSprite2DLayer,Fe as createEngine,pt as createSprite2DLayer,at as createSpriteAtlasFromFrames,bt as createSpriteRenderer,qe as disposeEngine,it as disposeSpriteAtlas,Ct as disposeSpriteRenderer,Qe as onEngineDeviceLost,je as onEngineGpuError,Bt as registerSpriteRenderer,ke as renderFrame,De as setEngineSize};
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/lite-error.js
+function ThrowLiteError(code, ...args) {
+  const error = new Error(_decode?.(code, args) ?? `#${code}`);
+  error.lite = args;
+  throw error;
+}
+var _decode;
+var init_lite_error = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/lite-error.js"() {
+    _decode = null;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/typed-arrays.js
+var F32, F64, U16, U8;
+var init_typed_arrays = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/typed-arrays.js"() {
+    F32 = Float32Array;
+    F64 = Float64Array;
+    U16 = Uint16Array;
+    U8 = Uint8Array;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/math/_matrix-allocator.js
+function _setHpmAllocator(allocate) {
+  _allocate = allocate;
+}
+var _allocate;
+var init_matrix_allocator = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/math/_matrix-allocator.js"() {
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/gpu-flags.js
+var TU, BU, SS, CW;
+var init_gpu_flags = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/gpu-flags.js"() {
+    TU = globalThis.GPUTextureUsage;
+    BU = globalThis.GPUBufferUsage;
+    SS = globalThis.GPUShaderStage;
+    CW = globalThis.GPUColorWrite;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/render-target.js
+function resolveDirectRenderTargetSize(descriptor) {
+  const size = descriptor.size;
+  return "canvas" in size ? size.canvas : size;
+}
+function _createDirectRenderTarget(descriptor) {
+  return {
+    _descriptor: descriptor,
+    _resolveSize: resolveDirectRenderTargetSize,
+    _colorTexture: null,
+    _colorView: null,
+    _depthTexture: null,
+    _depthView: null,
+    _width: 0,
+    _height: 0
+  };
+}
+var init_render_target = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/render-target.js"() {
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/version.js
+var VERSION, _ENGINE_TAG;
+var init_version = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/version.js"() {
+    VERSION = "1.38.1";
+    _ENGINE_TAG = `Babylon Lite v${VERSION}`;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/surface.js
+function isDomCanvas(canvas) {
+  return "clientWidth" in canvas;
+}
+function toSrgbFormat(format) {
+  return format.endsWith("-srgb") ? format : `${format}-srgb`;
+}
+function _buildSurface(engine, canvas, options) {
+  const context = canvas.getContext("webgpu");
+  if (!context) ThrowLiteError(62);
+  if (isDomCanvas(canvas)) canvas.setAttribute("data-engine", _ENGINE_TAG);
+  const configureFormat = options?.format ?? navigator.gpu.getPreferredCanvasFormat();
+  const renderFormat = options?.srgb ? toSrgbFormat(configureFormat) : configureFormat;
+  const alphaMode = options?.alphaMode ?? "opaque";
+  context.configure({
+    device: engine._device,
+    format: configureFormat,
+    alphaMode,
+    viewFormats: [renderFormat]
+  });
+  const msaaSamples = options?.msaaSamples === 1 ? 1 : 4;
+  const scRT = _createDirectRenderTarget({
+    lbl: "swapchain",
+    format: renderFormat,
+    samples: 1,
+    size: {
+      width: 0,
+      height: 0
+    }
+  });
+  scRT._eager = true;
+  return {
+    engine,
+    canvas,
+    format: renderFormat,
+    msaaSamples,
+    scRT,
+    maxDevicePixelRatio: options?.maxDevicePixelRatio ?? Infinity,
+    _uniqueId: _nextSurfaceId++,
+    _context: context,
+    _configureFormat: configureFormat,
+    _alphaMode: alphaMode,
+    _renderingContexts: []
+  };
+}
+function _refreshScRT(surface) {
+  const tex = surface._context.getCurrentTexture();
+  const swap = surface.scRT;
+  swap._colorTexture = tex;
+  swap._colorView = tex.createView({ format: surface.format });
+  swap._width = tex.width;
+  swap._height = tex.height;
+}
+function resizeSurface(surface) {
+  const canvas = surface.canvas;
+  if (!isDomCanvas(canvas)) return;
+  const clientWidth = surface._w ?? canvas.clientWidth;
+  const clientHeight = surface._h ?? canvas.clientHeight;
+  if (!(clientWidth > 0 && clientHeight > 0)) return;
+  const scale = Math.min(globalThis.devicePixelRatio || 1, surface.maxDevicePixelRatio);
+  setSurfaceSize(surface, clientWidth * scale | 0, clientHeight * scale | 0);
+}
+function setSurfaceSize(surface, widthPx, heightPx) {
+  const canvas = surface.canvas;
+  const w = widthPx | 0;
+  const h = heightPx | 0;
+  if (!(w > 0 && h > 0)) return;
+  if (w === canvas.width && h === canvas.height) return;
+  canvas.width = w;
+  canvas.height = h;
+  surface.scRT._width = w;
+  surface.scRT._height = h;
+  for (const c of surface._renderingContexts) c._resize?.();
+}
+var _nextSurfaceId;
+var init_surface = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/surface.js"() {
+    init_lite_error();
+    init_render_target();
+    init_version();
+    _nextSurfaceId = 1;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/math/_mat4-storage-f64.js
+var mat4_storage_f64_exports = {};
+__export(mat4_storage_f64_exports, {
+  MAT4_STORAGE_F64_BUILD_TAG: () => MAT4_STORAGE_F64_BUILD_TAG,
+  allocateF64Mat4: () => allocateF64Mat4
+});
+function allocateF64Mat4() {
+  return new F64(16);
+}
+var MAT4_STORAGE_F64_BUILD_TAG;
+var init_mat4_storage_f64 = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/math/_mat4-storage-f64.js"() {
+    init_typed_arrays();
+    MAT4_STORAGE_F64_BUILD_TAG = "@@MAT4_STORAGE_F64@@";
+    allocateF64Mat4[MAT4_STORAGE_F64_BUILD_TAG] = true;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/light/types.js
+var MAX_LIGHTS;
+var init_types = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/light/types.js"() {
+    MAX_LIGHTS = 16;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/large-world/floating-origin.js
+var floating_origin_exports = {};
+__export(floating_origin_exports, {
+  applyLightFoOffset: () => applyLightFoOffset,
+  getFloatingOriginOffset: () => getFloatingOriginOffset,
+  lightFoVersion: () => lightFoVersion,
+  wrapRenderableForFO: () => wrapRenderableForFO
+});
+function getFloatingOriginOffset(scene) {
+  const cam = scene.camera;
+  if (!cam) return {
+    x: 0,
+    y: 0,
+    z: 0
+  };
+  const w = cam.worldMatrix;
+  return {
+    x: w[12],
+    y: w[13],
+    z: w[14]
+  };
+}
+function lightFoVersion(scene) {
+  const cam = scene.camera;
+  const version = cam ? cam.worldMatrixVersion : -1;
+  const keys = _lightFoKeys ??= /* @__PURE__ */ new WeakMap();
+  let key = keys.get(scene);
+  if (!key) keys.set(scene, key = [
+    cam,
+    version,
+    0
+  ]);
+  else if (key[0] !== cam || key[1] !== version) {
+    key[0] = cam;
+    key[1] = version;
+    key[2]++;
+  }
+  return key[2];
+}
+function applyLightFoOffset(data, scene) {
+  const w = scene.camera?.worldMatrix;
+  if (!w) return;
+  const ox = w[12];
+  const oy = w[13];
+  const oz = w[14];
+  let count = 0;
+  for (const light of scene.lights) {
+    if (count >= MAX_LIGHTS) break;
+    if (!light._writeLightUbo) continue;
+    const o = 4 + count * 16;
+    const type = data[o + 3];
+    if (type !== 1 && type !== 3) {
+      const lw = light.worldMatrix;
+      data[o] = lw[12] - ox;
+      data[o + 1] = lw[13] - oy;
+      data[o + 2] = lw[14] - oz;
+    }
+    count++;
+  }
+}
+function wrapRenderableForFO(inner, scene, invalidate) {
+  let _lastCameraVersion = -1;
+  let _lastCamera;
+  return () => {
+    const cam = scene.camera;
+    const cv = cam ? cam.worldMatrixVersion : -1;
+    if (cv !== _lastCameraVersion || cam !== _lastCamera) {
+      invalidate();
+      _lastCameraVersion = cv;
+      _lastCamera = cam;
+    }
+    inner();
+  };
+}
+var _lightFoKeys;
+var init_floating_origin = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/large-world/floating-origin.js"() {
+    init_types();
+    _lightFoKeys = null;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/large-world/pack-mat4-with-offset.js
+var pack_mat4_with_offset_exports = {};
+__export(pack_mat4_with_offset_exports, {
+  makePackMeshWorld: () => makePackMeshWorld,
+  packMat4IntoF32WithOffset: () => packMat4IntoF32WithOffset
+});
+function packMat4IntoF32WithOffset(view, mat, offsetFloats, srcOffsetFloats, offsetX, offsetY, offsetZ) {
+  const src = mat;
+  const s = srcOffsetFloats;
+  const o = offsetFloats;
+  view[o + 0] = src[s + 0];
+  view[o + 1] = src[s + 1];
+  view[o + 2] = src[s + 2];
+  view[o + 3] = src[s + 3];
+  view[o + 4] = src[s + 4];
+  view[o + 5] = src[s + 5];
+  view[o + 6] = src[s + 6];
+  view[o + 7] = src[s + 7];
+  view[o + 8] = src[s + 8];
+  view[o + 9] = src[s + 9];
+  view[o + 10] = src[s + 10];
+  view[o + 11] = src[s + 11];
+  view[o + 12] = src[s + 12] - offsetX;
+  view[o + 13] = src[s + 13] - offsetY;
+  view[o + 14] = src[s + 14] - offsetZ;
+  view[o + 15] = src[s + 15];
+}
+function makePackMeshWorld(scene) {
+  return (view, mat, offsetFloats, srcOffsetFloats) => {
+    const cam = scene.camera;
+    if (!cam) {
+      packMat4IntoF32WithOffset(view, mat, offsetFloats, srcOffsetFloats, 0, 0, 0);
+      return;
+    }
+    const w = cam.worldMatrix;
+    packMat4IntoF32WithOffset(view, mat, offsetFloats, srcOffsetFloats, w[12], w[13], w[14]);
+  };
+}
+var init_pack_mat4_with_offset = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/large-world/pack-mat4-with-offset.js"() {
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/engine.js
+function registerRenderingContext(surface, context) {
+  if (surface._renderingContexts.indexOf(context) !== -1) return false;
+  surface._renderingContexts.push(context);
+  return true;
+}
+function unregisterRenderingContext(surface, context) {
+  const list = surface._renderingContexts;
+  const i = list.indexOf(context);
+  if (i === -1) return false;
+  list.splice(i, 1);
+  return true;
+}
+function _getSupportedDeviceFeatures(adapter) {
+  return OPTIONAL_DEVICE_FEATURES.filter((feature) => adapter.features.has(feature));
+}
+async function createEngine(canvas, options) {
+  const adapter = await navigator.gpu.requestAdapter({
+    powerPreference: "high-performance",
+    ..._adapterOptionsHook ? _adapterOptionsHook() : {}
+  });
+  if (!adapter) ThrowLiteError(50);
+  const features = _adapterOptionsHook?.deviceFeatures?.(adapter, options) ?? _getSupportedDeviceFeatures(adapter);
+  const device = await adapter.requestDevice({
+    requiredFeatures: features,
+    requiredLimits: options?.requiredLimits
+  });
+  /* @__PURE__ */ console.log(`${_ENGINE_TAG} - WebGPU engine`);
+  const useHpm = !!options?.useHighPrecisionMatrix;
+  const useFO = !!options?.useFloatingOrigin;
+  if (useFO && !useHpm) ThrowLiteError(51);
+  if (useHpm) {
+    const { allocateF64Mat4: allocateF64Mat42 } = await Promise.resolve().then(() => (init_mat4_storage_f64(), mat4_storage_f64_exports));
+    _setHpmAllocator(allocateF64Mat42);
+  }
+  let _wrapRenderableForFO;
+  let _makePackMeshWorld;
+  let _lightFoVersion;
+  let _applyLightFoOffset;
+  if (useFO) {
+    const [{ wrapRenderableForFO: wrapRenderableForFO2, lightFoVersion: lightFoVersion2, applyLightFoOffset: applyLightFoOffset2 }, { makePackMeshWorld: makePackMeshWorld2 }] = await Promise.all([Promise.resolve().then(() => (init_floating_origin(), floating_origin_exports)), Promise.resolve().then(() => (init_pack_mat4_with_offset(), pack_mat4_with_offset_exports))]);
+    _wrapRenderableForFO = wrapRenderableForFO2;
+    _makePackMeshWorld = makePackMeshWorld2;
+    _lightFoVersion = lightFoVersion2;
+    _applyLightFoOffset = applyLightFoOffset2;
+  }
+  const engine = { _device: device };
+  const surfaces = [engine];
+  Object.assign(engine, {
+    engine,
+    surfaces,
+    _surfaces: surfaces,
+    _device: device,
+    _options: options,
+    drawCallCount: 0,
+    gpuFrameTimeMs: 0,
+    useHighPrecisionMatrix: useHpm,
+    useFloatingOrigin: useFO,
+    _animFrameId: 0,
+    _renderFn: null,
+    _currentEncoder: void 0,
+    _currentDelta: 0,
+    _cbs: [],
+    _wrapRenderableForFO,
+    _makePackMeshWorld,
+    _lightFoVersion,
+    _applyLightFoOffset
+  }, _buildSurface(engine, canvas, options));
+  resizeSurface(engine);
+  _refreshScRT(engine);
+  return engine;
+}
+function setEngineSize(engine, widthPx, heightPx) {
+  setSurfaceSize(engine, widthPx, heightPx);
+}
+function getRenderTargetSize(surface) {
+  const c = surface.canvas;
+  return {
+    width: c.width,
+    height: c.height
+  };
+}
+function stopEngine(engine) {
+  if (engine._animFrameId) cancelAnimationFrame(engine._animFrameId);
+  engine._animFrameId = 0;
+  engine._renderFn = null;
+  engine._flushGpuRetirements?.(engine);
+}
+function renderFrame(engine, delta, surfaces = engine.surfaces) {
+  if (surfaces !== engine.surfaces) {
+    for (let i = surfaces.length; i--; ) if (surfaces[i].engine !== engine) ThrowLiteError(52);
+  }
+  _renderFrame(engine, delta, surfaces);
+}
+function _renderFrame(engine, delta, surfaces = engine._surfaces) {
+  let total = 0;
+  for (let i = surfaces.length; i--; ) total += surfaces[i]._renderingContexts.length;
+  if (!total) {
+    engine.drawCallCount = 0;
+    return engine._flushGpuRetirements?.(engine);
+  }
+  const encoder = engine._device.createCommandEncoder({ label: "frame" });
+  engine._currentEncoder = encoder;
+  engine._currentDelta = delta;
+  let submitted = false;
+  try {
+    engine._gpuTimerBegin?.(encoder);
+    total = 0;
+    for (let i = 0; i < surfaces.length; i++) {
+      const surface = surfaces[i];
+      surface._capturePreFrame?.(surface);
+      _refreshScRT(surface);
+      const ctxs = surface._renderingContexts;
+      for (let j = 0; j < ctxs.length; j++) {
+        const s = ctxs[j];
+        s._update();
+        total += s._drawCallsPre + s._record();
+      }
+    }
+    const finalEncoder = engine._currentEncoder;
+    for (let i = 0; i < surfaces.length; i++) {
+      const surface = surfaces[i];
+      surface._captureService?.(surface, finalEncoder);
+    }
+    engine._gpuTimerEnd?.(finalEncoder);
+    engine._cbs[0] = finalEncoder.finish();
+    engine._device.queue.submit(engine._cbs);
+    submitted = true;
+    engine._flushGpuRetirements?.(engine);
+    engine.drawCallCount = total;
+    engine._gpuTimerResolve?.();
+  } finally {
+    engine._currentEncoder = void 0;
+    engine._finishOptionalFrame?.(submitted);
+  }
+}
+var _adapterOptionsHook, OPTIONAL_DEVICE_FEATURES;
+var init_engine = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/engine.js"() {
+    init_lite_error();
+    init_matrix_allocator();
+    init_version();
+    init_surface();
+    _adapterOptionsHook = null;
+    OPTIONAL_DEVICE_FEATURES = [
+      "float32-filterable",
+      "texture-compression-astc",
+      "texture-compression-bc",
+      "texture-compression-etc2",
+      "texture-compression-unaligned",
+      "timestamp-query",
+      "primitive-index"
+    ];
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/buffer-alignment.js
+function align(n, to) {
+  return Math.ceil(n / to) * to;
+}
+var init_buffer_alignment = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/buffer-alignment.js"() {
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/mapped-buffer.js
+function createMappedBuffer(engine, data, usage, label) {
+  const buffer = engine._device.createBuffer({
+    label,
+    size: align(Math.max(data.byteLength, 4), 4),
+    usage: usage | BU.COPY_DST,
+    mappedAtCreation: true
+  });
+  new U8(buffer.getMappedRange()).set(new U8(data.buffer, data.byteOffset, data.byteLength));
+  buffer.unmap();
+  return buffer;
+}
+var init_mapped_buffer = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/mapped-buffer.js"() {
+    init_typed_arrays();
+    init_gpu_flags();
+    init_buffer_alignment();
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/texture-reference-store.js
+function getTextureReferenceStore() {
+  return _textureReferences ??= /* @__PURE__ */ new WeakMap();
+}
+var _textureReferences;
+var init_texture_reference_store = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/texture-reference-store.js"() {
+    _textureReferences = null;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/gpu-texture-acquire.js
+function acquireGPUTexture(texture) {
+  const references = getTextureReferenceStore();
+  references.set(texture, (references.get(texture) ?? 0) + 1);
+}
+var init_gpu_texture_acquire = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/gpu-texture-acquire.js"() {
+    init_texture_reference_store();
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/texture-acquire.js
+function acquireTexture(texture) {
+  acquireGPUTexture(texture.texture);
+}
+var init_texture_acquire = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/texture-acquire.js"() {
+    init_gpu_texture_acquire();
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/texture-sampler-pool.js
+function getOrCreateSampler(engine, descriptor = {}, extraKey = "") {
+  const device = engine._device;
+  const caches = samplerCaches ??= /* @__PURE__ */ new WeakMap();
+  let cache = caches.get(device);
+  if (!cache) caches.set(device, cache = /* @__PURE__ */ new Map());
+  let key = extraKey;
+  for (const property in textureSamplerDefaults) {
+    const field = property;
+    key += `:${descriptor[field] ?? textureSamplerDefaults[field]}`;
+  }
+  let sampler = cache.get(key);
+  if (!sampler) cache.set(key, sampler = device.createSampler(descriptor));
+  return sampler;
+}
+var samplerCaches, defaultFilter, defaultAddressMode, textureSamplerDefaults;
+var init_texture_sampler_pool = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/texture-sampler-pool.js"() {
+    samplerCaches = null;
+    defaultFilter = "nearest";
+    defaultAddressMode = "clamp-to-edge";
+    textureSamplerDefaults = {
+      minFilter: defaultFilter,
+      magFilter: defaultFilter,
+      mipmapFilter: defaultFilter,
+      addressModeU: defaultAddressMode,
+      addressModeV: defaultAddressMode,
+      addressModeW: defaultAddressMode,
+      maxAnisotropy: 1
+    };
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/gpu-resource-retirement.js
+function runBatch(batch) {
+  runGpuResourceCallbacks(batch.splice(0));
+}
+function runGpuResourceCallbacks(disposers) {
+  for (const retire of disposers) try {
+    retire();
+  } catch (error) {
+    console.error("GPU resource retirement failed.", error);
+  }
+}
+function disposeGpuResourceRetirements(engine) {
+  const batch = engine._retirements;
+  const inFlight = engine._retiring;
+  engine._retirements = null;
+  engine._retiring = null;
+  if (batch) runBatch(batch);
+  inFlight?.forEach(runBatch);
+}
+var init_gpu_resource_retirement = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/gpu-resource-retirement.js"() {
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/empty-uniform-buffer.js
+function createEmptyUniformBuffer(engine, byteLength, label) {
+  return engine._device.createBuffer({
+    label,
+    size: align(byteLength, 16),
+    usage: BU.UNIFORM | BU.COPY_DST
+  });
+}
+var init_empty_uniform_buffer = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/resource/empty-uniform-buffer.js"() {
+    init_gpu_flags();
+    init_buffer_alignment();
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/render/alpha-to-coverage-hook.js
+function _getAlphaToCoverageResolver() {
+  return _resolver;
+}
+var _resolver;
+var init_alpha_to_coverage_hook = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/render/alpha-to-coverage-hook.js"() {
+    _resolver = null;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/shared/sprite-atlas.js
+function resolveSpriteFrame(atlas, frame) {
+  if (frame < 0 || frame >= atlas.frames.length) ThrowLiteError(818, frame, atlas.frames.length);
+  return frame;
+}
+function disposeSpriteAtlas(atlas) {
+  atlas.texture.texture.destroy();
+}
+var init_sprite_atlas = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/shared/sprite-atlas.js"() {
+    init_lite_error();
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/blend-descriptors.js
+var _ALPHA_BLEND_STATE;
+var init_blend_descriptors = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/blend-descriptors.js"() {
+    _ALPHA_BLEND_STATE = {
+      color: {
+        srcFactor: "src-alpha",
+        dstFactor: "one-minus-src-alpha",
+        operation: "add"
+      },
+      alpha: {
+        srcFactor: "one",
+        dstFactor: "one-minus-src-alpha",
+        operation: "add"
+      }
+    };
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/sprite-blend.js
+var spriteBlendAlpha;
+var init_sprite_blend = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/sprite-blend.js"() {
+    init_blend_descriptors();
+    spriteBlendAlpha = {
+      _key: "alpha",
+      _descriptor: _ALPHA_BLEND_STATE
+    };
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/sprite-fx-hook.js
+function _getSpriteFxHook() {
+  return _spriteFxHook;
+}
+var _spriteFxHook;
+var init_sprite_fx_hook = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/sprite-fx-hook.js"() {
+    _spriteFxHook = null;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/sprite-2d.js
+function _getSprite2DYSortHook() {
+  return _sprite2DYSortHook;
+}
+function createSprite2DLayer(atlas, opts = {}) {
+  const depth = opts.depth ?? "none";
+  const blendMode = opts.blendMode ?? spriteBlendAlpha;
+  const capacity = Math.max(1, opts.capacity ?? DEFAULT_CAPACITY);
+  const view = {
+    positionPx: [opts.view?.positionPx?.[0] ?? 0, opts.view?.positionPx?.[1] ?? 0],
+    zoom: opts.view?.zoom ?? 1,
+    rotation: opts.view?.rotation ?? 0
+  };
+  const instanceFloatsPerSprite = depth === "none" ? 13 : 14;
+  const instanceStrideBytes = instanceFloatsPerSprite * 4;
+  const instanceData = new F32(capacity * instanceFloatsPerSprite);
+  const layer = {
+    _entityType: "sprite-2d-layer",
+    atlas,
+    depth,
+    blendMode,
+    opacity: opts.opacity ?? 1,
+    visible: opts.visible ?? true,
+    order: opts.order ?? 0,
+    view,
+    pivot: [opts.pivot?.[0] ?? 0.5, opts.pivot?.[1] ?? 0.5],
+    layerZ: opts.layerZ ?? 0.5,
+    count: 0,
+    _capacity: capacity,
+    _instanceFloatsPerSprite: instanceFloatsPerSprite,
+    _instanceStrideBytes: instanceStrideBytes,
+    _instanceData: instanceData,
+    _savedSize: new F32(capacity * 2),
+    _version: 0,
+    _dirtyMin: 0,
+    _dirtyMax: 0
+  };
+  _getSpriteFxHook()?.initLayer(layer, opts);
+  return layer;
+}
+function growCapacity(layer, minCapacity) {
+  let cap = layer._capacity;
+  while (cap < minCapacity) cap *= 2;
+  const next = new F32(cap * layer._instanceFloatsPerSprite);
+  next.set(layer._instanceData);
+  layer._instanceData = next;
+  const nextSaved = new F32(cap * 2);
+  nextSaved.set(layer._savedSize);
+  layer._savedSize = nextSaved;
+  layer._capacity = cap;
+}
+function _setSprite2DCount(layer, count) {
+  layer.count = count;
+}
+function writeInstance(layer, slotIndex, props, prev) {
+  const data = layer._instanceData;
+  const base = slotIndex * layer._instanceFloatsPerSprite;
+  const savedBase = slotIndex * 2;
+  const isAdd = prev === null;
+  const frame = props.frame !== void 0 ? layer.atlas.frames[resolveSpriteFrame(layer.atlas, props.frame)] : null;
+  const posX = props.positionPx ? props.positionPx[0] : prev[0];
+  const posY = props.positionPx ? props.positionPx[1] : prev[1];
+  let trueW;
+  let trueH;
+  if (props.sizePx) {
+    trueW = props.sizePx[0];
+    trueH = props.sizePx[1];
+  } else if (frame) {
+    trueW = frame.sourceSizePx[0];
+    trueH = frame.sourceSizePx[1];
+  } else if (isAdd) {
+    trueW = 0;
+    trueH = 0;
+  } else {
+    trueW = layer._savedSize[savedBase];
+    trueH = layer._savedSize[savedBase + 1];
+  }
+  layer._savedSize[savedBase] = trueW;
+  layer._savedSize[savedBase + 1] = trueH;
+  let visible;
+  if (props.visible !== void 0) visible = props.visible;
+  else if (isAdd) visible = true;
+  else visible = prev[2] !== 0 || prev[3] !== 0;
+  let uMin;
+  let vMin;
+  let uMax;
+  let vMax;
+  if (frame) {
+    uMin = frame.uvMin[0];
+    vMin = frame.uvMin[1];
+    uMax = frame.uvMax[0];
+    vMax = frame.uvMax[1];
+  } else if (isAdd) {
+    uMin = 0;
+    vMin = 0;
+    uMax = 1;
+    vMax = 1;
+  } else {
+    uMin = prev[4];
+    vMin = prev[5];
+    uMax = prev[6];
+    vMax = prev[7];
+  }
+  const currentFlipX = uMin > uMax;
+  const currentFlipY = vMin > vMax;
+  const prevFlipX = !isAdd && prev[4] > prev[6];
+  const prevFlipY = !isAdd && prev[5] > prev[7];
+  const wantsFlipX = props.flipX !== void 0 ? props.flipX === true : prevFlipX;
+  const wantsFlipY = props.flipY !== void 0 ? props.flipY === true : prevFlipY;
+  if (currentFlipX !== wantsFlipX) {
+    const previousMinU = uMin;
+    uMin = uMax;
+    uMax = previousMinU;
+  }
+  if (currentFlipY !== wantsFlipY) {
+    const previousMinV = vMin;
+    vMin = vMax;
+    vMax = previousMinV;
+  }
+  const rotation = props.rotation ?? (prev ? prev[8] : 0);
+  const hasDepthSlot = layer.depth !== "none";
+  const z = hasDepthSlot ? props.z ?? (prev ? prev[13] : layer.layerZ) : 0;
+  data[base + 0] = posX;
+  data[base + 1] = posY;
+  data[base + 2] = visible ? trueW : 0;
+  data[base + 3] = visible ? trueH : 0;
+  data[base + 4] = uMin;
+  data[base + 5] = vMin;
+  data[base + 6] = uMax;
+  data[base + 7] = vMax;
+  data[base + 8] = rotation;
+  if (props.color) {
+    data[base + 9] = props.color[0];
+    data[base + 10] = props.color[1];
+    data[base + 11] = props.color[2];
+    data[base + 12] = props.color[3];
+  } else if (isAdd) {
+    data[base + 9] = 1;
+    data[base + 10] = 1;
+    data[base + 11] = 1;
+    data[base + 12] = 1;
+  }
+  if (hasDepthSlot) data[base + 13] = z;
+}
+function markDirty(layer, lo, hi) {
+  if (layer._dirtyMin >= layer._dirtyMax) {
+    layer._dirtyMin = lo;
+    layer._dirtyMax = hi;
+  } else {
+    if (lo < layer._dirtyMin) layer._dirtyMin = lo;
+    if (hi > layer._dirtyMax) layer._dirtyMax = hi;
+  }
+  layer._version = layer._version + 1 | 0;
+  _getSprite2DYSortHook()?.dirty(layer, lo, hi);
+}
+function addSprite2DIndex(layer, props) {
+  if (props.positionPx === void 0) ThrowLiteError(832);
+  const idx = layer.count;
+  if (idx >= layer._capacity) growCapacity(layer, idx + 1);
+  writeInstance(layer, idx, props, null);
+  layer._vertexExtension?._initInstance(layer._instanceData, idx * layer._instanceFloatsPerSprite);
+  _setSprite2DCount(layer, layer.count + 1);
+  _getSprite2DYSortHook()?.add(layer, idx);
+  markDirty(layer, idx, idx + 1);
+  return idx;
+}
+function clearSprite2DLayer(layer) {
+  const count = layer.count;
+  layer._dirtyMin = 0;
+  layer._dirtyMax = 0;
+  layer._handleHooks?.clear();
+  if (count === 0) return;
+  layer._savedSize.fill(0, 0, count * 2);
+  _setSprite2DCount(layer, 0);
+  _getSprite2DYSortHook()?.clear(layer, count);
+  layer._version = layer._version + 1 | 0;
+}
+var _sprite2DYSortHook, DEFAULT_CAPACITY;
+var init_sprite_2d = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/sprite-2d.js"() {
+    init_lite_error();
+    init_typed_arrays();
+    init_sprite_atlas();
+    init_sprite_blend();
+    init_sprite_fx_hook();
+    _sprite2DYSortHook = null;
+    DEFAULT_CAPACITY = 16;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/sprite-coverage-gamma-hook.js
+function _getSpriteCoverageGammaHook() {
+  return _coverageGammaHook;
+}
+var _coverageGammaHook;
+var init_sprite_coverage_gamma_hook = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/sprite-coverage-gamma-hook.js"() {
+    _coverageGammaHook = null;
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/sprite-pipeline.js
+function makeSpriteWgsl(hasDepth, spriteGroupIndex, uvScroll) {
+  return `${makeSpritePrologueWgsl(hasDepth, spriteGroupIndex, uvScroll)} @fragment fn fs(in:O)->@location(0)vec4f{let s=textureSample(atlasTex,atlasSamp,in.uv);return s*in.tint*L.opacityMul;}`;
+}
+function makeSpritePrologueWgsl(hasDepth, spriteGroupIndex, uvScroll = false, extension) {
+  const group = `@group(${spriteGroupIndex})`;
+  const zAttribute = hasDepth ? `,@location(6)z:f32` : "";
+  const uvOffsetAttribute = uvScroll ? `,@location(7)o:vec2f` : "";
+  const zPosition = hasDepth ? "1 - in.z" : "0";
+  return `struct Lr{viewPos:vec2f,viewScale:f32,viewRot:f32,screenSize:vec2f,pivot:vec2f,opacityMul:vec4f,aa:vec4f,};${group} @binding(0)var<uniform>L:Lr;${group} @binding(1)var atlasTex:texture_2d<f32>;${group} @binding(2)var atlasSamp:sampler;struct I{@builtin(vertex_index)vid:u32,@location(0)p:vec2f,@location(1)s:vec2f,@location(2)a:vec2f,@location(3)b:vec2f,@location(4)r:f32,@location(5)c:vec4f${zAttribute}${uvOffsetAttribute}${extension?._input ?? ""}};struct O{@builtin(position)p:vec4f,@location(0)uv:vec2f,@location(1)tint:vec4f,${extension?._output ?? ""}};@vertex fn vs(in:I)->O{var q=array<vec2f,4>(vec2f(0,0),vec2f(1,0),vec2f(1,1),vec2f(0,1));let c=q[in.vid];let l=(c-L.pivot)*in.s;let cr=cos(in.r);let sr=sin(in.r);let r=vec2f(l.x*cr-l.y*sr,l.x*sr+l.y*cr);let p=in.p+r-L.viewPos;let lc=cos(L.viewRot);let ls=sin(L.viewRot);let v=vec2f(p.x*lc-p.y*ls,p.x*ls+p.y*lc)*L.viewScale;let n=vec2f(v.x/L.screenSize.x*2-1,1-v.y/L.screenSize.y*2);let uv=mix(in.a,in.b,c)${uvScroll ? " + in.o" : ""};var out:O;out.p=vec4f(n,${zPosition},1);out.uv=uv;out.tint=in.c;${extension?._assignment ?? ""} return out;}`;
+}
+function createSpritePipelineCache() {
+  return { _devices: /* @__PURE__ */ new WeakMap() };
+}
+function resetSpritePipelineCache(cache) {
+  cache._devices = /* @__PURE__ */ new WeakMap();
+}
+function acquireSharedSpriteRendererPipelineCache() {
+  _sharedSpriteRendererPipelineCache ??= createSpritePipelineCache();
+  _sharedSpriteRendererPipelineCacheRefs++;
+  return _sharedSpriteRendererPipelineCache;
+}
+function releaseSharedSpriteRendererPipelineCache() {
+  if (_sharedSpriteRendererPipelineCacheRefs > 0 && --_sharedSpriteRendererPipelineCacheRefs === 0 && _sharedSpriteRendererPipelineCache) {
+    resetSpritePipelineCache(_sharedSpriteRendererPipelineCache);
+    _sharedSpriteRendererPipelineCache = null;
+  }
+}
+function getOrCreateSpritePipeline(engine, cache, format, sampleCount, blendMode, hasDepth, depthWrite = false, depthStencilFormat, sceneBindGroupLayout, layer, depthCompare = "greater-equal") {
+  const deviceCache = getSpritePipelineDeviceCache(engine, cache);
+  const resolvedDepthStencilFormat = normalizeDepthStencilFormat(hasDepth, depthStencilFormat);
+  const alphaToCoverageResolver = _getAlphaToCoverageResolver();
+  const alphaToCoverage = hasDepth && depthWrite && sampleCount > 1 && !!layer && !!alphaToCoverageResolver?.(layer);
+  const key = spritePipelineKey(format, sampleCount, blendMode, hasDepth, depthWrite, resolvedDepthStencilFormat, alphaToCoverage, layer, depthCompare);
+  const cached = deviceCache._pipelines.get(key);
+  if (cached) return cached;
+  const pipeline = buildSpritePipeline(engine, deviceCache, format, sampleCount, blendMode, hasDepth, depthWrite, resolvedDepthStencilFormat, alphaToCoverage, sceneBindGroupLayout, layer, depthCompare);
+  deviceCache._pipelines.set(key, pipeline);
+  return pipeline;
+}
+function createSpriteLayerBindGroup(engine, pipeline, spriteBindGroupIndex, layer, uniformBuffer, fx) {
+  const tex = layer.atlas.texture;
+  const entries = [
+    {
+      binding: 0,
+      resource: { buffer: uniformBuffer }
+    },
+    {
+      binding: 1,
+      resource: tex.view
+    },
+    {
+      binding: 2,
+      resource: tex.sampler
+    }
+  ];
+  if (fx) for (const entry of _getSpriteFxHook().bindEntries(fx, 3)) entries.push(entry);
+  return engine._device.createBindGroup({
+    layout: pipeline.getBindGroupLayout(spriteBindGroupIndex),
+    entries
+  });
+}
+function getSpritePipelineDeviceCache(engine, cache) {
+  let deviceCache = cache._devices.get(engine._device);
+  if (!deviceCache) {
+    deviceCache = {
+      _shaderModules: /* @__PURE__ */ new Map(),
+      _pipelines: /* @__PURE__ */ new Map()
+    };
+    cache._devices.set(engine._device, deviceCache);
+  }
+  return deviceCache;
+}
+function normalizeDepthStencilFormat(hasDepth, depthStencilFormat) {
+  if (!hasDepth) return null;
+  if (!depthStencilFormat) ThrowLiteError(847);
+  return depthStencilFormat;
+}
+function spritePipelineKey(format, sampleCount, blendMode, hasDepth, depthWrite, depthStencilFormat, alphaToCoverage, layer, depthCompare = "greater-equal") {
+  const customKey = layer ? _getSpriteFxHook()?.pipelineKeyPart(layer) ?? "" : "";
+  const uvKey = layer?._uvScrollAttr ? "1" : "0";
+  const cgKey = layer ? _getSpriteCoverageGammaHook()?.pipelineKeyPart(layer) ?? "0" : "0";
+  return `${format}:${sampleCount}:${blendMode._key}:${hasDepth ? 1 : 0}:${depthWrite ? 1 : 0}:${depthStencilFormat ?? "-"}:${hasDepth ? depthCompare : "-"}:${alphaToCoverage ? "a" : "n"}:cs${customKey}:uv${uvKey}:cg${cgKey}`;
+}
+function getShaderModule(engine, cache, hasDepth, layer) {
+  const customModule = layer ? _getSpriteFxHook()?.shaderModule(engine, hasDepth, layer) : null;
+  if (customModule) return customModule;
+  const gammaModule = layer ? _getSpriteCoverageGammaHook()?.shaderModule(engine, hasDepth, layer) : null;
+  if (gammaModule) return gammaModule;
+  const uvScroll = layer?._uvScrollAttr != null;
+  const key = `${hasDepth ? 1 : 0}:${uvScroll ? 1 : 0}`;
+  let module = cache._shaderModules.get(key);
+  if (!module) {
+    module = engine._device.createShaderModule({ code: makeSpriteWgsl(hasDepth, hasDepth ? 1 : 0, uvScroll) });
+    cache._shaderModules.set(key, module);
+  }
+  return module;
+}
+function buildSpritePipeline(engine, cache, format, sampleCount, blendMode, hasDepth, depthWrite, depthStencilFormat, alphaToCoverage, sceneBindGroupLayout, layer, depthCompare = "greater-equal") {
+  const device = engine._device;
+  const layoutEntries = [
+    {
+      binding: 0,
+      visibility: SS.VERTEX | SS.FRAGMENT,
+      buffer: { type: "uniform" }
+    },
+    {
+      binding: 1,
+      visibility: SS.FRAGMENT,
+      texture: { sampleType: "float" }
+    },
+    {
+      binding: 2,
+      visibility: SS.FRAGMENT,
+      sampler: { type: "filtering" }
+    }
+  ];
+  const extraLayoutEntries = layer ? _getSpriteFxHook()?.layoutEntries(layer, 3) : null;
+  if (extraLayoutEntries) for (const entry of extraLayoutEntries) layoutEntries.push(entry);
+  const bindGroupLayout = device.createBindGroupLayout({ entries: layoutEntries });
+  const module = getShaderModule(engine, cache, hasDepth, layer);
+  if (hasDepth && !sceneBindGroupLayout) ThrowLiteError(848);
+  const bindGroupLayouts = hasDepth ? [sceneBindGroupLayout, bindGroupLayout] : [bindGroupLayout];
+  const instanceAttributes = [
+    {
+      shaderLocation: 0,
+      offset: SPRITE_POSITION_OFFSET_BYTES,
+      format: "float32x2"
+    },
+    {
+      shaderLocation: 1,
+      offset: SPRITE_SIZE_OFFSET_BYTES,
+      format: "float32x2"
+    },
+    {
+      shaderLocation: 2,
+      offset: SPRITE_UV_MIN_OFFSET_BYTES,
+      format: "float32x2"
+    },
+    {
+      shaderLocation: 3,
+      offset: SPRITE_UV_MAX_OFFSET_BYTES,
+      format: "float32x2"
+    },
+    {
+      shaderLocation: 4,
+      offset: SPRITE_ROTATION_OFFSET_BYTES,
+      format: "float32"
+    },
+    {
+      shaderLocation: 5,
+      offset: SPRITE_COLOR_OFFSET_BYTES,
+      format: "float32x4"
+    }
+  ];
+  if (hasDepth) instanceAttributes.push({
+    shaderLocation: 6,
+    offset: SPRITE_DEPTH_OFFSET_BYTES,
+    format: "float32"
+  });
+  if (layer?._uvScrollAttr) instanceAttributes.push(layer._uvScrollAttr);
+  const vertexAttribute = layer ? _getSpriteFxHook()?.vertexAttribute(layer) : null;
+  if (vertexAttribute) instanceAttributes.push(vertexAttribute);
+  const arrayStride = layer?._instanceStrideBytes ?? (hasDepth ? 56 : 52);
+  const descriptor = {
+    layout: device.createPipelineLayout({ bindGroupLayouts }),
+    vertex: {
+      module,
+      entryPoint: "vs",
+      buffers: [{
+        arrayStride,
+        stepMode: "instance",
+        attributes: instanceAttributes
+      }]
+    },
+    fragment: {
+      module,
+      entryPoint: "fs",
+      targets: [{
+        format,
+        blend: blendMode._descriptor,
+        writeMask: CW.ALL
+      }]
+    },
+    primitive: {
+      topology: "triangle-list",
+      cullMode: "none"
+    },
+    multisample: alphaToCoverage ? {
+      count: sampleCount,
+      alphaToCoverageEnabled: true
+    } : { count: sampleCount }
+  };
+  if (hasDepth) descriptor.depthStencil = {
+    format: depthStencilFormat,
+    depthCompare,
+    depthWriteEnabled: depthWrite
+  };
+  return device.createRenderPipeline(descriptor);
+}
+function createSpriteInstanceBuffer(device, layer, label) {
+  return device.createBuffer({
+    size: layer._capacity * layer._instanceStrideBytes,
+    usage: BU.VERTEX | BU.COPY_DST,
+    label
+  });
+}
+function ensureSpriteInstanceBuffer(device, layer, currentBuffer, currentCapacity, label) {
+  const neededBytes = layer._capacity * layer._instanceStrideBytes;
+  if (currentBuffer.size >= neededBytes) return {
+    buffer: currentBuffer,
+    capacity: currentCapacity,
+    reallocated: false
+  };
+  currentBuffer.destroy();
+  return {
+    buffer: createSpriteInstanceBuffer(device, layer, label),
+    capacity: layer._capacity,
+    reallocated: true
+  };
+}
+function uploadSpriteInstances(device, layer, instanceBuffer, uploadedVersion) {
+  const orderedVersion = _getSprite2DYSortHook()?.upload(device, layer, instanceBuffer, uploadedVersion);
+  if (orderedVersion !== void 0) return orderedVersion;
+  if (uploadedVersion === layer._version) return uploadedVersion;
+  if (layer.count === 0) {
+    layer._dirtyMin = 0;
+    layer._dirtyMax = 0;
+    return layer._version;
+  }
+  let lo;
+  let hi;
+  if (uploadedVersion === -1) {
+    lo = 0;
+    hi = layer.count;
+  } else {
+    lo = layer._dirtyMin;
+    hi = Math.min(layer._dirtyMax, layer.count);
+  }
+  if (hi > lo) {
+    const offsetBytes = lo * layer._instanceStrideBytes;
+    const bytes = (hi - lo) * layer._instanceStrideBytes;
+    device.queue.writeBuffer(instanceBuffer, offsetBytes, layer._instanceData.buffer, layer._instanceData.byteOffset + offsetBytes, bytes);
+  }
+  layer._dirtyMin = 0;
+  layer._dirtyMax = 0;
+  return layer._version;
+}
+function buildSpriteLayerUbo(layer, screenWidth, screenHeight, ubo) {
+  ubo[0] = layer.view.positionPx[0];
+  ubo[1] = layer.view.positionPx[1];
+  ubo[2] = layer.view.zoom;
+  ubo[3] = layer.view.rotation;
+  ubo[4] = screenWidth;
+  ubo[5] = screenHeight;
+  ubo[6] = layer.pivot[0];
+  ubo[7] = layer.pivot[1];
+  const op = layer.opacity;
+  if (layer.blendMode._premultipliedOpacity) {
+    ubo[8] = op;
+    ubo[9] = op;
+    ubo[10] = op;
+    ubo[11] = op;
+  } else {
+    ubo[8] = 1;
+    ubo[9] = 1;
+    ubo[10] = 1;
+    ubo[11] = op;
+  }
+  _getSpriteCoverageGammaHook()?.writeUbo(layer, ubo);
+}
+function writeSpriteLayerUboIfDirty(device, uniformBuffer, scratchUbo, lastUbo, alreadyUploaded) {
+  let dirty = !alreadyUploaded;
+  if (!dirty) {
+    for (let i = 0; i < 16; i++) if (lastUbo[i] !== scratchUbo[i]) {
+      dirty = true;
+      break;
+    }
+  }
+  if (dirty) {
+    device.queue.writeBuffer(uniformBuffer, 0, scratchUbo.buffer, scratchUbo.byteOffset, 64);
+    lastUbo.set(scratchUbo);
+  }
+  return true;
+}
+var SPRITE_POSITION_OFFSET_BYTES, SPRITE_SIZE_OFFSET_BYTES, SPRITE_UV_MIN_OFFSET_BYTES, SPRITE_UV_MAX_OFFSET_BYTES, SPRITE_ROTATION_OFFSET_BYTES, SPRITE_COLOR_OFFSET_BYTES, SPRITE_DEPTH_OFFSET_BYTES, _sharedSpriteRendererPipelineCache, _sharedSpriteRendererPipelineCacheRefs, SHARED_SPRITE_INDEX_DATA;
+var init_sprite_pipeline = __esm({
+  "../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/sprite-pipeline.js"() {
+    init_lite_error();
+    init_typed_arrays();
+    init_gpu_flags();
+    init_alpha_to_coverage_hook();
+    init_sprite_fx_hook();
+    init_sprite_2d();
+    init_sprite_coverage_gamma_hook();
+    SPRITE_POSITION_OFFSET_BYTES = 0;
+    SPRITE_SIZE_OFFSET_BYTES = 8;
+    SPRITE_UV_MIN_OFFSET_BYTES = 16;
+    SPRITE_UV_MAX_OFFSET_BYTES = 24;
+    SPRITE_ROTATION_OFFSET_BYTES = 32;
+    SPRITE_COLOR_OFFSET_BYTES = 36;
+    SPRITE_DEPTH_OFFSET_BYTES = 52;
+    _sharedSpriteRendererPipelineCache = null;
+    _sharedSpriteRendererPipelineCacheRefs = 0;
+    SHARED_SPRITE_INDEX_DATA = new U16([
+      0,
+      1,
+      2,
+      0,
+      2,
+      3
+    ]);
+  }
+});
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/index.js
+init_engine();
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/engine-dispose.js
+init_engine();
+init_gpu_resource_retirement();
+function disposeEngine(engine) {
+  disposeGpuResourceRetirements(engine);
+  stopEngine(engine);
+  const surfaces = engine._surfaces;
+  for (const surface of surfaces) {
+    surface._renderingContexts.length = 0;
+    surface._ro?.disconnect();
+    surface._context.unconfigure();
+  }
+  surfaces.length = 0;
+  try {
+    engine._disposeManagedResources?.();
+    engine._disposeStorageBuffers?.();
+  } finally {
+    engine._device.destroy();
+  }
+}
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/engine/engine-gpu-events.js
+function attach(engine) {
+  const events = engine._gpuEvents;
+  const device = engine._device;
+  if (events._device === device) return;
+  events._device?.removeEventListener("uncapturederror", events._onError);
+  events._device = device;
+  device.addEventListener("uncapturederror", events._onError);
+  device.lost.then((info) => {
+    if (events._device !== device) return;
+    for (const callback of events._lost) callback(info);
+  });
+}
+function eventsFor(engine) {
+  let events = engine._gpuEvents;
+  if (!events) {
+    const errors = /* @__PURE__ */ new Set();
+    events = engine._gpuEvents = {
+      _errors: errors,
+      _lost: /* @__PURE__ */ new Set(),
+      _device: null,
+      _onError: (event) => {
+        const error = event.error;
+        for (const callback of errors) callback(error);
+      }
+    };
+    engine._attachGpuEvents = attach;
+  }
+  attach(engine);
+  return events;
+}
+function onEngineGpuError(engine, callback) {
+  const events = eventsFor(engine);
+  events._errors.add(callback);
+  return () => {
+    events._errors.delete(callback);
+  };
+}
+function onEngineDeviceLost(engine, callback) {
+  const events = eventsFor(engine);
+  events._lost.add(callback);
+  return () => {
+    events._lost.delete(callback);
+  };
+}
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/texture/pixels-texture.js
+init_lite_error();
+init_gpu_flags();
+init_texture_acquire();
+init_texture_sampler_pool();
+function createTexture2DFromPixels(engine, data, width, height, options = {}) {
+  if (width < 1 || height < 1) ThrowLiteError(895, width, height);
+  const expected = width * height * 4;
+  if (data.length < expected) ThrowLiteError(896, expected, width, height, data.length);
+  const device = engine._device;
+  const format = options.srgb ? "rgba8unorm-srgb" : "rgba8unorm";
+  const texture = device.createTexture({
+    size: {
+      width,
+      height
+    },
+    format,
+    usage: TU.TEXTURE_BINDING | TU.COPY_DST
+  });
+  device.queue.writeTexture({ texture }, data, {
+    bytesPerRow: width * 4,
+    rowsPerImage: height
+  }, {
+    width,
+    height
+  });
+  const samplerDesc = {
+    addressModeU: options.addressModeU ?? "clamp-to-edge",
+    addressModeV: options.addressModeV ?? "clamp-to-edge",
+    minFilter: options.minFilter ?? "nearest",
+    magFilter: options.magFilter ?? "nearest"
+  };
+  const sampler = getOrCreateSampler(engine, samplerDesc);
+  const tex = {
+    texture,
+    view: texture.createView(),
+    sampler,
+    width,
+    height
+  };
+  engine._dlr?.p(tex, data, options);
+  acquireTexture(tex);
+  return tex;
+}
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/index.js
+init_sprite_atlas();
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/shared/sprite-atlas-packer.js
+init_lite_error();
+init_typed_arrays();
+function shelfPack(sources, padding, maxWidth, maxHeight, startPenX, startPenY, startShelfHeight, fnLabel) {
+  const xs = new Array(sources.length);
+  const ys = new Array(sources.length);
+  let penX = startPenX;
+  let penY = startPenY;
+  let shelfHeight = startShelfHeight;
+  let contentWidth = 0;
+  for (let i = 0; i < sources.length; i++) {
+    const s = sources[i];
+    if (s.width < 1 || s.height < 1) ThrowLiteError(807, fnLabel, i, s.width, s.height);
+    const srcX = s.srcX ?? 0;
+    const srcY = s.srcY ?? 0;
+    const srcStride = s.srcStrideBytes ?? s.width * 4;
+    if (srcX < 0 || srcY < 0) ThrowLiteError(808, fnLabel, i, srcX, srcY);
+    if ((srcX + s.width) * 4 > srcStride) ThrowLiteError(809, fnLabel, i, (srcX + s.width) * 4, srcStride);
+    const requiredBytes = (srcY + s.height - 1) * srcStride + (srcX + s.width) * 4;
+    if (s.pixels.length < requiredBytes) throw new Error(`${fnLabel}: frame ${i} pixel buffer too short \u2014 need ${requiredBytes} bytes (srcX=${srcX}, srcY=${srcY}, srcStride=${srcStride}, w=${s.width}, h=${s.height}), got ${s.pixels.length}.`);
+    if (penX > 0 && penX + s.width > maxWidth) {
+      penY += shelfHeight + padding;
+      penX = 0;
+      shelfHeight = 0;
+    }
+    if (s.width > maxWidth) ThrowLiteError(810, fnLabel, i, s.width, maxWidth);
+    if (penY + s.height > maxHeight) ThrowLiteError(811, fnLabel, i, s.width, s.height, maxHeight, penY);
+    xs[i] = penX;
+    ys[i] = penY;
+    const rightEdge = penX + s.width;
+    if (rightEdge > contentWidth) contentWidth = rightEdge;
+    penX = rightEdge + padding;
+    if (s.height > shelfHeight) shelfHeight = s.height;
+  }
+  const contentHeight = sources.length === 0 ? startPenY : penY + shelfHeight;
+  return {
+    xs,
+    ys,
+    penX,
+    penY,
+    shelfHeight,
+    contentWidth,
+    contentHeight
+  };
+}
+function createSpriteAtlasFromFrames(engine, sources, options = {}) {
+  const padding = options.paddingPx ?? 1;
+  const requestedMaxWidth = options.maxWidthPx ?? 1024;
+  if (sources.length === 0 && !options.capacityPx) ThrowLiteError(812);
+  const maxWidth = options.capacityPx ? Math.min(requestedMaxWidth, options.capacityPx[0]) : requestedMaxWidth;
+  const placement = shelfPack(sources, padding, maxWidth, Number.MAX_SAFE_INTEGER, 0, 0, 0, "createSpriteAtlasFromFrames");
+  const atlasWidth = options.capacityPx ? options.capacityPx[0] : Math.max(1, placement.contentWidth);
+  const atlasHeight = options.capacityPx ? options.capacityPx[1] : Math.max(1, placement.contentHeight);
+  if (atlasWidth < 1 || atlasHeight < 1) ThrowLiteError(813, atlasWidth, atlasHeight);
+  if (placement.contentWidth > atlasWidth || placement.contentHeight > atlasHeight) ThrowLiteError(814, atlasWidth, atlasHeight, placement.contentWidth, placement.contentHeight);
+  const data = new U8(atlasWidth * atlasHeight * 4);
+  for (let i = 0; i < sources.length; i++) {
+    const s = sources[i];
+    const srcX = s.srcX ?? 0;
+    const srcY = s.srcY ?? 0;
+    const srcStride = s.srcStrideBytes ?? s.width * 4;
+    const rowBytes = s.width * 4;
+    for (let row = 0; row < s.height; row++) {
+      const srcOffset = (srcY + row) * srcStride + srcX * 4;
+      const dstOffset = ((placement.ys[i] + row) * atlasWidth + placement.xs[i]) * 4;
+      data.set(s.pixels.subarray(srcOffset, srcOffset + rowBytes), dstOffset);
+    }
+  }
+  const sampling = options.sampling ?? "nearest";
+  const texture = createTexture2DFromPixels(engine, data, atlasWidth, atlasHeight, {
+    minFilter: sampling,
+    magFilter: sampling,
+    srgb: options.srgb ?? false
+  });
+  const frames = new Array(sources.length);
+  for (let i = 0; i < sources.length; i++) {
+    const s = sources[i];
+    frames[i] = {
+      name: s.name,
+      uvMin: [placement.xs[i] / atlasWidth, placement.ys[i] / atlasHeight],
+      uvMax: [(placement.xs[i] + s.width) / atlasWidth, (placement.ys[i] + s.height) / atlasHeight],
+      sourceSizePx: [s.width, s.height],
+      pivot: s.pivot ?? [0.5, 0.5]
+    };
+  }
+  const packState = {
+    penX: placement.penX,
+    penY: placement.penY,
+    shelfHeight: placement.shelfHeight,
+    maxWidth,
+    padding
+  };
+  return {
+    texture,
+    textureSizePx: [atlasWidth, atlasHeight],
+    frames,
+    premultipliedAlpha: options.premultipliedAlpha ?? false,
+    _packState: packState,
+    _frames: frames
+  };
+}
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/index.js
+init_sprite_2d();
+
+// ../node_modules/.pnpm/@babylonjs+lite@1.38.1_@webgpu+types@0.1.66/node_modules/@babylonjs/lite/lib/sprite/sprite-renderer.js
+init_lite_error();
+init_typed_arrays();
+init_gpu_flags();
+init_engine();
+init_mapped_buffer();
+init_empty_uniform_buffer();
+init_sprite_fx_hook();
+init_sprite_pipeline();
+var KIND = "sprite-renderer";
+function ensureLayerGpu(rr, layer) {
+  let lg = rr._layerGpu.get(layer);
+  if (!lg) {
+    const cap = layer._capacity;
+    lg = {
+      layer,
+      instanceBuffer: createSpriteInstanceBuffer(rr._surface.engine._device, layer),
+      instanceBufferCapacity: cap,
+      uniformBuffer: createEmptyUniformBuffer(rr._surface.engine, 64),
+      bindGroup: null,
+      uploadedVersion: -1,
+      fx: _getSpriteFxHook()?.createLayerFx(rr._surface.engine, "sprite-layer-fx-ubo", layer) ?? null,
+      pipeline: null,
+      lastUbo: new F32(16),
+      uboUploaded: false,
+      renderBundle: null,
+      bundleCount: -1
+    };
+    rr._layerGpu.set(layer, lg);
+  }
+  const grown = ensureSpriteInstanceBuffer(rr._surface.engine._device, layer, lg.instanceBuffer, lg.instanceBufferCapacity);
+  if (grown.reallocated) {
+    lg.instanceBuffer = grown.buffer;
+    lg.instanceBufferCapacity = grown.capacity;
+    lg.uploadedVersion = -1;
+    lg.renderBundle = null;
+  }
+  return lg;
+}
+function uploadLayer(rr, lg, deltaMs) {
+  const layer = lg.layer;
+  lg.uploadedVersion = uploadSpriteInstances(rr._surface.engine._device, layer, lg.instanceBuffer, lg.uploadedVersion);
+  buildSpriteLayerUbo(layer, rr._targetWidth, rr._targetHeight, _scratchUbo);
+  lg.uboUploaded = writeSpriteLayerUboIfDirty(rr._surface.engine._device, lg.uniformBuffer, _scratchUbo, lg.lastUbo, lg.uboUploaded);
+  if (lg.fx) _getSpriteFxHook().updateFx(lg.fx, layer, deltaMs);
+}
+function disposeLayerGpu(lg) {
+  lg.instanceBuffer.destroy();
+  lg.uniformBuffer.destroy();
+  if (lg.fx) _getSpriteFxHook().disposeFx(lg.fx);
+}
+var _scratchUbo = new F32(16);
+function ensureBindGroup(rr, lg, pipeline) {
+  if (lg.bindGroup) return lg.bindGroup;
+  lg.bindGroup = createSpriteLayerBindGroup(rr._surface.engine, pipeline, 0, lg.layer, lg.uniformBuffer, lg.fx);
+  return lg.bindGroup;
+}
+function compareLayers(a, b) {
+  if (a.order !== b.order) return a.order - b.order;
+  return 0;
+}
+function createSpriteRenderer(surface, opts) {
+  const engine = surface.engine;
+  assertSpriteRendererLayers(opts.layers);
+  const indexBuffer = createMappedBuffer(engine, SHARED_SPRITE_INDEX_DATA, BU.INDEX);
+  const canvas = surface.canvas;
+  const layers = opts.layers.slice();
+  const rr = {
+    _kind: KIND,
+    _surface: surface,
+    _indexBuffer: indexBuffer,
+    _pipelineCache: acquireSharedSpriteRendererPipelineCache(),
+    _layerGpu: /* @__PURE__ */ new Map(),
+    _visibleBundles: [],
+    _targetWidth: canvas.width,
+    _targetHeight: canvas.height,
+    _disposed: false,
+    _clear: opts.clear ?? true,
+    _targetView: null,
+    _beforeUpdate: [],
+    _disposeCallbacks: [],
+    layers,
+    _layers: layers,
+    clearColor: opts.clearValue ?? {
+      r: 0,
+      g: 0,
+      b: 0,
+      a: 1
+    },
+    _drawCallsPre: 0,
+    _update() {
+      spriteRendererUpdate(rr);
+    },
+    _record() {
+      return spriteRendererRecord(rr);
+    }
+  };
+  try {
+    for (const layer of rr.layers) getOrCreateSpritePipeline(engine, rr._pipelineCache, surface.format, 1, layer.blendMode, false, false, void 0, void 0, layer);
+  } catch (err) {
+    releaseSharedSpriteRendererPipelineCache();
+    indexBuffer.destroy();
+    throw err;
+  }
+  return rr;
+}
+function assertSpriteRendererLayers(layers) {
+  for (const layer of layers) assertSpriteRendererLayer(layer);
+}
+function assertSpriteRendererLayer(layer) {
+  if (layer.depth !== "none") ThrowLiteError(851);
+}
+function spriteRendererUpdate(rr) {
+  if (rr._disposed) return;
+  const deltaMs = rr._surface.engine._currentDelta ?? 0;
+  for (const hook of rr._beforeUpdate) hook(deltaMs);
+  assertSpriteRendererLayers(rr.layers);
+  const targetSize = getRenderTargetSize(rr._surface);
+  rr._targetWidth = targetSize.width;
+  rr._targetHeight = targetSize.height;
+  if (rr.layers.length > 1) rr._layers.sort(compareLayers);
+  for (const layer of rr.layers) {
+    if (!layer.visible || layer.count === 0) continue;
+    uploadLayer(rr, ensureLayerGpu(rr, layer), deltaMs);
+  }
+}
+function spriteRendererRecord(rr) {
+  if (rr._disposed) return 0;
+  assertSpriteRendererLayers(rr.layers);
+  const encoder = rr._surface.engine._currentEncoder;
+  const swapView = rr._targetView ?? rr._surface.scRT._colorView;
+  const pass = encoder.beginRenderPass({ colorAttachments: [{
+    view: swapView,
+    clearValue: rr.clearColor,
+    loadOp: rr._clear ? "clear" : "load",
+    storeOp: "store"
+  }] });
+  let drawCalls = 0;
+  const visibleBundles = rr._visibleBundles;
+  visibleBundles.length = 0;
+  for (const layer of rr.layers) {
+    if (!layer.visible || layer.count === 0) continue;
+    const lg = rr._layerGpu.get(layer);
+    if (!lg) continue;
+    const sampleCount = 1;
+    const pipeline = getOrCreateSpritePipeline(rr._surface.engine, rr._pipelineCache, rr._surface.format, sampleCount, layer.blendMode, false, false, void 0, void 0, layer);
+    if (lg.pipeline !== pipeline) {
+      lg.pipeline = pipeline;
+      lg.bindGroup = null;
+      lg.renderBundle = null;
+    }
+    const bg = ensureBindGroup(rr, lg, pipeline);
+    if (lg.renderBundle == null || lg.bundleCount !== layer.count) {
+      const be = rr._surface.engine._device.createRenderBundleEncoder({
+        colorFormats: [rr._surface.format],
+        sampleCount
+      });
+      be.setIndexBuffer(rr._indexBuffer, "uint16");
+      be.setPipeline(pipeline);
+      be.setBindGroup(0, bg);
+      be.setVertexBuffer(0, lg.instanceBuffer);
+      be.drawIndexed(6, layer.count, 0, 0, 0);
+      lg.renderBundle = be.finish();
+      lg.bundleCount = layer.count;
+    }
+    visibleBundles.push(lg.renderBundle);
+    drawCalls++;
+  }
+  if (visibleBundles.length > 0) pass.executeBundles(visibleBundles);
+  pass.end();
+  return drawCalls;
+}
+function registerSpriteRenderer(sr) {
+  registerRenderingContext(sr._surface, sr);
+}
+function unregisterSpriteRenderer(sr) {
+  unregisterRenderingContext(sr._surface, sr);
+}
+function disposeSpriteRenderer(sr) {
+  if (sr._disposed) return;
+  unregisterSpriteRenderer(sr);
+  sr._disposed = true;
+  const disposeCallbacks = sr._disposeCallbacks.slice();
+  sr._disposeCallbacks.length = 0;
+  for (const dispose of disposeCallbacks) dispose();
+  for (const lg of sr._layerGpu.values()) disposeLayerGpu(lg);
+  sr._layerGpu.clear();
+  sr._visibleBundles.length = 0;
+  sr._beforeUpdate.length = 0;
+  sr._indexBuffer.destroy();
+  releaseSharedSpriteRendererPipelineCache();
+  sr._layers.length = 0;
+}
+export {
+  addSprite2DIndex,
+  clearSprite2DLayer,
+  createEngine,
+  createSprite2DLayer,
+  createSpriteAtlasFromFrames,
+  createSpriteRenderer,
+  disposeEngine,
+  disposeSpriteAtlas,
+  disposeSpriteRenderer,
+  onEngineDeviceLost,
+  onEngineGpuError,
+  registerSpriteRenderer,
+  renderFrame,
+  setEngineSize
+};

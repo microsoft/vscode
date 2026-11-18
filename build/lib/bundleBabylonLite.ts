@@ -86,10 +86,9 @@ async function bundle(definition: BundleDefinition, metadata: PackageMetadata): 
 		format: 'esm',
 		platform: 'browser',
 		target: 'es2022',
-		minify: true,
 		treeShaking: true,
 		pure: ['console.log'],
-		legalComments: 'none',
+		legalComments: 'inline',
 		write: false,
 		banner: {
 			js: `/*! @license ${metadata.name} ${metadata.version} | Apache-2.0 | https://github.com/BabylonJS/Babylon-Lite */`,

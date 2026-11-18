@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatPetJumpGameRenderState } from './chatPetJumpGameRenderer.js';
+import { isChatPetJumpPlatformVisible } from './chatPetJumpGameRenderUtils.js';
+import type { IChatPetJumpGameRenderState } from './chatPetJumpGameRenderer.js';
 
-export type ChatPetJumpGameLiteSpriteCallback = (x: number, y: number, width: number, height: number, circle: boolean) => void;
+export type ChatPetJumpGameLiteSpriteCallback = (x: number, y: number, width: number, height: number, frame: number) => void;
 export type ChatPetJumpGameLiteColor = readonly [number, number, number, number];
-export type ChatPetJumpGameLiteDrawCallback = (x: number, y: number, width: number, height: number, color: ChatPetJumpGameLiteColor, angle: number, circle: boolean) => void;
+export type ChatPetJumpGameLiteDrawCallback = (x: number, y: number, width: number, height: number, color: ChatPetJumpGameLiteColor, angle: number, frame: number) => void;
 
 export interface IChatPetJumpGameLiteColors {
 	readonly foreground: ChatPetJumpGameLiteColor;
@@ -28,35 +29,42 @@ export function addChatPetJumpGameLiteCapsule(addSprite: ChatPetJumpGameLiteSpri
 	}
 	if (vertical || height > width) {
 		const diameter = Math.min(width, height);
-		const centerHeight = height - diameter;
+		const centerHeight = height - diameter * 2;
 		if (centerHeight > 0) {
-			addSprite(x, y, width, centerHeight, false);
-			addSprite(x, y - centerHeight / 2, diameter, diameter, true);
-			addSprite(x, y + centerHeight / 2, diameter, diameter, true);
+			addSprite(x, y, width, centerHeight, 0);
+			const capOffset = (height - diameter) / 2;
+			addSprite(x, y - capOffset, diameter, diameter, 1);
+			addSprite(x, y + capOffset, diameter, diameter, 1);
 		} else {
-			addSprite(x, y, width, height, true);
+			addSprite(x, y, width, height, 1);
 		}
 		return;
 	}
 	const diameter = Math.min(width, height);
-	const centerWidth = width - diameter;
+	const centerWidth = width - diameter * 2;
 	if (centerWidth > 0) {
-		addSprite(x, y, centerWidth, height, false);
-		addSprite(x - centerWidth / 2, y, diameter, diameter, true);
-		addSprite(x + centerWidth / 2, y, diameter, diameter, true);
+		addSprite(x, y, centerWidth, height, 0);
+		const capOffset = (width - diameter) / 2;
+		addSprite(x - capOffset, y, diameter, diameter, 1);
+		addSprite(x + capOffset, y, diameter, diameter, 1);
 	} else {
-		addSprite(x, y, width, height, true);
+		addSprite(x, y, width, height, 1);
 	}
 }
 
 export function createChatPetJumpGameLiteShapeAtlas(): Uint8Array {
-	const pixels = new Uint8Array(32 * 16 * 4);
+	const pixels = new Uint8Array(48 * 16 * 4);
 	for (let y = 0; y < 16; y++) {
-		for (let x = 0; x < 32; x++) {
-			const pixel = (y * 32 + x) * 4;
+		for (let x = 0; x < 48; x++) {
+			const pixel = (y * 48 + x) * 4;
 			const localX = x % 16;
 			const distance = Math.hypot(localX - 7.5, y - 7.5);
-			const alpha = x < 16 ? 255 : Math.round(Math.max(0, Math.min(1, 8 - distance)) * 255);
+			const circleAlpha = Math.max(0, Math.min(1, 8 - distance));
+			const alpha = x < 16
+				? 255
+				: x < 32
+					? Math.round(circleAlpha * 255)
+					: Math.round(Math.max(0, circleAlpha - Math.max(0, Math.min(1, 6.5 - distance))) * 255);
 			pixels[pixel] = 255;
 			pixels[pixel + 1] = 255;
 			pixels[pixel + 2] = 255;
@@ -76,6 +84,9 @@ export function getChatPetJumpGameLiteRenderInfo(state: IChatPetJumpGameRenderSt
 	let left = width;
 	let right = 0;
 	for (const platform of state.platforms) {
+		if (!isChatPetJumpPlatformVisible(platform, state)) {
+			continue;
+		}
 		hash = hashRenderValue(hash, platform.id);
 		hash = hashRenderValue(hash, platform.left);
 		hash = hashRenderValue(hash, platform.width);
@@ -83,25 +94,21 @@ export function getChatPetJumpGameLiteRenderInfo(state: IChatPetJumpGameRenderSt
 		hash = hashRenderValue(hash, platform.fallDistance);
 		hash = hashRenderValue(hash, platform.collapseProgress);
 		hash = hashRenderValue(hash, platform.kind.charCodeAt(0));
-		const top = state.anchor + state.cameraHeight - platform.height + platform.fallDistance;
-		if (top < -16 || top > state.height || platform.fallDistance >= state.petSize * 4) {
-			continue;
-		}
 		left = Math.min(left, platform.left - 5);
 		right = Math.max(right, platform.left + platform.width + 5);
 		renderedObjects++;
 	}
 	for (const wall of state.walls) {
-		hash = hashRenderValue(hash, wall.id);
-		hash = hashRenderValue(hash, wall.left);
-		hash = hashRenderValue(hash, wall.width);
-		hash = hashRenderValue(hash, wall.top);
-		hash = hashRenderValue(hash, wall.bottom);
 		const top = state.anchor + state.cameraHeight - wall.top;
 		const wallHeight = wall.top - wall.bottom;
 		if (top + wallHeight < 0 || top > state.height) {
 			continue;
 		}
+		hash = hashRenderValue(hash, wall.id);
+		hash = hashRenderValue(hash, wall.left);
+		hash = hashRenderValue(hash, wall.width);
+		hash = hashRenderValue(hash, wall.top);
+		hash = hashRenderValue(hash, wall.bottom);
 		left = Math.min(left, wall.left);
 		right = Math.max(right, wall.left + wall.width);
 		renderedObjects++;
@@ -111,15 +118,37 @@ export function getChatPetJumpGameLiteRenderInfo(state: IChatPetJumpGameRenderSt
 
 export function renderChatPetJumpGameLiteShapes(state: IChatPetJumpGameRenderState, colors: IChatPetJumpGameLiteColors, addSprite: ChatPetJumpGameLiteDrawCallback): void {
 	const addCapsule = (x: number, y: number, width: number, height: number, color: ChatPetJumpGameLiteColor, vertical = false) => {
-		addChatPetJumpGameLiteCapsule((spriteX, spriteY, spriteWidth, spriteHeight, circle) => {
-			addSprite(spriteX, spriteY, spriteWidth, spriteHeight, color, 0, circle);
+		addChatPetJumpGameLiteCapsule((spriteX, spriteY, spriteWidth, spriteHeight, frame) => {
+			addSprite(spriteX, spriteY, spriteWidth, spriteHeight, color, 0, frame);
 		}, x, y, width, height, vertical);
 	};
+	const addCapsuleBorder = (x: number, y: number, width: number, height: number, color: ChatPetJumpGameLiteColor, vertical = false) => {
+		const diameter = Math.min(width, height);
+		if (vertical || height > width) {
+			const capOffset = Math.max(0, (height - diameter) / 2);
+			const edgeHeight = Math.max(0, height - diameter);
+			if (edgeHeight > 0) {
+				addSprite(x - width / 2 + 0.5, y, 1, edgeHeight, color, 0, 0);
+				addSprite(x + width / 2 - 0.5, y, 1, edgeHeight, color, 0, 0);
+			}
+			addSprite(x, y - capOffset, diameter, diameter, color, 0, 2);
+			addSprite(x, y + capOffset, diameter, diameter, color, 0, 2);
+		} else {
+			const capOffset = Math.max(0, (width - diameter) / 2);
+			const edgeWidth = Math.max(0, width - diameter);
+			if (edgeWidth > 0) {
+				addSprite(x, y - height / 2 + 0.5, edgeWidth, 1, color, 0, 0);
+				addSprite(x, y + height / 2 - 0.5, edgeWidth, 1, color, 0, 0);
+			}
+			addSprite(x - capOffset, y, diameter, diameter, color, 0, 2);
+			addSprite(x + capOffset, y, diameter, diameter, color, 0, 2);
+		}
+	};
 	for (const platform of state.platforms) {
-		const top = state.anchor + state.cameraHeight - platform.height + platform.fallDistance;
-		if (top < -16 || top > state.height || platform.fallDistance >= state.petSize * 4) {
+		if (!isChatPetJumpPlatformVisible(platform, state)) {
 			continue;
 		}
+		const top = state.anchor + state.cameraHeight - platform.height + platform.fallDistance;
 		const opacity = 1 - platform.fallDistance / (state.petSize * 4);
 		const foreground = withOpacity(colors.foreground, opacity);
 		const border = colors.border ? withOpacity(colors.border, opacity) : undefined;
@@ -127,7 +156,7 @@ export function renderChatPetJumpGameLiteShapes(state: IChatPetJumpGameRenderSta
 		const height = 6;
 		const centerX = platform.left + platform.width / 2;
 		if (border) {
-			addCapsule(centerX, top, width, height, border);
+			addCapsuleBorder(centerX, top, width, height, border);
 		}
 		if (platform.kind === 'crumbling') {
 			const contentWidth = border ? width - 2 : width;
@@ -141,7 +170,7 @@ export function renderChatPetJumpGameLiteShapes(state: IChatPetJumpGameRenderSta
 			}
 			if (platform.collapseProgress > 0) {
 				const integrityWidth = platform.width * (1 - platform.collapseProgress);
-				addSprite(platform.left + integrityWidth / 2, top + 6, integrityWidth, 2, withOpacity(colors.integrityForeground, opacity), 0, false);
+				addSprite(platform.left + integrityWidth / 2, top + 6, integrityWidth, 2, withOpacity(colors.integrityForeground, opacity), 0, 0);
 			}
 		} else {
 			addCapsule(centerX, top, border ? width - 2 : width, border ? height - 2 : height, foreground);
@@ -149,8 +178,8 @@ export function renderChatPetJumpGameLiteShapes(state: IChatPetJumpGameRenderSta
 		if (platform.kind === 'moving') {
 			for (const direction of [-1, 1]) {
 				const x = centerX + direction * 5;
-				addSprite(x - direction, top + 9, 1, 5, foreground, direction * -Math.PI / 4, false);
-				addSprite(x - direction, top + 11, 1, 5, foreground, direction * Math.PI / 4, false);
+				addSprite(x - direction, top + 9, 1, 5, foreground, direction * -Math.PI / 4, 0);
+				addSprite(x - direction, top + 11, 1, 5, foreground, direction * Math.PI / 4, 0);
 			}
 		}
 	}
@@ -163,7 +192,7 @@ export function renderChatPetJumpGameLiteShapes(state: IChatPetJumpGameRenderSta
 		const x = wall.left + wall.width / 2;
 		const y = top + height / 2;
 		if (colors.border) {
-			addCapsule(x, y, wall.width, height, colors.border, true);
+			addCapsuleBorder(x, y, wall.width, height, colors.border, true);
 			addCapsule(x, y, Math.max(0, wall.width - 2), Math.max(0, height - 2), colors.foreground, true);
 		} else {
 			addCapsule(x, y, wall.width, height, colors.foreground, true);

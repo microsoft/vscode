@@ -10,9 +10,11 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { ButtonBar } from '../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { Color } from '../../../../../base/common/color.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { AppResourcePath, FileAccess } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
@@ -23,9 +25,11 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultKeybindingLabelStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { contrastBorder, descriptionForeground, foreground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatPetJumpDirection, ChatPetJumpGameModel } from '../../common/chatPetJumpGame.js';
+import type { ChatPetJumpGameLiteColor, IChatPetJumpGameLiteColors } from './chatPetJumpGameLiteShapes.js';
 import { ChatPetJumpGameDomRenderer, ChatPetJumpGameRendererKind, IChatPetJumpGameRenderer, IChatPetJumpGameRenderState } from './chatPetJumpGameRenderer.js';
 
 export const ChatPetJumpGameFocusedContext = new RawContextKey<boolean>('chatPetJumpGameFocused', false, localize('chatPet.jump.focused', "Whether Blobby's jump game is focused"));
@@ -203,31 +207,90 @@ export class ChatPetJumpGame extends Disposable {
 		this.stage.style.top = `${bounds.top - effectsBounds.top}px`;
 		this.stage.style.width = `${bounds.width}px`;
 		this.stage.style.height = `${bounds.height}px`;
-		this.renderer.value?.layout(bounds.width, bounds.height);
+		this.layoutRenderer(bounds.width, bounds.height);
 		this.render();
 	}
 
 	private updateRenderer(): void {
 		const request = ++this.rendererRequest;
 		const loadRenderer = this.options.loadWebGpuRenderer ?? (async (stage: HTMLElement, themeService: IThemeService, onDidFail: (error: Error) => void) => {
-			const { createChatPetJumpGameWebGpuRenderer } = await import('./chatPetJumpGameWebGpuRenderer.js');
-			return createChatPetJumpGameWebGpuRenderer(stage, themeService, onDidFail);
+			const rendererUri = FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/widget/chatPetJumpGameWebGpuRenderer.js' satisfies AppResourcePath).path;
+			const runtimeUri = FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/widget/chatPetJumpGameWebGpuRuntime.js' satisfies AppResourcePath).path;
+			const { createChatPetJumpGameWebGpuRenderer } = await import(/* webpackIgnore: true */ rendererUri) as {
+				createChatPetJumpGameWebGpuRenderer(
+					canvas: HTMLCanvasElement,
+					runtimeUri: string,
+					gpu: GPU | undefined,
+					getColors: () => IChatPetJumpGameLiteColors,
+					onDidChangeTheme: (listener: () => void) => IDisposable,
+					getDevicePixelRatio: () => number,
+					onDidFail: (error: Error) => void,
+				): Promise<IChatPetJumpGameRenderer>;
+			};
+			const canvas = dom.prepend(stage, dom.$('canvas.chat-pet-jump-playfield.chat-pet-jump-playfield-lite-webgpu', {
+				'aria-hidden': 'true',
+			})) as HTMLCanvasElement;
+			const getColors = (): IChatPetJumpGameLiteColors => {
+				const theme = themeService.getColorTheme();
+				const border = theme.getColor(contrastBorder);
+				return {
+					foreground: toLiteColor(theme.getColor(descriptionForeground) ?? Color.white),
+					integrityForeground: toLiteColor(theme.getColor(foreground) ?? Color.white),
+					border: border ? toLiteColor(border) : undefined,
+				};
+			};
+			return createChatPetJumpGameWebGpuRenderer(
+				canvas,
+				runtimeUri,
+				navigator.gpu,
+				getColors,
+				listener => themeService.onDidColorThemeChange(listener),
+				() => Math.max(1, dom.getWindow(canvas).devicePixelRatio),
+				onDidFail,
+			);
 		});
-		loadRenderer(this.stage, this.themeService, error => this.handleRendererFailure(request, error)).then(renderer => {
+		void this.installRenderer(request, loadRenderer);
+	}
+
+	private async installRenderer(request: number, loadRenderer: NonNullable<IChatPetJumpGameOptions['loadWebGpuRenderer']>): Promise<void> {
+		let renderer: IChatPetJumpGameRenderer | undefined;
+		let installed = false;
+		let pendingFailure: Error | undefined;
+		try {
+			renderer = await loadRenderer(this.stage, this.themeService, error => {
+				if (installed) {
+					this.handleRendererFailure(request, error);
+				} else {
+					pendingFailure = error;
+				}
+			});
 			if (this.disposed || request !== this.rendererRequest) {
 				renderer.dispose();
 				return;
 			}
+			if (pendingFailure) {
+				throw pendingFailure;
+			}
 			renderer.layout(this.bounds.width, this.bounds.height);
-			this.renderer.value = renderer;
+			if (pendingFailure) {
+				throw pendingFailure;
+			}
 			if (this.lastRenderState) {
 				renderer.render(this.lastRenderState);
 			}
-		}, error => {
-			if (request === this.rendererRequest) {
-				this.handleRendererFailure(request, error);
+			if (pendingFailure) {
+				throw pendingFailure;
 			}
-		});
+			this.renderer.value = renderer;
+			installed = true;
+		} catch (error) {
+			if (renderer && !installed) {
+				renderer.dispose();
+			}
+			if (request === this.rendererRequest) {
+				this.handleRendererFailure(request, error instanceof Error ? error : new Error(String(error)));
+			}
+		}
 	}
 
 	private handleRendererFailure(request: number, error: Error): void {
@@ -248,6 +311,36 @@ export class ChatPetJumpGame extends Disposable {
 		this.renderer.value = renderer;
 		if (this.lastRenderState) {
 			renderer.render(this.lastRenderState);
+		}
+	}
+
+	private layoutRenderer(width: number, height: number): void {
+		const renderer = this.renderer.value;
+		if (!renderer) {
+			return;
+		}
+		try {
+			renderer.layout(width, height);
+		} catch (error) {
+			if (renderer.kind !== 'lite-webgpu') {
+				throw error;
+			}
+			this.handleRendererFailure(this.rendererRequest, error instanceof Error ? error : new Error(String(error)));
+		}
+	}
+
+	private renderPlayfield(state: IChatPetJumpGameRenderState): void {
+		const renderer = this.renderer.value;
+		if (!renderer) {
+			return;
+		}
+		try {
+			renderer.render(state);
+		} catch (error) {
+			if (renderer.kind !== 'lite-webgpu') {
+				throw error;
+			}
+			this.handleRendererFailure(this.rendererRequest, error instanceof Error ? error : new Error(String(error)));
 		}
 	}
 
@@ -339,7 +432,7 @@ export class ChatPetJumpGame extends Disposable {
 			platforms: this.model.platforms,
 			walls: this.model.walls,
 		};
-		this.renderer.value?.render(this.lastRenderState);
+		this.renderPlayfield(this.lastRenderState);
 		const overlayBounds = this.overlay.getBoundingClientRect();
 		this.pet.style.left = `${this.bounds.left - overlayBounds.left + player.x - this.model.petSize / 2}px`;
 		this.pet.style.top = `${this.bounds.top - overlayBounds.top + this.anchor + cameraHeight - player.height - this.model.petSize}px`;
@@ -476,6 +569,10 @@ export class ChatPetJumpGame extends Disposable {
 			this.pet.dataset.facing = this.originalFacing;
 		}
 	}
+}
+
+function toLiteColor(color: Color): ChatPetJumpGameLiteColor {
+	return [color.rgba.r / 255, color.rgba.g / 255, color.rgba.b / 255, color.rgba.a];
 }
 
 export class ChatPetJumpGameRetry extends Disposable {

@@ -3,13 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../../base/browser/dom.js';
-import { Color } from '../../../../../base/common/color.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { contrastBorder, descriptionForeground, foreground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { ChatPetJumpGameLiteColor, createChatPetJumpGameLiteShapeAtlas, getChatPetJumpGameLiteRenderInfo, renderChatPetJumpGameLiteShapes } from './chatPetJumpGameLiteShapes.js';
-import { IChatPetJumpGameRenderer, IChatPetJumpGameRenderState } from './chatPetJumpGameRenderer.js';
+import type { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { createChatPetJumpGameLiteShapeAtlas, getChatPetJumpGameLiteRenderInfo, IChatPetJumpGameLiteColors, renderChatPetJumpGameLiteShapes } from './chatPetJumpGameLiteShapes.js';
+import type { IChatPetJumpGameRenderer, IChatPetJumpGameRenderState } from './chatPetJumpGameRenderer.js';
 
 type LiteWebGpuModule = typeof import('../../../../../base/browser/babylonLite/lite-webgpu.js');
 type LiteWebGpu = Pick<LiteWebGpuModule,
@@ -33,32 +29,45 @@ type WebGpuAtlas = ReturnType<LiteWebGpu['createSpriteAtlasFromFrames']>;
 type WebGpuLayer = ReturnType<LiteWebGpu['createSprite2DLayer']>;
 type WebGpuSpriteRenderer = ReturnType<LiteWebGpu['createSpriteRenderer']>;
 
-let liteWebGpuPromise: Promise<LiteWebGpu> | undefined;
+const liteWebGpuPromises = new Map<string, Promise<LiteWebGpu>>();
 
-async function loadLiteWebGpu(): Promise<LiteWebGpu> {
-	if (!liteWebGpuPromise) {
-		liteWebGpuPromise = import('../../../../../base/browser/babylonLite/lite-webgpu.js');
+async function loadLiteWebGpu(runtimeUri: string): Promise<LiteWebGpu> {
+	let promise = liteWebGpuPromises.get(runtimeUri);
+	if (!promise) {
+		promise = (import(/* webpackIgnore: true */ runtimeUri) as Promise<LiteWebGpu>).catch(error => {
+			liteWebGpuPromises.delete(runtimeUri);
+			throw error;
+		});
+		liteWebGpuPromises.set(runtimeUri, promise);
 	}
-	return liteWebGpuPromise;
+	return promise;
 }
 
-export async function createChatPetJumpGameWebGpuRenderer(stage: HTMLElement, themeService: IThemeService, onDidFail: (error: Error) => void): Promise<IChatPetJumpGameRenderer> {
-	if (!navigator.gpu) {
+export async function createChatPetJumpGameWebGpuRenderer(
+	canvas: HTMLCanvasElement,
+	runtimeUri: string,
+	gpu: GPU | undefined,
+	getColors: () => IChatPetJumpGameLiteColors,
+	onDidChangeTheme: (listener: () => void) => IDisposable,
+	getDevicePixelRatio: () => number,
+	onDidFail: (error: Error) => void,
+): Promise<IChatPetJumpGameRenderer> {
+	if (!gpu) {
+		canvas.remove();
 		throw new Error('WebGPU is unavailable.');
 	}
-	const lite = await loadLiteWebGpu();
-	const canvas = dom.prepend(stage, dom.$('canvas.chat-pet-jump-playfield.chat-pet-jump-playfield-lite-webgpu', {
-		'aria-hidden': 'true',
-	})) as HTMLCanvasElement;
+	let lite: LiteWebGpu | undefined;
 	let engine: WebGpuEngine | undefined;
 	let atlas: WebGpuAtlas | undefined;
 	let spriteRenderer: WebGpuSpriteRenderer | undefined;
 	try {
+		lite = await loadLiteWebGpu(runtimeUri);
 		engine = await lite.createEngine(canvas, { alphaMode: 'premultiplied', msaaSamples: 1 });
 		const atlasPixels = createChatPetJumpGameLiteShapeAtlas();
 		atlas = lite.createSpriteAtlasFromFrames(engine, [
-			{ pixels: atlasPixels, width: 16, height: 16, srcStrideBytes: 32 * 4 },
-			{ pixels: atlasPixels, width: 16, height: 16, srcX: 16, srcStrideBytes: 32 * 4 },
+			{ pixels: atlasPixels, width: 16, height: 16, srcStrideBytes: 48 * 4 },
+			{ pixels: atlasPixels, width: 16, height: 16, srcX: 16, srcStrideBytes: 48 * 4 },
+			{ pixels: atlasPixels, width: 16, height: 16, srcX: 32, srcStrideBytes: 48 * 4 },
 		], { paddingPx: 1, sampling: 'linear' });
 		const layer = lite.createSprite2DLayer(atlas, { capacity: 4096, pivot: [0.5, 0.5] });
 		spriteRenderer = lite.createSpriteRenderer(engine, {
@@ -66,15 +75,15 @@ export async function createChatPetJumpGameWebGpuRenderer(stage: HTMLElement, th
 			clearValue: { r: 0, g: 0, b: 0, a: 0 },
 		});
 		lite.registerSpriteRenderer(spriteRenderer);
-		return new ChatPetJumpGameWebGpuRenderer(canvas, engine, atlas, layer, spriteRenderer, themeService, onDidFail, lite);
+		return new ChatPetJumpGameWebGpuRenderer(canvas, engine, atlas, layer, spriteRenderer, getColors, onDidChangeTheme, getDevicePixelRatio, onDidFail, lite);
 	} catch (error) {
-		if (spriteRenderer) {
+		if (lite && spriteRenderer) {
 			lite.disposeSpriteRenderer(spriteRenderer);
 		}
-		if (atlas) {
+		if (lite && atlas) {
 			lite.disposeSpriteAtlas(atlas);
 		}
-		if (engine) {
+		if (lite && engine) {
 			lite.disposeEngine(engine);
 		}
 		canvas.remove();
@@ -87,15 +96,15 @@ class ChatPetJumpGameWebGpuRenderer implements IChatPetJumpGameRenderer {
 	private readonly themeListener: IDisposable;
 	private readonly unsubscribeDeviceLost: () => void;
 	private readonly unsubscribeGpuError: () => void;
-	private foreground = toLiteColor(Color.white);
-	private integrityForeground = toLiteColor(Color.white);
-	private border: ChatPetJumpGameLiteColor | undefined;
+	private colors: IChatPetJumpGameLiteColors;
 	private width = 1;
 	private height = 1;
 	private canvasLeft = 0;
 	private canvasWidth = 1;
+	private canvasHeight = 1;
 	private devicePixelRatio = 1;
 	private lastRenderHash = Number.NaN;
+	private lastRenderState: IChatPetJumpGameRenderState | undefined;
 	private disposed = false;
 	private failed = false;
 
@@ -105,13 +114,15 @@ class ChatPetJumpGameWebGpuRenderer implements IChatPetJumpGameRenderer {
 		private readonly atlas: WebGpuAtlas,
 		private readonly layer: WebGpuLayer,
 		private readonly spriteRenderer: WebGpuSpriteRenderer,
-		private readonly themeService: IThemeService,
+		private readonly getColors: () => IChatPetJumpGameLiteColors,
+		onDidChangeTheme: (listener: () => void) => IDisposable,
+		private readonly getDevicePixelRatio: () => number,
 		private readonly onDidFail: (error: Error) => void,
 		private readonly lite: LiteWebGpu,
 	) {
 		this.canvas.dataset.renderer = this.kind;
-		this.updateTheme();
-		this.themeListener = themeService.onDidColorThemeChange(() => this.updateTheme());
+		this.colors = getColors();
+		this.themeListener = onDidChangeTheme(() => this.updateTheme());
 		this.unsubscribeDeviceLost = lite.onEngineDeviceLost(engine, info => {
 			if (info.reason !== 'destroyed') {
 				this.fail(new Error(`Babylon Lite WebGPU device lost: ${info.message || info.reason}`));
@@ -128,6 +139,7 @@ class ChatPetJumpGameWebGpuRenderer implements IChatPetJumpGameRenderer {
 	}
 
 	render(state: IChatPetJumpGameRenderState): void {
+		this.lastRenderState = state;
 		const renderInfo = getChatPetJumpGameLiteRenderInfo(state, this.width);
 		if (renderInfo.hash === this.lastRenderHash) {
 			return;
@@ -140,15 +152,11 @@ class ChatPetJumpGameWebGpuRenderer implements IChatPetJumpGameRenderer {
 			this.updateCanvasBounds(canvasLeft, Math.max(1, Math.min(this.width, Math.ceil(renderInfo.right)) - canvasLeft));
 		}
 		this.lite.clearSprite2DLayer(this.layer);
-		renderChatPetJumpGameLiteShapes(state, {
-			foreground: this.foreground,
-			integrityForeground: this.integrityForeground,
-			border: this.border,
-		}, (x, y, width, height, color, angle, circle) => {
+		renderChatPetJumpGameLiteShapes(state, this.colors, (x, y, width, height, color, angle, frame) => {
 			this.lite.addSprite2DIndex(this.layer, {
 				positionPx: [x - this.canvasLeft, y],
 				sizePx: [width, height],
-				frame: circle ? 1 : 0,
+				frame,
 				color: [...color],
 				rotation: angle,
 			});
@@ -157,30 +165,34 @@ class ChatPetJumpGameWebGpuRenderer implements IChatPetJumpGameRenderer {
 	}
 
 	private updateCanvasBounds(left: number, width: number): void {
-		const devicePixelRatio = Math.max(1, dom.getWindow(this.canvas).devicePixelRatio);
-		if (left === this.canvasLeft && width === this.canvasWidth && devicePixelRatio === this.devicePixelRatio) {
+		const devicePixelRatio = this.getDevicePixelRatio();
+		if (left === this.canvasLeft && width === this.canvasWidth && this.height === this.canvasHeight && devicePixelRatio === this.devicePixelRatio) {
 			return;
 		}
 		this.canvasLeft = left;
 		this.canvasWidth = width;
+		this.canvasHeight = this.height;
 		this.devicePixelRatio = devicePixelRatio;
 		this.canvas.style.left = `${left}px`;
 		this.canvas.style.top = '0';
 		this.canvas.style.right = 'auto';
 		this.canvas.style.bottom = 'auto';
 		this.canvas.style.width = `${width}px`;
-		this.canvas.style.height = `${this.height}px`;
+		this.canvas.style.height = `${this.canvasHeight}px`;
 		this.layer.view.zoom = devicePixelRatio;
-		this.lite.setEngineSize(this.engine, Math.max(1, Math.ceil(width * devicePixelRatio)), Math.max(1, Math.ceil(this.height * devicePixelRatio)));
+		this.lite.setEngineSize(this.engine, Math.max(1, Math.ceil(width * devicePixelRatio)), Math.max(1, Math.ceil(this.canvasHeight * devicePixelRatio)));
 	}
 
 	private updateTheme(): void {
-		const theme = this.themeService.getColorTheme();
-		this.foreground = toLiteColor(theme.getColor(descriptionForeground) ?? Color.white);
-		this.integrityForeground = toLiteColor(theme.getColor(foreground) ?? Color.white);
-		const border = theme.getColor(contrastBorder);
-		this.border = border ? toLiteColor(border) : undefined;
+		this.colors = this.getColors();
 		this.lastRenderHash = Number.NaN;
+		if (this.lastRenderState) {
+			try {
+				this.render(this.lastRenderState);
+			} catch (error) {
+				this.fail(error instanceof Error ? error : new Error(String(error)));
+			}
+		}
 	}
 
 	private fail(error: Error): void {
@@ -201,8 +213,4 @@ class ChatPetJumpGameWebGpuRenderer implements IChatPetJumpGameRenderer {
 		this.lite.disposeEngine(this.engine);
 		this.canvas.remove();
 	}
-}
-
-function toLiteColor(color: Color): ChatPetJumpGameLiteColor {
-	return [color.rgba.r / 255, color.rgba.g / 255, color.rgba.b / 255, color.rgba.a];
 }
