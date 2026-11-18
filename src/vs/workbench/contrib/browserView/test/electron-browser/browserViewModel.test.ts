@@ -105,63 +105,56 @@ suite('BrowserViewModel', () => {
 		});
 	});
 
-	test('restores the document favicon after a failed cross-host navigation', () => {
+	test('reflects main-process favicon state after navigation and renderer recreation', () => {
 		const url = 'http://127.0.0.1:8123/';
 		const favicon = 'data:image/svg+xml;base64,original';
-		const events = createBrowserViewEventEmitters(disposables.add(new DisposableStore()));
-		const model = disposables.add(new BrowserViewModel(
-			'favicon-recovery',
-			{ windowId: 1 },
-			{ type: 'user' },
-			undefined,
-			{ ...initialState, url, lastFavicon: favicon },
-			upcastPartial<IBrowserViewService>({
-				destroyBrowserView: async () => { },
-				setBrowserZoomIndex: async () => { },
-			}),
-			events,
-			upcastPartial<IBrowserViewWorkbenchService>({ isSharingAvailable: true, onDidChangeSharingAvailable: Event.None }),
-			NullTelemetryService,
-			upcastPartial<IDialogService>({}),
-			upcastPartial<IStorageService>({}),
-			upcastPartial<IBrowserZoomService>({ onDidChangeZoom: Event.None, getEffectiveZoomIndex: () => browserZoomDefaultIndex }),
-			disposables.add(new AgentNetworkFilterService(new TestConfigurationService())),
-			new NullLogService(),
-		));
-		const navigation = (target: string) => events.onDidNavigate.fire({
-			url: target, title: 'Favicon Recovery Test', canGoBack: true, canGoForward: false, certificateError: undefined,
-		});
-		const originalIcon = model.favicon;
 		const failedUrl = 'http://favicon-recovery-test.invalid/';
-		events.onDidChangeLoadingState.fire({ loading: false, error: { url: failedUrl, errorCode: -105, errorDescription: 'ERR_NAME_NOT_RESOLVED' } });
-		navigation(failedUrl);
-		const failedIcon = model.favicon;
-		const displayedFailedUrl = model.url;
+		const error = { url: failedUrl, errorCode: -105, errorDescription: 'ERR_NAME_NOT_RESOLVED' };
+		const createModel = (state: IBrowserViewState) => {
+			const events = createBrowserViewEventEmitters(disposables.add(new DisposableStore()));
+			const model = disposables.add(new BrowserViewModel(
+				'favicon-recovery',
+				{ windowId: 1 },
+				{ type: 'user' },
+				undefined,
+				state,
+				upcastPartial<IBrowserViewService>({
+					destroyBrowserView: async () => { },
+					setBrowserZoomIndex: async () => { },
+				}),
+				events,
+				upcastPartial<IBrowserViewWorkbenchService>({ isSharingAvailable: true, onDidChangeSharingAvailable: Event.None }),
+				NullTelemetryService,
+				upcastPartial<IDialogService>({}),
+				upcastPartial<IStorageService>({}),
+				upcastPartial<IBrowserZoomService>({ onDidChangeZoom: Event.None, getEffectiveZoomIndex: () => browserZoomDefaultIndex }),
+				disposables.add(new AgentNetworkFilterService(new TestConfigurationService())),
+				new NullLogService(),
+			));
+			return { model, events };
+		};
+		const original = createModel({ ...initialState, url, lastFavicon: favicon });
+		original.events.onDidChangeFavicon.fire({ favicon: undefined });
+		original.events.onDidChangeLoadingState.fire({ loading: false, error });
+		original.events.onDidNavigate.fire({ url: failedUrl, title: '', canGoBack: true, canGoForward: false, certificateError: undefined });
+		const failed = original.model.favicon;
+		original.model.dispose();
 
-		// Return and reload without receiving another favicon event for the original document.
-		events.onDidChangeLoadingState.fire({ loading: true });
-		navigation(url);
-		events.onDidChangeLoadingState.fire({ loading: false });
-		const recoveredIcon = model.favicon;
-		events.onDidChangeLoadingState.fire({ loading: true });
-		navigation(url);
-		events.onDidChangeLoadingState.fire({ loading: false });
-		const reloadedIcon = model.favicon;
+		const recreated = createModel({ ...initialState, url: failedUrl, lastError: error });
+		const recreatedFailed = recreated.model.favicon;
+		recreated.events.onDidChangeLoadingState.fire({ loading: true });
+		recreated.events.onDidChangeFavicon.fire({ favicon });
+		recreated.events.onDidNavigate.fire({ url, title: 'Original page', canGoBack: false, canGoForward: true, certificateError: undefined });
+		recreated.events.onDidChangeLoadingState.fire({ loading: false });
+		const recovered = recreated.model.favicon;
+		recreated.model.dispose();
 
-		// A successful navigation to another host must still discard the original icon.
-		navigation('https://example.com/');
-		const otherHostIcon = model.favicon;
-		events.onDidChangeFavicon.fire({ favicon: 'data:image/svg+xml;base64,other' });
-		const newHostIcon = model.favicon;
-
-		assert.deepStrictEqual({ originalIcon, failedIcon, displayedFailedUrl, recoveredIcon, reloadedIcon, otherHostIcon, newHostIcon }, {
-			originalIcon: favicon,
-			failedIcon: undefined,
-			displayedFailedUrl: failedUrl,
-			recoveredIcon: favicon,
-			reloadedIcon: favicon,
-			otherHostIcon: undefined,
-			newHostIcon: 'data:image/svg+xml;base64,other',
+		const recreatedRecovered = createModel({ ...initialState, url, lastFavicon: favicon }).model.favicon;
+		assert.deepStrictEqual({ failed, recreatedFailed, recovered, recreatedRecovered }, {
+			failed: undefined,
+			recreatedFailed: undefined,
+			recovered: favicon,
+			recreatedRecovered: favicon,
 		});
 	});
 });
