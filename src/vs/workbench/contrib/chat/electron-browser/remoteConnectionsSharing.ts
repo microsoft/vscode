@@ -39,6 +39,9 @@ export function getRemoteTunnelAccessState(mode: TunnelMode, status: TunnelStatu
 /** How this computer is shared for remote connections. */
 export type RemoteConnectionsMethod = 'off' | 'devTunnel' | 'githubEnvironment';
 
+/** Shows the Remote Connections menu's methods as single lines, with their explanations on hover. */
+export const RemoteConnectionsCompactMenuSettingId = 'chat.remoteConnections.compactMenu';
+
 /** Whether GitHub Environments can be chosen, is shown disabled by organization policy, or is not offered. */
 export type GitHubEnvironmentsAvailability = 'enabled' | 'policyDisabled' | 'unavailable';
 
