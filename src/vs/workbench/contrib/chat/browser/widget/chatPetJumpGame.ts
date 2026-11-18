@@ -216,17 +216,7 @@ export class ChatPetJumpGame extends Disposable {
 		const loadRenderer = this.options.loadWebGpuRenderer ?? (async (stage: HTMLElement, themeService: IThemeService, onDidFail: (error: Error) => void) => {
 			const rendererUri = FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/widget/chatPetJumpGameWebGpuRenderer.js' satisfies AppResourcePath).path;
 			const runtimeUri = FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/widget/chatPetJumpGameWebGpuRuntime.js' satisfies AppResourcePath).path;
-			const { createChatPetJumpGameWebGpuRenderer } = await import(/* webpackIgnore: true */ rendererUri) as {
-				createChatPetJumpGameWebGpuRenderer(
-					canvas: HTMLCanvasElement,
-					runtimeUri: string,
-					gpu: GPU | undefined,
-					getColors: () => IChatPetJumpGameLiteColors,
-					onDidChangeTheme: (listener: () => void) => IDisposable,
-					getDevicePixelRatio: () => number,
-					onDidFail: (error: Error) => void,
-				): Promise<IChatPetJumpGameRenderer>;
-			};
+			const { createChatPetJumpGameWebGpuRenderer } = await import(/* webpackIgnore: true */ rendererUri) as typeof import('./chatPetJumpGameWebGpuRenderer.js');
 			const canvas = dom.prepend(stage, dom.$('canvas.chat-pet-jump-playfield.chat-pet-jump-playfield-lite-webgpu', {
 				'aria-hidden': 'true',
 			})) as HTMLCanvasElement;
