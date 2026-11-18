@@ -225,6 +225,13 @@ export async function acceptAndAwaitSentRequest(result: ChatSendResult, onReques
 	return ChatSendResult.isSent(sent) ? sent : undefined;
 }
 
+/**
+ * Whether the last request waits on an unanswered question, such as one asked with the ask questions tool.
+ */
+function hasUnansweredQuestion(model: IChatModel): boolean {
+	return !!model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed);
+}
+
 export function shouldUnlockChatPetRequestRevision(isEditing: boolean, isUserQuery: boolean): boolean {
 	return isEditing && isUserQuery;
 }
@@ -4237,13 +4244,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			options.queue = undefined;
 		}
 		const requestInProgress = model.requestInProgress.get();
-		// Cancel the request if the user chooses to take a different path.
-		// This is a bit of a heuristic for the common case of tool confirmation+reroute.
-		// But we don't do this if there are queued messages, because we would either
-		// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
-		// which could be a surprising behavior if the user finishes typing a steering
-		// request just as confirmation is triggered.
-		if (!options.cancelCurrentRequest && model.requestNeedsInput.get() && !model.getPendingRequests().length) {
+		const requestNeedsInput = !options.cancelCurrentRequest && !!model.requestNeedsInput.get();
+		if (requestNeedsInput && hasUnansweredQuestion(model)) {
+			// An open question stays open: the message waits in the queue until the
+			// question is answered and the request completes.
+			options.queue ??= ChatRequestQueueKind.Queued;
+		} else if (requestNeedsInput && !model.getPendingRequests().length) {
+			// Cancel the request if the user chooses to take a different path.
+			// This is a bit of a heuristic for the common case of tool confirmation+reroute.
+			// But we don't do this if there are queued messages, because we would either
+			// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
+			// which could be a surprising behavior if the user finishes typing a steering
+			// request just as confirmation is triggered.
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
