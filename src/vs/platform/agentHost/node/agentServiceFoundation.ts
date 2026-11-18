@@ -61,6 +61,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		setSessionSpawnDepth: (session, depth) => this.value.sessionServerToolAccessor.setSessionSpawnDepth(session, depth),
 		isChatMoveEnabled: () => this.value.sessionServerToolAccessor.isChatMoveEnabled(),
 		getSessionModelOptions: () => this.value.sessionServerToolAccessor.getSessionModelOptions(),
+		usesCredentialScopedModels: session => this.value.sessionServerToolAccessor.usesCredentialScopedModels(session),
 		supportsChatMoves: session => this.value.sessionServerToolAccessor.supportsChatMoves(session),
 		checkChatMove: move => this.value.sessionServerToolAccessor.checkChatMove(move),
 		applyChatMove: move => this.value.sessionServerToolAccessor.applyChatMove(move),

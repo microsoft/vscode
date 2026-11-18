@@ -2404,6 +2404,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}),
 			isChatMoveEnabled: () => this._configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true,
 			getSessionModelOptions: () => this._configurationService.getRootValue(platformRootSchema, AgentHostSessionModelOptionsConfigKey) ?? 'off',
+			usesCredentialScopedModels: session => this._authService.getSessionCredentialSource(session.toString()) !== undefined,
 			supportsChatMoves: session => !!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleChats,
 			// Queued like the moves themselves: the check restores sessions, which must not overlap a running move.
 			checkChatMove: move => this._logRefusedServerToolMove(this._chatMoveSequencer.queue(() => this._withMoveLeases(leases => this._checkServerToolMove(move, leases)))),

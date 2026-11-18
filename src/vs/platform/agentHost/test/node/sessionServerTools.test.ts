@@ -17,6 +17,7 @@ import type { IAgentHostCredentialSource } from '../../common/agentHostCredentia
 import type { AgentHostSessionModelOptions } from '../../common/agentHostSchema.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { modelRouterModelId } from '../../common/modelRouter.js';
+import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 import { getCopilotContextTier, getCopilotReasoningEffort } from '../../node/copilot/copilotSessionLauncher.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -119,6 +120,7 @@ suite('SessionServerTools', () => {
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
 			isChatMoveEnabled: overrides?.isChatMoveEnabled ?? (() => true),
 			getSessionModelOptions: overrides?.getSessionModelOptions ?? (() => 'off'),
+			usesCredentialScopedModels: overrides?.usesCredentialScopedModels ?? (() => false),
 			supportsChatMoves: overrides?.supportsChatMoves ?? (() => true),
 			checkChatMove: overrides?.checkChatMove ?? (async () => { }),
 			isKnownSessionLink: overrides?.isKnownSessionLink ?? (() => true),
@@ -2305,6 +2307,8 @@ suite('SessionServerTools', () => {
 	});
 
 	suite('model selection', () => {
+		const createSessionModelDescription = 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.';
+		const createSessionModelOptionsDescription = 'Optional model ID or display name. Defaults to the current chat\'s model, with its reasoning effort and context size. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.';
 		const configured: IAgentModelInfo = {
 			provider: 'copilot', id: 'gpt-configured', name: 'GPT Configured', supportsVision: false,
 			configSchema: {
@@ -2565,6 +2569,48 @@ suite('SessionServerTools', () => {
 					harness: '`model`, when given, must belong to it, and is needed to set `reasoningEffort` or `contextTier`.',
 				},
 				ignored: [inherited, inherited],
+			});
+		});
+
+		test('with inline model options, create_session lists the models where it loads on demand', () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const session = 'copilot:/s1';
+			stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session) });
+			const disabled: IAgentModelInfo = { ...other, id: 'gpt-disabled', name: 'GPT Disabled', policyState: PolicyState.Disabled };
+			const codexModel: IAgentModelInfo = { provider: 'codex', id: 'codex-model', name: 'Codex Model', supportsVision: false };
+			let modelOptions: AgentHostSessionModelOptions = 'off';
+			let scoped = false;
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
+				getModels: () => [routerModel, lockedModel, configured, disabled, claudeModel, autoModel, codexModel],
+				canCreateSessions: provider => provider !== 'codex',
+				getSessionModelOptions: () => modelOptions,
+				usesCredentialScopedModels: () => scoped,
+			}))]);
+			const modelDescription = (inputSchema: ToolDefinition['inputSchema']) => (inputSchema?.properties?.model as { description?: string } | undefined)?.description;
+			const offer = (value: AgentHostSessionModelOptions, scopedModels = false) => {
+				modelOptions = value;
+				scoped = scopedModels;
+				const definitions = host.getDefinitionsForSession(session);
+				const createSession = definitions.find(tool => tool.name === SessionServerToolName.CreateSession);
+				return {
+					model: modelDescription(createSession?.inputSchema),
+					deferredModel: modelDescription(createSession?.deferredInputSchema),
+				};
+			};
+			const off = offer('off');
+			const result = { off, inline: offer('inline'), scopedInline: offer('inline', true) };
+			offer('inline');
+			host.advertise(session);
+			const published = stateManager.getSessionState(session)?.serverTools?.find(tool => tool.name === SessionServerToolName.CreateSession);
+
+			assert.deepStrictEqual({ ...result, published: published && { deferred: Object.keys(published).includes('deferredInputSchema'), model: modelDescription(published.inputSchema) } }, {
+				off: { model: createSessionModelDescription, deferredModel: undefined },
+				inline: {
+					model: createSessionModelOptionsDescription,
+					deferredModel: `${createSessionModelOptionsDescription}\n\nAvailable models by agent:\nclaude:\n- claude-opus (Claude Opus): reasoningEffort low|medium|high|max\ncopilot:\n- auto (Auto)\n- gpt-configured (GPT Configured): reasoningEffort low|medium|high|xhigh, default medium; contextTier long_context\n- gpt-locked (GPT Locked)\n- ${routerModel.id} (Daily)`,
+				},
+				scopedInline: { model: createSessionModelOptionsDescription, deferredModel: undefined },
+				published: { deferred: false, model: createSessionModelOptionsDescription },
 			});
 		});
 	});

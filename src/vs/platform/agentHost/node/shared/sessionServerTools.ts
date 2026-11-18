@@ -215,6 +215,27 @@ function withCreateSessionHarness(definition: IAgentServerToolDefinition, availa
 
 const createSessionWithSharedWorkspaceDescription = 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.';
 
+/** Introduces the list of models in `create_session`'s `model` description. */
+const createSessionModelCatalogHeading = 'Available models by agent:';
+
+/** `inputSchema` with {@link text} appended to its `model` description; unchanged without a `model` property. */
+function withModelDescriptionText(inputSchema: ToolDefinition['inputSchema'], text: string): ToolDefinition['inputSchema'] {
+	const model: { readonly description?: unknown } | undefined = inputSchema?.properties?.model;
+	if (inputSchema === undefined || model === undefined) {
+		return inputSchema;
+	}
+	const description = typeof model.description === 'string' ? model.description : '';
+	return { ...inputSchema, properties: { ...inputSchema.properties, model: { ...model, description: `${description}${text}` } } };
+}
+
+/**
+ * `create_session` with the ways it offers models: with a {@link catalog}, a `model` description that lists the
+ * models and their options once the agent loads the tool through tool search.
+ */
+function withCreateSessionModelDiscovery(definition: IAgentServerToolDefinition, catalog: string | undefined): IAgentServerToolDefinition {
+	return catalog === undefined ? definition : { ...definition, deferredInputSchema: withModelDescriptionText(definition.inputSchema, `\n\n${createSessionModelCatalogHeading}\n${catalog}`) };
+}
+
 /** The sentences of `list_sessions` and `get_current_session` that describe a session's `chats`, by tool. */
 const listSessionsChatsSentence = 'A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context`, `rename_chat` and `archive_chat`.';
 const getCurrentSessionChatsSentence = 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`.';
@@ -518,6 +539,11 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly isChatMoveEnabled: () => boolean;
 	/** Whether agents can choose model options in `create_session`, and how they find models (`sessionModelOptions`), read on every call. */
 	readonly getSessionModelOptions: () => AgentHostSessionModelOptions;
+	/**
+	 * Whether the session's chats run on their own credentials, so `create_session` resolves their models in a
+	 * credential-scoped catalog rather than {@link getModels}.
+	 */
+	readonly usesCredentialScopedModels: (session: URI) => boolean;
 	/** Whether the session's agent supports more than one chat per session, so its chats can move. */
 	readonly supportsChatMoves: (session: URI) => boolean;
 	/**
@@ -1034,6 +1060,51 @@ function assertConfigWritable(property: ConfigPropertySchema, field: string, mod
 /** The models an agent can choose: every catalog model that policy doesn't disable, sorted by id so the list is stable. */
 function getSelectableModels(models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] {
 	return models.filter(model => model.policyState !== PolicyState.Disabled).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** The models of agents that can start sessions, which `create_session` can create a chat or session on. */
+function getOfferedModels(accessor: Pick<ISessionServerToolAccessor, 'canCreateSessions'>, models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] {
+	return models.filter(model => accessor.canCreateSessions(model.provider));
+}
+
+/**
+ * The `reasoningEffort` and `contextTier` values `create_session` accepts for a model, as
+ * {@link resolveCreatedModelSelection} checks them: none for a model router or a locked option.
+ */
+function describeCreateSessionModelOptions(model: IAgentModelInfo): string | undefined {
+	if (isModelRouterModelId(model.id)) {
+		return undefined;
+	}
+	const options: string[] = [];
+	const effort = model.configSchema?.properties[ReasoningEffortConfigKey];
+	if (effort?.enum?.length && !effort.readOnly) {
+		const defaultEffort = typeof effort.default === 'string' ? `, default ${effort.default}` : '';
+		options.push(`reasoningEffort ${effort.enum.join('|')}${defaultEffort}`);
+	}
+	const context = model.configSchema?.properties[ContextSizeConfigKey];
+	if (context?.enum && context.enum.length > 1 && !context.readOnly) {
+		options.push('contextTier long_context');
+	}
+	return options.length > 0 ? options.join('; ') : undefined;
+}
+
+/**
+ * Lists the models an agent can pass to `create_session`, grouped by agent, one per line with the options it accepts.
+ * `undefined` when there are none to list.
+ */
+export function formatCreateSessionModelChoices(models: readonly IAgentModelInfo[]): string | undefined {
+	const selectable = getSelectableModels(models);
+	if (selectable.length === 0) {
+		return undefined;
+	}
+	const harnesses = [...new Set(selectable.map(model => model.provider))].sort();
+	return harnesses.flatMap(provider => [
+		`${toAgentHostChatHarness(provider)}:`,
+		...selectable.filter(model => model.provider === provider).map(model => {
+			const options = describeCreateSessionModelOptions(model);
+			return `- ${model.id} (${model.name})${options ? `: ${options}` : ''}`;
+		}),
+	]).join('\n');
 }
 
 /**
@@ -2479,16 +2550,22 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				return { ...definition, deferLoading: false };
 			}
 			if (definition.name === SessionServerToolName.CreateSession) {
+				const session = URI.parse(sessionUri);
 				// Without multi-root support a current-session chat cannot get its own folder.
-				const forSession = accessor?.supportsChatWorkingDirectories(URI.parse(sessionUri)) === false
+				const forSession = accessor?.supportsChatWorkingDirectories(session) === false
 					? { ...definition, description: createSessionWithSharedWorkspaceDescription, inputSchema: createSessionWithSharedWorkspaceInputSchema }
 					: definition;
 				// `reasoningEffort` and `contextTier` are offered only while agents can choose model options; otherwise the schema is unchanged.
 				const modelOptions = accessor !== undefined && accessor.getSessionModelOptions() !== 'off';
 				const withOptions = modelOptions ? withCreateSessionModelOptions(forSession) : forSession;
 				// `harness` is offered only while a chat of this session may use another agent; otherwise the schema is unchanged.
-				const harnesses = accessor?.getChatHarnesses(URI.parse(sessionUri));
-				return harnesses !== undefined ? withCreateSessionHarness(withOptions, harnesses, modelOptions) : withOptions;
+				const harnesses = accessor?.getChatHarnesses(session);
+				const offered = harnesses !== undefined ? withCreateSessionHarness(withOptions, harnesses, modelOptions) : withOptions;
+				// A session on its own credentials resolves models in a catalog only readable when a call needs it, so it lists none.
+				const catalog = accessor?.getSessionModelOptions() === 'inline' && !accessor.usesCredentialScopedModels(session)
+					? formatCreateSessionModelChoices(getOfferedModels(accessor, accessor.getModels()))
+					: undefined;
+				return withCreateSessionModelDiscovery(offered, catalog);
 			}
 			if (definition.name !== SessionServerToolName.RenameChat) {
 				return definition;
