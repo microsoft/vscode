@@ -4338,11 +4338,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const event = notification.event;
 		const modelCallId = this._modelCallIdForTelemetry(notification);
 		const forward = (turnId: string | undefined, outcome: ICopilotModelCallCorrelationTelemetry['ahCorrelationOutcome'], waitMs?: number): void => {
+			const interactionId = event.properties.interaction_id;
+			if (turnId && (outcome === 'mappingAvailable' || outcome === 'mappingWaited') && typeof interactionId === 'string' && interactionId) {
+				session?.turnInteractionCorrelation.record(turnId, interactionId);
+			}
+			const lineage = turnId && (outcome === 'mappingAvailable' || outcome === 'mappingWaited') ? session?.turnInteractionCorrelation.get(turnId) : undefined;
 			this._gitHubTelemetryForwarder.forward(notification, turnId, {
 				ahCorrelationOutcome: outcome,
 				ahCorrelationWaitMs: waitMs,
 				ahActiveRootTurnIdAtResponse: !turnId ? fallbackTurnId : undefined,
 				ahSessionDisposedDuringWait: !turnId && waitMs !== undefined ? session?.isDisposed : undefined,
+				originalTurnId: lineage?.originalTurnId,
+				steeredFromTurn: lineage?.steeredFromTurn,
 			}, modelCallId ? session?.modelCallTurnCorrelation.getTelemetryContext(modelCallId) : undefined, clientType);
 		};
 		if (!session) {
@@ -6948,12 +6955,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._findChatByUri(chat)?.getTurnTokenUsage(turnId, parentToolCallId);
 	}
 
+	getTurnInteraction(chat: URI, turnId: string): ReturnType<NonNullable<IAgent['getTurnInteraction']>> {
+		return this._findChatByUri(chat)?.turnInteractionCorrelation.get(turnId);
+	}
+
 	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
 		const session = this._findChatByUri(chat);
 		if (session) {
 			const status = session.modelCallTurnCorrelation.record(modelCallId, turnId);
 			if (status !== 'duplicate') {
-				this._gitHubTelemetryForwarder.recordModelCallTurnCorrelation(session.sessionId, modelCallId, turnId, status);
+				this._gitHubTelemetryForwarder.recordModelCallTurnCorrelation(session.sessionId, modelCallId, turnId, status, session.turnInteractionCorrelation.get(turnId));
 			}
 		}
 	}

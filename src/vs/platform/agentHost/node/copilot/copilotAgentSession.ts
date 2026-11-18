@@ -172,6 +172,7 @@ import { CopilotMcpUsageTelemetry, reportCopilotMcpAuthentication } from './copi
 import { reportCopilotFusionPhase, type CopilotFusionPhaseEvent } from './copilotFusionPhaseTelemetry.js';
 import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
+import { TurnInteractionCorrelation, type ISteeringTurnContext } from './turnInteractionCorrelation.js';
 import { CompactionTurnCorrelation } from './compactionTurnCorrelation.js';
 import { CopilotSubagentTracking } from './copilotSubagentTracking.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
@@ -1230,6 +1231,7 @@ class CopilotTurn extends Disposable {
 interface IPendingSteering {
 	readonly pendingMessage: PendingMessage;
 	readonly sender: IAgentPendingMessageSender | undefined;
+	steeredFromTurnContext?: ISteeringTurnContext;
 	completionReferences?: readonly ICopilotCompletionReference[];
 	/** Set once the message is handed to the SDK; identifies it for withdrawal. */
 	sdkSend?: { readonly prompt: string; readonly messageId: Promise<string> };
@@ -1447,6 +1449,7 @@ export class CopilotAgentSession extends Disposable {
 		return toolCallId === undefined ? undefined : this._subagentChatUri(toolCallId);
 	};
 	readonly modelCallTurnCorrelation = new ModelCallTurnCorrelation();
+	readonly turnInteractionCorrelation: TurnInteractionCorrelation;
 	readonly compactionTurnCorrelation = new CompactionTurnCorrelation();
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
 	private readonly _lastSubagentUsageByToolCallId = new Map<string, UsageInfo>();
@@ -2473,6 +2476,8 @@ export class CopilotAgentSession extends Disposable {
 		this._developmentErrorInjectionEnabled = options.enableDevelopmentErrorInjection ?? !product.commit;
 		this._subagentTaskCompletionDelay = options.subagentTaskCompletionDelay ?? SUBAGENT_TASK_COMPLETION_DELAY_MS;
 		this.sessionId = options.rawSessionId;
+		this.turnInteractionCorrelation = new TurnInteractionCorrelation(this.sessionId, this._telemetryService);
+		this._register(toDisposable(() => this.turnInteractionCorrelation.clear()));
 		this._owner = options.owner;
 		this._getSessionPathRoots = options.getSessionPathRoots ?? (() => []);
 		this.launchOwner = options.owner.get();
@@ -2969,13 +2974,14 @@ export class CopilotAgentSession extends Disposable {
 	 * rather than being folded into the original turn.
 	 */
 	private _beginSteeringTurn(steering: IPendingSteering): void {
-		const previousTurnId = this._currentTurn.value?.id;
+		const steeredFromTurnId = this._currentTurn.value?.id;
+		const steeredFromTurnContext = steeredFromTurnId ? this.turnInteractionCorrelation.getSteeringContext(steeredFromTurnId) : steering.steeredFromTurnContext;
 		const activeSdkTurnId = this._currentTurn.value?.activeSdkTurnId;
 		// The SDK keeps running any in-flight HydraFusion workflow after a steering
 		// message, so the steering turn keeps the preempted turn's Fusion state
 		// (empty when no workflow is running); otherwise its phase events can no
 		// longer be routed and stay invisible. A cancelled workflow is not kept.
-		const preservesFusionState = previousTurnId !== undefined && !this._fusionTurnCancelled;
+		const preservesFusionState = steeredFromTurnId !== undefined && !this._fusionTurnCancelled;
 		this._completeActiveTurn(false, preservesFusionState);
 		const newTurnId = generateUuid();
 		steering.promotedTurnId = newTurnId;
@@ -2996,12 +3002,15 @@ export class CopilotAgentSession extends Disposable {
 		if (preservesFusionState) {
 			// Phase chats stay open: like subagents, they outlive the root turn, and closing one would drop its running tools' results.
 			this._startTurn(newTurnId, steering.sender?.clientId, steering.sender?.clientContext);
-			this._transferFusionWorkflow(previousTurnId, newTurnId);
+			this._transferFusionWorkflow(steeredFromTurnId, newTurnId);
 		} else {
 			this.resetTurnState(newTurnId, steering.sender?.clientId, steering.sender?.clientContext.clientType, steering.sender?.clientContext);
 		}
 		const turn = this._currentTurn.value;
 		if (turn) {
+			if (steeredFromTurnContext) {
+				this.turnInteractionCorrelation.prepareSteering(turn.id, steeredFromTurnContext);
+			}
 			turn.messageCharLen = steering.pendingMessage.message.text.length;
 			turn.sdkSendInvoked = true;
 			turn.markRunning();
@@ -3011,7 +3020,7 @@ export class CopilotAgentSession extends Disposable {
 			if (resumedPhase) {
 				this._emitFusionProgress(resumedPhase);
 			}
-			this._transferProvisionalFusionToolCalls(previousTurnId, newTurnId);
+			this._transferProvisionalFusionToolCalls(steeredFromTurnId, newTurnId);
 		}
 		if (activeSdkTurnId && turn) {
 			turn.activeSdkTurnId = activeSdkTurnId;
@@ -3814,6 +3823,7 @@ export class CopilotAgentSession extends Disposable {
 			configuredServerCount: new Set([...this._getConfiguredMcpRoutingServers().keys(), ...this._copilotConnectorServers.keys()]).size,
 		}, this._telemetryService);
 		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext, this._getTelemetryContext(), providerInitiated, mcpUsage);
+		this.turnInteractionCorrelation.startTurn(turnId);
 		this._beginLocalModelTurn(turnId);
 	}
 
@@ -11144,14 +11154,14 @@ export class CopilotAgentSession extends Disposable {
 			const steering = this._takeMatchingPendingSteering(e.data.content, e.data.messageId);
 			if (steering && !steering.promotedTurnId) {
 				this._beginSteeringTurn(steering);
-				if (e.data.interactionId) {
-					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
-				}
 			} else if (!this._currentTurn.value) {
 				this._beginProviderInitiatedTurn(e);
 			}
 			const turn = this._currentTurn.value;
 			if (turn) {
+				if (steering) {
+					this.turnInteractionCorrelation.resolveSteering(turn.id, e.data.interactionId, e.data.delivery);
+				}
 				this._hasFusionRootTurnBoundary = true;
 				const precedingResolution = this._fusionRequestCorrelation.getPrecedingResolution(e);
 				if (precedingResolution && !this._fusionEventTurnIds.has(`fusion:${precedingResolution.fusionId}`)) {
@@ -11161,7 +11171,7 @@ export class CopilotAgentSession extends Disposable {
 					this._recordHostSdkTurn(e.data.turnId, this._turnId);
 				}
 				if (e.data.interactionId) {
-					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
+					this._recordTurnInteraction(e.data.interactionId);
 				}
 				const references = steering ? steering.completionReferences ?? getCopilotCompletionReferences(steering.pendingMessage.message.attachments) : turn.completionReferences;
 				const text = steering?.pendingMessage.message.text ?? turn.completionReferenceText;
@@ -12139,10 +12149,12 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 			this._completeActiveRepoInfoTelemetry();
+			const steeredFromTurnContext = this.turnInteractionCorrelation.getSteeringContext(turn.id);
 			this._completeActiveTurn();
 			if (!e.agentId && !e.data.aborted) {
 				const steering = [...this._pendingSteeringFlips.values()].find(pending => pending.sdkSend && !pending.promotedTurnId && !pending.withdrawing);
 				if (steering) {
+					steering.steeredFromTurnContext = steeredFromTurnContext;
 					this._logService.info(`[Copilot:${sessionId}] Steering message was sent after the turn ended; starting it as its own turn: id=${steering.pendingMessage.id}`);
 					this._beginSteeringTurn(steering);
 				}
@@ -13902,6 +13914,14 @@ export class CopilotAgentSession extends Disposable {
 		this._pendingFusionEvents.length = 0;
 	}
 
+	private _recordTurnInteraction(interactionId: string): void {
+		const turn = this._currentTurn.value;
+		if (turn) {
+			turn.interactionIds.add(interactionId);
+			this.turnInteractionCorrelation.record(turn.id, interactionId);
+		}
+	}
+
 	private _clearProvisionalFusionState(): void {
 		this._provisionalFusionToolStarts.clear();
 		this._surfacedProvisionalFusionToolCallIds.clear();
@@ -14527,7 +14547,7 @@ export class CopilotAgentSession extends Disposable {
 					this._hasFusionRootTurnBoundary = true;
 					this._recordHostSdkTurn(e.data.turnId, this._currentTurn.value.id);
 					if (e.data.interactionId) {
-						this._currentTurn.value.interactionIds.add(e.data.interactionId);
+						this._recordTurnInteraction(e.data.interactionId);
 					}
 				}
 				this._onSteeringReady?.(this);
