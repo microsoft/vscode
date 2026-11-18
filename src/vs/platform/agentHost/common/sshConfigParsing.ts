@@ -14,17 +14,12 @@ export function stripSSHComment(s: string): string {
 /** GitHub's SSH endpoints only serve Git operations and cannot host shell connections. */
 const gitOnlySSHHosts = new Set(['github.com', 'ssh.github.com']);
 
-function isGitOnlySSHHost(host: string): boolean {
-	return gitOnlySSHHosts.has(host.toLowerCase());
-}
-
 /**
  * Extract connectable Host aliases from SSH config content (without following Includes).
- * Patterns and aliases for Git-only endpoints such as GitHub, by name or HostName, are skipped.
+ * Patterns and GitHub's Git-only endpoints are skipped.
  */
 export function parseSSHConfigHostEntries(content: string): string[] {
-	const blocks: { hosts: string[]; hostName?: string }[] = [];
-	let block: { hosts: string[]; hostName?: string } | undefined;
+	const hosts: string[] = [];
 	for (const line of content.split('\n')) {
 		const trimmed = line.trim();
 		if (!trimmed || trimmed.startsWith('#')) {
@@ -32,27 +27,15 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 		}
 		const hostMatch = trimmed.match(/^Host\s+(.+)$/i);
 		if (hostMatch) {
-			block = { hosts: [] };
-			blocks.push(block);
 			const hostValue = stripSSHComment(hostMatch[1]);
 			for (const h of hostValue.split(/\s+/)) {
-				if (!h.includes('*') && !h.includes('?') && !h.startsWith('!') && !isGitOnlySSHHost(h)) {
-					block.hosts.push(h);
+				if (!h.includes('*') && !h.includes('?') && !h.startsWith('!') && !gitOnlySSHHosts.has(h.toLowerCase())) {
+					hosts.push(h);
 				}
 			}
-			continue;
-		}
-		if (/^Match\s/i.test(trimmed)) {
-			block = undefined;
-			continue;
-		}
-		const hostNameMatch = trimmed.match(/^HostName(?:\s*=\s*|\s+)"?([^"\s]+)/i);
-		if (block && hostNameMatch) {
-			// OpenSSH uses the first value obtained for a keyword.
-			block.hostName ??= hostNameMatch[1];
 		}
 	}
-	return blocks.flatMap(block => block.hostName !== undefined && isGitOnlySSHHost(block.hostName) ? [] : block.hosts);
+	return hosts;
 }
 
 /** Parses Include arguments with OpenSSH quoting, escapes and comments; undefined indicates invalid quotes or an empty path. */
