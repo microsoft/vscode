@@ -90,10 +90,12 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			{ type: ActionType.SessionActivityChanged, activity: 'Working' },
 			{ type: ActionType.SessionIsReadChanged, isRead: true },
 			{ type: ActionType.SessionChatUpdated, chat, changes: { status: SessionStatus.InProgress, modifiedAt: 'updated' } },
-			{ type: ActionType.SessionCustomizationsChanged, customizations: [{
-				type: CustomizationType.Directory, id: 'skills', uri: 'file:///workspace/skills', name: 'Skills',
-				contents: CustomizationType.Skill, writable: true, enabled: true,
-			}] },
+			{
+				type: ActionType.SessionCustomizationsChanged, customizations: [{
+					type: CustomizationType.Directory, id: 'skills', uri: 'file:///workspace/skills', name: 'Skills',
+					contents: CustomizationType.Skill, writable: true, enabled: true,
+				}]
+			},
 			{ type: ActionType.SessionWorkingDirectorySet, directory: 'file:///workspace' },
 			{ type: ActionType.SessionMetaChanged, _meta: withSessionFolderPickerDecision(undefined, { hidden: true, primary: 'file:///workspace' })! },
 			{ type: ActionType.SessionActiveClientSet, activeClient: { clientId: 'vscode', tools: [{ name: 'tool', description: 'Tool' }] } },
