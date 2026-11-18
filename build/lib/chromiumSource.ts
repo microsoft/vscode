@@ -5,7 +5,7 @@
 
 import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import path from 'path';
 import manifests from '../../cgmanifest.json' with { type: 'json' };
 
@@ -22,8 +22,8 @@ interface ChromiumFileSource {
 const DEFAULT_RETRY_DELAYS_MS = [10_000, 30_000, 60_000];
 
 /**
- * The Chromium files that the build downloads. On a cache miss, every Linux job prefetches all of them, so that a cache
- * saved by any job (build/azure-pipelines/linux/steps/product-build-linux-setup.yml) serves every job.
+ * The Chromium files that the build downloads. On a cache miss, every job that restores the cache prefetches all of them
+ * (build/azure-pipelines/linux/steps/restore-chromium-build-files.yml), so that the cache any job saves serves every job.
  */
 export const CHROMIUM_BUILD_FILES: readonly string[] = ['tools/clang/scripts/update.py', 'third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl'];
 
@@ -90,14 +90,14 @@ export interface DownloadChromiumFileOptions {
 	readonly retryDelaysMs?: readonly number[];
 	/** Rejects error pages served with a success status. Defaults to requiring a `#!` script header. */
 	readonly validate?: (content: Buffer) => boolean;
-	/** Where downloaded files are kept by version, and read from first. `false` disables the cache. */
+	/** Where prefetched files are kept by version, and read from first. `false` disables the cache. */
 	readonly cacheDir?: string | false;
 }
 
 /**
  * Downloads a file from the Chromium source tree at the version pinned in cgmanifest.json, trying
  * the GitHub API, the GitHub raw host and Chromium's Gitiles host, and retrying the set with backoff.
- * A file of the same version in the cache is used instead, and a downloaded file is added to it.
+ * A file of the same version in the cache is used instead. Only prefetchChromiumBuildFiles adds files to the cache.
  */
 export function downloadChromiumFile(filePath: string, destination: string, options: DownloadChromiumFileOptions = {}): void {
 	const version = options.version ?? getChromiumVersion();
@@ -110,12 +110,7 @@ export function downloadChromiumFile(filePath: string, destination: string, opti
 		return;
 	}
 
-	const content = fetchChromiumFile(filePath, version, options, validate, options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS);
-	writeFileSync(destination, content);
-	if (cacheDir) {
-		writeCachedFile(cacheDir, version, filePath, content);
-	}
-
+	writeFileSync(destination, fetchChromiumFile(filePath, version, options, validate, options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS));
 }
 
 // The SHA-256 of a cached file, recorded when it was downloaded, guards against a damaged cache. A file without one, or
@@ -126,8 +121,9 @@ function sha256(content: Buffer): string {
 }
 
 /**
- * Adds the Chromium build scripts that the cache lacks to it, with one attempt per source, so that every job that
- * restores the cache also has something to save (Cache@2 fails to save a folder that doesn't exist). Never throws.
+ * Fills the cache with the Chromium build scripts, with one attempt per source, so that every job that restores the cache
+ * also has something to save (Cache@2 fails to save a folder that doesn't exist). It writes all of them or none, since a
+ * saved cache can't be completed later. Never throws.
  */
 export function prefetchChromiumBuildFiles(options: DownloadChromiumFileOptions = {}): void {
 	const cacheDir = options.cacheDir ?? DEFAULT_CACHE_DIR;
@@ -135,25 +131,48 @@ export function prefetchChromiumBuildFiles(options: DownloadChromiumFileOptions 
 		return;
 	}
 	const validate = options.validate ?? (content => content.subarray(0, 2).toString('utf8') === '#!');
-	for (const file of CHROMIUM_BUILD_FILES) {
-		try {
-			const version = options.version ?? getChromiumVersion();
+	let version: string;
+	const missing = new Map<string, Buffer>();
+	try {
+		version = options.version ?? getChromiumVersion();
+		for (const file of CHROMIUM_BUILD_FILES) {
 			if (!readCachedFile(cacheDir, version, file, validate)) {
-				writeCachedFile(cacheDir, version, file, fetchChromiumFile(file, version, options, validate, []));
+				missing.set(file, fetchChromiumFile(file, version, options, validate, []));
 			}
-		} catch (err) {
-			console.log(`Not caching Chromium ${file}: ${err instanceof Error ? err.message.split('\n')[0] : String(err)}`);
+		}
+	} catch (err) {
+		console.log(`Not caching the Chromium build scripts: ${err instanceof Error ? err.message.split('\n')[0] : String(err)}`);
+		return;
+	}
+	try {
+		for (const [file, content] of missing) {
+			writeCachedFile(cacheDir, version, file, content);
+		}
+	} catch (err) {
+		console.log(`Not caching the Chromium build scripts: ${err instanceof Error ? err.message : String(err)}`);
+		// Saving an incomplete cache would keep it incomplete, so leave nothing to save
+		try {
+			rmSync(cacheDir, { recursive: true, force: true });
+		} catch {
+			// best effort
 		}
 	}
 }
-
 function readCachedFile(cacheDir: string, version: string, filePath: string, validate: (content: Buffer) => boolean): Buffer | undefined {
 	const file = path.join(cacheDir, version, filePath);
 	if (!existsSync(file) || !existsSync(`${file}.sha256`)) {
 		return undefined;
 	}
-	const content = readFileSync(file);
-	if (readFileSync(`${file}.sha256`, 'utf8').trim() !== sha256(content)) {
+	let content: Buffer;
+	let hash: string;
+	try {
+		content = readFileSync(file);
+		hash = readFileSync(`${file}.sha256`, 'utf8').trim();
+	} catch (err) {
+		console.log(`Ignoring the cached Chromium ${version} ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+		return undefined;
+	}
+	if (hash !== sha256(content)) {
 		console.log(`Ignoring the cached Chromium ${version} ${filePath}: its content doesn't match its SHA-256`);
 		return undefined;
 	}

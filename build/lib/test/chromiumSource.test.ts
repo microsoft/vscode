@@ -114,7 +114,7 @@ suite('chromiumSource', () => {
 		assert.strictEqual(fs.readFileSync(destination, 'utf8'), script);
 	}));
 
-	test('ignores a cached file of another version or an invalid one, and caches the file it downloads', () => withTempFile(destination => {
+	test('ignores a cached file of another version or an invalid one, and adds nothing to the cache', () => withTempFile(destination => {
 		const cacheDir = path.join(path.dirname(destination), 'cache');
 		fs.mkdirSync(path.join(cacheDir, '1.2.3.3', 'third_party', 'dpkg-shlibdeps'), { recursive: true });
 		fs.writeFileSync(path.join(cacheDir, '1.2.3.3', CHROMIUM_BUILD_FILES[1]), script);
@@ -133,9 +133,21 @@ suite('chromiumSource', () => {
 		});
 		assert.strictEqual(fs.readFileSync(destination, 'utf8'), script);
 		assert.deepStrictEqual(requested, ['dpkg-shlibdeps.pl']);
-		assert.strictEqual(fs.readFileSync(path.join(cacheDir, '1.2.3.4', CHROMIUM_BUILD_FILES[1]), 'utf8'), script);
-		assert.strictEqual(fs.readFileSync(path.join(cacheDir, '1.2.3.4', `${CHROMIUM_BUILD_FILES[1]}.sha256`), 'utf8'), createHash('sha256').update(script).digest('hex'));
-		assert.strictEqual(fs.existsSync(path.join(cacheDir, '1.2.3.4', CHROMIUM_BUILD_FILES[0])), false);
+		assert.strictEqual(fs.readFileSync(path.join(cacheDir, '1.2.3.4', CHROMIUM_BUILD_FILES[1]), 'utf8'), '429: Too Many Requests');
+		assert.strictEqual(fs.existsSync(path.join(cacheDir, '1.2.3.4', `${CHROMIUM_BUILD_FILES[1]}.sha256`)), false);
+	}));
+
+	test('a cache entry that can\'t be read is downloaded again', () => withTempFile(destination => {
+		const cacheDir = path.join(path.dirname(destination), 'cache');
+		fs.mkdirSync(path.join(cacheDir, '1.2.3.4', 'a', 'b.pl'), { recursive: true });
+		fs.mkdirSync(path.join(cacheDir, '1.2.3.4', 'a', 'b.pl.sha256'), { recursive: true });
+		downloadChromiumFile('a/b.pl', destination, {
+			version: '1.2.3.4',
+			cacheDir,
+			retryDelaysMs: [],
+			httpGet: () => ({ ok: true, body: Buffer.from(script) }),
+		});
+		assert.strictEqual(fs.readFileSync(destination, 'utf8'), script);
 	}));
 
 	test('a cached file whose content doesn\'t match its SHA-256, or that has none, is downloaded again', () => withTempFile(destination => {
@@ -160,15 +172,19 @@ suite('chromiumSource', () => {
 			});
 			assert.strictEqual(calls, 1, file);
 			assert.strictEqual(fs.readFileSync(destination, 'utf8'), script, file);
-			assert.strictEqual(fs.readFileSync(path.join(cacheDir, '1.2.3.4', file), 'utf8'), script, file);
+			assert.strictEqual(fs.readFileSync(path.join(cacheDir, '1.2.3.4', file), 'utf8'), tampered, file);
 		}
 	}));
 
-	test('prefetching adds the missing build scripts once, and never throws', () => withTempFile(destination => {
+	test('prefetching fills the cache with every build script or none, and never throws', () => withTempFile(destination => {
 		const cacheDir = path.join(path.dirname(destination), 'cache');
 		let calls = 0;
 		prefetchChromiumBuildFiles({ version: '1.2.3.4', token: 'secret', cacheDir, httpGet: () => { calls++; return rateLimited; } });
-		assert.strictEqual(calls, 4 * CHROMIUM_BUILD_FILES.length);
+		// one attempt per source, and none for the other script once one failed
+		assert.strictEqual(calls, 4);
+		assert.strictEqual(fs.existsSync(cacheDir), false);
+
+		prefetchChromiumBuildFiles({ version: '1.2.3.4', token: 'secret', cacheDir, httpGet: url => url.includes('update.py') ? { ok: true, body: Buffer.from(script) } : rateLimited });
 		assert.strictEqual(fs.existsSync(cacheDir), false);
 
 		calls = 0;
@@ -178,6 +194,15 @@ suite('chromiumSource', () => {
 		assert.strictEqual(calls, CHROMIUM_BUILD_FILES.length);
 		for (const file of CHROMIUM_BUILD_FILES) {
 			assert.strictEqual(fs.readFileSync(path.join(cacheDir, '1.2.3.4', file), 'utf8'), script);
+			assert.strictEqual(fs.readFileSync(path.join(cacheDir, '1.2.3.4', `${file}.sha256`), 'utf8'), createHash('sha256').update(script).digest('hex'));
 		}
+	}));
+
+	test('prefetching leaves no cache when it can\'t write every build script', () => withTempFile(destination => {
+		const cacheDir = path.join(path.dirname(destination), 'cache');
+		fs.mkdirSync(path.join(cacheDir, '1.2.3.4', 'third_party'), { recursive: true });
+		fs.writeFileSync(path.join(cacheDir, '1.2.3.4', 'third_party', 'dpkg-shlibdeps'), 'not a folder');
+		prefetchChromiumBuildFiles({ version: '1.2.3.4', token: 'secret', cacheDir, httpGet: () => ({ ok: true, body: Buffer.from(script) }) });
+		assert.strictEqual(fs.existsSync(cacheDir), false);
 	}));
 });
