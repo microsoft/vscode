@@ -8257,6 +8257,25 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
+	test('selects Chat without remembering it until a workspace is selected', () => {
+		const storage = disposables.add(new TestStorageService());
+		providersService.setProviders([createMockProvider('local-1')]);
+		const options: IWorkspacePickerOptions = {
+			getNoWorkspaceOption: () => ({ description: 'Start without a backing workspace', isSelected: false, select: () => { } }),
+		};
+		const picker = createTestablePicker(disposables, providersService, true, options, undefined, storage);
+		picker.selectNoWorkspace(false, false);
+		const selected = picker.isNoWorkspaceSelected();
+		const remembered = createTestablePicker(disposables, providersService, true, options, undefined, storage).isNoWorkspaceSelected();
+		picker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false });
+
+		assert.deepStrictEqual({ selected, remembered, afterWorkspaceSelection: picker.isNoWorkspaceSelected() }, {
+			selected: true,
+			remembered: false,
+			afterWorkspaceSelection: false,
+		});
+	});
+
 	test('groups recent repositories below recent folders', () => {
 		const storage = disposables.add(new TestStorageService());
 		const folderUri = URI.file('/local/folder');
