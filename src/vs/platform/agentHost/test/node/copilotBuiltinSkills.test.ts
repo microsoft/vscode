@@ -83,16 +83,17 @@ suite('Copilot builtin troubleshoot skill', () => {
 			const resolved = parsed.router ? resolveModelRouter(parsed.router, models) : undefined;
 			return {
 				diagnostics: [...parsed.diagnostics, ...resolved?.diagnostics ?? []].map(diagnostic => diagnostic.message),
+				models: resolved?.routes.map(route => route.model.id),
 				// Resolving stops at a route's first model that is available, so each entry is looked up on its own.
-				models: parsed.router?.routes.map(route => route.models.map(reference => {
+				entries: parsed.router?.routes.map(route => route.models.map(reference => {
 					const found = matchModelReference(models, reference);
 					return found?.kind === 'model' ? found.model.id : found?.kind;
 				})),
 			};
 		});
 		assert.deepStrictEqual(checked, [
-			{ diagnostics: [], models: [['claude-opus-5.5', 'claude-sonnet-5.5'], ['claude-haiku-5.5'], ['gpt-6.1-sol']] },
-			{ diagnostics: [], models: [['claude-opus-5.5'], ['claude-opus-5.5'], ['claude-haiku-5.5']] },
+			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-haiku-5.5', 'gpt-6.1-sol'], entries: [['claude-opus-5.5', 'claude-sonnet-5.5'], ['claude-haiku-5.5'], ['gpt-6.1-sol']] },
+			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-opus-5.5', 'claude-haiku-5.5'], entries: [['claude-opus-5.5'], ['claude-opus-5.5'], ['claude-haiku-5.5']] },
 		]);
 	});
 
