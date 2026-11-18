@@ -11,6 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { createModelRouterModelMeta } from '../../../../../../platform/agentHost/common/modelRouter.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, withAgentModelRouterRoutesMeta, type IAgentModelAutoTierPromotion, type IAgentModelRouterRoute } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
@@ -53,23 +54,27 @@ suite('AgentHostLanguageModelProvider', () => {
 			{ keys: undefined, default: 'high', readOnly: true, managed: undefined },
 		]);
 	});
-	test('a model router\'s row carries its file and its routes, and a host that lists no routes still gets a router row', async () => {
-		const provider = createProvider();
-		const file = URI.file('/routers/daily.model-router.yaml');
-		// As it arrives over the wire.
-		const meta = (routes: readonly IAgentModelRouterRoute[]) => JSON.parse(JSON.stringify(withAgentModelRouterRoutesMeta(createModelRouterModelMeta('A router.', file), routes)));
-		provider.updateModels([
-			makeModel('model-router:daily', meta([{ name: 'build', model: 'Claude Opus 5.5', effort: 'high', contextTokens: 1_000_000 }, { model: 'Claude Haiku 5.5' }])),
-			makeModel('model-router:from-another-host', meta([])),
-			makeModel('not-a-router'),
-		]);
-		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
-		assert.deepStrictEqual(infos.map(({ metadata }) => [metadata.id, metadata.detailsResource && URI.revive(metadata.detailsResource).path, metadata.modelRouterRoutes]), [
-			['model-router:daily', file.path, [{ name: 'build', model: 'Claude Opus 5.5', effort: 'high', contextTokens: 1_000_000 }, { model: 'Claude Haiku 5.5' }]],
-			['model-router:from-another-host', file.path, []],
-			['not-a-router', undefined, undefined],
-		]);
-	});
+	for (const kind of agentHostConnectionKinds) {
+		test(`a model router's row carries its file and its routes, and a host that lists no routes still gets a router row: ${kind.name}`, async () => {
+			const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli', undefined, uri => kind.resourceUris.fromAgentHost(uri)));
+			const file = URI.file('/routers/daily.model-router.yaml');
+			// As it arrives over the wire.
+			const meta = (routes: readonly IAgentModelRouterRoute[]) => JSON.parse(JSON.stringify(withAgentModelRouterRoutesMeta(createModelRouterModelMeta('A router.', file), routes)));
+			provider.updateModels([
+				// A router is one by what its row carries, not by how this host names it.
+				makeModel('opaque-router-id', meta([{ name: 'build', model: 'Claude Opus 5.5', effort: 'high', contextTokens: 1_000_000 }, { model: 'Claude Haiku 5.5' }])),
+				makeModel('router-from-a-host-that-lists-no-routes', meta([])),
+				makeModel('not-a-router'),
+			]);
+			const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			const clientFile = kind.toClient(file).toString();
+			assert.deepStrictEqual(infos.map(({ metadata }) => [metadata.id, metadata.detailsResource && URI.revive(metadata.detailsResource).toString(), metadata.modelRouterRoutes]), [
+				['opaque-router-id', clientFile, [{ name: 'build', model: 'Claude Opus 5.5', effort: 'high', contextTokens: 1_000_000 }, { model: 'Claude Haiku 5.5' }]],
+				['router-from-a-host-that-lists-no-routes', clientFile, []],
+				['not-a-router', undefined, undefined],
+			]);
+		});
+	}
 
 	test('announces the first models, even none, and later only models that changed', () => {
 		const provider = createProvider();
