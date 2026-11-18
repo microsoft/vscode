@@ -164,8 +164,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.dispatched.push({ channel, ...action } as IDispatchedAction);
 	}
 
-	override getSubscription<T extends StateComponents>(_kind: T, _resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
-		const subscription = new class extends mock<IAgentSubscription<ComponentToState[T]>>() { };
+	/** Default chats the host advertises in session state, by backend session; drafts sync their composer to them. */
+	readonly defaultChats = new Map<string, URI>();
+
+	override getSubscription<T extends StateComponents>(_kind: T, resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
+		const defaultChat = this.defaultChats.get(resource.toString());
+		const subscription = new class extends mock<IAgentSubscription<ComponentToState[T]>>() {
+			override readonly value = (defaultChat ? { defaultChat } : undefined) as ComponentToState[T] | undefined;
+			override readonly onDidChange = Event.None;
+		};
 		this._heldSubscriptions.add(subscription);
 		return { object: subscription, dispose: () => this._heldSubscriptions.delete(subscription) };
 	}
@@ -497,6 +504,40 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			sameBackend: current?.toString() === backend?.toString(),
 		}, { created: ['gpt-6-luna'], disposed: 0, sameBackend: true });
 	});
+
+	for (const prewarm of [true, false]) {
+		test(`syncs the composer to its pre-warmed draft, but not an untouched one, and clears it when the draft graduates (prewarm=${prewarm})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await configurationService.setUserConfiguration(AgentHostPrewarmSessionsSettingId, prewarm);
+			const ui = untitledChatUri(`composer-sync-${prewarm}`);
+			const state = (inputText: string): IChatModelInputState => ({
+				inputText, attachments: [], selections: [], contrib: {}, mode: { id: 'agent', kind: ChatModeKind.Agent },
+				selectedModel: { identifier: 'gpt-6-luna', metadata: {} as ILanguageModelChatMetadata },
+			});
+			const input = observableValue<IChatModelInputState>('input', state(''));
+			changingChatInputStates.set(ui, input);
+			const created = URI.parse(`${COPILOT_CLI_AGENT_PROVIDER_ID}:/composer-sync-${prewarm}`);
+			const channel = `${created.toString()}/default-chat`;
+			agentHost.returnedSession = created;
+			agentHost.defaultChats.set(created.toString(), URI.parse(channel));
+			await provisional.getOrCreate(ui, COPILOT_CLI_AGENT_PROVIDER_ID, undefined);
+			// Untouched, the composer still matches the draft's launch.
+			await timeout(1000);
+			input.set(state('fix the build'), undefined);
+			await timeout(1000);
+			// Clearing the text again is still published.
+			input.set(state(''), undefined);
+			await timeout(1000);
+			await provisional.tryRebind(ui, ui.with({ path: '/composer-sync-real' }), COPILOT_CLI_AGENT_PROVIDER_ID);
+
+			const drafts = agentHost.dispatched.filter(action => action.type === ActionType.ChatDraftChanged).map(action => ({ channel: action.channel, draft: (action as unknown as { draft?: unknown }).draft }));
+			const draft = (text: string) => ({ text, origin: { kind: MessageKind.User }, model: { id: 'gpt-6-luna' } });
+			assert.deepStrictEqual(drafts, prewarm ? [
+				{ channel, draft: draft('fix the build') },
+				{ channel, draft: draft('') },
+				{ channel, draft: undefined },
+			] : []);
+		}));
+	}
 
 	test('a chip still showing a disposed draft does not recreate its backend', async () => {
 		// The chat view releases its old model before the widget shows the new
