@@ -1082,6 +1082,8 @@ Tool search requires the client to forward its `toolSearch` tool, which users tu
 
 The Copilot session maps `deferLoading: false` to the SDK's `defer: 'never'` and everything else to `'auto'`, matching the SDK's own default. Claude and Codex own deferral for their runtimes; the host only forwards an explicit value to Claude.
 
+A server tool can also set `deferredInputSchema`, a schema with text that only pays off once the agent loads the tool, such as `create_session`'s model catalog. The Copilot session sends it when it defers the tool, Claude when the tool sets `deferLoading: true`, and Codex never, because Codex keeps every server tool eager. It is never published to clients.
+
 ### Guardrails that fail a PR
 
 These tests pin the budget. A PR that changes any of them must say why in its description, and a reviewer should treat an unexplained baseline update as a defect.

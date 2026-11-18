@@ -243,6 +243,19 @@ function getClientToolSdkPolicy(tool: ToolDefinition | undefined): IClientToolSd
 		: DEFAULT_CLIENT_TOOL_SDK_POLICY;
 }
 
+/**
+ * How a server tool loads: deferred behind tool search unless it sets `deferLoading: false` or tool search is off, and
+ * then advertised with its deferred-only schema.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getServerSdkToolLoading(def: IAgentServerToolDefinition, toolSearchActive: boolean): Pick<Tool<any>, 'parameters' | 'defer'> {
+	const deferred = def.deferLoading !== false && toolSearchActive;
+	return {
+		parameters: (deferred ? def.deferredInputSchema : undefined) ?? def.inputSchema ?? { type: 'object', properties: {} },
+		defer: deferred ? 'auto' : 'never',
+	};
+}
+
 interface CopilotExitPlanModeResponse extends ExitPlanModeResult {
 	readonly autoApproveEdits?: ExitPlanModeCompletedData['autoApproveEdits'];
 }
@@ -5013,8 +5026,7 @@ export class CopilotAgentSession extends Disposable {
 		return this._getServerToolDefinitions().map(def => ({
 			name: def.name,
 			description: def.description ?? '',
-			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
-			defer: def.deferLoading !== false && toolSearchActive ? 'auto' as const : 'never' as const,
+			...getServerSdkToolLoading(def, toolSearchActive),
 			handler: async (args: Record<string, unknown>, invocation: ToolInvocation): Promise<ToolResultObject> => {
 				try {
 					// Native SDK workers inherit tools but invocation payloads omit their agent identity.

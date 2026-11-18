@@ -297,7 +297,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	}
 
 	private _toProtocolDefinitions(definitions: readonly IAgentServerToolDefinition[]): ToolDefinition[] {
-		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, topLevelChatOnly: _topLevelChatOnly, deferLoading: _deferLoading, ...definition }) => definition);
+		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, topLevelChatOnly: _topLevelChatOnly, deferLoading: _deferLoading, deferredInputSchema: _deferredInputSchema, ...definition }) => definition);
 	}
 
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {
