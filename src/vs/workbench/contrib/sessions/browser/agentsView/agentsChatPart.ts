@@ -84,6 +84,8 @@ export interface IAgentsChatPartOpenOptions {
 	readonly restore?: boolean;
 	/** Shows the chat as the session that its first send created, not one the user opens (see `IChatViewHostOpenOptions.commit`). */
 	readonly commit?: boolean;
+	/** Shows the chat as one the user opens where the window's folder stays (see `IChatViewHostOpenOptions.keepFolder`). */
+	readonly keepFolder?: boolean;
 }
 
 export const IAgentsChatPartService = createDecorator<IAgentsChatPartService>('agentsChatPartService');
