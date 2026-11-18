@@ -33,7 +33,7 @@ suite('ChatDailyUsageContribution', () => {
 		const entitlementChanged = disposables.add(new Emitter<void>());
 		const lifecycle = disposables.add(new TestLifecycleService());
 		lifecycle.usePhases = true;
-		const state = { hasFocus: true, entitlement: ChatEntitlement.Pro };
+		const state = { hasFocus: true, entitlement: ChatEntitlement.Pro, aiHidden: false };
 		const events: object[] = [];
 		const contribution = disposables.add(new ChatDailyUsageContribution(
 			upcastPartial<IChatService>({ onDidAcceptRequest: requests.event }),
@@ -41,12 +41,12 @@ suite('ChatDailyUsageContribution', () => {
 			upcastPartial<ITelemetryService>({ publicLog2: (eventName: string, data?: object) => { events.push({ eventName, ...data }); } }),
 			upcastPartial<IHostService>({ get hasFocus() { return state.hasFocus; }, onDidChangeFocus: focus.event }),
 			lifecycle,
-			upcastPartial<IChatEntitlementService>({ get entitlement() { return state.entitlement; }, onDidChangeEntitlement: entitlementChanged.event }),
+			upcastPartial<IChatEntitlementService>({ get entitlement() { return state.entitlement; }, get sentiment() { return { hidden: state.aiHidden }; }, onDidChangeEntitlement: entitlementChanged.event }),
 		));
 		return { contribution, storage, requests, focus, entitlementChanged, lifecycle, state, events };
 	}
 
-	test('reports once per UTC day after startup from a focused window of a user with a Copilot plan', () => runWithFakedTimers({ useFakeTimers: true, startTime: 10 * day + 22 * hour }, async () => {
+	test('reports once per UTC day after startup from a focused window of a user with a Copilot plan, even with AI features disabled', () => runWithFakedTimers({ useFakeTimers: true, startTime: 10 * day + 22 * hour }, async () => {
 		const { contribution, requests, focus, entitlementChanged, lifecycle, state, events } = createContribution();
 		const chatSessionResource = URI.parse('local:/session');
 		requests.fire({ chatSessionResource, isNewSession: true });
@@ -67,6 +67,7 @@ suite('ChatDailyUsageContribution', () => {
 		entitlementChanged.fire();
 		focus.fire(true);
 		state.entitlement = ChatEntitlement.Free;
+		state.aiHidden = true;
 		entitlementChanged.fire();
 		// Hourly checks at 23:00 and 00:00 UTC; only the new day reports.
 		await timeout(2.5 * hour);
@@ -76,8 +77,8 @@ suite('ChatDailyUsageContribution', () => {
 			unfocused: 0,
 			withoutPlan: 0,
 			events: [
-				{ eventName: 'chatDailyUsage', plan: 'Pro', messagesLast7Days: 2, messagesLast30Days: 2, messagesTotal: 2, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 1, minutesSinceLastMessage: 0, trackedDays: 0 },
-				{ eventName: 'chatDailyUsage', plan: 'Free', messagesLast7Days: 2, messagesLast30Days: 2, messagesTotal: 2, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 1, minutesSinceLastMessage: 120, trackedDays: 1 },
+				{ eventName: 'chatDailyUsage', plan: 'Pro', aiFeaturesDisabled: false, messagesLast7Days: 2, messagesLast30Days: 2, messagesTotal: 2, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 1, activeDaysLast7Days: 1, activeDaysLast30Days: 1, activeDaysTotal: 1, minutesSinceLastMessage: 0, trackedDays: 0 },
+				{ eventName: 'chatDailyUsage', plan: 'Free', aiFeaturesDisabled: true, messagesLast7Days: 2, messagesLast30Days: 2, messagesTotal: 2, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 1, activeDaysLast7Days: 1, activeDaysLast30Days: 1, activeDaysTotal: 1, minutesSinceLastMessage: 120, trackedDays: 1 },
 			],
 		});
 	}));

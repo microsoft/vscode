@@ -18,20 +18,25 @@ import { ChatDailyUsage, IChatDailyUsageTelemetry } from '../common/chatDailyUsa
 
 type ChatDailyUsageEvent = IChatDailyUsageTelemetry & {
 	readonly plan: string;
+	readonly aiFeaturesDisabled: boolean;
 };
 
 type ChatDailyUsageClassification = {
 	plan: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot plan of the signed-in user as a ChatEntitlement name, e.g. Free, Pro or Business.' };
+	aiFeaturesDisabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether built-in AI features are disabled and hidden in the window that sent this event, e.g. by the chat.disableAIFeatures setting or an account policy. Same as chatHidden in chatEntitlements. The setting can differ per workspace.' };
 	messagesLast7Days: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Chat messages the user sent on this machine during the current and previous 6 UTC days.' };
 	messagesLast30Days: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Chat messages the user sent on this machine during the current and previous 29 UTC days.' };
 	messagesTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Chat messages the user sent on this machine. Starts from editor chat messages and Agents Window session starts recorded before tracking began, so it is a lower bound.' };
 	sessionsLast7Days: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Chats and sessions the user started on this machine, by sending their first message, during the current and previous 6 UTC days.' };
 	sessionsLast30Days: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Chats and sessions the user started on this machine, by sending their first message, during the current and previous 29 UTC days.' };
 	sessionsTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Chats and sessions the user started on this machine. Starts from editor chat and Agents Window sessions recorded before tracking began.' };
+	activeDaysLast7Days: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'UTC days, among the current and previous 6, on which the user sent at least one chat message on this machine.' };
+	activeDaysLast30Days: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'UTC days, among the current and previous 29, on which the user sent at least one chat message on this machine.' };
+	activeDaysTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'UTC days on which the user sent at least one chat message on this machine since it started recording daily chat usage. Unlike the message and session totals, it does not include usage from before tracking began.' };
 	minutesSinceLastMessage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Minutes since the user last sent a chat message on this machine. Includes editor chat messages and Agents Window session starts recorded before this event existed. Absent when no usage was recorded.' };
 	trackedDays: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'UTC days since this machine started recording daily chat usage, capped at 30. The 7 and 30 day counts cover all of their days once this reaches 7 and 30.' };
 	owner: 'benibenj';
-	comment: 'Daily summary of chat messages and new chats or sessions across all windows on this machine, sent at most once per UTC day for users with a Copilot plan.';
+	comment: 'Daily summary of chat messages, active days and new chats or sessions across all windows on this machine, sent at most once per UTC day for users with a Copilot plan, including users who disabled AI features.';
 };
 
 const reportCheckInterval = 60 * 60 * 1000;
@@ -65,13 +70,14 @@ export class ChatDailyUsageContribution extends Disposable implements IWorkbench
 		let startupCompleted = false;
 		const report = async () => {
 			const entitlement = chatEntitlementService.entitlement;
+			const aiFeaturesDisabled = chatEntitlementService.sentiment.hidden === true;
 			// Only a focused window tries to claim the day's report, and the atomic claim lets at most one window send it.
 			if (!startupCompleted || !hostService.hasFocus || !hasCopilotPlan(entitlement)) {
 				return;
 			}
 			const telemetry = await usage.takeDailyReport();
 			if (telemetry) {
-				telemetryService.publicLog2<ChatDailyUsageEvent, ChatDailyUsageClassification>('chatDailyUsage', { plan: ChatEntitlement[entitlement], ...telemetry });
+				telemetryService.publicLog2<ChatDailyUsageEvent, ChatDailyUsageClassification>('chatDailyUsage', { plan: ChatEntitlement[entitlement], aiFeaturesDisabled, ...telemetry });
 			}
 		};
 		const reportIfDue = () => {
