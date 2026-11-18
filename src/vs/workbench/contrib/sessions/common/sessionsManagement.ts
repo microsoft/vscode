@@ -9,12 +9,14 @@ import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from 
 import { DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IChatSessionItemArchiveState } from '../../chat/common/chatSessionsService.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { IExtUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, type ISessionReplacedEvent, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions, ISessionDraftConfiguration } from './sessionsProvider.js';
 
 export interface IManagedSessionWorktree extends IAgentHostManagedWorktree {
@@ -160,6 +162,27 @@ export interface ICreateNewChatInSessionOptions extends ICreateNewChatOptions {
 	readonly forceNew?: boolean;
 }
 
+/**
+ * The chat of `session` that `resource` names: one of its chats or its main chat, also by a former resource of the session
+ * (`previousIdentities`), which names its main chat, or with a fragment its chat of that fragment. Reads the session's chats
+ * through `reader`, so that a caller follows them.
+ */
+export function getSessionChatOfResource(session: ISession, resource: URI, extUri: IExtUri, reader?: IReader): IChat | undefined {
+	const chats = session.chats.read(reader);
+	const chat = chats.find(candidate => extUri.isEqual(candidate.resource, resource));
+	if (chat) {
+		return chat;
+	}
+	const mainChat = session.mainChat.read(reader);
+	if (extUri.isEqual(mainChat.resource, resource)) {
+		return mainChat;
+	}
+	if (session.previousIdentities?.some(previous => extUri.isEqual(previous.resource, resource.with({ fragment: '' })))) {
+		return resource.fragment ? chats.find(candidate => candidate.resource.fragment === resource.fragment) : mainChat;
+	}
+	return undefined;
+}
+
 /** A change of one session: see {@link ISessionsManagementService.onDidChangeSession}. */
 export interface ISessionChange {
 	readonly session: ISession;
@@ -282,9 +305,9 @@ export interface ISessionsManagementService {
 
 	/**
 	 * The sessions the providers list, within their listing scope: without those a provider's listing scope hides, such as
-	 * the sessions of other folders in an editor window.
+	 * the sessions of other folders in an editor window. `includeHidden` includes those sessions for cross-workspace maintenance.
 	 */
-	getSessions(): ISession[];
+	getSessions(options?: { readonly includeHidden?: boolean }): ISession[];
 
 
 	/**
@@ -655,6 +678,7 @@ export interface ISessionsManagementService {
 	sessionWorktreeExists?(session: ISession, token?: CancellationToken): Promise<boolean | undefined>;
 
 	/** Reports cleanup status, optionally retrying removal without restoring or deleting session history. */
+	canCleanupWorktree?(owner: ISession | IManagedSessionWorktree): boolean;
 	canForceWorktreeCleanup?(owner: ISession | IManagedSessionWorktree): boolean;
 	sessionWorktreeCleanup?(session: ISession, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	prepareSessionWorktreeCleanup(session: ISession): Promise<void>;
@@ -742,7 +766,7 @@ export interface ISessionsManagementService {
 	listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
-	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
+	openCanvas(session: ISession, chat: IChat, canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 
 	/** Close one live canvas of a chat through its owning provider, notifying the extension that provides it. */
 	closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void>;

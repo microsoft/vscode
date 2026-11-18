@@ -6,7 +6,6 @@
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-// eslint-disable-next-line local/code-translation-remind -- Experimental entry is excluded from production translation resources.
 import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostOutputChannel } from '../../../../workbench/contrib/terminal/browser/agentHostOutputChannel.js';

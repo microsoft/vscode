@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcesChangeEvent, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcesChangeEvent, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -87,6 +87,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		browseSections?: ICustomizationMarketplaceBrowseSections | Promise<ICustomizationMarketplaceBrowseSections>,
 		sourcePreviews: Readonly<Record<string, readonly ICustomizationMarketplaceResource[] | Promise<readonly ICustomizationMarketplaceResource[]>>> = {},
 		providerItems: readonly ICustomizationItem[] = [],
+		marketplaceSources: readonly ICustomizationMarketplaceSourceInfo[] = sources,
 	) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
@@ -95,7 +96,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		const configuration = new TestConfigurationService({
 			'workbench.list.smoothScrolling': false,
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
-			...Object.fromEntries(sources
+			...Object.fromEntries(marketplaceSources
 				.filter(source => !source.id.startsWith(`${CustomizationMarketplaceSources.PluginMarketplaces.id}.`))
 				.map(source => [source.enablementSetting, enabledSources.includes(source.id)])),
 		});
@@ -166,8 +167,8 @@ suite('AICustomizationDiscoveryPage', () => {
 			}
 		}());
 		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
-			override readonly sources = sources;
-			override readonly allSources = sources;
+			override readonly sources = marketplaceSources;
+			override readonly allSources = marketplaceSources;
 			override readonly onDidChangeSources = marketplaceChanges.event;
 			override getSourceRecoveryAction(sourceId: string) { return recoveryActions.get(sourceId); }
 			override async getBrowseSections(_options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, _token: CancellationToken, onProgress?: (progress: ICustomizationMarketplaceBrowseSectionsProgress) => void) {
@@ -3824,6 +3825,37 @@ suite('AICustomizationDiscoveryPage', () => {
 			restored: ['editorial-item'],
 			accessible: false,
 			requests: 2,
+		});
+	});
+
+	test('marks a marketplace from a GitHub Team on its shelf, in the source menu, and in the accessible view', async () => {
+		const fixture = createPage(
+			['agentFinder', 'other'],
+			[AICustomizationManagementSection.McpServers],
+			[],
+			undefined,
+			[],
+			{ sourceId: 'agentFinder', sections: [{ id: 'editorial', title: 'Editorial', items: [resource('editorial-item')] }] },
+			{ other: [resource('team-item', { sourceId: 'other' })] },
+			[],
+			[CustomizationMarketplaceSources.AgentFinderPublicFeed, { ...secondSource, teamProvided: true }],
+		);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+
+		const tags = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-section')].map(section => {
+			const tag = section.querySelector<HTMLElement>('.customization-discovery-section-header > .team-provided-tag');
+			return [section.querySelector('.customization-discovery-section-title')?.textContent, tag?.textContent, tag && fixture.getHoverContent(tag)];
+		});
+		assert.deepStrictEqual({
+			tags,
+			sourceMenu: fixture.getSourceActions().map(action => action.label).filter(Boolean),
+			accessible: fixture.page.getAccessibilityContent().match(/^.*Other Feed.*$/gm),
+		}, {
+			tags: [['Editorial', undefined, null], ['Other Feed', 'Managed by your GitHub Team', 'Provided by your GitHub Team.']],
+			sourceMenu: ['All Sources', 'GitHub Feed', 'Other Feed (Managed by GitHub Team)', 'Configure Marketplaces'],
+			accessible: ['Other Feed (Managed by GitHub Team)', 'View all customizations from Other Feed.', 'MCP server · Other Feed · Available'],
 		});
 	});
 

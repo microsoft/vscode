@@ -23,7 +23,7 @@ import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -41,13 +41,13 @@ import { ICustomizationItemConfig, readCustomizationCount, CUSTOMIZATION_ITEMS }
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatCustomizationsLocation, ChatCustomizationsLocationContext, resolveChatCustomizationsLocation } from '../../../../workbench/contrib/chat/common/customizationsLocation.js';
-import { SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SessionsSidebarCustomizationsCategories } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ChatCustomizationsActionViewItem, ChatCustomizationsHover } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsHover.js';
 import { observeVisibleSectionBadge, observeVisibleSectionsBadge } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationSectionBadges.js';
 import { ChatCustomizationsTelemetry } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
 import { ICustomizationMigrationService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { getIgnoredCustomizationMigrationGroups } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -79,6 +79,21 @@ const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
 	label: localize('overview', "Overview"),
 	icon: Codicon.home,
 };
+
+const CUSTOMIZATIONS_REDUCED = ContextKeyExpr.equals(`config.${SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING}`, SessionsSidebarCustomizationsCategories.Reduced);
+
+/** Whether the reduced Customizations section shows the categories that it hides by default. */
+const CUSTOMIZATIONS_SHOW_MORE_STORAGE_KEY = 'agentSessions.customizationsShortcuts.showMore';
+const CustomizationsShowMoreContext = new RawContextKey<boolean>('sessionsCustomizationsShowMore', false);
+/** Whether any of the categories that the reduced Customizations section hides by default is available. */
+const CustomizationsMoreAvailableContext = new RawContextKey<boolean>('sessionsCustomizationsMoreAvailable', false);
+
+export const SHOW_MORE_CUSTOMIZATIONS_COMMAND_ID = 'sessions.customizations.showMore';
+export const SHOW_LESS_CUSTOMIZATIONS_COMMAND_ID = 'sessions.customizations.showLess';
+
+// More shows the categories after those that the reduced section always shows, followed by Less.
+const MORE_CUSTOMIZATIONS_ORDER = CUSTOMIZATION_ITEMS.length + 1;
+const SHOW_MORE_OR_LESS_ORDER = 2 * MORE_CUSTOMIZATIONS_ORDER;
 
 async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, workspaceService: IAICustomizationWorkspaceService, options?: IOpenAICustomizationsCommandOptions, targetSession?: ISession, targetResource?: URI): Promise<void> {
 	const session = targetSession ?? (targetResource ? undefined : focusedSessionHostService.focusedHost.get().session.get());
@@ -134,7 +149,7 @@ async function openCustomizationSectionPage(editorService: IEditorService, harne
 export class CustomizationLinkViewItem extends BaseActionViewItem {
 
 	private readonly _viewItemDisposables: DisposableStore;
-	private _button: Button | undefined;
+	protected _button: Button | undefined;
 	private _countContainer: HTMLElement | undefined;
 
 	constructor(
@@ -146,7 +161,7 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super(undefined, action, options);
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -154,6 +169,28 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 
 	protected override getTooltip(): string | undefined {
 		return undefined;
+	}
+
+	/**
+	 * The categories whose customizations the item counts.
+	 */
+	protected getCountedConfigs(): readonly ICustomizationItemConfig[] {
+		return [this._config];
+	}
+
+	/**
+	 * The description of the item's suggestion badge while it has one.
+	 */
+	protected observeBadge(): IObservable<string | undefined> | undefined {
+		const section = this._config.section;
+		return section && this.instantiationService.invokeFunction(accessor => observeVisibleSectionBadge(accessor, section));
+	}
+
+	protected onButtonClick(): void {
+		if (this._config.id === CUSTOMIZATION_OVERVIEW_ITEM.id) {
+			this.instantiationService.createInstance(ChatCustomizationsTelemetry).logInteraction('buttonClicked', 'sidebar');
+		}
+		this.actionRunner.run(this._action, this._context);
 	}
 
 	override render(container: HTMLElement): void {
@@ -177,30 +214,29 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 		this._button.label = `$(${this._config.icon.id}) ${this._config.label}`;
 		this.updateEnabled();
 
-		this._viewItemDisposables.add(this._button.onDidClick(() => {
-			if (this._config.id === CUSTOMIZATION_OVERVIEW_ITEM.id) {
-				this.instantiationService.createInstance(ChatCustomizationsTelemetry).logInteraction('buttonClicked', 'sidebar');
-			}
-			this.actionRunner.run(this._action, this._context);
-		}));
+		this._viewItemDisposables.add(this._button.onDidClick(() => this.onButtonClick()));
 
 		// Count container (inside button, floating right)
 		this._countContainer = append(this._button.element, $('span.customization-link-counts'));
 
+		const countedConfigs = this.getCountedConfigs();
 		this._viewItemDisposables.add(autorun(reader => {
-			const count = readCustomizationCount(this._config, reader, this._itemsModel, this._mcpServerCountService, this._toolsService, this._toolEnablementService);
+			let count = 0;
+			for (const config of countedConfigs) {
+				count += readCustomizationCount(config, reader, this._itemsModel, this._mcpServerCountService, this._toolsService, this._toolEnablementService);
+			}
 			if (this._countContainer) {
 				this._renderTotalCount(this._countContainer, count);
 			}
 		}));
 
-		if (this._config.section) {
-			this._renderSectionBadge(this._button, this._config.section);
+		const badge = this.observeBadge();
+		if (badge) {
+			this._renderBadge(this._button, badge);
 		}
 	}
 
-	private _renderSectionBadge(button: Button, section: AICustomizationManagementSection): void {
-		const description = this.instantiationService.invokeFunction(accessor => observeVisibleSectionBadge(accessor, section));
+	private _renderBadge(button: Button, description: IObservable<string | undefined>): void {
 		const badge = append(button.element, $('span.ai-customization-suggestion-badge.hidden', { role: 'img' }));
 		this._viewItemDisposables.add(autorun(reader => {
 			const content = description.read(reader);
@@ -254,6 +290,46 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 	}
 }
 
+/**
+ * The More or Less row of the reduced Customizations section, which shows or hides in place the categories that the
+ * section hides by default. More counts the customizations of those that are available, and shows the badge of the
+ * first of them that has one.
+ */
+export class CustomizationsMoreViewItem extends CustomizationLinkViewItem {
+
+	constructor(
+		action: IAction,
+		options: IBaseActionViewItemOptions,
+		private readonly _expanded: boolean,
+		private readonly _moreConfigs: readonly ICustomizationItemConfig[],
+		@IAICustomizationItemsModel itemsModel: IAICustomizationItemsModel,
+		@IAICustomizationMcpServerCountService mcpServerCountService: IAICustomizationMcpServerCountService,
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@IAgentHostToolSetEnablementService toolEnablementService: IAgentHostToolSetEnablementService,
+		@IHoverService hoverService: IHoverService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(action, options, { id: action.id, label: action.label, icon: _expanded ? Codicon.chevronUp : Codicon.ellipsis }, itemsModel, mcpServerCountService, toolsService, toolEnablementService, hoverService, instantiationService);
+	}
+
+	protected override getCountedConfigs(): readonly ICustomizationItemConfig[] {
+		return this._expanded ? [] : this._moreConfigs;
+	}
+
+	protected override observeBadge(): IObservable<string | undefined> | undefined {
+		if (this._expanded) {
+			return undefined;
+		}
+		const sections = new Set(this._moreConfigs.flatMap(config => config.section ? [config.section] : []));
+		return this.instantiationService.invokeFunction(accessor => observeVisibleSectionsBadge(accessor, sections));
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this._button?.element.setAttribute('aria-expanded', String(this._expanded));
+	}
+}
+
 class SessionsCustomizationsActionViewItemFactory {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -280,6 +356,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
@@ -392,6 +469,48 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, CUSTOMIZATION_OVERVIEW_ITEM);
 		}, undefined));
 
+		// More and Less show and hide in place the categories that the reduced section hides by default, and the
+		// section remembers which of them was used last.
+		const moreItems = CUSTOMIZATION_ITEMS.flatMap(config => config.section && !config.showWhenReduced ? [{ config, when: customizationItemWhen(config, config.section) }] : []);
+		const moreAvailable = CustomizationsMoreAvailableContext.bindTo(contextKeyService);
+		const moreAvailableKeys = new Set(moreItems.flatMap(item => item.when?.keys() ?? []));
+		const updateMoreAvailable = () => moreAvailable.set(moreItems.some(item => contextKeyService.contextMatchesRules(item.when)));
+		updateMoreAvailable();
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(moreAvailableKeys)) {
+				updateMoreAvailable();
+			}
+		}));
+		const showMore = CustomizationsShowMoreContext.bindTo(contextKeyService);
+		const updateShowMore = () => showMore.set(storageService.getBoolean(CUSTOMIZATIONS_SHOW_MORE_STORAGE_KEY, StorageScope.PROFILE, false));
+		updateShowMore();
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, CUSTOMIZATIONS_SHOW_MORE_STORAGE_KEY, this._store)(updateShowMore));
+		for (const expanded of [false, true]) {
+			const id = expanded ? SHOW_LESS_CUSTOMIZATIONS_COMMAND_ID : SHOW_MORE_CUSTOMIZATIONS_COMMAND_ID;
+			this._register(actionViewItemService.register(Menus.SidebarCustomizations, id, (action, options) => instantiationService.createInstance(
+				CustomizationsMoreViewItem, action, options, expanded,
+				moreItems.filter(item => contextKeyService.contextMatchesRules(item.when)).map(item => item.config),
+			), undefined));
+			this._register(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id,
+						title: expanded ? localize('lessCustomizations', "Less") : localize('moreCustomizations', "More"),
+						precondition: ChatContextKeys.enabled,
+						menu: {
+							id: Menus.SidebarCustomizations,
+							group: 'navigation',
+							order: SHOW_MORE_OR_LESS_ORDER,
+							when: ContextKeyExpr.and(ChatContextKeys.enabled, CUSTOMIZATIONS_REDUCED, CustomizationsMoreAvailableContext, expanded ? CustomizationsShowMoreContext : CustomizationsShowMoreContext.negate()),
+						},
+					});
+				}
+				run(accessor: ServicesAccessor): void {
+					accessor.get(IStorageService).store(CUSTOMIZATIONS_SHOW_MORE_STORAGE_KEY, !expanded, StorageScope.PROFILE, StorageTarget.USER);
+				}
+			}));
+		}
+
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -432,12 +551,13 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {
 				constructor() {
-					const menu = {
-						id: Menus.SidebarCustomizations,
-						group: 'navigation',
-						order: index + 1,
-						when: combinedWhen,
-					};
+					const order = index + 1;
+					const menu = config.showWhenReduced
+						? { id: Menus.SidebarCustomizations, group: 'navigation', order, when: combinedWhen }
+						: [
+							{ id: Menus.SidebarCustomizations, group: 'navigation', order, when: ContextKeyExpr.and(combinedWhen, CUSTOMIZATIONS_REDUCED.negate()) },
+							{ id: Menus.SidebarCustomizations, group: 'navigation', order: MORE_CUSTOMIZATIONS_ORDER + order, when: ContextKeyExpr.and(combinedWhen, CUSTOMIZATIONS_REDUCED, CustomizationsShowMoreContext) },
+						];
 					super(config.command ? {
 						id: config.id,
 						title: config.command.title,

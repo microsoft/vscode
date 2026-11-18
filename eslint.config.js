@@ -2013,6 +2013,7 @@ export default [
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~', // the sessions providers of editor windows (see IEditorWindowSessionsRuntime)
 						'vs/workbench/contrib/terminal/terminal.all.js',
 						'vs/sessions/sessions.core.main.js',
 					]
@@ -2906,7 +2907,6 @@ export default [
 			'extensions/copilot/src/platform/parser/node/parserWorker.ts',
 			'extensions/copilot/src/platform/parser/node/treeSitterQueries.ts',
 			'extensions/copilot/src/platform/remoteCodeSearch/common/githubCodeSearchService.ts',
-			'extensions/copilot/src/platform/remoteSearch/node/codeOrDocsSearchClientImpl.ts',
 			'extensions/copilot/src/platform/review/vscode/reviewServiceImpl.ts',
 			'extensions/copilot/src/platform/scopeSelection/vscode-node/scopeSelectionImpl.ts',
 			'extensions/copilot/src/platform/snippy/common/snippyTypes.ts',

@@ -39,6 +39,18 @@ export interface IAgentHostInternalTelemetryContext {
 	readonly isVscodeTeamMember: boolean;
 }
 
+/** The Copilot account that attributes and routes one GH standard telemetry event. */
+export interface IAgentHostGitHubTelemetryContext {
+	readonly trackingId: string | undefined;
+	/** The account's telemetry POST URL; `undefined` uses the dotcom default. */
+	readonly telemetryEndpoint: string | undefined;
+}
+
+/** Converts a CAPI `endpoints.telemetry` base URL into the telemetry POST URL. */
+export function toRestrictedTelemetryEndpoint(endpoint: string | undefined): string | undefined {
+	return endpoint ? `${endpoint.replace(/\/+$/, '')}/telemetry` : undefined;
+}
+
 export interface IAgentHostRestrictedTelemetryContext extends IAgentHostInternalTelemetryContext {
 	readonly restrictedTelemetryEnabled: boolean;
 	readonly telemetryEndpoint: string | undefined;
@@ -125,6 +137,8 @@ export async function multiplexProperties(properties: TelemetryProps): Promise<T
 export interface IAgentHostRestrictedTelemetry {
 	/** GH standard (non-restricted) telemetry -> `copilot_v0_copilot_event`. */
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
+	/** GH standard telemetry attributed and routed using the account of the credential that did the work. */
+	sendGHTelemetryEventForContext(context: IAgentHostGitHubTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
 	/** GH enhanced/restricted telemetry (prompts, tools, etc.) -> `copilot_v0_restricted_copilot_event`. */
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
 	/** GH enhanced telemetry attributed and routed using an immutable per-session context. */
@@ -182,6 +196,13 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this._post(GH_STANDARD_IKEY, eventName, properties, measurements);
+	}
+
+	sendGHTelemetryEventForContext(context: IAgentHostGitHubTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this._post(GH_STANDARD_IKEY, eventName, properties, measurements, {
+			endpointUrl: context.telemetryEndpoint,
+			trackingId: context.trackingId,
+		});
 	}
 
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {

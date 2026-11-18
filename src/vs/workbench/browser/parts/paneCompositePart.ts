@@ -366,6 +366,19 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			}
 		));
 
+		// The separator after the composite's actions separates them from the part's, so it shows only while the part has
+		// any (see `no-global-actions` in paneCompositePart.css). Hidden, it takes no width, which the overflow follows.
+		const globalToolBar = this.globalToolBar;
+		const updateGlobalActions = () => {
+			const empty = globalToolBar.isEmpty();
+			if (titleArea.classList.contains('no-global-actions') !== empty) {
+				titleArea.classList.toggle('no-global-actions', empty);
+				this.toolBar?.relayout();
+			}
+		};
+		updateGlobalActions();
+		this._register(globalToolBar.onDidChangeMenuItems(updateGlobalActions));
+
 		return titleArea;
 	}
 

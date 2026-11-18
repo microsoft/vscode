@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { alert } from '../../base/browser/ui/aria/aria.js';
-import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
+import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension, isHTMLElement } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
@@ -27,7 +27,7 @@ import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
 import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
-import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
+import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing, GridBranchNode, GridNode, isGridBranchNode } from '../../base/browser/ui/grid/grid.js';
 import { Part, relayoutWorkbenchParts, updateSashEndpoints } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
 import { IFileService } from '../../platform/files/common/files.js';
@@ -42,7 +42,8 @@ import { isHighContrast } from '../../platform/theme/common/theme.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
 import { LineNumbersType } from '../../editor/common/config/editorOptions.js';
 import { URI } from '../../base/common/uri.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../common/views.js';
+import { IViewDescriptorService, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions } from '../common/views.js';
+import { Registry } from '../../platform/registry/common/platform.js';
 import { DiffEditorInput } from '../common/editor/diffEditorInput.js';
 import { mark } from '../../base/common/performance.js';
 import { IExtensionService } from '../services/extensions/common/extensions.js';
@@ -206,11 +207,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidChangePartVisibility = this._register(new Emitter<IPartVisibilityChangeEvent>());
 	readonly onDidChangePartVisibility = this._onDidChangePartVisibility.event;
 
+	private readonly _onDidChangeChatPartVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeChatPartVisibility = this._onDidChangeChatPartVisibility.event;
+
 	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeNotificationsVisibility = this._onDidChangeNotificationsVisibility.event;
 
 	private readonly _onDidChangeAuxiliaryBarMaximized = this._register(new Emitter<void>());
 	readonly onDidChangeAuxiliaryBarMaximized = this._onDidChangeAuxiliaryBarMaximized.event;
+
+	private readonly _onDidChangeAuxiliaryBarMaximizeHidden = this._register(new Emitter<boolean>());
+	readonly onDidChangeAuxiliaryBarMaximizeHidden = this._onDidChangeAuxiliaryBarMaximizeHidden.event;
+
+	private auxiliaryBarMaximizeHiddenClaims = 0;
 
 	private readonly _onDidLayoutMainContainer = this._register(new Emitter<IDimension>());
 	readonly onDidLayoutMainContainer = this._onDidLayoutMainContainer.event;
@@ -322,9 +331,25 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	/** The chat part beside the editor, while a feature registered one as the window started (see {@link registerPart}). */
 	private chatPartView: ISerializableView | undefined;
-	private chatPartHidden = true;
+	private _chatPartHidden = true;
+	/** Whether the chat part is hidden, by the user or by the layout. Every change goes through this setter, which fires the event once per change. */
+	private get chatPartHidden(): boolean {
+		return this._chatPartHidden;
+	}
+	private set chatPartHidden(hidden: boolean) {
+		if (this._chatPartHidden !== hidden) {
+			this._chatPartHidden = hidden;
+			this._onDidChangeChatPartVisibility.fire(!hidden);
+		}
+	}
 	/** Whether the layout hid the chat part, such as for a maximized panel, and shows it again with the editor. */
 	private chatPartHiddenByLayout = false;
+	/** The view the chat part docks beside (see {@link setChatPartAnchor}). */
+	private chatPartAnchor: { readonly viewId: string } | undefined;
+	/** Follows {@link chatPartAnchor} while there is one. */
+	private readonly chatPartAnchorListener = this._register(new MutableDisposable());
+	/** The side of the editor the chat part is on in the grid, once there is one. */
+	private chatPartPosition: Position.LEFT | Position.RIGHT | undefined;
 
 	private environmentService!: IBrowserWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
@@ -411,6 +436,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.isVisible(Parts.EDITOR_PART, mainWindow) ||		// already visible
 				this.mainPartEditorService.visibleEditors.length === 0	// no editor to show
 			) {
+				return;
+			}
+
+			// Hidden for the chat part, opening an editor only shows the editor area again
+			if (this.isEditorHiddenByChat()) {
+				// An editor that opens in the background does not unmaximize a secondary side bar that the user chose
+				if (!(explicitUserAction === false && this.isAuxiliaryBarMaximized())) {
+					this.setEditorHiddenByChat(false);
+				}
 				return;
 			}
 
@@ -1477,6 +1511,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.focusPart(Parts.PANEL_PART);
 		} else if (this.isAuxiliaryBarMaximized() && this.mainContainer === this.activeContainer) {
 			this.focusPart(Parts.AUXILIARYBAR_PART);
+		} else if (this.isEditorHiddenByChat() && this.isVisible(Parts.CHAT_PART) && this.mainContainer === this.activeContainer) {
+			this.focusPart(Parts.CHAT_PART);
 		} else {
 			this.focusPart(Parts.EDITOR_PART, getWindow(this.activeContainer));
 		}
@@ -1994,7 +2030,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setEditorHidden(hidden: boolean): void {
 		if (!hidden && this.setAuxiliaryBarMaximized(false) && this.isVisible(Parts.EDITOR_PART)) {
+			this.clearEditorHiddenByChat();
 			return; // return: leaving maximised auxiliary bar made this part visible
+		}
+
+		// Showing the editor area, for whatever reason, ends hiding it for the chat part. The chat part keeps its priority
+		// until the editor area is back in the grid, so that the editor takes its width from the chat part, not from its neighbors.
+		const endsHiddenByChat = !hidden && this.isEditorHiddenByChat();
+		if (endsHiddenByChat) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
 		}
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, hidden);
@@ -2008,6 +2052,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
+		if (endsHiddenByChat) {
+			const chatPart = this.getChatHostPart();
+			if (chatPart) {
+				chatPart.fillsEditorArea = false;
+			}
+		}
 
 		// The editor and panel cannot be hidden at the same time
 		// unless we have a maximized auxiliary bar or a chat part shows
@@ -2259,7 +2309,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (focusEditor) {
-			this.editorGroupService.mainPart.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
+			if (this.isEditorHiddenByChat() && this.isVisible(Parts.CHAT_PART)) {
+				this.focusPart(Parts.CHAT_PART); // The editor is hidden, the chat part has its area
+			} else {
+				this.editorGroupService.mainPart.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
+			}
 		}
 	}
 
@@ -2271,6 +2325,27 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	toggleMaximizedAuxiliaryBar(): void {
 		this.setAuxiliaryBarMaximized(!this.isAuxiliaryBarMaximized());
+	}
+
+	hideAuxiliaryBarMaximize(): IDisposable {
+		if (++this.auxiliaryBarMaximizeHiddenClaims === 1) {
+			this._onDidChangeAuxiliaryBarMaximizeHidden.fire(true);
+		}
+
+		let released = false;
+		return toDisposable(() => {
+			if (released) {
+				return;
+			}
+			released = true;
+			if (--this.auxiliaryBarMaximizeHiddenClaims === 0) {
+				this._onDidChangeAuxiliaryBarMaximizeHidden.fire(false);
+			}
+		});
+	}
+
+	isAuxiliaryBarMaximizeHidden(): boolean {
+		return this.auxiliaryBarMaximizeHiddenClaims > 0;
 	}
 
 	setAuxiliaryBarMaximized(maximized: boolean): boolean {
@@ -2346,10 +2421,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return (
 			this.getPanelAlignment() === 'center' || 	// the workbench grid currently prevents us from supporting panel
 			!isHorizontal(this.getPanelPosition())		// maximization with non-center panel alignment
-		) && !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized();
+		) && !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized() && !this.isEditorHiddenByChat();
 	}
 
 	toggleMaximizedPanel(): void {
+		// The panel maximizes over a visible editor area, not over one hidden for the chat part
+		this.clearEditorHiddenByChatNow();
 		const size = this.workbenchGrid.getViewSize(this.panelPartView);
 		const panelPosition = this.getPanelPosition();
 		const maximize = !this.isPanelMaximized();
@@ -2465,24 +2542,81 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		if (this.chatPartHidden === hidden) {
+		if (this.chatPartHidden !== hidden) {
+			// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
+			const hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
+			const shownWidth = hidden ? undefined : this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
+			this.chatPartHidden = hidden;
+			this.workbenchGrid.setViewVisible(this.chatPartView, !hidden);
+			if (!hidden) {
+				this.ensureChatPartFits(shownWidth);
+			}
+			// The sashes beside it move: where they meet the others changes too
+			this.updateSashEndpoints();
+			if (hadFocus) {
+				this.focusPanelOrEditor();
+			}
+		}
+
+		// Closing the chat part gives the editor area its width back, also when it was hidden, or hidden with the chat part by a maximized secondary side bar
+		if (hidden && !this.isVisible(Parts.EDITOR_PART) && (this.isEditorHiddenByChat() || (!this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryBarMaximized()))) {
+			this.setEditorHidden(false);
+		}
+	}
+
+	isEditorHiddenByChat(): boolean {
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT);
+	}
+
+	hasChatPart(): boolean {
+		return !!this.chatPartView;
+	}
+
+	setEditorHiddenByChat(hidden: boolean): void {
+		if (hidden === this.isEditorHiddenByChat()) {
 			return;
 		}
 
-		// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
-		const hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
-		this.chatPartHidden = hidden;
-		this.workbenchGrid.setViewVisible(this.chatPartView, !hidden);
-		// The sashes beside it move: where they meet the others changes too
-		this.updateSashEndpoints();
-		if (hadFocus) {
-			this.focusPanelOrEditor();
+		if (!hidden) {
+			this.setEditorHidden(false);
+			return;
 		}
 
-		// Closing the chat part gives the editor area its width back, also when it was hidden
-		if (hidden && !this.isVisible(Parts.EDITOR_PART) && !this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryBarMaximized()) {
+		// Only a visible chat part can take the area of the editor, and a maximized secondary side bar has it already
+		const chatPart = this.getChatHostPart();
+		if (!chatPart || this.chatPartHidden || this.isAuxiliaryBarMaximized() || !this.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return;
+		}
+
+		const hadFocus = this.hasFocus(Parts.EDITOR_PART);
+		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, true);
+		// The chat part, not the last part beside, takes the space the editor area frees
+		chatPart.fillsEditorArea = true;
+		this.setEditorHidden(true);
+		if (hadFocus) {
+			this.focusPart(Parts.CHAT_PART);
+		}
+	}
+
+	/** Ends hiding the editor area for the chat part, whatever shows it again. */
+	private clearEditorHiddenByChat(): void {
+		if (this.isEditorHiddenByChat()) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
+			const chatPart = this.getChatHostPart();
+			if (chatPart) {
+				chatPart.fillsEditorArea = false;
+			}
+		}
+	}
+
+	private clearEditorHiddenByChatNow(): void {
+		if (this.isEditorHiddenByChat()) {
 			this.setEditorHidden(false);
 		}
+	}
+
+	private getChatHostPart(): ChatHostPart | undefined {
+		return this.chatPartView as ChatHostPart | undefined;
 	}
 
 	/** Hides a visible chat part with the editor, such as for a maximized panel, to show it again with the editor. */
@@ -2499,14 +2633,72 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (this.chatPartView && this.chatPartHiddenByLayout) {
 			this.chatPartHiddenByLayout = false;
 			this.chatPartHidden = false;
+			const shownWidth = this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
 			this.workbenchGrid.setViewVisible(this.chatPartView, true);
+			this.ensureChatPartFits(shownWidth);
 			this.updateSashEndpoints();
 		}
 	}
 
-	/** The side of the editor the chat part is on: the primary side bar's. */
+	setChatPartAnchor(anchor: { readonly viewId: string } | undefined): void {
+		this.chatPartAnchor = anchor;
+		if (!anchor) {
+			this.chatPartAnchorListener.clear();
+		} else if (!this.chatPartAnchorListener.value) {
+			this.chatPartAnchorListener.value = this.followChatPartAnchor();
+		}
+		this.updateChatPartPosition();
+	}
+
+	getChatPartPosition(): Position.LEFT | Position.RIGHT {
+		return this.chatPartPosition ?? this.computeChatPartPosition();
+	}
+
+	/** Has the chat part follow its anchor view as the view, its container or its location changes. */
+	private followChatPartAnchor(): IDisposable {
+		return Event.any<unknown>(
+			this.viewDescriptorService.onDidChangeContainerLocation,
+			this.viewDescriptorService.onDidChangeContainer,
+			this.viewDescriptorService.onDidChangeLocation,
+			this.viewDescriptorService.onDidChangeViewContainers,
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsRegistered,
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsDeregistered
+		)(() => this.updateChatPartPosition());
+	}
+
+	/**
+	 * The side of the editor the chat part belongs on: the side of its anchor view's container. A view in a panel at the
+	 * top or bottom, an unknown view, or no anchor take the primary side bar's side.
+	 */
+	private computeChatPartPosition(): Position.LEFT | Position.RIGHT {
+		const sideBarPosition = this.getSideBarPosition() === Position.RIGHT ? Position.RIGHT : Position.LEFT;
+		// A view that is not registered has no location, also where a move of it was saved
+		const location = this.chatPartAnchor && this.viewDescriptorService.getViewDescriptorById(this.chatPartAnchor.viewId) ? this.viewDescriptorService.getViewLocationById(this.chatPartAnchor.viewId) : null;
+		switch (location) {
+			case ViewContainerLocation.AuxiliaryBar:
+				return sideBarPosition === Position.LEFT ? Position.RIGHT : Position.LEFT;
+			case ViewContainerLocation.Panel: {
+				const panelPosition = this.getPanelPosition();
+				return panelPosition === Position.LEFT || panelPosition === Position.RIGHT ? panelPosition : sideBarPosition;
+			}
+			default:
+				return sideBarPosition;
+		}
+	}
+
+	/** Moves the chat part to the side of the editor it belongs on, if it is not there already. */
+	private updateChatPartPosition(): void {
+		if (!this.chatPartView || !this.workbenchGrid || this.chatPartPosition === this.computeChatPartPosition()) {
+			return;
+		}
+
+		this.moveChatPartBesideEditor();
+		this.updateSashEndpoints();
+	}
+
+	/** The side of the editor the chat part is on. */
 	private getChatPartDirection(): Direction {
-		return this.getSideBarPosition() === Position.LEFT ? Direction.Left : Direction.Right;
+		return this.getChatPartPosition() === Position.LEFT ? Direction.Left : Direction.Right;
 	}
 
 	/** What a part placed beside the editor in `direction` goes beside: the chat part on its side, so that it stays inside. */
@@ -2514,18 +2706,114 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.chatPartView && direction === this.getChatPartDirection() ? this.chatPartView : this.editorPartView;
 	}
 
-	/** Moves the chat part immediately beside the editor, on the primary side bar's side, at the size it has. */
+	/**
+	 * Makes room for a visible chat part where the editor's column is too narrow for the editor and the chat part at
+	 * `width` (its own width by default), so that neither overflows the column: the parts beyond the column on the chat
+	 * part's side, closest first, such as the secondary side bar that holds its anchor, give up width down to their
+	 * minimum, and then those on the other side. The chat part then takes its width, leaving the editor its minimum.
+	 */
+	private ensureChatPartFits(width?: number): void {
+		const grid = this.workbenchGrid;
+		if (!this.chatPartView || this.chatPartHidden || !grid) {
+			return;
+		}
+		const columnWidth = () => this.getChatPartColumnWidth();
+		const target = Math.max(this.chatPartView.minimumWidth, width ?? grid.getViewSize(this.chatPartView).width);
+		let missing = this.editorPartView.minimumWidth + target - columnWidth();
+		// Closest first on the chat part's side, then on the other side, where those on its side are at their minimum
+		const side = this.getChatPartPosition();
+		const otherSide = side === Position.LEFT ? Position.RIGHT : Position.LEFT;
+		for (const neighbour of [...this.getChatPartSideNeighbours(side), ...this.getChatPartSideNeighbours(otherSide)]) {
+			if (missing <= 0) {
+				break;
+			}
+			const size = grid.getViewSize(neighbour);
+			const given = Math.min(missing, size.width - neighbour.minimumWidth);
+			if (given > 0) {
+				grid.resizeView(neighbour, { width: size.width - given, height: size.height });
+				missing = this.editorPartView.minimumWidth + target - columnWidth();
+			}
+		}
+		const chatWidth = Math.min(target, columnWidth() - this.editorPartView.minimumWidth);
+		if (chatWidth !== grid.getViewSize(this.chatPartView).width) {
+			grid.resizeView(this.chatPartView, { width: chatWidth, height: grid.getViewSize(this.chatPartView).height });
+		}
+	}
+
+	/**
+	 * The width the grid gives the editor and the chat part together: that of the branch that holds both, less that of its
+	 * other children, such as the primary side bar beside them when the panel is aligned to its side. Their own widths
+	 * exceed it where they are at their minimum in too narrow a branch.
+	 */
+	private getChatPartColumnWidth(): number {
+		const isEditorOrChat = (node: GridNode<ISerializableView>) => !isGridBranchNode(node) && (node.view === this.editorPartView || node.view === this.chatPartView);
+		const find = (node: GridNode<ISerializableView>): GridBranchNode<ISerializableView> | undefined => {
+			if (!isGridBranchNode(node)) {
+				return undefined;
+			}
+			if (node.children.filter(isEditorOrChat).length === 2) {
+				return node;
+			}
+			for (const child of node.children) {
+				const found = find(child);
+				if (found) {
+					return found;
+				}
+			}
+			return undefined;
+		};
+		const branch = find(this.workbenchGrid.getViews());
+		if (!branch) {
+			return this.workbenchGrid.getViewSize(this.editorPartView).width + this.workbenchGrid.getViewSize(this.chatPartView!).width;
+		}
+		const others = branch.children.filter(child => !isEditorOrChat(child)).reduce((width, child) => width + child.box.width, 0);
+		return branch.box.width - others;
+	}
+
+	/** The visible parts beyond the editor's column on `side`, closest first. */
+	private getChatPartSideNeighbours(side: Position): ISerializableView[] {
+		const sideBarSide = this.getSideBarPosition();
+		const panelPosition = this.getPanelPosition();
+		const neighbours: ISerializableView[] = [];
+		if (panelPosition === side && this.isVisible(Parts.PANEL_PART)) {
+			neighbours.push(this.panelPartView);
+		}
+		const auxiliaryBarSide = sideBarSide === Position.LEFT ? Position.RIGHT : Position.LEFT;
+		if (auxiliaryBarSide === side && this.isVisible(Parts.AUXILIARYBAR_PART)) {
+			neighbours.push(this.auxiliaryBarPartView);
+		}
+		if (sideBarSide === side && this.isVisible(Parts.SIDEBAR_PART)) {
+			neighbours.push(this.sideBarPartView);
+		}
+		return neighbours;
+	}
+
+	/** Moves the chat part immediately beside the editor, on the side it belongs on, at the size it has. */
 	private moveChatPartBesideEditor(): void {
 		if (!this.chatPartView) {
 			return;
 		}
 
+		this.chatPartPosition = this.computeChatPartPosition();
+
+		// Moving a view in the grid takes it out of the DOM and back: what had focus in it gets it again, such as a link of
+		// the transcript or a button of its toolbar, else the chat part's default
+		const hadFocus = this.hasFocus(Parts.CHAT_PART);
+		const focused = hadFocus ? getActiveElement() : null;
 		const visible = !this.chatPartHidden;
 		const width = visible ? this.workbenchGrid.getViewSize(this.chatPartView).width : undefined;
 		const sizing = width ?? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView) ?? this.chatPartView.minimumWidth);
 		this.workbenchGrid.moveView(this.chatPartView, sizing, this.editorPartView, this.getChatPartDirection());
 		if (width !== undefined) {
 			this.workbenchGrid.resizeView(this.chatPartView, { width, height: this.workbenchGrid.getViewSize(this.chatPartView).height });
+			this.ensureChatPartFits(width);
+		}
+		if (hadFocus) {
+			if (isHTMLElement(focused) && focused.isConnected && this.chatPartView.element.contains(focused)) {
+				focused.focus();
+			} else {
+				this.focusPart(Parts.CHAT_PART);
+			}
 		}
 	}
 
@@ -2652,6 +2940,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const sideBarSize = this.workbenchGrid.getViewSize(this.sideBarPartView);
 		const auxiliaryBarSize = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView);
 
+		// The panel lays out beside a visible editor area, so reveal one hidden for the chat part first
+		this.clearEditorHiddenByChatNow();
+
 		let editorHidden = !this.isVisible(Parts.EDITOR_PART, mainWindow);
 
 		// Save last non-maximized size for panel before move
@@ -2688,6 +2979,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		} else {
 			this.workbenchGrid.moveView(this.panelPartView, editorHidden ? size.width : this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH), this.getChatPartOrEditorView(Direction.Left), Direction.Left);
 		}
+
+		// The chat part docks beside a view in the panel on the panel's side
+		this.updateChatPartPosition();
 
 		if (hadFocus) {
 			this.focusPart(Parts.PANEL_PART);
@@ -2813,10 +3107,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 	}
 
-	/** Puts the chat node immediately beside the editor node in `nodes`, on the primary side bar's side, out of the editor's width. */
+	/** Puts the chat node immediately beside the editor node in `nodes`, on the side it belongs on, out of the editor's width. */
 	private insertChatNodeBesideEditor(nodes: ISerializedNode[], editor: ISerializedNode, chat: ISerializedNode): void {
+		this.chatPartPosition = this.computeChatPartPosition();
 		const index = nodes.indexOf(editor);
-		nodes.splice(this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_POSITON) === Position.LEFT ? index : index + 1, 0, chat);
+		nodes.splice(this.chatPartPosition === Position.LEFT ? index : index + 1, 0, chat);
 		editor.size -= chat.visible ? chat.size : 0;
 	}
 
@@ -2947,6 +3242,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			visible: this.isVisible(Parts.AUXILIARYBAR_PART)
 		};
 
+		// Hidden for the chat part, the editor area stays hidden only while a chat part shows again
+		if (this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT) && !(this.chatPartView && this.readChatPartLayout().visible)) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
+			if (this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
+				// The maximized secondary side bar keeps the editor hidden, and showing the editor again restores it
+				const state = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
+				if (state) {
+					this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, { ...state, editorVisible: true });
+				}
+			} else {
+				this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
+			}
+		}
+
 		const editorNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.EDITOR_PART },
@@ -2967,6 +3276,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Hidden by the layout for a maximized panel or secondary side bar, it stays hidden only while that restores maximized
 			this.chatPartHiddenByLayout = chatPartLayout.visible && chatPartLayout.hiddenByLayout && (this.isAuxiliaryBarMaximized() || this.isPanelMaximized());
 			this.chatPartHidden = !chatPartLayout.visible || this.chatPartHiddenByLayout;
+			this.getChatHostPart()!.fillsEditorArea = this.isEditorHiddenByChat();
 			chatNode = {
 				type: 'leaf',
 				data: { type: Parts.CHAT_PART },
@@ -3151,6 +3461,7 @@ const LayoutStateKeys = {
 	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false, true),
 	SIDEBAR_HIDDEN: new RuntimeStateKey<boolean>('sideBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 	EDITOR_HIDDEN: new RuntimeStateKey<boolean>('editor.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+	EDITOR_HIDDEN_BY_CHAT: new RuntimeStateKey<boolean>('editor.hiddenByChat', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 	PANEL_HIDDEN: new RuntimeStateKey<boolean>('panel.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, true),
 	AUXILIARYBAR_HIDDEN: new RuntimeStateKey<boolean>('auxiliaryBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, true),
 	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>('statusBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false, true)
@@ -3359,6 +3670,7 @@ class LayoutStateModel extends Disposable {
 		if (
 			this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) &&
 			this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN) &&
+			!this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT) &&
 			!this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)
 		) {
 			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);

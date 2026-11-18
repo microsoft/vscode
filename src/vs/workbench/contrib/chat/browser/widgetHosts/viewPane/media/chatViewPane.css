@@ -235,3 +235,8 @@
 		}
 	}
 }
+
+/* Only the sessions show, of a list that a provider gives the Chat view, without its chat */
+.chat-viewpane.sessions-only .chat-controls-container {
+	display: none;
+}

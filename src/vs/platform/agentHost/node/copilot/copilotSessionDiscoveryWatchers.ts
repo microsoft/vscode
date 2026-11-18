@@ -17,6 +17,7 @@ export const copilotDiscoveryRetryDelays = [250, 1_000, 5_000, 60_000];
 export const copilotCandidateRetryDelays = [250, 1_000, 5_000, 60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000];
 /** Catalog scans a newly observed session may trigger before falling back to the slow scan cadence. */
 const copilotCandidateFastScans = 4;
+const copilotCandidatePriorityDuration = 60_000;
 export type CopilotDiscoveryReason = 'startup' | 'directoryAdded' | 'rootReconcile' | 'journalCreated' | 'metadataChanged' | 'readinessProbe' | 'retry';
 
 interface IDirectoryChanges {
@@ -206,7 +207,6 @@ export class CopilotSessionDiscoveryCandidate extends Disposable {
 	private _revision = 0;
 	private _nextScanAt = Infinity;
 	private _reason: CopilotDiscoveryReason;
-	private readonly _enrollment: CopilotDiscoveryReason;
 	private _observedNotReady = false;
 	private _fastGranted = false;
 	private _fastScans = 0;
@@ -221,18 +221,24 @@ export class CopilotSessionDiscoveryCandidate extends Disposable {
 	/** Whether this candidate may still trigger catalog scans at the fast cadence. */
 	get urgent(): boolean { return this._fastScans > 0; }
 	get watching(): boolean { return !!this._watch.value; }
+	/** Runtime arrivals briefly take priority over unresolved history for watches and readiness probes. */
+	get recent(): boolean { return this._live && Date.now() - this.observedAt < copilotCandidatePriorityDuration; }
 
 	constructor(
 		readonly id: string,
 		private readonly _resource: URI,
 		reason: CopilotDiscoveryReason,
+		private readonly _live: boolean,
 		private readonly _onChange: () => void,
 		private readonly _fileService: IFileService,
 		private readonly _logService: ILogService,
 	) {
 		super();
 		this._reason = reason;
-		this._enrollment = reason;
+	}
+
+	unwatch(): void {
+		this._watch.clear();
 	}
 
 	watch(): void {
@@ -264,11 +270,8 @@ export class CopilotSessionDiscoveryCandidate extends Disposable {
 		this._reason = reason;
 		this._attempt = 0;
 		this._nextScanAt = this._hasJournal ? Date.now() : Infinity;
-		// Grant the fast-scan budget once: to folders created while discovery was observing the
-		// root, or when a session was seen without a journal and then gained one. History that
-		// was already ready when first observed (at startup, root reconcile, or an overflow
-		// probe) uses the slow cadence regardless of its later retry reason.
-		if (this._hasJournal && !this._fastGranted && (this._enrollment === 'directoryAdded' || this._observedNotReady)) {
+		// Only live arrivals or newly ready sessions earn fast scans, not ready history found during a root reset.
+		if (this._hasJournal && !this._fastGranted && (this._live || this._observedNotReady)) {
 			this._fastGranted = true;
 			this._fastScans = copilotCandidateFastScans;
 		}

@@ -25,6 +25,8 @@ export type IntegratedBrowserOpenSource =
 	| 'quickOpenWithUrl'
 	/** Opened via the "New Tab" command from an existing tab. */
 	| 'newTabCommand'
+	/** Opened via the new tab (`+`) button at the end of the editor tabs. */
+	| 'newTabButton'
 	/** Opened via the localhost link opener when the `workbench.browser.openLocalhostLinks` setting
 	 * is enabled. This happens when clicking localhost (e.g., `localhost`, `127.0.0.1`, `[::1]`) or all-interfaces
 	 * links (e.g., `0.0.0.0`, `[::]`) from the terminal, chat, or other sources. */

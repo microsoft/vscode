@@ -24,6 +24,7 @@ import { IAgentModelPreferences } from '../../chat/common/promptSyntax/languageP
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -34,10 +35,12 @@ import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinit
  * `SessionsListingScopeFilter` matches them. With no folders, it lists every session.
  */
 export interface ISessionsListingScope {
+	/**
+	 * The folders of the scope, such as an editor window's: a session working in one, or whose root or repository is one, is
+	 * in the scope.
+	 */
 	readonly folders: IObservable<readonly URI[]>;
-	/** The repositories the {@link folders} are known to be checkouts of, such as the main checkout of an open worktree. */
-	readonly repositories: IObservable<readonly URI[]>;
-	/** The GitHub repositories, as `owner/repo`, of the {@link repositories}' `origin`, whose sessions on GitHub are in the scope. */
+	/** The GitHub repositories, as `owner/repo`, of the {@link folders}' `origin`, whose sessions on GitHub are in the scope. */
 	readonly gitHubRepositories?: IObservable<readonly string[]>;
 }
 
@@ -681,7 +684,7 @@ export interface ISessionsProvider {
 	listCanvases?(sessionId: string, chatResource: URI): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
-	openCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
+	openCanvas?(sessionId: string, chatResource: URI, canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 
 	/** Close one live canvas of a chat, notifying the extension that provides it. */
 	closeCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void>;
@@ -801,8 +804,11 @@ export interface ISessionsProvider {
 	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
 	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
 
-	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
+	/** Whether the connected host supports preparing and scheduling session worktree cleanup. */
+	readonly supportsWorktreeCleanup?: boolean;
+	readonly supportsManagedWorktreeCleanup?: boolean;
 	readonly supportsForceWorktreeCleanup?: boolean;
+	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	prepareSessionWorktreeCleanup?(sessionId: string): Promise<void>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;

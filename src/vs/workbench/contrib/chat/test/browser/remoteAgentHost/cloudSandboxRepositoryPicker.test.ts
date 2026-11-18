@@ -6,7 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { matchesFuzzy } from '../../../../../../base/common/filters.js';
@@ -82,33 +82,33 @@ suite('CloudSandboxRepositoryPicker', () => {
 		return { items: [upcastPartial<RepositorySearchItem>({ full_name: fullName })], total_count: 1, incomplete_results: false };
 	}
 
-	function createPicker(options?: { readonly acquireClient?: (signal: AbortSignal) => Promise<IGitHubAccountClient> }) {
+	function createPicker(options?: { readonly acquireClient?: (cancellationToken: CancellationToken) => Promise<IGitHubAccountClient> }) {
 		const quickPicks: TestQuickPick[] = [];
-		const requests: { readonly kind: string; readonly value: string; readonly options?: ApiRequestOptions; readonly signal: AbortSignal }[] = [];
-		const acquisitions: AbortSignal[] = [];
+		const requests: { readonly kind: string; readonly value: string; readonly options?: ApiRequestOptions; readonly cancellationToken: CancellationToken }[] = [];
+		const acquisitions: CancellationToken[] = [];
 		let disposeCount = 0;
 		const client = upcastPartial<IGitHubAccountClient>({
 			users: upcastPartial<IGitHubAccountClient['users']>({
-				getAuthenticated: async (signal, options) => {
-					requests.push({ kind: 'user', value: '', options, signal });
+				getAuthenticated: async (cancellationToken, options) => {
+					requests.push({ kind: 'user', value: '', options, cancellationToken });
 					return upcastPartial<User>({ login: 'octocat' });
 				},
 			}),
 			organizations: upcastPartial<IGitHubAccountClient['organizations']>({
-				listForAuthenticatedUser: async (signal, options) => {
-					requests.push({ kind: 'organizations', value: '', options, signal });
+				listForAuthenticatedUser: async (cancellationToken, options) => {
+					requests.push({ kind: 'organizations', value: '', options, cancellationToken });
 					return ['github', 'microsoft'].map(login => upcastPartial<OrganizationSummary>({ login }));
 				},
 			}),
 			repositories: upcastPartial<IGitHubAccountClient['repositories']>({
-				listForAuthenticatedUser: async (signal, options) => {
-					requests.push({ kind: 'list', value: '', options, signal });
+				listForAuthenticatedUser: async (cancellationToken, options) => {
+					requests.push({ kind: 'list', value: '', options, cancellationToken });
 					return [upcastPartial<Repository>({ full_name: 'octocat/recent' })];
 				},
 			}),
 			search: upcastPartial<IGitHubAccountClient['search']>({
-				repositories: async (query, signal, options) => {
-					requests.push({ kind: 'search', value: query, options, signal });
+				repositories: async (query, cancellationToken, options) => {
+					requests.push({ kind: 'search', value: query, options, cancellationToken });
 					return searchPage('microsoft/vscode');
 				},
 			}),
@@ -123,9 +123,9 @@ suite('CloudSandboxRepositoryPicker', () => {
 			return quickPick;
 		});
 		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({
-			acquireDefaultAccountApiClient: async signal => {
-				acquisitions.push(signal);
-				return options?.acquireClient ? options.acquireClient(signal) : client;
+			acquireDefaultAccountApiClient: async cancellationToken => {
+				acquisitions.push(cancellationToken);
+				return options?.acquireClient ? options.acquireClient(cancellationToken) : client;
 			},
 		}));
 		const picker = store.add(instantiationService.createInstance(CloudSandboxRepositoryPicker));
@@ -145,7 +145,7 @@ suite('CloudSandboxRepositoryPicker', () => {
 		const selection = await result;
 		assert.deepStrictEqual({
 			initialItems, visibleAfterUrl,
-			requests: requests.map(({ signal, ...request }) => request),
+			requests: requests.map(({ cancellationToken, ...request }) => request),
 			result: selection, acquisitions: acquisitions.length, disposed: disposed(),
 		}, {
 			initialItems: ['octocat/recent'],
@@ -259,7 +259,7 @@ suite('CloudSandboxRepositoryPicker', () => {
 		await first.complete(searchPage('octocat/old'));
 		await clock.tickAsync(0);
 		const observed = {
-			aborted: search.getCalls().map(call => call.args[1].aborted),
+			aborted: search.getCalls().map(call => call.args[1].isCancellationRequested),
 			items: quickPick.items.map(item => item.label),
 		};
 		quickPick.acceptItem();
@@ -288,7 +288,7 @@ suite('CloudSandboxRepositoryPicker', () => {
 			await clock.tickAsync(0);
 			assert.deepStrictEqual({
 				result: selection,
-				aborted: search.firstCall.args[1].aborted,
+				aborted: search.firstCall.args[1].isCancellationRequested,
 				disposed: disposed(),
 			}, { result: undefined, aborted: true, disposed: 1 });
 		});
@@ -302,7 +302,7 @@ suite('CloudSandboxRepositoryPicker', () => {
 		picker.dispose();
 		await rejected;
 		await pending.error(new CancellationError());
-		assert.deepStrictEqual({ acquisitions: acquisitions.length, aborted: acquisitions[0].aborted, quickPicks: quickPicks.length }, {
+		assert.deepStrictEqual({ acquisitions: acquisitions.length, aborted: acquisitions[0].isCancellationRequested, quickPicks: quickPicks.length }, {
 			acquisitions: 1, aborted: true, quickPicks: 0,
 		});
 	});

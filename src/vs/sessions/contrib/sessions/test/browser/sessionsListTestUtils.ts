@@ -83,12 +83,15 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.sessions = sessions;
 	}
 
+	/** The sessions a provider's listing scope hides, such as of other folders: lookups find them, the listing does not. */
+	unlistedSessions: ISession[] = [];
+
 	override getSessions(): ISession[] {
 		return this.sessions;
 	}
 
 	override getSession(resource: URI): ISession | undefined {
-		return this.sessions.find(session => session.resource.toString() === resource.toString());
+		return [...this.sessions, ...this.unlistedSessions].find(session => session.resource.toString() === resource.toString());
 	}
 
 	override getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
@@ -449,6 +452,14 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			appearanceChanges.fire({ groupsChanged: false, membershipChanged: new Set() });
 		}
 		override getGroups() { return [...groups]; }
+		override setGroupColor(groupId: string, color: string | undefined): void {
+			const index = groups.findIndex(group => group.id === groupId);
+			if (index < 0) {
+				throw new Error(`Unknown test group: ${groupId}`);
+			}
+			groups[index] = { ...groups[index], color };
+			appearanceChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
+		}
 		override getTree() { return new SessionGroupTree(groups); }
 		override getGroup(groupId: string) { return groups.find(group => group.id === groupId); }
 		override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }

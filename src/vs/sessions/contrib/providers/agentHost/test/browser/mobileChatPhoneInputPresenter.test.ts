@@ -78,12 +78,14 @@ import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/c
 import { MockChatSessionsService } from '../../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
-import { ISessionHost, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind, ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionHosts } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { MobilePermissionPicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/mobilePermissionPicker.js';
 import { MobileAgentHostModePicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileAgentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
 import { AgentHostSessionConfigPickerContribution } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { IChatViewFactory } from '../../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { MobileChatViewFactory } from '../../../../mobile/browser/mobileChatViewFactory.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -246,10 +248,12 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 		assert.ok(descriptor);
 		const instantiationService = createServices(store.add(new DisposableStore()), [
 			[IChatPhoneInputPresenter, descriptor.ctor],
+			[IChatViewFactory, new MobileChatViewFactory()],
 			[IContextKeyService, contextKeys],
 			[ICommandService, upcastPartial<ICommandService>({})],
 			[IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ mainContainer: container })],
 			[ISessionsService, upcastPartial<ISessionsService>({ slotPanes: constObservable([]) })],
+			[ISessionHostService, upcastPartial<ISessionHostService>({ hosts: constObservable([]) })],
 			[ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 				getSessionForChatResource: resource => {
 					for (const session of provider.getSessions()) {

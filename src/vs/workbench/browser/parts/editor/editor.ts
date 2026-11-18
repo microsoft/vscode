@@ -243,6 +243,9 @@ export interface IEditorGroupsView {
 	readonly partOptions: IEditorPartOptions;
 	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
+	/** Whether the part was created asking for it (see `ICreateEditorPartOptions.singleTabTitleProvidedByEditor`). */
+	readonly singleTabTitleProvidedByEditor?: boolean;
+
 	readonly onDidVisibilityChange: Event<boolean>;
 
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
@@ -313,6 +316,13 @@ export interface IEditorGroupViewOptions {
 	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
 
 	/**
+	 * Whether the enabled group header of the active editor is laid out across the full group
+	 * width, including the content left and right insets. By default the header follows the
+	 * inset editor content.
+	 */
+	readonly headerSpansContentInset?: (editor: EditorInput | undefined) => boolean;
+
+	/**
 	 * Whether the enabled group header shows for the active editor, such as not for a terminal in a group that shows its
 	 * header only for other editors. When unset, it shows for every editor.
 	 */
@@ -380,6 +390,9 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly titleHeight: IEditorGroupTitleHeight;
 
 	readonly disposed: boolean;
+
+	/** Whether the active editor is still being opened. */
+	readonly isOpeningEditor: boolean;
 
 	setActive(isActive: boolean): void;
 

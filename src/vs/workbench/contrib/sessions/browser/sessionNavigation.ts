@@ -138,7 +138,11 @@ export class SessionsNavigation extends Disposable {
 			this._currentDraftId.set(draftId, tx);
 			if (!preserveCurrentEntry && this._currentKey.get() === getRecencyEntryKey(previous)) {
 				const entry = this._getNewSessionEntry();
-				this._recency.replace(previous, entry, tx);
+				if (previous.kind === 'newSession' && previous.draftId && draftId && previous.draftId !== draftId) {
+					this._recency.markOpened(entry, tx);
+				} else {
+					this._recency.replace(previous, entry, tx);
+				}
 				this._currentKey.set(getRecencyEntryKey(entry), tx);
 			}
 		});

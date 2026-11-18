@@ -318,6 +318,21 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		sessions: [],
 		view: { grouping: SessionsGrouping.Inbox, height: 360 },
 	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Inbox_Collapsed: defineSessionsListFixture({
+		header: { navigationShortcuts: true },
+		sessions: [
+			{ id: 'ready', title: 'Review the navigation fix', workspace: 'vscode' },
+			{ id: 'working', title: 'Add regression tests', workspace: 'vscode', status: SessionStatus.InProgress },
+			{ id: 'held', title: 'Waiting for more context', workspace: 'vscode', inboxState: 'hold' },
+			{ id: 'acknowledged', title: 'Update the documentation', workspace: 'vscode', inboxState: 'done' },
+		],
+		view: {
+			grouping: SessionsGrouping.Inbox, width: 300, height: 420,
+			collapsed: [{ section: SessionInboxSection.ReadyForYou }],
+			expanded: [{ section: SessionInboxSection.OnHold }],
+		},
+		interaction: { focused: { section: SessionInboxSection.ReadyForYou } },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	SessionsList_Inbox_Expanded: defineSessionsListFixture({
 		header: { automationsEnabled: true },
 		sessions: [
@@ -713,7 +728,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['In compact mode the hovered Release work name retains a readable blue color even when its icon yields to the chevron. The keyboard-focused Triage name uses the normal focus foreground rather than its assigned orange, and uncustomized workspace and session names remain unchanged. High-contrast themes retain their normal label colors.'],
+		expectedVisualDescriptions: ['In compact mode the hovered Release work name retains a readable blue color even when its icon yields to the chevron. The keyboard-focused Triage name keeps its assigned orange, matching its unfocused color, and uncustomized workspace and session names remain unchanged. High-contrast themes retain their normal label colors.'],
 	}),
 	SessionsList_Groups_FocusedHeader: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS,
@@ -1026,7 +1041,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { focused: { session: 'terminal-confirmation' }, listFocused: false, renaming: { session: 'terminal-confirmation' } },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The first compact session row is being renamed inline. The input text and border are vertically centered with the status icon and row actions, without shifting the row height.'],
+		expectedVisualDescriptions: ['The first compact session row is being renamed inline. The input text and border are vertically centered with the status icon without shifting the row height, and the row actions are hidden so the input extends to the end of the row.'],
 	}),
 	SessionsList_CompactChatRename: defineSessionsListFixture({
 		sessions: COMPACT_RENAME_SESSIONS,

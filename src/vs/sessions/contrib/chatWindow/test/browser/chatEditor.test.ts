@@ -46,7 +46,7 @@ import { Verbosity } from '../../../../../workbench/common/editor.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly, registerSessionChatViewEditor } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
+import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, registerSessionChatViewEditor, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { IChatEditorComposer } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
 import { ChatWindowSessionDropTarget } from '../../browser/chatWindowSessionDropTarget.js';
 
@@ -703,6 +703,47 @@ suite('Session chat view editor', () => {
 		assert.deepStrictEqual({ composer, created }, {
 			composer: { singleSession: false, severalSessions: false, aiHidden: false },
 			created: { singleSession: true, severalSessions: true },
+		});
+	});
+
+	test('a host that shows the session header for a composer too, as the chat part of an editor window does, shows it for the composer\'s session, titled as new and without a status, with its session\'s actions, and a middle-click on its title closes the composer, as on a chat\'s; once created, the chat\'s', () => {
+		const { instantiationService } = createServices();
+		const draft = createTestActiveSession('draft', false);
+		const content = observableValue<ISessionPaneContent | undefined>('content', undefined);
+		let closed = 0;
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
+			content,
+			composer: constObservable({ draftHost: upcastPartial<INewSessionDraftHost>({}), session: constObservable(draft), close: () => closed++ }),
+			window: constObservable(undefined),
+			active: constObservable(true),
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+			hostOptions: { ...SESSION_CHAT_VIEW_HOST_OPTIONS, showComposerHeader: true },
+		}));
+		mainWindow.document.body.appendChild(view.element);
+		disposables.add(toDisposable(() => view.element.remove()));
+		view.layout(800, 600, 0, 0);
+		const read = () => {
+			const header = view.element.querySelector<HTMLElement>('.session-header-bar');
+			return {
+				shown: !!header && header.style.display !== 'none',
+				title: header?.querySelector('.chat-composite-bar-session-title-text')?.textContent,
+				status: header?.querySelector<HTMLElement>('.chat-composite-bar-session-icon')?.style.display !== 'none',
+				onSession: view.titleMenu.options.args?.[0] === draft,
+			};
+		};
+
+		const composing = read();
+		view.element.querySelector<HTMLElement>('.session-header-bar .chat-composite-bar-session-title')!.dispatchEvent(new MouseEvent('auxclick', { button: 1, bubbles: true }));
+		const middleClickClosed = closed;
+		draft.isCreated.set(true, undefined);
+		content.set(testPaneContentOf(draft, () => { }), undefined);
+		const created = read();
+
+		assert.deepStrictEqual({ composing, middleClickClosed, created }, {
+			composing: { shown: true, title: 'New Session', status: false, onSession: true },
+			middleClickClosed: 1,
+			created: { shown: true, title: 'Main Chat', status: true, onSession: true },
 		});
 	});
 

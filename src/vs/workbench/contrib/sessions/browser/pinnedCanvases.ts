@@ -57,7 +57,7 @@ export interface IPinnedCanvas {
 	/** The title of the owning chat, when it is known. */
 	readonly chatTitle: IObservable<string | undefined>;
 	readonly state: IObservable<PinnedCanvasState>;
-	/** Whether it is looking for its live canvas through its chat, without showing the chat. */
+	/** Whether it is looking for its live canvas through its chat, without showing the chat, or having its chat open the canvas again. */
 	readonly reconnecting: IObservable<boolean>;
 }
 
@@ -103,11 +103,14 @@ export interface IPinnedCanvasService {
 
 	/**
 	 * Shows a pin on the canvas page, never its chat, and reconnects it when it is not
-	 * connected to its live canvas.
+	 * connected to its live canvas, reopening the canvas in its chat when the chat no longer has it.
 	 */
 	show(target: PinnedCanvasTarget): Promise<void>;
 
-	/** Looks for the live canvas of a pin that is not connected, without showing its chat. */
+	/**
+	 * Looks for the live canvas of a pin that is not connected, without showing its chat. When
+	 * the chat no longer has the canvas, for example after a restart, the chat opens it again.
+	 */
 	reconnect(target: PinnedCanvasTarget): void;
 
 	/** Shows the chat that owns a pin. */

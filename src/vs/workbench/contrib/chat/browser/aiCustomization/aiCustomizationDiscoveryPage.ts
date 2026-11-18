@@ -63,6 +63,7 @@ import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery,
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOrigin, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
+import { getTeamProvidedMarketplaceName, getTeamProvidedMarketplaceTooltip, TeamProvidedTag } from './customizationTeamProvenance.js';
 import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { getPluginCustomizationMarketplaceSourceId } from './pluginCustomizationMarketplaceProvider.js';
@@ -218,6 +219,8 @@ interface IBrowseCatalogCache {
 
 interface ISourceBrowseSection extends ICustomizationMarketplaceBrowseSection {
 	readonly sourceId: string;
+	/** Set when the user's GitHub Team provides the section's source. */
+	readonly teamProvided?: boolean;
 }
 
 type BrowseSectionsLoadOutcome =
@@ -1247,9 +1250,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		));
 		allSources.checked = this.selectedSourceId === undefined;
 		const sourceActions = this.marketplaceSources.map(source => {
+			const name = source.displayName ?? source.id;
 			const action = disposables.add(new Action(
 				`customizationDiscovery.source.${source.id}`,
-				source.displayName ?? source.id,
+				source.teamProvided ? getTeamProvidedMarketplaceName(name) : name,
 				undefined,
 				true,
 				() => this.selectSource(source.id),
@@ -1876,6 +1880,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						sourceId: source.id,
 						title: source.displayName ?? source.id,
 						items,
+						...(source.teamProvided ? { teamProvided: true } : {}),
 					});
 					this.sourceSections = [...sections];
 					this.noteBrowseFirstContent();
@@ -2433,6 +2438,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						ariaLabel: localize('customizationDiscovery.viewAllSource', "View all customizations from {0}", section.title),
 						run: () => this.selectSource(section.sourceId),
 					},
+					section.teamProvided,
 				);
 			}
 		}
@@ -2494,11 +2500,15 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		type: CustomizationDiscoveryType | undefined,
 		elevated: boolean,
 		action?: { readonly label: string; readonly ariaLabel: string; readonly run: () => void },
+		teamProvided = false,
 	): void {
 		const section = DOM.append(this.browseSections, $('.customization-discovery-section'));
 		section.classList.toggle('featured', elevated);
 		const header = DOM.append(section, $('.customization-discovery-section-header'));
 		DOM.append(header, $('h3.customization-discovery-section-title')).textContent = label;
+		if (teamProvided) {
+			this.browseDisposables.add(new TeamProvidedTag(header, this.hoverService)).update(getTeamProvidedMarketplaceTooltip());
+		}
 		if (type || action) {
 			const showAll = DOM.append(header, $('button.customization-discovery-show-all')) as HTMLButtonElement;
 			showAll.type = 'button';
@@ -3090,9 +3100,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return this.matchesMarketplaceResource(resource) && !hasInstallationTarget(this.getInstallState(resource));
 		});
 		const sourceSectionIds = new Set(this.sourceSections.map(section => section.id));
+		const teamSectionIds = new Set(this.sourceSections.filter(section => section.teamProvided).map(section => section.id));
 		const marketplaceContent = browseSections?.length
 			? browseSections.map(section => [
-				section.title,
+				teamSectionIds.has(section.id) ? getTeamProvidedMarketplaceName(section.title) : section.title,
 				sourceSectionIds.has(section.id) ? localize('customizationDiscovery.viewAllSourceAccessible', "View all customizations from {0}.", section.title) : undefined,
 				...section.items.map(item => {
 					const state = this.getInstallState(item);

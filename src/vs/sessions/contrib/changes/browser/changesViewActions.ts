@@ -27,7 +27,7 @@ import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorI
 import { readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
-import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFilesViewAndPositionMenu, TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -234,7 +234,7 @@ const desktopDiffEditorTitleVisible = ContextKeyExpr.and(
 );
 
 // The Changes editor shows its diff actions in the header row above its diffs instead of in its tab row: Run Code Review
-// and the More Actions menu in Menus.SessionsEditorHeaderSecondary, then Toggle Files in Menus.SessionsEditorHeaderLayout.
+// and the More Actions menu in Menus.SessionsEditorHeaderSecondary.
 const notChangesEditor = ActiveEditorContext.notEqualsTo(SessionChangesEditor.ID);
 
 const desktopTextEditorTitleVisible = ContextKeyExpr.and(
@@ -556,21 +556,6 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	group: 'secondary/1_diff',
 	order: 30,
 	when: desktopChangesEditorTitleVisible,
-});
-// The Changes editor shows its changed files list beside the diffs where its host enables it, and hides or shows it with
-// the workbench's Toggle Files, last in its header row.
-const changesEditorFileList = ContextKeyExpr.and(desktopChangesEditorActive, MultiDiffEditorFileListAvailableContext)!;
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
-	command: {
-		id: TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID,
-		title: localize2('changesToggleFiles', "Toggle Files"),
-		icon: Codicon.listFlat,
-		toggled: MultiDiffEditorFileListEnabledContext,
-		precondition: changesEditorFileList,
-	},
-	group: 'navigation',
-	order: 10,
-	when: ContextKeyExpr.and(desktopChangesEditorTitleVisible, MultiDiffEditorFileListAvailableContext),
 });
 MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	submenu: MultiDiffEditorFilesViewAndPositionMenu,

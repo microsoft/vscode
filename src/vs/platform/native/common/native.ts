@@ -231,7 +231,8 @@ export interface INativeAppWindow {
 	readonly iconDataUrl?: string;
 
 	/**
-	 * Where the window shows on screen, in the coordinates of Electron's `screen`, where the platform tells: macOS does.
+	 * Where the window is, in the coordinates of Electron's `screen`, even when the screen doesn't show it, where the
+	 * platform tells: macOS does.
 	 */
 	readonly bounds?: IRectangle;
 }
@@ -363,7 +364,8 @@ export interface ICommonNativeHostService {
 	 */
 	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
 
-	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
+	/** The point of the cursor, and the bounds and work area of the display nearest to it, which leaves out its menu bar and dock. */
+	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle; readonly workArea: IRectangle }>;
 
 	isMaximized(options?: INativeHostOptions): Promise<boolean>;
 	maximizeWindow(options?: INativeHostOptions): Promise<void>;
@@ -378,6 +380,11 @@ export interface ICommonNativeHostService {
 	hideWindow(options?: INativeHostOptions): Promise<void>;
 	/** Sets the opacity of a window, from 0 (transparent) to 1 (opaque). Unsupported on Linux. */
 	setWindowOpacity(opacity: number, options?: INativeHostOptions): Promise<void>;
+	/**
+	 * Lets mouse events through a window to what is below it, or stops. While it does, the window still receives mouse moves on
+	 * macOS and Windows, so that it can stop as the pointer moves over its content. Unsupported on Linux.
+	 */
+	setWindowIgnoreMouseEvents(ignore: boolean, options?: INativeHostOptions): Promise<void>;
 
 	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
@@ -441,8 +448,10 @@ export interface ICommonNativeHostService {
 
 	/**
 	 * Lists the windows of other applications, front to back, so that the first one is the window that the user is
-	 * looking at, or the one that they left for VS Code. The windows of VS Code are left out, except from the window
-	 * picker of Wayland sessions, which lists every window and identifies none of them.
+	 * looking at, or the one that they left for VS Code. On macOS, the windows that the screen doesn't show, on other
+	 * Spaces, minimized or of hidden applications, come after the windows on screen that a capture can take. The windows
+	 * of VS Code are left out, except from the window picker of Wayland sessions, which lists every window and
+	 * identifies none of them.
 	 *
 	 * Without `interactive`, this never shows system UI: it reports `permissionRequired` instead of asking for the Screen
 	 * Recording permission on macOS, and `systemPicker` instead of showing the window picker of Wayland sessions. Only set
