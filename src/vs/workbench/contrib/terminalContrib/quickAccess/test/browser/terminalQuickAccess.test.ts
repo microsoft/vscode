@@ -198,7 +198,7 @@ suite('TerminalQuickAccess', () => {
 			get foregroundInstances() { return foreground; },
 			getInstanceFromId: id => foreground.find(terminal => terminal.instanceId === id),
 			focusInstance: async terminal => { focused.push(terminal.instanceId); },
-			safeDisposeTerminal: async terminal => { disposed.push(terminal.instanceId); }
+			safeDisposeTerminal: async terminal => { disposed.push(terminal.instanceId); closed.add(terminal.instanceId); }
 		});
 		instantiationService.stub(ITerminalProfileResolverService, { getDefaultIcon: () => Codicon.terminal });
 		instantiationService.stub(ITerminalConfigurationService, {});
@@ -450,6 +450,50 @@ suite('TerminalQuickAccess', () => {
 		strictEqual(await pick.trigger?.(2, keyMods), TriggerAction.REMOVE_ITEM);
 		deepStrictEqual({ commands, disposed, renameValue: renameInputs[0].value }, { commands: [], disposed: [3], renameValue: 'Shell' });
 	});
+
+	test('keeps killed terminals out of the results when changing or clearing the query', async () => {
+		const picker = openPicker();
+		await terminalPicks()[0].trigger?.(2, keyMods);
+		const results = [];
+		for (const value of ['term Shell', 'term ']) {
+			picker.value = value;
+			picker.changeValue.fire(value);
+			results.push(picker.items.filter(item => item.type !== 'separator' && item.description).map(item => item.description));
+		}
+		deepStrictEqual({ disposed, results }, {
+			disposed: [3],
+			results: [
+				['(id:12, tab:1, pane:2)', '(id:99, editor)'],
+				['(id:12, tab:1, pane:2)', 'Task (id:21, tab:2)', '(id:99, editor)']
+			]
+		});
+	});
+
+	for (const unavailable of ['disposed', 'missing']) {
+		test(`excludes ${unavailable} snapshot terminals and their empty location separator`, () => {
+			const picker = openPicker();
+			if (unavailable === 'disposed') {
+				closed.add(99);
+				closed.add(12);
+			} else {
+				foreground = foreground.filter(terminal => terminal.instanceId !== 99 && terminal.instanceId !== 12);
+			}
+			picker.value = 'term ';
+			picker.changeValue.fire(picker.value);
+			const result = provider.getPicks();
+			deepStrictEqual({
+				descriptions: result.items.filter(item => item.type !== 'separator' && item.description).map(item => item.description),
+				separators: result.items.filter(item => item.type === 'separator').map(item => item.label),
+				active: result.active,
+				focused
+			}, {
+				descriptions: ['src (id:3, tab:1, pane:1)', 'Task (id:21, tab:2)'],
+				separators: ['Panel', undefined],
+				active: undefined,
+				focused: []
+			});
+		});
+	}
 
 	test('restores the search and highlights the renamed terminal without activating it', async () => {
 		const picker = openPicker('term Shell');

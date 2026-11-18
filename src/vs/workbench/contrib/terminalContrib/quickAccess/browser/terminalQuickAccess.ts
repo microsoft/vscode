@@ -123,7 +123,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		for (const location of [TerminalLocation.Panel, TerminalLocation.Editor]) {
 			let hasSeparator = false;
 			for (const pick of snapshot.items) {
-				if (pick.location !== location) {
+				if (pick.location !== location || !this._isAvailable(pick.terminal)) {
 					continue;
 				}
 				const labelHighlights = matchesFuzzyIconAware(filter, parseLabelWithIcons(pick.label), true);
