@@ -602,6 +602,13 @@ export interface ICreateEditorPartOptions {
 	 * Options of the groups of the part, such as the menus of their title areas.
 	 */
 	readonly groupViewOptions?: unknown /* IEditorGroupViewOptions */;
+
+	/**
+	 * Whether a group with a single tab shows the title of its active editor, where the editor's pane provides it (see
+	 * `IEditorPane.providesTitle`), instead of its own title area, also beside other editors, such as in the chat area of
+	 * an editor window. Otherwise only a group with no other editor does.
+	 */
+	readonly singleTabTitleProvidedByEditor?: boolean;
 }
 
 /**
@@ -670,6 +677,9 @@ export interface IContentPart extends IEditorPart {
 }
 
 export interface IModalEditorPart extends IEditorPart {
+
+	/** Focus the modal's header actions from content rendered outside its DOM. */
+	focusToolbar(): void;
 
 	/**
 	 * Modal container of the editor part.

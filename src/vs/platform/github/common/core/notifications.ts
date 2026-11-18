@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { PageOptions, RepositoryRef } from '../client/types.js';
 import { RepositoryIdentity } from './core.js';
@@ -54,17 +55,17 @@ export type ListNotificationsOptions = ApiPaginationOptions<PageOptions & {
 export interface INotificationsClient {
 
 	/** GET /notifications: list one page of notification threads. */
-	list(signal: AbortSignal, options?: ListNotificationsOptions): Promise<readonly NotificationThread[]>;
+	list(cancellationToken: CancellationToken, options?: ListNotificationsOptions): Promise<readonly NotificationThread[]>;
 
 	/** GET /repos/{owner}/{repo}/notifications: return one repository's notification page. */
-	listForRepository(repository: RepositoryRef, signal: AbortSignal, options?: ListNotificationsOptions): Promise<readonly NotificationThread[]>;
+	listForRepository(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListNotificationsOptions): Promise<readonly NotificationThread[]>;
 
 	/** GET /notifications/threads/{id}: read one notification thread. */
-	get(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<NotificationThread>;
+	get(threadId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<NotificationThread>;
 
 	/** PATCH /notifications/threads/{id}: mark read; the successful bodyless response is HTTP 205. */
-	markRead(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	markRead(threadId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 
 	/** DELETE /notifications/threads/{id}: mark done; success is HTTP 204. */
-	markDone(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	markDone(threadId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 }

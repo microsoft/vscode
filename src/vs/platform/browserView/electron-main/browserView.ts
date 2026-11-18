@@ -966,9 +966,16 @@ export class BrowserView extends Disposable {
 		}
 		try {
 			// The frontend marks its dock side on <body>; it has none while undocked.
-			const dockSide = await devTools.executeJavaScript(
-				`['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked'`
-			) as BrowserViewDevToolsDockSide | 'undocked';
+			const { dockSide, pageOrigin } = await devTools.executeJavaScript(`(() => {
+				const dockSide = ['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked';
+				// DeviceModeView hosts the InspectedPagePlaceholder as its direct child.
+				const pageRect = document.querySelector('.device-mode-view > .vbox')?.getBoundingClientRect();
+				const pageOrigin = pageRect && {
+					x: Math.round(pageRect.x * devicePixelRatio),
+					y: Math.round(pageRect.y * devicePixelRatio)
+				};
+				return { dockSide, pageOrigin };
+			})()`) as { dockSide: BrowserViewDevToolsDockSide | 'undocked'; pageOrigin?: { x: number; y: number } };
 			if (dockSide === 'undocked') {
 				return pageImage;
 			}
@@ -981,7 +988,8 @@ export class BrowserView extends Disposable {
 			const composed = composeDevToolsScreenshot(
 				{ data: pageImage.toBitmap(), ...pageSize },
 				{ data: devToolsImage.toBitmap(), ...devToolsSize },
-				dockSide
+				dockSide,
+				pageOrigin
 			);
 			return nativeImage.createFromBitmap(Buffer.from(composed.data.buffer, composed.data.byteOffset, composed.data.byteLength), { width: composed.width, height: composed.height });
 		} catch (error) {

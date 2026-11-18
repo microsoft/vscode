@@ -91,6 +91,7 @@ export class CopilotSessionSandbox extends Disposable {
 	private _workspacePathsLoadFailed = false;
 	private _disabledForSession = false;
 	private _launchSession: CopilotSession | undefined;
+	private _extensionHome: URI | undefined;
 	private _pendingSelection: 'on' | 'off' | 'default' | undefined;
 	/** Serialized config the SDK session last accepted; re-sending it can restart pending MCP servers. */
 	private _appliedConfig: string | undefined;
@@ -349,7 +350,7 @@ export class CopilotSessionSandbox extends Disposable {
 		const target = this._target();
 		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform, this._getWorkspacePaths());
 		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
-		const { blocked, containsWritable } = resolveAttachedPathGrants(this._options.platform, sandbox, policy, this._attachedPathsFor(paths));
+		const { blocked, containsWritable } = resolveAttachedPathGrants(this._options.platform, sandbox, policy, this._attachedPathsFor(paths), this._extensionHome);
 		return { blocked, containsWritable };
 	}
 
@@ -411,7 +412,8 @@ export class CopilotSessionSandbox extends Disposable {
 	}
 
 	/** The config {@link applyLaunchConfig} pushes, so it can also be applied when the SDK session opens; `undefined` when the launch uses the session command or pushes nothing. */
-	getLaunchConfig(isResume = false): SandboxConfig | undefined {
+	getLaunchConfig(isResume = false, extensionHome?: URI): SandboxConfig | undefined {
+		this._extensionHome = extensionHome;
 		return this._configForUpdate(this._getLaunchSelection(isResume), this._computeConfig(), isResume);
 	}
 
@@ -438,7 +440,7 @@ export class CopilotSessionSandbox extends Disposable {
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),
 			shellInitDirectory: this._options.getShellInitDirectory(),
 		}), ...this._options.getAppliedPluginDirectories()].map(root => root.fsPath);
-		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy, this._attachedPathsFor([...this._attachedPaths.values()]));
+		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy, this._attachedPathsFor([...this._attachedPaths.values()]), this._extensionHome);
 	}
 
 	updateDiagnostics(config?: SandboxConfig): Promise<void> {

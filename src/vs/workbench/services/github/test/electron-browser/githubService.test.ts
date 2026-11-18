@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
@@ -23,7 +24,7 @@ import { NativeWorkbenchGitHubService } from '../../electron-browser/githubServi
 
 suite('Native workbench GitHub API clients', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const signal = () => new AbortController().signal;
+	const cancellationToken = () => CancellationToken.None;
 
 	function setup() {
 		const accountChanged = store.add(new Emitter<IDefaultAccount | null>());
@@ -37,7 +38,7 @@ suite('Native workbench GitHub API clients', () => {
 			override getDefaultAccountAuthenticationProvider() { return account.authenticationProvider; }
 		}();
 		const requests: GitHubAuthorizationContext[] = [];
-		const anonymousSignals: AbortSignal[] = [];
+		const anonymousSignals: CancellationToken[] = [];
 		let authenticationLookups = 0;
 		let disposed = 0;
 		const client = new class extends mock<IGitHubAccountClient>() {
@@ -68,9 +69,9 @@ suite('Native workbench GitHub API clients', () => {
 			new class extends mock<IProductService>() { override readonly applicationName = 'test'; override readonly version = '1'; }(),
 			configuration,
 			new class extends mock<ISharedProcessGitHubService>() {
-				override async acquireAnonymousClient(signal: AbortSignal) {
-					signal.throwIfAborted();
-					anonymousSignals.push(signal);
+				override async acquireAnonymousClient(cancellationToken: CancellationToken) {
+					CancellationToken.throwIfCanceled(cancellationToken);
+					anonymousSignals.push(cancellationToken);
 					return anonymousClient;
 				}
 				override async acquireClient(authorization: GitHubAuthorizationContext) {
@@ -89,18 +90,18 @@ suite('Native workbench GitHub API clients', () => {
 	test('forwards anonymous acquisition to IPC without resolving an account', async () => {
 		const { service, accounts, anonymousClient, anonymousSignals, requests, authenticationLookups, disposed } = setup();
 		accounts.currentDefaultAccount = null;
-		const acquisitionSignal = signal();
+		const acquisitionSignal = cancellationToken();
 		const client = await service.acquireAnonymousApiClient(acquisitionSignal);
 		client.dispose();
 		assert.deepStrictEqual({
-			remoteClient: client === anonymousClient, signal: anonymousSignals[0] === acquisitionSignal,
+			remoteClient: client === anonymousClient, cancellationToken: anonymousSignals[0] === acquisitionSignal,
 			acquisitions: anonymousSignals.length, requests, authenticationLookups: authenticationLookups(), disposed: disposed(),
-		}, { remoteClient: true, signal: true, acquisitions: 1, requests: [], authenticationLookups: 0, disposed: 1 });
+		}, { remoteClient: true, cancellationToken: true, acquisitions: 1, requests: [], authenticationLookups: 0, disposed: 1 });
 	});
 
 	test('selects the repository grant in the renderer and acquires the actual client through IPC', async () => {
 		const { service, requests, client } = setup();
-		const result = await service.acquireDefaultAccountApiClient(signal());
+		const result = await service.acquireDefaultAccountApiClient(cancellationToken());
 		assert.deepStrictEqual({ sameClient: result === client, requests }, {
 			sameClient: true, requests: [{ providerId: 'github', sessionId: 'repo', accountId: 'account', scopes: ['repo'] }],
 		});
@@ -112,7 +113,7 @@ suite('Native workbench GitHub API clients', () => {
 		accounts.currentDefaultAccount = null;
 		const result = await service.acquireAccountApiClient('github', {
 			id: 'other', account: { id: 'other', label: 'Other' }, scopes: ['repo'], accessToken: 'never-forwarded',
-		}, signal());
+		}, cancellationToken());
 		assert.deepStrictEqual({ sameClient: result === client, requests }, {
 			sameClient: true, requests: [{ providerId: 'github', sessionId: 'other', accountId: 'other', scopes: ['repo'], authorizationServer: undefined }],
 		});
@@ -122,12 +123,12 @@ suite('Native workbench GitHub API clients', () => {
 	test('disposes an explicit shared-process lease that arrives after cancellation', async () => {
 		const { service, client, delay, pending, started, disposed } = setup();
 		delay();
-		const controller = new AbortController();
+		const controller = store.add(new CancellationTokenSource());
 		const rejected = assert.rejects(service.acquireAccountApiClient('github', {
 			id: 'other', account: { id: 'other', label: 'Other' }, scopes: ['repo'], accessToken: 'never-forwarded',
-		}, controller.signal));
+		}, controller.token));
 		await started.p;
-		controller.abort(new Error('cancelled'));
+		controller.cancel();
 		await pending.complete(client);
 		await rejected;
 		assert.strictEqual(disposed(), 1);
@@ -136,10 +137,10 @@ suite('Native workbench GitHub API clients', () => {
 	test('disposes a late shared-process lease after cancellation', async () => {
 		const { service, client, delay, pending, started, disposed } = setup();
 		delay();
-		const controller = new AbortController();
-		const rejected = assert.rejects(service.acquireDefaultAccountApiClient(controller.signal));
+		const controller = store.add(new CancellationTokenSource());
+		const rejected = assert.rejects(service.acquireDefaultAccountApiClient(controller.token));
 		await started.p;
-		controller.abort(new Error('cancelled'));
+		controller.cancel();
 		await pending.complete(client);
 		await rejected;
 		assert.strictEqual(disposed(), 1);
@@ -148,7 +149,7 @@ suite('Native workbench GitHub API clients', () => {
 	test('disposes a shared-process lease that arrives after the selected default account changes', async () => {
 		const { service, client, delay, pending, started, accounts, accountChanged, disposed } = setup();
 		delay();
-		const rejected = assert.rejects(service.acquireDefaultAccountApiClient(signal()), { kind: 'authentication' });
+		const rejected = assert.rejects(service.acquireDefaultAccountApiClient(cancellationToken()), { kind: 'authentication' });
 		await started.p;
 		accounts.currentDefaultAccount = null;
 		accountChanged.fire(null);

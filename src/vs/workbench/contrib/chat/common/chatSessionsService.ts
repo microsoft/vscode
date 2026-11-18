@@ -250,6 +250,8 @@ export interface IChatSessionsExtensionPoint {
 	 * declaratively-contributed extensions supply a static boolean and omit this.
 	 */
 	readonly onDidChangeRequiresCopilotSignIn?: Event<void>;
+	/** Signals changes to dynamic creation availability without withdrawing the session type or its open drafts. */
+	readonly onDidChangeAvailability?: Event<void>;
 	/**
 	 * Whether this session type can delegate to another session.
 	 * Defaults to true.

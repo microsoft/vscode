@@ -9,7 +9,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { spy, stub } from 'sinon';
 import { createHash } from 'crypto';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -97,6 +97,7 @@ import { SessionDataService } from '../../node/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { readCopilotSessionEvents } from '../../node/copilot/copilotSessionHistory.js';
+import { isCopilotJournalCorruptionError, recoverCopilotSessionHistory } from '../../node/copilot/copilotSessionHistoryRecovery.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { GENERATED_IMAGE_PRESENTATION_CONTEXT } from '../../node/copilot/copilotGeneratedImages.js';
@@ -160,6 +161,7 @@ import type { IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContex
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { buildMcpServerLogsChannelTemplate, MCP_SERVER_LOGS_META_KEY } from '../../common/otlp/mcpServerLogsChannel.js';
 
 type BackgroundTasks = Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'];
 type TaskOutputRead = Parameters<CopilotSession['rpc']['tasks']['readOutput']>[0];
@@ -1489,6 +1491,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	getUserMcpServers?: () => Promise<Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers']>;
 	disabledRootMcpServers?: readonly string[];
 	controlPlaneRpcTimeoutMs?: number;
+	readCanvasIcon?: (path: string, extensionId: string) => Promise<string | undefined>;
 	extensionSessionApprovals?: Set<string>;
 	connectorRefreshTimeoutMs?: number;
 	connectorOwnershipLookupTimeoutMs?: number;
@@ -2009,6 +2012,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
+			readCanvasIcon: options?.readCanvasIcon,
 			extensionSessionApprovals: options?.extensionSessionApprovals,
 			connectorRefreshTimeoutMs: options?.connectorRefreshTimeoutMs,
 			connectorOwnershipLookupTimeoutMs: options?.connectorOwnershipLookupTimeoutMs,
@@ -4933,6 +4937,101 @@ suite('CopilotAgentSession', () => {
 		}
 	});
 
+	test('withholds a canvas listing when the extensions reload while its icons are read', async () => {
+		const reading = new DeferredPromise<void>();
+		const read = new DeferredPromise<string | undefined>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			readCanvasIcon: () => {
+				reading.complete();
+				return read.p;
+			},
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:board', name: 'board', source: 'user', status: 'dormant' });
+				mock.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'Shows a board.', icon: '/extensions/board/icon.png' });
+			},
+		});
+		const listing = session.listCanvases();
+		await reading.p;
+		mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+		read.complete(undefined);
+		assert.deepStrictEqual({ stale: await listing, fresh: (await session.listCanvases())?.map(canvas => canvas.canvasId) }, { stale: undefined, fresh: ['board'] });
+		session.dispose();
+	});
+
+	test('settles the canvas registry without waiting for its icons', async () => {
+		const reads: DeferredPromise<string | undefined>[] = [];
+		const { session, mockSession, signals } = await createAgentSession(disposables, {
+			readCanvasIcon: () => {
+				const read = new DeferredPromise<string | undefined>();
+				reads.push(read);
+				return read.p;
+			},
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:board', name: 'board', source: 'user', status: 'dormant' });
+				mock.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'Shows a board.', icon: '/extensions/board/icon.png' });
+			},
+		});
+		const changes = () => getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length;
+		// A listing while the extension starts leaves the registry unsettled.
+		mockSession.extensions[0] = { ...mockSession.extensions[0], status: 'starting' };
+		const whileStarting = await session.listCanvases();
+		mockSession.extensions[0] = { ...mockSession.extensions[0], status: 'dormant' };
+		const before = changes();
+		const listing = session.listCanvases();
+		await retry(async () => assert.strictEqual(reads.length, 1), 10, 100);
+		const settledWhileReading = changes() > before;
+		reads[0].complete(undefined);
+		assert.deepStrictEqual({ whileStarting, settledWhileReading, listed: (await listing)?.map(canvas => canvas.canvasId) }, { whileStarting: undefined, settledWhileReading: true, listed: ['board'] });
+		session.dispose();
+	});
+
+	test('shows the icon of the latest read of a canvas, whichever read finishes first', async () => {
+		const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+		const [before, after] = [toCanvasIconDataUri(png), toCanvasIconDataUri(Buffer.concat([png, Buffer.alloc(3)]))];
+		const results = [];
+		for (const order of ['olderFirst', 'newerFirst'] as const) {
+			const reads: DeferredPromise<string | undefined>[] = [];
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				readCanvasIcon: () => {
+					const read = new DeferredPromise<string | undefined>();
+					reads.push(read);
+					return read.p;
+				},
+			});
+			mockSession.fire('session.canvas.opened', { instanceId: 'board', extensionId: 'user:board', canvasId: 'board', icon: '/extensions/board/icon.png', url: 'https://example.test/board' });
+			// The extension reloads with a new icon while its first icon is still read.
+			mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+			for (const [read, icon] of order === 'olderFirst' ? [[reads[0], before], [reads[1], after]] as const : [[reads[1], after], [reads[0], before]] as const) {
+				read.complete(icon);
+				await timeout(0);
+			}
+			results.push({ order, reads: reads.length, icons: signals.filter(signal => signal.kind === 'canvas').map(signal => readCanvasIcon(signal.state)) });
+			session.dispose();
+		}
+		assert.deepStrictEqual(results, [
+			{ order: 'olderFirst', reads: 2, icons: [undefined, after] },
+			{ order: 'newerFirst', reads: 2, icons: [undefined, after] },
+		]);
+	});
+
+	test('shows the icon of a canvas that becomes unavailable while its icon is read', async () => {
+		const icon = toCanvasIconDataUri(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+		const read = new DeferredPromise<string | undefined>();
+		const { session, mockSession, signals } = await createAgentSession(disposables, { readCanvasIcon: () => read.p });
+		const canvas = { instanceId: 'board', extensionId: 'user:board', canvasId: 'board' };
+		mockSession.fire('session.canvas.opened', { ...canvas, icon: '/extensions/board/icon.png', url: 'https://example.test/board' });
+		// The extension stops before its icon is read; the canvas still declares that icon.
+		mockSession.fire('session.canvas.unavailable', canvas);
+		read.complete(icon);
+		await timeout(0);
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => ({ uri: signal.state.uri, icon: readCanvasIcon(signal.state) })), [
+			{ uri: 'https://example.test/board', icon: undefined },
+			{ uri: undefined, icon: undefined },
+			{ uri: undefined, icon },
+		]);
+		session.dispose();
+	});
+
 	test('reports why the runtime declined a canvas open, and throws its other failures', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const results: string[] = [];
@@ -6104,6 +6203,86 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(results, [
 				{ trigger: 'restore', outcome: 'opened', askedForConsent: true },
 				{ trigger: 'restore', outcome: 'consentDenied', askedForConsent: true },
+			]);
+		});
+
+		test('restores a handed-over canvas whose icon is shown again at any step of its restoration, unless it is closed', async () => {
+			const icon = toCanvasIconDataUri(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+			const results = [];
+			for (const step of ['declarations', 'status', 'open'] as const) {
+				for (const closed of [false, true]) {
+					const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, icon: '/extensions/preview/icon.png', url: 'https://example.test/previous' });
+					const held = new DeferredPromise<void>();
+					const gate = new DeferredPromise<void>();
+					const reopens: string[] = [];
+					let mock: MockCopilotSession | undefined;
+					// Initialization lists the declared canvases, so holding that step holds the session's creation.
+					const creating = createAgentSession(disposables, {
+						resume: true,
+						canvasHandoff: handoff,
+						readCanvasIcon: async () => icon,
+						configureMockSession: configured => {
+							mock = configured;
+							// Holds the restoration at one step: listing the declared canvases after the open ones, reading the extension status, or reopening.
+							if (step === 'declarations') {
+								configured.onCanvasListOpen = () => {
+									configured.canvasListGate = gate.p;
+									void held.complete();
+								};
+								configured.onCanvasList = () => { configured.canvasListGate = undefined; };
+							} else if (step === 'status') {
+								configured.onCanvasList = () => { configured.extensionListGate = gate.p; };
+								configured.onExtensionList = () => {
+									if (configured.extensionListGate) {
+										void held.complete();
+									}
+									configured.extensionListGate = undefined;
+								};
+							}
+							configured.onCanvasOpen = async params => {
+								reopens.push(params.instanceId);
+								if (step === 'open') {
+									void held.complete();
+									await gate.p;
+								}
+								return { ...preview, icon: '/extensions/preview/icon.png', url: 'https://example.test/restored' };
+							};
+						},
+					});
+					await held.p;
+					await timeout(0);
+					// An extension reload shows the canvas's icon again, which changes nothing else about it; the runtime may then close the canvas.
+					mock!.fire('session.canvas.registry_changed', { canvases: [] });
+					await timeout(0);
+					if (closed) {
+						mock!.fire('session.canvas.closed', { instanceId: preview.instanceId, extensionId: preview.extensionId, canvasId: preview.canvasId });
+					}
+					gate.complete();
+					const replacement = await creating;
+					assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+					await timeout(0);
+					await timeout(0);
+					const states = replacement.signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state);
+					const restoredAt = states.findIndex(state => state.uri === 'https://example.test/restored');
+					const iconAt = states.findIndex(state => readCanvasIcon(state) === icon);
+					results.push({
+						step,
+						closed,
+						iconShownBeforeRestore: iconAt !== -1 && (restoredAt === -1 || iconAt < restoredAt),
+						reopens: reopens.length,
+						listed: summarizeCanvasSignals(replacement.signals).membership.at(-1)?.length,
+						restored: states.at(-1)?.uri === 'https://example.test/restored' && readCanvasIcon(states.at(-1)) === icon,
+					});
+					replacement.session.dispose();
+				}
+			}
+			assert.deepStrictEqual(results, [
+				{ step: 'declarations', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'declarations', closed: true, iconShownBeforeRestore: true, reopens: 0, listed: 0, restored: false },
+				{ step: 'status', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'status', closed: true, iconShownBeforeRestore: true, reopens: 0, listed: 0, restored: false },
+				{ step: 'open', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'open', closed: true, iconShownBeforeRestore: true, reopens: 1, listed: 0, restored: false },
 			]);
 		});
 
@@ -7646,6 +7825,84 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(await session.getMessages(), []);
 		});
 	}
+
+	test('damaged journal recovery validates records and leaves the source untouched', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'copilot-history-recovery-'));
+		const path = join(directory, 'events.jsonl');
+		const events = toSessionEvents([
+			{ type: 'user.message', data: { content: 'First prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'first', content: 'First answer' } },
+			{ type: 'user.message', data: { content: 'Second prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'second', content: 'Second answer' } },
+		]).map((event, index) => ({ ...event, id: `event-${index}`, timestamp: '2026-03-01T00:00:00.000Z', parentId: null }));
+		const original = [
+			JSON.stringify(events[0]), '{malformed',
+			JSON.stringify({ ...events[1], data: { content: [], messageId: 'invalid' } }),
+			JSON.stringify(events[1]), 'null', '[]',
+			JSON.stringify({ ...events[1], type: 'session.shutdown', data: {} }),
+			JSON.stringify(events[2]),
+			JSON.stringify({ ...events[3], data: { content: 'Invalid tools', messageId: 'invalid', toolRequests: [null] } }),
+			JSON.stringify(events[3]), '{"truncated":',
+		].join('\r\n');
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		};
+		try {
+			writeFileSync(path, original);
+			const recovered = await recoverCopilotSessionHistory(path, logService);
+			assert.deepStrictEqual({
+				messages: recovered.flatMap(event => event.type === 'user.message' || event.type === 'assistant.message' ? [event.data.content] : []),
+				unchanged: readFileSync(path, 'utf8') === original,
+				warnings,
+				notCorruption: ['Access denied', 'Authentication failed', 'Session history changed while it was loading'].map(message => isCopilotJournalCorruptionError(new Error(message))),
+			}, {
+				messages: ['First prompt', 'First answer', 'Second prompt', 'Second answer'],
+				unchanged: true,
+				warnings: ['[Copilot] Recovered 4 transcript records from a damaged journal; omitted 7 invalid or unsupported records. Rich payloads are excluded; the original journal was not changed.'],
+				notCorruption: [false, false, false],
+			});
+			writeFileSync(path, 'null\n{malformed');
+			await assert.rejects(recoverCopilotSessionHistory(path, logService), /No conversation could be recovered/);
+			await assert.rejects(recoverCopilotSessionHistory(join(directory, 'missing.jsonl'), logService), /ENOENT/);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('damaged journal recovery preserves host-sent turn boundaries and omits runtime injections', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'copilot-history-recovery-'));
+		const path = join(directory, 'events.jsonl');
+		const events = toSessionEvents([
+			{ type: 'user.message', data: { content: 'User prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'first', content: 'User reply' } },
+			{ type: 'user.message', data: { content: 'Automation prompt', source: 'automation', clientTurnId: 'automation-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'second', content: 'Automation reply' } },
+			{ type: 'user.message', data: { content: 'Agent prompt', source: 'agent', clientTurnId: 'agent-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'third', content: 'Agent reply' } },
+			{ type: 'user.message', data: { content: 'System prompt', source: 'system', clientTurnId: 'system-turn' } },
+			{ type: 'user.message', data: { content: 'Runtime injection', source: 'system', clientTurnId: 42 } },
+			{ type: 'assistant.message', data: { messageId: 'fourth', content: 'System reply' } },
+			{ type: 'session.idle', data: {} },
+		]).map((event, index) => ({ ...event, id: `event-${index}`, timestamp: '2026-03-01T00:00:00.000Z', parentId: null }));
+		try {
+			writeFileSync(path, [...events.map(event => JSON.stringify(event)), '{malformed'].join('\n'));
+			const recovered = await recoverCopilotSessionHistory(path, new NullLogService());
+			const { session } = await createAgentSession(disposables);
+			const result = await mapSessionEvents(session.resourceUri, undefined, recovered, session.chatChannelUri, session.ownerSessionUri, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file('/workspace'))));
+			assert.deepStrictEqual(result.turns.map(turn => ({
+				prompt: turn.message.text,
+				replies: turn.responseParts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content),
+			})), [
+				{ prompt: 'User prompt', replies: ['User reply'] },
+				{ prompt: 'Automation prompt', replies: ['Automation reply'] },
+				{ prompt: 'Agent prompt', replies: ['Agent reply'] },
+				{ prompt: 'System prompt', replies: ['System reply'] },
+			]);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
 
 	test('restores and sends in the parent without waiting for child history', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
@@ -10323,6 +10580,33 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('signals a runtime contribution reload for top-level skill, custom agent and MCP server reloads without the MCP skills flag', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let reloads = 0;
+		let pluginChanges = 0;
+		disposables.add(session.onDidReloadRuntimeContributions(() => reloads++));
+		disposables.add(session.onDidChangeRuntimePlugins(() => pluginChanges++));
+
+		mockSession.fire('session.skills_loaded', { skills: [] }, { agentId: 'agent-1' });
+		mockSession.fire('session.custom_agents_updated', { agents: [], errors: [], warnings: [] }, { agentId: 'agent-1' });
+		mockSession.fire('session.mcp_servers_loaded', { servers: [] }, { agentId: 'agent-1' });
+		mockSession.fire('session.skills_loaded', { skills: [] });
+		mockSession.fire('session.custom_agents_updated', { agents: [], errors: [], warnings: [] });
+		mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+
+		assert.deepStrictEqual({ reloads, pluginChanges }, { reloads: 3, pluginChanges: 0 });
+	});
+
+	test('signals plugin changes when some managed plugins could not be prepared, which the runtime reports without a completion', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let pluginChanges = 0;
+		disposables.add(session.onDidChangeRuntimePlugins(() => pluginChanges++));
+		mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Some plugins required by your organization admin could not be prepared.' }, { agentId: 'agent-1' });
+		const afterSubagentEvent = pluginChanges;
+		mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Some plugins required by your organization admin could not be prepared.' });
+		assert.deepStrictEqual({ afterSubagentEvent, pluginChanges }, { afterSubagentEvent: 0, pluginChanges: 1 });
+	});
+
 	test('`/review` invokes runtime command when listed', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
@@ -12229,6 +12513,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('tool.execution_complete', { toolCallId: 'read', success: true, result: { content: 'The review is done.' } });
 			await timeout(0);
 
+			const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'tc-task');
 			assert.deepStrictEqual({
 				messages: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'read'
 					? [action.invocationMessage]
@@ -12236,7 +12521,7 @@ suite('CopilotAgentSession', () => {
 						? [action.result.pastTenseMessage] : []),
 				parameters,
 			}, {
-				messages: [{ markdown: 'Read agent `catalog-perf`' }, { markdown: 'Read agent `catalog-perf`' }],
+				messages: [{ markdown: `Read agent [catalog\\-perf](${chat})` }, { markdown: `Read agent [catalog\\-perf](${chat})` }],
 				parameters: { agent_id: agentId, wait: false },
 			});
 		});
@@ -12282,6 +12567,7 @@ suite('CopilotAgentSession', () => {
 			for (const kind of notifications) {
 				mockSession.fire('system.notification', { content: 'Agent finished', kind });
 			}
+			const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'tc-task');
 			assert.deepStrictEqual({
 				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal, chat => { const owner = mintedTestChatOwner(chat); return owner === undefined ? undefined : { owner, format: 'shaped' }; })?.title] : []),
 				toolMessages: getActions(signals).flatMap(action => {
@@ -12295,15 +12581,15 @@ suite('CopilotAgentSession', () => {
 			}, {
 				chatTitles: restored ? [] : ['Fix Take-all ground pickup'],
 				toolMessages: [
-					{ markdown: 'Read agent `Fix Take-all ground pickup`' },
-					{ markdown: 'Read agent `Fix Take-all ground pickup`' },
-					{ markdown: 'Write to agent `Fix Take-all ground pickup`' },
-					{ markdown: 'Write to agent `Fix Take-all ground pickup`' },
+					{ markdown: `Read agent [Fix Take\\-all ground pickup](${chat})` },
+					{ markdown: `Read agent [Fix Take\\-all ground pickup](${chat})` },
+					{ markdown: `Write to agent [Fix Take\\-all ground pickup](${chat})` },
+					{ markdown: `Write to agent [Fix Take\\-all ground pickup](${chat})` },
 				],
 				notifications: [
-					'Background agent `Fix Take-all ground pickup` is complete',
-					'Background agent `Fix Take-all ground pickup` completed',
-					'Background agent `Fix Take-all ground pickup` failed',
+					`[Fix Take\\-all ground pickup](${chat}) is complete`,
+					`[Fix Take\\-all ground pickup](${chat}) completed`,
+					`[Fix Take\\-all ground pickup](${chat}) failed`,
 				],
 				coordinationParameters: { agent_id: agentId },
 			});
@@ -12357,12 +12643,13 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('tool.execution_start', { toolCallId: 'write', toolName: 'write_agent', arguments: { agent_id: 'agent-1', message: 'Follow up' } });
 		mockSession.fire('tool.execution_complete', { toolCallId: 'write', success: true });
 
+		const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'launch');
 		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'write'
 			? [action.invocationMessage]
 			: action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'write'
 				? [action.result.pastTenseMessage] : []), [
-			{ markdown: 'Write to agent `Review the history`' },
-			{ markdown: 'Write to agent `Review the history`' },
+			{ markdown: `Write to agent [Review the history](${chat})` },
+			{ markdown: `Write to agent [Review the history](${chat})` },
 		]);
 	});
 
@@ -12382,12 +12669,13 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('tool.execution_start', { toolCallId: 'write', toolName: 'write_agent', arguments: { agent_id: 'agent-1', message: 'Follow up' } });
 		mockSession.fire('tool.execution_complete', { toolCallId: 'write', success: true });
 
+		const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'launch');
 		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'write'
 			? [action.invocationMessage]
 			: action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'write'
 				? [action.result.pastTenseMessage] : []), [
-			{ markdown: 'Write to agent `History reviewer`' },
-			{ markdown: 'Write to agent `History reviewer`' },
+			{ markdown: `Write to agent [History reviewer](${chat})` },
+			{ markdown: `Write to agent [History reviewer](${chat})` },
 		]);
 	});
 
@@ -15231,7 +15519,7 @@ suite('CopilotAgentSession', () => {
 				grant: readToolCallMeta(signal.state)['vscode.sandboxPathGrant'],
 				rootLookups: getSessionPathRoots.callCount,
 			}, {
-				message: 'Allow read access to `files/notes.txt` in this session\'s storage.',
+				message: 'Allow reading `files/notes.txt` from this session.',
 				grant,
 				rootLookups: 0,
 			});
@@ -15258,9 +15546,9 @@ suite('CopilotAgentSession', () => {
 				copilotHome: home.fsPath, sessionUri: source, owner, getSessionPathRoots,
 			});
 			const cases = [
-				{ path: currentRoot.fsPath, owner: source, message: 'Allow read access to this session\'s storage.', rootLookups: 0 },
-				{ path: `${currentRoot.fsPath}${sep}files${sep}..${sep}notes.txt`, owner: destination, message: 'Allow read access to `notes.txt` in this session\'s storage.', rootLookups: 0 },
-				{ path: URI.joinPath(otherRoot, 'notes.txt').fsPath, owner: destination, message: 'Allow read access to `Session "Other" / notes.txt` and retry inside the sandbox.', rootLookups: 1 },
+				{ path: currentRoot.fsPath, owner: source, message: 'Allow reading files from this session.', rootLookups: 0 },
+				{ path: `${currentRoot.fsPath}${sep}files${sep}..${sep}notes.txt`, owner: destination, message: 'Allow reading `notes.txt` from this session.', rootLookups: 0 },
+				{ path: URI.joinPath(otherRoot, 'notes.txt').fsPath, owner: destination, message: 'Allow reading `notes.txt` from session "Other" and retry inside the sandbox.', rootLookups: 1 },
 				{ path: conflictingRoot.fsPath, owner: destination, message: `Allow read access to \`${conflictingRoot.fsPath}\` and retry inside the sandbox.`, rootLookups: 2 },
 			];
 			const snapshots = [];
@@ -15286,25 +15574,22 @@ suite('CopilotAgentSession', () => {
 			})));
 		});
 
-		test('sandbox session path labels follow peer ownership and requester moves without changing grants', async () => {
+		test('sandbox session path labels preserve peer identity across requester moves without changing grants', async () => {
 			const source = URI.parse('copilot:/source');
 			const destination = URI.parse('copilot:/destination');
 			const owner = disposables.add(new TestChatOwnerRef(source));
 			const home = URI.file('/custom-copilot-home');
 			const peerRoot = URI.joinPath(home, 'session-state', 'peer-sdk');
-			let peerOwner = source;
-			let peerTitle = 'Source';
+			const peer = URI.parse(buildChatUri(source, 'peer'));
+			let peerTitle = 'Peer';
 			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
 				copilotHome: home.fsPath, sessionUri: source, owner,
-				getSessionPathRoots: () => [{ root: peerRoot, session: peerOwner, title: peerTitle }],
+				getSessionPathRoots: () => [{ root: peerRoot, session: peer, title: peerTitle }],
 			});
 			const snapshots = [];
-			for (const stage of ['peer', 'target-moved', 'renamed', 'requester-moved'] as const) {
-				if (stage === 'target-moved') {
-					peerOwner = destination;
-					peerTitle = 'Destination';
-				} else if (stage === 'renamed') {
-					peerTitle = 'Renamed destination';
+			for (const stage of ['peer', 'renamed', 'requester-moved'] as const) {
+				if (stage === 'renamed') {
+					peerTitle = 'Renamed peer';
 				} else if (stage === 'requester-moved') {
 					owner.set(destination);
 				}
@@ -15322,8 +15607,8 @@ suite('CopilotAgentSession', () => {
 				session.respondToPermissionRequest(stage, false);
 				await pending;
 			}
-			assert.deepStrictEqual(snapshots, ['This session', 'Session "Destination"', 'Session "Renamed destination"', 'This session'].map(label => ({
-				message: label === 'This session' ? 'Allow read access to `notes.txt` in this session\'s storage.' : `Allow read access to \`${label} / notes.txt\` and retry inside the sandbox.`,
+			assert.deepStrictEqual(snapshots, ['Peer', 'Renamed peer', 'Renamed peer'].map(title => ({
+				message: `Allow reading \`notes.txt\` from session "${title}" and retry inside the sandbox.`,
 				grant: { path: URI.joinPath(peerRoot, 'notes.txt').fsPath, access: 'read' },
 			})));
 		});
@@ -19972,6 +20257,17 @@ Use the attached image as context.
 			]);
 		});
 
+		test('agent notification links escape labels and destinations', () => {
+			const event: SessionEventPayload<'system.notification'> = {
+				id: 'notification', parentId: null, timestamp: '2026-09-08T00:00:00.000Z', type: 'system.notification',
+				data: { content: 'Agent finished', kind: { type: 'agent_completed', agentId: 'agent', agentType: 'task', status: 'completed' } },
+			};
+			assert.deepStrictEqual(buildCopilotSystemNotification(event, () => 'Review [x] `y` & <z>\nnext', () => 'ahp-chat://subagent/path(a) b'), {
+				messageText: '[Review \\[x\\] \\`y\\` \\& \\<z\\> next](ahp-chat://subagent/path\\(a\\)%20b) completed',
+				startsTurn: true,
+			});
+		});
+
 		test('agent activity titles retain the chat title truncation and markdown escaping', () => {
 			const descriptions = ['  Review `permissions`  ', `  ${'a'.repeat(80)}  `, '   '];
 			const titles = ['Review `permissions`', `${'a'.repeat(60)}\u2026`, 'reviewer'];
@@ -20020,6 +20316,28 @@ Use the attached image as context.
 				message: { text: 'Background agent `Investigate the issue` is complete', origin: { kind: MessageKind.SystemNotification } },
 				responseTurnId: turnStarted.turnId,
 				completedTurnId: turnStarted.turnId,
+			});
+		});
+
+		test('restored subagent completion starts a turn linked to its exact chat', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => {
+					mock.messages = toSessionEvents([
+						{ type: 'subagent.started', agentId: 'first', data: { toolCallId: 'task-first', agentName: 'review', agentDisplayName: 'First', agentDescription: '' } },
+						{ type: 'subagent.started', agentId: 'second', data: { toolCallId: 'task-second', agentName: 'review', agentDisplayName: 'Second', agentDescription: '' } },
+					]);
+				},
+			});
+			await session.getMessages();
+			mockSession.fire('system.notification', {
+				content: 'Finished',
+				kind: { type: 'agent_completed', agentId: 'second', agentType: 'review', status: 'failed' },
+			});
+			const childChat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'task-second');
+			assert.deepStrictEqual(getActions(signals).find(action => action.type === ActionType.ChatTurnStarted)?.message, {
+				text: `[Second](${childChat}) failed`,
+				origin: { kind: MessageKind.SystemNotification },
 			});
 		});
 
@@ -21885,6 +22203,28 @@ Use the attached image as context.
 				invocationMessage: 'Read issue',
 				pastTenseMessage: 'Read issue',
 				meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
+			});
+		});
+
+		test('MCP tool start carries the server display name without replacing the server identity', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-mcp-display-name');
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-mcp-display-name',
+				toolName: `${serverName}-slack_read_thread`,
+				toolTitle: 'Read thread messages',
+				mcpServerName: serverName,
+				mcpServerDisplayName: 'Slack',
+				mcpToolName: 'slack_read_thread',
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallStart));
+
+			const start = getActions(signals).find(action => action.type === ActionType.ChatToolCallStart);
+			assert.deepStrictEqual(start && readToolCallMeta(start), {
+				mcpServerName: serverName,
+				'vscode.mcpServerDisplayName': 'Slack',
+				mcpToolName: 'slack_read_thread',
 			});
 		});
 
@@ -30934,7 +31274,7 @@ Use the attached image as context.
 			assert.strictEqual(result.resultType, 'failure');
 		});
 
-		test('client tool handler waits for completion without emitting tool_ready', async () => {
+		test('client tool handler releases a held tool_ready when the runtime authorized it without a permission request', async () => {
 
 			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
 
@@ -30952,14 +31292,22 @@ Use the attached image as context.
 			if (isAction(startSignal!, ActionType.ChatToolCallStart)) {
 				assert.deepStrictEqual((startSignal.action as ChatToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
 			}
+			// Held for the permission flow until the handler runs.
+			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).length, 0);
 
-			// SDK invokes the handler — it creates a deferred and waits,
-			// but does NOT fire tool_ready (that comes from the permission flow).
+			// The runtime approved the call without a permission request (e.g. a standing
+			// approval) and invokes the handler, which must release the held ready so the
+			// client runs the tool instead of every side waiting until the runtime times out.
 			const tools = runtime.createClientSdkTools();
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1', { file: 'test.ts' });
 
-			// No pending_confirmation or tool_ready should have been emitted by the handler
-			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).length, 0);
+			assert.deepStrictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).map(s => {
+				if (s.kind === 'pending_confirmation') {
+					return { kind: s.kind };
+				}
+				const action = (s as { action: ChatToolCallReadyAction }).action;
+				return { type: action.type, toolCallId: action.toolCallId, confirmed: action.confirmed, contributor: action.contributor };
+			}), [{ type: ActionType.ChatToolCallReady, toolCallId: 'tc-client-1', confirmed: ToolCallConfirmationReason.NotNeeded, contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' } }]);
 
 			// Complete the tool call
 			session.handleClientToolCallComplete('tc-client-1', {
@@ -30971,6 +31319,29 @@ Use the attached image as context.
 			const result = await handlerPromise;
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'result text');
+		});
+
+		test('client tool handler that runs before the tool start releases tool_ready once the start arrives', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
+
+			const tools = runtime.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-early-handler', {});
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-early-handler',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			assert.deepStrictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).map(s => {
+				if (s.kind === 'pending_confirmation') {
+					return { kind: s.kind };
+				}
+				const action = (s as { action: ChatToolCallReadyAction }).action;
+				return { type: action.type, toolCallId: action.toolCallId, confirmed: action.confirmed };
+			}), [{ type: ActionType.ChatToolCallReady, toolCallId: 'tc-early-handler', confirmed: ToolCallConfirmationReason.NotNeeded }]);
+
+			session.handleClientToolCallComplete('tc-early-handler', { success: true, pastTenseMessage: 'did it', content: [] });
+			assert.strictEqual((await handlerPromise).resultType, 'success');
 		});
 
 		test('client tool auto-readies when SDK allow-all mode is on', async () => {
@@ -36360,6 +36731,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Stopped },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 				afterRuntimeUpdate: [{
 					type: CustomizationType.McpServer,
@@ -36371,6 +36743,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Starting, blocking: true },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 				afterReconcile: [{
 					type: CustomizationType.McpServer,
@@ -36382,6 +36755,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Stopped },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 				enableCalls: [{ serverName }],
 				afterEnable: [{
@@ -36392,6 +36766,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Starting, blocking: true },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 			});
 		});
@@ -38639,6 +39014,7 @@ Use the attached image as context.
 				},
 				channel: undefined,
 				mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+				_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', 'github') },
 			});
 
 			assert.strictEqual(await session.resolveMcpAuthentication({ resource: 'https://api.githubcopilot.com/mcp', scopes: ['repo', 'notifications'], token: 'token-1' }), true);

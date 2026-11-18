@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { parsePullRequestUrl } from '../../../github/common/githubUrls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { IAgentHostGitHubService } from '../agentHostGitHubService.js';
 
 export const IAgentHostPullRequestResolver = createDecorator<IAgentHostPullRequestResolver>('agentHostPullRequestResolver');
@@ -39,13 +39,12 @@ export interface IAgentHostPullRequestResolver {
 export class AgentHostPullRequestResolver extends Disposable implements IAgentHostPullRequestResolver {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _abortController = new AbortController();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(
 		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 	) {
 		super();
-		this._register(toDisposable(() => this._abortController.abort()));
 	}
 
 	async resolve(pullRequestUrl: string, source?: IAgentHostCredentialSource, session?: string): Promise<IResolvedPullRequest> {
@@ -56,8 +55,8 @@ export class AgentHostPullRequestResolver extends Disposable implements IAgentHo
 
 		const store = new DisposableStore();
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, session)).object;
-			const { account } = await client.credentials.getCredential(this._abortController.signal);
+			const client = store.add(this._gitHubService.acquireRepositoryClient(this._disposeToken, source, session)).object;
+			const { account } = await client.credentials.getCredential(this._disposeToken);
 			// The URL names its own GitHub instance; never query it with an account from another one.
 			if (account.host.toLowerCase() !== parsed.apiHost) {
 				throw new Error(localize('agentHost.pullRequest.hostMismatch', "Pull request #{0} is not on the GitHub instance of the signed-in account.", parsed.number));

@@ -104,7 +104,7 @@ export class ChatResourcesControl extends Disposable {
 		this._chatKey = derived(this, reader => sessionResource.read(reader)?.toString());
 		// A recorded file can be missing: the agent can record it before writing it, or delete it later.
 		const recordedTargets = derived(this, reader => [...new Set(recorded.read(reader).map(resource => resource.resource.toString()))]);
-		const recordedExistence = mapObservableArrayCached(this, recordedTargets, (target, store) => [target, /* Resources that no file system provides, such as settings, count as existing: nothing can tell. */ observeChatResourceExists(this._fileService, URI.parse(target), store, true)] as const);
+		const recordedExistence = mapObservableArrayCached(this, recordedTargets, (target, store) => [target, observeChatResourceExists(this._fileService, URI.parse(target), store)] as const);
 		this._resources = derived(this, reader => {
 			if (this._chatKey.read(reader) === undefined) {
 				return new Map();

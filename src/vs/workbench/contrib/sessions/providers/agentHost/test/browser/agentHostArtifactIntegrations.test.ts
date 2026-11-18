@@ -698,7 +698,7 @@ suite('Agent Host artifact workspace settings', () => {
 				transformed: remoteAddress ? [metadata.resource] : [],
 				forwarded: [{
 					resource: metadata.resource, scopes: ['read'], token: remoteAddress ? 'sealed-token' : 'plain-token',
-					_meta: { 'vscode.authentication.account': { accountId: 'account', providerId: 'test-auth' } },
+					accountId: '["test-auth","account",null]',
 				}],
 			});
 		});
@@ -937,6 +937,15 @@ suite('Agent Host client artifact notices', () => {
 				{ kind: 'release', subscription: 'subscription' },
 			],
 			notices: [f.notice], released: 1, sessionResources: [session], unavailable: undefined,
+		});
+	});
+
+	test('a client integration status notice reaches the host through the artifact transport', async () => {
+		const f = fixture();
+		const notice: ArtifactAutomationNotice = { kind: 'status', session, artifact, content: 'Removed from the merge queue.', iconId: 'beaker' };
+		await f.service.postNotice(notice);
+		assert.deepStrictEqual({ requests: f.requests.map(request => request.kind), notices: f.notices, released: f.released }, {
+			requests: ['acquire', 'notice', 'release'], notices: [notice], released: 1,
 		});
 	});
 
