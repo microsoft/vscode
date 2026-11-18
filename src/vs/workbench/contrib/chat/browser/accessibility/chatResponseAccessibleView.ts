@@ -23,7 +23,7 @@ import { autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js
 import { formatChatToolError } from '../../common/chatProgressFormatting.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionTargetData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
-import { IChatProgressResponseContent } from '../../common/model/chatModel.js';
+import { getResponsePartsForPlaintext, IChatProgressResponseContent } from '../../common/model/chatModel.js';
 import { IChatResponseViewModel, isResponseVM, isRequestVM, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { annotateSpecialMarkdownContentWithSource } from '../../common/widget/annotations.js';
 import { getChatRequestAccessibleText, getChatScheduledRequestAccessibleText } from '../chatRequestText.js';
@@ -471,13 +471,13 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 	const joinedTexts = describeCodeBlock ? describeJoinedCodeBlocks(item.response.value, describeCodeBlock) : undefined;
 
 	// Process all parts in order to maintain the natural flow
-	item.response.value.forEach((part, partIndex) => {
+	for (const { part, partIndex } of getResponsePartsForPlaintext(item.response.value)) {
 		const joinedText = joinedTexts?.get(partIndex);
 		if (joinedText !== undefined) {
 			if (joinedText.trim()) {
 				contentParts.push({ partIndex, text: joinedText });
 			}
-			return;
+			continue;
 		}
 		switch (part.kind) {
 			case 'thinking': {
@@ -638,7 +638,7 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				break;
 			}
 		}
-	});
+	}
 
 	return contentParts;
 }

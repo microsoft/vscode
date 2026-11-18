@@ -10,6 +10,7 @@ import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isLocation, Location } from '../../../../../../editor/common/languages.js';
 import { IWorkspaceSymbol } from '../../../../search/common/search.js';
+import { getResponsePartsForPlaintext } from '../../../common/model/chatModel.js';
 import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 
 /**
@@ -96,7 +97,7 @@ export function getChatFindTextParts(item: IChatResponseViewModel): IChatFindTex
 		return parts;
 	}
 
-	item.response.value.forEach((part, partIndex) => {
+	for (const { part, partIndex } of getResponsePartsForPlaintext(item.response.value)) {
 		switch (part.kind) {
 			case 'markdownContent': {
 				// No code fences or link formatting: the ``` markers are consumed by the code
@@ -136,7 +137,7 @@ export function getChatFindTextParts(item: IChatResponseViewModel): IChatFindTex
 				break;
 			}
 		}
-	});
+	}
 
 	return parts;
 }

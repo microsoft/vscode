@@ -52,6 +52,12 @@ Undo stops remain model boundaries. Rendering merges parent Markdown across nest
 
 Older histories can contain fence-only scaffolding adjacent to structured subagent metadata. The model and annotation pass share its detection for copy/accessibility text and rendering. Nonempty Markdown and literal request examples are retained; request code blocks never interpret file annotation strings as metadata.
 
+## Empty thinking markers
+
+Thinking parts with an empty string or only empty array entries close reasoning runs but do not interrupt Markdown. The model preserves these markers while merging streamed Markdown across them; the annotation pass applies the same rule to fragmented history without repeatedly scanning retained markers. Copy Final Response crosses these markers without inserting whitespace. The Accessible View and transcript Find share fragment coalescing before their respective plaintext conversions so split formatting and links match the rendered content. Nonempty thinking (including whitespace), pending thinking without a value, tools, and existing edit/undo boundaries keep their semantics, and Markdown permissions still govern merging. Session recording keeps all deltas.
+
+`hasFollowingMarkdown` records when an empty marker has been crossed by later Markdown, including in restored annotations. This preserves the legacy working-indicator delay after text without changing the immediate progress indication of a fresh section-end marker.
+
 ## Markdown file images
 
 Response Markdown targets are resolved by the owning session content provider before rendering. Agent Host paths retain their connection identity in `vscode-agent-host:` URIs; relative image paths use the session or chat's advertised working directory. Recorded cloud history preserves this identity without requiring a live connection.

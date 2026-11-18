@@ -7,7 +7,7 @@ import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
-import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings, getLegacySubagentMarkdown, isNestedSubagentResponsePart } from '../model/chatModel.js';
+import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings, getLegacySubagentMarkdown, isEmptyThinkingPart, isNestedSubagentResponsePart } from '../model/chatModel.js';
 import { IChatAgentVulnerabilityDetails } from '../chatService/chatService.js';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
@@ -22,8 +22,9 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 	const parts = Array.from(response);
 	const legacySubagentMarkdown = getLegacySubagentMarkdown(parts);
 
-	const result: IAnnotatedChatContent[] = [];
+	const result: { content: IChatProgressRenderableResponseContent; sourceIndexes: number[] }[] = [];
 	let sourceIndex = 0;
+	let previousItemIndex = -1;
 	for (let item of parts) {
 		const currentSourceIndex = sourceIndex++;
 		const normalizedMarkdown = legacySubagentMarkdown.get(currentSourceIndex);
@@ -33,7 +34,6 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 			}
 			item = { ...item, content: { ...item.content, value: normalizedMarkdown } };
 		}
-		const previousItemIndex = result.findLastIndex(p => p.content.kind !== 'textEditGroup' && p.content.kind !== 'notebookEditGroup' && p.content.kind !== 'undoStop' && !isNestedSubagentResponsePart(p.content) && !(p.content.kind === 'markdownContent' && p.content.codeblockUri));
 		const previousEntry = result[previousItemIndex];
 		const previousItem = previousEntry?.content;
 		if (item.kind === 'inlineReference') {
@@ -56,10 +56,8 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 			if (isInsideCodeContext(previousText)) {
 				if (previousItem?.kind === 'markdownContent') {
 					const merged = appendMarkdownString(previousItem.content, new MarkdownString(label));
-					result[previousItemIndex] = {
-						content: { ...previousItem, content: merged },
-						sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
-					};
+					previousEntry.content = { ...previousItem, content: merged };
+					previousEntry.sourceIndexes.push(currentSourceIndex);
 				} else {
 					result.push({
 						content: { content: new MarkdownString(label), kind: 'markdownContent' },
@@ -75,10 +73,8 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 
 				if (previousItem?.kind === 'markdownContent') {
 					const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-					result[previousItemIndex] = {
-						content: { ...previousItem, content: merged, inlineReferences: { ...annotationMetadata, ...(previousItem.inlineReferences || {}) } },
-						sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
-					};
+					previousEntry.content = { ...previousItem, content: merged, inlineReferences: { ...annotationMetadata, ...(previousItem.inlineReferences || {}) } };
+					previousEntry.sourceIndexes.push(currentSourceIndex);
 				} else {
 					result.push({
 						content: { content: new MarkdownString(markdownText), inlineReferences: annotationMetadata, kind: 'markdownContent' },
@@ -89,25 +85,21 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent' && !previousItem.codeblockUri && !item.codeblockUri) {
 			if (canMergeMarkdownStrings(previousItem.content, item.content)) {
 				const merged = appendMarkdownString(previousItem.content, item.content);
-				result[previousItemIndex] = {
-					content: { ...previousItem, content: merged },
-					sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
-				};
+				previousEntry.content = { ...previousItem, content: merged };
+				previousEntry.sourceIndexes.push(currentSourceIndex);
 			} else if (previousItem.inlineReferences && isContentRefOnly(previousItem.content.value)) {
 				// The previous item is a standalone inline reference whose MarkdownString
 				// was synthesized with default properties that don't match the incoming
 				// markdown (e.g., different isTrusted). Prepend the reference text and
 				// adopt the incoming item's properties so they render together in one block.
-				result[previousItemIndex] = {
+				previousEntry.content = {
+					...previousItem,
 					content: {
-						...previousItem,
-						content: {
-							...item.content,
-							value: previousItem.content.value + item.content.value,
-						},
+						...item.content,
+						value: previousItem.content.value + item.content.value,
 					},
-					sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
 				};
+				previousEntry.sourceIndexes.push(currentSourceIndex);
 			} else {
 				result.push({ content: item, sourceIndexes: [currentSourceIndex] });
 			}
@@ -117,10 +109,8 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 			if (previousItem?.kind === 'markdownContent') {
 				// Since this is inside a codeblock, it needs to be merged into the previous markdown content.
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-				result[previousItemIndex] = {
-					content: { ...previousItem, content: merged },
-					sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
-				};
+				previousEntry.content = { ...previousItem, content: merged };
+				previousEntry.sourceIndexes.push(currentSourceIndex);
 			} else {
 				result.push({
 					content: { content: new MarkdownString(markdownText), kind: 'markdownContent' },
@@ -140,15 +130,29 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
 				// delete the previous and append to ensure that we don't reorder the edit before the undo stop containing it
 				result.splice(previousItemIndex, 1);
-				result.push({
-					content: { ...previousItem, content: merged },
-					sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
-				});
+				previousEntry.content = { ...previousItem, content: merged };
+				previousEntry.sourceIndexes.push(currentSourceIndex);
+				result.push(previousEntry);
 			}
 		} else if (item.kind === 'voiceProgress') {
 			continue;
 		} else {
 			result.push({ content: item, sourceIndexes: [currentSourceIndex] });
+		}
+
+		// Track the predecessor without repeatedly scanning retained reasoning markers.
+		const lastItem = result.at(-1)?.content;
+		if (lastItem && lastItem.kind !== 'textEditGroup' && lastItem.kind !== 'notebookEditGroup' && lastItem.kind !== 'undoStop' && !isEmptyThinkingPart(lastItem) && !isNestedSubagentResponsePart(lastItem) && !(lastItem.kind === 'markdownContent' && lastItem.codeblockUri)) {
+			previousItemIndex = result.length - 1;
+		}
+	}
+
+	let lastMarkdownSourceIndex = -1;
+	for (const [index, entry] of result.entries()) {
+		if (entry.content.kind === 'markdownContent' && !entry.content.codeblockUri) {
+			lastMarkdownSourceIndex = entry.sourceIndexes[entry.sourceIndexes.length - 1];
+		} else if (entry.content.kind === 'thinking' && isEmptyThinkingPart(entry.content) && entry.sourceIndexes[0] < lastMarkdownSourceIndex && !entry.content.hasFollowingMarkdown) {
+			result[index] = { ...entry, content: { ...entry.content, hasFollowingMarkdown: true } };
 		}
 	}
 
