@@ -1124,7 +1124,7 @@ suite('GitHub pull request artifact integration', () => {
 		});
 	}));
 
-	test('retains same-head lists when a refresh is cancelled and restarted without authorizing stale actions', () => run(async store => {
+	test('retains same-head lists when a refresh is cancelled and restarted without authorizing stale actions, while Autopilot rules stay available', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const ready = {
 			...base, checks: {
@@ -1164,7 +1164,7 @@ suite('GitHub pull request artifact integration', () => {
 		assert.deepStrictEqual(states, ['loading', 'stale', 'loading'].map(status => ({
 			status, sections: ['checks', 'comments'], lists: ['checks', 'comments'],
 			items: [['failed'], ['thread']], detailsAvailability: [status, status],
-			enabledActions: [], enabledAutomation: [],
+			enabledActions: [], enabledAutomation: ['addressReviews', 'fixCI', 'resolveConflicts', 'markReady', 'merge'],
 		})));
 	}));
 

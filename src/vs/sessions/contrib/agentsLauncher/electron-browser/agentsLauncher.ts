@@ -6,10 +6,10 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
-import { INewSessionDraftSlot, ISessionsManagementService, trackNewSessionRequestEnd } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { INewSessionDraftSlot, ISessionsManagementService, trackNewSessionRequestEnd, trackNewSessionRequestSent } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 const AGENTS_LAUNCHER_WIDTH = 640;
@@ -344,20 +344,54 @@ export class AgentsLauncherPresenter {
 
 /**
  * Follows an ordinary send of `draft`, one the user did not send in the background, by the Agents Launcher's composer of `slot`:
- * calls `leave` as it goes out, and `open` with its session once it has started. Disposing the result stops following
- * it, such as for a send that the composer does not dispatch.
+ * calls `leave` as it goes out, and `open` once with its session, as soon as its message was sent and the session can be shown
+ * ({@link trackNewSessionRequestSent}), which can be well before it has started: the Agents window then shows the request as it
+ * goes, as it does for a send of its own composer, and follows the session as it starts. Otherwise it opens the session once it
+ * has started. It opens only once `leave` resolved, so that the session takes the focus as it opens, and opens the session as it
+ * is then, after its replacements. It opens nothing for a request that fails, also while `leave` is pending. Disposing the
+ * result stops following it, including an open that waits for `leave`, such as for a send that the composer does not dispatch
+ * or that a newer send supersedes.
  */
-export function followOrdinarySend(sessionsManagementService: ISessionsManagementService, slot: INewSessionDraftSlot, draft: ISession, handlers: { leave(): void; open(session: ISession): void }): IDisposable {
+export function followOrdinarySend(sessionsManagementService: ISessionsManagementService, slot: INewSessionDraftSlot, draft: ISession, handlers: { leave(): Promise<void>; open(session: ISession): void }): IDisposable {
 	const store = new DisposableStore();
-	// A background send is accepted as it goes out, with the draft it sends.
-	store.add(Event.once(Event.filter(sessionsManagementService.onDidAcceptNewSessionRequest, ({ owner, session }) => owner === slot && session.sessionId === draft.sessionId))(() => handlers.leave()));
-	store.add(trackNewSessionRequestEnd(sessionsManagementService, slot, draft, ({ session, started }) => {
-		store.dispose();
-		if (started) {
-			handlers.open(session);
+	let left = Promise.resolve();
+	let target: ISession | undefined;
+	let cancelled = false;
+	const open = (session: ISession) => {
+		if (target) {
+			return;
+		}
+		target = session;
+		void left.then(() => {
+			if (!cancelled && target) {
+				handlers.open(target);
+			}
+		});
+	};
+	store.add(sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+		if (target && from.sessionId === target.sessionId) {
+			target = to;
 		}
 	}));
-	return store;
+	// A background send is accepted as it goes out, with the draft it sends.
+	store.add(Event.once(Event.filter(sessionsManagementService.onDidAcceptNewSessionRequest, ({ owner, session }) => owner === slot && session.sessionId === draft.sessionId))(() => {
+		left = handlers.leave();
+	}));
+	store.add(trackNewSessionRequestSent(sessionsManagementService, slot, draft, open));
+	store.add(trackNewSessionRequestEnd(sessionsManagementService, slot, draft, ({ session, started }) => {
+		store.dispose();
+		if (!started) {
+			cancelled = true;
+		} else if (target) {
+			target = session;
+		} else {
+			open(session);
+		}
+	}));
+	return toDisposable(() => {
+		cancelled = true;
+		store.dispose();
+	});
 }
 
 /** What {@link dismissWhenAllowed} does as it checks: dismiss now, check again later, or stop checking. */

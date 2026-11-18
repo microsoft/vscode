@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient } from '@microsoft/copilot-sdk';
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import type { Server } from 'http';
@@ -109,18 +109,23 @@ suite('Copilot SDK managed model configuration', function () {
 		assert.ok(address && typeof address !== 'string');
 		baseUrl = `http://127.0.0.1:${address.port}`;
 		client = new CopilotClient({
-			workingDirectory: home,
-			baseDirectory: join(home, 'copilot'),
-			useLoggedInUser: false,
-			gitHubToken: 'test-only-no-real-credential',
-			env: createIsolatedProviderEnvironment(home, {
-				PATH: process.env.PATH,
-				SystemRoot: process.env.SystemRoot,
-				COPILOT_API_URL: baseUrl,
-				COPILOT_DEBUG_GITHUB_API_URL: baseUrl,
-				COPILOT_MANAGED_SETTINGS_CACHE: '0',
-				COPILOT_TELEMETRY_ENABLED: 'false',
+			mode: 'coding-agent',
+			runtime: RuntimeConnection.forSpawnedStdio({
+				workingDirectory: home,
+				baseDirectory: join(home, 'copilot'),
+				env: createIsolatedProviderEnvironment(home, {
+					PATH: process.env.PATH,
+					SystemRoot: process.env.SystemRoot,
+					COPILOT_API_URL: baseUrl,
+					COPILOT_DEBUG_GITHUB_API_URL: baseUrl,
+					COPILOT_MANAGED_SETTINGS_CACHE: '0',
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				}),
 			}),
+			github: {
+				useLoggedInUser: false,
+				token: 'test-only-no-real-credential',
+			},
 		});
 		await client.start();
 		const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
@@ -154,10 +159,20 @@ suite('Copilot SDK managed model configuration', function () {
 		await client.start();
 		const { models } = await client.rpc.models.list({ gitHubToken: 'test-only-no-real-credential' });
 		const session = await client.createSession({
-			model: 'gpt-5', reasoningEffort: 'low', contextTier: 'long_context',
-			workingDirectory: home, enableManagedSettings: true,
-			availableTools: [], enableConfigDiscovery: false,
-			onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+			model: 'gpt-5',
+			inference: {
+				reasoningEffort: 'low',
+				contextTier: 'long_context',
+			},
+			workingDirectory: home,
+			github: {
+				fetchManagedSettings: true,
+			},
+			tools: { availableTools: [] },
+			enableConfigDiscovery: false,
+			permissions: {
+				onRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+			},
 		});
 		try {
 			const initial = await session.rpc.model.getCurrent();
@@ -200,11 +215,19 @@ suite('Copilot SDK managed model configuration', function () {
 			const requested = omitCopilotManagedModelDefaults(selection, resolved);
 			const session = await client.createSession({
 				model: requested.id,
-				reasoningEffort: getCopilotReasoningEffort(requested),
-				contextTier: getCopilotContextTier(requested, 1_000_000),
-				workingDirectory: home, enableManagedSettings: true,
-				availableTools: [], enableConfigDiscovery: false,
-				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+				inference: {
+					reasoningEffort: getCopilotReasoningEffort(requested),
+					contextTier: getCopilotContextTier(requested, 1_000_000),
+				},
+				workingDirectory: home,
+				github: {
+					fetchManagedSettings: true,
+				},
+				tools: { availableTools: [] },
+				enableConfigDiscovery: false,
+				permissions: {
+					onRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+				},
 			});
 			try {
 				await session.rpc.model.list();
@@ -231,10 +254,19 @@ suite('Copilot SDK managed model configuration', function () {
 	test('an unavailable managed model does not attach its defaults to an explicitly selected available model', async () => {
 		policy = { model: 'unavailable-model', effortLevel: 'high', contextTier: 'default' };
 		const session = await client.createSession({
-			model: 'gpt-4o', contextTier: 'long_context',
-			workingDirectory: home, enableManagedSettings: true,
-			availableTools: [], enableConfigDiscovery: false,
-			onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+			model: 'gpt-4o',
+			inference: {
+				contextTier: 'long_context',
+			},
+			workingDirectory: home,
+			github: {
+				fetchManagedSettings: true,
+			},
+			tools: { availableTools: [] },
+			enableConfigDiscovery: false,
+			permissions: {
+				onRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+			},
 		});
 
 		try {
@@ -251,9 +283,9 @@ suite('Copilot SDK managed model configuration', function () {
 		test(`concrete session resumes without overwriting its choices under ${mode} policy`, async () => {
 			modelEfforts = ['low', 'high'];
 			const options = {
-				workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
-				availableTools: [],
-				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+				workingDirectory: home, github: { fetchManagedSettings: true }, enableConfigDiscovery: false,
+				tools: { availableTools: [] },
+				permissions: { onRequest: async () => ({ kind: 'denied-interactively-by-user' as const }) },
 			};
 			const session = await client.createSession({ ...options, model: 'gpt-4o' });
 			await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
@@ -287,11 +319,11 @@ suite('Copilot SDK managed model configuration', function () {
 	for (const mode of ['absent', 'server-default'] as const) {
 		test(`Auto session resumes without overwriting its tier under ${mode} policy`, async () => {
 			const options = {
-				workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
-				availableTools: [],
-				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+				workingDirectory: home, github: { fetchManagedSettings: true }, enableConfigDiscovery: false,
+				tools: { availableTools: [] },
+				permissions: { onRequest: async () => ({ kind: 'denied-interactively-by-user' as const }) },
 			};
-			const session = await client.createSession({ ...options, model: 'auto', capi: { autoTier: 'efficiency' } });
+			const session = await client.createSession({ ...options, model: 'auto', github: { ...options.github, capi: { autoTier: 'efficiency' } } });
 			await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
 			const sessionId = session.sessionId;
 			await session.disconnect();
@@ -319,9 +351,9 @@ suite('Copilot SDK managed model configuration', function () {
 	test.skip('strict SDK opt-in resumes under a changed effort lock without deleting history (#26739)', async () => {
 		modelEfforts = ['low', 'high'];
 		const options = {
-			workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
-			availableTools: [],
-			onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+			workingDirectory: home, github: { fetchManagedSettings: true }, enableConfigDiscovery: false,
+			tools: { availableTools: [] },
+			permissions: { onRequest: async () => ({ kind: 'denied-interactively-by-user' as const }) },
 		};
 		const session = await client.createSession({ ...options, model: 'gpt-4o' });
 		await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
@@ -329,7 +361,7 @@ suite('Copilot SDK managed model configuration', function () {
 		const sessionId = session.sessionId;
 		await session.disconnect();
 		policy = { model: 'gpt-5', effortLevel: 'high' };
-		const resumed = await client.resumeSession(sessionId, { ...options, enforceManagedModelDefaults: true });
+		const resumed = await client.resumeSession(sessionId, { ...options, policy: { enforceManagedModelDefaults: true } });
 		try {
 			const current = await resumed.rpc.model.getCurrent();
 			const messages = await resumed.getEvents();
@@ -354,10 +386,17 @@ suite('Copilot SDK managed model configuration', function () {
 				id: 'auto', config: { tier: 'efficiency', [modelConfigurationSourceKey('tier')]: explicit ? 'explicit' : 'default' },
 			}, resolved);
 			const session = await client.createSession({
-				model: 'auto', capi: { autoTier: getCopilotAutoTier(requested) },
-				workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
-				availableTools: [],
-				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+				model: 'auto',
+				github: {
+					capi: { autoTier: getCopilotAutoTier(requested) },
+					fetchManagedSettings: true,
+				},
+				workingDirectory: home,
+				enableConfigDiscovery: false,
+				tools: { availableTools: [] },
+				permissions: {
+					onRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+				},
 			});
 			try {
 				await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
@@ -390,10 +429,17 @@ suite('Copilot SDK managed model configuration', function () {
 				id: 'auto', config: { tier: 'balance', [modelConfigurationSourceKey('tier')]: 'default' },
 			}, resolved);
 			const session = await client.createSession({
-				model: 'auto', capi: { autoTier: getCopilotAutoTier(requested) },
-				workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
-				availableTools: [],
-				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+				model: 'auto',
+				github: {
+					capi: { autoTier: getCopilotAutoTier(requested) },
+					fetchManagedSettings: true,
+				},
+				workingDirectory: home,
+				enableConfigDiscovery: false,
+				tools: { availableTools: [] },
+				permissions: {
+					onRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+				},
 			});
 			try {
 				await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
@@ -413,9 +459,16 @@ suite('Copilot SDK managed model configuration', function () {
 	test('bundled SDK drops unsupported server effort before inference in default-only mode (#26681)', async () => {
 		policy = { model: 'gpt-4o', effortLevel: 'high' };
 		const session = await client.createSession({
-			model: 'gpt-4o', workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
-			availableTools: [],
-			onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+			model: 'gpt-4o',
+			workingDirectory: home,
+			github: {
+				fetchManagedSettings: true,
+			},
+			enableConfigDiscovery: false,
+			tools: { availableTools: [] },
+			permissions: {
+				onRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+			},
 		});
 		try {
 			await session.rpc.model.list();
@@ -446,14 +499,14 @@ suite('Copilot SDK managed model configuration', function () {
 			}));
 			const options = {
 				workingDirectory: home,
-				enableManagedSettings: true,
+				github: { fetchManagedSettings: true },
 				enableConfigDiscovery: false,
-				availableTools: [],
-				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+				tools: { availableTools: [] },
+				permissions: { onRequest: async () => ({ kind: 'denied-interactively-by-user' as const }) },
 			};
 			const session = await client.createSession({
 				...options, model: 'auto',
-				capi: { autoTier: getCopilotAutoTier(model) },
+				github: { ...options.github, capi: { autoTier: getCopilotAutoTier(model) } },
 			});
 			const changes: { model: string; tier: string | null | undefined }[] = [];
 			disposables.add(toDisposable(session.on('session.model_change', event => changes.push({ model: event.data.newModel, tier: event.data.autoTier }))));
@@ -491,10 +544,17 @@ suite('Copilot SDK managed model configuration', function () {
 		for (const managed of ['intelligence', undefined] as const) {
 			policy = { autoTier: managed };
 			const session = await client.createSession({
-				model: 'auto', workingDirectory: home, enableManagedSettings: true,
-				capi: { autoTier: parseManagedAutoTierDefault(managed) ?? 'balance' },
-				availableTools: [], enableConfigDiscovery: false,
-				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+				model: 'auto',
+				workingDirectory: home,
+				github: {
+					fetchManagedSettings: true,
+					capi: { autoTier: parseManagedAutoTierDefault(managed) ?? 'balance' },
+				},
+				tools: { availableTools: [] },
+				enableConfigDiscovery: false,
+				permissions: {
+					onRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+				},
 			});
 			await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
 			const current = await session.rpc.model.getCurrent();

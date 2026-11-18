@@ -31,7 +31,7 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getSessionWorkspaceProperties } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { localize } from '../../../../../nls.js';
-import { ICreateNewSessionOptions, INewSessionDraftSlot, ISendRequestOptions, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
+import { ICreateNewSessionOptions, INewSessionDraftSlot, ISendRequestOptions, ISessionsManagementService, trackNewSessionRequestEnd, trackNewSessionRequestSent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
@@ -48,6 +48,7 @@ import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, I
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
 import { NewWorktreeCheckbox } from './newWorktreeCheckbox.js';
 import { INewSessionWorktreeSendChoiceProvider, INewSessionWorktreeSendChoiceService, NewSessionWorktreeSendChoice } from './newSessionWorktreeSendChoice.js';
+import { WorktreeSendChoiceTarget } from '../../../chat/browser/agentSessions/worktreeSendChoiceTarget.js';
 import { IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -68,6 +69,7 @@ import { AgentFeedbackState, IAgentFeedback } from '../agentFeedbackModel.js';
 import { buildNewSessionPrompt } from '../agentFeedbackAttachmentEntry.js';
 import { SessionInputBannerWidget } from '../sessionInputBanners/sessionInputBannerWidget.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ChatInputTipPresenter } from '../../../chat/browser/widget/input/chatInputTipPresenter.js';
 import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../chat/browser/chatPetService.js';
@@ -176,6 +178,15 @@ function isTypingInEditableElement(): boolean {
 	return !!activeElement && dom.isEditableElement(activeElement);
 }
 
+/** What a composer shows below its input about its latest background send. */
+export type BackgroundSendStatus =
+	/** The request went out, and its message is not sent yet, such as while its session's agent sets up. */
+	| { readonly kind: 'starting' }
+	/** The request's message was sent, in `session`, which can be opened. */
+	| { readonly kind: 'sent'; readonly session: ISession }
+	/** A comparison started its attempts. */
+	| { readonly kind: 'comparisonStarted' };
+
 export class NewChatWidget extends Disposable {
 
 	private readonly _usage: AgentsWindowUsage;
@@ -202,9 +213,7 @@ export class NewChatWidget extends Disposable {
 	/** The slot of a {@link _detached} composer's drafts. */
 	private readonly _draftSlot: INewSessionDraftSlot;
 	private readonly _backgroundSend: boolean;
-	private readonly _backgroundSendStatus = observableValue<string | undefined>(this, undefined);
-	private _lastBackgroundSentSessionResource: URI | undefined;
-	private _lastBackgroundSentSession: ISession | undefined;
+	private readonly _backgroundSendStatus = observableValue<BackgroundSendStatus | undefined>(this, undefined);
 	private _lastBackgroundSendOptions: ISendRequestOptions | undefined;
 	private readonly _pickedEnvironment = observableValue<ISessionCreationEnvironment | undefined>(this, undefined);
 	private readonly _environmentWorkspaces = new Map<string, URI>();
@@ -1074,7 +1083,7 @@ export class NewChatWidget extends Disposable {
 			this._inputController = this._register(this.options.newSessionInput.createComposer(belowInputSurfaces, {
 				session: this._session,
 				pickerVisibility: this._newChatInput.pickerVisibility,
-				visible: derived(this, reader => (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true)),
+				visible: derived(this, reader => this._isShown(reader)),
 				getInputValue: () => this._newChatInput.getInputValue(),
 				onDidChangeInput: this._newChatInput.onDidChangeInput,
 				focusInput: () => this.focusInput(),
@@ -1701,8 +1710,8 @@ export class NewChatWidget extends Disposable {
 		const provider = this.worktreeSendChoiceService.provider.get();
 		const newWorktree = this._newWorktree;
 		const folder = session.workspace.get()?.folders[0]?.root;
-		const control = this._getWorktreeSendChoiceControl();
-		if (!provider || !newWorktree || !folder || !control || isSessionCreated(session) || session.isQuickChat?.get()
+		// Without a control of its own, there is nothing that the provider's question could anchor on
+		if (!provider || !newWorktree || !folder || !this._getWorktreeSendChoiceControl() || isSessionCreated(session) || session.isQuickChat?.get()
 			|| !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled)
 			|| this._pendingWorktreePlacement.get()
 			|| !newWorktree.isAvailable() || newWorktree.isSelected() || newWorktree.isUserChosen()
@@ -1715,7 +1724,7 @@ export class NewChatWidget extends Disposable {
 			let choice: NewSessionWorktreeSendChoice | undefined;
 			try {
 				// `undefined` is no answer, such as where the question could not be shown: the request is sent in the folder.
-				choice = await provider.askWorktreeOnSend(control);
+				choice = await provider.requestSendChoice(session.resource);
 			} catch (error) {
 				// Nothing changed yet: the request is sent in the folder, as it would have been
 				onUnexpectedError(error);
@@ -1759,6 +1768,20 @@ export class NewChatWidget extends Disposable {
 			onUnexpectedError(error);
 			return false;
 		}
+	}
+
+	/**
+	 * Marks `element` as the target of the registered provider's callout while the provider asks about the composer's draft
+	 * and `element` is where the composer offers New Worktree now ({@link WorktreeSendChoiceTarget}).
+	 */
+	private _markWorktreeSendChoiceTarget(element: HTMLElement): IDisposable {
+		const draft = derived(this, reader => this._session.read(reader)?.resource);
+		return autorun(reader => {
+			const provider = this.worktreeSendChoiceService.provider.read(reader);
+			if (provider) {
+				reader.store.add(this.instantiationService.createInstance(WorktreeSendChoiceTarget, element, provider, draft, () => this._getWorktreeSendChoiceControl() === element));
+			}
+		});
 	}
 
 	/** Where the composer offers New Worktree: its checkbox while shown, else its workspace picker. */
@@ -2308,7 +2331,12 @@ export class NewChatWidget extends Disposable {
 	 * apply to the main window's.
 	 */
 	private _takesGlobalComposerActions(reader: IReader): boolean {
-		return this._isMainWindowComposer() && (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true);
+		return this._isMainWindowComposer() && this._isShown(reader);
+	}
+
+	/** Whether the composer shows: both its host and its input are visible. */
+	private _isShown(reader: IReader): boolean {
+		return (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true);
 	}
 
 	private _getCustomizationTargetLabels(reader: IReader | undefined): INewSessionTargetLabels {
@@ -2602,6 +2630,7 @@ export class NewChatWidget extends Disposable {
 				this._environmentWorkspaceChanged.read(reader);
 				this._session.read(reader);
 			}, this.hoverService, this._newChatInput.pickerHoverDelegate));
+			store.add(this._markWorktreeSendChoiceTarget(this._newWorktreeCheckbox.element));
 		}
 		store.add(autorun(reader => {
 			if (canOptOut.read(reader)) {
@@ -2617,6 +2646,7 @@ export class NewChatWidget extends Disposable {
 		const environmentPicker = store.add(new MutableDisposable<ReturnType<SessionEnvironmentPicker['render']>>());
 		const repositoryControlsHost = presentation.repositoryControlsHost;
 		this._workspacePickerRow = row;
+		store.add(this._markWorktreeSendChoiceTarget(row));
 		this._workspaceRepositoryControlsHost = repositoryControlsHost;
 		this._workspaceSessionOptionsHost = sessionOptions;
 		this._renderSessionTypePicker(sessionOptions, false);
@@ -3061,8 +3091,6 @@ export class NewChatWidget extends Disposable {
 		// A composer of a host of its own, such as a chat window's, shows the status of its background sends.
 		const showBackgroundSendStatus = this._backgroundSend || !!background && (!!this._draftHost || this.viewsService.getViewWithId<SessionsView>(SessionsViewId)?.grouping === SessionsGrouping.Inbox);
 		if (showBackgroundSendStatus) {
-			this._lastBackgroundSentSessionResource = undefined;
-			this._lastBackgroundSentSession = undefined;
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
 		}
@@ -3102,7 +3130,7 @@ export class NewChatWidget extends Disposable {
 			}
 			const started = await this._sendComparison(session, request, requestContext, showBackgroundSendStatus);
 			if (showBackgroundSendStatus && started && !this._newChatInput.hasInput) {
-				this._backgroundSendStatus.set(localize('newSession.comparisonStarted', "Comparison started"), undefined);
+				this._backgroundSendStatus.set({ kind: 'comparisonStarted' }, undefined);
 			}
 			return started;
 		}
@@ -3139,6 +3167,18 @@ export class NewChatWidget extends Disposable {
 			if (showBackgroundSendStatus) {
 				this._lastBackgroundSendOptions = sendOptions;
 			}
+			// The composer says how a send it keeps showing goes: one the user asked to send in the background. An ordinary
+			// send of a composer that sends all its requests in the background, such as Enter in the Agents Launcher, leaves
+			// for its session instead, so its status would only wait there, stale, for the composer to show again.
+			const showsStatus = requestedInBackground && (this._backgroundSend || !!this._draftHost);
+			// Shown as sent once: as soon as its message was sent, which can be well before its session has started, or else as it starts.
+			let shownAsSent = false;
+			const showSent = (sent: ISession) => {
+				if (!shownAsSent && showsStatus && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
+					shownAsSent = true;
+					this._backgroundSendStatus.set({ kind: 'sent', session: sent }, undefined);
+				}
+			};
 			const pending = new DisposableStore();
 			pending.add(Event.once(
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
@@ -3150,15 +3190,20 @@ export class NewChatWidget extends Disposable {
 						label: localize('newSession.openSentSession', "Open Session"),
 						run: () => this.sessionsService.openSession(event.session.resource, { source: 'link', forceMainChat: true }).catch(onUnexpectedError),
 					}]);
-				} else if (showBackgroundSendStatus && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
-					this._lastBackgroundSentSessionResource = event.session.resource;
-					this._lastBackgroundSentSession = event.session;
-					this._backgroundSendStatus.set(localize('newSession.messageSent', "Message sent"), undefined);
+				} else {
+					showSent(event.session);
 				}
 				this._pendingBackgroundSends.deleteAndDispose(sendOptions);
 			}));
 			if (this._draftHost) {
 				pending.add(this._clearBackgroundSendOnFailure(this._draftHost.slot, session, sendOptions));
+				// Its session can take a while to start, such as while its agent sets up, but can be opened as soon as its message
+				// was sent. Only a hosted composer says so meanwhile: it follows the request to its end, which clears the status of
+				// a session that doesn't start.
+				if (showsStatus) {
+					this._backgroundSendStatus.set({ kind: 'starting' }, undefined);
+					pending.add(trackNewSessionRequestSent(this.sessionsManagementService, this._draftHost.slot, session, showSent));
+				}
 			}
 			this._pendingBackgroundSends.set(sendOptions, pending);
 		}
@@ -3178,6 +3223,9 @@ export class NewChatWidget extends Disposable {
 			userInteraction?.cancel(isCancellationError(e) || e instanceof WorkspaceNotTrustedError ? 'cancelled' : 'error');
 			hostTracking?.dispose();
 			this._pendingBackgroundSends.deleteAndDispose(sendOptions);
+			if (this._lastBackgroundSendOptions === sendOptions) {
+				this._backgroundSendStatus.set(undefined, undefined);
+			}
 			if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
 				this.logService.error('Failed to send request:', e);
 				this.notificationService.error(isErrorWithActions(e) ? e : localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
@@ -3305,67 +3353,92 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderBackgroundSendStatus(container: HTMLElement): void {
-		const status = dom.append(container, dom.$('.new-session-send-status'));
+		const statusElement = dom.append(container, dom.$('.new-session-send-status'));
+		// Followed across its states, so that a pointer that already rests on it as its message is sent pauses its expiry.
+		const hovered = observableValue(this, false);
+		this._register(dom.addDisposableListener(statusElement, dom.EventType.MOUSE_ENTER, () => hovered.set(true, undefined)));
+		this._register(dom.addDisposableListener(statusElement, dom.EventType.MOUSE_LEAVE, () => hovered.set(false, undefined)));
 		this._register(autorun(reader => {
-			const message = this._backgroundSendStatus.read(reader);
-			dom.clearNode(status);
-			status.style.visibility = message ? '' : 'hidden';
-			status.style.display = this._backgroundSend || message ? '' : 'none';
-			if (message) {
-				const checkmark = renderIcon(Codicon.check);
-				checkmark.setAttribute('aria-hidden', 'true');
-				dom.append(status, dom.$('span.new-session-send-status-message', undefined, message), checkmark);
-				this.accessibilityService.status(message);
-				const sessionResource = this._lastBackgroundSentSessionResource;
-				const sentSession = this._lastBackgroundSentSession;
-				const draftHost = this._draftHost;
-				if (sessionResource) {
-					reader.store.add(this.instantiationService.createInstance(Link, status, {
-						label: localize('newSession.openSentSession', "Open Session"),
-						href: sessionResource.toString(),
-					}, {
-						opener: () => {
-							// A hosted composer opens the session in its own window, never in the main window.
-							const opened = draftHost && sentSession
-								? draftHost.openStartedSession(sentSession)
-								: this.sessionsService.openSession(sessionResource, { source: this._backgroundSend ? 'inbox' : 'link', forceMainChat: true });
-							void opened.catch(onUnexpectedError);
-						},
-					}));
-					const dismissal = reader.store.add(new MutableDisposable<IDisposable>());
-					let remaining = 8000;
-					let startedAt = Date.now();
-					let hovered = false;
-					let focused = false;
-					const updateDismissal = () => {
-						if (hovered || focused) {
-							if (dismissal.value) {
-								remaining -= Date.now() - startedAt;
-								dismissal.clear();
-							}
-						} else if (!dismissal.value) {
-							startedAt = Date.now();
-							dismissal.value = disposableTimeout(() => {
-								this._lastBackgroundSentSessionResource = undefined;
-								this._lastBackgroundSentSession = undefined;
-								this._backgroundSendStatus.set(undefined, undefined);
-							}, Math.max(0, remaining));
-						}
-					};
-					reader.store.add(dom.addDisposableListener(status, dom.EventType.MOUSE_ENTER, () => { hovered = true; updateDismissal(); }));
-					reader.store.add(dom.addDisposableListener(status, dom.EventType.MOUSE_LEAVE, () => { hovered = false; updateDismissal(); }));
-					reader.store.add(dom.addDisposableListener(status, dom.EventType.FOCUS_IN, () => { focused = true; updateDismissal(); }));
-					reader.store.add(dom.addDisposableListener(status, dom.EventType.FOCUS_OUT, () => { focused = false; updateDismissal(); }));
-					updateDismissal();
-				} else {
-					reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
-				}
+			const status = this._backgroundSendStatus.read(reader);
+			dom.clearNode(statusElement);
+			statusElement.style.visibility = status ? '' : 'hidden';
+			statusElement.style.display = this._backgroundSend || status ? '' : 'none';
+			if (!status) {
+				return;
 			}
+			const message = status.kind === 'starting'
+				? localize('newSession.startingSession', "Starting session")
+				: status.kind === 'sent'
+					? localize('newSession.messageSent', "Message sent")
+					: localize('newSession.comparisonStarted', "Comparison started");
+			const icon = status.kind === 'starting'
+				? dom.$('span.new-session-send-status-spinner', undefined, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')))
+				: renderIcon(Codicon.check);
+			icon.setAttribute('aria-hidden', 'true');
+			dom.append(statusElement, dom.$('span.new-session-send-status-message', undefined, message), icon);
+			if (status.kind === 'starting') {
+				// Until its message was sent or its session has started, which replaces it; a session that doesn't start clears it.
+				// Announced only once it lasts, so that a message that is sent right away is announced once, as sent.
+				reader.store.add(disposableTimeout(() => this.accessibilityService.status(message), 1000));
+				return;
+			}
+			this.accessibilityService.status(message);
+			if (status.kind === 'comparisonStarted') {
+				reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
+				return;
+			}
+			let sentSession = status.session;
+			const draftHost = this._draftHost;
+			const linkLabel = localize('newSession.openSentSession', "Open Session");
+			const link = reader.store.add(this.instantiationService.createInstance(Link, statusElement, {
+				label: linkLabel,
+				href: sentSession.resource.toString(),
+			}, {
+				opener: () => {
+					// A hosted composer opens the session in its own window, never in the main window.
+					const opened = draftHost
+						? draftHost.openStartedSession(sentSession)
+						: this.sessionsService.openSession(sentSession.resource, { source: this._backgroundSend ? 'inbox' : 'link', forceMainChat: true });
+					void opened.catch(onUnexpectedError);
+				},
+			}));
+			// It opens the session as it is now: one whose message was sent can be replaced, such as by the session its provider
+			// commits under another identity, which retires the session it replaces.
+			reader.store.add(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+				if (from.sessionId === sentSession.sessionId) {
+					sentSession = to;
+					link.link = { label: linkLabel, href: to.resource.toString() };
+				}
+			}));
+			// It expires only while it can be seen. It waits while hovered or focused, and while the composer is hidden, such
+			// as the Agents Launcher once the user switched away before the message was sent.
+			const dismissal = reader.store.add(new MutableDisposable<IDisposable>());
+			let remaining = 8000;
+			let startedAt = Date.now();
+			let pointerRests = false;
+			let focused = false;
+			let hidden = false;
+			const updateDismissal = () => {
+				if (pointerRests || focused || hidden) {
+					if (dismissal.value) {
+						remaining -= Date.now() - startedAt;
+						dismissal.clear();
+					}
+				} else if (!dismissal.value) {
+					startedAt = Date.now();
+					dismissal.value = disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), Math.max(0, remaining));
+				}
+			};
+			reader.store.add(dom.addDisposableListener(statusElement, dom.EventType.FOCUS_IN, () => { focused = true; updateDismissal(); }));
+			reader.store.add(dom.addDisposableListener(statusElement, dom.EventType.FOCUS_OUT, () => { focused = false; updateDismissal(); }));
+			reader.store.add(autorun(stateReader => {
+				pointerRests = hovered.read(stateReader);
+				hidden = !this._isShown(stateReader);
+				updateDismissal();
+			}));
 		}));
 		this._register(this._newChatInput.onDidChangeInput(() => {
 			if (this._newChatInput.hasInput) {
-				this._lastBackgroundSentSessionResource = undefined;
-				this._lastBackgroundSentSession = undefined;
 				this._backgroundSendStatus.set(undefined, undefined);
 				this._lastBackgroundSendOptions = undefined;
 			}

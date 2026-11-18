@@ -12,7 +12,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { editorRuler, ghostTextForeground } from '../../../../../editor/common/core/editorColorRegistry.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
-import { editorFindMatchHighlightBorder, minimapFindMatch, overviewRulerFindMatchForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { editorFindMatchHighlightBorder, listHoverBackground, minimapFindMatch, overviewRulerFindMatchForeground, quickInputBackground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusHighlightForeground, quickInputListFocusIconForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND } from '../../../../common/theme.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 
@@ -29,6 +29,26 @@ suite('Default theme colors', () => {
 		}());
 		return theme;
 	}
+
+	test('Light Modern Quick Pick focus is distinct from idle and hovered rows with readable content', async () => {
+		const theme = await loadDefaultTheme('light_modern.json', 'vs');
+		const background = theme.getColor(quickInputBackground)!;
+		const focusedBackground = theme.getColor(quickInputListFocusBackground)!.makeOpaque(background);
+		const hoveredBackground = theme.getColor(listHoverBackground)!.makeOpaque(background);
+
+		assert.deepStrictEqual({
+			distinctFromIdle: focusedBackground.getContrastRatio(background) >= 3,
+			distinctFromHover: focusedBackground.getContrastRatio(hoveredBackground) >= 3,
+			content: [quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputListFocusHighlightForeground].map(id => ({
+				id,
+				readable: theme.getColor(id)!.makeOpaque(focusedBackground).getContrastRatio(focusedBackground) >= 4.5,
+			})),
+		}, {
+			distinctFromIdle: true,
+			distinctFromHover: true,
+			content: [quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputListFocusHighlightForeground].map(id => ({ id, readable: true })),
+		});
+	});
 
 	for (const { name, file, selector } of [
 		{ name: 'Dark 2026', file: '2026-dark.json', selector: 'vs-dark' },

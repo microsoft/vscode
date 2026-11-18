@@ -13,7 +13,7 @@ import type { IModelRoutedInfo } from './state/sessionState.js';
  * none, and then nothing here runs.
  */
 
-/** What a chat's main agent is told from the route its first message was routed to. Plain data, so two can be compared by value. */
+/** What a chat's main agent is told from the route the chat is on. Plain data, so two can be compared by value. */
 export interface IModelRouterGuidance {
 	/** The router's name as the model picker shows it. */
 	readonly router: string;

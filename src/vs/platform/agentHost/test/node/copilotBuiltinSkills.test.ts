@@ -7,7 +7,9 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
-import { parseModelRouter } from '../../common/modelRouter.js';
+import type { IAgentModelInfo } from '../../common/agent.js';
+import { parseModelRouter, resolveModelRouter } from '../../common/modelRouter.js';
+import { ReasoningEffortConfigKey } from '../../common/reasoningEffort.js';
 import { buildCopilotBuiltinSkillsContainer, createCopilotSkillProvider } from '../../node/copilot/copilotBuiltinSkills.js';
 
 suite('Copilot builtin troubleshoot skill', () => {
@@ -70,10 +72,21 @@ suite('Copilot builtin troubleshoot skill', () => {
 		});
 	});
 
-	test('the model-router skill\'s example is a valid router', async () => {
-		const content = await createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'), () => true).readSkill('model-router', { signal: new AbortController().signal });
-		const example = /```yaml\n([\s\S]*?)\n```/.exec(content ?? '')?.[1];
-		assert.deepStrictEqual(parseModelRouter(example ?? '', 'daily-driver.model-router.yaml').diagnostics, []);
+	test('the model-router skill\'s examples are valid routers whose every route finds a model', async () => {
+		const content = await createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'), () => true).readSkill('model-router', { signal: new AbortController().signal }) ?? '';
+		const models = ['claude-opus-5.5', 'claude-sonnet-5.5', 'claude-haiku-5.5', 'gpt-6.1-sol'].map((id): IAgentModelInfo => ({
+			provider: 'copilotcli', id, name: id, supportsVision: true,
+			configSchema: { type: 'object', properties: { [ReasoningEffortConfigKey]: { type: 'string', title: 'Effort', enum: ['low', 'medium', 'high'] } } },
+		}));
+		const checked = [...content.matchAll(/```yaml\n(?<example>[\s\S]*?)\n```/g)].map(match => {
+			const parsed = parseModelRouter(match.groups?.example ?? '', 'daily-driver.model-router.yaml');
+			const resolved = parsed.router ? resolveModelRouter(parsed.router, models) : undefined;
+			return { diagnostics: [...parsed.diagnostics, ...resolved?.diagnostics ?? []].map(diagnostic => diagnostic.message), models: resolved?.routes.map(route => route.model.id) };
+		});
+		assert.deepStrictEqual(checked, [
+			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-haiku-5.5', 'gpt-6.1-sol'] },
+			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-opus-5.5', 'claude-haiku-5.5'] },
+		]);
 	});
 
 	test('the model-router skill names the host\'s own router and session folders', async () => {

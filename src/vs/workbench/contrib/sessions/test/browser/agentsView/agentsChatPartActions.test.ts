@@ -185,7 +185,7 @@ suite('Agents chat part actions', () => {
 		}, { inSecond: '/work/tools', outside: '/work/vscode', none: '/work/vscode' });
 	});
 
-	test('the More Actions of a header of the chat part start with Close, which closes that chat only, then Close All, which closes all its chats, while it shows them as tabs; then Rename... and View Mode, as the Agents window\'s; none show in the Agents window', async () => {
+	test('the More Actions of a header of the chat part start with Close, which closes that chat only, while it shows its chats as tabs; showing one at a time, Close is the last of its toolbar instead, right before More Actions; then Rename... and View Mode, as the Agents window\'s, and last, in a group of its own, Close All, which closes all its chats, either way; none show in the Agents window', async () => {
 		const before = new Set(MenuRegistry.getMenuItems(Menus.SessionBarToolbar));
 		store.add(registerAgentsChatPartActions());
 		const session = buildTestSession({ id: 's', title: 's', chats: [{ id: 'peer', title: 'Peer' }] });
@@ -214,12 +214,13 @@ suite('Agents chat part actions', () => {
 			closed: [main.toString(), peer.resource.toString(), 'all'],
 			chatPart: [
 				'secondary/0_pane 10 Close',
-				'secondary/0_pane 20 Close All',
+				'secondary/9_close 0 Close All',
 				'secondary/4_manage 5 Rename...',
 				`secondary/4_manage 10 ${MenuId.ChatViewMode.id}`,
 			],
 			single: [
-				'secondary/0_pane 10 Close',
+				'navigation 1000 Close',
+				'secondary/9_close 0 Close All',
 				'secondary/4_manage 5 Rename...',
 				`secondary/4_manage 10 ${MenuId.ChatViewMode.id}`,
 			],
