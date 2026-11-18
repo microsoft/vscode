@@ -8,7 +8,7 @@ import { Barrier, retry, timeout } from '../../../base/common/async.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { canceled } from '../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { Event } from '../../../base/common/event.js';
 import { isEqual } from '../../../base/common/extpath.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -242,6 +242,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				await Promises.close(fd);
 			}
 		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+
 			throw this.toFileSystemProviderError(error);
 		} finally {
 			lock?.dispose();
@@ -625,6 +629,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				await namedPipe.read(data, offset, length, normalizedPos, token) :
 				(await Promises.read(fd, data, offset, length, normalizedPos)).bytesRead;
 		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+
 			throw this.toFileSystemProviderError(error);
 		} finally {
 			this.updatePos(fd, normalizedPos, bytesRead);
@@ -1066,19 +1074,19 @@ class NamedPipe implements IDisposable {
 
 	private readonly closed = new CancellationTokenSource();
 
-	// Whether the other end of the pipe has been open at some point
-	private connected = false;
+	private hasReadData = false;
 
 	constructor(private readonly fd: number) { }
 
 	async read(data: Uint8Array, offset: number, length: number, position: number | null, token: CancellationToken): Promise<number> {
 		const bytesRead = await this.retryWhileBlocked(async () => (await Promises.read(this.fd, data, offset, length, position)).bytesRead, token);
 		if (bytesRead > 0) {
-			this.connected = true;
-		} else if (!this.connected && length > 0) {
-			// Reading an empty pipe only reports its end right
-			// away when no writer has the pipe open
-			throw createFileSystemProviderError(localize('namedPipeNoWriter', "Named pipe has no writer"), FileSystemProviderErrorCode.Unavailable);
+			this.hasReadData = true;
+		} else if (!this.hasReadData && length > 0) {
+			// A pipe that never had a writer and a pipe whose writer closed
+			// without writing cannot be told apart once the writer is gone,
+			// so both fail instead of depending on when the writer closed
+			throw createFileSystemProviderError(localize('namedPipeNoData', "Named pipe has no data and no writer"), FileSystemProviderErrorCode.Unavailable);
 		}
 
 		return bytesRead;
@@ -1116,7 +1124,7 @@ class NamedPipe implements IDisposable {
 			let retryDelay = NamedPipe.MIN_RETRY_DELAY;
 			while (true) {
 				if (cancellation.token.isCancellationRequested || this.closed.token.isCancellationRequested) {
-					throw canceled();
+					throw new CancellationError();
 				}
 
 				try {
@@ -1128,8 +1136,6 @@ class NamedPipe implements IDisposable {
 				}
 
 				// The other end is open but has not caught up yet
-				this.connected = true;
-
 				await timeout(retryDelay, cancellation.token);
 				retryDelay = Math.min(retryDelay * 2, NamedPipe.MAX_RETRY_DELAY);
 			}
