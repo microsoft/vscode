@@ -227,9 +227,10 @@ export async function acceptAndAwaitSentRequest(result: ChatSendResult, onReques
 
 /**
  * Whether the last request waits on an unanswered question, such as one asked with the ask questions tool.
+ * MCP form elicitations are not questions here: like tool confirmations, a new message cancels them.
  */
 function hasUnansweredQuestion(model: IChatModel): boolean {
-	return !!model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed);
+	return !!model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed && part.source?.type !== 'mcp');
 }
 
 export function shouldUnlockChatPetRequestRevision(isEditing: boolean, isUserQuery: boolean): boolean {
