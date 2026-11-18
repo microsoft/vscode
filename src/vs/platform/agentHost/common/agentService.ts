@@ -160,7 +160,7 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key controlling the GitHub MCP server in agent-host sessions. */
 export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
 
-/** Configuration key offering GitHub's Computer Use plugin to local agent-host Copilot sessions. */
+/** Configuration key offering GitHub's Computer Use plugin to agent-host Copilot sessions. */
 export const AgentHostComputerUseEnabledSettingId = 'chat.agentHost.computerUse.enabled';
 
 /** Configuration key offering GitHub's Browser Use plugin to local agent-host Copilot sessions. */

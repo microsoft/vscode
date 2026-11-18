@@ -348,11 +348,11 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostComputerUseEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.computerUse.enabled', "When enabled, local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin, which can operate desktop applications. The plugin is downloaded on first use. Turn it on with `/computer on` in a Copilot chat, or when the agent asks. Each application still requires your approval. Changes take effect after a restart."),
+			markdownDescription: nls.localize('chat.agentHost.computerUse.enabled', "When enabled, local and remote Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin, which can operate desktop applications on the machine running the agent host. For remote sessions, this is the remote machine, not your client. The plugin is downloaded on first use. Turn it on with `/computer on` in a Copilot chat, or when the agent asks. Each application still requires your approval. Changes take effect after a restart."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
-			agentHost: { key: AgentHostComputerUseEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
+			agentHost: { key: AgentHostComputerUseEnabledConfigKey },
 		},
 		[AgentHostBrowserUseEnabledSettingId]: {
 			type: 'boolean',

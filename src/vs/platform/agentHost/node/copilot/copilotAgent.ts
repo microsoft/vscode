@@ -1421,7 +1421,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _computerUseDownload = this._register(new MutableDisposable<DisposableStore>());
 	/** Present while Computer Use is offered by this local macOS Agent Host; shared by all chats. */
 	private readonly _computerUsePermissionSetup = this._register(new MutableDisposable<CopilotComputerUsePermissionSetup>());
-	/** The platform whose desktop Computer Use operates: the Agent Host's own, since only the local host offers it. */
+	/** The platform whose desktop Computer Use operates: the Agent Host's own. */
 	private readonly _hostPlatform: NodeJS.Platform = process.platform;
 	private _clientGeneration = 0;
 	/** Server names in the user's Copilot MCP configuration at its last read; `undefined` until it has been read. */
@@ -2168,10 +2168,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return servers;
 	}
 
-	/** Only the local desktop agent host may operate this machine's desktop. */
 	private _isComputerUseEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostComputerUseEnabledConfigKey) === true
-			&& this._localModelSetupService.isLocalAgentHost;
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostComputerUseEnabledConfigKey) === true;
 	}
 
 	/** Only the local desktop agent host may operate the user's browser; the plugin registers a native messaging host on this machine. */
@@ -2186,7 +2184,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * the plugin's ordinary prompts and publish no setup status.
 	 */
 	private _updateComputerUsePermissionSetup(): void {
-		if (!this._lastStartupConfig.computerUse || this._hostPlatform !== 'darwin') {
+		if (!this._lastStartupConfig.computerUse || this._hostPlatform !== 'darwin' || !this._localModelSetupService.isLocalAgentHost) {
 			this._computerUsePermissionSetup.clear();
 		} else if (!this._computerUsePermissionSetup.value) {
 			// The runtime hands the plugin this process's environment and the Copilot home as `COPILOT_HOME`.
