@@ -15143,6 +15143,39 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		testWithExternalSessionClock('importing a discovered external session to reveal it lists it whatever the external sessions mode says', async () => {
+			const importSession = async (reveal: boolean) => {
+				const orchestrator = disposables.add(new CompatibleAgentHostDatabase(':memory:'));
+				await orchestrator.initialize();
+				const svc = createExternalSessionService(undefined, orchestrator);
+				setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
+				const agent = disposables.add(new TimedExternalAgent('codex'));
+				registerTestAgentProvider(svc, agent);
+				await svc.listSessions();
+				svc.markStartupComplete();
+				await svc.whenDeferredWorkSettled();
+				// Its live state is kept under another address than the one it is imported from.
+				const backing = agent.addSession(`handed-over-${reveal}`, Date.now(), undefined, 'External session');
+				const session = AgentSession.uri('ahp-session', AgentSession.id(backing));
+				agent.fireDiscoveredChats((await agent.listExternalChats()).map(chat => ({ ...chat, external: true })));
+				await (svc as unknown as { _providerDiscoveryRegistrations: ReadonlyMap<string, Promise<void>> })._providerDiscoveryRegistrations.get(agent.id);
+				await svc.whenCatalogReconciliationIdle();
+				await waitForSessionListReconciliation(svc);
+				const returned = await svc.importSession(backing, reveal ? { reveal } : undefined);
+				setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 2);
+				await waitForSessionListReconciliation(svc);
+				return {
+					returned: returned.toString() === session.toString() ? true : `${returned.toString()} (backing ${backing.toString()})`,
+					external: readSessionExternal(getStateManager(svc).getSessionState(session.toString())?._meta),
+					listed: (await svc.listSessions()).map(metadata => metadata.session.toString() === session.toString() ? true : metadata.session.toString()),
+				};
+			};
+			assert.deepStrictEqual({ imported: await importSession(false), revealed: await importSession(true) }, {
+				imported: { returned: true, external: true, listed: [] },
+				revealed: { returned: true, external: false, listed: [true] },
+			});
+		});
+
 		testWithExternalSessionClock('rediscovery updates a restored idle external session without replacing its history or custom title', async () => {
 			const results = [];
 			for (const customTitle of [undefined, 'My title']) {
@@ -43246,6 +43279,26 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			}));
 		}
+
+		test('explicit handoff release rejects a turn that starts during the provider idle check', async () => {
+			const agent = new DelayedCanReleaseMockAgent('copilot');
+			const { service } = createResidencyTestService(10, 30_000, true, agent);
+			const session = await createUsedSession(service, agent);
+			const releaseStarted = new DeferredPromise<void>();
+			const check = stub(agent.chats, 'canReleaseChat').callsFake(async () => {
+				releaseStarted.complete();
+				await agent.canRelease.p;
+				return true;
+			});
+			disposables.add(toDisposable(() => check.restore()));
+			const releasing = service.releaseSession(session);
+			const rejected = assert.rejects(releasing, error => error instanceof ProtocolError && error.code === AhpErrorCodes.Conflict);
+			await releaseStarted.p;
+			getStateManager(service).dispatchServerAction(buildDefaultChatUri(session), chatTurnStarted('racing-turn', 'keep working', '2025-01-01T00:01:00.000Z'));
+			agent.canRelease.complete();
+			await rejected;
+			assert.deepStrictEqual({ active: getStateManager(service).hasActiveTurn(session.toString()), released: agent.releaseSessionCalls }, { active: true, released: [] });
+		});
 
 		for (const rename of ['local command', 'client action'] as const) {
 			test(`idle release preserves a peer rename from a ${rename} whose normalized write is pending`, async () => {

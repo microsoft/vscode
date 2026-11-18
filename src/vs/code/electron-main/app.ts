@@ -9,6 +9,7 @@ import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js'
 import { hostname, release } from 'os';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
+import { CancellationToken } from '../../base/common/cancellation.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
@@ -102,9 +103,9 @@ import { NativeURLService } from '../../platform/url/common/urlService.js';
 import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
-import { AgentsWindowOpenSource, ChatSessionToOpen, extractChatSessionToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, parseExternalAgentsWindowNewSessionLinkUri } from '../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, ChatSessionToOpen, extractChatSessionToOpen, getCopilotCliHandoffPrototypeTarget, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, parseExternalAgentsWindowNewSessionLinkUri } from '../../platform/window/common/window.js';
 import { FolderLocationsMainService, IFolderLocationsMainService } from '../../platform/windows/electron-main/folderLocationsMainService.js';
-import { getAllWindowsExcludingOffscreen, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
+import { getAllWindowsExcludingOffscreen, IOpenConfiguration, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
 import { ActiveWindowManager } from '../../platform/windows/node/windowTracker.js';
@@ -945,7 +946,7 @@ export class CodeApplication extends Disposable {
 
 			const windowOpenable = this.getWindowOpenableFromProtocolUrl(openableUri);
 			if (windowOpenable) {
-				if (await this.shouldBlockOpenable(windowOpenable, windowsMainService, dialogMainService)) {
+				if (await this.shouldBlockOpenable(windowOpenable, windowsMainService, dialogMainService, chatSessionToOpen)) {
 					this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', protocolUrl.uri.toString(true));
 
 					continue; // blocked
@@ -969,7 +970,7 @@ export class CodeApplication extends Disposable {
 		};
 	}
 
-	private async shouldBlockOpenable(openable: IWindowOpenable, windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<boolean> {
+	private async shouldBlockOpenable(openable: IWindowOpenable, windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService, chatSessionToOpen?: ChatSessionToOpen): Promise<boolean> {
 		let openableUri: URI;
 		let message: string;
 		if (isWorkspaceToOpen(openable)) {
@@ -981,6 +982,16 @@ export class CodeApplication extends Disposable {
 		} else {
 			openableUri = openable.fileUri;
 			message = localize('confirmOpenMessageFileOrFolder', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", openableUri.scheme === Schemas.file ? getPathLabel(openableUri, { os: OS, tildify: this.environmentMainService }) : openableUri.toString(true), this.productService.nameShort);
+		}
+		let detail = localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'");
+
+		// Prototype: name the Copilot CLI handoff that `/code` starts instead of an unknown application
+		const copilotCliHandoffTarget = chatSessionToOpen?.kind === 'copilotCli' ? getCopilotCliHandoffPrototypeTarget(this.configurationService) : undefined;
+		if (copilotCliHandoffTarget) {
+			message = localize('confirmOpenMessageCopilotCliSession', "Copilot CLI wants to continue a session in '{0}'.", openableUri.scheme === Schemas.file ? getPathLabel(openableUri, { os: OS, tildify: this.environmentMainService }) : openableUri.toString(true));
+			detail = copilotCliHandoffTarget === 'agents'
+				? localize('confirmOpenDetailCopilotCliSessionAgents', "It opens in the Agents window of {0}. If you didn't just run /code in Copilot CLI, choose No.", this.productService.nameShort)
+				: localize('confirmOpenDetailCopilotCliSession', "It opens in the Chat view of {0}. If you didn't just run /code in Copilot CLI, choose No.", this.productService.nameShort);
 		}
 
 		if (openableUri.scheme !== Schemas.file && openableUri.scheme !== Schemas.vscodeRemote) {
@@ -1011,7 +1022,7 @@ export class CodeApplication extends Disposable {
 				localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")
 			],
 			message,
-			detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
+			detail,
 			checkboxLabel: openableUri.scheme === Schemas.file ? localize('doNotAskAgainLocal', "Allow opening local paths without asking") : localize('doNotAskAgainRemote', "Allow opening remote paths without asking"),
 			cancelId: 1
 		});
@@ -1031,6 +1042,17 @@ export class CodeApplication extends Disposable {
 		}
 
 		return false; // not blocked by user choice
+	}
+
+	/**
+	 * Prototype: continues a Copilot CLI session from `/code` in the Agents window, which imports it, rather than in the
+	 * window of its folder. The folder isn't passed on: it would select it for a new session in the Agents window.
+	 */
+	private async openCopilotCliSessionInAgentsWindow(windowsMainService: IWindowsMainService, openConfig: IOpenConfiguration, sessionId: string): Promise<ICodeWindow[]> {
+		const windows = await windowsMainService.openAgentsWindow(openConfig, undefined, undefined, AgentsWindowOpenSource.Link);
+		windows.at(0)?.sendWhenReady('vscode:openCopilotCliSession', CancellationToken.None, sessionId);
+
+		return windows;
 	}
 
 	private getWindowOpenableFromProtocolUrl(uri: URI): IWindowOpenable | undefined {
@@ -1164,10 +1186,14 @@ export class CodeApplication extends Disposable {
 		// Check if the protocol URL is a window openable to open...
 		const windowOpenableFromProtocolUrl = this.getWindowOpenableFromProtocolUrl(uri);
 		if (windowOpenableFromProtocolUrl) {
-			if (await this.shouldBlockOpenable(windowOpenableFromProtocolUrl, windowsMainService, dialogMainService)) {
+			if (await this.shouldBlockOpenable(windowOpenableFromProtocolUrl, windowsMainService, dialogMainService, chatSessionToOpen)) {
 				this.logService.trace('app#handleProtocolUrl() protocol url was blocked:', uri.toString(true));
 
 				return true; // If openable should be blocked, behave as if it's handled
+			} else if (chatSessionToOpen?.kind === 'copilotCli' && getCopilotCliHandoffPrototypeTarget(this.configurationService) === 'agents') {
+				await this.openCopilotCliSessionInAgentsWindow(windowsMainService, { context: OpenContext.LINK, cli: { ...this.environmentMainService.args } }, chatSessionToOpen.sessionId);
+
+				return true;
 			} else {
 				this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
 
@@ -1584,6 +1610,11 @@ export class CodeApplication extends Disposable {
 
 			// Openables can open as windows directly
 			if (initialProtocolUrls.openables.length > 0) {
+				const chatSessionToOpen = initialProtocolUrls.chatSessionToOpen;
+				if (chatSessionToOpen?.kind === 'copilotCli' && getCopilotCliHandoffPrototypeTarget(this.configurationService) === 'agents') {
+					return this.openCopilotCliSessionInAgentsWindow(windowsMainService, { context: OpenContext.LINK, cli: args, initialStartup: true }, chatSessionToOpen.sessionId);
+				}
+
 				return windowsMainService.open({
 					context,
 					cli: args,

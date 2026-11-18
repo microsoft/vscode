@@ -10193,14 +10193,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!target) {
 			return true;
 		}
-		if (target.hasActiveTurn) {
+		if (target.hasActiveTurn || target.hasActiveSubagents) {
 			return false;
 		}
 		if (await target.hasRunningDetachedShells()) {
 			this._logService.info(`[Copilot:${target.sessionId}] Deferring idle release while a detached shell is running`);
 			return false;
 		}
-		return true;
+		return !target.hasActiveTurn && !target.hasActiveSubagents;
 	}
 
 	private async _releaseChat(chat: URI, operationContext: URI | IAgentChatContext, options?: IAgentChatReleaseOptions): Promise<void> {
@@ -10217,23 +10217,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._persistedChatHistory.delete(initial.chatKey);
 			const current = this._resolveChatContext(chat, operationContext);
 			const target = current.target;
-			if (!target || target.hasActiveTurn) {
+			if (!target) {
+				return;
+			}
+			const handoff = options?.reason() === 'handoff';
+			if (target.hasActiveTurn || target.hasActiveSubagents || (handoff && await target.hasRunningDetachedShells()) || target.hasActiveTurn || target.hasActiveSubagents) {
+				if (handoff) {
+					throw new ProtocolError(AhpErrorCodes.Conflict, localize('copilotAgent.handoffBusy', "The session is still running. Wait for its current work to finish before changing surfaces."));
+				}
 				return;
 			}
 			const retainCanvases = options?.reason() === 'idle' && generation === this._canvasContinuityGeneration(initial.chatKey);
-			const handoff = retainCanvases ? target.takeCanvasProjection() : undefined;
-			if (handoff) {
+			const canvasHandoff = retainCanvases ? target.takeCanvasProjection() : undefined;
+			if (canvasHandoff) {
 				this._retainReleasedCanvasContinuity({
 					chat,
 					ownerSession: current.ownerSession,
 					sdkSessionId: target.sessionId,
 					generation,
-					handoff,
+					handoff: canvasHandoff,
 				});
 			} else if (!retainCanvases) {
 				this._invalidateCanvasContinuity(chat);
 			}
-			await this._destroyLiveSession(target, true);
+			await this._destroyLiveSession(target, true, handoff);
 			const scoped = this._scopedClients.get(initial.chatKey);
 			if (scoped) {
 				await scoped.stop();
@@ -11361,11 +11368,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._registerUnboundSession(agentSession, activeClient);
 	}
 
-	private async _destroyLiveSession(chatSession: CopilotAgentSession, preserveRouting = false): Promise<void> {
+	private async _destroyLiveSession(chatSession: CopilotAgentSession, preserveRouting = false, requireDisconnect = false): Promise<void> {
 		try {
 			await chatSession.destroySession();
 		} catch (error) {
 			this._logService.warn(`[Copilot:${chatSession.sessionId}] Failed to destroy session before cleanup: ${error instanceof Error ? error.message : String(error)}`);
+			if (requireDisconnect) {
+				throw error;
+			}
 		}
 		const chatChannelUri = chatSession.chatChannelUri;
 		if (!preserveRouting && chatChannelUri && this._chatBackings.get(chatChannelUri.toString())?.sdkSessionId === chatSession.sessionId) {

@@ -1460,9 +1460,10 @@ export interface IAgentPrepareChatResult {
 	readonly error?: ErrorInfo;
 }
 
-export type AgentChatReleaseReason = 'idle' | 'archived' | 'other';
+export type AgentChatReleaseReason = 'idle' | 'archived' | 'handoff' | 'other';
 
 export interface IAgentChatReleaseOptions {
+	/** A handoff must reject unless runtime disconnection has completed successfully. */
 	readonly reason: () => AgentChatReleaseReason;
 	readonly canContinue?: () => boolean;
 }

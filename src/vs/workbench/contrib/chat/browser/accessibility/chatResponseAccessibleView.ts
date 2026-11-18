@@ -24,7 +24,8 @@ import { formatChatToolError } from '../../common/chatProgressFormatting.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionTargetData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { IChatProgressResponseContent } from '../../common/model/chatModel.js';
-import { IChatResponseViewModel, isResponseVM, isRequestVM, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
+import { IChatResponseViewModel, isResponseVM, isRequestVM, isScheduledRequestVM, isHandoffVM } from '../../common/model/chatViewModel.js';
+import { getCopilotCliHandoffHistoryLabel } from '../../common/copilotCliHandoff.js';
 import { annotateSpecialMarkdownContentWithSource } from '../../common/widget/annotations.js';
 import { getChatRequestAccessibleText, getChatScheduledRequestAccessibleText } from '../chatRequestText.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
@@ -53,6 +54,16 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 
 		const verifiedWidget: IChatWidget = widget;
 		let focusedItem = verifiedWidget.getFocus();
+		if (isHandoffVM(focusedItem)) {
+			const handoff = focusedItem;
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.PanelChat,
+				{ type: AccessibleViewType.View },
+				() => getCopilotCliHandoffHistoryLabel(handoff.entry),
+				() => verifiedWidget.focus(handoff),
+				AccessibilityVerbositySettingId.Chat,
+			);
+		}
 		if (isScheduledRequestVM(focusedItem)) {
 			const request = focusedItem;
 			return new AccessibleContentProvider(

@@ -12,7 +12,7 @@ import { sanitizeProcessEnvironment } from '../../../base/common/processes.js';
 import * as pfs from '../../../base/node/pfs.js';
 import * as processes from '../../../base/node/processes.js';
 import * as nls from '../../../nls.js';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettings, ITerminalForPlatform } from '../common/externalTerminal.js';
+import { DEFAULT_TERMINAL_OSX, ExternalTerminalNotStartedError, IExternalTerminalService, IExternalTerminalSettings, ITerminalForPlatform } from '../common/externalTerminal.js';
 import { ITerminalEnvironment } from '../../terminal/common/terminal.js';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
@@ -74,7 +74,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 		});
 	}
 
-	public async runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public async runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment | undefined, settings: IExternalTerminalSettings): Promise<number | undefined> {
 		const exec = settings.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
 		const wt = await WindowsExternalTerminalService.getWtExePath();
 
@@ -144,11 +144,15 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 export class MacExternalTerminalService extends ExternalTerminalService implements IExternalTerminalService {
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
+	constructor(private readonly spawn: (command: string, args: readonly string[], options?: cp.SpawnOptions) => cp.ChildProcess = (command, args, options) => cp.spawn(command, [...args], options ?? {})) {
+		super();
+	}
+
 	public openTerminal(configuration: IExternalTerminalSettings, cwd?: string): Promise<void> {
 		return this.spawnTerminal(cp, configuration, cwd);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment | undefined, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
 		const terminalApp = settings.osxExec || DEFAULT_TERMINAL_OSX;
 
@@ -189,8 +193,8 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 					}
 				}
 
-				const osa = cp.spawn(MacExternalTerminalService.OSASCRIPT, osaArgs);
-				setupSpawnErrorHandling(osa, resolve, reject, terminalApp);
+				const osa = this.spawn(MacExternalTerminalService.OSASCRIPT, osaArgs);
+				setupSpawnErrorHandling(osa, resolve, reject, terminalApp, stderr => /\(-1743\)\s*$/.test(stderr.trim()));
 			} else if (terminalApp === 'Ghostty.app') {
 				// Ghostty uses CLI flags directly instead of AppleScript like Mac Terminal and iTerm
 				// Note: -na is required (not just -a) because we need to spawn a new instance that
@@ -202,10 +206,10 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 				openArgs.push('--wait-after-command=true');
 				openArgs.push('-e', ...args);
 
-				const cmd = cp.spawn('/usr/bin/open', openArgs, { env });
+				const cmd = this.spawn('/usr/bin/open', openArgs, { env });
 				setupSpawnErrorHandling(cmd, resolve, reject, terminalApp);
 			} else {
-				reject(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
+				reject(new ExternalTerminalNotStartedError(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
 			}
 		});
 	}
@@ -234,7 +238,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 		return this.spawnTerminal(cp, configuration, cwd);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment | undefined, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
 		const execPromise = settings.linuxExec ? Promise.resolve(settings.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
 
@@ -278,7 +282,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 		exec: string,
 		args: string[],
 		dir: string,
-		envVars: ITerminalEnvironment,
+		envVars: ITerminalEnvironment | undefined,
 		resolve: (value: number | PromiseLike<number | undefined> | undefined) => void,
 		reject: (reason?: unknown) => void
 	): void {
@@ -359,11 +363,12 @@ function setupSpawnErrorHandling(
 	resolve: (value: number | PromiseLike<number | undefined> | undefined) => void,
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	reject: (reason?: any) => void,
-	terminalApp: string
+	terminalApp: string,
+	isNotStarted?: (stderr: string) => boolean,
 ): void {
 	let stderr = '';
 	cmd.on('error', err => {
-		reject(improveError(err));
+		reject(new ExternalTerminalNotStartedError(improveError(err).message));
 	});
 	cmd.stderr?.on('data', (data) => {
 		stderr += data.toString();
@@ -374,7 +379,7 @@ function setupSpawnErrorHandling(
 		} else {
 			if (stderr) {
 				const lines = stderr.split('\n', 1);
-				reject(new Error(lines[0]));
+				reject(isNotStarted?.(stderr) ? new ExternalTerminalNotStartedError(lines[0]) : new Error(lines[0]));
 			} else {
 				reject(new Error(nls.localize('terminal.launch.failed', "Launching '{0}' failed with exit code {1}", terminalApp, code)));
 			}

@@ -17,17 +17,29 @@ import { AgentSession, IAgentConnection } from '../../../../platform/agentHost/c
 import { supportsAgentHostSessionImport } from '../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
 import type { InitializeResult } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { AhpErrorCodes, ProtocolError } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
-import { isValidCopilotCliSessionId } from '../../../../platform/window/common/window.js';
+import { COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING, isValidCopilotCliSessionId } from '../../../../platform/window/common/window.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService, SessionType } from '../common/chatSessionsService.js';
+import { ICopilotCliHandoffService } from '../common/copilotCliHandoff.js';
 import { ChatViewPaneTarget, IChatWidgetService } from './chat.js';
 
 /** How long a link opened at startup waits for the agent host to finish its handshake. */
 const AGENT_HOST_READY_TIMEOUT_MS = 30_000;
+
+export interface ICopilotCliSessionOpenOptions {
+	/** The session is taken back from the Copilot CLI, which records the move itself, rather than handed off with `/code`. */
+	readonly takeBack?: boolean;
+	/**
+	 * Opens the imported session, by its backend session, where this window shows sessions, such as the Agents window,
+	 * instead of in the Chat view. Resolves to the chat session resource it opened, or `undefined` when it couldn't.
+	 */
+	readonly openImported?: (backendSession: URI) => Promise<URI | undefined>;
+}
 
 /**
  * Opens Copilot CLI sessions, identified by their CLI session id, in the Chat view.
@@ -50,50 +62,66 @@ export class CopilotCliSessionLinkOpener {
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
+		@ICopilotCliHandoffService private readonly copilotCliHandoffService: ICopilotCliHandoffService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
-	async open(sessionId: string): Promise<void> {
+	/** Resolves to the chat session resource that opened, or `undefined` when the session didn't open. */
+	async open(sessionId: string, options?: ICopilotCliSessionOpenOptions): Promise<URI | undefined> {
 		if (!isValidCopilotCliSessionId(sessionId)) {
 			this.logService.warn('[CopilotCliSessionLinkOpener] Ignoring a link with an invalid Copilot CLI session id');
-			return;
+			return undefined;
 		}
 
 		if (this.chatEntitlementService.sentiment.hidden || !this.agentHostEnablementService.enabled.get() || !await this.chatSessionsService.canResolveChatSession(SessionType.AgentHostCopilot)) {
 			this.logService.warn(`[CopilotCliSessionLinkOpener] Copilot agent host sessions are not available, cannot open session ${sessionId}`);
 			this.notificationService.error(localize('copilotCliSessionUnavailable', "Couldn't open the Copilot CLI session because Copilot agent sessions aren't available in this window."));
-			return;
+			return undefined;
+		}
+		if (this.configurationService.getValue<boolean>(COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING) === true && !await this.copilotCliHandoffService.prepareToOpenFromCli(sessionId)) {
+			return undefined;
 		}
 
-		await this.progressService.withProgress(
+		const resource = await this.progressService.withProgress(
 			{ location: ProgressLocation.Window, title: localize('copilotCliSessionOpening', "Opening Copilot CLI session…") },
-			() => this.openInAgentHost(sessionId),
+			() => this.openInAgentHost(sessionId, options?.openImported),
 		);
+		if (resource && !options?.takeBack) {
+			await this.copilotCliHandoffService.didContinueFromCli(sessionId, resource);
+		}
+		return resource;
 	}
 
-	/** Imports the session into the agent host and opens it in the Chat view. */
-	private async openInAgentHost(sessionId: string): Promise<void> {
+	/** Imports the session into the agent host and opens it in the Chat view, or with `openImported`. */
+	private async openInAgentHost(sessionId: string, openImported?: (backendSession: URI) => Promise<URI | undefined>): Promise<URI | undefined> {
 		const connection = this.agentHostConnectionsService.ambientConnection;
 		if (!connection.importSession || !await this.isImportSupported(connection)) {
 			this.logService.warn(`[CopilotCliSessionLinkOpener] The agent host can't import sessions, cannot open session ${sessionId}`);
 			this.notificationService.error(localize('copilotCliSessionImportUnsupported', "Couldn't open the Copilot CLI session because the Copilot agent host can't import sessions."));
-			return;
+			return undefined;
 		}
 		// The Copilot backing of the session; the host admits it under its own address, which it reports.
 		const backing = AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER_ID, sessionId);
+		// Prototype: a session handed over is shown whatever the external sessions filter says.
+		const reveal = this.configurationService.getValue<unknown>(COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING) === true;
 		let imported: URI | void;
 		try {
 			try {
-				imported = await connection.importSession(backing);
+				imported = await connection.importSession(backing, reveal ? { reveal } : undefined);
 			} catch (error) {
 				// Like the CLI, let the user take over a session another process holds: the record of that is best
 				// effort, and one left behind by a process that exited abnormally would otherwise block the session.
 				if (!(error instanceof ProtocolError && error.code === AhpErrorCodes.Conflict)) {
 					throw error;
 				}
-				if (!await this.confirmTakeOver()) {
-					return;
+				if (reveal) {
+					this.notificationService.warn(localize('copilotCliSessionBusy', "This session is still open or running in its current app. Wait for its work to finish and hand it over there. It was not taken over."));
+					return undefined;
 				}
-				imported = await connection.importSession(backing, { takeOver: true });
+				if (!await this.confirmTakeOver()) {
+					return undefined;
+				}
+				imported = await connection.importSession(backing, { takeOver: true, ...(reveal ? { reveal } : {}) });
 			}
 		} catch (error) {
 			this.logService.error(`[CopilotCliSessionLinkOpener] Failed to import session ${sessionId}`, error);
@@ -101,13 +129,17 @@ export class CopilotCliSessionLinkOpener {
 			this.notificationService.error(error instanceof ProtocolError && error.code === AhpErrorCodes.SessionNotFound
 				? localize('copilotCliSessionNotFound', "Couldn't open the Copilot CLI session because it couldn't be found. It may have been deleted, or it was created by another app.")
 				: localize('copilotCliSessionImportFailed', "Couldn't open the Copilot CLI session: {0}", toErrorMessage(error)));
-			return;
+			return undefined;
 		}
 		// A host that doesn't report the address keeps the session at the address it was imported from.
 		const session = imported ?? backing;
+		if (openImported) {
+			return openImported(session);
+		}
 		const resource = this.agentHostConnectionsService.findSessionResource(session)
 			?? this.agentHostConnectionsService.registerSessionResource(session, undefined, COPILOT_CLI_AGENT_PROVIDER_ID);
 		await this.chatWidgetService.openSession(resource, ChatViewPaneTarget);
+		return resource;
 	}
 
 	private async confirmTakeOver(): Promise<boolean> {

@@ -160,6 +160,24 @@ export const CHAT_SESSION_LINK_QUERY_PARAM = 'session';
 export const COPILOT_CLI_SESSION_LINK_QUERY_PARAM = 'copilotCliSession';
 
 /**
+ * Prototype setting that turns on the ownership handoff between the Copilot CLI
+ * and VS Code: clearer link prompt copy, handoff receipts, Continue in Terminal
+ * and a live owner banner. Off by default.
+ */
+export const COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING = 'chat.copilotCli.handoffPrototype';
+
+/** Prototype setting: which window continues sessions from `/code`, `editor` (the default) or `agents`. */
+export const COPILOT_CLI_HANDOFF_PROTOTYPE_TARGET_SETTING = 'chat.copilotCli.handoffPrototypeTarget';
+
+/** The window that continues Copilot CLI sessions from `/code` in the handoff prototype, or `undefined` while it is off. */
+export function getCopilotCliHandoffPrototypeTarget(configurationService: IConfigurationService): 'agents' | 'editor' | undefined {
+	if (configurationService.getValue<unknown>(COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING) !== true) {
+		return undefined;
+	}
+	return configurationService.getValue<unknown>(COPILOT_CLI_HANDOFF_PROTOTYPE_TARGET_SETTING) === 'agents' ? 'agents' : 'editor';
+}
+
+/**
  * A chat session to open in the window that a product protocol link opens.
  */
 export type ChatSessionToOpen =

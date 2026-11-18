@@ -3,9 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual, rejects, strictEqual } from 'assert';
+import { ChildProcess } from 'child_process';
+import { PassThrough } from 'stream';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ChannelClient, ChannelServer, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalConfiguration } from '../../common/externalTerminal.js';
+import { DEFAULT_TERMINAL_OSX, ExternalTerminalNotStartedError, IExternalTerminalConfiguration, IExternalTerminalService } from '../../common/externalTerminal.js';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from '../../node/externalTerminalService.js';
 
 const mockConfig = Object.freeze<IExternalTerminalConfiguration>({
@@ -20,7 +26,38 @@ const mockConfig = Object.freeze<IExternalTerminalConfiguration>({
 });
 
 suite('ExternalTerminalService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const scenario of ['spawnError', 'automationDenied', 'ambiguousFailure'] as const) {
+		test(`Mac terminal distinguishes a command that never started from an ambiguous failure (${scenario})`, async () => {
+			const process = new ChildProcess();
+			const stderr = new PassThrough();
+			process.stderr = stderr;
+			const service = new MacExternalTerminalService(() => {
+				queueMicrotask(() => {
+					if (scenario === 'spawnError') {
+						process.emit('error', new Error('spawn failed'));
+					} else {
+						stderr.write(scenario === 'automationDenied' ? 'Not authorized to send Apple events to Terminal. (-1743)' : 'Terminal window lookup failed. (-1728)');
+						process.emit('exit', 1);
+					}
+				});
+				return process;
+			});
+			const toClient = store.add(new Emitter<VSBuffer>());
+			const toServer = store.add(new Emitter<VSBuffer>());
+			const client = store.add(new ChannelClient({ onMessage: toClient.event, send: buffer => toServer.fire(buffer) }));
+			const server = store.add(new ChannelServer({ onMessage: toServer.event, send: buffer => toClient.fire(buffer) }, undefined));
+			server.registerChannel('externalTerminal', ProxyChannel.fromService(service, store.add(new DisposableStore())));
+			const proxy = ProxyChannel.toService<IExternalTerminalService>(client.getChannel('externalTerminal'));
+			try {
+				await rejects(proxy.runInTerminal('Test', '/workspace', ['echo', 'test'], undefined, { osxExec: DEFAULT_TERMINAL_OSX }), error =>
+					error instanceof Error && ExternalTerminalNotStartedError.is(error) === (scenario !== 'ambiguousFailure'));
+			} finally {
+				stderr.destroy();
+			}
+		});
+	}
 
 	test(`WinTerminalService - uses terminal from configuration`, done => {
 		const testShell = 'cmd';

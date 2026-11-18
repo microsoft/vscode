@@ -14,15 +14,19 @@ import { IAgentConnection } from '../../../../../platform/agentHost/common/agent
 import { AgentHostSessionImportCapabilityMetaKey } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
 import type { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { AhpErrorCodes, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
+import { COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING } from '../../../../../platform/window/common/window.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../browser/chat.js';
 import { CopilotCliSessionLinkOpener } from '../../browser/copilotCliSessionLink.js';
 import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
+import { ICopilotCliHandoffService } from '../../common/copilotCliHandoff.js';
 
 suite('CopilotCliSessionLinkOpener', () => {
 
@@ -45,6 +49,13 @@ suite('CopilotCliSessionLinkOpener', () => {
 		readonly advertised?: string | null;
 		/** Whether the host listed the session, registering its resource, before the import completed. */
 		readonly listed?: boolean;
+		/** Whether the session is taken back from the Copilot CLI rather than handed off with `/code`. */
+		readonly takeBack?: boolean;
+		/** Whether the window opens imported sessions itself, as the Agents window does, and whether they appear there. */
+		readonly openImported?: 'opens' | 'neverAppears';
+		/** Whether the Copilot CLI handoff prototype is on. */
+		readonly handoffPrototype?: boolean;
+		readonly handoffAllowed?: boolean;
 	}
 
 	async function open(id: string, options: IOpenOptions = {}) {
@@ -56,6 +67,8 @@ suite('CopilotCliSessionLinkOpener', () => {
 		const imported: string[] = [];
 		const opened: { resource: string; backend: string | undefined; inChatView: boolean }[] = [];
 		const errors: string[] = [];
+		const continuedFromCli: string[] = [];
+		const openedByWindow: string[] = [];
 		let takeOverPrompts = 0;
 		const advertised = options.advertised === undefined ? `ahp-session:/${id}` : options.advertised ?? undefined;
 
@@ -84,7 +97,7 @@ suite('CopilotCliSessionLinkOpener', () => {
 			ambientConnection: upcastPartial<IAgentConnection>({
 				initializeResult: constObservable(upcastPartial<InitializeResult>({ _meta: { [AgentHostSessionImportCapabilityMetaKey]: options.importSupported ?? true } })),
 				importSession: async (session, importOptions) => {
-					imported.push(`${session.toString()}${importOptions?.takeOver ? ' takeOver' : ''}`);
+					imported.push(`${session.toString()}${importOptions?.takeOver ? ' takeOver' : ''}${importOptions?.reveal ? ' reveal' : ''}`);
 					if (options.inUse && !importOptions?.takeOver) {
 						throw new ProtocolError(AhpErrorCodes.Conflict, 'In use');
 					}
@@ -114,6 +127,7 @@ suite('CopilotCliSessionLinkOpener', () => {
 		}));
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({
 			error: message => { errors.push(String(message)); },
+			warn: message => { errors.push(String(message)); },
 		}));
 		instantiationService.stub(IDialogService, upcastPartial<IDialogService>({
 			confirm: async () => {
@@ -121,10 +135,19 @@ suite('CopilotCliSessionLinkOpener', () => {
 				return { confirmed: options.takeOver ?? false };
 			},
 		}));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING]: options.handoffPrototype ?? false }));
+		instantiationService.stub(ICopilotCliHandoffService, upcastPartial<ICopilotCliHandoffService>({
+			didContinueFromCli: async (continuedId, resource) => { continuedFromCli.push(`${continuedId} ${resource.toString()}`); },
+			prepareToOpenFromCli: async () => options.handoffAllowed ?? true,
+		}));
 
-		await instantiationService.createInstance(CopilotCliSessionLinkOpener).open(id);
+		const openImported = options.openImported ? async (backendSession: URI) => {
+			openedByWindow.push(backendSession.toString());
+			return options.openImported === 'opens' ? URI.from({ scheme: 'agents-chat', path: backendSession.path }) : undefined;
+		} : undefined;
+		await instantiationService.createInstance(CopilotCliSessionLinkOpener).open(id, { takeBack: options.takeBack, openImported });
 
-		return { imported, opened, errors, ...(takeOverPrompts ? { takeOverPrompts } : {}) };
+		return { imported, opened, ...(openedByWindow.length ? { openedByWindow } : {}), errors, ...(takeOverPrompts ? { takeOverPrompts } : {}), ...(continuedFromCli.length ? { continuedFromCli } : {}) };
 	}
 
 	test('imports the session into the agent host and opens it in the Chat view', async () => {
@@ -132,6 +155,23 @@ suite('CopilotCliSessionLinkOpener', () => {
 			imported: [`copilotcli:/${sessionId}`],
 			opened: [{ resource: `frontend-copilotcli:/${sessionId}`, backend: `ahp-session:/${sessionId}`, inChatView: true }],
 			errors: 0,
+			continuedFromCli: [`${sessionId} frontend-copilotcli:/${sessionId}`],
+		});
+	});
+
+	test('records the handoff once the session opens, but not when it is taken back', async () => {
+		assert.deepStrictEqual({
+			handedOff: (await open(sessionId)).continuedFromCli,
+			takenBack: await open(sessionId, { takeBack: true }),
+			notOpened: (await open(sessionId, { importError: new Error('Disk full') })).continuedFromCli,
+		}, {
+			handedOff: [`${sessionId} frontend-copilotcli:/${sessionId}`],
+			takenBack: {
+				imported: [`copilotcli:/${sessionId}`],
+				opened: [{ resource: `frontend-copilotcli:/${sessionId}`, backend: `ahp-session:/${sessionId}`, inChatView: true }],
+				errors: 0,
+			},
+			notOpened: undefined,
 		});
 	});
 
@@ -147,6 +187,49 @@ suite('CopilotCliSessionLinkOpener', () => {
 		});
 	});
 
+	test('lets the window open the imported session itself, as the Agents window does', async () => {
+		assert.deepStrictEqual({
+			opens: await open(sessionId, { openImported: 'opens' }),
+			neverAppears: await open(sessionId, { openImported: 'neverAppears' }),
+		}, {
+			opens: {
+				imported: [`copilotcli:/${sessionId}`],
+				opened: [],
+				openedByWindow: [`ahp-session:/${sessionId}`],
+				errors: 0,
+				continuedFromCli: [`${sessionId} agents-chat:/${sessionId}`],
+			},
+			neverAppears: {
+				imported: [`copilotcli:/${sessionId}`],
+				opened: [],
+				openedByWindow: [`ahp-session:/${sessionId}`],
+				errors: 0,
+			},
+		});
+	});
+
+	test('asks the host to show the session whatever the external sessions filter says while the handoff prototype is on', async () => {
+		assert.deepStrictEqual({
+			on: (await open(sessionId, { handoffPrototype: true })).imported,
+			onTakingOver: (await open(sessionId, { handoffPrototype: true, inUse: true, takeOver: true })).imported,
+			off: (await open(sessionId)).imported,
+		}, {
+			on: [`copilotcli:/${sessionId} reveal`],
+			onTakingOver: [`copilotcli:/${sessionId} reveal`],
+			off: [`copilotcli:/${sessionId}`],
+		});
+	});
+
+	test('the prototype does not import before owner approval or offer a force takeover after conflict', async () => {
+		assert.deepStrictEqual({
+			ownerRefused: await open(sessionId, { handoffPrototype: true, handoffAllowed: false }),
+			stillHeld: await open(sessionId, { handoffPrototype: true, inUse: true, takeOver: true }),
+		}, {
+			ownerRefused: { imported: [], opened: [], errors: 0 },
+			stillHeld: { imported: [`copilotcli:/${sessionId} reveal`], opened: [], errors: 1 },
+		});
+	});
+
 	test('asks before taking over a session another process holds', async () => {
 		assert.deepStrictEqual({
 			takenOver: await open(sessionId, { inUse: true, takeOver: true }),
@@ -157,6 +240,7 @@ suite('CopilotCliSessionLinkOpener', () => {
 				opened: [{ resource: `frontend-copilotcli:/${sessionId}`, backend: `ahp-session:/${sessionId}`, inChatView: true }],
 				errors: 0,
 				takeOverPrompts: 1,
+				continuedFromCli: [`${sessionId} frontend-copilotcli:/${sessionId}`],
 			},
 			declined: { imported: [`copilotcli:/${sessionId}`], opened: [], errors: 0, takeOverPrompts: 1 },
 		});

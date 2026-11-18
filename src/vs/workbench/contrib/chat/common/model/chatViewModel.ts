@@ -22,6 +22,7 @@ import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { ChatStreamStatsTracker, IChatStreamStats } from './chatStreamStats.js';
 import { countWords } from './chatWordCounter.js';
+import { ICopilotCliHandoffHistoryEntry, observeCopilotCliHandoffHistory } from '../copilotCliHandoff.js';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
@@ -37,6 +38,10 @@ export function isPendingDividerVM(item: unknown): item is IChatPendingDividerVi
 
 export function isScheduledRequestVM(item: unknown): item is IChatScheduledRequestViewModel {
 	return !!item && typeof item === 'object' && 'kind' in item && item.kind === 'scheduledRequest';
+}
+
+export function isHandoffVM(item: unknown): item is IChatHandoffViewModel {
+	return !!item && typeof item === 'object' && 'kind' in item && item.kind === 'handoff';
 }
 
 interface IChatViewModelItemWithPendingState {
@@ -57,7 +62,7 @@ function isPendingChatViewModelItem(item: IChatViewModelItemWithPendingState): b
 export function getStickyScrollTargetItem<T extends IChatViewModelItemWithPendingState>(items: readonly T[]): T | undefined {
 	for (let i = items.length - 1; i >= 0; i--) {
 		const item = items[i];
-		if (!isPendingChatViewModelItem(item)) {
+		if (item.kind !== 'handoff' && !isPendingChatViewModelItem(item)) {
 			return item;
 		}
 	}
@@ -299,7 +304,18 @@ export interface IChatScheduledRequestViewModel extends IChatScheduledRequest {
 	currentRenderedHeight: number | undefined;
 }
 
-export type ChatViewModelItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel | IChatScheduledRequestViewModel;
+export type ChatViewModelItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel | IChatScheduledRequestViewModel | IChatHandoffViewModel;
+
+export interface IChatHandoffViewModel {
+	readonly kind: 'handoff';
+	readonly id: string;
+	readonly dataId: string;
+	readonly sessionResource: URI;
+	readonly isComplete: true;
+	readonly entry: ICopilotCliHandoffHistoryEntry;
+	readonly isLatest: boolean;
+	currentRenderedHeight: number | undefined;
+}
 
 export interface IChatPendingDividerViewModel {
 	readonly kind: 'pendingDivider';
@@ -335,6 +351,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	readonly onDidChangeEditing = this._onDidChangeEditing.event;
 
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
+	private readonly _handoffHistory: IObservable<readonly ICopilotCliHandoffHistoryEntry[]>;
 
 	/** Result of {@link getItems}, rebuilt lazily after any model or view-model change. */
 	private _visibleItemsCache: readonly ChatViewModelItem[] | undefined;
@@ -371,6 +388,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+		this._handoffHistory = observeCopilotCliHandoffHistory(this.sessionResource);
 
 		// Registered first so the cache is dropped before any other change listener reads items.
 		this._register(this._onDidChange.event(() => this._visibleItemsCache = undefined));
@@ -390,6 +408,12 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			this._onDidDisposeModel.fire();
 		}));
 		this._register(_model.onDidChangePendingRequests(() => this._onDidChange.fire(null)));
+		this._register(autorun(reader => {
+			this._handoffHistory.read(reader);
+			if (!modelDisposed) {
+				this._onDidChange.fire(null);
+			}
+		}));
 		this._register(autorun(reader => {
 			_model.pendingRequestHandoffs.read(reader);
 			if (!modelDisposed) {
@@ -492,6 +516,38 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		}
 		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
 			items = items.slice(-this._options.maxVisibleItems);
+		}
+
+		if (!this._options?.latestRequestOnly) {
+			const history = this._handoffHistory.get();
+			const insertions = new Map<number, IChatHandoffViewModel[]>();
+			for (let i = 0; i < history.length; i++) {
+				const entry = history[i];
+				const anchor = entry.afterRequestId
+					? items.findLastIndex(item => (isResponseVM(item) ? item.requestId : item.id) === entry.afterRequestId)
+					: -1;
+				const nextRequest = anchor < 0 && entry.afterRequestId
+					? items.findIndex(item => isRequestVM(item) && item.timestamp > entry.timestamp)
+					: -1;
+				const index = anchor >= 0 ? anchor + 1 : !entry.afterRequestId ? 0 : nextRequest >= 0 ? nextRequest : items.length;
+				const atIndex = insertions.get(index) ?? [];
+				atIndex.push({
+					kind: 'handoff', id: `handoff:${entry.id}`, dataId: `handoff:${entry.id}:${history.length}`,
+					sessionResource: this.sessionResource, isComplete: true, entry,
+					isLatest: i === history.length - 1, currentRenderedHeight: undefined,
+				});
+				insertions.set(index, atIndex);
+			}
+			if (insertions.size) {
+				const withHandoffs: ChatViewModelItem[] = [];
+				for (let i = 0; i <= items.length; i++) {
+					withHandoffs.push(...insertions.get(i) ?? []);
+					if (i < items.length) {
+						withHandoffs.push(items[i]);
+					}
+				}
+				items = withHandoffs;
+			}
 		}
 
 		const pendingRequests = this._model.getPendingRequests().filter(pending => !pending.request.isRequestHiddenFromTranscript);

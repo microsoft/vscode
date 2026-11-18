@@ -37,7 +37,7 @@ import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHo
 import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ConfirmationOptionKind, McpServerStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IFileDialogService, ISaveDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -102,7 +102,8 @@ import { ChatModel, ChatResponseResource, ISerializedChatDataReference, isSerial
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { getGeneratedImageResources } from '../../../common/chatImageExtraction.js';
 import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/chatResponseResourceFileSystemProvider.js';
-import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isHandoffVM, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
+import { COPILOT_CLI_BACK_TO_TERMINAL_COMMAND_ID, COPILOT_CLI_TAKE_BACK_COMMAND_ID, ICopilotCliHandoffHistoryEntry, setCopilotCliHandoffHistory, setCopilotCliHandoffInputPaused } from '../../../common/copilotCliHandoff.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -1202,6 +1203,64 @@ suite('ChatListRenderer', () => {
 		});
 		disposables.dispose();
 	}));
+
+	test('CLI handoff actions target their own conversation and only the latest transition is actionable', async () => {
+		const commands = sinon.stub().resolves();
+		const { disposables, model, viewModel, renderer, template, node } = createPersistentProgressRenderer({ commandService: upcastPartial<ICommandService>({ executeCommand: commands }) });
+		disposables.add(toDisposable(() => {
+			setCopilotCliHandoffHistory(model.sessionResource, []);
+			setCopilotCliHandoffInputPaused(model.sessionResource, false);
+		}));
+		const arrival: ICopilotCliHandoffHistoryEntry = { id: 'arrival', kind: 'arrival', timestamp: 1, returnCommand: '/code' };
+		setCopilotCliHandoffHistory(model.sessionResource, [arrival]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isHandoffVM)! }, 0, template);
+		const arrivalButton = template.value.querySelector<HTMLElement>('.chat-transition-actions .action-label')!;
+		const arrivalLabel = arrivalButton.getAttribute('aria-label');
+		const arrivalRole = template.value.querySelector('.chat-workspace-transition')?.getAttribute('role');
+		arrivalButton.click();
+		await timeout(0);
+		setCopilotCliHandoffInputPaused(model.sessionResource, true);
+		const recoveryWhilePaused = { label: arrivalButton.getAttribute('aria-label'), disabled: arrivalButton.getAttribute('aria-disabled') };
+		arrivalButton.click();
+		await timeout(0);
+
+		setCopilotCliHandoffHistory(model.sessionResource, [arrival, { id: 'departure', kind: 'departure', timestamp: 2, returnCommand: '/code-insiders' }]);
+		const rows = viewModel.getItems().filter(isHandoffVM);
+		renderer.renderElement({ ...node, element: rows[0] }, 0, template);
+		const historicalActions = template.value.querySelectorAll('.chat-transition-actions .action-label').length;
+		const historicalRole = template.value.querySelector('.chat-workspace-transition')?.getAttribute('role');
+		renderer.renderElement({ ...node, element: rows[1] }, 0, template);
+		const departureButton = template.value.querySelector<HTMLElement>('.chat-transition-actions .action-label')!;
+		const departureLabel = departureButton.getAttribute('aria-label');
+		const departureMessage = template.value.textContent;
+		departureButton.click();
+		await timeout(0);
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual({
+			arrivalLabel, arrivalRole, recoveryWhilePaused, historicalActions, historicalRole, departureLabel, departureMessage,
+			commands: commands.getCalls().map(call => call.args),
+			recycled: template.value.querySelector('.chat-workspace-transition'),
+		}, {
+			arrivalLabel: 'Back to Terminal', arrivalRole: 'group', recoveryWhilePaused: { label: 'Take It Back', disabled: null },
+			historicalActions: 0, historicalRole: 'separator', departureLabel: 'Take It Back',
+			departureMessage: 'Continued in Terminal. To return here, run /code-insiders.',
+			commands: [[COPILOT_CLI_BACK_TO_TERMINAL_COMMAND_ID, model.sessionResource], [COPILOT_CLI_TAKE_BACK_COMMAND_ID, model.sessionResource], [COPILOT_CLI_TAKE_BACK_COMMAND_ID, model.sessionResource]],
+			recycled: null,
+		});
+		disposables.dispose();
+	});
+
+	test('read-only conversations show CLI handoff history without ownership controls', () => {
+		const { disposables, model, viewModel, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { readOnly: true } });
+		disposables.add(toDisposable(() => setCopilotCliHandoffHistory(model.sessionResource, [])));
+		setCopilotCliHandoffHistory(model.sessionResource, [{ id: 'arrival', kind: 'arrival', timestamp: 1, returnCommand: '/code' }]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isHandoffVM)! }, 0, template);
+		assert.deepStrictEqual({
+			text: template.value.textContent,
+			actions: template.value.querySelectorAll('.chat-transition-actions').length,
+		}, { text: 'Continued from Copilot CLI', actions: 0 });
+		disposables.dispose();
+	});
 
 	test('scheduled messages render literal content and management actions without immediate-queue controls', async () => {
 		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
@@ -2491,9 +2550,12 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; permissionLevel?: ChatPermissionLevel; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; getWidget?: () => IChatWidget | undefined; requestText?: string; backgroundShellCount?: IObservable<number | undefined>; initialData?: ISerializedChatDataReference } = {}) {
+	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; permissionLevel?: ChatPermissionLevel; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; getWidget?: () => IChatWidget | undefined; requestText?: string; backgroundShellCount?: IObservable<number | undefined>; initialData?: ISerializedChatDataReference; commandService?: ICommandService } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		if (options.commandService) {
+			instantiationService.stub(ICommandService, options.commandService);
+		}
 		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, options.persistentProgress ?? ChatProgressAnimation.Draw);

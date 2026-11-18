@@ -8,6 +8,15 @@ import { ITerminalEnvironment } from '../../terminal/common/terminal.js';
 
 export const IExternalTerminalService = createDecorator<IExternalTerminalService>('externalTerminal');
 
+/** A launch failure that occurred before the requested terminal command could start. */
+export class ExternalTerminalNotStartedError extends Error {
+	override readonly name = 'ExternalTerminalNotStartedError';
+
+	static is(error: unknown): error is Error {
+		return error instanceof Error && error.name === 'ExternalTerminalNotStartedError';
+	}
+}
+
 export interface IExternalTerminalSettings {
 	linuxExec?: string;
 	osxExec?: string;
@@ -23,7 +32,11 @@ export interface ITerminalForPlatform {
 export interface IExternalTerminalService {
 	readonly _serviceBrand: undefined;
 	openTerminal(configuration: IExternalTerminalSettings, cwd: string | undefined): Promise<void>;
-	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined>;
+	/**
+	 * Without `env`, the command runs with the terminal's own environment. With it, the terminal runs the command with
+	 * VS Code's environment and `env`, which Terminal.app and iTerm show in the command line they run.
+	 */
+	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment | undefined, settings: IExternalTerminalSettings): Promise<number | undefined>;
 	getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform>;
 }
 

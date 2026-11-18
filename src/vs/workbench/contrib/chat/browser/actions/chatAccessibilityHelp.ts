@@ -17,6 +17,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { getTabbedActionListKeybindingLabels } from '../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING } from '../../../../../platform/window/common/window.js';
 import { ICodexContinuationService } from '../../../../services/agentHost/browser/codexContinuationService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -451,7 +452,10 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 	const workingSetFocus = isHTMLElement(focusedElement) && focusedElement.closest('.chat-session-working-set') ? focusedElement : undefined;
 	inputEditor.getSupportedActions();
 	const isInlineChat = isIChatResourceViewContext(widget.viewContext) && widget.viewContext.isInlineChat;
-	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get(), configurationService.getValue<boolean>(LocalModelEnabledSettingId) === true, undefined, widget.inputPart.hasSessionWorkingSet, widget.inputPart.hasSessionWorkingSetUndo, widget.inputPart.sessionWorkingSet?.keepUndoEnabled, !!widget.input.inlineAttachments?.isEnabled, configurationService.getValue<boolean>(ChatResourcesEnabledSettingId) === true, configurationService.getValue<boolean>(ChatConfiguration.AppWindowScreenshotsEnabled) === true);
+	let helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get(), configurationService.getValue<boolean>(LocalModelEnabledSettingId) === true, undefined, widget.inputPart.hasSessionWorkingSet, widget.inputPart.hasSessionWorkingSetUndo, widget.inputPart.sessionWorkingSet?.keepUndoEnabled, !!widget.input.inlineAttachments?.isEnabled, configurationService.getValue<boolean>(ChatResourcesEnabledSettingId) === true, configurationService.getValue<boolean>(ChatConfiguration.AppWindowScreenshotsEnabled) === true);
+	if (!isInlineChat && configurationService.getValue<boolean>(COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING) === true) {
+		helpText += '\n' + localize('chat.handoff.help', "Copilot CLI handoffs leave a message in the conversation history. Tab to Back to Terminal beside the latest handoff message and press Enter or Space to return the same session to Terminal. Wait for the agent's current work to finish before moving or taking over a session. A warning means the session remains in its current app. While Terminal owns the session, input here is paused. Use Take It Back beside the handoff message to keep working here, or run /code in Terminal (/code-insiders for Insiders).");
+	}
 	return new AccessibleContentProvider(
 		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },

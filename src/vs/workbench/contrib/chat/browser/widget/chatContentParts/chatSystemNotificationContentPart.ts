@@ -7,11 +7,13 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { Button, IButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatSystemNotificationPart } from '../../../common/chatService/chatService.js';
@@ -38,6 +40,8 @@ const transparentButtonStyles: IButtonStyles = {
 export class ChatSystemNotificationContentPart extends Disposable implements IChatContentPart {
 	readonly domNode: HTMLElement;
 	readonly inlineTimingContainer: HTMLElement | undefined;
+	private readonly transitionActions = this._register(new DisposableStore());
+	private transitionNode: HTMLElement | undefined;
 
 	/** Whether the notification stays out of the completed-steps disclosure. */
 	get keepVisible(): boolean {
@@ -48,7 +52,7 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		private readonly notification: IChatSystemNotificationPart,
 		renderer: IMarkdownRenderer,
 		private readonly parentSessionResource: string | undefined = undefined,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
@@ -98,6 +102,7 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 
 	private _renderWorkspaceTransition(notification: IChatSystemNotificationPart): HTMLElement {
 		const owner = dom.$('.chat-workspace-transition');
+		this.transitionNode = owner;
 		owner.setAttribute('role', 'separator');
 		owner.setAttribute('aria-orientation', 'horizontal');
 		owner.setAttribute('aria-label', notification.accessibilityLabel ?? renderAsPlaintext(notification.content));
@@ -113,6 +118,27 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		label.append(notification.content.value.slice(iconIndex));
 		dom.append(owner, dom.$('span.chat-workspace-transition-line')).setAttribute('aria-hidden', 'true');
 		return owner;
+	}
+
+	setTransitionActions(actions: readonly IAction[]): void {
+		const owner = this.transitionNode;
+		if (!owner) {
+			throw new Error('Actions require a transcript transition');
+		}
+		this.transitionActions.clear();
+		owner.setAttribute('role', actions.length ? 'group' : 'separator');
+		if (!actions.length) {
+			owner.setAttribute('aria-orientation', 'horizontal');
+			return;
+		}
+		owner.removeAttribute('aria-orientation');
+		const container = dom.$('span.chat-transition-actions');
+		owner.insertBefore(container, owner.lastElementChild);
+		this.transitionActions.add(toDisposable(() => container.remove()));
+		const toolbar = this.transitionActions.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+			ariaLabel: localize('chat.transition.actions', "Handoff Actions"),
+		}));
+		toolbar.setActions([...actions]);
 	}
 
 	private _renderNotification(notification: IChatSystemNotificationPart, renderer: IMarkdownRenderer, instantiationService: IInstantiationService): HTMLElement {

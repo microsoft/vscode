@@ -588,6 +588,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().importSession(session, options);
 	}
 
+	releaseSession(session: URI): Promise<void> {
+		return this._requireClient().releaseSession(session);
+	}
+
 	dispatchBackgroundChatAction(chat: string, action: ArtifactChatAction): Promise<void> {
 		return this._requireClient().dispatchBackgroundChatAction(chat, action);
 	}
