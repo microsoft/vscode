@@ -15,7 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ConfirmResult, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -195,16 +195,17 @@ suite('ImageCarouselEditor', () => {
 		function createMarkUp(marked: VSBuffer) {
 			const containers: HTMLElement[] = [];
 			const result = new DeferredPromise<IImageCarouselMarkUpResult | undefined>();
+			const finish = () => void result.complete({ data: marked, mimeType: 'image/jpeg' });
 			const markUp = (container: HTMLElement): IImageCarouselMarkUp => {
 				containers.push(container);
-				return { result: result.p, focus: () => { }, finish: () => void result.complete({ data: marked, mimeType: 'image/jpeg' }), dispose: () => { } };
+				return { result: result.p, hasChanges: false, focus: () => { }, finish, cancel: async () => true, dispose: () => { } };
 			};
-			return { markUp, containers, result };
+			return { markUp, containers, result, finish };
 		}
 
 		(isWeb ? test.skip : test)('marks up an image instead of previewing it, and then previews the changed image', async () => {
 			const { editor, parent, isMarkingUp } = createEditor();
-			const { markUp, containers, result } = createMarkUp(VSBuffer.fromString('marked'));
+			const { markUp, containers, result, finish } = createMarkUp(VSBuffer.fromString('marked'));
 			const input = store.add(new ImageCarouselEditorInput({
 				id: 'collection', title: 'Images', sections: [{
 					title: '', images: [
@@ -222,7 +223,7 @@ suite('ImageCarouselEditor', () => {
 			editor.next();
 			parent.querySelector<HTMLElement>('.image-actions .action-label[aria-label="Mark Up"]')!.click();
 			const marking = { slideshow: slideshow.style.display, markUps: containers.length, inEditor: parent.contains(containers[0]), isMarkingUp: isMarkingUp() };
-			editor.finishMarkUp();
+			finish();
 			await result.p;
 			const image = (editor as unknown as ImageCarouselEditorTestAccessor)._flatImages[1].image;
 			assert.deepStrictEqual({
@@ -240,7 +241,7 @@ suite('ImageCarouselEditor', () => {
 
 		(isWeb ? test.skip : test)('keeps the changes of a markup to its own image, also when another image has the same id', async () => {
 			const { editor } = createEditor();
-			const { markUp, result } = createMarkUp(VSBuffer.fromString('marked'));
+			const { markUp, result, finish } = createMarkUp(VSBuffer.fromString('marked'));
 			// The same file, attached to a request and to the input, has the same id in both sections.
 			const id = URI.file('/same.png').toString();
 			await editor.setInput(store.add(new ImageCarouselEditorInput({
@@ -250,7 +251,7 @@ suite('ImageCarouselEditor', () => {
 				]
 			}, 1)), undefined, {}, CancellationToken.None);
 			editor.markUpCurrentImage();
-			editor.finishMarkUp();
+			finish();
 			await result.p;
 			const accessor = editor as unknown as ImageCarouselEditorTestAccessor;
 			const shown = await Promise.all(accessor._flatImages.map(async ({ image }) => {
@@ -270,7 +271,7 @@ suite('ImageCarouselEditor', () => {
 			const first = markUpOnly(finished.markUp);
 			await editor.setInput(first, undefined, {}, CancellationToken.None);
 			const shown = !!parent.querySelector('.image-carousel-mark-up');
-			editor.finishMarkUp();
+			finished.finish();
 			await finished.result.p;
 
 			// An editor that goes away still keeps the changes of its markup.
@@ -291,8 +292,10 @@ suite('ImageCarouselEditor', () => {
 			// Like the screenshot tool's, this markup discards the changes that it has not applied when it is disposed.
 			const markUp = (): IImageCarouselMarkUp => ({
 				result: result.p,
+				hasChanges: true,
 				focus: () => { },
 				finish: () => void saved.p.then(() => result.complete({ data: VSBuffer.fromString('marked'), mimeType: 'image/png' })),
+				cancel: async () => false,
 				dispose: () => {
 					disposed = true;
 					void result.complete(undefined);
@@ -310,6 +313,47 @@ suite('ImageCarouselEditor', () => {
 				whileApplying: { shown: false, disposed: false },
 				applied: 'marked',
 				disposed: true,
+			});
+		});
+
+		(isWeb ? test.skip : test)('cancels a markup once the user confirms, also before its editor closes, which then closes only once', async () => {
+			const { editor, closed } = createEditor();
+			const result = new DeferredPromise<IImageCarouselMarkUpResult | undefined>();
+			// Like the screenshot tool's, this markup asks before it discards its changes, which the user declines twice.
+			const answers = [false, false, true];
+			const cancels: boolean[] = [];
+			const markUp = (): IImageCarouselMarkUp => ({
+				result: result.p,
+				get hasChanges() { return !result.isSettled; },
+				focus: () => { },
+				finish: () => void result.complete({ data: VSBuffer.fromString('marked'), mimeType: 'image/png' }),
+				cancel: async () => {
+					const confirmed = answers.shift() ?? false;
+					cancels.push(confirmed);
+					if (confirmed) {
+						void result.complete(undefined);
+					}
+					return confirmed;
+				},
+				dispose: () => { },
+			});
+			const input = store.add(new ImageCarouselEditorInput({
+				id: 'collection', title: 'Edit Screenshot', sections: [{ title: '', images: [{ id: 'screenshot', name: 'Screenshot', mimeType: 'image/png', data: VSBuffer.fromString('screenshot'), markUp }] }],
+			}, 0, true));
+			const withoutMarkUp = input.closeHandler.showConfirm();
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			editor.cancelMarkUp();
+			const withChanges = input.closeHandler.showConfirm();
+			const closing = [await input.closeHandler.confirm([]), await input.closeHandler.confirm([])];
+			await result.p;
+			assert.deepStrictEqual({ withoutMarkUp, cancels, withChanges, closing, afterwards: input.closeHandler.showConfirm(), closed }, {
+				withoutMarkUp: false,
+				cancels: [false, false, true],
+				withChanges: true,
+				closing: [ConfirmResult.CANCEL, ConfirmResult.DONT_SAVE],
+				afterwards: false,
+				// Closing the editor ended the markup, which therefore does not close the editor a second time.
+				closed: [],
 			});
 		});
 	});

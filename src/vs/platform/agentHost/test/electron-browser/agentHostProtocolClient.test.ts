@@ -32,7 +32,7 @@ import { McpAuthRequiredReason } from '../../common/state/protocol/channels-sess
 import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { getAgentHostArtifactIntegrationsCapability } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
-import { agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, registerLocalAgentHostWindowScheme, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
 import { agentHostStateReceiveLimits } from '../../common/agentHostChannel.js';
@@ -2067,6 +2067,38 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	suite('connection resource URI mappers', () => {
+		test('local host-only skill sources are routed through the agent host filesystem', async () => {
+			const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+			const source = URI.parse('agent-builtin-skill:/troubleshoot/SKILL.md');
+			const wrapped = client.resourceUris.fromAgentHost(source);
+			assert.deepStrictEqual({ scheme: wrapped.scheme, authority: wrapped.authority }, { scheme: AGENT_HOST_SCHEME, authority: LOCAL_AGENT_HOST_AUTHORITY });
+
+			const provider = disposables.add(new AgentHostFileSystemProvider());
+			disposables.add(provider.registerAuthority(LOCAL_AGENT_HOST_AUTHORITY, client));
+			const reading = provider.readFile(wrapped);
+			await flushMicrotasks();
+			const request = transport.sentMessages.find((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'resourceRead');
+			assert.ok(request);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { data: '# Troubleshoot', encoding: ContentEncoding.Utf8, contentType: 'text/markdown' } });
+
+			assert.deepStrictEqual({
+				request: request.params,
+				content: VSBuffer.wrap(await reading).toString(),
+				hostUri: client.resourceUris.toAgentHost(wrapped).toString(),
+			}, {
+				request: { channel: ROOT_STATE_URI, uri: source.toString(), encoding: ContentEncoding.Base64 },
+				content: '# Troubleshoot',
+				hostUri: source.toString(),
+			});
+		});
+
+		test('local files and registered window schemes stay directly readable', () => {
+			const { client } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+			disposables.add(registerLocalAgentHostWindowScheme('vscode-vfs'));
+			const resources = [URI.file('/workspace/SKILL.md'), URI.parse('vscode-remote://ssh-remote+test/workspace/SKILL.md'), URI.parse('vscode-vfs://github/repo/SKILL.md')];
+			assert.deepStrictEqual(resources.map(uri => client.resourceUris.fromAgentHost(uri)), resources);
+		});
+
 		for (const kind of agentHostConnectionKinds) {
 			function createMappedClient(permissionService = createPermissionService()) {
 				const identity = 'vscode-remote://ssh-remote+test';

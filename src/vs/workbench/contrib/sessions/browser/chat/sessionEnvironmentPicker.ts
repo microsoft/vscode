@@ -36,7 +36,7 @@ import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
+import { getManageRemoteEnvironmentsDescription, OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -275,7 +275,7 @@ export class SessionEnvironmentPicker extends Disposable {
 		if (remotesEnabled && environmentPickerEnabled) {
 			logSettingExperimentTrigger(this.telemetryService, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 			if (showManage) {
-				const manageHover = localize('environmentPicker.manageHover', "Add, connect, and manage remote environments");
+				const manageHover = getManageRemoteEnvironmentsDescription();
 				items.push(
 					{ kind: ActionListItemKind.Separator, label: '' },
 					{

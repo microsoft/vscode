@@ -65,7 +65,7 @@ import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInter
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
@@ -630,9 +630,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
 		this._clientId = options?.clientId ?? generateUuid();
 		this._connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
-		this.resourceUris = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
-			? identityAgentHostResourceUriMapper
-			: options?.resourceUris ?? createAgentHostResourceUriMapper(this._connectionAuthority);
+		this.resourceUris = options?.resourceUris ?? createAgentHostResourceUriMapper(this._connectionAuthority);
 		this._liveness = this._register(new ProtocolLivenessMonitor({
 			pingIntervalMs: PING_INTERVAL_MS,
 			timeoutMs: LIVENESS_TIMEOUT_MS,
@@ -3143,7 +3141,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _toHostUri(uri: URI): URI {
-		// Local API callers can still pass wrapped resources even though the local mapper is identity-only.
+		// Local API callers can still pass legacy wrappers from any authority.
 		return this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? fromAgentHostUri(uri) : this.resourceUris.toAgentHost(uri);
 	}
 

@@ -34,7 +34,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext, DesktopEditorHeaderLayoutContext } from '../../../../common/agentsWindowContextKeys.js';
+import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
@@ -2050,15 +2050,14 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[D7 desktop] with the editor header layout, Toggle Details also shows for the Changes tab, including during a session switch', () => {
+	test('[D7 desktop] Toggle Details also shows for the Changes tab, including during a session switch', () => {
 		createDesktopController();
 
 		const [toggleDetails] = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
-		const isShown = (activeEditor: string, editorHeaderLayout: boolean, options: { hasDockedDetails?: boolean; transition?: boolean } = {}) => {
+		const isShown = (activeEditor: string, options: { hasDockedDetails?: boolean; transition?: boolean } = {}) => {
 			const values: Record<string, ContextKeyValue> = {
-				[DesktopEditorHeaderLayoutContext.key]: editorHeaderLayout,
 				[IsSessionsWindowContext.key]: true,
 				[IsAuxiliaryWindowContext.key]: false,
 				[IsTopRightEditorGroupContext.key]: true,
@@ -2072,17 +2071,12 @@ suite('DesktopLayoutController', () => {
 			return toggleDetails.when?.evaluate(context) ?? false;
 		};
 		// The Changes tab keeps the toggle even before the detail target is published.
-		const snapshot = (editorHeaderLayout: boolean) => ({
-			changes: isShown(SessionChangesEditorInput.EDITOR_ID, editorHeaderLayout),
-			changesTransition: isShown('', editorHeaderLayout, { transition: true }),
-			textFileWithDockedDetails: isShown(TEXT_FILE_EDITOR_ID, editorHeaderLayout, { hasDockedDetails: true }),
-			withoutDockedDetails: isShown('test.browserEditor', editorHeaderLayout),
-		});
-
-		assert.deepStrictEqual({ classic: snapshot(false), editorHeaderLayout: snapshot(true) }, {
-			classic: { changes: false, changesTransition: false, textFileWithDockedDetails: true, withoutDockedDetails: false },
-			editorHeaderLayout: { changes: true, changesTransition: true, textFileWithDockedDetails: true, withoutDockedDetails: false },
-		});
+		assert.deepStrictEqual({
+			changes: isShown(SessionChangesEditorInput.EDITOR_ID),
+			changesTransition: isShown('', { transition: true }),
+			textFileWithDockedDetails: isShown(TEXT_FILE_EDITOR_ID, { hasDockedDetails: true }),
+			withoutDockedDetails: isShown('test.browserEditor'),
+		}, { changes: true, changesTransition: true, textFileWithDockedDetails: true, withoutDockedDetails: false });
 	});
 
 	test('[desktop reload] preserves Aux-only layout while the active session is still restoring', async () => {

@@ -177,9 +177,6 @@ importers:
       '@devcontainers/cli':
         specifier: 0.88.0
         version: 0.88.0
-      '@github/copilot-sdk':
-        specifier: 1.0.33-preview.0
-        version: 1.0.33-preview.0
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -189,6 +186,9 @@ importers:
       '@microsoft/1ds-post-js':
         specifier: ^3.2.13
         version: 3.2.13
+      '@microsoft/copilot-sdk':
+        specifier: 2.0.0-preview.2
+        version: 2.0.0-preview.2
       '@parcel/watcher':
         specifier: ^2.5.6
         version: 2.5.6
@@ -401,54 +401,6 @@ packages:
     engines: {node: '>=20.0.0'}
     hasBin: true
 
-  '@github/copilot-sdk-darwin-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-RR4RrOKleNmo+n90FMT/jNQuvOzrjwtruBHzElR9dEik4uacQ7bOGrKTpZk/u9RMVRtfVHyu0pVLtZVjD7UHkQ==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@github/copilot-sdk-darwin-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-/CmMuyAXl/6JpzTB9HeDDzCQXlIw+pVvj4N/tQcg+bhbLN/xvJcewtvJ1EGyejyUWImjdBai1pQxr+d6oxabQA==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@github/copilot-sdk-linux-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-ho/QH+L/FiFUEjfA0/iBTuUR7IE6B6DEIDwRt7ywPxMYuCPbNIC6dpPONheL6xir+BpEZB0ChQnbO6bvhMUC+A==}
-    cpu: [arm64]
-    os: [linux]
-    libc: [glibc]
-
-  '@github/copilot-sdk-linux-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-Q/8P9P6y+MhuV/c36i8Uu7pg1xnntL5hokIzpcORWaRAhYdiYaVeakp2+huMtjL43qSMdLqfmT1g3ivMD7OEVg==}
-    cpu: [x64]
-    os: [linux]
-    libc: [glibc]
-
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-CMnJlH90HXfuz6LivbBEOD2P7agzccFqEZmYYcwZToJHSEeQLOcub+6gqB25vXUQjAzFibAaklIMLGy64Y95Kg==}
-    cpu: [arm64]
-    os: [linux]
-    libc: [musl]
-
-  '@github/copilot-sdk-linuxmusl-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-N/kcKAiqKI/j46qNoKT06vlPEEzyvnzTZ0cxgTWr/si0tQx/2UQuVyTlRRBn1QtzvJJTpBclK4+4NwI2RsCFaw==}
-    cpu: [x64]
-    os: [linux]
-    libc: [musl]
-
-  '@github/copilot-sdk-win32-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-3gv/SYtdaVEAc6mpMkt0mKloPk1gHGdtY6IMykb+lkb6RCtC+bFmCst1L1f67tx8rNBQ5IGu96X5xfz+uPAhnw==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@github/copilot-sdk-win32-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-n3bJbIKlOagcdrZtj8vhUs/5ArJk5Qtv/dbvgWgBhEObWBYbOjTls4q3rVE/8QC5hGEeli+c8eTaZEwXF8ThSA==}
-    cpu: [x64]
-    os: [win32]
-
-  '@github/copilot-sdk@1.0.33-preview.0':
-    resolution: {integrity: sha512-7vNdfXrLlhmaoLEJoLc8P9EivPApXmR93PrsE9TCvvIVUl3e4y7ZiSpJHm0b1UTwPFWuD72+i/NnbTzQgoHP3w==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-
   '@hpke/common@1.10.1':
     resolution: {integrity: sha512-moJwhmtLtuxiUzzNp1jpfBfx8yefKoO9D/RCR9dmwrnc7qjJqId1rEtQz+lSlU5cabX8daToMSx/7HayXOiaFw==}
     engines: {node: '>=16.0.0'}
@@ -564,6 +516,54 @@ packages:
 
   '@microsoft/applicationinsights-shims@2.0.2':
     resolution: {integrity: sha512-PoHEgsnmcqruLNHZ/amACqdJ6YYQpED0KSRe6J7gIJTtpZC1FfFU9b1fmDKDKtFoUSrPzEh1qzO3kmRZP0betg==}
+
+  '@microsoft/copilot-sdk-darwin-arm64@2.0.0-preview.2':
+    resolution: {integrity: sha512-L71nwJx+7FkujMI4gO6dMlaYl2K7CGd6FJxhlGW+vkzup9Ps5YnIb7c8pV3CT0QGY5fKhgNFaHeDw2wc/yj/9g==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@microsoft/copilot-sdk-darwin-x64@2.0.0-preview.2':
+    resolution: {integrity: sha512-fy0Dp2jgYgBiPCJO0nPTSrGGD/GzBKwUkzwka93L9SO2uDOfQWu/9m4IZB3xU2oqmJnoURBuGJu7IIZaeYDicw==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@microsoft/copilot-sdk-linux-arm64@2.0.0-preview.2':
+    resolution: {integrity: sha512-pL4BsNGATWleZ/ntNtTw8VfS/6qkNH6dwJZwJOHH/okIrEqmdcFTdHQsB1XUXd06SjDkkjXhMvqN4bukZ5nfQQ==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@microsoft/copilot-sdk-linux-x64@2.0.0-preview.2':
+    resolution: {integrity: sha512-XEDAdXcdaz5RrPrQT1h5XFS8D1bi0OgHM8HQdueugPAMlqXLWtKrGLu9Z4dSbCeJsMYRWd0pva6ryiIQ5giAqg==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.0-preview.2':
+    resolution: {integrity: sha512-W9p2/K2pXNrWog1sHdl2asTrYNkq/NG4hjVuuVE4LogNkAbLEuJbDudiLYv1mwkcs3LeETawZi+jmCRqiuPfsQ==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.0-preview.2':
+    resolution: {integrity: sha512-GEAR9a8CfRhVjrulHih4jxOPwf6xnI7xloxD9XfGJ9LrH7tFmDZsatHVqHX8u3WiTdT+CgGk/kqZhWZhCetEdw==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@microsoft/copilot-sdk-win32-arm64@2.0.0-preview.2':
+    resolution: {integrity: sha512-qZTV8PB+2YiI0FCI8QjQXbNME5XCcF7Ua/afX0pYRW6Vxe6AiqNuwr/MTakhGNImoHHI5/v81c9DC5bpDVm5ug==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@microsoft/copilot-sdk-win32-x64@2.0.0-preview.2':
+    resolution: {integrity: sha512-XUnumUAzHV9NTrCrqzoYoMhmO1c550f8sB0TLavms/Ji1XcJxrg+pcaIP+NwNLHlKBzPYisXbB2xvdVhhsP4yA==}
+    cpu: [x64]
+    os: [win32]
+
+  '@microsoft/copilot-sdk@2.0.0-preview.2':
+    resolution: {integrity: sha512-y6C22SGnGZaU+smb/Bvw8+gHqZNJDZoK4Vf/WdukKz3GjZJ7zLkDbf+zqiXYC1UZb/ODJyxxLP5Qfj55LwJDUg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
 
   '@microsoft/dynamicproto-js@1.1.9':
     resolution: {integrity: sha512-n1VPsljTSkthsAFYdiWfC+DKzK2WwcRp83Y1YAqdX552BstvsDjft9YXppjUzp11BPsapDoO1LDgrDB0XVsfNQ==}
@@ -1056,46 +1056,6 @@ snapshots:
 
   '@devcontainers/cli@0.88.0': {}
 
-  '@github/copilot-sdk-darwin-arm64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-darwin-x64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-linux-arm64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-linux-x64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-linuxmusl-x64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-win32-arm64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk-win32-x64@1.0.33-preview.0':
-    optional: true
-
-  '@github/copilot-sdk@1.0.33-preview.0':
-    dependencies:
-      koffi: 3.2.1
-      lossless-json: 4.3.3
-      vscode-jsonrpc: 10.0.0
-      zod: 4.6.7
-    optionalDependencies:
-      '@github/copilot-sdk-darwin-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-darwin-x64': 1.0.33-preview.0
-      '@github/copilot-sdk-linux-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-linux-x64': 1.0.33-preview.0
-      '@github/copilot-sdk-linuxmusl-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-linuxmusl-x64': 1.0.33-preview.0
-      '@github/copilot-sdk-win32-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-win32-x64': 1.0.33-preview.0
-
   '@hpke/common@1.10.1': {}
 
   '@hpke/core@1.9.0':
@@ -1182,6 +1142,46 @@ snapshots:
       '@microsoft/dynamicproto-js': 1.1.9
 
   '@microsoft/applicationinsights-shims@2.0.2': {}
+
+  '@microsoft/copilot-sdk-darwin-arm64@2.0.0-preview.2':
+    optional: true
+
+  '@microsoft/copilot-sdk-darwin-x64@2.0.0-preview.2':
+    optional: true
+
+  '@microsoft/copilot-sdk-linux-arm64@2.0.0-preview.2':
+    optional: true
+
+  '@microsoft/copilot-sdk-linux-x64@2.0.0-preview.2':
+    optional: true
+
+  '@microsoft/copilot-sdk-linuxmusl-arm64@2.0.0-preview.2':
+    optional: true
+
+  '@microsoft/copilot-sdk-linuxmusl-x64@2.0.0-preview.2':
+    optional: true
+
+  '@microsoft/copilot-sdk-win32-arm64@2.0.0-preview.2':
+    optional: true
+
+  '@microsoft/copilot-sdk-win32-x64@2.0.0-preview.2':
+    optional: true
+
+  '@microsoft/copilot-sdk@2.0.0-preview.2':
+    dependencies:
+      koffi: 3.2.1
+      lossless-json: 4.3.3
+      vscode-jsonrpc: 10.0.0
+      zod: 4.6.7
+    optionalDependencies:
+      '@microsoft/copilot-sdk-darwin-arm64': 2.0.0-preview.2
+      '@microsoft/copilot-sdk-darwin-x64': 2.0.0-preview.2
+      '@microsoft/copilot-sdk-linux-arm64': 2.0.0-preview.2
+      '@microsoft/copilot-sdk-linux-x64': 2.0.0-preview.2
+      '@microsoft/copilot-sdk-linuxmusl-arm64': 2.0.0-preview.2
+      '@microsoft/copilot-sdk-linuxmusl-x64': 2.0.0-preview.2
+      '@microsoft/copilot-sdk-win32-arm64': 2.0.0-preview.2
+      '@microsoft/copilot-sdk-win32-x64': 2.0.0-preview.2
 
   '@microsoft/dynamicproto-js@1.1.9': {}
 

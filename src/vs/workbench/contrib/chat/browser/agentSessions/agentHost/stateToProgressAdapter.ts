@@ -18,7 +18,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, TurnState, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, AHP_CHAT_SCHEME } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, TurnState, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, AHP_CHAT_SCHEME, type IModelRoutedInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
 import { getShellAuthenticationTitle, readShellAuthentication, type IShellAuthenticationPrompt } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
@@ -915,8 +915,9 @@ export interface TurnModelLookup {
 	/**
 	 * Returns the Auto model routing part carried by this usage report, if any. A report with nothing
 	 * new to show returns none, unless `settlesPendingRow` says a row that is still routing is waiting on it.
+	 * `previousRouted` is the chat's routing before this turn, which says whether a turn that kept its route changed anything.
 	 */
-	toAutoModeResolution?(usage: UsageInfo | undefined, settlesPendingRow?: boolean): IChatAutoModeResolutionPart | undefined;
+	toAutoModeResolution?(usage: UsageInfo | undefined, settlesPendingRow?: boolean, previousRouted?: IModelRoutedInfo): IChatAutoModeResolutionPart | undefined;
 	/**
 	 * Returns the identity and display name of the model a turn bills to, reading Auto's pick
 	 * when it routed and folding back to "Auto" while explainability is hidden.
@@ -993,10 +994,22 @@ export function formatTurnResponseDetails(
 	return [displayName, model.pricing].filter(Boolean).join(' · ');
 }
 
+/** The routing of the last turn before `turnId` that a model router routed. */
+export function previousModelRouted(turns: readonly Turn[], turnId: string): IModelRoutedInfo | undefined {
+	const index = turns.findIndex(turn => turn.id === turnId);
+	for (let i = (index < 0 ? turns.length : index) - 1; i >= 0; i--) {
+		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed) {
+			return routed;
+		}
+	}
+	return undefined;
+}
+
 /**
- * Whether a model router that picks once per chat has already picked for this chat. A later turn
- * that selects it keeps that pick without being routed, so there is no routing to report. As on
- * the host, a model picked by hand or another router selected since then means it routes afresh.
+ * Whether a model router has already picked for this chat. A later turn that selects it reports
+ * only a move to another route, so there is no row to show while it decides. As on the host, a
+ * model picked by hand or another router selected since then means it routes afresh.
  */
 export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string, routerName: string | undefined): boolean {
 	if (!routerName) {
@@ -1008,7 +1021,7 @@ export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string,
 		}
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
-			return routed.router === routerName && routed.firstTurnOnly === true;
+			return routed.router === routerName;
 		}
 		// A turn since that pick that selected a model by hand, or another router. A restored turn
 		// that asked for a router and got no pick has the model it ran on as its selection, so the
@@ -1356,6 +1369,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  */
 export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
+	let previousRouted: IModelRoutedInfo | undefined;
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
 		const modelId = lookup?.toLanguageModelId(turn.message.model?.id ?? rawModelId);
@@ -1399,10 +1413,11 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
 		// History is settled, so an unresolved row would never flip to a routed one.
-		const autoModeResolution = turnLookup?.toAutoModeResolution?.(turn.usage);
+		const autoModeResolution = turnLookup?.toAutoModeResolution?.(turn.usage, undefined, previousRouted);
 		if (autoModeResolution?.resolved) {
 			parts.push(autoModeResolution);
 		}
+		previousRouted = readUsageInfoMeta(turn.usage).modelRouted ?? previousRouted;
 
 		const usage = usageInfoToChatUsage(turn.usage, turnLookup?.toModelDisplayName, turn === turns.at(-1) ? contextUsage : undefined);
 		if (usage) {
