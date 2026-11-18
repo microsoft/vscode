@@ -18,7 +18,7 @@ import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../b
 import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from '../../../../../base/browser/ui/tree/tree.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ExplorerFindProviderActive, IFilesConfiguration, SortOrder, UndoConfirmLevel } from '../../common/files.js';
+import { ExplorerFindProviderActive, IFilesConfiguration, UndoConfirmLevel } from '../../common/files.js';
 import { dirname, joinPath, distinctParents, relativePath } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
@@ -36,7 +36,6 @@ import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { IDialogService, getFileNamesMessage } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { URI } from '../../../../../base/common/uri.js';
-import Severity from '../../../../../base/common/severity.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { findValidPasteFileTarget } from '../fileActions.js';
@@ -53,7 +52,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { IExplorerService } from '../files.js';
-import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from '../fileImportExport.js';
+import { BrowserFileUpload, canMergeFolders, confirmMergeOrReplace, ExternalFileImport, FolderConflictChoice, getMergeFileEdits, getMultipleFilesOverwriteConfirm } from '../fileImportExport.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { WebFileSystemAccess } from '../../../../../platform/files/browser/webFileSystemAccess.js';
 import { IgnoreFile } from '../../../../services/search/common/ignoreFile.js';
@@ -1549,12 +1548,6 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 	}
 }
 
-enum MergePromptChoice {
-	Merge = 0,
-	Overwrite = 1,
-	Cancel = 2
-}
-
 export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
 
@@ -1975,7 +1968,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async doHandleExplorerDropOnMove(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
 
 		// Do not allow moving readonly items
-		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
+		const movableSources = sources.filter(source => !source.isReadonly);
+		const resourceFileEdits = movableSources.map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
 		const labelSuffix = getFileOrFolderLabelSuffix(sources);
 		const options = {
 			confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
@@ -1991,84 +1985,36 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
 
 				const overwrites: URI[] = [];
+				let canMerge = false;
 				for (const edit of resourceFileEdits) {
-					if (edit.newResource && await this.fileService.exists(edit.newResource)) {
+					if (edit.oldResource && edit.newResource && await this.fileService.exists(edit.newResource)) {
 						overwrites.push(edit.newResource);
+						canMerge ||= await canMergeFolders(this.fileService, edit.oldResource, edit.newResource);
 					}
 				}
 
-				// Get if there is a directory present in the overwrites list
-				const hasDirectory = overwrites.some(overwrite => {
-					const item = this.explorerService.findClosest(overwrite);
-					return item && item.isDirectory;
-				});
-
-				if (hasDirectory) {
-					// Create a dialog asking the user if they prefer to merge the directories or overwrite them
-					const promptResult = await this.promptForMergeOrOverwrite();
-					if (promptResult === MergePromptChoice.Merge) {
-						// Merge directories
-						const resourceFileEdits = await this.mergeDirectories(sources, target.resource);
-						await this.explorerService.applyBulkEdit(resourceFileEdits, options);
-					} else if (promptResult === MergePromptChoice.Overwrite) {
-						// Overwrite
-						await this.explorerService.applyBulkEdit(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
-					}
+				// Ask to merge folders that already exist or to replace them
+				let choice: FolderConflictChoice;
+				if (canMerge) {
+					choice = await confirmMergeOrReplace(this.dialogService, overwrites);
 				} else {
-					// Move with overwrite if the user confirms
-					const confirm = getMultipleFilesOverwriteConfirm(overwrites);
-					const { confirmed } = await this.dialogService.confirm(confirm);
-					if (confirmed) {
-						await this.explorerService.applyBulkEdit(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
-					}
+					const { confirmed } = await this.dialogService.confirm(getMultipleFilesOverwriteConfirm(overwrites));
+					choice = confirmed ? FolderConflictChoice.Replace : FolderConflictChoice.Cancel;
+				}
+
+				if (choice === FolderConflictChoice.Merge) {
+					const mergeFileEdits = await getMergeFileEdits(this.fileService, movableSources.map(source => source.resource), target.resource, false);
+					await this.explorerService.applyBulkEdit(mergeFileEdits, options);
+				} else if (choice === FolderConflictChoice.Replace) {
+					await this.explorerService.applyBulkEdit(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
 				}
 			}
+
 			// Any other error: bubble up
 			else {
 				throw error;
 			}
 		}
-	}
-
-	private async mergeDirectories(sources: ExplorerItem[], targetResource: URI): Promise<ResourceFileEdit[]> {
-		const resourceFileEdits: ResourceFileEdit[] = [];
-		for (const source of sources) {
-			const newResource = joinPath(targetResource, source.name);
-			// If the directory matches then we should recurse on the children because we want to merge them
-			if (source.isDirectory && await this.fileService.exists(newResource)) {
-				// Resolve the children regardless of expansion
-				const children = await source.fetchChildren(SortOrder.Default);
-				// Recurse into the children of the directories so that we can merge them with the source
-				resourceFileEdits.push(...await this.mergeDirectories(children, newResource));
-				// Delete the source folder since it's contents have been moved to the target folder
-				resourceFileEdits.push(new ResourceFileEdit(source.resource, undefined, { skipTrashBin: true, overwrite: true, recursive: true, folder: true }));
-			} else {
-				resourceFileEdits.push(new ResourceFileEdit(source.resource, newResource, { overwrite: true }));
-			}
-		}
-		return resourceFileEdits;
-	}
-
-	private async promptForMergeOrOverwrite(): Promise<MergePromptChoice> {
-		const { result } = await this.dialogService.prompt<MergePromptChoice>({
-			type: Severity.Warning,
-			message: localize('confirmMerge', "There are files and/or folders which already exist in the destination folder. Do you want to replace or merge them?"),
-			buttons: [
-				{
-					label: localize({ key: 'merge', comment: ['&& denotes a mnemonic'] }, "&&Merge directories and Ovewrite Files"),
-					run: () => MergePromptChoice.Merge
-				},
-				{
-					label: localize({ key: 'overwrite', comment: ['&& denotes a mnemonic'] }, "&&Overwrite directories and Files"),
-					run: () => MergePromptChoice.Overwrite
-				}
-			],
-			cancelButton: {
-				run: () => MergePromptChoice.Cancel
-			}
-		});
-
-		return result;
 	}
 
 	private static getStatsFromDragAndDropData(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, dragStartEvent?: DragEvent): ExplorerItem[] {
