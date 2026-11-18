@@ -104,7 +104,7 @@ import {
 } from '../common/state/sessionProtocol.js';
 import { isShapedChatUri } from '../common/agentHostChatIdentity.js';
 import { ROOT_STATE_URI, isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, withSessionStatusFlag, type ISessionWithDefaultChat, type Message, type ModelSelection, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
-import { readSessionArtifacts } from '../common/sessionArtifacts.js';
+import { getArtifactChangeOwner } from './shared/sessionArtifacts.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -3627,13 +3627,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private async _removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
-		// Read before removing, synchronously: users remove entries from an open session, whose state is loaded.
-		const removed = readSessionArtifacts(this._stateManager.getSessionState(session.toString())?._meta).find(artifact => artifact.id === artifactId);
-		await this._agentService.removeSessionArtifact?.(session, artifactId);
+		// Reported from the entry the serialized removal found, so a concurrent removal or promotion is not misreported.
+		const removed = await this._agentService.removeSessionArtifact?.(session, artifactId);
 		if (removed) {
 			this._telemetryReporter.artifactRemoved({
-				provider: this._stateManager.getSessionSummary(session.toString())?.provider,
-				session: session.toString(),
+				...getArtifactChangeOwner(this._stateManager, removed.chat ?? session.toString(), session.toString()),
 				chat: undefined,
 				turnId: undefined,
 				toolCallId: undefined,

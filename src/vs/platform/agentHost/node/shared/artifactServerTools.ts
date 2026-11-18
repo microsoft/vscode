@@ -16,7 +16,7 @@ import { SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } fr
 import { type ToolDefinition } from '../../common/state/sessionState.js';
 import type { IServerToolDisplay, IServerToolGroup, IServerToolExecutionContext } from './agentServerToolHost.js';
 import { assertArtifactChangesAllowed } from './artifactIntegrationServerTools.js';
-import { SessionArtifacts } from './sessionArtifacts.js';
+import { getArtifactChangeOwner, SessionArtifacts } from './sessionArtifacts.js';
 import type { IAgentHostArtifactRecordedReport, IAgentHostArtifactRemovedReport } from '../agentHostTelemetryReporter.js';
 
 const artifactClassification = 'An issue or pull request you create or attempt to fix, change, or unblock is an artifact; inspection or review alone makes it a reference.';
@@ -146,11 +146,10 @@ function describeAddOutcome(outcome: SessionArtifactAddOutcome, artifact: ISessi
 	}
 }
 
-/** The fields every artifact telemetry report of a tool call shares. */
+/** The fields every artifact telemetry report of a tool call shares. Call it once the change is done, so a chat that moved meanwhile is attributed to the session it moved to. */
 function toolCallTelemetry(stateManager: AgentHostStateManager, context: IServerToolExecutionContext): Pick<IAgentHostArtifactRecordedReport, 'provider' | 'session' | 'chat' | 'turnId' | 'toolCallId'> {
 	return {
-		provider: stateManager.getSessionSummary(context.sessionUri)?.provider,
-		session: context.sessionUri,
+		...getArtifactChangeOwner(stateManager, context.chatUri, context.sessionUri),
 		chat: context.chatUri,
 		turnId: context.turnId,
 		toolCallId: context.toolCallId,

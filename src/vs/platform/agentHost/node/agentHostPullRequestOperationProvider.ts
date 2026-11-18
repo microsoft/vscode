@@ -25,7 +25,7 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../common/meta/agentPullRequestOperationMeta.js';
 import { persistSessionMetadataValues, SESSION_ARTIFACTS_KEY } from './shared/persistSessionMetadata.js';
-import { SessionArtifacts } from './shared/sessionArtifacts.js';
+import { getArtifactChangeOwner, SessionArtifacts } from './shared/sessionArtifacts.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 
 export class AgentHostPullRequestOperationContribution extends Disposable implements IChangesetOperationContribution {
@@ -284,8 +284,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			link: event.pullRequestUrl,
 		}, generateUuid));
 		this._telemetryReporter.artifactRecorded({
-			provider: this._stateManager.getSessionSummary(sessionKey)?.provider,
-			session: sessionKey,
+			...getArtifactChangeOwner(this._stateManager, chat, sessionKey),
 			chat,
 			turnId: undefined,
 			toolCallId: undefined,

@@ -750,8 +750,10 @@ Four events from `node/copilot/copilotComputerUseTelemetry.ts` track Computer Us
 Recording, promoting and removing artifacts and references is reported without labels, links or URIs:
 
 - `agentHost.artifactRecorded` is reported once per entry an `add_artifact_or_reference` call or the Create Pull Request action records, after the change is persisted. It has the entry's kind, the classification that was requested, and the `outcome` from `SessionArtifactCollection.addOrPromoteArtifact`: `added`, `promoted`, `modeUpdated` or `alreadyRecorded`. An existing artifact is never downgraded, so a reference request can report `alreadyRecorded` for an artifact. Tool calls carry their `toolCallId`, to join with `agentHost.toolInvoked`, and the client and account of their turn.
-- `agentHost.artifactRemoved` is reported for each entry removed by `remove_artifact_or_reference` (`initiator` `agentTool`) or by the user through `vscode/removeSessionArtifact` (`user`). The protocol handler reads the entry before removing it. User removal comes from an open session, whose state is loaded.
+- `agentHost.artifactRemoved` is reported for each entry removed by `remove_artifact_or_reference` (`initiator` `agentTool`) or by the user through `vscode/removeSessionArtifact` (`user`). Both report the entry the serialized removal found, so overlapping removals of one entry report it once.
 - `agentHost.sessionSummary` adds what the session had recorded across its chats when the summary was sent: artifact and reference counts, by pull request and issue, and the session's own pull requests by how they were recorded. Own pull requests are those of `getSessionRelatedPullRequestUrls` across the session's folders, compared by `getPullRequestUrlKey`. Use these rather than a pull request count that includes references, which grows when an agent records a pull request as a reference. The counts are absent when the session's state is no longer loaded, such as on deletion.
+
+Every report names the session that owns the entry's chat once the change is done: a change queued while its chat moved applies to the session the chat moved to (`getArtifactChangeOwner`).
 
 Sessions started from a pull request record that pull request when the session is created, which is not reported as a recording.
 

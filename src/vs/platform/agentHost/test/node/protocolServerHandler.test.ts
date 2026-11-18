@@ -56,7 +56,7 @@ import { CapturingTelemetryService } from '../../../telemetry/test/common/testTe
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
-import { SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
+import { SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -273,6 +273,8 @@ class MockAgentService extends Disposable implements IAgentService {
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
+	/** Entries `removeSessionArtifact` removes, each for the first request only. */
+	readonly removableArtifacts = new Map<string, ISessionArtifact>();
 	readonly stopBackgroundWorkCalls: { chat: string; id: string }[] = [];
 	readonly answerShellAuthenticationCalls: { chat: string; requestId: string; answer: string | undefined }[] = [];
 	installSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
@@ -448,8 +450,12 @@ class MockAgentService extends Disposable implements IAgentService {
 		return URI.file('/state/sdk-session/events.jsonl');
 	}
 	getSessionPlanFile(_session: URI, _chat: URI): URI | undefined { return undefined; }
-	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+	async removeSessionArtifact(session: URI, artifactId: string): Promise<ISessionArtifact | undefined> {
 		this.removeSessionArtifactCalls.push({ session: session.toString(), artifactId });
+		// Like the serialized removal, only the first request for an entry removes it.
+		const removed = this.removableArtifacts.get(artifactId);
+		this.removableArtifacts.delete(artifactId);
+		return removed;
 	}
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		this.stopBackgroundWorkCalls.push({ chat: chat.toString(), id });
@@ -2713,28 +2719,31 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('reports the entry a user removed, as it was before removal', async () => {
+	test('reports only the request that removed an entry, as the removal found it', async () => {
 		stateManager.createSession(makeSessionSummary());
-		stateManager.setSessionMeta(sessionUri, withSessionArtifacts(undefined, [
-			{ id: 'artifact-1', type: SessionArtifactType.PullRequest, label: 'Fix', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true },
-		]));
+		agentService.removableArtifacts.set('artifact-1', { id: 'artifact-1', chat: defaultChatUri, type: SessionArtifactType.PullRequest, label: 'Fix', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true });
 		const transport = connectClient('client-remove-artifact-telemetry');
-		const removed = waitForResponse(transport, 20);
-		const unknown = waitForResponse(transport, 21);
+		const first = waitForResponse(transport, 20);
+		const overlapping = waitForResponse(transport, 21);
 		transport.simulateMessage(request(20, RemoveSessionArtifactExtensionMethod, { session: sessionUri, artifactId: 'artifact-1' }));
-		transport.simulateMessage(request(21, RemoveSessionArtifactExtensionMethod, { session: sessionUri, artifactId: 'missing' }));
-		await Promise.all([removed, unknown]);
+		transport.simulateMessage(request(21, RemoveSessionArtifactExtensionMethod, { session: sessionUri, artifactId: 'artifact-1' }));
 
-		assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.artifactRemoved').map(event => event.data), [{
-			provider: 'copilot',
-			agentSessionId: 'test-session',
-			turnId: undefined,
-			toolCallId: undefined,
-			initiator: 'user',
-			kind: SessionArtifactType.PullRequest,
-			category: 'artifact',
-			isGitHub: true,
-		}]);
+		assert.deepStrictEqual({
+			responses: await Promise.all([first, overlapping]),
+			removed: telemetryService.events.filter(event => event.eventName === 'agentHost.artifactRemoved').map(event => event.data),
+		}, {
+			responses: [{ jsonrpc: '2.0', id: 20, result: null }, { jsonrpc: '2.0', id: 21, result: null }],
+			removed: [{
+				provider: 'copilot',
+				agentSessionId: 'test-session',
+				turnId: undefined,
+				toolCallId: undefined,
+				initiator: 'user',
+				kind: SessionArtifactType.PullRequest,
+				category: 'artifact',
+				isGitHub: true,
+			}],
+		});
 	});
 
 	test('rejects invalid artifact removal extension params before routing', async () => {
