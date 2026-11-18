@@ -27,7 +27,7 @@ export const testRuntime: ICopilotSessionRuntime = {
 	chatUri: URI.parse(buildDefaultChatUri('copilot:/sess-1')),
 	launchOwner: URI.parse('copilot:/sess-1'),
 	getLaunchSandboxConfig: () => undefined,
-	applyLaunchSandbox: async session => { await session.rpc.options.update({ sandboxConfig: { enabled: false } }); },
+	applyLaunchSandbox: async session => { await session.rpc.options.update({ permissions: { sandbox: { enabled: false } } }); },
 	handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
 	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
 	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },

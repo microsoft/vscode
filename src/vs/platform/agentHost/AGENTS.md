@@ -1040,7 +1040,7 @@ Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed 
 
 ## 9. Tools, prompt text and reminders: the token budget
 
-Every tool definition the model can see is input tokens on every request of every turn, and part of the prompt cache. A tool that is not deferred is paid for by every session on every model call, whether or not it is ever used. This document is the rule set for keeping that budget flat. Read it before adding a tool, changing a tool description, bumping `@github/copilot-sdk`, or adding text that reaches the model.
+Every tool definition the model can see is input tokens on every request of every turn, and part of the prompt cache. A tool that is not deferred is paid for by every session on every model call, whether or not it is ever used. This document is the rule set for keeping that budget flat. Read it before adding a tool, changing a tool description, bumping `@microsoft/copilot-sdk`, or adding text that reaches the model.
 
 ### The default: deferred
 
@@ -1058,7 +1058,7 @@ Tool search requires the client to forward its `toolSearch` tool, which users tu
 
 | Origin | Defined in | Deferral lever | Default if you do nothing |
 | --- | --- | --- | --- |
-| Runtime built-in (ships inside the SDK) | `@github/copilot-sdk`; names in `CopilotToolName` (`node/copilot/copilotToolDisplay.ts`) | `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` in `node/copilot/copilotBuiltinToolAllowlist.ts` (the default `availableTools`), plus `excludedTools` in `CopilotSessionLauncher` for conditional policy | **Off.** A built-in that is not in the allow-list is never registered, so a new SDK built-in stays off until a PR adds it. |
+| Runtime built-in (ships inside the SDK) | `@microsoft/copilot-sdk`; names in `CopilotToolName` (`node/copilot/copilotToolDisplay.ts`) | `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` in `node/copilot/copilotBuiltinToolAllowlist.ts` (the default `availableTools`), plus `excludedTools` in `CopilotSessionLauncher` for conditional policy | **Off.** A built-in that is not in the allow-list is never registered, so a new SDK built-in stays off until a PR adds it. |
 | Host server tool | `node/shared/*ServerTools.ts`, `sessionIsolationTools.ts`, contributed through `serverToolGroups.ts` | `deferLoading` on `IAgentServerToolDefinition`; the Copilot session maps it to the SDK `defer` flag, Claude maps it to MCP `alwaysLoad`, Codex ignores it | Deferred on Copilot. Only an explicit `false` is eager, and the baseline test pins that set. Claude and Codex apply their SDK defaults when it is unset. |
 | Client tool (workbench `ILanguageModelToolsService` tool forwarded to the host) | Any `vscode.lm` tool in an enabled tool set; forwarded by `agentHostActiveClientService._getClientTools` | `NON_DEFERRED_CLIENT_TOOL_NAMES` in `node/copilot/toolSearchDeferral.ts` | Deferred. Only names in that set are eager. |
 | MCP tool | Workspace, plugin or connector MCP configuration | Always deferred; routed through the per-server proxy tool | Deferred. |
@@ -1095,7 +1095,7 @@ Run them with:
 5. If the tool is only useful in some sessions (ephemeral, workspaceless, worktree-capable), gate it with `enabledForEphemeralSessions`, `isEnabledForSession` or `getDefinitionForSession` so other sessions never see it at all. An unavailable tool that is still listed is the worst case: tokens paid, no capability.
 6. Run the guardrail tests above and attach the eager-set diff (or "unchanged") to the PR.
 
-### Checklist: bumping `@github/copilot-sdk`
+### Checklist: bumping `@microsoft/copilot-sdk`
 
 An SDK bump can add runtime built-in tools, change built-in tool descriptions, change the deferred-tools reminder, or move text between cache blocks. None of that is visible in the package diff.
 
@@ -1104,7 +1104,7 @@ An SDK bump can add runtime built-in tools, change built-in tool descriptions, c
 3. Run the prompt snapshot suite. If `expectedModelFacingToolNames` fails, the runtime renamed or dropped a tool the host relied on, or a tool previously deferred is now eager. Handle a rename as in step 2; remove a dropped tool from the allow-list and the expected list.
 4. Read the baseline diff for description and ordering changes. A reworded built-in description appears as one rewritten line; a moved section or a changed cache split appears as a changed `cache_control` boundary. Mention both in the PR description so the cache-hit-rate dashboards can be read against the bump.
 5. Check the managed-settings schema snapshot (`copilotSdkManagedSettings.integrationTest.ts`) for new tool-related settings that should be pinned off.
-6. Check `rpc.d.ts` / `types.d.ts` in the bump for new `SessionConfig` tool options (`toolSearch`, `defer`, filters). A new option that defaults to on belongs in the launcher with an explicit value.
+6. Check `rpc.d.ts` / `types.d.ts` in the bump for new `CreateSessionOptions` tool options (`toolSearch`, `defer`, filters). A new option that defaults to on belongs in the launcher with an explicit value.
 
 ### Prompt text and reminders
 

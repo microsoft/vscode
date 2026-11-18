@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEvent, SessionEventPayload, SystemNotification } from '@github/copilot-sdk';
+import type { SessionEvent, SessionEventPayload, SystemNotification } from '@microsoft/copilot-sdk';
 import { softAssertNever } from '../../../../base/common/assert.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';

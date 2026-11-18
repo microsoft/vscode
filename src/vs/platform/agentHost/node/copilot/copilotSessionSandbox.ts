@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, CopilotClient, CopilotSession, PermissionRequest, PermissionRequestResult } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, CopilotClient, CopilotSession, PermissionRequest, PermissionRequestResult } from '@microsoft/copilot-sdk';
 import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
