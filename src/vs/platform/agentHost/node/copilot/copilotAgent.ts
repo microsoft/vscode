@@ -4338,11 +4338,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const event = notification.event;
 		const modelCallId = this._modelCallIdForTelemetry(notification);
 		const forward = (turnId: string | undefined, outcome: ICopilotModelCallCorrelationTelemetry['ahCorrelationOutcome'], waitMs?: number): void => {
+			const interactionId = event.properties.interaction_id;
+			if (turnId && (outcome === 'mappingAvailable' || outcome === 'mappingWaited') && typeof interactionId === 'string' && interactionId) {
+				session?.turnInteractionCorrelation.record(turnId, interactionId);
+			}
+			const lineage = turnId && (outcome === 'mappingAvailable' || outcome === 'mappingWaited') ? session?.turnInteractionCorrelation.get(turnId) : undefined;
 			this._gitHubTelemetryForwarder.forward(notification, turnId, {
 				ahCorrelationOutcome: outcome,
 				ahCorrelationWaitMs: waitMs,
 				ahActiveRootTurnIdAtResponse: !turnId ? fallbackTurnId : undefined,
 				ahSessionDisposedDuringWait: !turnId && waitMs !== undefined ? session?.isDisposed : undefined,
+				originalTurnId: lineage?.originalTurnId,
+				steeredFromTurn: lineage?.steeredFromTurn,
 			}, modelCallId ? session?.modelCallTurnCorrelation.getTelemetryContext(modelCallId) : undefined, clientType);
 		};
 		if (!session) {
@@ -4534,10 +4541,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!catalog || !this._modelRouter) {
 			return { selection: undefined, notices: [localize('modelRouter.disabled', "Model routers are turned off, so this chat kept its current model.")] };
 		}
-		const customAgent = request.agent && await this._readCustomAgent(request.agent.uri);
-		if (customAgent?.namesModel) {
-			return { selection: undefined, notices: [localize('modelRouter.agentModel', "The {0} agent uses its own model, so the model router didn't pick one.", customAgent.name)] };
-		}
+		// The model a custom agent names is where the model picker starts. A router picked after it routes, as a model picked after it runs.
+		const customAgentName = request.agent && await this._readCustomAgentName(request.agent.uri);
 		const snapshot = await catalog.whenSettled(token);
 		const models = context.credentials ? await this._getTurnModels(chat, context.credentials, token) : this._models.get();
 		const file = findModelRouter(snapshot, chat, request.selection.id);
@@ -4548,7 +4553,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			text: request.text,
 			models,
 			previousTurns: request.previousTurns,
-			situation: { ...request.situation, ...(customAgent ? { agent: customAgent.name } : {}) },
+			situation: { ...request.situation, ...(customAgentName ? { agent: customAgentName } : {}) },
 			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token)),
 		});
 		this._takeModelRouterGuidance(chatKey, request.turnId, file?.router, models, resolution.routed);
@@ -4570,15 +4575,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	/** A custom agent's name, and whether its file names a model, which the runtime runs it on instead of a router's pick. */
-	private async _readCustomAgent(uri: string): Promise<{ readonly name: string; readonly namesModel: boolean } | undefined> {
+	/** A custom agent's name, which a routing decision is told. */
+	private async _readCustomAgentName(uri: string): Promise<string | undefined> {
 		try {
 			const resource = URI.parse(uri);
 			const frontMatter = parseFrontMatter((await this._fileService.readFile(resource)).value.toString());
-			return {
-				name: frontMatter?.getStringValue('name')?.trim() || resourceBasename(resource).replace(/\.agent\.md$/i, ''),
-				namesModel: !!frontMatter?.getStringValue('model') || !!frontMatter?.getStringArrayValue('model')?.length,
-			};
+			return frontMatter?.getStringValue('name')?.trim() || resourceBasename(resource).replace(/\.agent\.md$/i, '');
 		} catch {
 			return undefined;
 		}
@@ -6954,12 +6956,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._findChatByUri(chat)?.getTurnTokenUsage(turnId, parentToolCallId);
 	}
 
+	getTurnInteraction(chat: URI, turnId: string): ReturnType<NonNullable<IAgent['getTurnInteraction']>> {
+		return this._findChatByUri(chat)?.turnInteractionCorrelation.get(turnId);
+	}
+
 	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
 		const session = this._findChatByUri(chat);
 		if (session) {
 			const status = session.modelCallTurnCorrelation.record(modelCallId, turnId);
 			if (status !== 'duplicate') {
-				this._gitHubTelemetryForwarder.recordModelCallTurnCorrelation(session.sessionId, modelCallId, turnId, status);
+				this._gitHubTelemetryForwarder.recordModelCallTurnCorrelation(session.sessionId, modelCallId, turnId, status, session.turnInteractionCorrelation.get(turnId));
 			}
 		}
 	}

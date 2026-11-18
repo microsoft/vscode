@@ -149,7 +149,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	private readonly _windowDisposables = this._register(new DisposableStore());
 	private readonly _blurHide = this._register(new MutableDisposable());
 	private readonly _focusRequest = this._register(new MutableDisposable());
-	/** Opens the session of the last send that leaves the Agents Launcher, once it has started. */
+	/** Opens the session of the last send that leaves the Agents Launcher, once its message was sent. */
 	private readonly _pendingOpen = this._register(new MutableDisposable());
 	private readonly _backgroundSends: ChatWindowComposerBackgroundSends;
 	private readonly _composer: ChatWindowComposerModel;
@@ -201,7 +201,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			openStartedSession: session => composer.openStartedSession(session),
 			trackBackgroundSend: send => {
 				const tracking = composer.trackBackgroundSend(send);
-				return send.requestedInBackground ? tracking : combinedDisposable(tracking, this._openWhenStarted(send.session));
+				return send.requestedInBackground ? tracking : combinedDisposable(tracking, this._openWhenShown(send.session));
 			},
 		};
 
@@ -591,22 +591,27 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	/**
-	 * Leaves the Agents Launcher for the Agents window as the send of `draft` goes out, and opens its session there as soon as it
-	 * has started. A failure is reported there, and the prompt goes back into the Agents Launcher's composer. Disposing the result,
-	 * as the composer does for a send it does not dispatch, stays in the Agents Launcher.
+	 * Leaves the Agents Launcher for the Agents window as the send of `draft` goes out, and opens its session there as soon as its
+	 * message was sent, which is usually well before it has started ({@link followOrdinarySend}). A failure is reported there,
+	 * and the prompt goes back into the Agents Launcher's composer. Disposing the result, as the composer does for a send it does
+	 * not dispatch, stays in the Agents Launcher; a newer send's open replaces it.
 	 */
-	private _openWhenStarted(draft: ISession): IDisposable {
+	private _openWhenShown(draft: ISession): IDisposable {
 		const pending = followOrdinarySend(this._sessionsManagementService, this._composer.slot, draft, {
-			leave: () => {
-				this._logService.trace(`[AgentsLauncher] Opening session=${draft.sessionId} once it has started`);
-				void (async () => {
+			leave: async () => {
+				this._logService.trace(`[AgentsLauncher] Opening session=${draft.sessionId} once its message was sent`);
+				try {
 					await this.hide();
 					await this._nativeHostService.focusWindow({ mode: FocusMode.Force, targetWindowId: mainWindow.vscodeWindowId });
-				})().catch(error => this._logService.error('[AgentsLauncher] Failed to show the Agents window', error));
+				} catch (error) {
+					// The session still opens: the Agents window shows it once it is in front.
+					this._logService.error('[AgentsLauncher] Failed to show the Agents window', error);
+				}
 			},
 			open: session => {
+				this._logService.trace(`[AgentsLauncher] Opening session=${session.sessionId} status=${session.status.get()}`);
 				void this._sessionsService.openSession(session.resource, { source: 'chat', forceMainChat: true })
-					.catch(error => this._logService.error('[AgentsLauncher] Failed to open the started session', error));
+					.catch(error => this._logService.error('[AgentsLauncher] Failed to open the sent session', error));
 			},
 		});
 		this._pendingOpen.value = pending;
