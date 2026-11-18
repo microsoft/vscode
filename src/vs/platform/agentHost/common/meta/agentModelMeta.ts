@@ -13,6 +13,7 @@ export { createAgentModelPricingMeta, createPricingMetaFromBilling, hasLongConte
 export type { IAgentModelPricingMeta, ICAPIModelBilling } from './vscode/agentModelPricing.js';
 export { isAgentModelFusion, readAgentModelFusionInlineChatTier, withAgentModelFusionMeta } from './vscode/agentModelFusionMeta.js';
 export { isAgentModelExperimental, withAgentModelExperimentalMeta } from './vscode/agentModelExperimentalMeta.js';
+export { readAgentModelRouterRoutesMeta, withAgentModelRouterRoutesMeta, type IAgentModelRouterRoute } from './vscode/agentModelRouterMeta.js';
 export { collectAutoTierPromotions, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, type IAgentModelAutoTier, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta, type IAutoTierBillingPromo } from './vscode/agentModelAutoTiersMeta.js';
 
 const pricingKeys = ['multiplierNumeric', 'inputCost', 'cacheCost', 'cacheWriteCost', 'outputCost', 'longContextInputCost', 'longContextCacheCost', 'longContextCacheWriteCost', 'longContextOutputCost', 'discountPercent', 'priceCategory', 'category', 'promo'] as const;
