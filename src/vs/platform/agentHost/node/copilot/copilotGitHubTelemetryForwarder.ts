@@ -30,7 +30,7 @@ type ModelCallTurnCorrelatedEvent = {
 };
 
 type ModelCallTurnCorrelatedClassification = {
-	originalTurnId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Known original execution in the steering chain; absent when unresolved. Not a descendant root.' };
+	originalTurnId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Known original execution in the steering chain; absent when unresolved.' };
 	steeredFromTurn?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Host steering predecessor when observed.' };
 	owner: 'amunger';
 	comment: 'Records exact model-call ownership independently of response telemetry arrival. Deduplicated by SDK session and call ID; the first owner is retained and a later conflicting owner is emitted with mappingStatus conflict so consumers can exclude it, not dropped here.';
@@ -71,8 +71,8 @@ type ModelCallTurnCorrelatedClassification = {
 
 /* __GDPR__FRAGMENT__
 	"CopilotModelCallCorrelation": {
-		"originalTurnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Known original execution in the steering chain, attached only to exact ownership. Not a universal originating user request." },
-		"steeredFromTurn": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Host steering predecessor when observed; does not by itself prove runtime continuity." },
+		"originalTurnId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Known original execution in the steering chain, attached to exactly correlated responses." },
+		"steeredFromTurn": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Observed host steering predecessor. Runtime continuity is reported by turnSteered.attributionStatus." },
 		"ahCorrelationOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Host correlation decision: mappingAvailable, mappingWaited, waitExpired, responseAlreadyForwarded, sessionNotFound, activeTurnFallback, or noActiveTurn. A conversation-compaction response is correlated through its compaction attempt instead and may also report noOwningTurn (the compaction ran between turns) or missingAttemptId. A wait expiry does not establish that a completion was produced." },
 		"ahCorrelationWaitMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Actual elapsed correlation wait in milliseconds; absent when no wait occurred." },
 		"ahActiveRootTurnIdAtResponse": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Active root turn identifier captured at response callback entry before any wait, only when no authoritative turnId was resolved. A contextual root candidate, not an attribution repair; it may not own this model call." },

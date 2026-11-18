@@ -33,16 +33,16 @@ type TurnSteeringEvent = {
 
 type TurnSteeringClassification = {
 	owner: 'amunger';
-	comment: 'Records host steering promotion and the runtime echo evidence. Only confirmed continuity carries the earlier original turn; disagreement is explicit and does not change execution.';
+	comment: 'Records host steering promotion and runtime delivery evidence, including confirmed continuity, new requests and unresolved attribution.';
 	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SDK session scope.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Host execution turn created by steering promotion.' };
-	steeredFromTurn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Execution the host considered the steering predecessor; not proof of runtime continuity.' };
+	steeredFromTurn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Execution the host considered the steering predecessor. Runtime continuity is reported by attributionStatus.' };
 	originalTurnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Confirmed steering origin, or this turn for an explicit new runtime request. Absent if unresolved.' };
 	runtimeDelivery: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Runtime user-message delivery: steering, idle, queued, or unknown.' };
-	attributionStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'confirmed means steering delivery shares a predecessor interaction; newRequest means explicit non-steering delivery; interactionMismatch or unknown retains unresolved origin.' };
+	attributionStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'confirmed means steering delivery shares a predecessor interaction; newRequest means idle or queued delivery; interactionMismatch or unknown retains unresolved origin.' };
 };
 
-/** Analytical snapshots only; active SDK event routing keeps its own turn-scoped lifetime. */
+/** Bounded analytical snapshots of turn interactions and steering lineage. */
 export class TurnInteractionCorrelation {
 	private readonly _turns: LRUCache<string, ITurnInteractionState>;
 

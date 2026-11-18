@@ -501,7 +501,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	sdkSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Provider SDK session scope for the observed interactions.' };
 	originalTurnId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Known original execution in the steering chain; absent for unresolved or unavailable lineage.' };
 	steeredFromTurn?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Immediate host steering predecessor. Runtime agreement is reported separately by turnSteered.' };
-	interactionIds?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'JSON array of observed interaction IDs, bounded at 64; not a one-to-one mapping or proof of complete usage.' };
+	interactionIds?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'JSON array of up to 64 distinct interaction IDs observed for this execution turn.' };
 	interactionIdsTruncated?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether more distinct interactions were observed than could be retained.' };
 	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
 	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the turn claimed a provider session that was started before the first message; absent when it did not.' };
