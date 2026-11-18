@@ -215,4 +215,47 @@ suite('ExtHostSCM', () => {
 		sourceControl.dispose();
 		await rpcProtocol.sync();
 	});
+
+	test('visibility changes of source controls in the same tick are sent together', async () => {
+		const registrations: number[] = [];
+		const batches: [number, boolean][][] = [];
+		const rpcProtocol = new TestRPCProtocol();
+		rpcProtocol.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
+			override async $registerSourceControl(handle: number): Promise<void> {
+				registrations.push(handle);
+			}
+			override async $setSourceControlsHidden(changes: [number, boolean][]): Promise<void> {
+				batches.push(changes);
+			}
+			override async $unregisterSourceControl(): Promise<void> { }
+		});
+		rpcProtocol.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
+			override $publicLog2(): void { }
+		});
+
+		const commands = new class extends mock<ExtHostCommands>() {
+			override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
+		};
+		const extension = { ...nullExtensionDescription, enabledApiProposals: ['scmProviderOptions'] };
+		const extHostSCM = new ExtHostSCM(rpcProtocol, commands, {} as ExtHostDocuments, new NullLogService());
+
+		const current = extHostSCM.createSourceControl(extension, 'current', 'Git', URI.file('/current'), undefined, undefined, undefined);
+		const warm = extHostSCM.createSourceControl(extension, 'warm', 'Git', URI.file('/warm'), undefined, true, undefined);
+		warm.isHidden = false;
+		current.isHidden = true;
+		current.isHidden = true;
+		await rpcProtocol.sync();
+
+		assert.deepStrictEqual({
+			isHidden: [current.isHidden, warm.isHidden],
+			batches: batches.map(batch => batch.map(([handle, isHidden]) => [registrations.indexOf(handle), isHidden]))
+		}, {
+			isHidden: [true, false],
+			batches: [[[1, false], [0, true]]]
+		});
+
+		current.dispose();
+		warm.dispose();
+		await rpcProtocol.sync();
+	});
 });
