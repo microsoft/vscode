@@ -90,15 +90,20 @@ export function createCopilotSkillProvider(sdkConversationId: string, copilotHom
 	};
 }
 
+export function getCopilotBuiltinSkillSource(uri: URI): string | undefined {
+	if (isEqual(uri, troubleshootUri, true) || isEqual(uri, URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/troubleshoot' }), true)) {
+		return troubleshootSkillContent;
+	}
+	if (isEqual(uri, modelRouterUri, true) || isEqual(uri, URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/model-router' }), true)) {
+		return modelRouterSkillContent;
+	}
+	return undefined;
+}
+
 /** Serves the source templates without binding them to an arbitrary SDK conversation. */
 export class CopilotBuiltinSkillResourceProvider implements IAgentHostResourceProvider {
 	async read(uri: URI, encoding: ContentEncoding): Promise<ResourceReadResult> {
-		let source: string | undefined;
-		if (isEqual(uri, troubleshootUri, true) || isEqual(uri, URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/troubleshoot' }), true)) {
-			source = troubleshootSkillContent;
-		} else if (isEqual(uri, modelRouterUri, true) || isEqual(uri, URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/model-router' }), true)) {
-			source = modelRouterSkillContent;
-		}
+		const source = getCopilotBuiltinSkillSource(uri);
 		if (source === undefined) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Built-in skill not found: ${uri.toString()}`);
 		}
