@@ -132,4 +132,64 @@ suite('SCMViewService', () => {
 			visible: ['warm']
 		});
 	}));
+
+	test('the active repository is the shown one while the repository of the active editor is hidden', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+
+		const repositories: ISCMRepository[] = [];
+		const onDidAddRepository = disposables.add(new Emitter<ISCMRepository>());
+		instantiationService.stub(ISCMService, new class extends mock<ISCMService>() {
+			override readonly repositories = repositories;
+			override readonly onDidAddRepository = onDidAddRepository.event;
+			override readonly onDidRemoveRepository = Event.None;
+			override getRepository(idOrResource: string | URI): ISCMRepository | undefined {
+				return repositories.find(r => URI.isUri(idOrResource) && isEqualOrParent(idOrResource, r.provider.rootUri!));
+			}
+		}());
+
+		const activeEditor = disposables.add(new TestFileEditorInput(URI.file('/left/file.txt'), 'testEditor'));
+		const onDidActiveEditorChange = disposables.add(new Emitter<void>());
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override readonly activeEditor = activeEditor;
+			override readonly onDidActiveEditorChange = onDidActiveEditorChange.event;
+		}());
+
+		const scmViewService = disposables.add(instantiationService.createInstance(SCMViewService));
+		const menus = disposables.add(scmViewService.menus as SCMMenus);
+		disposables.add(menus.titleMenu);
+
+		disposables.add(autorun(reader => scmViewService.activeRepository.read(reader)));
+
+		const addRepository = (id: string, isHidden: boolean) => {
+			const hidden = observableValue(id, isHidden);
+			const provider = new class extends mock<ISCMProvider>() {
+				override readonly id = id;
+				override readonly providerId = 'test';
+				override readonly label = id;
+				override readonly rootUri = URI.file(`/${id}`);
+				override readonly isHidden = hidden;
+			}();
+			const repository = new class extends mock<ISCMRepository>() {
+				override readonly id = id;
+				override readonly provider = provider;
+			}();
+
+			repositories.push(repository);
+			onDidAddRepository.fire(repository);
+			return hidden;
+		};
+
+		const left = addRepository('left', false);
+		const opened = addRepository('opened', true);
+
+		// The repository of the location that is left is hidden while the new one opens, and its editor is active again
+		left.set(true, undefined);
+		onDidActiveEditorChange.fire();
+		const whileOpening = scmViewService.activeRepository.get()?.repository.id;
+		transaction(tx => {
+			opened.set(false, tx);
+		});
+
+		assert.deepStrictEqual({ whileOpening, shown: scmViewService.activeRepository.get()?.repository.id }, { whileOpening: undefined, shown: 'opened' });
+	}));
 });
