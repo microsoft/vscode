@@ -3180,6 +3180,10 @@ export class CopilotAgentSession extends Disposable {
 		return undefined;
 	}
 
+	/**
+	 * Identifies messages, tool starts, and task summaries to hide from the active turn because an earlier Fusion turn owns them.
+	 * Keep telemetry emission independent of this display check.
+	 */
 	private _shouldDropEarlierFusionEvent(event: { readonly type: string; readonly agentId?: string; readonly data: { readonly fusion?: { readonly fusionId: string } | null } }): boolean {
 		return this._earlierFusionTurnId(event) !== undefined;
 	}
