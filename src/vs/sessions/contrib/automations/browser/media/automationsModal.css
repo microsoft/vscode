@@ -283,3 +283,27 @@
 	flex-shrink: 0;
 	margin-left: var(--vscode-spacing-size80);
 }
+
+.automations-modal-widget.narrow {
+	flex-direction: column;
+	overflow-y: auto;
+}
+
+.automations-modal-widget.narrow .automations-modal-categories,
+.automations-modal-widget.narrow .automations-modal-content,
+.automations-modal-widget.narrow .automations-modal-detail {
+	flex: 0 0 auto;
+	min-width: 0;
+}
+
+.automations-modal-widget.narrow .automations-modal-table {
+	flex: 0 0 240px;
+}
+
+.automations-modal-widget.narrow .automations-modal-detail {
+	overflow: visible;
+	padding-left: 0;
+	padding-top: var(--vscode-spacing-size160);
+	border-left: none;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}

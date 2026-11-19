@@ -17,6 +17,7 @@ import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext }
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { AutomationHeaderButtonActionViewItem, AutomationHeaderSplitButtonActionViewItem } from './automationActionViewItems.js';
 import { AutomationCommands } from './automationCommands.js';
+import { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { SessionItemIsAutomationContext, SessionItemIsInSessionsListContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionIsArchivedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
@@ -27,10 +28,15 @@ export const AutomationModalRowEnabledContext = new RawContextKey<boolean>('auto
 export const AutomationModalRowCanUpdateContext = new RawContextKey<boolean>('automationModalRowCanUpdate', false);
 export const AutomationModalRowCanDeleteContext = new RawContextKey<boolean>('automationModalRowCanDelete', false);
 export const AutomationModalRowCanRunContext = new RawContextKey<boolean>('automationModalRowCanRun', false);
+export const AutomationModalRowExternalContext = new RawContextKey<boolean>('automationModalRowExternal', false);
+export const AutomationModalRowHasLimitsContext = new RawContextKey<boolean>('automationModalRowHasLimits', false);
+export const AutomationModalRowCloudContext = new RawContextKey<boolean>('automationModalRowCloud', false);
+export const AutomationModalRowEventContext = new RawContextKey<boolean>('automationModalRowEvent', false);
 
 /** Presentation operations supplied by the owning modal, never by the active global view. */
 export interface IAutomationsModalActionContext {
 	openWithAgent(): Promise<void>;
+	runAutomation(automation: IAutomationDescriptor): Promise<void>;
 }
 
 const modalEnabled = ContextKeyExpr.and(AutomationsModalContext, ChatContextKeys.enabled, ChatAutomationsEnabledContext);
@@ -48,6 +54,11 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalHistoryContext, {
 });
 
 export const AutomationsModalCommands = {
+	run: {
+		id: 'sessions.automations.modal.run',
+		title: AutomationCommands.run.title,
+		precondition: ContextKeyExpr.and(modalEnabled, AutomationModalRowCanRunContext),
+	},
 	createWithAgent: {
 		id: 'sessions.automations.modal.createWithAgent',
 		title: AutomationCommands.createWithAgent.title,
@@ -68,13 +79,37 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() { super(AutomationsModalCommands.run); }
+	override async run(_accessor: ServicesAccessor, automation: IAutomationDescriptor, context: IAutomationsModalActionContext): Promise<void> {
+		await context.runAutomation(automation);
+	}
+});
+
 MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalRowContext, {
 	command: { ...AutomationCommands.edit, precondition: ContextKeyExpr.and(modalEnabled, AutomationModalRowCanUpdateContext) },
 	group: '4_manage', order: 0, when: modalEnabled,
 });
 MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalRowContext, {
-	command: { ...AutomationCommands.run, precondition: ContextKeyExpr.and(modalEnabled, AutomationModalRowCanRunContext) },
+	command: AutomationsModalCommands.run,
 	group: 'navigation', order: 2, when: modalEnabled,
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalRowContext, {
+	command: AutomationCommands.openOnGitHub,
+	group: 'navigation', order: 1, when: ContextKeyExpr.and(modalEnabled, AutomationModalRowExternalContext),
+});
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalRowContext, {
+	command: AutomationCommands.duplicate,
+	group: '3_copy', order: 1, when: ContextKeyExpr.and(modalEnabled, AutomationModalRowEventContext.negate()),
+});
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalRowContext, {
+	command: AutomationCommands.export,
+	group: '3_copy', order: 2, when: ContextKeyExpr.and(modalEnabled, AutomationModalRowCloudContext.negate()),
+});
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalRowContext, {
+	command: { ...AutomationCommands.removeEndDate, precondition: ContextKeyExpr.and(modalEnabled, AutomationModalRowCanUpdateContext, AutomationModalRowHasLimitsContext) },
+	group: '1_state', order: 1.5, when: ContextKeyExpr.and(modalEnabled, AutomationModalRowHasLimitsContext),
 });
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalToolbar, {

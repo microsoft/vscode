@@ -31,7 +31,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import type { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
 import { IAutomationDialogResult, IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type IAutomationRefreshOptions, IAutomationService, type IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { hasAutomationEventTrigger } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -191,22 +191,22 @@ registerAction2(class RunAutomationNowAction extends Action2 {
 		super(AutomationCommands.run);
 	}
 
-	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
+	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<IAutomationRunDispatch | undefined> {
 		const configurationService = accessor.get(IConfigurationService);
 		const dialogService = accessor.get(IDialogService);
 		if (configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true) {
 			await showAutomationsDisabled(dialogService);
-			return;
+			return undefined;
 		}
 		if (configurationService.getValue<boolean>(ChatAIDisabledSettingId)) {
 			await dialogService.info(localize('automationRunAiDisabled', "Enable AI features to run automations."));
-			return;
+			return undefined;
 		}
 		const automationService = accessor.get(IAutomationService);
 		const logService = accessor.get(ILogService);
 		if (this.pending.has(automation.id)) {
 			status(localize('automationDispatchPending', "A run request for {0} is already pending.", automation.name));
-			return;
+			return undefined;
 		}
 		this.pending.add(automation.id);
 		try {
@@ -235,9 +235,11 @@ registerAction2(class RunAutomationNowAction extends Action2 {
 					status(dispatch.message);
 					break;
 			}
+			return dispatch;
 		} catch (error) {
 			logService.error('[Automations] Failed to run automation', error);
 			await dialogService.error(localize('automationRunActionFailed', "Failed to run automation."), getErrorMessage(error));
+			return undefined;
 		} finally {
 			this.pending.delete(automation.id);
 		}

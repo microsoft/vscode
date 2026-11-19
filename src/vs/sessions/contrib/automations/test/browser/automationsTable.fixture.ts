@@ -23,8 +23,8 @@ import { SessionStatus } from '../../../../../workbench/services/sessions/common
 
 registerAutomationHistoryFixtureMenus();
 
-async function render(ctx: ComponentFixtureContext, state: 'ready' | 'empty' | 'unavailable' | 'history' = 'ready'): Promise<void> {
-	ctx.container.style.width = '1100px';
+async function render(ctx: ComponentFixtureContext, state: 'ready' | 'empty' | 'unavailable' | 'history' = 'ready', width = 1100): Promise<void> {
+	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = '560px';
 	const automations = new TableAutomationService();
 	if (state === 'empty') {
@@ -71,4 +71,5 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/modal/' },
 	Empty: defineComponentFixture({ render: ctx => render(ctx, 'empty') }),
 	UnavailableProvider: defineComponentFixture({ render: ctx => render(ctx, 'unavailable') }),
 	SelectedHistory: defineComponentFixture({ render: ctx => render(ctx, 'history') }),
+	NarrowHistory: defineComponentFixture({ render: ctx => render(ctx, 'history', 400) }),
 });

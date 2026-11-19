@@ -41,6 +41,7 @@ import { AutomationsModalWidget } from '../../browser/automationsModalWidget.js'
 import { TableAutomationService, TableEnvironmentService, TableRemoteService, tableAutomation, setupModalHistoryServices } from './automationsTableTestUtils.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { SessionItemIsAutomationContext, SessionItemIsInSessionsListContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionIsArchivedContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
@@ -122,8 +123,9 @@ suite('Automations modal table', () => {
 			override readonly onDidExecuteCommand = BaseEvent.None;
 			override async executeCommand<T>(id: string, ...args: readonly unknown[]): Promise<T> {
 				commands.push({ id, args });
-				if ([AutomationsModalCommands.createWithAgent.id, AutomationCommands.edit.id, AutomationCommands.run.id].includes(id)) {
-					await services.invokeFunction(CommandsRegistry.getCommand(id)!.handler, ...args);
+				if ([AutomationsModalCommands.createWithAgent.id, AutomationsModalCommands.run.id, AutomationCommands.edit.id, AutomationCommands.run.id].includes(id)) {
+					const result: unknown = await services.invokeFunction(CommandsRegistry.getCommand(id)!.handler, ...args);
+					return result as T;
 				}
 				if (applyCommand && (id === 'sessions.automations.disable' || id === 'sessions.automations.enable')) {
 					const automation = args[0] as IAutomationDescriptor;
@@ -174,7 +176,7 @@ suite('Automations modal table', () => {
 			focused: container.querySelector('.monaco-list-row.focused')?.textContent?.includes('Bravo daily'),
 			definitions: automations.automations.get().length,
 		}, {
-			actions: [{ id: AutomationCommands.run.id, enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: 'sessions.automations.disable', enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: AutomationCommands.edit.id, enabled: true }, { id: 'sessions.automations.delete', enabled: true }],
+			actions: [{ id: AutomationsModalCommands.run.id, enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: 'sessions.automations.disable', enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: AutomationCommands.duplicate.id, enabled: true }, { id: AutomationCommands.export.id, enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: AutomationCommands.edit.id, enabled: true }, { id: 'sessions.automations.delete', enabled: true }],
 			command: 'sessions.automations.delete', automation: 'bravo', focused: true, definitions: 3,
 		});
 	});
@@ -185,8 +187,9 @@ suite('Automations modal table', () => {
 		automations.runnable = false;
 		const actions = await openContextMenu(2).getActions();
 		assert.deepStrictEqual(actions.filter(action => action.id !== 'vs.actions.separator').map(action => ({ id: action.id, enabled: action.enabled })), [
-			{ id: AutomationCommands.run.id, enabled: false },
+			{ id: AutomationsModalCommands.run.id, enabled: false },
 			{ id: 'sessions.automations.enable', enabled: false },
+			{ id: AutomationCommands.duplicate.id, enabled: true },
 			{ id: AutomationCommands.edit.id, enabled: false },
 			{ id: 'sessions.automations.delete', enabled: false },
 		]);
@@ -303,14 +306,15 @@ suite('Automations modal table', () => {
 		const { dispatch, runs, errors, openContextMenu } = setup();
 		const pending = new DeferredPromise<IAutomationRunDispatch>();
 		dispatch.result = pending.p;
-		const action = openContextMenu(0).getActions().find(action => action.id === AutomationCommands.run.id)!;
-		const first = action.run();
-		await action.run();
+		const menu = openContextMenu(0);
+		const action = menu.getActions().find(action => action.id === AutomationsModalCommands.run.id)!;
+		const first = action.run(menu.getActionsContext!());
+		await action.run(menu.getActionsContext!());
 		const pendingRequests = runs.length;
 		await pending.error(new Error('Dispatch failed asynchronously'));
 		await first;
 		dispatch.result = Promise.resolve({ kind: 'accepted' });
-		await action.run();
+		await action.run(menu.getActionsContext!());
 		assert.deepStrictEqual({ pendingRequests, total: runs.length, errors }, {
 			pendingRequests: 1, total: 2, errors: ['Failed to run automation. Dispatch failed asynchronously'],
 		});
@@ -340,6 +344,63 @@ suite('Automations modal table', () => {
 		}
 	});
 
+	test('accepted Run stays disabled until history reconciles or the cards recovery conditions apply', async () => {
+		const { openContextMenu, automations, runs, container } = setup();
+		const menu = openContextMenu(0);
+		const run = menu.getActions().find(action => action.id === AutomationsModalCommands.run.id)!;
+		const invoke = () => run.run(menu.getActionsContext!());
+		const enabled = () => openContextMenu(0).getActions().find(action => action.id === AutomationsModalCommands.run.id)!.enabled;
+		await invoke();
+		await invoke();
+		assert.deepStrictEqual({ calls: runs.length, enabled: enabled(), starting: container.textContent!.includes('Starting run...') }, { calls: 1, enabled: false, starting: true });
+		automations.runs.set([{ id: 'accepted', automationId: 'alpha', status: 'completed', trigger: 'manual', startedAt: '2026-02-02T00:00:00Z' }], undefined);
+		assert.strictEqual(enabled(), true);
+		await invoke();
+		automations.historyState.set('error', undefined);
+		assert.strictEqual(enabled(), true);
+		automations.historyState.set('ready', undefined);
+		await invoke();
+		automations.catalogueState.set('error', undefined);
+		assert.strictEqual(enabled(), true);
+	});
+
+	test('modal row actions match cloud, event and end-date applicability', () => {
+		const { automations, openContextMenu } = setup();
+		automations.automations.set([tableAutomation('alpha', 'Alpha', {
+			ownership: 'user', externalResource: URI.parse('https://github.com/owner/repo'),
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' }],
+			cloudTrigger: { triggers: { issue_labeled: { types: ['labeled'] } } },
+		})], undefined);
+		const actions = () => openContextMenu(0).getActions().filter(action => action.id !== 'vs.actions.separator').map(action => action.id);
+		const cloudEvent = actions();
+		automations.automations.set([tableAutomation('alpha', 'Alpha')], undefined);
+		assert.deepStrictEqual({ cloudEvent, local: actions() }, {
+			cloudEvent: [AutomationCommands.openOnGitHub.id, AutomationsModalCommands.run.id, AutomationCommands.disable.id, AutomationCommands.removeEndDate.id, AutomationCommands.edit.id, AutomationCommands.delete.id],
+			local: [AutomationsModalCommands.run.id, AutomationCommands.disable.id, AutomationCommands.duplicate.id, AutomationCommands.export.id, AutomationCommands.edit.id, AutomationCommands.delete.id],
+		});
+	});
+
+	test('narrow layouts stack categories, catalogue and details without clipping controls', () => {
+		const { container, widget } = setup();
+		container.querySelector<HTMLElement>('.automations-modal-table .monaco-list-row')!.click();
+		container.style.width = '400px';
+		widget.layout();
+		const root = container.querySelector<HTMLElement>('.automations-modal-widget')!;
+		const bounds = (selector: string) => container.querySelector<HTMLElement>(selector)!.getBoundingClientRect();
+		const categories = bounds('.automations-modal-categories');
+		const catalogue = bounds('.automations-modal-content');
+		const details = bounds('.automations-modal-detail');
+		const narrow = {
+			stacked: categories.bottom <= catalogue.top && catalogue.bottom <= details.top,
+			noHorizontalClipping: root.scrollWidth <= root.clientWidth,
+			tableVisible: bounds('.automations-modal-table').height >= 100,
+		};
+		container.style.width = '1100px';
+		widget.layout();
+		assert.deepStrictEqual({ narrow, restored: !root.classList.contains('narrow') }, {
+			narrow: { stacked: true, noHorizontalClipping: true, tableVisible: true }, restored: true,
+		});
+	});
 	test('history updates when its session hydrates and is disposed when details close', () => {
 		const { container, automations, historyServices, click } = setup();
 		const session = createTestSession('Hydrated run', { status: SessionStatus.Completed }).session;
@@ -396,13 +457,14 @@ suite('Automations modal table', () => {
 
 	test('Run uses the shared runner and latest definition while status follows provider publications', async () => {
 		const { automations, openContextMenu, runs, container } = setup();
-		const run = openContextMenu(1).getActions().find(action => action.id === AutomationCommands.run.id);
+		const menu = openContextMenu(1);
+		const run = menu.getActions().find(action => action.id === AutomationsModalCommands.run.id);
 		assert.ok(run);
 		automations.automations.set(automations.automations.get().map(automation => automation.id === 'bravo' ? { ...automation, prompt: 'Latest prompt' } : automation), undefined);
-		await run.run();
+		await run.run(menu.getActionsContext!());
 		const running = { id: 'new-run', automationId: 'bravo', status: 'running' as const, trigger: 'manual' as const, startedAt: '2026-02-02T09:00:00Z' };
 		automations.runs.set([running], undefined);
-		const runningShown = container.querySelectorAll('.monaco-list-row')[1].textContent?.includes('Running');
+		const runningShown = container.querySelectorAll('.monaco-list-row')[1].textContent?.includes('Starting run...');
 		automations.runs.set([{ ...running, status: 'completed' }], undefined);
 		assert.deepStrictEqual({
 			requests: runs.map(automation => ({ id: automation.id, prompt: automation.prompt })),
@@ -490,11 +552,12 @@ suite('Automations modal table', () => {
 
 	test('stale Edit and Run menus recheck provider capabilities before acting', async () => {
 		const { automations, openContextMenu, editDialogs, runs, errors } = setup();
-		const actions = openContextMenu(1).getActions();
+		const menu = openContextMenu(1);
+		const actions = menu.getActions();
 		automations.mutable = false;
 		automations.runnable = false;
 		await actions.find(action => action.id === AutomationCommands.edit.id)!.run();
-		await actions.find(action => action.id === AutomationCommands.run.id)!.run();
+		await actions.find(action => action.id === AutomationsModalCommands.run.id)!.run(menu.getActionsContext!());
 		assert.deepStrictEqual({ editDialogs, runs, errors: errors.length }, { editDialogs: [], runs: [], errors: 2 });
 	});
 
@@ -690,7 +753,7 @@ suite('Automations modal table', () => {
 
 	test('narrow table scrolls headers and cells together and returns to a wide layout', () => {
 		const { container, widget } = setup();
-		container.style.width = '700px';
+		container.style.width = '400px';
 		widget.layout();
 		const viewport = container.querySelector<HTMLElement>('.automations-modal-table-viewport');
 		const header = [...container.querySelectorAll<HTMLElement>('.monaco-table-th')].at(-1);

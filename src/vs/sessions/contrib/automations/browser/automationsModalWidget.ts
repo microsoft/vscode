@@ -18,7 +18,7 @@ import { Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { localize } from '../../../../nls.js';
@@ -41,15 +41,18 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { automationTriggerSummary } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { formatAutomationRunStatus, formatSchedule, getAutomationsViewContent, getAutomationRemoteStatusPresentation, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, getVisibleAutomations } from '../../sessions/browser/views/automationCataloguePresentation.js';
-import { automationRunWithLocalProgress } from '../../sessions/browser/views/automationRunProgress.js';
+import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from '../../sessions/browser/views/automationRunProgress.js';
 import { AutomationCommands } from './automationCommands.js';
-import { AutomationModalRowCanDeleteContext, AutomationModalRowCanRunContext, AutomationModalRowCanUpdateContext, AutomationModalRowEnabledContext, AutomationsModalContext, AutomationsModalHasOthersContext, createAutomationsModalActionViewItem, IAutomationsModalActionContext } from './automationsModalActions.js';
+import { IAutomationRunDispatch } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { getAutomationAfterDate } from '../../../../platform/agentHost/common/automationDisableConditions.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { AutomationModalRowCloudContext, AutomationModalRowEventContext, AutomationModalRowExternalContext, AutomationModalRowHasLimitsContext, AutomationModalRowCanDeleteContext, AutomationModalRowCanRunContext, AutomationModalRowCanUpdateContext, AutomationModalRowEnabledContext, AutomationsModalContext, AutomationsModalHasOthersContext, createAutomationsModalActionViewItem, IAutomationsModalActionContext } from './automationsModalActions.js';
 import { AutomationCategory, AutomationCellRenderer, AutomationColumn, AutomationRow, automationTableColumns, automationTableSortOptions } from './automationsTableRenderers.js';
 import { AutomationsModalHistory } from './automationsModalHistory.js';
 import './media/automationsModal.css';
@@ -79,6 +82,7 @@ export class AutomationsModalWidget extends Disposable {
 	private descending = false;
 	private selectedId: string | undefined;
 	private readonly pending = new Set<string>();
+	private readonly startingRuns = observableValue<ReadonlyMap<string, ReadonlySet<string>>>(this, new Map());
 
 	constructor(
 		container: HTMLElement,
@@ -98,6 +102,7 @@ export class AutomationsModalWidget extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
 		@IChatService chatService: IChatService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		this.domNode = dom.append(container, dom.$('.automations-modal-widget'));
@@ -106,7 +111,7 @@ export class AutomationsModalWidget extends Disposable {
 		const scopedInstantiationService = this.scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
 		AutomationsModalContext.bindTo(scopedContext).set(true);
 		const hasOthersContext = AutomationsModalHasOthersContext.bindTo(scopedContext);
-		const actionContext: IAutomationsModalActionContext = { openWithAgent };
+		const actionContext: IAutomationsModalActionContext = { openWithAgent, runAutomation: automation => this.runAutomation(automation) };
 		const actionRunner = this._register(new ActionRunner());
 		this._register(actionRunner.onDidRun(event => {
 			if (event.error) {
@@ -239,12 +244,17 @@ export class AutomationsModalWidget extends Disposable {
 				[AutomationModalRowEnabledContext.key, automation.enabled],
 				[AutomationModalRowCanUpdateContext.key, this.automationService.canUpdateAutomation(automation.id)],
 				[AutomationModalRowCanDeleteContext.key, this.automationService.canDeleteAutomation(automation.id)],
-				[AutomationModalRowCanRunContext.key, this.automationService.canRunAutomation(automation.id)],
+				[AutomationModalRowCanRunContext.key, !this.startingRuns.get().has(automation.id) && this.automationService.canRunAutomation(automation.id)],
+				[AutomationModalRowExternalContext.key, automation.externalResource !== undefined],
+				[AutomationModalRowHasLimitsContext.key, getAutomationAfterDate(automation.disableConditions) !== undefined],
+				[AutomationModalRowCloudContext.key, automation.cloudTrigger !== undefined || automation.ownership !== undefined],
+				[AutomationModalRowEventContext.key, hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {})],
 			]);
 			contextMenuService.showContextMenu({
 				getAnchor: () => event.anchor,
 				menuId: AgentsWindowMenus.AutomationsModalRowContext,
-				menuActionOptions: { arg: automation },
+				menuActionOptions: { arg: automation, shouldForwardArgs: true },
+				getActionsContext: () => actionContext,
 				contextKeyService: rowContext,
 				actionRunner,
 				onHide: () => {
@@ -265,9 +275,11 @@ export class AutomationsModalWidget extends Disposable {
 		this._register(resizeObserver.observe(this.domNode));
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
 		const remotesChanged = observableSignalFromEvent(this, Event.any(remoteAgentHostService.onDidChangeConfiguredEntries, remoteAgentHostService.onDidChangeConnections));
+		const sessionsChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessions);
 		this._register(autorun(reader => {
 			configurationChanged.read(reader);
 			remotesChanged.read(reader);
+			sessionsChanged.read(reader);
 			hasOthersContext.set(automationService.automations.read(reader).some(automation => automation.ownership === 'repository' && automation.isCreatedByCurrentUser !== true));
 			const { automations, runs } = getAutomationsViewContent(
 				automationService.automations.read(reader),
@@ -277,6 +289,16 @@ export class AutomationsModalWidget extends Disposable {
 			const providers = [...automationService.availableProviders.read(reader), ...automationService.unavailableProviders.read(reader)];
 			const catalogueState = automationService.catalogueState.read(reader);
 			const historyState = automationService.historyState?.read(reader) ?? catalogueState;
+			const starting = this.startingRuns.read(reader);
+			for (const [id, previousRuns] of starting) {
+				if (!automations.some(automation => automation.id === id)
+					|| runs.some(run => run.automationId === id && !previousRuns.has(run.id)
+						&& !isLocalAutomationRunStarting(run, resource => this.sessionsManagementService.getSession(resource) !== undefined, resource => this.sessionsManagementService.getSession(resource) !== undefined))
+					|| catalogueState === 'error' || historyState === 'error'
+					|| catalogueState === 'unavailable' && !automationService.canRunAutomation(id)) {
+					this.clearStartingRun(id);
+				}
+			}
 			const chatModels = [...chatService.chatModels.read(reader)];
 			const latestRuns = new Map<string, IAutomationRun>();
 			for (const run of runs) {
@@ -289,6 +311,7 @@ export class AutomationsModalWidget extends Disposable {
 				const provider = providers.find(provider => provider.id === automation.target.providerId);
 				const last = latestRuns.get(automation.id);
 				const time = last?.startedAt ?? automation.lastRunAt ?? '';
+				const requesting = this.startingRuns.read(reader).has(automation.id);
 				const label = last ? formatAutomationRunStatus(automationRunWithLocalProgress(last, chatModels, reader)) : '';
 				return {
 					automation,
@@ -296,7 +319,7 @@ export class AutomationsModalWidget extends Disposable {
 					name: automation.name,
 					schedule: automationTriggerSummary(automation.cloudTrigger?.triggers ?? {}, true) ?? formatSchedule(automation.schedule),
 					target: automation.targetDisplay?.label ?? provider?.label ?? (automation.target.kind === 'workspace' ? basename(automation.target.folderUri) : localize('automations.modal.chat', "Chat")),
-					lastRun: time ? localize('automations.modal.runAt', "{0} {1}", label, new Date(time).toLocaleString()).trim()
+					lastRun: requesting ? localize('automations.modal.starting', "Starting run...") : time ? localize('automations.modal.runAt', "{0} {1}", label, new Date(time).toLocaleString()).trim()
 						: historyState === 'ready' && catalogueState === 'ready' ? localize('automations.modal.never', "Never") : localize('automations.modal.unknownRun', "Unknown"),
 					lastRunTime: time,
 					enabled: automation.enabled ? localize('automations.modal.enabled', "Enabled") : localize('automations.modal.disabled', "Disabled"),
@@ -358,6 +381,28 @@ export class AutomationsModalWidget extends Disposable {
 			await this.commandService.executeCommand(command, ...args);
 		} catch (error) {
 			this.reportError(error);
+		}
+	}
+
+	private clearStartingRun(id: string): void {
+		const pending = new Map(this.startingRuns.get());
+		pending.delete(id);
+		this.startingRuns.set(pending, undefined);
+	}
+
+	private async runAutomation(automation: IAutomationDescriptor): Promise<void> {
+		if (this.startingRuns.get().has(automation.id)) {
+			return;
+		}
+		this.startingRuns.set(new Map(this.startingRuns.get()).set(automation.id, new Set(this.automationService.runs.get().map(run => run.id))), undefined);
+		let accepted = false;
+		try {
+			const result = await this.commandService.executeCommand<IAutomationRunDispatch | undefined>(AutomationCommands.run.id, automation);
+			accepted = result?.kind === 'accepted';
+		} finally {
+			if (!accepted) {
+				this.clearStartingRun(automation.id);
+			}
 		}
 	}
 
@@ -476,6 +521,7 @@ export class AutomationsModalWidget extends Disposable {
 	}
 
 	layout(): void {
+		this.domNode.classList.toggle('narrow', this.domNode.clientWidth < 760);
 		const width = Math.max(this.tableMinWidth, this.tableContainer.clientWidth);
 		const height = Math.max(100, this.tableContainer.clientHeight - (width > this.tableContainer.clientWidth ? 10 : 0));
 		dom.size(this.tableInner, width, height);
