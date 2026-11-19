@@ -1352,39 +1352,10 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 
 		const approvalModel = this.approvalModel;
-		const markdownRendererService = this.markdownRendererService;
 		const chatResource = element.chat.resource;
-		let lastApprovalHeight = approvalRowHeightFor(approvalModel.getApproval(chatResource).get(), this.approvalRowMaxLines);
-		template.approvalRow.classList.toggle('visible', lastApprovalHeight > 0);
-
-		const buttonStore = template.elementDisposables.add(new DisposableStore());
-
-		template.elementDisposables.add(autorun(reader => {
-			buttonStore.clear();
-
-			const info = approvalModel.getApproval(chatResource).read(reader);
-			const visible = !!info;
-
-			template.approvalRow.classList.toggle('visible', visible);
-
-			if (info) {
-				renderApprovalRowContent(info, {
-					label: template.approvalLabel,
-					buttonContainer: template.approvalButtonContainer,
-				}, buttonStore, markdownRendererService, this.hoverService, true, this.approvalRowMaxLines, approvalId => {
-					this._onDidApproveSession.fire({ session: element.session, approvalId });
-				});
-			}
-
-			// Fire on any height change while onscreen, not just visibility — the
-			// model can swap one pending approval for another whose label spans a
-			// different number of lines, changing the reserved row height.
-			const height = approvalRowHeightFor(info, this.approvalRowMaxLines);
-			if (height !== lastApprovalHeight) {
-				lastApprovalHeight = height;
-				this._onDidChangeItemHeight.fire(element);
-			}
-		}));
+		bindApprovalRow(template, reader => approvalModel.getApproval(chatResource).read(reader), this.markdownRendererService, this.hoverService, true, this.approvalRowMaxLines,
+			approvalId => this._onDidApproveSession.fire({ session: element.session, approvalId }),
+			() => this._onDidChangeItemHeight.fire(element));
 	}
 
 	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
@@ -1536,6 +1507,49 @@ function appendApprovalWorkingDirectory(container: HTMLElement, workingDirectory
 	const path = DOM.append(line, $('span.session-approval-working-directory-path'));
 	// Isolated left-to-right so the right-to-left box that moves the ellipsis to the start cannot reorder the path.
 	DOM.append(path, $('span', { dir: 'ltr' }, escapeControlAndFormatCharacters(workingDirectory)));
+}
+
+/**
+ * Shows the pending approval that `readApproval` reads in a row's approval slot
+ * for as long as the row renders. Calls `onDidChangeHeight` on any change of the
+ * height the row reserves for it: also when one approval replaces another whose
+ * label spans a different number of lines, not only when an approval appears or
+ * clears.
+ */
+function bindApprovalRow(
+	template: Pick<ISessionItemTemplate, 'approvalRow' | 'approvalLabel' | 'approvalButtonContainer' | 'elementDisposables'>,
+	readApproval: (reader: IReader | undefined) => IAgentSessionApprovalInfo | undefined,
+	markdownRendererService: IMarkdownRendererService,
+	hoverService: IHoverService,
+	showHover: boolean,
+	maxLines: number,
+	onApprove: (approvalId: string) => void,
+	onDidChangeHeight: () => void,
+): void {
+	let lastApprovalHeight = approvalRowHeightFor(readApproval(undefined), maxLines);
+	template.approvalRow.classList.toggle('visible', lastApprovalHeight > 0);
+
+	const buttonStore = template.elementDisposables.add(new DisposableStore());
+
+	template.elementDisposables.add(autorun(reader => {
+		buttonStore.clear();
+
+		const info = readApproval(reader);
+		template.approvalRow.classList.toggle('visible', !!info);
+
+		if (info) {
+			renderApprovalRowContent(info, {
+				label: template.approvalLabel,
+				buttonContainer: template.approvalButtonContainer,
+			}, buttonStore, markdownRendererService, hoverService, showHover, maxLines, onApprove);
+		}
+
+		const height = approvalRowHeightFor(info, maxLines);
+		if (height !== lastApprovalHeight) {
+			lastApprovalHeight = height;
+			onDidChangeHeight();
+		}
+	}));
 }
 
 //#endregion
@@ -2440,38 +2454,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 		const approvalModel = this.approvalModel;
 		const aggregate = this.options.aggregateChatApprovals;
-		const initialInfo = getSessionRowApproval(approvalModel, element, undefined, aggregate);
-		let lastApprovalHeight = approvalRowHeightFor(initialInfo, this.options.approvalRowMaxLines);
-		template.approvalRow.classList.toggle('visible', lastApprovalHeight > 0);
-
-		const buttonStore = template.elementDisposables.add(new DisposableStore());
-
-		template.elementDisposables.add(autorun(reader => {
-			buttonStore.clear();
-
-			const info = getSessionRowApproval(approvalModel, element, reader, aggregate);
-			const visible = !!info;
-
-			template.approvalRow.classList.toggle('visible', visible);
-
-			if (info) {
-				renderApprovalRowContent(info, {
-					label: template.approvalLabel,
-					buttonContainer: template.approvalButtonContainer,
-				}, buttonStore, this.markdownRendererService, this.hoverService, this.options.showHover, this.options.approvalRowMaxLines, approvalId => {
-					this._onDidApproveSession.fire({ session: element, approvalId });
-				});
-			}
-
-			// Fire on any height change while onscreen, not just visibility — the
-			// model can swap one pending approval for another whose label spans a
-			// different number of lines, changing the reserved row height.
-			const height = approvalRowHeightFor(info, this.options.approvalRowMaxLines);
-			if (height !== lastApprovalHeight) {
-				lastApprovalHeight = height;
-				this._onDidChangeItemHeight.fire(element);
-			}
-		}));
+		bindApprovalRow(template, reader => getSessionRowApproval(approvalModel, element, reader, aggregate), this.markdownRendererService, this.hoverService, this.options.showHover, this.options.approvalRowMaxLines,
+			approvalId => this._onDidApproveSession.fire({ session: element, approvalId }),
+			() => this._onDidChangeItemHeight.fire(element));
 	}
 
 	private renderCIRow(element: ISession, template: ISessionItemTemplate): void {
