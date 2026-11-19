@@ -16,6 +16,9 @@ const MIN_COMMENTS_HEIGHT = 40;
 const DEFAULT_MIN_WIDTH = 320;
 const DEFAULT_MAX_WIDTH = 560;
 const DEFAULT_WIDTH_RATIO = 0.4;
+/** A new comment starts out wider than other widgets, when the editor has room for it, to invite writing a long comment. */
+const NEW_COMMENT_MAX_WIDTH = 640;
+const NEW_COMMENT_WIDTH_RATIO = 0.5;
 /**
  * How many of the lines next to a widget placed right after them may leave it no room after them, and so run under it,
  * so that a couple of long lines don't keep it from its code.
@@ -173,10 +176,13 @@ export function getCenteredTop(codeTop: number, codeBottom: number, height: numb
 }
 
 /**
- * The width a widget starts out with in an editor whose code area has the given width.
+ * The width a widget starts out with in an editor whose code area has the given width. A new comment starts out wider,
+ * when the editor has room for it, so that it invites writing a long comment.
  */
-export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availableWidth: number): number {
-	return Math.min(clamp(Math.round(editorContentWidth * DEFAULT_WIDTH_RATIO), DEFAULT_MIN_WIDTH, DEFAULT_MAX_WIDTH), availableWidth);
+export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availableWidth: number, isNewComment: boolean): number {
+	const ratio = isNewComment ? NEW_COMMENT_WIDTH_RATIO : DEFAULT_WIDTH_RATIO;
+	const maxWidth = isNewComment ? NEW_COMMENT_MAX_WIDTH : DEFAULT_MAX_WIDTH;
+	return Math.min(clamp(Math.round(editorContentWidth * ratio), DEFAULT_MIN_WIDTH, maxWidth), availableWidth);
 }
 
 /**
@@ -490,11 +496,12 @@ export class FloatingWidgetSizeModel {
 
 	/**
 	 * The width that the widget is shown at: the preferred width, but, unless a reply or comment is being written, no
-	 * wider than its content can fill. The user can still make the widget wider.
+	 * wider than its content can fill. A short comment is still shown at a comfortable width, rather than squeezed down
+	 * to its content. The user can still make the widget wider.
 	 */
 	getDefaultWidth(content: IFloatingWidgetContentWidths, preferredWidth: number, isEditing: boolean): number {
 		const range = this.getWidthRange(content);
-		return clamp(isEditing ? preferredWidth : Math.min(preferredWidth, content.natural), range.min, range.max);
+		return clamp(isEditing ? preferredWidth : Math.min(preferredWidth, Math.max(content.natural, DEFAULT_MIN_WIDTH)), range.min, range.max);
 	}
 
 	/**

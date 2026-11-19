@@ -750,7 +750,7 @@ suite('ChatInputPart', () => {
 		}, { input: false, hostSubmit: true });
 	});
 
-	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }), inAgentsWindow = isSessionsWindow) {
+	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }), inAgentsWindow = isSessionsWindow, sessionWorkingSet?: boolean) {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -785,7 +785,8 @@ suite('ChatInputPart', () => {
 		const keptChanges = new Lazy(() => store.add(instantiationService.createInstance(ChatSessionWorkingSetKeptChanges)));
 		let inputFocusCalls = 0;
 		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
-			options: { renderWorkingSet: true, isSessionsWindow, menus: { telemetrySource: 'test' } },
+			// A session's chat asks for the working set without rendering the editing session's
+			options: { renderWorkingSet: !sessionWorkingSet, isSessionsWindow, sessionWorkingSet, menus: { telemetrySource: 'test' } },
 			configurationService,
 			environmentService: upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: inAgentsWindow }),
 			instantiationService,
@@ -953,6 +954,35 @@ suite('ChatInputPart', () => {
 			}, { supported: false, visible: false, workingSet: false, keptChangesCreated: false });
 		});
 	}
+
+	test('its sessionWorkingSet option decides whether it shows the working set, also against where it renders the working set and whether it is a sessions window\'s chat; unset, as it renders it outside one', () => {
+		const supported = (isSessionsWindow: boolean, sessionWorkingSet: boolean | undefined) => createWorkingSetInput(isSessionsWindow, undefined, false, sessionWorkingSet).inputPart.supportsSessionWorkingSet;
+
+		assert.deepStrictEqual({
+			declined: supported(false, false),
+			asked: supported(true, true),
+			editorWindowDefault: supported(false, undefined),
+			sessionsWindowChatDefault: supported(true, undefined),
+		}, { declined: false, asked: true, editorWindowDefault: true, sessionsWindowChatDefault: false });
+	});
+
+	test('shows the working set of a session\'s chat that asks for it outside the Agents window, and never in it', async () => {
+		const shown = async (inAgentsWindow: boolean) => {
+			const harness = createWorkingSetInput(true, undefined, inAgentsWindow, true);
+			store.add(harness.inputPart.registerSessionFileChanges(constObservable([emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts'))])));
+			await harness.setEnabled(true);
+			harness.inputPart.renderChatEditingSessionState(null);
+			return {
+				supported: harness.inputPart.supportsSessionWorkingSet,
+				workingSet: !!harness.container.querySelector('.chat-session-working-set') && harness.container.style.display !== 'none',
+			};
+		};
+
+		assert.deepStrictEqual({ editorWindow: await shown(false), agentsWindow: await shown(true) }, {
+			editorWindow: { supported: true, workingSet: true },
+			agentsWindow: { supported: false, workingSet: false },
+		});
+	});
 
 	test('leaves metadata-backed providers on their existing working-set presentation', async () => {
 		const { inputPart, container, sessionResource, setEnabled, setSessionChanges } = createWorkingSetInput(false, URI.parse('copilot-cloud-agent:/session'));

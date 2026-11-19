@@ -74,12 +74,12 @@ export function isArtifactIntegrationRequest(value: unknown): value is ArtifactI
 		case 'cancel': case 'reconcile': return strings(value, 'runId');
 		case 'history': return (value.before === undefined || strings(value, 'before'))
 			&& (value.limit === undefined || (typeof value.limit === 'number' && Number.isSafeInteger(value.limit) && value.limit > 0 && value.limit <= 200));
-		case 'notice': return isRecord(value.notice) && ['enabled', 'changed', 'disabled'].includes(String(value.notice.kind))
+		case 'notice': return isRecord(value.notice) && ['enabled', 'changed', 'disabled', 'status'].includes(String(value.notice.kind))
 			&& strings(value.notice, 'content') && String(value.notice.content).length <= 64_000
 			&& (value.notice.iconId === undefined || (typeof value.notice.iconId === 'string' && /^[a-zA-Z0-9-]+$/.test(value.notice.iconId)))
-			// Older clients send only the rendered content, which hosts post without merging.
+			// Older clients send only the rendered content, which hosts post without merging. Status notices carry no rule changes.
 			&& (value.notice.changes === undefined ? value.notice.enabledRules === undefined
-				: isArtifactAutomationNoticeChanges(value.notice.changes) && isArtifactAutomationEnabledRules(value.notice.enabledRules)
+				: value.notice.kind !== 'status' && isArtifactAutomationNoticeChanges(value.notice.changes) && isArtifactAutomationEnabledRules(value.notice.enabledRules)
 				&& hasArtifactAutomationEnabledRules(value.notice.changes, value.notice.enabledRules));
 		case 'configure': return strings(value, 'integrationId') && typeof value.revision === 'number' && Number.isSafeInteger(value.revision) && value.revision >= 0
 			&& isRecord(value.values) && Object.entries(value.values).every(([key, item]) => !['__proto__', 'constructor', 'prototype'].includes(key) && (typeof item === 'string' || typeof item === 'boolean'))

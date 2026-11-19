@@ -15,7 +15,7 @@ import { createErrorWithActions } from '../../../../../base/common/errorMessage.
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -42,7 +42,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatRequestSubmittedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -85,12 +85,14 @@ import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SessionsCh
 import { DraggedSessionIdentifier, fillSessionChatDragData, getSessionChatDragData, SessionsDataTransfers } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
+import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { SessionActivatingActionRunner } from '../../../../../workbench/contrib/sessions/browser/sessionActionRunner.js';
 import { navigationServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { SessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHostService.js';
 import { createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
+import { EditorWindowMainSessionHost } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowMainSessionHost.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
@@ -454,9 +456,12 @@ function createView(
 	}());
 	const chatHostOpenerService = new ChatHostOpenerService();
 	instantiationService.stub(IChatHostOpenerService, chatHostOpenerService);
+	const inSidePane = observableValue('sideChatsInSidePane', false);
+	instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane } satisfies ISideChatPlacementService);
 	const view = disposables.add(instantiationService.createInstance(SessionsService));
 	activeWindowChanges.set(view, onDidChangeActiveWindow);
 	chatHostOpeners.set(view, chatHostOpenerService);
+	sideChatsInSidePane.set(view, inSidePane);
 	return view;
 }
 
@@ -465,6 +470,8 @@ const activeWindowChanges = new WeakMap<SessionsService, Emitter<number>>();
 
 /** Where chats another surface shows open and close, for the {@link SessionsService} {@link createView} built. */
 const chatHostOpeners = new WeakMap<SessionsService, IChatHostOpenerService>();
+/** Whether side chats show in the side pane, for the view; false until a test sets it. */
+const sideChatsInSidePane = new WeakMap<SessionsService, ISettableObservable<boolean>>();
 
 suite('SessionsManagementService', () => {
 
@@ -503,6 +510,30 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('routes worktree cleanup and capability checks by owner rather than filesystem path', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'first' });
+		const calls: string[] = [];
+		const providers = ['first', 'second'].map(id => new class extends TestSessionsProvider {
+			override readonly id = id;
+			override readonly supportsWorktreeCleanup = id === 'first';
+			override readonly supportsManagedWorktreeCleanup = id === 'second';
+			override async cleanupManagedWorktree(): Promise<void> {
+				calls.push(this.id);
+			}
+		}(session));
+		const { service } = createSessionsManagementService(session, disposables, providers);
+		const owners = providers.map(provider => ({
+			providerId: provider.id, repository: 'vscode-remote://host/repo', worktree: 'vscode-remote://host/repo.worktrees/task',
+			branch: 'agents/task', cleanupStatus: { state: 'unknown' as const },
+		}));
+		for (const owner of owners) {
+			await service.cleanupManagedWorktree!(owner);
+		}
+		assert.deepStrictEqual({ calls, capabilities: [service.canCleanupWorktree!(session), ...owners.map(owner => service.canCleanupWorktree!(owner))] }, {
+			calls: ['first', 'second'], capabilities: [true, false, true],
+		});
+	});
+
 	test('lists the sessions as their providers list them, and finds and reports the changes of also those outside a listing scope', () => {
 		const listed = stubSession({ sessionId: 'listed', providerId: 'scoped' });
 		const hidden = stubSession({ sessionId: 'hidden', providerId: 'scoped' });
@@ -519,9 +550,10 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			listed: service.getSessions().map(session => session.sessionId),
+			maintenance: service.getSessions({ includeHidden: true }).map(session => session.sessionId),
 			found: service.getSession(hidden.resource)?.sessionId,
 			changes,
-		}, { listed: ['listed'], found: 'hidden', changes: ['changed hidden'] });
+		}, { listed: ['listed'], maintenance: ['listed', 'hidden'], found: 'hidden', changes: ['changed hidden'] });
 	});
 
 	suite('session grid integration', () => {
@@ -868,7 +900,8 @@ suite('SessionsManagementService', () => {
 				disposable: (view.gridHost as Partial<IDisposable>).dispose !== undefined,
 				hosts: sessionHostService.hosts.get().filter(host => host.kind === SessionHostKind.MainWindow).length,
 				injected: injected === view.gridHost,
-				rootRegistration: getSingletonServiceDescriptors().some(([id]) => id === ISessionHost),
+				// Editor windows register their own root host, which shows what a feature binds; the Agents window registers none
+				rootRegistration: getSingletonServiceDescriptors().some(([id, descriptor]) => id === ISessionHost && descriptor.ctor !== EditorWindowMainSessionHost),
 				rootInjection,
 				shownBefore,
 				shownAfter: view.gridHost.session.get()?.sessionId,
@@ -3922,6 +3955,46 @@ suite('SessionsManagementService', () => {
 			activeSession: undefined,
 		});
 	});
+
+	for (const end of ['archiving', 'removing'] as const) {
+		for (const focusInSession of [false, true]) {
+			test(`${end} the active session ${focusInSession ? 'moves focus out of its view into the new session' : 'leaves focus outside the grid, such as in the sessions list'}`, async () => {
+				const isArchived = observableValue('isArchived', false);
+				const session = stubSession({ sessionId: 'active', providerId: 'test', isArchived });
+				const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(true) });
+				const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+				const provider = new class extends TestSessionsProvider {
+					override readonly onDidChangeSessions = onDidChangeSessions.event;
+					override readonly supportsQuickChats = true;
+					override createQuickChat(): ISession { return draft; }
+				}(session);
+				const { view, sessionsPartService } = createSessionsManagementService(session, disposables, provider);
+				await view.openSession(session.resource);
+				sessionsPartService.focusedSessionView = focusInSession ? new class extends mock<SessionView>() { }() : undefined;
+				const focusTarget = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
+				disposables.add(toDisposable(() => focusTarget.remove()));
+				focusTarget.focus();
+				sessionsPartService.focusedSessions.length = 0;
+
+				if (end === 'archiving') {
+					isArchived.set(true, undefined);
+				} else {
+					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+				}
+				await timeout(0);
+				// As the new-session composer does once it shows: it creates its draft on its own
+				view.openQuickChat(undefined, true);
+
+				assert.deepStrictEqual({
+					active: activeSessionOf(view)?.sessionId,
+					focused: sessionsPartService.focusedSessions,
+				}, {
+					active: 'draft',
+					focused: focusInSession ? [undefined, 'draft'] : [],
+				});
+			});
+		}
+	}
 
 	test('automatic no-fallback removal stays inert during pending explicit navigation', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });
@@ -9441,6 +9514,80 @@ suite('SessionsManagementService', () => {
 			assert.strictEqual(activeChatOf(view)?.title.get(), 'sideA');
 		});
 
+		test('while side chats show in the side pane, the grid shows the chat a side chat came from instead of it, and a surface that claims it opens it', async () => {
+			const peerA = chat('peerA');
+			const sideA: IChat = { ...chat('sideA'), origin: { kind: ChatOriginKind.SideChat, parentChat: peerA.resource } };
+			const sessionA = multiChatSession('A', [chat('mainA'), peerA, sideA]);
+			const { view } = setup([sessionA]);
+			const revealed: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: () => false,
+				claimsChat: claimed => sideChatsInSidePane.get(view)!.get() && claimed.toString() === sideA.resource.toString(),
+				reveal: async shown => { revealed.push(shown.path); },
+				openBeside: async () => { },
+				close: async () => undefined,
+			}));
+			const grid = () => ({ active: activeChatOf(view)?.title.get(), tabs: view.activePane.get()?.tabs.visibleChatTabs.get().map(c => c.title.get()) });
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sideA.resource);
+			const before = grid();
+			sideChatsInSidePane.get(view)!.set(true, undefined);
+			const inSidePane = grid();
+			await view.openChat(sessionA, sideA.resource);
+			const opened = { ...grid(), revealed: [...revealed] };
+			sideChatsInSidePane.get(view)!.set(false, undefined);
+
+			assert.deepStrictEqual({ before, inSidePane, opened, after: grid() }, {
+				before: { active: 'sideA', tabs: ['mainA', 'peerA', 'sideA'] },
+				inSidePane: { active: 'peerA', tabs: ['mainA', 'peerA'] },
+				opened: { active: 'peerA', tabs: ['mainA', 'peerA'], revealed: ['/chat/sideA'] },
+				after: { active: 'peerA', tabs: ['mainA', 'peerA', 'sideA'] },
+			});
+		});
+
+		test('a side chat opened before its session loads opens where a surface claims it once it loads, not in the grid', async () => {
+			const mainA = chat('mainA');
+			const sideA: IChat = { ...chat('sideA'), origin: { kind: ChatOriginKind.SideChat, parentChat: mainA.resource } };
+			const chats = observableValue<readonly IChat[]>('chats', [mainA]);
+			const loading = observableValue('loading', true);
+			const sessionA = { ...multiChatSession('A', [mainA]), chats, loading };
+			const { view } = setup([sessionA]);
+			sideChatsInSidePane.get(view)!.set(true, undefined);
+			const revealed: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: () => false,
+				claimsChat: claimed => chats.get().includes(sideA) && claimed.toString() === sideA.resource.toString(),
+				reveal: async shown => { revealed.push(shown.path); },
+				openBeside: async () => { },
+				close: async () => undefined,
+			}));
+
+			const opening = view.openChat(sessionA, sideA.resource);
+			await timeout(0);
+			chats.set([mainA, sideA], undefined);
+			loading.set(false, undefined);
+			await opening;
+
+			assert.deepStrictEqual({ revealed, active: activeChatOf(view)?.title.get() }, { revealed: ['/chat/sideA'], active: 'mainA' });
+		});
+
+		test('a side chat that was the active chat restores as the chat it came from while side chats show in the side pane', async () => {
+			const peerA = chat('peerA');
+			const sideA: IChat = { ...chat('sideA'), origin: { kind: ChatOriginKind.SideChat, parentChat: peerA.resource } };
+			const sessionA = multiChatSession('A', [chat('mainA'), peerA, sideA]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sideA.resource);
+			await view.openSession(sessionB.resource);
+			sideChatsInSidePane.get(view)!.set(true, undefined);
+			await view.openSession(sessionA.resource);
+
+			assert.strictEqual(activeChatOf(view)?.title.get(), 'peerA');
+		});
+
 		test('the active subagent chat is restored after switching sessions', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA'), chat('subagentA', SessionStatus.Completed, ChatOriginKind.Tool)]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);
@@ -9775,6 +9922,25 @@ suite('SessionsManagementService', () => {
 			await view.openChat(sessionB, newB.resource, { referenceChatResource: mainB.resource });
 
 			assert.deepStrictEqual({ beside, active: activeChatOf(view)?.title.get() }, { beside: [], active: 'newB' });
+		});
+
+		test('a chat opened with a reference chat that a surface shows but does not open beside it opens in the grid', async () => {
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('forkB', SessionStatus.Completed, ChatOriginKind.Fork)]);
+			const [mainB, forkB] = sessionB.chats.get();
+			const { view } = setup([sessionB]);
+			await view.openSession(sessionB.resource);
+			const beside: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === mainB.resource.toString(),
+				opensBeside: () => false,
+				reveal: async () => { },
+				openBeside: async opened => { beside.push(opened.path); },
+				close: async () => ({ restore: async () => { } }),
+			}));
+
+			await view.openChat(sessionB, forkB.resource, { referenceChatResource: mainB.resource });
+
+			assert.deepStrictEqual({ beside, active: activeChatOf(view)?.title.get() }, { beside: [], active: 'forkB' });
 		});
 
 		test('a session-list open selects the main chat instead of the previously active chat', async () => {
@@ -11190,6 +11356,43 @@ suite('SessionsManagementService', () => {
 			tracking.dispose();
 
 			assert.deepStrictEqual({ ends, notifications }, { ends: ['a1-prepared started=false error=a1-prepared failed'], notifications: [] });
+		});
+
+		test('reports once that a slot\'s request was sent, the first time its provider forwards a response for it, in the session it was sent in, and forwards each response to the caller\'s own callback', async () => {
+			const response = upcastPartial<IChatResponseModel>({});
+			const provider = disposables.add(new class extends PreparingProvider {
+				override async sendRequest(sessionId: string, _chatResource?: URI, options?: ISendRequestOptions): Promise<ISession> {
+					options?.onDidCreateResponse?.(undefined, 'queued');
+					options?.onDidCreateResponse?.(response, 'sent');
+					options?.onDidCreateResponse?.(response, 'sent');
+					return super.sendRequest(sessionId);
+				}
+			}([draft('a1'), draft('b1')]));
+			const { service } = createSessionsManagementService(listed, disposables, provider);
+			const slot = disposables.add(service.createNewSessionSlot());
+			const log: string[] = [];
+			disposables.add(service.onDidDispatchNewSessionRequest(event => log.push(`sent ${event.session.sessionId} ${event.owner === slot ? 'slot' : 'other'}`)));
+			disposables.add(service.onDidEndNewSessionRequest(event => log.push(`end ${event.session.sessionId}`)));
+			const ownResponses: string[] = [];
+			const options: Parameters<ISessionsManagementService['sendNewChatRequest']>[1] = { query: 'background', background: true, onDidCreateResponse: (sent, kind) => ownResponses.push(`${kind} ${!!sent}`) };
+			const sentWithOwnOptions: boolean[] = [];
+			disposables.add(service.onDidSendRequest(event => sentWithOwnOptions.push(event.options === options)));
+
+			const ended = Event.toPromise(Event.filter(service.onDidEndNewSessionRequest, event => event.owner === slot));
+			await service.sendNewChatRequest(slot.createNewSession(folder), options);
+			await ended;
+			await service.sendNewChatRequest(slot.createNewSession(folder), { query: 'foreground' });
+			const unowned = draft('unowned');
+			provider.created.push(unowned);
+			const unownedSent = Event.toPromise(Event.filter(service.onDidSendRequest, event => event.session.sessionId === 'unowned-prepared'));
+			await service.sendNewChatRequest(unowned, { query: 'unowned', background: true });
+			await unownedSent;
+
+			assert.deepStrictEqual({ log, ownResponses, sentWithOwnOptions }, {
+				log: ['sent a1-prepared slot', 'end a1-prepared', 'sent b1-prepared slot', 'end b1-prepared'],
+				ownResponses: ['queued false', 'sent true', 'sent true'],
+				sentWithOwnOptions: [true, false, false],
+			});
 		});
 
 		test('openNewSession creates the draft of the given slot without navigating or changing the main composer\'s draft', async () => {

@@ -563,6 +563,17 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		}
 		const activeElement = getWindow(this._domNode).document.activeElement;
 		const currentIndex = this._rows.findIndex(r => r.jump === activeElement || r.diff === activeElement);
+		if (event.keyCode === KeyCode.Enter) {
+			// Activate the row button here: unhandled, Enter reaches workbench keybindings scoped to the
+			// chat widget (e.g. editing requests), which consume it before the button's native click.
+			if (currentIndex !== -1) {
+				event.preventDefault();
+				event.stopPropagation();
+				const row = this._rows[currentIndex];
+				(row.jump === activeElement ? row.jump : row.diff).click();
+			}
+			return;
+		}
 		const currentColumn: RowColumn = this._rows[currentIndex]?.diff === activeElement ? 'diff' : 'jump';
 		let nextIndex = currentIndex;
 		let nextColumn = currentColumn;

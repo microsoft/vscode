@@ -29,7 +29,3 @@ export enum BlockMode {
 	 */
 	MoreMultiline = 'moremultiline',
 }
-
-export function shouldDoServerTrimming(blockMode: BlockMode): boolean {
-	return [BlockMode.Server, BlockMode.ParsingAndServer].includes(blockMode);
-}

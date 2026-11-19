@@ -43,6 +43,7 @@ import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 import { MockChatModel } from '../../common/model/mockChatModel.js';
+import { ILocalChatAvailabilityService } from '../../../common/localChatAvailability.js';
 
 suite('Chat move actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -120,6 +121,7 @@ suite('Chat move actions', () => {
 				upcastPartial<IProgressService>({}),
 				new NullManagedSettingsService(),
 				{ _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } },
+				upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 			));
 			sourceEditor.updateModel(model);
 			sourceRef.dispose();

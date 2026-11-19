@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, JsonValue, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import type { Attachment, JsonValue, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteResult } from '@microsoft/copilot-sdk';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/resources.js';

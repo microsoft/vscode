@@ -242,8 +242,16 @@ import './contrib/mcp/browser/mcp.contribution.js';
 import './contrib/mcp/browser/mcp.view.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/sessions/browser/editorWindow/editorWindowSessions.contribution.js';
+import './contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanup.contribution.js';
+import './contrib/sessions/browser/chatView/chatViewOpenInChatPart.contribution.js';
+import './contrib/sessions/providers/agentsView/browser/agentsViewProviders.contribution.js';
+// Worktree support of the editor window, not of the Agents window or its mobile package
+import './contrib/chat/browser/agentSessions/agentHost/agentHostWorktree.contribution.js';
+import './contrib/sessions/browser/agentsView/agentHostWorktreeComposerFolders.js';
+import './contrib/sessions/browser/agentsView/agentHostWorktreeChatResolver.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
+import './contrib/sessions/browser/chatView/chatViewSessionsList.contribution.js';
 
 // Screenshot Tool
 import './contrib/screenshotTool/browser/screenshotTool.contribution.js';

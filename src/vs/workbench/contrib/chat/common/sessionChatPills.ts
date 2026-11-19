@@ -107,7 +107,7 @@ export function getSessionChatPillMenu(
 	}
 
 	const hide = targetKind !== undefined && offeredKinds.includes(targetKind) && isSessionChatPillHideable(targetKind)
-		? { kind: targetKind, label: localize('sessionChatPills.hide', "Hide {0}", getSessionChatPillLabel(targetKind)) }
+		? { kind: targetKind, label: localize('sessionChatPills.hide', "Hide \"{0}\" Pill", getSessionChatPillLabel(targetKind)) }
 		: undefined;
 
 	return { ...(hide ? { hide } : {}), withData, withoutData };

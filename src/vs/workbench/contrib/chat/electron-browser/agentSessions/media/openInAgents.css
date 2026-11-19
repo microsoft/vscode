@@ -17,9 +17,20 @@
 }
 
 .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {
+	flex: 0 0 auto;
+}
+
+.monaco-workbench .part.titlebar.inactive .open-in-agents-titlebar-widget {
+	color: var(--vscode-titleBar-inactiveForeground);
+}
+
+.monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon.codicon {
+	color: inherit;
+}
+
+.monaco-workbench .open-in-agents-titlebar-widget:not(.codicon-icons) > .open-in-agents-titlebar-widget-icon {
 	width: 16px;
 	height: 16px;
-	flex: 0 0 auto;
 	background-image: url('../../../../../../sessions/browser/media/sessions-icon.svg');
 	background-repeat: no-repeat;
 	background-position: center center;
@@ -27,21 +38,20 @@
 	filter: grayscale(1);
 }
 
-.monaco-enable-motion .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon,
-.monaco-workbench.monaco-enable-motion .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {
+.monaco-enable-motion .monaco-workbench .open-in-agents-titlebar-widget:not(.codicon-icons) > .open-in-agents-titlebar-widget-icon,
+.monaco-workbench.monaco-enable-motion .open-in-agents-titlebar-widget:not(.codicon-icons) > .open-in-agents-titlebar-widget-icon {
 	transition: filter 160ms ease;
 }
 
-.monaco-reduce-motion .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon,
-.monaco-workbench.monaco-reduce-motion .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {
+.monaco-reduce-motion .monaco-workbench .open-in-agents-titlebar-widget:not(.codicon-icons) > .open-in-agents-titlebar-widget-icon,
+.monaco-workbench.monaco-reduce-motion .open-in-agents-titlebar-widget:not(.codicon-icons) > .open-in-agents-titlebar-widget-icon {
 	transition-duration: 0ms !important;
 }
 
-.monaco-workbench .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-icon,
-.monaco-workbench .open-in-agents-titlebar-widget:focus-visible > .open-in-agents-titlebar-widget-icon {
+.monaco-workbench .open-in-agents-titlebar-widget:not(.codicon-icons):hover > .open-in-agents-titlebar-widget-icon,
+.monaco-workbench .open-in-agents-titlebar-widget:not(.codicon-icons):focus-visible > .open-in-agents-titlebar-widget-icon {
 	filter: none;
 }
-
 
 .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-label {
 	display: inline-block;

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiRequestOptions } from '../client/request.js';
 import { parse } from '../client/schema.js';
 import { MissionControlClient } from './missionControlClient.js';
@@ -11,14 +12,14 @@ import { IModelsClient, ListModelsResponse } from './models.js';
 export class ModelsClient implements IModelsClient {
 	constructor(private readonly _client: MissionControlClient) { }
 
-	list(signal: AbortSignal, options?: ApiRequestOptions): Promise<ListModelsResponse> {
+	list(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ListModelsResponse> {
 		return this._client.request({
 			domain: 'models',
 			method: 'GET',
 			path: '/swe/models',
 			expectedStatus: 200,
 			options,
-		}, signal, response => parseListModelsResponse(response.data));
+		}, cancellationToken, response => parseListModelsResponse(response.data));
 	}
 }
 

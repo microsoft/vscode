@@ -22,6 +22,8 @@ import type { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '..
 import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { PathStyle } from '../../common/state/protocol/common/commands.js';
+import { INotification } from '../../common/state/sessionActions.js';
+import { SessionSummary } from '../../common/state/sessionState.js';
 
 /** A connection stand-in identified by a `marker` so equality checks read clearly. */
 function fakeConnection(marker: string, pathStyle?: PathStyle): IAgentConnection {
@@ -43,13 +45,15 @@ suite('AgentHostConnectionsService', () => {
 		remoteConnections: readonly IRemoteAgentHostConnectionInfo[],
 		remoteByAddress: Map<string, IAgentConnection>,
 		options?: { ambientResourceUris?: IAgentHostResourceUriMapper; ambientPathStyle?: PathStyle },
-	): { service: AgentHostConnectionsService; ambient: IAgentConnection; pathProvider: IResourcePathProvider; registeredFormatters: ResourceLabelFormatter[]; fireRemoteChange: () => void } {
+	): { service: AgentHostConnectionsService; ambient: IAgentConnection; pathProvider: IResourcePathProvider; registeredFormatters: ResourceLabelFormatter[]; fireRemoteChange: () => void; notifications: Emitter<INotification> } {
 		const onRemoteChange = store.add(new Emitter<void>());
+		const notifications = store.add(new Emitter<INotification>());
 
 		const agentHostService = {
 			...fakeConnection('ambient', options?.ambientPathStyle),
 			onAgentHostStart: Event.None,
 			onAgentHostExit: Event.None,
+			onDidNotification: notifications.event,
 			resourceUris: options?.ambientResourceUris ?? identityAgentHostResourceUriMapper,
 		} as unknown as IAgentHostService;
 
@@ -85,7 +89,7 @@ suite('AgentHostConnectionsService', () => {
 			},
 		});
 		const service = store.add(new AgentHostConnectionsService(agentHostService, remoteAgentHostService, pathService, labelService));
-		return { service, ambient: agentHostService as unknown as IAgentConnection, pathProvider, registeredFormatters, fireRemoteChange: () => onRemoteChange.fire() };
+		return { service, ambient: agentHostService as unknown as IAgentConnection, pathProvider, registeredFormatters, fireRemoteChange: () => onRemoteChange.fire(), notifications };
 	}
 
 	// Mirror agentHostAuthority for the simple alphanumeric/host cases used here.
@@ -248,6 +252,134 @@ suite('AgentHostConnectionsService', () => {
 			canonical: service.findSessionResource(backend, 'remote')?.toString(),
 		}, { resolved: ['remote', backend.toString()], after: undefined, canonical: canonical.toString() });
 	});
+
+	test('forgets removed backend identities only on their owning connection after alias release', async () => {
+		const remoteNotifications = store.add(new Emitter<INotification>());
+		const remote = upcastPartial<IAgentConnection>({ onDidNotification: remoteNotifications.event });
+		const { service, notifications } = createService([info('remote', 'Remote')], new Map([['remote', remote]]));
+		const backend = URI.parse('host-session://owner/session?revision=one');
+		const local = service.registerSessionResource(backend, undefined, 'copilot');
+		const remoteResource = service.registerSessionResource(backend, 'remote', 'codex');
+		const alias = URI.parse('cloud-sandbox-task:/task');
+		const registration = store.add(service.registerSessionResourceAlias(alias, backend, 'remote', 'codex'));
+		let changes = 0;
+		store.add(service.onDidChangeSessionResolution(() => changes++));
+		remoteNotifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+		await Promise.resolve();
+		registration.dispose();
+		remoteNotifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+		await Promise.resolve();
+		const afterRemote = {
+			remote: service.findSessionResource(backend, 'remote'),
+			alias: service.resolveSessionResourceIdentity(alias),
+			remoteAdvertised: service.resolveSessionResourceIdentity(remoteResource)?.backendSessionIsAdvertised,
+			local: service.findSessionResource(backend)?.toString(),
+			changes,
+		};
+		notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			afterRemote,
+			local: service.findSessionResource(backend),
+			localAdvertised: service.resolveSessionResourceIdentity(local)?.backendSessionIsAdvertised,
+			changes,
+		}, {
+			afterRemote: { remote: undefined, alias: undefined, remoteAdvertised: undefined, local: local.toString(), changes: 2 },
+			local: undefined, localAdvertised: undefined, changes: 3,
+		});
+	});
+
+	for (const republished of [false, true]) {
+		test(`keeps owner-held aliases routable after backend removal (republished: ${republished})`, async () => {
+			const { service, notifications } = createService([], new Map());
+			const backend = URI.parse('host-session://owner/session?revision=one');
+			const canonical = service.registerSessionResource(backend, undefined, 'copilot');
+			const alias = URI.parse('cloud-sandbox-task:/task');
+			const registration = store.add(service.registerSessionResourceAlias(alias, backend, AMBIENT_AGENT_HOST_AUTHORITY, 'copilot'));
+			notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			await Promise.resolve();
+			const afterRemoval = {
+				frontend: service.findSessionResource(backend),
+				backend: service.resolveSessionResourceIdentity(alias)?.backendSession,
+				canonicalAdvertised: service.resolveSessionResourceIdentity(canonical)?.backendSessionIsAdvertised,
+			};
+			if (republished) {
+				notifications.fire({ type: 'root/sessionAdded', channel: 'ahp-root://', summary: upcastPartial<SessionSummary>({ resource: backend.toString(), provider: 'copilot' }) });
+			}
+			const afterPublication = {
+				frontend: service.findSessionResource(backend),
+				backend: service.resolveSessionResourceIdentity(alias)?.backendSession,
+			};
+			registration.dispose();
+			assert.deepStrictEqual({
+				afterRemoval,
+				afterPublication,
+				afterRelease: service.findSessionResource(backend),
+				alias: service.resolveSessionResourceIdentity(alias),
+			}, {
+				afterRemoval: { frontend: alias, backend, canonicalAdvertised: undefined },
+				afterPublication: { frontend: alias, backend },
+				afterRelease: republished ? canonical : undefined,
+				alias: undefined,
+			});
+		});
+	}
+
+	test('releases multiple owner-held aliases without restoring an unpublished canonical identity', async () => {
+		const { service, notifications } = createService([], new Map());
+		const backend = URI.parse('host-session://owner/session?revision=one');
+		const first = URI.parse('cloud-sandbox-task:/first');
+		const second = URI.parse('cloud-sandbox-task:/second');
+		const firstRegistration = store.add(service.registerSessionResourceAlias(first, backend, AMBIENT_AGENT_HOST_AUTHORITY, 'copilot'));
+		const secondRegistration = store.add(service.registerSessionResourceAlias(second, backend, AMBIENT_AGENT_HOST_AUTHORITY, 'copilot'));
+		notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+		await Promise.resolve();
+		firstRegistration.dispose();
+		secondRegistration.dispose();
+		assert.deepStrictEqual({
+			frontend: service.findSessionResource(backend),
+			first: service.resolveSessionResourceIdentity(first),
+			second: service.resolveSessionResourceIdentity(second),
+		}, { frontend: undefined, first: undefined, second: undefined });
+	});
+
+	test('repeated draft creation and backend removal does not retain identity mappings', async () => {
+		const { service, notifications } = createService([], new Map());
+		const accepted = URI.parse('ahp-session:/accepted');
+		const acceptedResource = service.registerSessionResource(accepted, undefined, 'copilot');
+		const retainedMappings: boolean[] = [];
+		for (let i = 0; i < 36; i++) {
+			const backend = URI.parse(`ahp-session:/draft-${i}`);
+			notifications.fire({ type: 'root/sessionAdded', channel: 'ahp-root://', summary: upcastPartial<SessionSummary>({ resource: backend.toString(), provider: 'copilot' }) });
+			const resource = service.findSessionResource(backend)!;
+			notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			await Promise.resolve();
+			retainedMappings.push(service.findSessionResource(backend) !== undefined || service.resolveSessionResourceIdentity(resource)?.backendSessionIsAdvertised === true);
+		}
+		assert.deepStrictEqual({ retainedMappings, accepted: service.findSessionResource(accepted) }, { retainedMappings: Array(36).fill(false), accepted: acceptedResource });
+	});
+
+	for (const registration of ['notification', 'explicit'] as const) {
+		test(`keeps a removed identity registered again before cleanup (${registration})`, async () => {
+			const { service, notifications } = createService([], new Map());
+			const backend = URI.parse('host-session://owner/session?revision=one');
+			const resource = service.registerSessionResource(backend, undefined, 'copilot');
+			notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			if (registration === 'notification') {
+				notifications.fire({ type: 'root/sessionAdded', channel: 'ahp-root://', summary: upcastPartial<SessionSummary>({ resource: backend.toString(), provider: 'copilot' }) });
+			} else {
+				service.registerSessionResource(backend);
+			}
+			await Promise.resolve();
+			const afterRegistration = service.findSessionResource(backend);
+			notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				afterRegistration,
+				afterRemoval: service.findSessionResource(backend),
+			}, { afterRegistration: resource, afterRemoval: undefined });
+		});
+	}
 
 	test('resolves mixed legacy and standard identities by provider on the owning connection', () => {
 		const { service } = createService([], new Map());

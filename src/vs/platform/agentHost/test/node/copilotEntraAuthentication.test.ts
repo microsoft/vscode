@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { EntraTokenProvider, EntraTokenProviderArgs } from '@github/copilot-sdk';
+import type { EntraTokenProvider, EntraTokenProviderArgs } from '@microsoft/copilot-sdk';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -14,7 +14,6 @@ import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduli
 import { NullLogService } from '../../../log/common/log.js';
 import type { AuthenticateParams, IAgent } from '../../common/agent.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
-import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
@@ -42,8 +41,7 @@ suite('Copilot Entra authentication', () => {
 		assert.ok(tokenProvider);
 		const acquire = (request: EntraTokenProviderArgs, token = CancellationToken.None) => tokenProvider(request, token as Parameters<EntraTokenProvider>[1]);
 		const credential = (resource = copilotEntraDiscoveryResource, scopes = ['User.Read'], accountId = 'selected'): AuthenticateParams => ({
-			resource, scopes, token: 'synthetic-resource-credential', expiresIn: 3600,
-			_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId }),
+			resource, scopes, token: 'synthetic-resource-credential', expiresIn: 3600, accountId,
 		});
 		const authenticate = (params: AuthenticateParams) => authentication.authenticate(params, [provider]);
 		const signIn = async () => {
@@ -106,6 +104,17 @@ suite('Copilot Entra authentication', () => {
 		assert.deepStrictEqual(await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }), { kind: 'identity', accountId: 'selected' });
 	});
 
+	test('another client supplies a credential for the bound account by sending the same identifier', async () => {
+		const f = fixture();
+		assert.deepStrictEqual(await f.acquire(identity), { kind: 'unavailable' });
+		await f.authentication.authenticate(f.credential(), [f.provider], undefined, 'first-window');
+		const request = tokenRequest();
+		await f.acquire(request);
+		const resource = copilotEntraResources.get(copilotEntraEmuAudience)!;
+		await f.authentication.authenticate({ ...f.credential(resource, request.scopes), token: 'from-second-window' }, [f.provider], undefined, 'second-window');
+		assert.deepStrictEqual(await f.acquire(request), { kind: 'token', accountId: 'selected', accessToken: 'from-second-window' });
+	});
+
 	test('sign-out drops the identity so a replacement account can be established', async () => {
 		const f = fixture();
 		const before = await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' });
@@ -120,6 +129,35 @@ suite('Copilot Entra authentication', () => {
 			before: { kind: 'unavailable' }, after: { kind: 'unavailable' },
 			replacement: { kind: 'identity', accountId: 'replacement' },
 		});
+	});
+
+	test('an opaque standard account identifier is accepted as given', async () => {
+		const f = fixture();
+		await f.acquire(identity);
+		const params = f.credential(undefined, undefined, 'opaque:account/selection');
+		await f.authenticate(params);
+		assert.deepStrictEqual(await f.acquire(identity), { kind: 'identity', accountId: params.accountId });
+	});
+
+	test('a credential without the standard account identifier is rejected', async () => {
+		const f = fixture();
+		await f.acquire(identity);
+		await assert.rejects(f.authenticate({ ...f.credential(), accountId: undefined }), /account identifier/);
+	});
+
+	test('replays the standard account selection without account metadata', async () => {
+		const f = fixture();
+		await f.signIn();
+		const replayed: { accountId: string | undefined; metadata: Record<string, unknown> | undefined }[] = [];
+		const observer = new class extends mock<IAgent>() {
+			override getProtectedResources() { return []; }
+			override async handleAuthenticationToken(params: AuthenticateParams) {
+				replayed.push({ accountId: params.accountId, metadata: params._meta });
+				return true;
+			}
+		}();
+		await f.authentication.replay(observer);
+		assert.deepStrictEqual(replayed, [{ accountId: 'selected', metadata: undefined }]);
 	});
 
 	for (const audience of [copilotEntraEmuAudience, copilotEntraM365Audience]) {
@@ -305,7 +343,7 @@ suite('Copilot Entra authentication', () => {
 		assert.deepStrictEqual({
 			reason,
 			identity: await f.acquire(identity),
-			storedAccount: f.authentication.getAuthAccount({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
+			storedAccount: f.authentication.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
 		}, { reason: AuthRequiredReason.Expired, identity: { kind: 'identity', accountId: 'replacement' }, storedAccount: 'replacement' });
 	});
 
@@ -448,7 +486,7 @@ suite('Copilot Entra authentication', () => {
 		assert.deepStrictEqual({
 			identity: await f.acquire(identity),
 			stale: f.authentication.getAuthCredential({ resource: params.resource, scopes: params.scopes }),
-			account: f.authentication.getAuthAccount({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
+			account: f.authentication.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
 		}, { identity: { kind: 'identity', accountId: 'replacement' }, stale: undefined, account: 'replacement' });
 	});
 

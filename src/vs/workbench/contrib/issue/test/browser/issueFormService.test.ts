@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import assert from 'assert';
 import { restore, stub } from 'sinon';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -191,10 +192,10 @@ suite('IssueFormService', () => {
 				const { service, host, data, opened, uploads, errors, uploadErrors, uploading } = createSubmissionService(hasAttachments);
 				const token = new DeferredPromise<string>();
 				data.getGitHubAccessToken = () => token.p;
-				const cancellation = new AbortController();
-				const submission = service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.signal);
+				const cancellation = store.add(new CancellationTokenSource());
+				const submission = service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.token);
 				const rejected = assert.rejects(submission, isCancellationError);
-				cancellation.abort(new CancellationError());
+				cancellation.cancel();
 				if (lookupFails) {
 					await token.error(new Error('Late authentication failure'));
 				} else {
@@ -219,11 +220,11 @@ suite('IssueFormService', () => {
 				void started.complete();
 				return gate.p;
 			};
-			const cancellation = new AbortController();
-			const submission = service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.signal);
+			const cancellation = store.add(new CancellationTokenSource());
+			const submission = service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.token);
 			const rejected = assert.rejects(submission, isCancellationError);
 			await started.p;
-			cancellation.abort(new CancellationError());
+			cancellation.cancel();
 			await gate.complete();
 			await rejected;
 			assert.deepStrictEqual({
@@ -234,26 +235,26 @@ suite('IssueFormService', () => {
 
 	test('checks cancellation immediately before starting a media upload', async () => {
 		const { service, host, data, controls, uploads, opened, errors } = createSubmissionService(true);
-		const cancellation = new AbortController();
+		const cancellation = store.add(new CancellationTokenSource());
 		controls.progress = state => {
 			if (state === 'uploading') {
-				cancellation.abort(new CancellationError());
+				cancellation.cancel();
 			}
 		};
-		await assert.rejects(service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.signal), isCancellationError);
+		await assert.rejects(service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.token), isCancellationError);
 		assert.deepStrictEqual({ uploads, opened, errors }, { uploads: [], opened: [], errors: { logged: [], shown: [] } });
 	});
 
 	test('checks cancellation on cached media results before opening the preview', async () => {
 		const { service, host, data, controls, uploads, opened, errors } = createSubmissionService(true);
 		await service.submitIssue(host, data, 'First preview', 'Description');
-		const cancellation = new AbortController();
+		const cancellation = store.add(new CancellationTokenSource());
 		controls.progress = state => {
 			if (state === 'done') {
-				cancellation.abort(new CancellationError());
+				cancellation.cancel();
 			}
 		};
-		await assert.rejects(service.submitIssue(host, data, 'Cancelled retry', 'Description', cancellation.signal), isCancellationError);
+		await assert.rejects(service.submitIssue(host, data, 'Cancelled retry', 'Description', cancellation.token), isCancellationError);
 		assert.deepStrictEqual({ uploads: uploads.length, previews: opened.map(url => new URL(url).searchParams.get('title')), errors }, {
 			uploads: 1, previews: ['First preview'], errors: { logged: [], shown: [] },
 		});
@@ -273,11 +274,11 @@ suite('IssueFormService', () => {
 				return gate.p;
 			};
 			const confirmation = stub(service, 'showClipboardDialog').resolves(true);
-			const cancellation = new AbortController();
-			const submission = service.submitIssue(host, data, 'Cancelled', body, cancellation.signal);
+			const cancellation = store.add(new CancellationTokenSource());
+			const submission = service.submitIssue(host, data, 'Cancelled', body, cancellation.token);
 			const rejected = assert.rejects(submission, isCancellationError);
 			await started.p;
-			cancellation.abort(new CancellationError());
+			cancellation.cancel();
 			await gate.complete();
 			await rejected;
 			assert.deepStrictEqual({ uploads: uploads.length, opened: opened.length, errors, clipboardWrites, confirmations: confirmation.callCount }, {
@@ -304,11 +305,11 @@ suite('IssueFormService', () => {
 			if (phase === 'clipboard') {
 				controls.clipboard = wait;
 			}
-			const cancellation = new AbortController();
-			const submission = service.submitIssue(host, data, 'Cancelled', 'x'.repeat(8000), cancellation.signal);
+			const cancellation = store.add(new CancellationTokenSource());
+			const submission = service.submitIssue(host, data, 'Cancelled', 'x'.repeat(8000), cancellation.token);
 			const rejected = assert.rejects(submission, isCancellationError);
 			await started.p;
-			cancellation.abort(new CancellationError());
+			cancellation.cancel();
 			await gate.complete();
 			await rejected;
 			assert.deepStrictEqual({ opened, errors, clipboardWrites: clipboardWrites.length }, {
@@ -822,8 +823,8 @@ suite('IssueFormService', () => {
 		});
 		const query = 'title & labels #1';
 		const results = await Promise.all([
-			service.searchGitHubIssues('owner/repo', query, new AbortController().signal),
-			service.searchGitHubIssues('owner/repo', query, new AbortController().signal),
+			service.searchGitHubIssues('owner/repo', query, CancellationToken.None),
+			service.searchGitHubIssues('owner/repo', query, CancellationToken.None),
 		]);
 		assert.deepStrictEqual({ requests, returnedItems: results.map(result => result === items), leases }, {
 			requests: [0, 1].map(() => ({ query: `repo:owner/repo ${query}`, options: { caller: 'github.query', deadline } })),
@@ -837,19 +838,18 @@ suite('IssueFormService', () => {
 		let calls = 0;
 		const { service, leases } = createSearchService(async () => { throw errors[calls++]; });
 		for (const [index, expected] of errors.entries()) {
-			await assert.rejects(service.searchGitHubIssues('owner/repo', String(index), new AbortController().signal), error => error === expected);
+			await assert.rejects(service.searchGitHubIssues('owner/repo', String(index), CancellationToken.None), error => error === expected);
 		}
 		assert.deepStrictEqual(leases, { acquired: 2, released: 2 });
 	});
 
 	test('cancelled and disposed reporters do not issue search requests', async () => {
 		const { service, leases } = createSearchService(async () => assert.fail('Cancelled reporters must not search'));
-		const controller = new AbortController();
-		const reason = new Error('cancelled');
-		controller.abort(reason);
-		await assert.rejects(service.searchGitHubIssues('owner/repo', 'query', controller.signal), error => error === reason);
+		const controller = store.add(new CancellationTokenSource());
+		controller.cancel();
+		await assert.rejects(service.searchGitHubIssues('owner/repo', 'query', controller.token), isCancellationError);
 		service.dispose();
-		await assert.rejects(service.searchGitHubIssues('owner/repo', 'query', new AbortController().signal), isCancellationError);
+		await assert.rejects(service.searchGitHubIssues('owner/repo', 'query', CancellationToken.None), isCancellationError);
 		assert.deepStrictEqual(leases, { acquired: 0, released: 0 });
 	});
 
@@ -864,12 +864,12 @@ suite('IssueFormService', () => {
 		function createService(create: IGitHubAccountClient['issues']['create'], acquire?: () => Promise<void>) {
 			const instantiationService = createInstantiationService();
 			const acquisitions: { providerId: string; session: AuthenticationSession }[] = [];
-			const signals: AbortSignal[] = [];
+			const signals: CancellationToken[] = [];
 			const leases = { released: 0 };
 			instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
-				override async acquireAccountApiClient(providerId: string, session: AuthenticationSession, signal: AbortSignal) {
+				override async acquireAccountApiClient(providerId: string, session: AuthenticationSession, cancellationToken: CancellationToken) {
 					acquisitions.push({ providerId, session });
-					signals.push(signal);
+					signals.push(cancellationToken);
 					await acquire?.();
 					return upcastPartial<IGitHubAccountClient>({
 						issues: upcastPartial<IGitHubAccountClient['issues']>({ create }),
@@ -886,7 +886,7 @@ suite('IssueFormService', () => {
 				calls.push(args);
 				return upcastPartial<Issue>({ html_url: issueUrl });
 			});
-			const result = await service.createGitHubIssue('github', session, repository, request, new AbortController().signal);
+			const result = await service.createGitHubIssue('github', session, repository, request, CancellationToken.None);
 			assert.deepStrictEqual({ result, acquisitions, calls: calls.map(([repository, request, , options]) => ({ repository, request, options })), sameSignal: calls[0][2] === signals[0], leases }, {
 				result: issueUrl, acquisitions: [{ providerId: 'github', session }],
 				calls: [{ repository, request, options: { caller: 'issueReporter', priority: 'mutation' } }],
@@ -898,7 +898,7 @@ suite('IssueFormService', () => {
 			let calls = 0;
 			const error = new GitHubRequestError('Connection lost', 'network');
 			const { service, acquisitions, leases } = createService(async () => { calls++; throw error; });
-			await assert.rejects(service.createGitHubIssue('github', session, repository, request, new AbortController().signal), candidate => candidate === error);
+			await assert.rejects(service.createGitHubIssue('github', session, repository, request, CancellationToken.None), candidate => candidate === error);
 			assert.deepStrictEqual({ calls, acquisitions, leases }, { calls: 1, acquisitions: [{ providerId: 'github', session }], leases: { released: 1 } });
 		});
 
@@ -909,13 +909,13 @@ suite('IssueFormService', () => {
 				async () => assert.fail('Unexpected issue creation'),
 				() => { void started.complete(); return pending.p; },
 			);
-			const controller = new AbortController();
-			const rejected = assert.rejects(service.createGitHubIssue('github', session, repository, request, controller.signal), isCancellationError);
+			const controller = store.add(new CancellationTokenSource());
+			const rejected = assert.rejects(service.createGitHubIssue('github', session, repository, request, controller.token), isCancellationError);
 			await started.p;
-			controller.abort(new CancellationError());
+			controller.cancel();
 			await pending.complete();
 			await rejected;
-			assert.deepStrictEqual({ aborted: signals[0].aborted, leases }, { aborted: true, leases: { released: 1 } });
+			assert.deepStrictEqual({ aborted: signals[0].isCancellationRequested, leases }, { aborted: true, leases: { released: 1 } });
 		});
 	});
 

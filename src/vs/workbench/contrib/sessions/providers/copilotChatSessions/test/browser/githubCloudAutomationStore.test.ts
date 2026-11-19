@@ -58,16 +58,16 @@ const reconciliationMessage = 'The automation request may have been accepted. Re
 
 class TestApi extends mock<IAutomationsClient>() {
 	readonly priorities: { method: string; caller: string | undefined; priority: RequestPriority | undefined }[] = [];
-	readonly calls: { method: string; account: string; repository: typeof repository; token: AbortSignal }[] = [];
+	readonly calls: { method: string; account: string; repository: typeof repository; token: CancellationToken }[] = [];
 	readonly automationEnabled = new Map<string, boolean>();
 	readonly allowReadAccessTriggers = new Map<string, boolean>();
 	readonly manageability = new Map<string, boolean | Error | Promise<boolean>>();
 	readonly privateRepositories = new Map<string, boolean | Error | Promise<boolean>>();
-	readonly metadataCalls: { readonly repository: RepositoryRef; readonly token: AbortSignal }[] = [];
+	readonly metadataCalls: { readonly repository: RepositoryRef; readonly token: CancellationToken }[] = [];
 	readonly metadataStarted = new DeferredPromise<void>();
 	readonly definitions = new Map<string, readonly AutomationDetail[] | Error | Promise<readonly AutomationDetail[]>>();
-	readonly detailCalls: { id: string; signal: AbortSignal }[] = [];
-	detailResult: ((id: string, signal: AbortSignal) => Promise<AutomationDetail>) | undefined;
+	readonly detailCalls: { id: string; cancellationToken: CancellationToken }[] = [];
+	detailResult: ((id: string, cancellationToken: CancellationToken) => Promise<AutomationDetail>) | undefined;
 	accountName = account.accountName;
 	readonly manageabilityStarted = new DeferredPromise<void>();
 	readonly listStarted = new DeferredPromise<void>();
@@ -102,7 +102,7 @@ class TestApi extends mock<IAutomationsClient>() {
 		return {};
 	}
 
-	override async listRuns(_id: string, _signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+	override async listRuns(_id: string, _signal: CancellationToken, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
 		const { priority, caller, ...requestOptions } = options ?? {};
 		this.priorities.push({ method: 'history', caller, priority });
 		assert.deepStrictEqual(requestOptions, { query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } });
@@ -124,7 +124,7 @@ class TestApi extends mock<IAutomationsClient>() {
 		}
 	}
 
-	override async getConfiguration(ref: RepositoryRef, token: AbortSignal, options?: ApiRequestOptions): Promise<AutomationRepositoryConfiguration> {
+	override async getConfiguration(ref: RepositoryRef, token: CancellationToken, options?: ApiRequestOptions): Promise<AutomationRepositoryConfiguration> {
 		this.priorities.push({ method: 'capability', caller: options?.caller, priority: options?.priority });
 		this.calls.push({ method: 'capability', account: this.accountName, repository: ref, token });
 		const result = this.manageability.get(ref.repo) ?? true;
@@ -140,7 +140,7 @@ class TestApi extends mock<IAutomationsClient>() {
 		};
 	}
 
-	override async list(ref: RepositoryRef, token: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
+	override async list(ref: RepositoryRef, token: CancellationToken, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
 		const { priority, caller, ...requestOptions } = options ?? {};
 		this.priorities.push({ method: 'list', caller, priority });
 		assert.deepStrictEqual(requestOptions, { query: { page: 1, per_page: 100 }, maxPages: 10 });
@@ -154,11 +154,11 @@ class TestApi extends mock<IAutomationsClient>() {
 		return { data: { automations, total_count: automations.length } };
 	}
 
-	override async get(ref: RepositoryRef, id: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail> {
+	override async get(ref: RepositoryRef, id: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutomationDetail> {
 		this.priorities.push({ method: 'get', caller: options?.caller, priority: options?.priority });
-		this.detailCalls.push({ id, signal });
+		this.detailCalls.push({ id, cancellationToken });
 		if (this.detailResult) {
-			return this.detailResult(id, signal);
+			return this.detailResult(id, cancellationToken);
 		}
 		const values = await (this.definitions.get(ref.repo) ?? [definition]);
 		assert.ok(!(values instanceof Error));
@@ -191,7 +191,7 @@ suite('GitHubCloudAutomationStore', () => {
 		const api = new TestApi();
 		const storage = disposables.add(new InMemoryStorageService());
 		const clientChanged = disposables.add(new Emitter<void>());
-		const credentialLifetime = new AbortController();
+		const credentialLifetime = disposables.add(new CancellationTokenSource());
 		const leases = { acquired: 0, released: 0 };
 		const clientInvalidated = disposables.add(new Emitter<void>());
 		let acquisition: Promise<void> | undefined;
@@ -205,11 +205,11 @@ suite('GitHubCloudAutomationStore', () => {
 				api.accountName = selected.accountName;
 				const client = new class extends mock<IGitHubAccountClient>() {
 					override readonly onDidInvalidate = clientInvalidated.event;
-					override readonly onDidChangeCredentials = Event.fromDOMEventEmitter<void>(credentialLifetime.signal, 'abort');
+					override readonly onDidChangeCredentials: Event<void> = listener => credentialLifetime.token.onCancellationRequested(listener);
 					override readonly authorization = { providerId: 'github', sessionId: selected.sessionId, scopes: ['repo'] };
 					override readonly automations = api;
 					override readonly repositories = upcastDeepPartial<IRepositoriesClient>({
-						get: async (repository: RepositoryRef, token: AbortSignal, options?: ApiRequestOptions) => {
+						get: async (repository: RepositoryRef, token: CancellationToken, options?: ApiRequestOptions) => {
 							api.metadataCalls.push({ repository, token });
 							api.priorities.push({ method: 'repository', caller: options?.caller, priority: options?.priority });
 							await api.metadataStarted.complete();
@@ -224,7 +224,7 @@ suite('GitHubCloudAutomationStore', () => {
 						},
 					});
 					override readonly tasks = new class extends mock<ITasksClient>() {
-						override get(_id: string, _signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> { return api.getTask(options); }
+						override get(_id: string, _signal: CancellationToken, options?: ApiRequestOptions): Promise<Task> { return api.getTask(options); }
 						override async abort(): Promise<void> { api.mutations.push('stop'); }
 					}();
 					override dispose(): void { release.dispose(); }
@@ -543,7 +543,7 @@ suite('GitHubCloudAutomationStore', () => {
 			}
 			await pending.complete(true);
 			await timeout(0);
-			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, workspace: target.get().workspace, cancelled: api.metadataCalls[0].token.aborted }, {
+			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, workspace: target.get().workspace, cancelled: api.metadataCalls[0].token.isCancellationRequested }, {
 				blocked: true, workspace: undefined, cancelled: true,
 			});
 		});
@@ -732,7 +732,7 @@ suite('GitHubCloudAutomationStore', () => {
 		api.manageability.set(repository.repo, pending.p);
 		const create = store.create(workspace, createValue);
 		await api.manageabilityStarted.p;
-		credentialLifetime.abort();
+		credentialLifetime.cancel();
 		await pending.complete(true);
 		await create;
 		assert.deepStrictEqual({ mutations: api.mutations, entries: store.entries.get(), leases }, {
@@ -862,7 +862,7 @@ suite('GitHubCloudAutomationStore', () => {
 		};
 		await assert.rejects(store.refresh(), /Some GitHub repositories/);
 		assert.deepStrictEqual({
-			details: api.detailCalls.map(call => ({ id: call.id, cancelled: call.signal.aborted })),
+			details: api.detailCalls.map(call => ({ id: call.id, cancelled: call.cancellationToken.isCancellationRequested })),
 			entries: store.entries.get(),
 		}, {
 			details: Array.from({ length: 5 }, (_, index) => ({ id: `automation-${index}`, cancelled: true })),
@@ -978,8 +978,8 @@ suite('GitHubCloudAutomationStore', () => {
 		const remote = new GitHubChannelClient(connection.channel, new NullLogService());
 		const service = new class extends mock<IWorkbenchGitHubService>() {
 			override readonly onDidChangeDefaultClient = Event.None;
-			override acquireDefaultAccountApiClient(signal: AbortSignal) {
-				return remote.acquireClient({ providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] }, signal);
+			override acquireDefaultAccountApiClient(cancellationToken: CancellationToken) {
+				return remote.acquireClient({ providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] }, cancellationToken);
 			}
 		}();
 		const storage = disposables.add(new InMemoryStorageService());
@@ -1269,7 +1269,7 @@ suite('GitHubCloudAutomationStore', () => {
 			await pending.complete([definition]);
 			await rejected;
 			assert.deepStrictEqual({
-				entries: store.entries.get(), cancelled: api.calls.map(call => call.token.aborted),
+				entries: store.entries.get(), cancelled: api.calls.map(call => call.token.isCancellationRequested),
 				stored: storage.get(storageKey, StorageScope.PROFILE), state: store.catalogueState.get(),
 			}, {
 				entries: [], cancelled: [true, true], stored: undefined,

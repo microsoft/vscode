@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { getZoomFactor, isFullscreen, setFullscreen, setZoomFactor } from '../../../base/browser/browser.js';
-import { $, addDisposableListener, append, EventType, registerWindow } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, AnimationFrameScheduler, append, EventType, registerWindow } from '../../../base/browser/dom.js';
 import { ButtonBar } from '../../../base/browser/ui/button/button.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
@@ -13,7 +13,7 @@ import { DeferredPromise, timeout } from '../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { isMacintosh, isNative } from '../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -21,12 +21,19 @@ import { ConfigurationTarget } from '../../../platform/configuration/common/conf
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { TestLayoutService, TestMenuService, TestWorkspacesService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
 import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
+import { canShowApplicationMenu, SESSIONS_SHOW_APPLICATION_MENU_SETTING } from '../../browser/parts/applicationMenu.js';
+import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { IUpdateService, StateType } from '../../../platform/update/common/update.js';
+import { CustomMenubarControl } from '../../../workbench/browser/parts/titlebar/menubarControl.js';
 // eslint-disable-next-line local/code-import-patterns -- Test the title-bar styling supplied by the Modern UI contribution.
 import '../../../workbench/contrib/modernUI/browser/media/titlebar.css';
 // eslint-disable-next-line local/code-import-patterns -- Use the rendered command center's sizing and border.
@@ -38,6 +45,16 @@ import '../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEd
 import '../../../workbench/contrib/chat/electron-browser/media/tunnelHost.css';
 // eslint-disable-next-line local/code-import-patterns -- Include the production account control's styling.
 import '../../contrib/accountMenu/browser/media/accountTitleBarWidget.css';
+
+// On web, the first menu bar lazily registers a global focus action that is never unregistered. Create one before the
+// suite snapshots the registries so it is not reported as a leak.
+{
+	const disposables = new DisposableStore();
+	const instantiationService = workbenchInstantiationService(undefined, disposables);
+	stubMenubarServices(instantiationService);
+	disposables.add(instantiationService.createInstance(CustomMenubarControl));
+	disposables.dispose();
+}
 
 suite('Sessions - Titlebar Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -781,7 +798,107 @@ suite('Sessions - Titlebar Part', () => {
 			expanded: [false, false, false, false, false, false],
 		});
 	});
+
+	class ApplicationMenuTitlebarPart extends TitlebarPart {
+		protected override get showsApplicationMenu(): boolean { return true; }
+	}
+
+	test('shows the application menu first in the left section of a title bar that shows it, while it is enabled, measures the title bar again as it adds or removes the menu, and logs its experiment trigger unless the user chose whether it shows', async () => {
+		const createTitlebarWithApplicationMenu = (shows: boolean, userValue: boolean | undefined) => {
+			const configuration = new TestConfigurationService({ window: { titleBarStyle: 'custom' }, ...(userValue === undefined ? {} : { [SESSIONS_SHOW_APPLICATION_MENU_SETTING]: userValue }) });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+			stubMenubarServices(instantiationService);
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			instantiationService.stub(ITelemetryService, telemetryService);
+			const part = store.add(instantiationService.createInstance(shows ? ApplicationMenuTitlebarPart : TitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+			part.create($('.part.titlebar'));
+			const overflowScheduler = Reflect.get(part, 'titleBarToolBarOverflowScheduler') as AnimationFrameScheduler;
+			// Whether the title bar measures again what fits in it after the setting changes.
+			const setEnabled = async (enabled: boolean) => {
+				overflowScheduler.cancel();
+				await configuration.setUserConfiguration(SESSIONS_SHOW_APPLICATION_MENU_SETTING, enabled);
+				configuration.onDidChangeConfigurationEmitter.fire({
+					affectsConfiguration: key => key === SESSIONS_SHOW_APPLICATION_MENU_SETTING,
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([SESSIONS_SHOW_APPLICATION_MENU_SETTING]),
+					change: { keys: [SESSIONS_SHOW_APPLICATION_MENU_SETTING], overrides: [] },
+				});
+				return overflowScheduler.isScheduled();
+			};
+			const read = () => {
+				const left = part.element.querySelector<HTMLElement>('.titlebar-left')!;
+				return [...left.children].filter(child => !child.classList.contains('window-controls-container')).map(child => child.classList.contains('menubar')
+					? `menu (${child.classList.contains('compact') ? 'compact' : 'full'}, ${child.querySelector('.menubar-menu-button')?.getAttribute('aria-label')})`
+					: [...child.classList].find(name => name !== 'has-no-actions')!);
+			};
+			return { setEnabled, read, triggers: telemetryService.triggers };
+		};
+
+		const byDefault = createTitlebarWithApplicationMenu(true, undefined);
+		const shown = byDefault.read();
+		const measuredAfterDisabling = await byDefault.setEnabled(false);
+		const disabled = byDefault.read();
+		const measuredAfterEnabling = await byDefault.setEnabled(true);
+		const enabled = byDefault.read();
+		const userDisabled = createTitlebarWithApplicationMenu(true, false);
+		const notShown = createTitlebarWithApplicationMenu(false, undefined);
+
+		const menu = 'menu (compact, Application Menu)';
+		assert.deepStrictEqual({
+			byDefault: { shown, disabled, enabled, measuredAfterDisabling, measuredAfterEnabling, triggers: byDefault.triggers },
+			userDisabled: { shown: userDisabled.read(), triggers: userDisabled.triggers },
+			notShown: { shown: notShown.read(), triggers: notShown.triggers },
+		}, {
+			byDefault: { shown: [menu, 'left-toolbar-container'], disabled: ['left-toolbar-container'], enabled: [menu, 'left-toolbar-container'], measuredAfterDisabling: true, measuredAfterEnabling: true, triggers: [`config.${SESSIONS_SHOW_APPLICATION_MENU_SETTING}`] },
+			userDisabled: { shown: ['left-toolbar-container'], triggers: [] },
+			notShown: { shown: ['left-toolbar-container'], triggers: [] },
+		});
+	});
+
+	test('the application menu can show only with the custom title bar of Windows and Linux, including with the custom menu style the Agents window uses by default', () => {
+		const canShow = Object.fromEntries(['custom', 'native'].map(titleBarStyle => [titleBarStyle, canShowApplicationMenu(new TestConfigurationService({ window: { titleBarStyle, menuStyle: 'custom' } }))]));
+
+		assert.deepStrictEqual(canShow, { custom: isNative && !isMacintosh, native: false });
+	});
+
+	test('the application menu keeps Open Recent current while window.menuBarVisibility hides the menu bar of other windows', async () => {
+		const configuration = new TestConfigurationService({ window: { titleBarStyle: 'custom', menuBarVisibility: 'hidden' } });
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+		stubMenubarServices(instantiationService);
+		const onDidChangeRecentlyOpened = store.add(new Emitter<void>());
+		let requests = 0;
+		instantiationService.stub(IWorkspacesService, new class extends TestWorkspacesService {
+			override onDidChangeRecentlyOpened = onDidChangeRecentlyOpened.event;
+			override getRecentlyOpened() {
+				requests++;
+				return super.getRecentlyOpened();
+			}
+		}());
+		const part = store.add(instantiationService.createInstance(ApplicationMenuTitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+		part.create($('.part.titlebar'));
+
+		const before = requests;
+		onDidChangeRecentlyOpened.fire();
+		const refreshes = requests - before;
+		await timeout(0);
+
+		assert.deepStrictEqual({ shown: !!part.element.querySelector('.titlebar-left > .menubar.compact'), refreshes }, { shown: true, refreshes: 1 });
+	});
 });
+
+function stubMenubarServices(instantiationService: TestInstantiationService): void {
+	// The menu bar expects the main menu to have at least one (possibly empty) group.
+	instantiationService.stub(IMenuService, new class extends TestMenuService {
+		override createMenu(): IMenu {
+			return { onDidChange: Event.None, dispose: () => undefined, getActions: () => [['', []]] };
+		}
+	}());
+	instantiationService.stub(IUpdateService, new class extends mock<IUpdateService>() {
+		override readonly onStateChange = Event.None;
+		override get state() { return { type: StateType.Uninitialized as const }; }
+	}());
+}
 
 function createMeasuredElement(clientWidth: () => number, scrollWidth: () => number): HTMLElement {
 	const element = mainWindow.document.createElement('div');

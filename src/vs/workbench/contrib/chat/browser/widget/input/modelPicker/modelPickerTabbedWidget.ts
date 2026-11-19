@@ -43,10 +43,12 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
+import { ModelRouterDetails } from './modelPickerRouterDetails.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
 import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
+import { compareModelNames } from './modelPickerLineage.js';
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isModelComparisonSupported } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
@@ -64,7 +66,6 @@ const COMPARISON_PICKER_WIDTH = 420;
 const PRICING_EXPANDED_STORAGE_KEY = 'chat.modelPicker.pricingExpanded';
 const OTHER_MODELS_EXPANDED_STORAGE_KEY = 'chat.modelPicker.otherModelsExpanded';
 const MODEL_DETAILS_ACTION_ID = 'chat.modelPicker.details';
-const MODEL_OPEN_FILE_ACTION_ID = 'chat.modelPicker.openFile';
 
 function isComparisonConfigurationValue(value: unknown): value is string | number | boolean | null {
 	return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
@@ -1080,7 +1081,7 @@ export class TabbedModelPicker extends Disposable {
 		// On-device models are found under the name of their tab, which no provider shares.
 		if (destination.id === MODEL_PICKER_ON_DEVICE_DESTINATION) {
 			return [...destination.models]
-				.sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+				.sort((left, right) => compareModelNames(left.metadata.name, right.metadata.name))
 				.map(model => this._createModelItem(model, context, undefined, destination.label));
 		}
 		const routingModels = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION
@@ -1088,7 +1089,7 @@ export class TabbedModelPicker extends Disposable {
 			: [];
 		const modelToProviderGroup = this._modelToProviderGroup(context);
 		return [...sections.pinned, ...sections.suggested, ...sections.other, ...routingModels]
-			.sort((left, right) => this._getRowLabel(left, context).localeCompare(this._getRowLabel(right, context)))
+			.sort((left, right) => compareModelNames(this._getRowLabel(left, context), this._getRowLabel(right, context)))
 			.map(model => this._createModelItem(model, context, undefined, getModelProviderLabel(model, this._languageModelsService, modelToProviderGroup)));
 	}
 
@@ -1340,7 +1341,7 @@ export class TabbedModelPicker extends Disposable {
 			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)
 			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_CONTEXT, useModelConfigurationSchema);
 		const hasDetails = (!isHydraFusionModel(model) || !!ownTierLabel) && !fusionWithoutConfiguration;
-		// A router's Details opens its file, so its description, or its error, is shown on the row.
+		// A router's description, or its error, is shown on the row as well as in its details.
 		const fileDescription = model.metadata.detailsResource ? model.metadata.tooltip : undefined;
 		return {
 			item: {
@@ -1387,14 +1388,6 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _createDetailsAction(model: ILanguageModelChatMetadataAndIdentifier, name: string, summary?: string): IAction {
-		if (model.metadata.detailsResource) {
-			return toAction({
-				id: MODEL_OPEN_FILE_ACTION_ID,
-				label: localize('chat.modelPicker.details', "Details"),
-				tooltip: localize('chat.modelPicker.modelDetails', "{0} Details", name),
-				run: () => this._showModelDetails(model),
-			});
-		}
 		return toAction({
 			id: MODEL_DETAILS_ACTION_ID,
 			label: summary ?? localize('chat.modelPicker.details', "Details"),
@@ -1423,7 +1416,7 @@ export class TabbedModelPicker extends Disposable {
 			this._showLocalModelDetails(familyId, true);
 			return true;
 		}
-		const model = item.toolbarActions?.some(action => action.id === MODEL_DETAILS_ACTION_ID || action.id === MODEL_OPEN_FILE_ACTION_ID)
+		const model = item.toolbarActions?.some(action => action.id === MODEL_DETAILS_ACTION_ID)
 			? context.models.find(candidate => candidate.identifier === itemId)
 			: undefined;
 		if (!model) {
@@ -1454,8 +1447,13 @@ export class TabbedModelPicker extends Disposable {
 			: [];
 		const hydraFusionTiers = this._hydraFusionTiers(context);
 		const ownTiers = hydraFusionTiers.includes(model) ? hydraFusionTiers : [];
+		const routerFile = model.metadata.detailsResource;
 		const cardOptions: IModelCardOptions = {
 			model,
+			// A model router's details also list its routes, say whether it switches between them, and link to its file.
+			renderAdditionalSections: routerFile
+				? card => this.instantiationService.createInstance(ModelRouterDetails, card, { routes: model.metadata.modelRouterRoutes ?? [], switching: model.metadata.modelRouterSwitching, definitionFile: URI.revive(routerFile), onWillOpenDefinitionFile: () => this.hide() })
+				: undefined,
 			name: ownTiers.length ? this._getRowLabel(model, context) : undefined,
 			// Both tiers share HydraFusion's description.
 			description: ownTiers[0]?.metadata.tooltip,
@@ -1539,11 +1537,6 @@ export class TabbedModelPicker extends Disposable {
 	private _showModelDetails(model: ILanguageModelChatMetadataAndIdentifier, focusConfiguration = false, returnFocusToRow = false): void {
 		const context = this._context;
 		if (!context) {
-			return;
-		}
-		if (model.metadata.detailsResource) {
-			this.hide();
-			void this._editorService.openEditor({ resource: URI.revive(model.metadata.detailsResource) });
 			return;
 		}
 		this._selectionVersion++;

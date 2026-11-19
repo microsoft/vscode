@@ -95,6 +95,7 @@ import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, Customizat
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { isAgentHostTarget, isRemoteAgentHostTarget, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/chatSessionsService.js';
+import { IAgentCustomizationInstallationAnswers, IAgentCustomizationInstallationConfigurationRequest } from '../../../../../platform/agentHost/common/agent.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -128,6 +129,8 @@ import { IMcpService, IMcpWorkbenchService, isMcpOAuthClientSecretStorageKey, ty
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
+import { ICustomizationInstallationConfigurationService } from '../agentSessions/agentHost/customizationInstallationConfigurationService.js';
+import { McpServerInstallForm } from '../agentSessions/agentHost/mcpServerInstallForm.js';
 import { type CustomizationSourceFolderReadiness, ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
@@ -404,6 +407,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private sectionsListContainer: HTMLElement | undefined;
 	private sectionsList!: WorkbenchList<ISectionItem>;
 	private contentContainer!: HTMLElement;
+	private contentInner!: HTMLElement;
 	private listWidget!: AICustomizationListWidget;
 	private listWidgetSectionLoad: Promise<void> = Promise.resolve();
 	private mcpListWidget: McpListWidget | undefined;
@@ -522,6 +526,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private pluginDetailInput: IAgentPluginItem | undefined;
 	private pluginDetailOrigin: CustomizationDetailBaseOrigin | undefined;
 
+	// The form that configures an MCP server installation, shown over the current page
+	private readonly mcpInstallPage = this._register(new MutableDisposable<IDisposable & { readonly form: McpServerInstallForm; readonly returnFocus: Element | null }>());
+	private readonly mcpInstallPresenter = this._register(new MutableDisposable());
+
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
 	private readonly sectionBadges = new Map<AICustomizationManagementSection, string>();
@@ -613,6 +621,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IAgentHostActiveClientService private readonly agentHostActiveClientService: IAgentHostActiveClientService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
+		@ICustomizationInstallationConfigurationService private readonly installationConfigurationService: ICustomizationInstallationConfigurationService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -1255,7 +1264,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createContent(): void {
-		const contentInner = DOM.append(this.contentContainer, $('.content-inner'));
+		const contentInner = this.contentInner = DOM.append(this.contentContainer, $('.content-inner'));
 
 		// Welcome page (shown when no section is selected)
 		this.createWelcomePage(contentInner);
@@ -3888,6 +3897,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private updateContentVisibility(): void {
 		this.contentNavigationGeneration++;
+		// Navigating cancels an installation that is being configured.
+		this.mcpInstallPage.clear();
 		const isEditorMode = this.viewMode === 'editor';
 		const isMigrationMode = this.viewMode === 'migration';
 		const isMarketplaceDetailMode = this.viewMode === 'marketplaceDetail';
@@ -4259,6 +4270,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
+		if (visible) {
+			// Installations started here ask for their configuration here.
+			this.mcpInstallPresenter.value = this.installationConfigurationService.registerPresenter({
+				collect: (request, token) => this.collectMcpServerInstallConfiguration(request, token),
+			});
+		} else {
+			this.mcpInstallPresenter.clear();
+			this.mcpInstallPage.clear();
+		}
 		this.welcomePage?.setVisible(visible && this.viewMode === 'list' && this.selectedSection === undefined);
 		for (const [section, widget] of this.contributedSectionWidgets) {
 			widget.setVisible?.(visible && this.viewMode === 'list' && this.selectedSection === section && this.isContributedSectionEnabled(section));
@@ -4295,6 +4315,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	override focus(): void {
 		super.focus();
+		const installForm = this.mcpInstallPage.value?.form;
+		if (installForm) {
+			installForm.focus();
+			return;
+		}
 		if (this.focusDetailPage()) {
 			return;
 		}
@@ -5846,6 +5871,61 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	//#endregion
 
+	//#region MCP Server Install Form
+
+	/**
+	 * Shows the form that configures an MCP server installation over the current page, which is
+	 * back as it was once the form closes. Resolves with the submitted answers, or with `undefined`
+	 * when the form is cancelled or the user navigates elsewhere.
+	 */
+	private collectMcpServerInstallConfiguration(request: IAgentCustomizationInstallationConfigurationRequest, token: CancellationToken): Promise<IAgentCustomizationInstallationAnswers | undefined> {
+		// A newer installation replaces one that is still being configured.
+		this.mcpInstallPage.clear();
+		if (token.isCancellationRequested) {
+			return Promise.resolve(undefined);
+		}
+		return new Promise(resolve => {
+			const returnFocus = DOM.getActiveElement();
+			const store = new DisposableStore();
+			const content = this.contentInner;
+			const container = DOM.append(content, $('.mcp-install-container'));
+			const form = store.add(this.instantiationService.createInstance(McpServerInstallForm, container, request));
+			// Hides the current page without changing it.
+			content.classList.add('configuring-installation');
+			store.add(toDisposable(() => {
+				container.remove();
+				content.classList.remove('configuring-installation');
+				// Has no effect once the form was submitted.
+				resolve(undefined);
+			}));
+			store.add(form.onDidSubmit(answers => {
+				resolve(answers);
+				this.closeMcpServerInstallPage();
+			}));
+			store.add(form.onDidCancel(() => this.closeMcpServerInstallPage()));
+			store.add(token.onCancellationRequested(() => this.closeMcpServerInstallPage()));
+			this.mcpInstallPage.value = { form, returnFocus, dispose: () => store.dispose() };
+			form.focus();
+		});
+	}
+
+	/** Closes the install form and returns focus to where the installation was started. */
+	private closeMcpServerInstallPage(): void {
+		const returnFocus = this.mcpInstallPage.value?.returnFocus;
+		this.mcpInstallPage.clear();
+		// The page below may have missed a layout while it was hidden.
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		if (DOM.isHTMLElement(returnFocus) && returnFocus.offsetParent) {
+			returnFocus.focus();
+		} else {
+			this.focus();
+		}
+	}
+
+	//#endregion
+
 	//#region Embedded MCP Server Detail
 
 	private createEmbeddedMcpDetail(): void {
@@ -6216,7 +6296,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateContentVisibility();
 
 		this.pluginDetailDisposables.clear();
-		this.embeddedPluginDetail.setInput(item);
+		this.embeddedPluginDetail.setInput(item, this.pluginListWidget);
 		this.pluginDetailScrollable?.scanDomNode();
 
 		if (this.dimension) {

@@ -94,7 +94,7 @@ In high contrast, the connected boundary uses `focusBorder` for the active edito
 windows. Editor windows require `workbench.experimental.modernUI`; the Agents
 window already uses its own modern design. The treatment applies to quick input
 (including the Command Palette), custom menus and pickers, hovers, custom dialogs,
-the notification center, and settled notification toasts. It also applies in
+spotlight callouts, the notification center, and settled notification toasts. It also applies in
 auxiliary editor windows. Native OS menus/dialogs, rich quick-input overlays,
 editor backgrounds, panels, session cards, chat inputs, and web windows are unchanged.
 
