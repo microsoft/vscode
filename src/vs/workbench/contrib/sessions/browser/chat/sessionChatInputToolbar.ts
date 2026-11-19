@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { CopyFeedback } from '../../../../../base/browser/ui/button/copyFeedback.js';
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
 import { groupBy } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -77,8 +77,6 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 
 const copiedLabel = localize('sessionChatPills.copied', "Copied");
-const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");
-const copyFeedbackDuration = 1200;
 
 /** Fake artifacts for the pill debug overlay. */
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData, copy: (value: string) => void): readonly IChatPillSection[] {
@@ -365,7 +363,10 @@ export const SESSION_CHAT_INPUT_TOOLBAR_HEIGHT = CHAT_INPUT_PILLS_ROW_HEIGHT;
 
 class CopyFeedbackAction extends Action {
 
-	private readonly _reset = this._register(new MutableDisposable());
+	private readonly _feedback = this._register(new CopyFeedback(copied => {
+		this.label = copied ? copiedLabel : this._copyLabel;
+		this.class = ThemeIcon.asClassName(copied ? Codicon.check : Codicon.copy);
+	}));
 
 	constructor(id: string, private _copyLabel: string, private _copy: () => Promise<void>) {
 		super(id, _copyLabel, ThemeIcon.asClassName(Codicon.copy));
@@ -374,20 +375,14 @@ class CopyFeedbackAction extends Action {
 	update(copyLabel: string, copy: () => Promise<void>): void {
 		this._copyLabel = copyLabel;
 		this._copy = copy;
-		if (this.label !== copiedLabel) {
+		if (!this._feedback.copied) {
 			this.label = copyLabel;
 		}
 	}
 
 	override async run(): Promise<void> {
 		await this._copy();
-		this.label = copiedLabel;
-		this.class = ThemeIcon.asClassName(Codicon.check);
-		status(copiedToClipboardStatus);
-		this._reset.value = disposableTimeout(() => {
-			this.label = this._copyLabel;
-			this.class = ThemeIcon.asClassName(Codicon.copy);
-		}, copyFeedbackDuration);
+		this._feedback.show();
 	}
 }
 
