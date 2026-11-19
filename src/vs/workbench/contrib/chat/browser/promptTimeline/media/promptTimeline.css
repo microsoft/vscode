@@ -48,9 +48,10 @@
  * already leave room for it; elsewhere the rows' default padding would put the dots against the
  * message text, so widen it while the gutter rail is mounted (`.prompt-timeline-with-gutter`). The
  * second selector mirrors chat.css's `.interactive-session:not(.chat-widget > .interactive-session)`
- * row padding so it outranks it. */
-.prompt-timeline-host.prompt-timeline-with-gutter.interactive-session .interactive-item-container:not(.chat-sticky-progress),
-.prompt-timeline-host.prompt-timeline-with-gutter.interactive-session:not(.chat-widget > .interactive-session) .interactive-item-container:not(.chat-sticky-progress) {
+ * row padding so it outranks it. A request being edited inline keeps its own (zero) padding: its
+ * composer is laid out from the full widget width, so narrowing the row would clip the editor. */
+.prompt-timeline-host.prompt-timeline-with-gutter.interactive-session .interactive-item-container:not(.chat-sticky-progress, .editing),
+.prompt-timeline-host.prompt-timeline-with-gutter.interactive-session:not(.chat-widget > .interactive-session) .interactive-item-container:not(.chat-sticky-progress, .editing) {
 	padding-left: var(--vscode-spacing-size240);
 }
 

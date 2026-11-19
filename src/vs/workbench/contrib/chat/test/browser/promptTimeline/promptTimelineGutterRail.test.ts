@@ -307,6 +307,30 @@ suite('PromptTimelineGutterRail', () => {
 			transcriptChromeReceivesPointer: false,
 		});
 	});
+
+	test('widens the transcript gutter for the rail, except for a request being edited inline', () => {
+		const session = document.createElement('div');
+		session.classList.add('interactive-session', 'prompt-timeline-host', 'prompt-timeline-with-gutter');
+		session.style.setProperty('--vscode-spacing-size240', '24px');
+		document.body.appendChild(session);
+		store.add(toDisposable(() => session.remove()));
+		const row = (...classes: string[]) => {
+			const element = document.createElement('div');
+			element.classList.add('interactive-item-container', ...classes);
+			session.appendChild(element);
+			return getWindow(element).getComputedStyle(element).paddingLeft;
+		};
+
+		assert.deepStrictEqual({
+			response: row('interactive-response'),
+			request: row('interactive-request'),
+			editing: row('interactive-request', 'editing'),
+		}, {
+			response: '24px',
+			request: '24px',
+			editing: '0px',
+		});
+	});
 });
 
 suite('restDotCount', () => {
