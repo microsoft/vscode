@@ -26,7 +26,7 @@ import { getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '.
 import { getConnectionTelemetryError } from '../../common/connectionTelemetry.js';
 import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
-import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { AdapterLogger, type ILogger, ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
@@ -1045,7 +1045,7 @@ suite('Mission Control WPS', () => {
 	suite('host publish queue and negotiated batching', () => {
 		const response = (id: number, result: string | null = null) => ({ jsonrpc: '2.0' as const, id, result });
 
-		async function fixture(mirror?: MissionControlSessionMirror) {
+		async function fixture(mirror?: MissionControlSessionMirror, reconnectLogger?: ILogger) {
 			const { key, signed } = signingFixture();
 			const socket = new FakeWpsSocket(true, true);
 			const errors: string[] = [];
@@ -1056,7 +1056,7 @@ suite('Mission Control WPS', () => {
 				{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control`, ...(mirror ? { ingest_ack: `${prefix}.ingest-ack` } : {}) } },
 				'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
 				() => socket, error => errors.push(error.message),
-				undefined, undefined, mirror, undefined, event => diagnostics.push(event),
+				undefined, undefined, mirror, undefined, event => diagnostics.push(event), reconnectLogger,
 			));
 			store.add(server.onConnection(lane => {
 				lanes.push(lane);
@@ -1082,6 +1082,89 @@ suite('Mission Control WPS', () => {
 			};
 			return { server, socket, errors, lanes, received, diagnostics, deliver, open, advertise, ack, drain };
 		}
+
+		async function reconnectFixture(level = LogLevel.Trace) {
+			const lines: string[] = [];
+			const logger = store.add(new AdapterLogger({ log: (_, args) => lines.push(args.join(' ')) }, level));
+			const f = await fixture(undefined, logger);
+			f.open();
+			const reconnect = (clientId = 'client-a') => {
+				f.deliver(`${prefix}.client.client-a.to-host`, {
+					kind: 'message', data: { jsonrpc: '2.0', method: 'reconnect', id: 9341, params: { clientId, subscriptions: ['file:///private/session'] } },
+				});
+				return f.lanes[f.lanes.length - 1];
+			};
+			return { ...f, lines, logger, reconnect };
+		}
+
+		test('matches reconnect traces across lane replacement and waits for every response fragment', async () => {
+			const f = await reconnectFixture();
+			f.reconnect().send(response(9341, 'x'.repeat(DEFAULT_MAX_CHUNK_BYTES)));
+			const predecessor = `[AgentHost] Mission Control reconnect generation=${f.socket.publishes[0].data.generation} attempt=1`;
+			const lastChunk = f.socket.publishAckIds.length - 1;
+			assert.ok(lastChunk > 0);
+
+			// Reuse the RPC ID before the predecessor's last chunk is acknowledged.
+			const successor = f.reconnect();
+			successor.send({ jsonrpc: '2.0', id: 9341, method: 'ping' });
+			successor.send({ jsonrpc: '2.0', id: 9341, error: { code: -32603, message: 'private error text' } });
+			for (let i = 1; i <= lastChunk; i++) {
+				f.ack(i);
+			}
+			const beforeFinalChunk = [...f.lines];
+			f.ack(0);
+			const next = `[AgentHost] Mission Control reconnect generation=${f.socket.publishes[lastChunk + 1].data.generation} attempt=1`;
+			f.ack(lastChunk + 1);
+			const beforeResponseAck = [...f.lines];
+			f.ack(lastChunk + 2, false, 'Forbidden');
+			assert.notStrictEqual(predecessor, next);
+			const pending = [`${predecessor} accepted`, `${predecessor} response=result publishing`, `${next} accepted`, `${next} response=error publishing`];
+			const afterFinalChunk = [...pending, `${predecessor} response=result relayAccepted`];
+			assert.deepStrictEqual({ beforeFinalChunk, beforeResponseAck, afterRejection: f.lines }, {
+				beforeFinalChunk: pending, beforeResponseAck: afterFinalChunk, afterRejection: afterFinalChunk,
+			});
+		});
+
+		test('separates same-generation reconnect attempts and traces an error only when its batch is acknowledged', async () => {
+			const f = await reconnectFixture();
+			const lane = f.reconnect();
+			lane.send({ jsonrpc: '2.0', id: 9341, error: { code: -32603, message: 'private error' } });
+			f.advertise();
+			const retry = f.reconnect();
+			retry.send(response(77));
+			retry.send({ jsonrpc: '2.0', id: 9341, error: { code: -32603, message: 'another private error' } });
+			const generation = f.socket.publishes[0].data.generation;
+			const first = `[AgentHost] Mission Control reconnect generation=${generation} attempt=1`;
+			const second = `[AgentHost] Mission Control reconnect generation=${generation} attempt=2`;
+			f.ack(0);
+			const beforeBatchAck = [...f.lines];
+			f.ack(1, false, 'Duplicate');
+			f.ack(1);
+			const expected = [`${first} accepted`, `${first} response=error publishing`, `${second} accepted`, `${second} response=error publishing`, `${first} response=error relayAccepted`];
+			assert.deepStrictEqual({ framing: f.socket.publishes.map(frame => frame.data.kind), beforeBatchAck, after: f.lines }, {
+				framing: ['message', 'batch'], beforeBatchAck: expected, after: [...expected, `${second} response=error relayAccepted`],
+			});
+		});
+
+		test('does not start a reconnect trace below Trace or for a rejected lane identity', async () => {
+			const f = await reconnectFixture(LogLevel.Debug);
+			const lane = f.reconnect();
+			f.logger.setLevel(LogLevel.Trace);
+			lane.send(response(9341));
+			f.reconnect('not-the-lane');
+			f.drain();
+			assert.deepStrictEqual({ lines: f.lines, framing: f.socket.publishes.map(frame => frame.data.kind) }, { lines: [], framing: ['message', 'closed'] });
+		});
+
+		test('does not attribute responses when the client reuses an outstanding reconnect ID', async () => {
+			const f = await reconnectFixture();
+			const lane = f.reconnect();
+			f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', id: 9341, method: 'ping' } });
+			lane.send(response(9341));
+			lane.send(response(9341));
+			f.drain();
+			assert.deepStrictEqual(f.lines, [`[AgentHost] Mission Control reconnect generation=${f.socket.publishes[0].data.generation} attempt=1 accepted`]);
+		});
 
 		for (const batching of [false, true]) {
 			test(`pipelines a bounded chunk window without overlapping payloads, batching=${batching}`, async () => {

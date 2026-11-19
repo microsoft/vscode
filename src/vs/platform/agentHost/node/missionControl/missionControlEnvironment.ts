@@ -12,6 +12,7 @@ import { combinedDisposable, Disposable, DisposableStore, MutableDisposable, toD
 import type { Event } from '../../../../base/common/event.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { Promises as FSPromises } from '../../../../base/node/pfs.js';
+import type { ILogger } from '../../../log/common/log.js';
 import { CloudSandboxRequestError } from '../../common/cloudSandboxAgentHost.js';
 import { emitConnectionDiagnostic, getConnectionDiagnosticError, traceConnectionOperation, type ConnectionDiagnosticObserver, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import { parseGitHubRequestId, parseRetryAfter } from '../../../github/common/client/headers.js';
@@ -64,6 +65,7 @@ export interface IMissionControlEnvironmentHost {
 	readonly onError: (error: unknown) => void;
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 	readonly onPublishDiagnostic?: MissionControlPublishDiagnosticObserver;
+	readonly reconnectLogger?: ILogger;
 	readonly socketFactory?: (url: string, protocol: string) => IMissionControlSocket;
 	readonly getSessionCount?: () => Promise<number>;
 	readonly getRemoteControlPolicy?: () => Promise<Record<string, unknown> | undefined>;
@@ -799,6 +801,7 @@ export class MissionControlEnvironment extends Disposable {
 					this._host.onPublishDiagnostic?.(event);
 				}
 			},
+			this._host.reconnectLogger,
 		);
 		this._server.value = server;
 		const connectionWatch = StopWatch.create(false);

@@ -10,6 +10,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { type ILogger, LogLevel } from '../../../log/common/log.js';
 import { AgentHostClientConnectionKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { emitConnectionDiagnostic, getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../../common/state/sessionProtocol.js';
@@ -159,6 +160,7 @@ const maxInFlightPublishBytes = 4 * 1024 * 1024;
 const publishAckTimeoutMs = 30_000;
 const maxQueuedResourceRequests = 1024;
 const maxQueuedResourceRequestBytes = 16 * 1024 * 1024;
+const maxEarlyMessages = 32;
 
 function newConnectionGeneration(): number {
 	return randomInt(1, 2 ** 48);
@@ -191,6 +193,8 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	private _active = false;
 	private _hasHandshake = false;
 	private _handshakeId: number | string | undefined;
+	private _reconnectAttempts = 0;
+	private _pendingReconnectTraces?: Map<number | string, string | undefined>;
 	private _acceptsBatch = false;
 	private readonly _earlyMessages: ProtocolMessage[] = [];
 	private readonly _resourceRequests = new Set<number | string>();
@@ -205,7 +209,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	get acceptsBatch(): boolean { return !this._closed && this._acceptsBatch; }
 
-	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown, generation: number, onDidPublish?: () => void) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void, private readonly _didClose?: (lane: MissionControlLane) => void, createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger) {
+	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown, generation: number, onDidPublish?: () => void) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void, private readonly _didClose?: (lane: MissionControlLane) => void, createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger, private readonly _reconnectLogger?: ILogger) {
 		super();
 		this._ahpLogger = createAhpLogger ? this._register(createAhpLogger(clientId, this.generation)) : undefined;
 		if (_authentication) {
@@ -244,7 +248,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			return;
 		}
 		if (!this._active) {
-			if (this._earlyMessages.length >= 32) {
+			if (this._earlyMessages.length >= maxEarlyMessages) {
 				this.dispose();
 			} else {
 				this._earlyMessages.push(message as ProtocolMessage);
@@ -264,7 +268,29 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 		}
 	}
 
+	private _traceRequest(request: JsonRpcRequest): void {
+		if (this._pendingReconnectTraces?.has(request.id)) {
+			// Don't attribute a response to an ID reused while a request is outstanding on this generation.
+			this._pendingReconnectTraces.set(request.id, undefined);
+			return;
+		}
+		if (request.method !== 'reconnect' || request.jsonrpc !== '2.0' || (typeof request.id !== 'number' && typeof request.id !== 'string')
+			|| this._reconnectLogger?.getLevel() !== LogLevel.Trace || this._resourceRequests.has(request.id)) {
+			return;
+		}
+		// Several requests can be buffered before the lane is activated.
+		const pending = this._pendingReconnectTraces ??= new Map();
+		if (pending.size < maxEarlyMessages) {
+			const trace = `[AgentHost] Mission Control reconnect generation=${this.generation} attempt=${++this._reconnectAttempts}`;
+			pending.set(request.id, trace);
+			this._reconnectLogger.trace(`${trace} accepted`);
+		}
+	}
+
 	private _dispatch(message: ProtocolMessage): void {
+		if (hasKey(message, { id: true, method: true })) {
+			this._traceRequest(message);
+		}
 		if (hasKey(message, { id: true, method: true })
 			&& (message.method === 'resourceRead' || message.method === 'resourceResolve' || message.method === 'resourceList')) {
 			if (this._resourceRequests.has(message.id)) {
@@ -286,6 +312,22 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			this._inFlightResourceRequests++;
 		}
 		this._onMessage.fire(message);
+	}
+
+	private _traceReconnectPublication(message: JsonRpcResponse | JsonRpcParseErrorResponse): (() => void) | undefined {
+		const logger = this._reconnectLogger;
+		const pending = this._pendingReconnectTraces;
+		if (!logger || !pending || message.id === null) {
+			return undefined;
+		}
+		const reconnect = pending.get(message.id);
+		if (!reconnect) {
+			return undefined;
+		}
+		pending.delete(message.id);
+		const trace = `${reconnect} response=${hasKey(message, { error: true }) ? 'error' : 'result'}`;
+		logger.trace(`${trace} publishing`);
+		return () => logger.trace(`${trace} relayAccepted`);
 	}
 
 	private _resourceResponsePublished(): void {
@@ -330,8 +372,9 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 				this._resourceRequests.delete(resourceRequestId);
 			}
 			// Admission credit follows relay acceptance, not completion of the filesystem operation.
-			this._publish(`${this._prefix}.${response ? 'to-client' : 'broadcast'}`, message, this.generation,
-				resourceRequestId !== undefined ? () => this._resourceResponsePublished() : undefined);
+			const onDidPublish = resourceRequestId !== undefined ? () => this._resourceResponsePublished()
+				: !hasKey(message, { method: true }) ? this._traceReconnectPublication(message) : undefined;
+			this._publish(`${this._prefix}.${response ? 'to-client' : 'broadcast'}`, message, this.generation, onDidPublish);
 		} catch (error) {
 			this.dispose();
 			throw error;
@@ -342,6 +385,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 		if (!this._closed) {
 			this._closed = true;
 			this._earlyMessages.length = 0;
+			this._pendingReconnectTraces?.clear();
 			this._resourceRequests.clear();
 			this._inFlightResourceRequests = 0;
 			this._queuedResourceRequests.length = 0;
@@ -501,6 +545,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		private readonly _mirror?: MissionControlSessionMirror,
 		private readonly _createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger,
 		private readonly _onDiagnostic?: MissionControlPublishDiagnosticObserver,
+		private readonly _reconnectLogger?: ILogger,
 	) {
 		super();
 		parseGroupName(_bootstrap.groups.control, { expected: { uid: _owner, eid: _environment } });
@@ -1303,7 +1348,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 					return;
 				}
 			}
-		}, this._createAhpLogger);
+		}, this._createAhpLogger, this._reconnectLogger);
 		this._lanes.set(clientId, lane);
 		return lane;
 	}

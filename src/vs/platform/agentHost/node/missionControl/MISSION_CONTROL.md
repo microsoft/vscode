@@ -209,6 +209,8 @@ Host registration, relay readiness/recovery, unexpected relay losses and failure
 
 Trace-level publish summaries record serialized bytes, frame count, queue wait, acknowledgement latency, total publication duration, and peak in-flight frames. They do not include payload contents, resource paths, groups, or credentials; publication completion means WPS acceptance, not client receipt or durable ingest.
 
+To diagnose an AHP reconnect, enable Trace on the host before reproducing it and look for `Mission Control reconnect` in the **Agent Host** log. Match lines by host-generated `generation` and `attempt`, not by timestamp: a replacement lane has its own generation. `accepted` means the lane dispatched the request to the host handler, not that the handshake succeeded. `publishing` means the host passed the matching `result` or `error` response to the publisher. Only `relayAccepted` confirms that the relay acknowledged the publication containing that response (all fragments for a chunked response). It does not confirm client receipt. A missing stage means the host did not record that boundary, not that it knows where a message was lost. These markers are local logs, not telemetry; they do not require AHP wire logging.
+
 Relay authorization rejections log the client ID, admission or recheck phase, and whether identity is currently authenticated. Reasons distinguish an unauthenticated identity, invalidated authorization despite a currently authenticated identity, and a closed connection. Standard request-handler failures include the JSON-RPC request ID for correlation with AHP logs. These diagnostics do not include credentials or request contents.
 
 Usage telemetry uses the existing telemetry service and consent:

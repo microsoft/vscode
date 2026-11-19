@@ -343,6 +343,7 @@ export class MissionControlHost extends Disposable {
 				this._logService.error(`[AgentHost] Mission Control failure: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`);
 			},
 			onDiagnostic: event => this._reportOperation(event),
+			reconnectLogger: this._logService,
 			onPublishDiagnostic: event => {
 				this._publishTelemetry.record(event);
 				if (event.phase === 'relayPublish' && event.outcome === 'succeeded') {
