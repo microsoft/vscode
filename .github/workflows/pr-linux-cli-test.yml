@@ -64,6 +64,14 @@ jobs:
           rustc --version
           cargo --version
 
+      # github.com/microsoft/dev-tunnels, the source of the `tunnels` crate (cli/Cargo.toml), returns 404 since
+      # Nov 19, so fetch its pinned rev from a fork of the same repository network (see cli/cli-compile.yml)
+      - name: Fetch dev-tunnels from a fork
+        run: |
+          set -e
+          git config --global url."https://github.com/connor4312/dev-tunnels".insteadOf "https://github.com/microsoft/dev-tunnels"
+          echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> "$GITHUB_ENV"
+
       - name: Check formatting
         if: ${{ env.CHECK_FORMATTING == 'true' }}
         run: cargo fmt --check
