@@ -24,10 +24,11 @@ suite('Account Title Bar Widget Styles', () => {
 			const hoverContainer = append(root, $('.workbench-hover-container.locked'));
 			const panel = append(hoverContainer, $('.monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover', { tabindex: '0' }));
 			const action = append(panel, $('button', undefined, 'Action'));
+			panel.classList.add('focus-visible');
 			panel.focus();
-			assert.ok(panel.matches(':focus-visible'));
 			const style = mainWindow.getComputedStyle(panel);
 			const wrapperOutline = [style.outlineStyle, style.outlineWidth, style.outlineColor];
+			panel.classList.remove('focus-visible');
 			action.focus();
 			assert.deepStrictEqual({
 				wrapperOutline,

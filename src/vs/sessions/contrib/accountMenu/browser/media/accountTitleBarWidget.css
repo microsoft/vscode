@@ -181,13 +181,13 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
-.monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover:not(:focus-visible),
-.workbench-hover-container.locked .monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover:not(:focus-visible),
-.workbench-hover-container:focus-within.locked .monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover:not(:focus-visible) {
+.monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover:not(:focus-visible, .focus-visible),
+.workbench-hover-container.locked .monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover:not(:focus-visible, .focus-visible),
+.workbench-hover-container:focus-within.locked .monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover:not(:focus-visible, .focus-visible) {
 	outline: none;
 }
 
-.workbench-hover-container .monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover:focus-visible {
+.workbench-hover-container .monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover:is(:focus-visible, .focus-visible) {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }

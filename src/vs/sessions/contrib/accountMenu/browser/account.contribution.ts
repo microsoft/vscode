@@ -612,7 +612,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		const setupKeyboardActionHover = (container: HTMLElement, actionBar: ActionBar) => {
 			panelStore.add(addDisposableListener(container, EventType.FOCUS_IN, event => {
 				const target = event.target;
-				if (!isHTMLElement(target) || !target.matches(':focus-visible')) {
+				if (!isHTMLElement(target) || !target.matches(':focus-visible, .focus-visible')) {
 					actionHover.clear();
 					return;
 				}

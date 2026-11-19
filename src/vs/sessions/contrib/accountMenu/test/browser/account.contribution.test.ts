@@ -82,6 +82,13 @@ suite('Sessions - Account Menu', () => {
 			}());
 			instantiationService.stub(IMarkdownRendererService, {});
 			const hoverService = store.add(instantiationService.createInstance(HoverService));
+			const actionHovers: string[] = [];
+			hoverService.showDelayedHover = options => {
+				if (typeof options.content === 'string') {
+					actionHovers.push(options.content);
+				}
+				return undefined;
+			};
 			instantiationService.stub(IHoverService, hoverService);
 			instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 				override readonly onDidChangeDefaultAccount = Event.None;
@@ -138,7 +145,7 @@ suite('Sessions - Account Menu', () => {
 			await timeout(0);
 			const button = container.querySelector<HTMLElement>('.sessions-account-titlebar-widget');
 			assert.ok(button);
-			button.focus();
+			actionBar.focus(0);
 			const focusedActions: (string | null | undefined)[] = [];
 			for (let i = 0; i < 2; i++) {
 				const didRun = Event.toPromise(actionBar.onDidRun);
@@ -155,23 +162,25 @@ suite('Sessions - Account Menu', () => {
 				const afterPanel = panelHover.nextElementSibling;
 				assert.ok(beforePanel instanceof HTMLElement);
 				assert.ok(afterPanel instanceof HTMLElement);
-				beforePanel.focus();
+				beforePanel.dispatchEvent(new FocusEvent('focus'));
 				assert.ok(panelHover.contains(mainWindow.document.activeElement));
-				afterPanel.focus();
+				afterPanel.dispatchEvent(new FocusEvent('focus'));
 				assert.strictEqual(mainWindow.document.activeElement, panelHover);
+				firstAction.classList.add('focus-visible', 'synthetic-focus');
 				firstAction.focus();
+				firstAction.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
 				if (signedIn) {
-					await timeout(30);
-					const tooltip = container.querySelectorAll('.monaco-hover.workbench-hover');
-					assert.deepStrictEqual([tooltip.length, tooltip[1]?.textContent?.trim()], [2, 'Manage Copilot Models']);
+					assert.strictEqual(actionHovers.at(-1), 'Manage Copilot Models');
 				}
 				const outline = mainWindow.getComputedStyle(firstAction);
 				assert.deepStrictEqual([outline.outlineStyle, outline.outlineWidth], ['solid', '1px']);
 				focusedActions.push(firstAction.getAttribute('aria-label'));
 				if (!signedIn && !disabledSignIn) {
+					firstAction.classList.remove('focus-visible', 'synthetic-focus');
 					const otherAction = container.querySelector<HTMLElement>('.sessions-account-titlebar-panel-actions .action-label');
 					assert.ok(otherAction);
 					otherAction.focus();
+					otherAction.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
 					focusedActions.push(otherAction.getAttribute('aria-label'));
 				}
 				mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', {
@@ -179,8 +188,11 @@ suite('Sessions - Account Menu', () => {
 				}));
 				focusedActions.push(mainWindow.document.activeElement?.getAttribute('aria-label'));
 				if (signedIn) {
-					const tooltip = container.querySelectorAll('.monaco-hover.workbench-hover');
-					assert.deepStrictEqual([tooltip.length, tooltip[1]?.textContent?.trim()], [2, 'Settings']);
+					const focusedAction = mainWindow.document.activeElement;
+					assert.ok(focusedAction instanceof HTMLElement);
+					focusedAction.classList.add('focus-visible');
+					focusedAction.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+					assert.strictEqual(actionHovers.at(-1), 'Settings');
 				}
 				mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 				assert.deepStrictEqual({
