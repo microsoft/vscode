@@ -2379,14 +2379,16 @@ export class AgentService extends Disposable implements IAgentService {
 			startPrompt: (session, chat, prompt, delegation, credentials) => this._startSessionPrompt(session, chat, prompt, delegation, credentials),
 			getChatHarnesses: session => this._getServerToolChatHarnesses(session),
 			canCreateSessions: provider => this._canCreateServerToolSessions(provider),
-			createChat: (session, chat, options, credentials) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || options?.provider !== undefined)
+			createChat: (session, chat, options, credentials) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || options?.provider !== undefined || options?.fork !== undefined)
 				? {
 					...(options.provider !== undefined ? { provider: options.provider } : {}),
 					...(options.title !== undefined ? { title: options.title } : {}),
 					...(options.model !== undefined ? { model: options.model } : {}),
 					...(options.workingDirectories !== undefined ? { workingDirectories: options.workingDirectories } : {}),
+					...(options.fork !== undefined ? { fork: { source: options.fork.source, turnId: options.fork.turnId } } : {}),
 				}
 				: undefined, credentials),
+			supportsChatForks: session => this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleChats?.fork === true,
 			prepareChatWorkingDirectory: (session, directory, options) => this.prepareChatWorkingDirectory(session, directory, options),
 			renameChat: (session, chat, title) => this._renameChatFromTool(session, chat, title),
 			reportToolError: (toolName, error) => this._logService.error(`[AgentService] ${toolName} failed after the tool returned: ${toErrorMessage(error)}`),

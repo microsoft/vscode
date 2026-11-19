@@ -111,6 +111,7 @@ suite('SessionServerTools', () => {
 			restoreChat: overrides?.restoreChat ?? (async () => { }),
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation, credentials) => { overrides?.onPrompt?.(session, chat, prompt, delegation, credentials); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options, credentials) => { overrides?.onCreateChat?.(session, chat, options, credentials); }),
+			supportsChatForks: overrides?.supportsChatForks ?? (() => true),
 			prepareChatWorkingDirectory: overrides?.prepareChatWorkingDirectory ?? (async (_session, directory) => prepared(directory)),
 			renameChat: overrides?.renameChat ?? (async (session, chat, title) => { overrides?.onRenameChat?.(session, chat, title); return { title }; }),
 			reportToolError: overrides?.reportToolError ?? (() => { }),
@@ -147,7 +148,7 @@ suite('SessionServerTools', () => {
 	}
 
 	test('definitions and confirmation', () => {
-		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.ListModels, SessionServerToolName.RenameChat, SessionServerToolName.ArchiveChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
+		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.ListModels, SessionServerToolName.RenameChat, SessionServerToolName.ArchiveChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession, SessionServerToolName.ForkSession]);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ListSessions)?.description ?? '', /`openLink` for clickable Markdown links/);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SendMessage)?.description ?? '', /reports `processing` or `completed`; decide whether to send a steering correction or a queued follow-up/);
 		const archiveDescription = sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ArchiveChat)?.description ?? '';
@@ -162,6 +163,7 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.SetWorkspace), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.SendMessage), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.DeleteSession), true);
+		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ForkSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.RenameChat), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ArchiveChat), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ListSessions), false);
@@ -367,6 +369,7 @@ suite('SessionServerTools', () => {
 				SessionServerToolName.SendMessage,
 				SessionServerToolName.GetSessionContext,
 				SessionServerToolName.DeleteSession,
+				SessionServerToolName.ForkSession,
 			],
 			enabledTools: defaultSessionToolNames,
 		});
@@ -739,6 +742,7 @@ suite('SessionServerTools', () => {
 				SessionServerToolName.SendMessage,
 				SessionServerToolName.GetSessionContext,
 				SessionServerToolName.DeleteSession,
+				SessionServerToolName.ForkSession,
 				'dynamic_tool',
 			],
 			disabledTools: [
@@ -750,6 +754,7 @@ suite('SessionServerTools', () => {
 				SessionServerToolName.SendMessage,
 				SessionServerToolName.GetSessionContext,
 				SessionServerToolName.DeleteSession,
+				SessionServerToolName.ForkSession,
 			],
 		});
 		stateManager.dispose();
@@ -3817,6 +3822,87 @@ suite('SessionServerTools', () => {
 			],
 		});
 		store.dispose();
+	});
+
+	suite('fork_session', () => {
+		const forkTurn = (id: string, model?: ModelSelection): Turn => ({ id, message: { text: id, origin: { kind: MessageKind.User }, ...(model ? { model } : {}) }, responseParts: [], usage: undefined, state: TurnState.Complete });
+		const completed: IChatContextSnapshot = { turns: [forkTurn('t1'), forkTurn('t2', { id: 'gpt-4o' })], hasMoreHistory: false };
+
+		/** Runs `fork_session` from the default chat of `copilot:/s1`, recording the host calls with the new chat as `NEW`. */
+		async function runFork(args: unknown, snapshot: IChatContextSnapshot | undefined = completed, overrides?: Partial<ISessionServerToolAccessor>) {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const calls: unknown[] = [];
+			let created: string | undefined;
+			const named = (uri: URI) => uri.toString() === created ? 'NEW' : uri.toString();
+			const group = createSessionServerToolGroup(createAccessor({
+				getChatContext: async (_session, chatId) => { calls.push({ read: chatId }); return snapshot; },
+				onCreateChat: (session, chat, options) => {
+					created = chat.toString();
+					calls.push({ create: session.toString(), fork: { source: options?.fork?.source.toString(), turnId: options?.fork?.turnId }, model: options?.model, title: options?.title });
+				},
+				onRenameChat: (_session, chat, title) => calls.push({ rename: named(chat), title }),
+				onPrompt: (_session, chat, prompt, delegation) => calls.push({ prompt: named(chat), text: prompt, delegation }),
+				...overrides,
+			}));
+			const result = await Promise.resolve(group.execute(stateManager, executionContext('copilot:/s1'), SessionServerToolName.ForkSession, args)).then(text => created ? text.replace(getAgentHostChatId(created), 'NEW') : text, (error: Error) => `error: ${error.message}`);
+			return { result, calls };
+		}
+
+		test('forks the calling chat at its last completed turn with the model of that turn, then names and starts the fork', async () => {
+			const source = buildDefaultChatUri('copilot:/s1');
+			const running = { ...completed, activeTurn: { message: { text: 'fork this', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet' } }, responseParts: [] } };
+			assert.deepStrictEqual(await runFork({ prompt: 'Try approach B', title: 'Approach B' }, running), {
+				result: `Forked into a new nested session and started it with the prompt (${buildOpenSessionLinkUri('copilot:/s1', 'NEW')}).`,
+				calls: [
+					{ read: source },
+					{ create: 'copilot:/s1', fork: { source, turnId: 't2' }, model: { id: 'gpt-4o' }, title: 'Approach B' },
+					{ rename: 'NEW', title: 'Approach B' },
+					{ prompt: 'NEW', text: 'Try approach B', delegation: { sourceSession: 'copilot:/s1', sourceChat: source, sourceTurnId: 'turn-1' } },
+				],
+			});
+		});
+
+		test('forks a linked nested session without starting it', async () => {
+			const peer = buildChatUri('copilot:/s1', 'peer');
+			assert.deepStrictEqual(await runFork({ session: buildOpenSessionLinkUri('copilot:/s1', 'peer') }), {
+				result: `Forked into a new nested session (${buildOpenSessionLinkUri('copilot:/s1', 'NEW')}).`,
+				calls: [
+					{ read: peer },
+					{ create: 'copilot:/s1', fork: { source: peer, turnId: 't2' }, model: { id: 'gpt-4o' }, title: undefined },
+				],
+			});
+		});
+
+		test('refuses a chat without completed turns, an unknown nested session, and an agent that cannot fork', async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const session = 'copilot:/forkable';
+			stateManager.createSession({
+				resource: session,
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+				defaultChat: buildDefaultChatUri(session),
+			});
+			let supported = true;
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({ supportsChatForks: () => supported }))]);
+			const offered = () => host.getDefinitionsForSession(session).some(definition => definition.name === SessionServerToolName.ForkSession);
+			const offeredWhenSupported = offered();
+			supported = false;
+
+			assert.deepStrictEqual({
+				noTurns: await runFork({}, { turns: [], activeTurn: completed.turns[0], hasMoreHistory: false }),
+				unknownChat: await runFork({ session: buildOpenSessionLinkUri('copilot:/s1', 'ghost') }),
+				unsupported: await runFork({}, completed, { supportsChatForks: () => false }),
+				offered: { supported: offeredWhenSupported, unsupported: offered() },
+			}, {
+				noTurns: { result: 'error: Cannot fork: the session has no completed turns yet.', calls: [{ read: buildDefaultChatUri('copilot:/s1') }] },
+				unknownChat: { result: 'error: Invalid fork_session input: the link\'s chat id must name a nested session of that session (see list_sessions).', calls: [] },
+				unsupported: { result: 'error: Cannot fork: the agent of this session does not support forking.', calls: [] },
+				offered: { supported: true, unsupported: false },
+			});
+		});
 	});
 
 	test('getDeleteSessionArgs validates and refuses the current session', () => {

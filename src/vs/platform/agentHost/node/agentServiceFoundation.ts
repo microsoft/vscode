@@ -50,6 +50,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		restoreChat: (session, chat, credentials) => this.value.sessionServerToolAccessor.restoreChat(session, chat, credentials),
 		startPrompt: (session, chat, prompt, delegation, credentials) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt, delegation, credentials),
 		createChat: (session, chat, options, credentials) => this.value.sessionServerToolAccessor.createChat(session, chat, options, credentials),
+		supportsChatForks: session => this.value.sessionServerToolAccessor.supportsChatForks(session),
 		prepareChatWorkingDirectory: (session, directory, options) => this.value.sessionServerToolAccessor.prepareChatWorkingDirectory(session, directory, options),
 		renameChat: (session, chat, title) => this.value.sessionServerToolAccessor.renameChat(session, chat, title),
 		reportToolError: (toolName, error) => this.value.sessionServerToolAccessor.reportToolError(toolName, error),
