@@ -17,9 +17,9 @@ import { parseHooksJson, PluginFormat } from '../../../../../../platform/agentPl
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { type ISyncedCustomizationBundlers, resolveCustomizationRefs, resolveLocalCustomAgents } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
+import { computePluginNonce, type ISyncedCustomizationBundlers, resolveCustomizationRefs, resolveLocalCustomAgents } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { type ISyncableFile, type ISyncableMcpServer } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
@@ -1418,5 +1418,84 @@ suite('resolveLocalCustomAgents', () => {
 		);
 
 		assert.deepStrictEqual(agents.map(agent => agent.uri), [agentUri.toString()]);
+	});
+
+	test('computePluginNonce reflects newer mtimes in subdirectories (#347835)', async () => {
+		const pluginUri = URI.file('/plugins/local-plugin');
+		const agentsDir = URI.joinPath(pluginUri, 'agents');
+		const agentB = URI.joinPath(agentsDir, 'b.md');
+		const tree = new Map<string, IFileStatWithMetadata>([
+			[pluginUri.toString(), {
+				resource: pluginUri,
+				name: 'local-plugin',
+				isDirectory: true,
+				isFile: false,
+				isSymbolicLink: false,
+				mtime: 1000,
+				ctime: 1000,
+				etag: '',
+				size: 0,
+				readonly: false,
+				locked: false,
+				children: [{
+					resource: agentsDir,
+					name: 'agents',
+					isDirectory: true,
+					isFile: false,
+					isSymbolicLink: false,
+					mtime: 2000,
+					ctime: 1000,
+					etag: '',
+					size: 0,
+					readonly: false,
+					locked: false,
+				}],
+			}],
+			[agentsDir.toString(), {
+				resource: agentsDir,
+				name: 'agents',
+				isDirectory: true,
+				isFile: false,
+				isSymbolicLink: false,
+				mtime: 2000,
+				ctime: 1000,
+				etag: '',
+				size: 0,
+				readonly: false,
+				locked: false,
+				children: [{
+					resource: agentB,
+					name: 'b.md',
+					isDirectory: false,
+					isFile: true,
+					isSymbolicLink: false,
+					mtime: 3500,
+					ctime: 3500,
+					etag: '',
+					size: 42,
+					readonly: false,
+					locked: false,
+				}],
+			}],
+		]);
+
+		const fileService = {
+			async resolve(resource: URI) {
+				const stat = tree.get(resource.toString());
+				if (!stat) {
+					throw new Error(`missing ${resource.toString()}`);
+				}
+				return stat;
+			},
+			async stat(resource: URI) {
+				const stat = tree.get(resource.toString());
+				if (!stat) {
+					throw new Error(`missing ${resource.toString()}`);
+				}
+				return stat;
+			},
+		} as unknown as IFileService;
+
+		assert.strictEqual(await computePluginNonce(fileService, pluginUri), 3500);
 	});
 });

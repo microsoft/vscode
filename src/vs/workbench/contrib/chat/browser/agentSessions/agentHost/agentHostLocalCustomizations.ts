@@ -22,7 +22,7 @@ import { isContributionEnabled } from '../../../common/enablement.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { SYNCED_CUSTOMIZATION_SCHEME, type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { AgentHostMcpServerDelivery, resolveMcpServersForAgentHostDelivery } from './agentHostMcpServerSupport.js';
@@ -404,7 +404,7 @@ export async function resolveCustomizationRefs(
 			const promise = (async (): Promise<ClientPluginCustomization> => {
 				let nonce: number | undefined;
 				try {
-					nonce = (await fileService.stat(plugin.uri)).mtime;
+					nonce = await computePluginNonce(fileService, plugin.uri);
 				} catch {
 					// ignored, sync will probably fail later though...
 				}
@@ -471,4 +471,45 @@ export async function resolveCustomizationRefs(
 		refs.push(bundlers.standalone.bundle(standaloneFiles, mcpServers).then(r => r?.ref));
 	}
 	return await Promise.all(refs).then(r => r.filter(isDefined));
+}
+
+const MAX_PLUGIN_NONCE_ENTRIES = 2000;
+
+/**
+ * Computes a cache-busting mtime nonce across a plugin directory tree so edits
+ * or additions inside subdirectories invalidate the Agent Host plugin copy
+ * even when the root directory's own mtime is unchanged (e.g. on Windows).
+ */
+export async function computePluginNonce(fileService: IFileService, root: URI): Promise<number> {
+	if (typeof fileService.resolve !== 'function') {
+		return (await fileService.stat(root)).mtime;
+	}
+
+	const rootStat = await fileService.resolve(root, { resolveMetadata: true });
+	let maxMtime = rootStat.mtime;
+	const stack: IFileStatWithMetadata[] = [...(rootStat.children ?? [])];
+	let visited = 0;
+
+	while (stack.length > 0 && visited < MAX_PLUGIN_NONCE_ENTRIES) {
+		const entry = stack.pop()!;
+		visited++;
+		if (entry.mtime > maxMtime) {
+			maxMtime = entry.mtime;
+		}
+		if (entry.isDirectory && !entry.isSymbolicLink && entry.name !== '.git' && entry.name !== 'node_modules') {
+			try {
+				const dirStat = await fileService.resolve(entry.resource, { resolveMetadata: true });
+				if (dirStat.mtime > maxMtime) {
+					maxMtime = dirStat.mtime;
+				}
+				if (dirStat.children) {
+					stack.push(...dirStat.children);
+				}
+			} catch {
+				// Ignore unreadable subdirectories
+			}
+		}
+	}
+
+	return maxMtime;
 }
