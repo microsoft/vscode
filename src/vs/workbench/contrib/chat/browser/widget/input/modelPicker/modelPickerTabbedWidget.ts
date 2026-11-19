@@ -1450,9 +1450,9 @@ export class TabbedModelPicker extends Disposable {
 		const routerFile = model.metadata.detailsResource;
 		const cardOptions: IModelCardOptions = {
 			model,
-			// A model router's details also list its routes and link to its file.
+			// A model router's details also list its routes, say whether it switches between them, and link to its file.
 			renderAdditionalSections: routerFile
-				? card => this.instantiationService.createInstance(ModelRouterDetails, card, model.metadata.modelRouterRoutes ?? [], URI.revive(routerFile), () => this.hide())
+				? card => this.instantiationService.createInstance(ModelRouterDetails, card, { routes: model.metadata.modelRouterRoutes ?? [], switching: model.metadata.modelRouterSwitching, definitionFile: URI.revive(routerFile), onWillOpenDefinitionFile: () => this.hide() })
 				: undefined,
 			name: ownTiers.length ? this._getRowLabel(model, context) : undefined,
 			// Both tiers share HydraFusion's description.

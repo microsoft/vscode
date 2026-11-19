@@ -238,14 +238,6 @@ export interface CompletionParams extends InternalFetchParams {
 	extra: Partial<CompletionRequestExtra>;
 }
 
-/**
- * Interface for the parameters passed to speculation fetch requests.
- */
-export interface SpeculationFetchParams extends InternalFetchParams {
-	speculation: string;
-	stops: string[] | null;
-}
-
 export const ICompletionsOpenAIFetcherService = createServiceIdentifier<ICompletionsOpenAIFetcherService>('ICompletionsOpenAIFetcherService');
 export interface ICompletionsOpenAIFetcherService {
 	readonly _serviceBrand: undefined;
