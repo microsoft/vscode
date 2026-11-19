@@ -11,10 +11,15 @@ import type { Database } from '@vscode/sqlite3';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ChatInteractivity, MessageKind } from '../../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, buildDefaultChatUri, ChatInteractivity, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
+import { SESSION_SANDBOX_PATHS_KEY } from '../../common/sandboxPathGrant.js';
+import { SessionSandboxPathService } from '../../node/sessionSandboxPathService.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionStateDeletedError, SessionStateMirrorFlush, readSessionBaseBranch, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import { type ISessionDatabase, type ISessionDataService } from '../../common/sessionDataService.js';
@@ -59,6 +64,176 @@ suite('AgentHostSessionStateStore', () => {
 		return { fixture, session: URI.parse(fixture.session) };
 	}
 
+	function sandboxPaths(session: URI, sessionStore: AgentHostSessionStateStore) {
+		const manager = store.add(new AgentHostStateManager(new NullLogService()));
+		manager.createSession({
+			resource: session.toString(), provider: 'copilotcli', title: 'Sandbox paths', status: SessionStatus.Idle,
+			createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z', defaultChat: buildDefaultChatUri(session.toString()),
+		});
+		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
+		return { service: new SessionSandboxPathService(sessionStore, configuration), configuration };
+	}
+
+	test('sandbox session grants merge concurrent chats and restore from central metadata without copying into chat databases', async () => {
+		const { session } = await oldBuildSession();
+		const first = sandboxPaths(session, createStore());
+		await Promise.all([
+			first.service.grant(session, { path: '/first', access: 'read' }),
+			first.service.grant(session, { path: '/second', access: 'readWrite', removedReadonlyPaths: ['/second'] }),
+		]);
+		const restored = sandboxPaths(session, createStore());
+		await restored.service.load(session);
+		assert.deepStrictEqual({
+			live: first.configuration.getSessionSandboxPaths(session.toString()),
+			restored: restored.configuration.getSessionSandboxPaths(session.toString()),
+			chatDatabase: await sessionDb(session, [SESSION_SANDBOX_PATHS_KEY]),
+		}, {
+			live: { readonlyPaths: ['/first'], readwritePaths: ['/second'], removedReadonlyPaths: ['/second'] },
+			restored: { readonlyPaths: ['/first'], readwritePaths: ['/second'], removedReadonlyPaths: ['/second'] },
+			chatDatabase: { [SESSION_SANDBOX_PATHS_KEY]: undefined },
+		});
+	});
+
+	test('sandbox session grants retain live access after a failed save and persist it with the next grant', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		const { service, configuration } = sandboxPaths(session, sessionStore);
+		const update = sinon.stub(sessionStore, 'update').rejects(new Error('disk full'));
+		await assert.rejects(service.grant(session, { path: '/outside', access: 'read' }), /disk full/);
+		update.restore();
+		await service.load(session);
+		const unsaved = configuration.getSessionSandboxPaths(session.toString());
+		const resumed = sandboxPaths(session, createStore());
+		await resumed.service.load(session);
+		const beforeRetry = resumed.configuration.getSessionSandboxPaths(session.toString());
+		await service.grant(session, { path: '/second', access: 'readWrite' });
+		await resumed.service.load(session);
+		assert.deepStrictEqual({
+			unsaved,
+			beforeRetry,
+			afterRetry: resumed.configuration.getSessionSandboxPaths(session.toString()),
+		}, {
+			unsaved: { readonlyPaths: ['/outside'], readwritePaths: [], removedReadonlyPaths: [] },
+			beforeRetry: undefined,
+			afterRetry: { readonlyPaths: ['/outside'], readwritePaths: ['/second'], removedReadonlyPaths: [] },
+		});
+	});
+
+	test('sandbox session grants do not overwrite malformed metadata', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		const { service, configuration } = sandboxPaths(session, sessionStore);
+		await sessionStore.update(session, SESSION_SANDBOX_PATHS_KEY, () => '{}', SessionStateMirrorFlush.Immediate);
+		await assert.rejects(service.load(session), /Invalid persisted session sandbox paths/);
+		await assert.rejects(service.grant(session, { path: '/outside', access: 'read' }), /Invalid persisted session sandbox paths/);
+		assert.deepStrictEqual({
+			live: configuration.getSessionSandboxPaths(session.toString()),
+			stored: (await sessionStore.readWithoutImport(session, [SESSION_SANDBOX_PATHS_KEY])).get(SESSION_SANDBOX_PATHS_KEY),
+		}, { live: { readonlyPaths: ['/outside'], readwritePaths: [], removedReadonlyPaths: [] }, stored: '{}' });
+	});
+
+	test('sandbox User upgrades persist only exact session read-only removals across resume', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		const { service, configuration } = sandboxPaths(session, sessionStore);
+		await service.grant(session, { path: 'C:/outside', access: 'read' });
+		await service.grant(session, { path: 'C:/outside/child', access: 'read' });
+		await service.grant(session, { path: 'C:/keep', access: 'readWrite', removedReadonlyPaths: ['C:/keep'] });
+		await service.removeReadonlyPaths(session, ['C:\\outside', 'C:\\not-in-session'], OperatingSystem.Windows);
+		const restored = sandboxPaths(session, createStore());
+		await restored.service.load(session);
+		const expected = { readonlyPaths: ['C:/outside/child'], readwritePaths: ['C:/keep'], removedReadonlyPaths: ['C:/keep'] };
+		assert.deepStrictEqual({
+			live: configuration.getSessionSandboxPaths(session.toString()),
+			restored: restored.configuration.getSessionSandboxPaths(session.toString()),
+		}, { live: expected, restored: expected });
+	});
+
+	test('sandbox User cleanup keeps an empty live delta after save failure and serializes a later grant', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		const { service, configuration } = sandboxPaths(session, sessionStore);
+		await service.grant(session, { path: '/outside', access: 'read' });
+		const writing = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const update = sinon.stub(sessionStore, 'update').callsFake(async () => {
+			update.restore();
+			writing.complete();
+			await release.p;
+			throw new Error('disk full');
+		});
+		const failed = assert.rejects(service.removeReadonlyPaths(session, ['/outside'], OperatingSystem.Linux), /disk full/);
+		await writing.p;
+		try {
+			await service.load(session);
+		} finally {
+			release.complete();
+		}
+		await failed;
+		await service.load(session);
+		const live = configuration.getSessionSandboxPaths(session.toString());
+		const stale = sandboxPaths(session, createStore());
+		await stale.service.load(session);
+		await service.grant(session, { path: '/next', access: 'read' });
+		const restored = sandboxPaths(session, createStore());
+		await restored.service.load(session);
+		assert.deepStrictEqual({
+			live,
+			unsavedResume: stale.configuration.getSessionSandboxPaths(session.toString()),
+			nextResume: restored.configuration.getSessionSandboxPaths(session.toString()),
+		}, {
+			live: { readonlyPaths: [], readwritePaths: [], removedReadonlyPaths: [] },
+			unsavedResume: { readonlyPaths: ['/outside'], readwritePaths: [], removedReadonlyPaths: [] },
+			nextResume: { readonlyPaths: ['/next'], readwritePaths: [], removedReadonlyPaths: [] },
+		});
+	});
+
+	test('sandbox session paths loaded concurrently do not replace a runtime-approved grant', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		const { service, configuration } = sandboxPaths(session, sessionStore);
+		const reading = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		sinon.stub(sessionStore, 'readWithoutImport').callsFake(async () => {
+			reading.complete();
+			await release.p;
+			return new Map();
+		});
+		const loading = service.load(session);
+		await reading.p;
+		const saving = service.grant(session, { path: '/outside', access: 'read' });
+		release.complete();
+		await Promise.all([loading, saving]);
+		assert.deepStrictEqual(configuration.getSessionSandboxPaths(session.toString()), {
+			readonlyPaths: ['/outside'], readwritePaths: [], removedReadonlyPaths: [],
+		});
+	});
+
+	test('sandbox session paths are available to another chat without waiting for a pending save', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		const { service, configuration } = sandboxPaths(session, sessionStore);
+		const writing = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const update = sinon.stub(sessionStore, 'update').callsFake(async (...args) => {
+			update.restore();
+			writing.complete();
+			await release.p;
+			return sessionStore.update(...args);
+		});
+		const saving = service.grant(session, { path: '/outside', access: 'read' });
+		await writing.p;
+		try {
+			await service.load(session);
+			assert.deepStrictEqual(configuration.getSessionSandboxPaths(session.toString()), {
+				readonlyPaths: ['/outside'], readwritePaths: [], removedReadonlyPaths: [],
+			});
+		} finally {
+			release.complete();
+			await saving;
+		}
+	});
+
 	async function sessionDb(session: URI, keys: readonly string[]): Promise<Record<string, string | undefined>> {
 		const reference = sessionData.createService().openDatabase(session);
 		try {
@@ -76,6 +251,28 @@ suite('AgentHostSessionStateStore', () => {
 			reference.dispose();
 		}
 	}
+
+	test('whenIdle waits for archive persistence while a cold session is still loading', async () => {
+		const { session } = await oldBuildSession();
+		const loading = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		const readState = sinon.stub(database, 'readSessionState').callsFake(async resource => {
+			await loading.complete();
+			await resume.p;
+			readState.restore();
+			return database.readSessionState(resource);
+		});
+		const stateStore = createStore();
+		const writing = stateStore.writeMetadata(session, session, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, SessionStateMirrorFlush.Coalesced);
+		await loading.p;
+		let idle = false;
+		const drained = stateStore.whenIdle(session).then(() => { idle = true; });
+		await timeout(0);
+		const prematurelyIdle = idle;
+		await resume.complete();
+		await Promise.all([writing, drained]);
+		assert.deepStrictEqual({ prematurelyIdle, archived: await database.readSessionArchived(session.toString()) }, { prematurelyIdle: false, archived: true });
+	});
 
 	test('a shared worktree\'s branch is withheld from older builds until it is no longer shared; an older build writing it back keeps the value and has it withheld again (Block 5)', async () => {
 		const session = URI.parse('copilotcli:/shared-owner');
@@ -496,6 +693,18 @@ suite('AgentHostSessionStateStore', () => {
 		await assert.rejects(() => sessionStore.write(session, sessionStatePatch({ values: { configValues: 'late' } }), SessionStateMirrorFlush.Immediate), SessionStateDeletedError);
 		deletion.dispose();
 		assert.strictEqual(sessionStore.peek(session), undefined);
+	});
+
+	test('deletion drains a queued write without inheriting its deletion error', async () => {
+		const { session } = await oldBuildSession();
+		const sessionStore = createStore();
+		await sessionStore.load(session);
+		const before = await database.readSessionArchived(session.toString());
+		const rejectedWrite = assert.rejects(sessionStore.writeMetadata(session, session, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, SessionStateMirrorFlush.Immediate), SessionStateDeletedError);
+		const deletion = store.add(sessionStore.beginDeletion(session));
+		await Promise.all([rejectedWrite, deletion.whenDrained]);
+		deletion.dispose();
+		assert.deepStrictEqual({ archived: await database.readSessionArchived(session.toString()), cached: sessionStore.peek(session) }, { archived: before, cached: undefined });
 	});
 
 	test('renders exactly the old format older builds wrote, and names the keys it does not own', async () => {

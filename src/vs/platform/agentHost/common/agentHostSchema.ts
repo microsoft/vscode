@@ -288,7 +288,7 @@ export interface IPermissionsValue {
 const permissionsProperty = schemaProperty<IPermissionsValue>({
 	type: 'object',
 	title: localize('agentHost.sessionConfig.permissions', "Permissions"),
-	description: localize('agentHost.sessionConfig.permissionsDescription', "Permission rules: a tool name or Tool(specifier), e.g. Shell(npm run *), WebFetch(example.com), WebFetch(example.com/docs/*), Read(./src/**), or Edit(./docs/**). Shell specifiers support wildcards, /regex/flags, and commandLine:<specifier> for the full command line. Deny rules reject matching calls; ask rules require confirmation before allow rules or implicit defaults. Updated automatically when approving \"in this Session\" or \"Always Allow\"."),
+	description: localize('agentHost.sessionConfig.permissionsDescription', "Permission rules: a tool name or Tool(specifier), e.g. Shell(npm run *), WebFetch(example.com), WebFetch(example.com/docs/*), Read(./src/**), Edit(./docs/**), Mcp(server), or Mcp(server/tool). Shell specifiers support wildcards, /regex/flags, and commandLine:<specifier> for the full command line. Deny rules reject matching calls; ask rules require confirmation before allow rules or implicit defaults. Updated automatically when approving \"in this Session\" or \"Always Allow\"."),
 	properties: {
 		allow: {
 			type: 'array',
@@ -592,6 +592,9 @@ export const AgentHostBrowserUseEnabledConfigKey = 'browserUseEnabled';
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
 
+/** Root config key forwarded from the renderer for the configured MCP Gallery service URL. */
+export const AgentHostMcpGalleryServiceUrlConfigKey = 'mcpGalleryServiceUrl';
+
 /** Host-persisted server identities explicitly approved for MCP sampling in all sessions. */
 export const AgentHostMcpSamplingAllowedServersConfigKey = 'mcpSamplingAllowedServers';
 
@@ -615,6 +618,9 @@ export const AgentHostProxyConfigKey = {
 	Proxy: 'http.proxy',
 	ProxyKerberosServicePrincipal: 'http.proxyKerberosServicePrincipal',
 	NoProxy: 'http.noProxy',
+	ProxySupport: 'http.proxySupport',
+	SystemCertificates: 'http.systemCertificates',
+	SystemCertificatesNode: 'http.systemCertificatesNode',
 } as const;
 
 const agentHostProxyConfigDefinition = {
@@ -634,6 +640,30 @@ const agentHostProxyConfigDefinition = {
 		description: localize('agentHost.config.httpNoProxy.description', "Domain names that bypass the configured HTTP proxy."),
 		items: { type: 'string', title: localize('agentHost.config.httpNoProxy.item.title', "Domain") },
 		default: [],
+	}),
+	[AgentHostProxyConfigKey.ProxySupport]: schemaProperty<'off' | 'on' | 'fallback' | 'override'>({
+		type: 'string',
+		title: localize('agentHost.config.httpProxySupport.title', "HTTP Proxy Support"),
+		description: localize('agentHost.config.httpProxySupport.description', "Controls whether network requests from the Agent Host use the resolved proxy."),
+		enum: ['off', 'on', 'fallback', 'override'],
+		enumDescriptions: [
+			localize('agentHost.config.httpProxySupport.off', "Disable proxy support."),
+			localize('agentHost.config.httpProxySupport.on', "Enable proxy support."),
+			localize('agentHost.config.httpProxySupport.fallback', "Enable proxy support, falling back to request options when no proxy is found."),
+			localize('agentHost.config.httpProxySupport.override', "Enable proxy support, overriding request options."),
+		],
+		default: 'override',
+	}),
+	[AgentHostProxyConfigKey.SystemCertificates]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.httpSystemCertificates.title', "HTTP System Certificates"),
+		description: localize('agentHost.config.httpSystemCertificates.description', "Whether network requests from the Agent Host trust CA certificates loaded from the OS."),
+		default: true,
+	}),
+	[AgentHostProxyConfigKey.SystemCertificatesNode]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.httpSystemCertificatesNode.title', "HTTP System Certificates Node"),
+		description: localize('agentHost.config.httpSystemCertificatesNode.description', "Whether the Agent Host loads system certificates using Node.js built-in support."),
 	}),
 };
 export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
@@ -668,8 +698,14 @@ export const AgentHostWorkspaceSnapshotEnabledConfigKey = 'workspaceSnapshotEnab
 export const AgentHostAgentOrchestrationLimitsConfigKey = 'agentOrchestrationLimits';
 export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 
+/** Root config key controlling whether agents can choose a model's reasoning effort and context size in `create_session`, and how they find the models and options. */
+export const AgentHostSessionModelOptionsConfigKey = 'sessionModelOptions';
+export const agentHostSessionModelOptionsValues = ['off', 'inline', 'tool'] as const;
+export type AgentHostSessionModelOptions = typeof agentHostSessionModelOptionsValues[number];
+
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
+export const AgentHostChatResourcesConfigKey = 'chatResources';
 export const AgentHostArtifactIntegrationsConfigKey = 'artifactIntegrations';
 export const AgentHostGitHubArtifactIgnoredChecksConfigKey = 'githubArtifactMarkReadyIgnoredChecks';
 
@@ -969,6 +1005,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.mcpToolRoutingEnabled.description', "Whether Copilot agent sessions use cached MCP tool metadata for routing."),
 		default: false,
 	}),
+	[AgentHostMcpGalleryServiceUrlConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.mcpGalleryServiceUrl.title', "MCP Gallery Service URL"),
+		description: localize('agentHost.config.mcpGalleryServiceUrl.description', "The MCP Gallery service URL configured in VS Code. The agent host downloads MCP server details for installation from this gallery itself, including when it is on a private network. Empty when no gallery is configured."),
+		default: '',
+	}),
 	[AgentHostMcpSamplingAllowedServersConfigKey]: schemaProperty<string[]>({
 		type: 'array',
 		title: localize('agentHost.config.mcpSamplingAllowedServers.title', "MCP Sampling Allowed Servers"),
@@ -986,7 +1028,7 @@ export const platformRootSchema = createSchema({
 	[AgentHostExtensionPermissionApprovalsConfigKey]: schemaProperty<Record<string, 'allow' | 'deny'>>({
 		type: 'object',
 		title: localize('agentHost.config.extensionPermissionApprovals.title', "Extension Permission Approvals"),
-		description: localize('agentHost.config.extensionPermissionApprovals.description', "Per-extension-identity decisions for letting Copilot extensions load with privileged capabilities, such as registering hooks, in all sessions on this agent host. Identities include the extension name and requested capabilities. Remove an entry to ask again."),
+		description: localize('agentHost.config.extensionPermissionApprovals.description', "Per-extension-identity decisions for letting Copilot extensions load with privileged capabilities, such as registering hooks, or read sensitive environment variables, in all sessions on this agent host. Identities include the extension name and the requested capabilities or variable names. Decisions about a project's extensions to read sensitive environment variables are never stored. Remove an entry to ask again."),
 		additionalProperties: { type: 'string', title: localize('agentHost.config.extensionPermissionApprovals.entry', "Extension Permission Decision"), enum: ['allow', 'deny'] },
 		default: {},
 	}),
@@ -1024,7 +1066,7 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpSkillsEnabled.title', "MCP Skills"),
 		description: localize('agentHost.config.mcpSkillsEnabled.description', "Whether Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
-		default: false,
+		default: true,
 	}),
 	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -1049,10 +1091,28 @@ export const platformRootSchema = createSchema({
 		],
 		default: 'on',
 	}),
+	[AgentHostSessionModelOptionsConfigKey]: schemaProperty<AgentHostSessionModelOptions>({
+		type: 'string',
+		title: localize('agentHost.config.sessionModelOptions.title', "Session Model Options"),
+		description: localize('agentHost.config.sessionModelOptions.description', "Controls whether agents can choose a model's reasoning effort and context size in `create_session`, and how they find the models and options."),
+		enum: [...agentHostSessionModelOptionsValues],
+		enumDescriptions: [
+			localize('agentHost.config.sessionModelOptions.off', "Agents choose only a model in `create_session`."),
+			localize('agentHost.config.sessionModelOptions.inline', "Agents can also choose a reasoning effort and context size, and `create_session` lists the models and their options when the agent loads it through tool search."),
+			localize('agentHost.config.sessionModelOptions.tool', "Agents can also choose a reasoning effort and context size, and list the models and their options with `list_models`."),
+		],
+		default: 'off',
+	}),
 	[AgentHostArtifactToolsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
+		default: false,
+	}),
+	[AgentHostChatResourcesConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.chatResources.title', "Chat Resources"),
+		description: localize('agentHost.config.chatResources.description', "Whether agents can choose how the chat shows the files they record, such as above the chat input."),
 		default: false,
 	}),
 	[AgentHostArtifactIntegrationsConfigKey]: schemaProperty<boolean>({
@@ -1096,7 +1156,7 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
 		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
-		default: false,
+		default: true,
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',
@@ -1105,7 +1165,7 @@ export const platformRootSchema = createSchema({
 		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days],
 		enumDescriptions: [
 			localize('agentHost.config.showExternalSessions.none', "Do not show external sessions."),
-			localize('agentHost.config.showExternalSessions.recent', "Show up to the 2 most recent external sessions updated in the last 7 days. At startup, external sessions older than the second-most-recently updated local session are hidden."),
+			localize('agentHost.config.showExternalSessions.recent', "Show the 2 most recently updated external sessions from the last 7 days, hiding any that are older than your 2 newest local sessions."),
 			localize('agentHost.config.showExternalSessions.last24Hours', "Show external sessions updated in the last 24 hours."),
 			localize('agentHost.config.showExternalSessions.last7Days', "Show external sessions updated in the last 7 days."),
 			localize('agentHost.config.showExternalSessions.last30Days', "Show external sessions updated in the last 30 days."),

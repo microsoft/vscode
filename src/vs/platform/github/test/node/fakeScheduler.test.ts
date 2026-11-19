@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
-import { schedulerDelay } from '../../common/scheduler.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { schedulerDelay } from '../../common/scheduler.js';
 import { FakeScheduler } from './fakeScheduler.js';
+
 
 suite('FakeScheduler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -65,10 +68,10 @@ suite('FakeScheduler', () => {
 
 	test('schedulerDelay resolves only after time advances and honors abort', async () => {
 		const scheduler = new FakeScheduler({ now: 1_000 });
-		const controller = new AbortController();
+		const controller = disposables.add(new CancellationTokenSource());
 		let resolved = false;
 
-		const delay = schedulerDelay(scheduler, 25, controller.signal).then(() => {
+		const delay = schedulerDelay(scheduler, 25, controller.token).then(() => {
 			resolved = true;
 		});
 
@@ -80,9 +83,9 @@ suite('FakeScheduler', () => {
 		await delay;
 		assert.strictEqual(resolved, true);
 
-		const aborted = new AbortController();
-		const abortedDelay = schedulerDelay(scheduler, 10, aborted.signal);
-		aborted.abort(new Error('stop'));
-		await assert.rejects(() => abortedDelay, /stop/);
+		const aborted = disposables.add(new CancellationTokenSource());
+		const abortedDelay = schedulerDelay(scheduler, 10, aborted.token);
+		aborted.cancel();
+		await assert.rejects(() => abortedDelay, isCancellationError);
 	});
 });

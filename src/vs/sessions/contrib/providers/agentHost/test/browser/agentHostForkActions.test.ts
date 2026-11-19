@@ -160,7 +160,7 @@ suite('Agent Host fork actions', () => {
 							kind: multipleChats ? toSide ? 'chatToSide' : 'chat' : toSide ? 'sessionToSide' : 'session',
 							resource: harness.forkChat.resource,
 							options: multipleChats
-								? toSide ? { referenceChatResource: harness.sourceChat.resource } : undefined
+								? { referenceChatResource: harness.sourceChat.resource }
 								: toSide ? { source: 'fork', referenceSessionId: harness.source.sessionId } : { source: 'fork' },
 						}],
 					});
@@ -242,7 +242,7 @@ suite('Agent Host fork actions', () => {
 
 			assert.deepStrictEqual({ forks: harness.forkCalls, opens: harness.opens }, {
 				forks: [{ kind: multipleChats ? 'chat' : 'session', source: harness.sourceChat.resource, requestId: multipleChats ? 'request-2' : undefined }],
-				opens: [{ kind: multipleChats ? 'chat' : 'session', resource: harness.forkChat.resource, options: multipleChats ? undefined : { source: 'fork' } }],
+				opens: [{ kind: multipleChats ? 'chat' : 'session', resource: harness.forkChat.resource, options: multipleChats ? { referenceChatResource: harness.sourceChat.resource } : { source: 'fork' } }],
 			});
 		});
 	}
@@ -307,7 +307,7 @@ suite('Agent Host fork actions', () => {
 		assert.deepStrictEqual({ beforeSecond, forks: harness.forkCalls.length, opens: harness.opens }, {
 			beforeSecond: [],
 			forks: 2,
-			opens: [{ kind: 'chat', resource: harness.forkChat.resource, options: undefined }],
+			opens: [{ kind: 'chat', resource: harness.forkChat.resource, options: { referenceChatResource: harness.sourceChat.resource } }],
 		});
 	});
 
@@ -336,7 +336,7 @@ suite('Agent Host fork actions', () => {
 			beforeInspection: [],
 			choices: ['Inspect Target'],
 			forks: [{ kind: 'chat', source: harness.sourceChat.resource, requestId: 'request-2' }],
-			opens: [{ kind: 'chat', resource: harness.forkChat.resource, options: undefined }],
+			opens: [{ kind: 'chat', resource: harness.forkChat.resource, options: { referenceChatResource: harness.sourceChat.resource } }],
 		});
 	});
 
@@ -346,7 +346,7 @@ suite('Agent Host fork actions', () => {
 
 		assert.deepStrictEqual({ forks: harness.forkCalls, opens: harness.opens }, {
 			forks: [{ kind: 'chat', source: harness.sourceChat.resource, requestId: 'streaming-turn' }],
-			opens: [{ kind: 'chat', resource: harness.forkChat.resource, options: undefined }],
+			opens: [{ kind: 'chat', resource: harness.forkChat.resource, options: { referenceChatResource: harness.sourceChat.resource } }],
 		});
 	});
 
@@ -359,6 +359,15 @@ suite('Agent Host fork actions', () => {
 			forks: [{ kind: 'session', source: harness.sourceChat.resource, requestId: undefined }],
 			opens: [{ kind: 'session', resource: harness.forkChat.resource, options: { source: 'fork' } }],
 		});
+	});
+
+	test('opens a separately forked session without a reference chat, so a chat window source does not host it (follow-up of #347086)', async () => {
+		const harness = createHarness(false);
+		await harness.run(true);
+
+		assert.deepStrictEqual(harness.opens.map(open => ({ kind: open.kind, hasReferenceChat: !!(open.options as { referenceChatResource?: unknown } | undefined)?.referenceChatResource })), [
+			{ kind: 'sessionToSide', hasReferenceChat: false },
+		]);
 	});
 
 	test('waits for a separately forked session to appear before opening beside the source', async () => {

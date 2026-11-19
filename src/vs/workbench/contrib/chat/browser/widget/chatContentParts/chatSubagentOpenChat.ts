@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import './media/chatSubagentOpenChat.css';
-import { $, addDisposableListener, EventHelper, EventLike, EventType, isHTMLElement, WindowIntervalTimer } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventHelper, EventLike, EventType, getWindow, isHTMLElement, WindowIntervalTimer } from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { createPixelSpinner } from '../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -20,11 +22,13 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { HiddenItemStrategy, IWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { Action2, IMenuService, MenuId, MenuItemAction, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { getAgentHostChatId, isAhpChatChannel } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -82,6 +86,72 @@ export interface ISubagentActivity {
 }
 
 export type SubagentPillContext = Omit<IOpenSubagentChatContext, 'chatResource' | 'isChatAvailable'>;
+
+export class SubagentChatToolbar extends Disposable {
+	private readonly toolbar: WorkbenchToolBar;
+	private context: SubagentPillContext | undefined;
+
+	constructor(
+		container: HTMLElement,
+		actionViewItemProvider: IWorkbenchToolBarOptions['actionViewItemProvider'],
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+	) {
+		super();
+		container.classList.add('chat-subagent-open-chat-toolbar');
+		const menuAction = menuService.getMenuActions(MenuId.ChatSubagentContent, contextKeyService, { shouldForwardArgs: true })
+			.flatMap(([, actions]) => actions)
+			.find(action => action.id === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID && action instanceof MenuItemAction);
+		const action = menuAction ?? this._register(new Action(
+			CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
+			localize('chat.subagent.openChat', "Open Subagent"),
+			undefined,
+			false,
+			context => commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, context),
+		));
+		this.toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, container, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			actionViewItemProvider: actionViewItemProvider ?? ((item, options) => actionViewItemService.lookUp(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID)?.(item, options, instantiationService, getWindow(container).vscodeWindowId)
+				?? instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, item, options, !environmentService.isSessionsWindow && !ChatContextKeys.inSessionsChat.getValue(contextKeyService))),
+		}));
+		this.toolbar.setActions([action]);
+		if (!actionViewItemProvider && !actionViewItemService.lookUp(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID)) {
+			this._register(Event.once(Event.filter(actionViewItemService.onDidChange, menuId => menuId === MenuId.ChatSubagentContent))(() => {
+				this.toolbar.setActions([action]);
+				this.toolbar.context = this.context;
+			}));
+		}
+	}
+
+	setContext<T extends SubagentPillContext>(context: T): void {
+		this.context = context;
+		this.toolbar.context = context;
+	}
+
+	focus(): void {
+		this.toolbar.focus();
+	}
+}
+
+export function renderSubagentChatLinks(element: HTMLElement, parentSessionResource: string, instantiationService: IInstantiationService): IDisposable {
+	const store = new DisposableStore();
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
+	for (const anchor of element.querySelectorAll('a')) {
+		const chatResource = anchor.getAttribute('data-href');
+		if (!chatResource || !isAhpChatChannel(chatResource)) {
+			continue;
+		}
+		const container = $('span.chat-subagent-open-chat-inline');
+		const toolbar = store.add(instantiationService.createInstance(SubagentChatToolbar, container, undefined));
+		toolbar.setContext({ chatResource, parentSessionResource, title: anchor.textContent ?? '' });
+		anchor.replaceWith(container);
+	}
+	return store;
+}
 
 export interface IInlineSubagentDetailsContext extends SubagentPillContext {
 	readonly presentation: 'inline';
@@ -879,6 +949,15 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 }
 
+/** Reads the session chat flag of the widget whose scoped instantiation service creates it. */
+class SessionsChatScope {
+	readonly isSessionsChat: boolean;
+
+	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
+		this.isSessionsChat = !!ChatContextKeys.inSessionsChat.getValue(contextKeyService);
+	}
+}
+
 class EditorOpenSubagentChatActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.editorOpenSubagentChatActionViewItem';
 
@@ -892,7 +971,8 @@ class EditorOpenSubagentChatActionViewItemContribution extends Disposable implem
 		}
 		const onDidRegister = this._register(new Emitter<void>());
 		this._register(actionViewItemService.register(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, (action, options, instantiationService) => {
-			if (!(action instanceof MenuItemAction)) {
+			// A session chat opens its subagents' chats as the Agents window does, whatever window shows it
+			if (!(action instanceof MenuItemAction) || instantiationService.createInstance(SessionsChatScope).isSessionsChat) {
 				return undefined;
 			}
 			return instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true);

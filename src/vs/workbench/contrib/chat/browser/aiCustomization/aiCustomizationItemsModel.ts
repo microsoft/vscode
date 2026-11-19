@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
@@ -17,7 +17,8 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor, isPluginCustomizationItem, isSyncedFromClientCustomizationItem } from '../../common/customizationHarnessService.js';
+import { CustomizationHarnessServiceBase, ICustomizationHarnessService, IHarnessDescriptor, isPluginCustomizationItem, isSyncedFromClientCustomizationItem } from '../../common/customizationHarnessService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -62,6 +63,8 @@ export const IAICustomizationItemsModel = createDecorator<IAICustomizationItemsM
  */
 export interface IAICustomizationItemsModel {
 	readonly _serviceBrand: undefined;
+	/** Creates a disposable model for a chat without changing the window's active harness. */
+	createSessionModel(sessionResource: URI): IDisposable & { readonly model: IAICustomizationItemsModel };
 
 	/**
 	 * Returns an observable of the unfiltered, normalized list items for the
@@ -95,7 +98,7 @@ export interface IAICustomizationItemsModel {
 	 * Calling this also marks the section as observed (i.e. starts a fetch if
 	 * none has been kicked off yet).
 	 */
-	whenSectionLoaded(section: ItemsModelSection): Promise<void>;
+	whenSectionLoaded(section: ItemsModelSection | typeof AICustomizationManagementSection.Plugins): Promise<void>;
 }
 
 export class AICustomizationItemsModel extends Disposable implements IAICustomizationItemsModel {
@@ -115,6 +118,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	private pendingRefetchSource: IAICustomizationItemSource | undefined;
 	private readonly refetchObservedScheduler = this._register(new RunOnceScheduler(() => {
 		const source = this.pendingRefetchSource;
+		this.pendingRefetchSource = undefined;
 		if (!source || this._store.isDisposed) {
 			return;
 		}
@@ -142,6 +146,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	});
 	private pluginCountObserved = false;
 	private pluginFetchSeq = 0;
+	private pluginPending: Promise<void> = Promise.resolve();
 	/**
 	 * Sections that have been observed at least once. The model only fetches on
 	 * demand: first `getItems`/`getCount` for a section triggers an initial fetch,
@@ -223,6 +228,20 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		return this.perSection.get(section)!;
 	}
 
+	createSessionModel(sessionResource: URI): IDisposable & { readonly model: IAICustomizationItemsModel } {
+		const store = new DisposableStore();
+		try {
+			const harness = store.add(new CustomizationHarnessServiceBase(this.harnessService.availableHarnesses.get(), getChatSessionType(sessionResource), this.promptsService));
+			harness.setActiveSession(sessionResource);
+			const instantiationService = store.add(this.instantiationService.createChild(new ServiceCollection([ICustomizationHarnessService, harness])));
+			const model = store.add(instantiationService.createInstance(AICustomizationItemsModel));
+			return { model, dispose: () => store.dispose() };
+		} catch (error) {
+			store.dispose();
+			throw error;
+		}
+	}
+
 	getCount(section: ItemsModelSection): IObservable<number> {
 		this.markObserved(section);
 		return this.perSectionCount.get(section)!;
@@ -239,7 +258,17 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		return this.getOrCreateSource(activeSessionResource, descriptor);
 	}
 
-	whenSectionLoaded(section: ItemsModelSection): Promise<void> {
+	whenSectionLoaded(section: ItemsModelSection | typeof AICustomizationManagementSection.Plugins): Promise<void> {
+		if (this.pendingRefetchSource) {
+			const source = this.pendingRefetchSource;
+			this.pendingRefetchSource = undefined;
+			this.refetchObservedScheduler.cancel();
+			this.refetchObserved(source);
+		}
+		if (section === AICustomizationManagementSection.Plugins) {
+			this.markPluginCountObserved();
+			return this.pluginPending;
+		}
 		this.markObserved(section);
 		return this.perSectionPending.get(section) ?? Promise.resolve();
 	}
@@ -346,7 +375,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 				.map(item => ({ name: item.name ?? '', enabled: item.enabled !== false }));
 		});
 
-		pending.then(plugins => {
+		this.pluginPending = pending.then(plugins => {
 			if (this._store.isDisposed) {
 				return;
 			}

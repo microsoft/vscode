@@ -373,6 +373,20 @@ suite('Artifact Integrations', () => {
 		});
 	}));
 
+	test('notices say when the agent turned a rule on without the person confirming it', () => run(async store => {
+		const f = fixture(store);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await reference.object.configure('test', 0, { automatic: true }, { kind: 'agent', chat: 'agent-chat', turnId: 'agent-turn', autoApproved: true });
+		await timeout(0);
+		assert.deepStrictEqual({
+			grants: reference.object.snapshot.get().contributions[0].configuration.grants,
+			notices: f.notices.map(notice => notice.content.split('\n\n').at(-1)),
+		}, {
+			grants: { automatic: { kind: 'agent', chat: 'agent-chat', turnId: 'agent-turn', autoApproved: true } },
+			notices: ['Turned on by the agent \\(auto-approved\\).'],
+		});
+	}));
+
 	test('a deleted session loses its bindings and history once nothing is running, but keeps uncertain effects', () => run(async store => {
 		const gate = new DeferredPromise<void>();
 		const f = fixture(store, {
@@ -930,6 +944,17 @@ suite('Artifact Integrations', () => {
 		assert.deepStrictEqual(f.service.ledger.state.get().runs.map(run => [run.chat, run.state]), [['invoking-chat', 'completed']]);
 	}));
 
+	test('a manual run records whether it was requested through a general action', () => run(async store => {
+		const f = fixture(store);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const binding = f.bindings[0];
+		const state = await reference.object.invoke('test', 'act', 'chat', 'state');
+		await f.service.whenIdle();
+		binding.view.set({ ...binding.view.get(), stateActions: [], generalActions: [{ id: 'act', enabled: true }] }, undefined);
+		const general = await reference.object.invoke('test', 'act', 'chat', 'general');
+		assert.deepStrictEqual([state.generalAction, general.generalAction], [undefined, true]);
+	}));
+
 	test('changing one automation control does not revoke another control in the same binding', () => run(async store => {
 		const started = new DeferredPromise<void>();
 		const finish = new DeferredPromise<void>();
@@ -982,6 +1007,27 @@ suite('Artifact Integrations', () => {
 		assert.deepStrictEqual(reference.object.snapshot.get().mainIntegrationId, 'preferred');
 	}));
 
+	test('automation can be turned on while the resource refreshes its last known state, but not while it first loads', () => run(async store => {
+		const f = fixture(store);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const binding = f.bindings[0];
+		const enable = async (availability: ArtifactContributionView['availability']) => {
+			binding.view.set({ ...binding.view.get(), availability }, undefined);
+			const revision = reference.object.snapshot.get().contributions[0].configuration.revision;
+			try {
+				await reference.object.configure('test', revision, { automatic: true });
+				await reference.object.configure('test', revision + 1, { automatic: false });
+				return 'enabled';
+			} catch (error) {
+				return error instanceof Error ? error.name : String(error);
+			}
+		};
+		assert.deepStrictEqual({
+			stale: await enable({ kind: 'stale', reason: 'Refreshing.' }),
+			loading: await enable({ kind: 'loading' }),
+		}, { stale: 'enabled', loading: 'ArtifactAutomationSelectionError' });
+	}));
+
 	test('automatic prompts target origin, manual prompts target the captured chat, and acceptance is not completion', () => run(async store => {
 		const action: ArtifactAction = { id: 'act', label: 'Analyse', iconId: 'search', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse this resource' } }) };
 		const f = fixture(store, action);
@@ -1016,6 +1062,7 @@ suite('Artifact Integrations', () => {
 				kind: 'enabled', session: 'session', chat: 'origin-chat', iconId: 'link',
 				lines: [
 					'Automatically Act enabled for Example',
+					'Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.',
 					'Run Act automatically.',
 				],
 			}, {
@@ -1026,6 +1073,19 @@ suite('Artifact Integrations', () => {
 					'No automation rules remain enabled for this artifact integration.',
 				],
 			}],
+			prompts: [],
+		});
+	}));
+
+	test('lets an integration post a status notice about its resource only while the artifact is recorded', () => run(async store => {
+		const f = fixture(store);
+		store.add(await f.service.acquireArtifact('session', artifact.id));
+		const context = f.bindings[0].context;
+		await context.postNotice!('Checks failed: *Windows* / [Unit].');
+		f.session.set({ ...f.session.get(), artifacts: [] }, undefined);
+		await assert.rejects(() => context.postNotice!('The artifact was removed.'));
+		assert.deepStrictEqual({ notices: f.notices, prompts: f.submitted }, {
+			notices: [{ session: 'session', artifact, kind: 'status', content: 'Checks failed: \\*Windows\\* / \\[Unit\\].', iconId: 'link' }],
 			prompts: [],
 		});
 	}));
@@ -1051,7 +1111,7 @@ suite('Artifact Integrations', () => {
 			disabledReason: notice.content.includes('Attempt limit reached'),
 			remaining: notice.content.includes('Still enabled: Merge'),
 		})), [
-			{ kind: 'enabled', heading: 'Autopilot updated for Example \\(2 rules\\)', changedMode: false, modeExplanation: false, disabledReason: false, remaining: false },
+			{ kind: 'enabled', heading: 'Autopilot enabled for Example \\(2 rules\\)', changedMode: false, modeExplanation: false, disabledReason: false, remaining: false },
 			{ kind: 'changed', heading: 'Merge updated for Example', changedMode: true, modeExplanation: true, disabledReason: false, remaining: false },
 			{ kind: 'disabled', heading: 'Repair disabled for Example', changedMode: false, modeExplanation: false, disabledReason: true, remaining: true },
 		]);
@@ -1083,6 +1143,8 @@ suite('Artifact Integrations', () => {
 			merged: {
 				kind: 'changed', content: [
 					'Autopilot updated for Example \\(3 rules\\)',
+					'',
+					'Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.',
 					'',
 					'- **Repair enabled**\\',
 					'  Repair failures.',
@@ -1117,6 +1179,8 @@ suite('Artifact Integrations', () => {
 			kind: 'changed',
 			content: [
 				'Autopilot updated for Example \\(2 rules\\)',
+				'',
+				'Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.',
 				'',
 				'- **\\*Repair\\* failures updated**\\',
 				'  Use \\[this\\]\\(command:run\\). Then push.',
@@ -1175,7 +1239,8 @@ suite('Artifact Integrations', () => {
 		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
 		await reference.object.configure('test', 0, { automatic: true });
 		await timeout(0);
-		assert.deepStrictEqual(f.notices[0].content.split('\n\n').slice(0, 2), [
+		const [title, , description] = f.notices[0].content.split('\n\n');
+		assert.deepStrictEqual([title, description], [
 			'\\*Automatically Act\\* enabled for \\[Example\\]\\(command:run\\)',
 			'Use \\[this\\]\\(command:run\\).',
 		]);
@@ -1265,6 +1330,14 @@ suite('Artifact Integrations', () => {
 		});
 	}));
 
+	test('prompt presentation carries how the action describes itself while it runs', () => run(async store => {
+		const f = fixture(store, { id: 'act', label: 'Analyse', iconId: 'graph', activityLabel: 'Analysing', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) });
+		const model = store.add(await f.service.acquireArtifact('session', artifact.id)).object;
+		const requested = await model.invoke('test', 'act', 'invoking-chat', 'manual');
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === requested.id && run.state === 'submitted'));
+		assert.deepStrictEqual(f.submitted[0].presentation?.action, { label: 'Analyse', iconId: 'graph', activityLabel: 'Analysing' });
+	}));
+
 	test('prompt-supplied details replace the linked details in the presentation and are not part of the prompt', () => run(async store => {
 		const promptDetails = {
 			title: 'Failing', availability: { kind: 'available' as const }, links: [{ kind: 'action' as const, actionId: 'act' }],
@@ -1297,7 +1370,7 @@ suite('Artifact Integrations', () => {
 		['3', []],
 	] as const) {
 		test(`a prompt an item action starts for ${itemId === '2' ? 'a listed' : 'an unlisted'} item is presented as that action on its own item`, () => run(async store => {
-			const f = fixture(store, { id: 'fix', label: 'Fix Issues…', iconId: 'sparkle', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: `Fix #${itemId}` } }) });
+			const f = fixture(store, { id: 'fix', label: 'Fix Issues…', iconId: 'sparkle', activityLabel: 'Fixing Issues', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: `Fix #${itemId}` } }) });
 			const model = store.add(await f.service.acquireArtifact('session', artifact.id)).object;
 			const binding = f.bindings[0];
 			const issue = (id: string) => ({ id, label: `#${id}`, icon: { id: 'issues' }, resource: `https://github.com/o/r/issues/${id}`, actions: ['fixIssue'] });
@@ -1314,7 +1387,7 @@ suite('Artifact Integrations', () => {
 			const requested = await model.invoke('test', 'fix', 'invoking-chat', 'manual', undefined, { detailsId: 'issues', itemId });
 			await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === requested.id && run.state === 'submitted'));
 			assert.deepStrictEqual({ action: f.submitted[0].presentation?.action, details: f.submitted[0].presentation?.details }, {
-				action: { label: 'Fix Issue', iconId: 'wand' },
+				action: { label: 'Fix Issue', iconId: 'wand', activityLabel: 'Fixing Issues' },
 				details: expectedDetails,
 			});
 		}));

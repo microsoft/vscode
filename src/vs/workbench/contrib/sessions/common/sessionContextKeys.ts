@@ -202,7 +202,8 @@ function setSessionContextKeysUnbuffered(session: ISession | undefined, contextK
 /**
  * Sets every context key of the session a host shows: the keys of {@link setSessionContextKeys}, and the keys of the chat
  * it shows of it, which the session does not select for every place that shows it, and of the state of the pane that
- * shows it. Without a pane, as for a chat window or a composer, the session is not pinned and shows no tab strip.
+ * shows it. Without a pane, as for a chat window or a composer, the session is not pinned and shows no tab strip. Its
+ * workspace is that of the chat it shows, or of the session while it shows no chat of it, such as a composer's draft.
  *
  * See {@link setSessionContextKeys} for the `reader` and `undefined` semantics.
  */
@@ -258,7 +259,7 @@ export function setHostSessionContextKeys(session: ISession | undefined, chat: I
 		// so they are closeable but not deletable.
 		keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
 		keys.activeChatIsUntitled.set(activeChat?.status.read(reader) === SessionStatus.Untitled);
-		const workspace = activeChat?.workspace.read(reader);
+		const workspace = activeChat ? activeChat.workspace.read(reader) : session?.workspace.read(reader);
 		keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
 		keys.hasWorkspace.set(!!workspace?.label);
 		keys.isQuickChat.set(!!session && isWorkspacelessQuickChat(session, activeChat, reader));

@@ -83,7 +83,7 @@ export interface IRenderFileWidgetsOptions {
 }
 
 export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore, options?: IRenderFileWidgetsOptions) {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	const links = element.querySelectorAll('a');
 	links.forEach(a => {
 		renderFileAnchor(a, instantiationService, chatMarkdownAnchorService, disposables, options);
@@ -119,9 +119,10 @@ export function renderFileAnchor(anchor: HTMLAnchorElement, instantiationService
 		if (vscodeLinkType) {
 			metadata = { vscodeLinkType, linkText };
 
-			// Presentation metadata must not reach the filesystem provider.
-			searchParams.delete('vscodeLinkType');
-			uri = uri.with({ query: searchParams.toString() });
+			// Strip the presentation field without reserializing the resource's own query.
+			const queryParts = uri.query.split('&');
+			queryParts.splice(queryParts.findIndex(part => new URLSearchParams(part).has('vscodeLinkType')), 1);
+			uri = uri.with({ query: queryParts.join('&') });
 		}
 	}
 

@@ -95,7 +95,8 @@ export class ReadSessionComparisonTool implements IToolImpl {
 		if (!comparison) {
 			return toolError(`Comparison '${input.comparisonId}' does not exist.`);
 		}
-		const invokingParticipant = invocation.context && this.comparisonService.getParticipantForChat(comparison.id, invocation.context.sessionResource);
+		const invokingChat = invocation.originatingChatResource ?? invocation.context?.sessionResource;
+		const invokingParticipant = invokingChat && this.comparisonService.getParticipantForChat(comparison.id, invokingChat);
 		if (!invokingParticipant || ![SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis].includes(invokingParticipant.role)) {
 			return toolError('Only the Judge or synthesis session for this comparison can read its manifest.');
 		}
@@ -288,14 +289,15 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const input = parseInput(invocation.parameters);
-		if (!input) {
-			return toolError('The comparison verdict input is invalid. Keep explanation to one sentence, provide concise comparison, validation, codeQuality, and solution rationale points, and use a consistent state and source pair for every validation category.');
+		if (typeof input === 'string') {
+			return toolError(`The comparison verdict input is invalid. ${input}`);
 		}
 		const comparison = resolveComparison(this.comparisonService, input.comparisonId);
 		if (!comparison) {
 			return toolError(`Comparison '${input.comparisonId}' does not exist.`);
 		}
-		const invokingParticipant = invocation.context && this.comparisonService.getParticipantForChat(comparison.id, invocation.context.sessionResource);
+		const invokingChat = invocation.originatingChatResource ?? invocation.context?.sessionResource;
+		const invokingParticipant = invokingChat && this.comparisonService.getParticipantForChat(comparison.id, invokingChat);
 		if (invokingParticipant?.role !== SessionComparisonParticipantRole.Judge) {
 			return toolError('Only the judge session for this comparison can submit its verdict.');
 		}
@@ -393,31 +395,64 @@ function parseReadInput(value: unknown): IReadSessionComparisonInput | undefined
 		: undefined;
 }
 
-function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined {
-	const rationale = isRecord(value) ? parseRationale(value.rationale) : undefined;
-	if (!isRecord(value)
-		|| typeof value.comparisonId !== 'string'
-		|| typeof value.recommendedAttemptNumber !== 'number'
-		|| !isConciseText(value.explanation, MaxExplanationLength)
-		|| !rationale
-		|| !isStringArray(value.conflicts)
-		|| !Array.isArray(value.attempts)
-		|| Object.hasOwn(value, 'decisionSections')) {
-		return undefined;
+function parseInput(value: unknown): ICompleteSessionComparisonInput | string {
+	if (!isRecord(value)) {
+		return 'Input must be an object.';
+	}
+	if (typeof value.comparisonId !== 'string') {
+		return 'comparisonId must be a string.';
+	}
+	if (typeof value.recommendedAttemptNumber !== 'number') {
+		return 'recommendedAttemptNumber must be an integer attemptNumber from readAttemptComparison.';
+	}
+	if (!isConciseText(value.explanation, MaxExplanationLength)) {
+		return conciseTextError('explanation', MaxExplanationLength);
+	}
+	const rationale = parseRationale(value.rationale);
+	if (typeof rationale === 'string') {
+		return rationale;
+	}
+	if (!isStringArray(value.conflicts)) {
+		return stringArrayError('conflicts', value.conflicts);
+	}
+	if (!Array.isArray(value.attempts)) {
+		return 'attempts must be an array with one finding per attemptNumber from readAttemptComparison.';
+	}
+	if (Object.hasOwn(value, 'decisionSections')) {
+		return 'decisionSections is not supported; remove it and use rationale.';
 	}
 	const attempts: ICompleteSessionComparisonAttemptInput[] = [];
-	for (const attempt of value.attempts) {
-		if (!isRecord(attempt)
-			|| typeof attempt.attemptNumber !== 'number'
-			|| typeof attempt.summary !== 'string'
-			|| !isRecord(attempt.validation)
-			|| !isValidationEvidence(attempt.validation.tests)
-			|| !isValidationEvidence(attempt.validation.build)
-			|| !isValidationEvidence(attempt.validation.lint)
-			|| !isValidationEvidence(attempt.validation.diagnostics)
-			|| !isStringArray(attempt.unresolvedIssues)
-			|| !isStringArray(attempt.notableDifferences)) {
-			return undefined;
+	for (const [index, attempt] of value.attempts.entries()) {
+		const path = `attempts[${index}]`;
+		if (!isRecord(attempt)) {
+			return `${path} must be an object.`;
+		}
+		if (typeof attempt.attemptNumber !== 'number') {
+			return `${path}.attemptNumber must be an integer attemptNumber from readAttemptComparison.`;
+		}
+		if (typeof attempt.summary !== 'string') {
+			return `${path}.summary must be a string.`;
+		}
+		if (!isRecord(attempt.validation)) {
+			return `${path}.validation must contain tests, build, lint, and diagnostics evidence.`;
+		}
+		if (!isValidationEvidence(attempt.validation.tests)) {
+			return validationEvidenceError(`${path}.validation.tests`);
+		}
+		if (!isValidationEvidence(attempt.validation.build)) {
+			return validationEvidenceError(`${path}.validation.build`);
+		}
+		if (!isValidationEvidence(attempt.validation.lint)) {
+			return validationEvidenceError(`${path}.validation.lint`);
+		}
+		if (!isValidationEvidence(attempt.validation.diagnostics)) {
+			return validationEvidenceError(`${path}.validation.diagnostics`);
+		}
+		if (!isStringArray(attempt.unresolvedIssues)) {
+			return stringArrayError(`${path}.unresolvedIssues`, attempt.unresolvedIssues);
+		}
+		if (!isStringArray(attempt.notableDifferences)) {
+			return stringArrayError(`${path}.notableDifferences`, attempt.notableDifferences);
 		}
 		attempts.push({
 			attemptNumber: attempt.attemptNumber,
@@ -442,13 +477,21 @@ function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined
 	};
 }
 
-function parseRationale(value: unknown): ISessionComparisonRationale | undefined {
-	if (!isRecord(value)
-		|| !isConciseText(value.comparison, MaxRationalePointLength)
-		|| !isConciseText(value.validation, MaxRationalePointLength)
-		|| !isConciseText(value.codeQuality, MaxRationalePointLength)
-		|| !isConciseText(value.solution, MaxRationalePointLength)) {
-		return undefined;
+function parseRationale(value: unknown): ISessionComparisonRationale | string {
+	if (!isRecord(value)) {
+		return 'rationale must contain comparison, validation, codeQuality, and solution strings.';
+	}
+	if (!isConciseText(value.comparison, MaxRationalePointLength)) {
+		return conciseTextError('rationale.comparison', MaxRationalePointLength);
+	}
+	if (!isConciseText(value.validation, MaxRationalePointLength)) {
+		return conciseTextError('rationale.validation', MaxRationalePointLength);
+	}
+	if (!isConciseText(value.codeQuality, MaxRationalePointLength)) {
+		return conciseTextError('rationale.codeQuality', MaxRationalePointLength);
+	}
+	if (!isConciseText(value.solution, MaxRationalePointLength)) {
+		return conciseTextError('rationale.solution', MaxRationalePointLength);
 	}
 	return {
 		comparison: value.comparison,
@@ -456,6 +499,21 @@ function parseRationale(value: unknown): ISessionComparisonRationale | undefined
 		codeQuality: value.codeQuality,
 		solution: value.solution,
 	};
+}
+
+function conciseTextError(path: string, maxLength: number): string {
+	return `${path} must be a non-empty, single-line string of at most ${maxLength} characters.`;
+}
+
+function stringArrayError(path: string, value: unknown): string {
+	const invalidIndex = Array.isArray(value) ? value.findIndex(item => typeof item !== 'string') : -1;
+	return invalidIndex >= 0
+		? `${path}[${invalidIndex}] must be a string.`
+		: `${path} must be an array of strings; use [] when there are none.`;
+}
+
+function validationEvidenceError(path: string): string {
+	return `${path} must pair passed/failed with attemptReport/judgeRun, notRun/unknown with attemptReport/judgeRun/unavailable, or notApplicable with notApplicable.`;
 }
 
 function isConciseText(value: unknown, maxLength: number): value is string {

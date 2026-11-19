@@ -16,7 +16,6 @@ export class MockFileSystemService implements IFileSystemService {
 	private mockFiles = new Map<string, string>();
 	private mockErrors = new Map<string, Error>();
 	private mockMtimes = new Map<string, number>();
-	private statCalls = 0;
 
 	mockDirectory(uri: URI | string, entries: [string, FileType][]) {
 		const uriString = typeof uri === 'string' ? uri : uri.toString();
@@ -34,14 +33,6 @@ export class MockFileSystemService implements IFileSystemService {
 	mockError(uri: URI | string, error: Error) {
 		const uriString = typeof uri === 'string' ? uri : uri.toString();
 		this.mockErrors.set(uriString, error);
-	}
-
-	getStatCallCount(): number {
-		return this.statCalls;
-	}
-
-	resetStatCallCount(): void {
-		this.statCalls = 0;
 	}
 
 	async readDirectory(uri: URI): Promise<[string, FileType][]> {
@@ -65,7 +56,6 @@ export class MockFileSystemService implements IFileSystemService {
 	}
 
 	async stat(uri: URI): Promise<FileStat> {
-		this.statCalls++; // Track stat calls to verify caching
 		const uriString = uri.toString();
 		if (this.mockErrors.has(uriString)) {
 			throw this.mockErrors.get(uriString);

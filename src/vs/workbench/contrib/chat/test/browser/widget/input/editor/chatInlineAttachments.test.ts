@@ -8,6 +8,7 @@ import sinon from 'sinon';
 import * as dom from '../../../../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
+import { OS } from '../../../../../../../../base/common/platform.js';
 import { DisposableStore, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../../base/test/common/mock.js';
@@ -17,7 +18,15 @@ import { CodeEditorWidget } from '../../../../../../../../editor/browser/widget/
 import { EditorAutoIndentStrategy } from '../../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
+import { HoverStartMode, HoverStartSource } from '../../../../../../../../editor/contrib/hover/browser/hoverOperation.js';
 import { Selection } from '../../../../../../../../editor/common/core/selection.js';
+import { IMarkerDecorationsService } from '../../../../../../../../editor/common/services/markerDecorations.js';
+import { EditorContributionCtor, EditorContributionInstantiation, MultiCommand } from '../../../../../../../../editor/browser/editorExtensions.js';
+import { ContentHoverController } from '../../../../../../../../editor/contrib/hover/browser/contentHoverController.js';
+import { ShowOrFocusHoverAction } from '../../../../../../../../editor/contrib/hover/browser/hoverActions.js';
+import { SHOW_OR_FOCUS_HOVER_ACTION_ID } from '../../../../../../../../editor/contrib/hover/browser/hoverActionIds.js';
+import { EditorContextKeys } from '../../../../../../../../editor/common/editorContextKeys.js';
+import { HoverAccessibleView, HoverAccessibilityHelp } from '../../../../../../../../editor/contrib/hover/browser/hoverAccessibleViews.js';
 import { MoveLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/moveLinesCommand.js';
 import { CopyLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/copyLinesCommand.js';
 import { createCodeEditorServices, instantiateTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
@@ -25,19 +34,36 @@ import { instantiateTextModel } from '../../../../../../../../editor/test/common
 import { IAgentHostConnectionsService } from '../../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextMenuService } from '../../../../../../../../platform/contextview/browser/contextView.js';
+import { KeybindingsRegistry } from '../../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingResolver, ResultKind } from '../../../../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { registerAction2 } from '../../../../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CodeDataTransfers } from '../../../../../../../../platform/dnd/browser/dnd.js';
 import { IFileService, IFileSystemWatcher } from '../../../../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
+import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IExtensionService } from '../../../../../../../services/extensions/common/extensions.js';
 import { ChatAttachmentModel } from '../../../../../browser/attachments/chatAttachmentModel.js';
 import { ChatDynamicVariableModel } from '../../../../../browser/attachments/chatDynamicVariables.js';
 import { IChatAttachmentResolveService } from '../../../../../browser/attachments/chatAttachmentResolveService.js';
-import { IChatWidget } from '../../../../../browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../../browser/chat.js';
+import { ChatResponseAccessibleView } from '../../../../../browser/accessibility/chatResponseAccessibleView.js';
+import { ChatSubmitAction } from '../../../../../browser/actions/chatExecuteActions.js';
+import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../../../../browser/actions/chatQueueActions.js';
+import { IChatAttachmentWidgetRegistry } from '../../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { ChatInlineAttachments } from '../../../../../browser/widget/input/editor/chatInlineAttachments.js';
+import '../../../../../browser/widget/input/editor/chatInputEditorHover.js';
+import { GitHubResourceDetailsResolver } from '../../../../../../github/browser/githubResourceDetails.js';
+import { IManagedHover } from '../../../../../../../../base/browser/ui/hover/hover.js';
+import { IWorkbenchGitHubService } from '../../../../../../../services/github/common/githubService.js';
 import { IChatWidgetContrib } from '../../../../../browser/widget/chatWidget.js';
 import { ChatDragAndDrop } from '../../../../../browser/widget/chatDragAndDrop.js';
 import { ChatContextKeys } from '../../../../../common/actions/chatContextKeys.js';
@@ -56,23 +82,31 @@ suite('ChatInlineAttachments', () => {
 		readonly attachments: ChatAttachmentModel;
 		readonly controller: ChatInlineAttachments;
 		readonly instantiationService: TestInstantiationService;
+		readonly attachmentResolvers: (GitHubResourceDetailsResolver | undefined)[];
+		setSessionResource(resource: URI): void;
 		/** Adds a reference to the input, as accepting a completion does. */
 		addReference(reference: IDynamicVariable): void;
 		/** Whether the pill right before the cursor is active, which Enter opens. */
 		isActive(): boolean;
 		/** The prompt that the input stands for, and the ids of its attachments. */
 		state(): { prompt: string; attachments: string[] };
+		/** What the pills that were rendered last show. */
+		readonly rendered: IChatRequestVariableEntry[];
 	}
 
 	/**
 	 * @param showsPills Whether the input's host shows pills, which a host
 	 * whose chat widget does not own the input, such as the Automation dialog's,
 	 * does not.
+	 * @param showsSessionLinks Whether a widget can show the sessions that links in the input link to, as in the Agents window.
 	 */
-	function createInput(text: string, showsPills = true, renderEditor = false): ITestInput {
+	function createInput(text: string, showsPills = true, renderEditor = false, showsSessionLinks = false, preview?: () => HTMLElement, previewHover?: IManagedHover): ITestInput {
 		const disposables = store.add(new DisposableStore());
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.InlineAttachmentsEnabled]: true });
 		const instantiationService = createCodeEditorServices(disposables, new ServiceCollection([IConfigurationService, configurationService]));
+		if (renderEditor && preview) {
+			instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(configurationService)));
+		}
 		instantiationService.stub(ILabelService, new class extends mock<ILabelService>() {
 			override getUriLabel(uri: URI): string { return uri.path; }
 		});
@@ -81,21 +115,40 @@ suite('ChatInlineAttachments', () => {
 		});
 		instantiationService.stub(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { });
 		instantiationService.stub(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { });
+		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None }));
+		instantiationService.stub(IMarkerDecorationsService, upcastPartial<IMarkerDecorationsService>({ getMarker: () => null }));
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			onDidShowContextMenu: Event.None,
+			onDidHideContextMenu: Event.None,
+		}));
+
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 			resolveSessionResourceIdentity: () => undefined,
 		}));
 		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
 			override readonly extensions = [];
 		});
+		instantiationService.stub(IProductService, upcastPartial<IProductService>({ urlProtocol: 'code-oss' }));
+		instantiationService.stub(IChatAttachmentWidgetRegistry, upcastPartial<IChatAttachmentWidgetRegistry>({
+			hasFactory: kind => showsSessionLinks && kind === 'sessionLink',
+		}));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, text));
 		let editor: ICodeEditor;
 		if (renderEditor) {
 			const container = dom.append(document.body, dom.$('.interactive-session'));
 			disposables.add(toDisposable(() => container.remove()));
+			const overflowWidgetsDomNode = preview ? dom.append(document.body, dom.$('div')) : undefined;
+			if (overflowWidgetsDomNode) {
+				disposables.add(toDisposable(() => overflowWidgetsDomNode.remove()));
+			}
 			editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, dom.append(container, dom.$('div')), {
 				dimension: { width: 600, height: 200 },
-			}, { contributions: [], isSimpleWidget: true }));
+				overflowWidgetsDomNode,
+			}, {
+				contributions: preview ? [{ id: ContentHoverController.ID, ctor: ContentHoverController as EditorContributionCtor, instantiation: EditorContributionInstantiation.Lazy }] : [],
+				isSimpleWidget: true,
+			}));
 			editor.setModel(model);
 		} else {
 			editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
@@ -121,6 +174,9 @@ suite('ChatInlineAttachments', () => {
 			}
 			override refreshParsedInput(): void { }
 		};
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetByInputUri: () => widget }));
+		const attachmentResolvers: (GitHubResourceDetailsResolver | undefined)[] = [];
+		let sessionResource = URI.parse('chat-session:test-1');
 		const dnd = renderEditor ? disposables.add(instantiationService.createInstance(ChatDragAndDrop, () => widget, {
 			get attachments() { return attachments.attachments; },
 			addAttachments: entries => attachments.addContext(...entries),
@@ -129,11 +185,20 @@ suite('ChatInlineAttachments', () => {
 			const container = editor.getContainerDomNode().parentElement!;
 			dnd.addOverlay(container, container, editor.getContainerDomNode());
 		}
+		const rendered: IChatRequestVariableEntry[] = [];
 		const controller = disposables.add(instantiationService.createInstance(ChatInlineAttachments, editor, attachments, {
 			widget: showsPills ? widget : undefined,
-			createAttachmentWidget: (attachment: IChatRequestVariableEntry, container: HTMLElement) => {
+			get sessionResource() { return sessionResource; },
+			createAttachmentWidget: (attachment, container, options) => {
+				attachmentResolvers.push(options.gitHubResourceDetailsResolver);
+				rendered.push(attachment);
 				const element = dom.append(container, dom.$('span.chat-attached-context-attachment', undefined, attachment.name));
-				return { element, onDidDelete: Event.None, onDidOpen: Event.None, dispose: () => element.remove() };
+				const onDidChangePreview = new Emitter<void>();
+				return {
+					element, supportsPreview: !!preview, getPreviewHoverContent: preview, previewHover,
+					onDidChangePreview: onDidChangePreview.event, onDidDelete: Event.None, onDidOpen: Event.None,
+					dispose: () => { onDidChangePreview.fire(); onDidChangePreview.dispose(); element.remove(); },
+				};
 			},
 			removeAttachments: (removed: readonly IChatRequestVariableEntry[]) => attachments.delete(...removed.map(attachment => attachment.id)),
 			resetDragState: () => dnd?.resetDragState(),
@@ -144,12 +209,15 @@ suite('ChatInlineAttachments', () => {
 			attachments,
 			controller,
 			instantiationService,
+			attachmentResolvers,
+			setSessionResource: resource => { sessionResource = resource; },
 			addReference: reference => dynamicVariableModel.addReference(reference),
 			isActive: () => !!editor.invokeWithinContext(accessor => accessor.get(IContextKeyService).getContextKeyValue<boolean>(ChatContextKeys.inputInlineAttachmentActive.key)),
 			state: () => ({
 				prompt: controller.project()?.text ?? editor.getValue(),
 				attachments: attachments.attachments.map(attachment => attachment.id),
 			}),
+			rendered,
 		};
 	}
 
@@ -161,6 +229,284 @@ suite('ChatInlineAttachments', () => {
 	function settle(): Promise<void> {
 		return timeout(0);
 	}
+
+	test('Show or Focus Hover is scoped to the composer text input, not its toolbar or attachments', () => {
+		const binding = KeybindingsRegistry.getDefaultKeybindings().find(binding =>
+			binding.command === SHOW_OR_FOCUS_HOVER_ACTION_ID &&
+			binding.when?.keys().includes(ChatContextKeys.inChatInput.key));
+		assert.ok(binding?.when);
+		const configuration = new TestConfigurationService();
+		const context = store.add(new ContextKeyService(configuration));
+		ChatContextKeys.inChatInput.bindTo(context).set(true);
+		const textInputFocus = EditorContextKeys.textInputFocus.bindTo(context);
+		const toolbarOrAttachment = context.contextMatchesRules(binding.when);
+		textInputFocus.set(true);
+		const composer = context.contextMatchesRules(binding.when);
+		textInputFocus.set(false);
+		configuration.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, false);
+		assert.deepStrictEqual({
+			toolbarOrAttachment,
+			composer,
+			toolbarOrAttachmentWithInlineDisabled: context.contextMatchesRules(binding.when),
+		}, { toolbarOrAttachment: false, composer: true, toolbarOrAttachmentWithInlineDisabled: false });
+	});
+
+	test('Enter in the focused reference hover does not open the active pill or submit the draft', async () => {
+		// Other suites in the same run may have registered these actions already, and the registry rejects duplicates.
+		for (const action of [ChatSubmitAction, ChatQueueMessageAction, ChatSteerWithMessageAction]) {
+			if (!CommandsRegistry.getCommand(action.ID)) {
+				store.add(registerAction2(action));
+			}
+		}
+		const items = KeybindingsRegistry.getDefaultKeybindingsForOS(OS).flatMap(item => {
+			if (!item.keybinding || ![ChatSubmitAction.ID, ChatQueueMessageAction.ID, ChatSteerWithMessageAction.ID, 'workbench.action.chat.openInlineAttachment'].includes(item.command ?? '')) {
+				return [];
+			}
+			return [new ResolvedKeybindingItem(USLayoutResolvedKeybinding.resolveKeybinding(item.keybinding, OS)[0], item.command, item.commandArgs, item.when ?? undefined, true, null, false)];
+		});
+		const resolver = new KeybindingResolver(items, [], () => { });
+		const actual: { activePill: boolean; composerCommand: string | null | undefined; enterCommands: (string | null | undefined)[]; enterPrevented: boolean[] }[] = [];
+		for (const [position, defaultAction] of [
+			[new Position(1, 9), 'queue'],
+			[new Position(1, 8), 'queue'],
+			[new Position(1, 9), 'steer'],
+			[new Position(1, 8), 'steer'],
+		] as const) {
+			const content = dom.$('div');
+			const link = dom.append(content, dom.$('a', { href: '#reference' }, 'Reference'));
+			const button = dom.append(content, dom.$('button', { type: 'button' }, 'Branch'));
+			const input = createInput('review ', true, true, false, () => content);
+			input.editor.setPosition(new Position(1, 8));
+			input.attachments.addContext({
+				kind: 'generic',
+				id: 'github-context:https://github.com/microsoft/vscode/issues/123',
+				name: 'microsoft/vscode#123',
+				value: '',
+			});
+			await settle();
+			input.editor.invokeWithinContext(accessor => {
+				const context = accessor.get(IContextKeyService);
+				ChatContextKeys.enabled.bindTo(context).set(true);
+				ChatContextKeys.inChatInput.bindTo(context).set(true);
+				ChatContextKeys.inputHasText.bindTo(context).set(true);
+				ChatContextKeys.inputHasSendableContent.bindTo(context).set(true);
+				ChatContextKeys.chatSessionOptionsValid.bindTo(context).set(true);
+				ChatContextKeys.requestInProgress.bindTo(context).set(true);
+				context.createKey(`config.${ChatConfiguration.RequestQueueingDefaultAction}`, defaultAction);
+			});
+			const contextService = input.instantiationService.get(IContextKeyService);
+			const resolveEnter = (target: Element) => {
+				const result = resolver.resolve(contextService.getContext(target), [], 'Enter');
+				return result.kind === ResultKind.KbFound ? result.commandId : undefined;
+			};
+			input.editor.focus();
+			input.editor.setPosition(position, 'keyboard');
+			const activePill = input.isActive();
+			const composerCommand = resolveEnter(input.editor.getDomNode()!);
+			ContentHoverController.get(input.editor)!.showContentHover(new Range(1, 9, 1, 9), HoverStartMode.Immediate, HoverStartSource.Keyboard, true);
+			await settle();
+			const enterCommands: (string | null | undefined)[] = [];
+			const enterPrevented: boolean[] = [];
+			const container = content.closest<HTMLElement>('.monaco-hover')!;
+			const keydownListener = store.add(dom.addDisposableListener(dom.getWindow(container).document, 'keydown', event => {
+				if (event.key === 'Enter' && event.target instanceof Element) {
+					const command = resolveEnter(event.target);
+					enterCommands.push(command);
+					if (command) {
+						event.preventDefault();
+					}
+				}
+			}));
+			for (const target of [container, link, button]) {
+				target.focus();
+				target.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+				enterPrevented.push(!target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true })));
+			}
+			keydownListener.dispose();
+			actual.push({ activePill, composerCommand, enterCommands, enterPrevented });
+			ContentHoverController.get(input.editor)!.hideContentHover();
+			await settle();
+		}
+		assert.deepStrictEqual(actual, [
+			{ activePill: true, composerCommand: 'workbench.action.chat.openInlineAttachment', enterCommands: [undefined, undefined, undefined], enterPrevented: [false, false, false] },
+			{ activePill: false, composerCommand: ChatQueueMessageAction.ID, enterCommands: [undefined, undefined, undefined], enterPrevented: [false, false, false] },
+			{ activePill: true, composerCommand: 'workbench.action.chat.openInlineAttachment', enterCommands: [undefined, undefined, undefined], enterPrevented: [false, false, false] },
+			{ activePill: false, composerCommand: ChatSteerWithMessageAction.ID, enterCommands: [undefined, undefined, undefined], enterPrevented: [false, false, false] },
+		]);
+	});
+
+	test('keyboard activation reveals the shared hover without focusing it or showing it after edits', async () => {
+		const events: string[] = [];
+		const previewHover: IManagedHover = {
+			show: focus => events.push(`show:${focus}`),
+			hide: () => events.push('hide'),
+			update: async () => { },
+			dispose: () => { },
+		};
+		const input = createInput('review  tail', true, true, false, () => dom.$('div'), previewHover);
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext({
+			kind: 'generic',
+			id: 'github-context:https://github.com/microsoft/vscode/issues/123',
+			name: 'microsoft/vscode#123',
+			value: '',
+		});
+		await settle();
+		const afterInsertion = [...events];
+		input.editor.focus();
+		input.editor.trigger('keyboard', 'cursorLeft', {});
+		input.editor.trigger('keyboard', 'cursorRight', {});
+		const afterKeyboardActivation = [...events];
+		input.editor.trigger('keyboard', 'cursorRight', {});
+		input.editor.setPosition(new Position(1, 9));
+		assert.deepStrictEqual({
+			afterInsertion,
+			afterKeyboardActivation,
+			afterLeavingAndProgrammaticReturn: events,
+			focusInComposer: input.editor.hasTextFocus(),
+		}, { afterInsertion: [], afterKeyboardActivation: ['show:false'], afterLeavingAndProgrammaticReturn: ['show:false', 'hide'], focusInComposer: true });
+	});
+
+	test('Show or Focus Hover displays reference details and Escape returns to the draft', async () => {
+		const content = dom.$('div', undefined, 'Issue title and description');
+		let rendered = 0;
+		let sharedPreviewVisible = false;
+		const previewHover = upcastPartial<IManagedHover>({
+			show: () => { sharedPreviewVisible = true; },
+			hide: () => { sharedPreviewVisible = false; },
+		});
+		const input = createInput('review ', true, true, false, () => {
+			rendered++;
+			return content;
+		}, previewHover);
+		const hover = ContentHoverController.get(input.editor)!;
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext({
+			kind: 'generic',
+			id: 'github-context:https://github.com/microsoft/vscode/issues/123',
+			name: 'microsoft/vscode#123',
+			value: '',
+		});
+		await settle();
+		input.editor.focus();
+		input.editor.trigger('keyboard', 'cursorLeft', {});
+		input.editor.trigger('keyboard', 'cursorRight', {});
+		await settle();
+		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		hover.showContentHover(Range.fromPositions(input.editor.getPosition()!), HoverStartMode.Immediate, HoverStartSource.Mouse, false);
+		await settle();
+		const shownForMouse = hover.isHoverVisible;
+		const renderedBeforeCommand = rendered;
+		const sharedPreviewBeforeCommand = sharedPreviewVisible;
+		const before = input.state();
+		input.editor.focus();
+		const context = input.editor.invokeWithinContext(accessor => {
+			const contextKeyService = accessor.get(IContextKeyService);
+			ChatContextKeys.inChatInput.bindTo(contextKeyService).set(true);
+			ChatContextKeys.inChatSession.bindTo(contextKeyService).set(true);
+			return { getValue: <T>(key: string) => contextKeyService.getContextKeyValue<T>(key) };
+		});
+		const hoverBinding = KeybindingsRegistry.getDefaultKeybindings().some(binding =>
+			binding.command === SHOW_OR_FOCUS_HOVER_ACTION_ID &&
+			binding.when?.evaluate(context));
+		assert.deepStrictEqual({ editorTextFocus: EditorContextKeys.editorTextFocus.evaluate(context), hoverBinding }, {
+			editorTextFocus: false, hoverBinding: true,
+		});
+		input.editor.invokeWithinContext(accessor => new ShowOrFocusHoverAction().run(accessor, input.editor, { focus: true }));
+		await settle();
+		const shown = hover.isHoverVisible;
+		const accessibleView = new HoverAccessibleView();
+		const accessibilityHelp = new HoverAccessibilityHelp();
+		const command = new MultiCommand({ id: 'test.referenceAccessibleView', precondition: undefined });
+		let provider: ReturnType<HoverAccessibleView['getProvider']>;
+		const chatResponse = new ChatResponseAccessibleView();
+		store.add(command.addImplementation(chatResponse.priority, chatResponse.name, () => true, chatResponse.when));
+		store.add(command.addImplementation(accessibleView.priority, accessibleView.name, accessor => {
+			provider = accessibleView.getProvider(accessor);
+			return !!provider;
+		}, accessibleView.when));
+		// Hidden Electron test windows don't dispatch native focus events.
+		const focusedElement = dom.getActiveElement();
+		focusedElement?.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+		const focusedContext = input.instantiationService.get(IContextKeyService).getContext(focusedElement);
+		assert.deepStrictEqual({
+			outsideEditor: !input.editor.getDomNode()!.contains(focusedElement),
+			accessibleViewAvailable: accessibleView.when.evaluate(focusedContext),
+			accessibilityHelpAvailable: accessibilityHelp.when.evaluate(focusedContext),
+		}, { outsideEditor: true, accessibleViewAvailable: true, accessibilityHelpAvailable: true });
+		input.instantiationService.invokeFunction(accessor => command.runCommand(accessor, undefined));
+		assert.ok(provider);
+		store.add(provider);
+		provider.onOpen?.();
+		const accessibleContent = provider.provideContent();
+		assert.deepStrictEqual({ shownForMouse, renderedBeforeCommand, renderedAfterCommand: rendered > 0, sharedPreviewBeforeCommand, sharedPreviewAfterCommand: sharedPreviewVisible, shown, accessibleContent }, {
+			shownForMouse: false, renderedBeforeCommand: 0, renderedAfterCommand: true, sharedPreviewBeforeCommand: true, sharedPreviewAfterCommand: false, shown: true, accessibleContent: 'Issue title and description',
+		});
+		let contentUpdates = 0;
+		store.add(hover.onHoverContentsChanged(() => contentUpdates++));
+		content.textContent = 'Refreshed issue description';
+		await settle();
+		const refreshedAccessibleContent = provider.provideContent();
+		provider.onClose();
+		const container = content.closest('.monaco-hover');
+		assert.ok(container);
+		container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		await settle();
+		assert.deepStrictEqual({
+			contentUpdated: contentUpdates > 0,
+			refreshedAccessibleContent,
+			dismissed: !hover.isHoverVisible,
+			focusReturned: input.editor.hasTextFocus(),
+			draft: input.state(),
+		}, { contentUpdated: true, refreshedAccessibleContent: 'Refreshed issue description', dismissed: true, focusReturned: true, draft: before });
+		input.editor.invokeWithinContext(accessor => new ShowOrFocusHoverAction().run(accessor, input.editor, { focus: true }));
+		await settle();
+		input.controller.refresh();
+		await settle();
+		const reference = input.editor.getDomNode()!.querySelector<HTMLElement>('.chat-inline-attachment .chat-attached-context-attachment');
+		assert.ok(reference);
+		const sandbox = sinon.createSandbox();
+		store.add(toDisposable(() => sandbox.restore()));
+		const click = sandbox.spy(reference, 'click');
+		assert.deepStrictEqual({
+			dismissedOnRefresh: !hover.isHoverVisible,
+			opensActiveReference: input.controller.openActivePill(),
+			clicks: click.callCount,
+			draft: input.state(),
+		}, { dismissedOnRefresh: true, opensActiveReference: true, clicks: 1, draft: before });
+	});
+
+	test('the input owns one GitHub resolver across pill rerenders and warms only new arrivals', async () => {
+		const sandbox = sinon.createSandbox();
+		store.add(toDisposable(() => sandbox.restore()));
+		const prefetch = sandbox.stub(GitHubResourceDetailsResolver.prototype, 'prefetchIssue').resolves(undefined);
+		const input = createInput('review ');
+		input.editor.setPosition(new Position(1, 8));
+		const issue = (number: number): IChatRequestVariableEntry => ({
+			kind: 'generic',
+			id: `github-context:https://github.com/microsoft/vscode/issues/${number}`,
+			name: `microsoft/vscode#${number}`,
+			value: '',
+		});
+		input.attachments.addContext(issue(123));
+		await settle();
+		const resolver = input.attachmentResolvers[0];
+		input.controller.refresh();
+		await settle();
+		input.attachments.addContext(issue(456));
+		await settle();
+		input.setSessionResource(URI.parse('chat-session:test-2'));
+		input.attachments.delete(issue(123).id, issue(456).id);
+		input.editor.getModel()!.setValue('review ');
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext(issue(789));
+		await settle();
+		assert.deepStrictEqual({
+			hasResolver: !!resolver,
+			sameResolver: input.attachmentResolvers.every(value => value === resolver),
+			warmed: prefetch.args.map(([target]) => target.number),
+		}, { hasResolver: true, sameResolver: true, warmed: [456] });
+	});
 
 	function dispatchDrag(element: HTMLElement, type: string, dataTransfer: DataTransfer): DragEvent {
 		const event = new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer });
@@ -580,6 +926,71 @@ suite('ChatInlineAttachments', () => {
 			forModel: [['file:a.ts', '[a.ts](file:///a.ts)'], ['file:a.ts', '[a.ts](file:///a.ts)']],
 			persisted: [['file:a.ts', undefined], ['file:a.ts', undefined]],
 			attachments: ['file:a.ts'],
+		});
+	});
+
+	test('a session link becomes a pill that shows the session where a widget can, while the prompt keeps the link', async () => {
+		const link = 'code-oss://agents/agent-host-session/copilotcli/session-1';
+		const text = `continue ${link} please`;
+		const shown = createInput(text, true, false, true);
+		const hidden = createInput(text);
+		await settle();
+
+		assert.deepStrictEqual({
+			shown: {
+				input: shown.editor.getValue(),
+				...shown.state(),
+				forModel: shown.controller.project([], { forModel: true })?.text,
+				rendered: shown.rendered.map(entry => ({ kind: entry.kind, name: entry.name, value: String(entry.value) })),
+			},
+			hidden: { input: hidden.editor.getValue(), rendered: hidden.rendered.length },
+		}, {
+			shown: {
+				input: 'continue \uFFFC please',
+				prompt: text,
+				attachments: [],
+				forModel: text,
+				rendered: [{ kind: 'sessionLink', name: 'Session', value: 'agent-host-session://copilotcli/session-1' }],
+			},
+			hidden: { input: text, rendered: 0 },
+		});
+	});
+
+	test('a session link within other text becomes a pill too, which the prompt says exactly where it is', async () => {
+		const link = 'agent-host-session://copilotcli/session-1';
+		const collapse = async (text: string) => {
+			const input = createInput(text, true, false, true);
+			await settle();
+			return { input: input.editor.getValue(), prompt: input.state().prompt };
+		};
+
+		// A pill right after a link ends the link, which becomes a pill too.
+		assert.deepStrictEqual(await Promise.all([`check (${link}), then`, `{"session":"${link}"}`, `${link}\uFFFC`].map(collapse)), [
+			{ input: 'check (\uFFFC), then', prompt: `check (${link}), then` },
+			{ input: '{"session":"\uFFFC"}', prompt: `{"session":"${link}"}` },
+			{ input: '\uFFFC\uFFFC', prompt: link },
+		]);
+	});
+
+	test('a session link pill dragged into parentheses keeps the link exactly where it is, during and after the move', async () => {
+		const link = 'agent-host-session://copilotcli/session-1';
+		const input = createInput(`see () ${link}`, true, true, true);
+		await settle();
+		const container = input.editor.getContainerDomNode();
+		const widget = container.querySelector<HTMLElement>('.chat-inline-attachment .chat-attached-context-attachment')!;
+		const dataTransfer = new DataTransfer();
+		sinon.stub(input.editor, 'getTargetAtClientPoint').returns(dropTarget(new Position(1, 6)));
+		const duringMove: (string | undefined)[] = [];
+		const listener = input.editor.onDidChangeModelContent(() => duringMove.push(input.controller.project()?.text));
+		dispatchDrag(widget, dom.EventType.DRAG_START, dataTransfer);
+		dispatchDrag(container, dom.EventType.DRAG_OVER, dataTransfer);
+		dispatchDrag(container, dom.EventType.DROP, dataTransfer);
+		listener.dispose();
+		await settle();
+
+		assert.deepStrictEqual({ duringMove, moved: input.state().prompt }, {
+			duringMove: [`see (${link}) `],
+			moved: `see (${link}) `,
 		});
 	});
 

@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ActionListItemKind, IActionListItemHover } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IExtensionRemoteAgentHostsService } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, NullRemoteAgentHostService, readWebSocketRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -32,7 +33,7 @@ import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../se
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../../browser/chat/sessionEnvironmentPicker.js';
+import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getPickedSessionCreationEnvironment, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../../browser/chat/sessionEnvironmentPicker.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../common/chatConstants.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 
@@ -46,6 +47,7 @@ suite('SessionEnvironmentPicker', () => {
 	function provider(id: string, environment: string, options: Partial<ISessionsProvider> = {}): ISessionsProvider {
 		return upcastPartial<ISessionsProvider>({
 			id, environment: { id: environment, label: environment }, label: id, icon: Codicon.remote,
+			sessionTypes: [{ id: 'test', label: 'Test', icon: Codicon.remote, authRequirement: SessionTypeAuthRequirement.GitHub }],
 			resolveWorkspace: () => workspace,
 			getSessionTypes: () => [],
 			...options,
@@ -94,6 +96,16 @@ suite('SessionEnvironmentPicker', () => {
 		]);
 	});
 
+	test('preserves the checked workspace provider across provider registration order', () => {
+		assert.deepStrictEqual([
+			getDefaultSessionCreationEnvironment([cloud], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([cloud, local], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local, cloud], folder, 'cloud', false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local, cloud], folder, LOCAL_AGENT_HOST_PROVIDER_ID, false, undefined, true)?.id,
+			getDefaultSessionCreationEnvironment([local], folder, 'cloud', false, undefined, true)?.id,
+		], ['cloud', 'cloud', 'cloud', 'local', 'local']);
+	});
+
 	test('Cloud requires a supported session type, not merely a resolvable local folder', () => {
 		const localProvider = provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local');
 		const cloudProvider = provider('cloud', 'cloud');
@@ -106,6 +118,15 @@ suite('SessionEnvironmentPicker', () => {
 			getEnvironmentWorkspaceProvider(cloud, [localProvider, cloudProvider], folder)?.id,
 			getEnvironmentWorkspaceProvider(cloud, [localProvider, supportedCloud], folder)?.id,
 		], [LOCAL_AGENT_HOST_PROVIDER_ID, undefined, 'cloud']);
+	});
+
+	test('hides Cloud creation without disabling its workspace browse contributions', () => {
+		const cloudProvider = provider('cloud', 'cloud', { sessionTypes: [] });
+		assert.deepStrictEqual({
+			environments: getSessionCreationEnvironments([cloudProvider]),
+			workspace: cloudProvider.resolveWorkspace(folder),
+			workspaceSelection: cloudProvider.supportsWorkspaceSelection !== false,
+		}, { environments: [], workspace, workspaceSelection: true });
 	});
 
 	test('connection descriptions use the shared Connected, Connecting and Disconnected labels', () => {
@@ -156,6 +177,17 @@ suite('SessionEnvironmentPicker', () => {
 			selected: environment.id,
 			resolved: getEnvironmentWorkspaceProvider(environment, [selected], folder)?.id,
 		}, { picker: [], selected: selected.id, resolved: selected.id });
+	});
+
+	test('a draft keeps its picked environment while one of its providers is registered, even unlisted, and drops it once all are gone', () => {
+		const picked: ISessionCreationEnvironment = { id: 'agenthost-jobs', kind: 'remote', label: 'Jobs', icon: Codicon.remote, providerIds: ['agenthost-jobs'], description: 'Connected' };
+		const listed: ISessionCreationEnvironment = { ...picked, description: 'Disconnected' };
+		const jobs = provider('agenthost-jobs', 'remote');
+		assert.deepStrictEqual([
+			getPickedSessionCreationEnvironment(picked, [local, listed], [jobs]),
+			getPickedSessionCreationEnvironment(picked, [local], [jobs]),
+			getPickedSessionCreationEnvironment(picked, [local], [provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local')]),
+		], [listed, picked, undefined]);
 	});
 
 	for (const containerRequested of [false, true]) {
@@ -214,6 +246,7 @@ suite('SessionEnvironmentPicker', () => {
 		instantiation.stub(ISessionsProvidersService, { getProvider: () => undefined });
 		instantiation.stub(IRemoteAgentHostService, new NullRemoteAgentHostService());
 		instantiation.stub(IMissionControlEnvironmentService, { enabled: false, hosts: constObservable([]) });
+		instantiation.stub(IExtensionRemoteAgentHostsService, { hosts: constObservable([]) });
 		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, cloud]), selected, async environment => selected.set(environment, undefined), () => []));
 		const container = dom.$('div');
 		dom.append(container, dom.$('span', undefined, 'Repository'));
@@ -256,14 +289,17 @@ suite('SessionEnvironmentPicker', () => {
 			{ name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } },
 			{ name: 'desktop', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:remote', environmentId: 'remote', environmentKind: 'user-local' } },
 			{ name: 'my_host*', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://localhost:3000' } },
+			{ name: 'Jobs', connection: { type: RemoteAgentHostEntryType.Extension, address: '127.0.0.1:8445', extensionId: 'publisher.jobs', extensionDisplayName: 'Job_runner' } },
 		];
 		const providers = entries.map((entry, index) => upcastPartial<IAgentHostSessionsProvider>({
 			...provider(`agenthost-remote-${index}`, 'remote'), label: entry.name, remoteAddress: getEntryAddress(entry),
 			connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
 		}));
 		instantiation.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>(id: string) => providers.find(provider => provider.id === id) as T | undefined });
-		instantiation.stub(IRemoteAgentHostService, { configuredEntries: entries.filter(entry => entry.connection.type !== RemoteAgentHostEntryType.CloudSandbox) });
+		// Mission Control and extensions describe the hosts the service is not dialing: a GitHub Environment and an extension's host the user disconnected.
+		instantiation.stub(IRemoteAgentHostService, { configuredEntries: entries.filter(entry => entry.connection.type !== RemoteAgentHostEntryType.CloudSandbox && entry.connection.type !== RemoteAgentHostEntryType.Extension) });
 		instantiation.stub(IMissionControlEnvironmentService, { enabled: true, accountKey: 'account', hosts: constObservable([{ id: 'remote', name: 'desktop', kind: 'user-local', status: 'online' }]) });
+		instantiation.stub(IExtensionRemoteAgentHostsService, { hosts: constObservable([{ name: 'Jobs', address: '127.0.0.1:8445', extensionId: 'publisher.jobs', extensionDisplayName: 'Job_runner' }]) });
 		instantiation.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
 		instantiation.stub(IContextKeyService, new MockContextKeyService());
 		instantiation.stub(IHoverService, NullHoverService);
@@ -297,6 +333,7 @@ suite('SessionEnvironmentPicker', () => {
 			remote('Ubuntu', 'Run this session on Ubuntu in WSL'),
 			remote('desktop', 'Run this session on desktop, shared through GitHub Environments'),
 			remote('my_host*', 'Run this session on my_host*', 'Run this session on my\\_host\\*'),
+			remote('Jobs', 'Run this session on Jobs, registered by the Job_runner extension', 'Run this session on Jobs, registered by the Job\\_runner extension'),
 			{ hover: 'Run this session in a dev container for the selected folder', aria: 'Dev Container, Run this session in a dev container for the selected folder' },
 			{ hover: 'Connect over \\*SSH\\*', aria: 'SSH..., Connect over *SSH*' },
 			{ hover: undefined, aria: 'Other...' },
@@ -360,6 +397,7 @@ suite('SessionEnvironmentPicker', () => {
 				instantiation.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>(id: string) => providers.find(provider => provider.id === id) as T | undefined });
 				let configuredEntries = entries.filter(entry => entry.connection.type !== RemoteAgentHostEntryType.CloudSandbox);
 				instantiation.stub(IRemoteAgentHostService, { get configuredEntries() { return configuredEntries; } });
+				instantiation.stub(IExtensionRemoteAgentHostsService, { hosts: constObservable([]) });
 				const telemetry = new TestExperimentTriggerTelemetryService();
 				instantiation.stub(ITelemetryService, telemetry);
 				instantiation.stub(IContextKeyService, new MockContextKeyService());

@@ -22,6 +22,9 @@
  *
  * Only the first attempt runs in workers. Every worker reports its failures to the process that
  * started it, which reruns them in a single process or browser (see `--rerun-failed-files`).
+ *
+ * `--isolate` instead runs every test file alone in a fresh process (see runEachFileAlone), to find
+ * test files that only pass when the other test files of a run are loaded too.
  */
 
 const cp: typeof import('child_process') = require('child_process');
@@ -234,6 +237,72 @@ async function runInWorkers({ name, count, command, args }: { name: string; coun
 }
 
 /**
+ * Runs `command args --run <file>` for every test file, each in a fresh process, at most `count`
+ * at once, and prints the output of each process when it finishes. A test file that passes in a
+ * run with other test files but fails here depends on what they load, such as a contribution that
+ * registers something it reads.
+ * @returns the test files whose process failed, in the order of `files`
+ */
+async function runEachFileAlone({ name, files, count, command, args }: { name: string; files: string[]; count: number; command: string; args: string[] }): Promise<string[]> {
+	const parallel = Math.max(1, Math.min(count, files.length));
+	await write(`${name}: running each of ${files.length} test file(s) alone in a fresh process, ${parallel} at once\n`);
+
+	const start = Date.now();
+	const running = new Map<string, import('child_process').ChildProcess>();
+
+	// Name the files that did not finish if we are interrupted, e.g. by a CI step timeout
+	const onSignal = () => {
+		try {
+			fs.writeSync(1, `\n=== ${name}: interrupted while running these test files alone: ===\n${[...running.keys()].join('\n')}\n`);
+		} catch {
+			// best effort
+		}
+		for (const child of running.values()) {
+			child.kill();
+		}
+		process.exit(1);
+	};
+	process.once('SIGINT', onSignal);
+	process.once('SIGTERM', onSignal);
+
+	const failed = new Set<string>();
+	let next = 0;
+	const runNext = async () => {
+		while (next < files.length) {
+			const file = files[next++];
+			const output: Buffer[] = [];
+			const { code, signal } = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => {
+				const child = cp.spawn(command, [...args, '--run', file], { stdio: ['ignore', 'pipe', 'pipe'] });
+				running.set(file, child);
+				child.stdout.on('data', (chunk: Buffer) => output.push(chunk));
+				child.stderr.on('data', (chunk: Buffer) => output.push(chunk));
+				child.on('error', error => output.push(Buffer.from(`${error}\n`)));
+				child.on('close', (code, signal) => {
+					running.delete(file);
+					resolve({ code, signal });
+				});
+			});
+			// test.bat treats 255 as success too, see https://github.com/microsoft/vscode/issues/28582
+			const passed = signal === null && (code === 0 || (process.platform === 'win32' && code === 255));
+			if (!passed) {
+				failed.add(file);
+			}
+			await write(Buffer.concat([
+				Buffer.from(`\n=== ${name}: ${file} ${passed ? 'passed' : 'FAILED'} alone (exit code ${signal ?? code}) after ${formatDuration(Date.now() - start)} ===\n`),
+				...output,
+			]));
+		}
+	};
+
+	await Promise.all(Array.from({ length: parallel }, runNext));
+	process.off('SIGINT', onSignal);
+	process.off('SIGTERM', onSignal);
+
+	await write(`\n=== ${name}: ${failed.size ? `${failed.size} of ${files.length} test file(s) failed alone` : `all ${files.length} test file(s) passed alone`} after ${formatDuration(Date.now() - start)} ===\n`);
+	return files.filter(file => failed.has(file));
+}
+
+/**
  * @returns the failures that the worker reported, or `undefined` if it did not report any
  */
 function readWorkerReport(workerDir: string, id: number): IWorkerReport | undefined {
@@ -434,4 +503,4 @@ function formatDuration(ms: number): string {
 	return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
 }
 
-module.exports = { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport, trackTestFiles, distributeTestFiles, createTestFileClaims, distributeClaimedTestFiles };
+module.exports = { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, runEachFileAlone, writeWorkerReport, trackTestFiles, distributeTestFiles, createTestFileClaims, distributeClaimedTestFiles };

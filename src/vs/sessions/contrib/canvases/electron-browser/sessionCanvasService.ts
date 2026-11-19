@@ -9,7 +9,9 @@ import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, o
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CanvasInput, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
+import { CanvasDefinitionOpener, CanvasInput, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -20,9 +22,10 @@ import { ICustomViewService } from '../../../../workbench/contrib/sessions/brows
 import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
-import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
+import { ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
-import { canvasOwnerKey, ICanvas, ICanvasOwner, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
+import { canvasOwnerKey, ICanvas, ICanvasOpenOptions, ICanvasOwner, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
+import { openCanvasForUser } from '../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
 
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
 
@@ -75,7 +78,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 				const definitionProvider = supportsCanvases ? {
 					onDidChangeDefinitions: Event.fromObservableLight(canvases),
 					listCanvases: () => this.sessionsManagementService.listCanvases(session, chat),
-					openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId),
+					openCanvas: (canvas: ICanvasDefinition, instanceId: string, options?: ICanvasOpenOptions) => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId, options),
 				} : undefined;
 				contexts.push({ owner, canvases, openRequests, definitionProvider, background });
 			};
@@ -122,6 +125,14 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			const archived = event.changed.filter(session => session.isArchived.read(undefined));
 			for (const session of [...event.removed, ...archived]) {
 				this.removeOwners(owner => ownsSession(owner, session));
+			}
+		}));
+		this._register(this.sessionsManagementService.onDidDiscardNewSession(session => {
+			this.removeOwners(owner => ownsSession(owner, session));
+		}));
+		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => {
+			if (!isEqual(from.resource, to.resource)) {
+				this.removeOwners(owner => ownsSession(owner, from));
 			}
 		}));
 		this._register(this.sessionsManagementService.onDidDeleteChat(({ session, chatResource }) => {
@@ -254,16 +265,25 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 export class SessionCanvasRegistryService extends Disposable implements ISessionCanvasRegistryService {
 
 	declare readonly _serviceBrand: undefined;
+	readonly owner: IObservable<ICanvasOwner | undefined>;
 	readonly supportsCanvases: IObservable<boolean>;
 	readonly availableCanvases: IObservable<readonly ISessionCanvasDefinition[]>;
+	private readonly opener = new CanvasDefinitionOpener();
 
 	constructor(
 		@IFocusedSessionHostService private readonly focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ICanvasService private readonly canvasService: ICanvasService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IProgressService private readonly progressService: IProgressService,
 		@ILogService logService: ILogService,
 	) {
 		super();
+		this.owner = derivedOpts<ICanvasOwner | undefined>({ owner: this, equalsFn: (a, b) => a === b || (!!a && !!b && isCanvasOwner(a, b)) }, reader => {
+			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
+			const chat = focusedSessionHostService.focusedHost.read(reader).chat.read(reader);
+			return session && chat ? { providerId: session.providerId, session: session.resource, chat: chat.resource } : undefined;
+		});
 		this.supportsCanvases = derived(this, reader => {
 			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			return !!session && !!focusedSessionHostService.focusedHost.read(reader).chat.read(reader)
@@ -294,13 +314,17 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		if (!chat) {
 			return;
 		}
-		const instanceId = getSessionCanvasDefinitionInstanceId(canvas);
-		const existing = chat.canvases?.get()?.find(candidate => candidate.instanceId === instanceId);
-		if (existing?.source) {
-			await this.canvasService.revealCanvas(createSessionCanvasReference(session, chat, existing));
-			return;
-		}
-		await this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId);
+		await openCanvasForUser(this.progressService, this.notificationService, canvas.displayName || canvas.canvasId, async options => {
+			// A retry runs later, when the session may no longer present canvases.
+			if (this.canvasService.enabled.get() && session.capabilities.get().supportsCanvases === true) {
+				await this.openCanvasIn(session, chat, canvas, options);
+			}
+		});
+	}
+
+	private openCanvasIn(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, options?: ICanvasOpenOptions): Promise<void> {
+		const owner: ICanvasOwner = { providerId: session.providerId, session: session.resource, chat: chat.resource };
+		return this.opener.open(owner, canvas, chat.canvases?.get() ?? [], instanceId => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId, options));
 	}
 }
 

@@ -211,6 +211,13 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				this._disposePRReview(session.resource);
 			}
 		}));
+		// New-session drafts are deleted when discarded or replaced, without a session change event.
+		this._register(this._sessionsManagementService.onDidDiscardNewSession(session => this._disposePRReview(session.resource)));
+		this._register(this._sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => {
+			if (!isEqual(from.resource, to.resource)) {
+				this._disposePRReview(from.resource);
+			}
+		}));
 	}
 
 	getPRReviewState(sessionResource: URI): IObservable<IPRReviewState> {

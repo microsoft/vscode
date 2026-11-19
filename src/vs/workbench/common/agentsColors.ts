@@ -67,6 +67,16 @@ export const agentsBottomPanelBorder = registerColor(
 	localize('agentsBottomPanel.border', 'Border color of the bottom panel in the agent sessions window.')
 );
 
+export const agentsActivityBarBackground = registerColor(
+	'agentsActivityBar.background', Color.transparent,
+	localize('agentsActivityBar.background', 'Background color of the docked Session Activity Bar in the Agents window.')
+);
+
+export const agentsActivityBarBorder = registerColor(
+	'agentsActivityBar.border', Color.transparent,
+	localize('agentsActivityBar.border', 'Border color of the docked Session Activity Bar in the Agents window.')
+);
+
 // ============================================================================
 // Gradient background tint
 // ============================================================================

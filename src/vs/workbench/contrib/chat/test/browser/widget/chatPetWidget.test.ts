@@ -39,7 +39,7 @@ import '../../../browser/widget/media/chat.css';
 import { drawChatPetComposite, drawChatPetPropeller, getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetFixedOrientationDecoration } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
 import { ChatPetJumpGameRetry } from '../../../browser/widget/chatPetJumpGame.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetThrowLanding, getChatPetThrowMaximumFallSpeed, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetRaisedPlatform, getChatPetStackPlatform, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetThrowLanding, getChatPetThrowMaximumFallSpeed, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -1679,6 +1679,155 @@ suite('ChatPetWidget', () => {
 		});
 	}
 
+	/**
+	 * A chat whose input part grows upwards when a surface shows above the input. Like the chat
+	 * widget, the transcript is only resized afterwards, so `show` reports the layout to the pet
+	 * while the taller input part still hangs below its final position.
+	 */
+	function createInputStackHarness(motionReduced: boolean, startOnLedge = false) {
+		const view = mainWindow.document.createElement('div');
+		// The workbench defines the size token that the jump's apex is measured in.
+		view.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:400px;overflow:hidden;--vscode-spacing-size80:8px';
+		const list = mainWindow.document.createElement('div');
+		list.style.height = '324px';
+		const inputPart = mainWindow.document.createElement('div');
+		inputPart.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:8px';
+		const upperSurface = mainWindow.document.createElement('div');
+		upperSurface.style.cssText = 'height:40px;display:none';
+		const lowerSurface = mainWindow.document.createElement('div');
+		lowerSurface.style.cssText = 'height:60px;display:none';
+		const input = mainWindow.document.createElement('div');
+		input.style.height = '60px';
+		// Floats above the input part like a pill, so it is no part of the stack.
+		const ledge = mainWindow.document.createElement('div');
+		ledge.style.cssText = `position:absolute;left:100px;bottom:100%;width:160px;height:24px;display:${startOnLedge ? 'block' : 'none'}`;
+		inputPart.append(upperSurface, lowerSurface, input, ledge);
+		view.append(list, inputPart);
+		mainWindow.document.body.append(view);
+		disposables.add(toDisposable(() => view.remove()));
+		let layout = () => { };
+		class TestResizeObserver implements ResizeObserver {
+			constructor(callback: ResizeObserverCallback) { layout = () => callback([], this); }
+			observe(): void { }
+			unobserve(): void { }
+			disconnect(): void { }
+		}
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		service.setHorizontalPosition({ edge: 'left', inset: 156 });
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			{
+				...createPetHost(inputPart, input, view),
+				getPlatforms: () => {
+					const ledgeBounds = ledge.getBoundingClientRect();
+					return [
+						getChatPetStackPlatform(inputPart, input),
+						...(ledgeBounds.height > 0 ? [{ left: ledgeBounds.left, right: ledgeBounds.right, top: ledgeBounds.top, element: ledge, isDefault: true }] : []),
+					];
+				},
+			},
+			{ resizeObserverCtor: TestResizeObserver },
+			service,
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return motionReduced; }
+			}(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+			workbenchInstantiationService(undefined, disposables),
+		));
+		const button = inputPart.querySelector<HTMLElement>('.chat-pet-button')!;
+		button.classList.remove('entering');
+		return {
+			button, upperSurface, lowerSurface, input, ledge,
+			show: (surface: HTMLElement) => {
+				surface.style.display = '';
+				ledge.style.display = 'none';
+				layout();
+				list.style.height = `${view.clientHeight - inputPart.offsetHeight}px`;
+			},
+		};
+	}
+
+	for (const reducedMotion of [false, true]) {
+		test(`jumps onto surfaces that show above the input instead of falling off (reduced motion: ${reducedMotion})`, async () => {
+			const { button, upperSurface, lowerSurface, input, show } = createInputStackHarness(reducedMotion);
+			show(lowerSurface);
+			show(upperSurface);
+			const startedAt = button.getBoundingClientRect().bottom;
+			const jumped = button.classList.contains('surface-jump');
+			const fell = button.classList.contains('throwing');
+			const travel = button.getAnimations().find(animation => animation.effect instanceof mainWindow.KeyframeEffect && animation.effect.getKeyframes().some(frame => frame.translate !== undefined));
+			await waitForPetAnimation(() => !button.classList.contains('surface-jump'));
+
+			assert.deepStrictEqual({
+				startedAt,
+				jumped,
+				travelDuration: travel?.effect?.getTiming().duration,
+				landedAt: button.getBoundingClientRect().bottom,
+				fellOff: fell || button.classList.contains('throwing') || button.classList.contains('hidden'),
+			}, {
+				startedAt: (reducedMotion ? upperSurface : input).getBoundingClientRect().top,
+				jumped: !reducedMotion,
+				// The travel is timed to the jump sprite, which leaps and lands within it.
+				travelDuration: reducedMotion ? undefined : getChatPetFrameDurations('jump').reduce((total, duration) => total + duration, 0),
+				landedAt: upperSurface.getBoundingClientRect().top,
+				fellOff: false,
+			});
+		});
+	}
+
+	for (const [phase, elapsed] of [['in the air', 300], ['after landing', 500]] as const) {
+		test(`stays where it is drawn when another surface shows ${phase} during a jump, then jumps onto it`, async () => {
+			const { button, upperSurface, lowerSurface, show } = createInputStackHarness(false);
+			let jumps = 0;
+			button.addEventListener('animationstart', event => jumps += event.animationName === 'chat-pet-surface-jump' ? 1 : 0);
+			show(lowerSurface);
+			const travel = button.getAnimations().find(animation => animation.effect instanceof mainWindow.KeyframeEffect && animation.effect.getKeyframes().some(frame => frame.translate !== undefined));
+			travel!.currentTime = elapsed;
+			const drawnAt = button.getBoundingClientRect().bottom;
+			show(upperSurface);
+			const moved = Math.abs(button.getBoundingClientRect().bottom - drawnAt) > 0.5;
+			await waitForPetAnimation(() => !button.classList.contains('surface-jump'));
+
+			assert.deepStrictEqual({
+				moved,
+				jumps,
+				landedAt: button.getBoundingClientRect().bottom,
+				fellOff: button.classList.contains('throwing') || button.classList.contains('hidden'),
+			}, {
+				moved: false,
+				jumps: 2,
+				landedAt: upperSurface.getBoundingClientRect().top,
+				fellOff: false,
+			});
+		});
+	}
+
+	test('lands on the surface below when a fall starts before the chat is laid out again', async () => {
+		const { button, lowerSurface, ledge, show } = createInputStackHarness(false, true);
+		const startedOnLedge = button.getBoundingClientRect().bottom === ledge.getBoundingClientRect().top;
+		show(lowerSurface);
+		const fell = button.classList.contains('throwing');
+		let respawned = false;
+		for (let frame = 0; button.classList.contains('throwing') && frame < 180; frame++) {
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			respawned ||= button.classList.contains('hidden');
+		}
+
+		assert.deepStrictEqual({ startedOnLedge, fell, respawned, landedAt: button.getBoundingClientRect().bottom }, {
+			startedOnLedge: true,
+			fell: true,
+			respawned: false,
+			landedAt: lowerSurface.getBoundingClientRect().top,
+		});
+	});
+
 	test('continues falling under gravity at the throw time limit instead of teleporting to a platform', async () => {
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		const clock = sinon.useFakeTimers();
@@ -2119,6 +2268,50 @@ suite('ChatPetWidget', () => {
 			scale: 1,
 			displaySize: '48px',
 			enabledAtDefault: false,
+		});
+	});
+
+	test('hides the pet from its context menu', async () => {
+		const parent = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent);
+		disposables.add(toDisposable(() => parent.remove()));
+		let menu: IContextMenuDelegate | undefined;
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, parent, parent),
+			undefined,
+			service,
+			new TestAccessibilityService(),
+			new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void { menu = delegate; }
+			}(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+			workbenchInstantiationService(undefined, disposables),
+		));
+		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
+		assert.ok(button);
+		button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const actions = menu?.getActions() ?? [];
+		const hide = actions.find(action => action.id === 'chat.pet.hide');
+		assert.ok(hide);
+		await hide.run();
+		await hide.run();
+
+		assert.deepStrictEqual({
+			label: hide.label,
+			isLast: actions[actions.length - 1] === hide,
+			enabled: service.enabled.get(),
+		}, {
+			label: 'Hide Pet',
+			isLast: true,
+			enabled: false,
 		});
 	});
 
@@ -5073,6 +5266,27 @@ suite('ChatPetWidget', () => {
 			dockedNotice: 0,
 			skippingLeadingContent: 36,
 			noticeStoodDown: 6,
+		});
+	});
+
+	test('climbs the nearest default surface above the pet only when nothing lies below', () => {
+		const stack = { left: 0, right: 400, top: 200, isDefault: true };
+		const perch = { left: 0, right: 400, top: 100, isDefault: true };
+		const pill = { left: 100, right: 160, top: 170 };
+		const aside = { left: 300, right: 400, top: 150, isDefault: true };
+
+		assert.deepStrictEqual({
+			buriedUnderStack: getChatPetRaisedPlatform([perch, stack, pill], 130, 260),
+			surfaceAtFeet: getChatPetRaisedPlatform([perch, stack], 130, 200),
+			surfaceBelow: getChatPetRaisedPlatform([perch, stack], 130, 170),
+			onlyPillAbove: getChatPetRaisedPlatform([pill], 130, 260),
+			surfaceAside: getChatPetRaisedPlatform([aside], 130, 260),
+		}, {
+			buriedUnderStack: stack,
+			surfaceAtFeet: stack,
+			surfaceBelow: undefined,
+			onlyPillAbove: undefined,
+			surfaceAside: undefined,
 		});
 	});
 

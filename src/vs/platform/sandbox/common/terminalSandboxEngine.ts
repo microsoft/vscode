@@ -53,6 +53,8 @@ export interface ITerminalSandboxRuntimeInfo {
 	nativeModulesDir?: string;
 	/** Path of the node/electron executable used to run sandbox-runtime. */
 	execPath?: string;
+	/** Explicit runtime read paths, replacing automatic grants for the executable and its parent directory. */
+	readPaths?: readonly string[];
 	/**
 	 * When true the engine prefixes the wrapped command with `ELECTRON_RUN_AS_NODE=1`
 	 * so the Electron binary acts as a Node.js executable. Set by hosts that resolve
@@ -124,6 +126,7 @@ export class TerminalSandboxEngine extends Disposable {
 	private _runtimeResolved = false;
 	private _appRoot: string | undefined;
 	private _execPath: string | undefined;
+	private _runtimeReadPaths: readonly string[] | undefined;
 	private _runAsNode = false;
 	private _userHome: URI | undefined;
 	private _srtPath: string | undefined;
@@ -611,6 +614,7 @@ export class TerminalSandboxEngine extends Disposable {
 		const runtimeInfo = await this._host.getRuntimeInfo();
 		this._appRoot = runtimeInfo.appRoot;
 		this._execPath = runtimeInfo.execPath;
+		this._runtimeReadPaths = runtimeInfo.readPaths;
 		this._runAsNode = runtimeInfo.runAsNode ?? false;
 		this._userHome = await this._host.getUserHome();
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'sandbox-runtime', 'dist', 'cli.js');
@@ -963,6 +967,9 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private _getSandboxRuntimeReadPaths(): string[] {
+		if (this._runtimeReadPaths !== undefined) {
+			return [...this._runtimeReadPaths];
+		}
 		if (!this._appRoot) {
 			return [];
 		}

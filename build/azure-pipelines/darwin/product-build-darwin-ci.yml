@@ -13,6 +13,10 @@ parameters:
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
     default: true
+  # Workspace images (see build/azure-pipelines/common/workspaceImage.ts)
+  - name: VSCODE_WORKSPACE_IMAGE
+    type: string
+    default: none
 
 jobs:
   - job: macOS${{ parameters.VSCODE_JOB_NAME }}
@@ -43,7 +47,8 @@ jobs:
           displayName: Publish Log Files
           sbomEnabled: false
           isProduction: false
-          condition: succeededOrFailed()
+          # 1ES PT runs its binary analysis for every published output, so only publish when the logs are needed
+          condition: failed()
     steps:
       - template: ./steps/product-build-darwin-compile.yml@self
         parameters:
@@ -51,3 +56,12 @@ jobs:
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
           VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
           VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
+          VSCODE_WORKSPACE_IMAGE: ${{ parameters.VSCODE_WORKSPACE_IMAGE }}
+          # Only what the tests of the job use: the unit and Agent Host E2E tests run out-build
+          VSCODE_BUILD_CLIENT: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-kerberos-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}
+          # The Smoke job checks the packaged Agent Host of the server
+          VSCODE_BUILD_SERVER: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}
+          VSCODE_BUILD_SERVER_WEB: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-webkit'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium')) }}
+          VSCODE_BUILD_PRODUCT_ASSETS: false
+          VSCODE_BUILD_INTEGRATION_TESTS: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-webkit'), containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-kerberos-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}
+          VSCODE_COMPILE_TEST_SUITES: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-webkit'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-kerberos-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}

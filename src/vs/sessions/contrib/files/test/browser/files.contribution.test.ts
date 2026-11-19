@@ -20,7 +20,7 @@ import { IListService } from '../../../../../platform/list/browser/listService.j
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ActiveEditorContext, IsSessionsWindowContext, ResourceContextKey, WorkspaceFolderCountContext } from '../../../../../workbench/common/contextkeys.js';
-import { SESSIONS_FILES_VIEW_ID, TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
+import { SESSIONS_FILES_CONTAINER_ID, SESSIONS_FILES_VIEW_ID, TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { Extensions, IViewContainersRegistry, IViewsRegistry } from '../../../../../workbench/common/views.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { FileDownload } from '../../../../../workbench/contrib/files/browser/fileImportExport.js';
@@ -30,7 +30,7 @@ import { TestFileEditorInput } from '../../../../../workbench/test/browser/workb
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { DesktopLayoutContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
-import { DownloadRemoteFileAction, RegisterFilesViewContribution, SESSIONS_FILES_CONTAINER_ID } from '../../browser/files.contribution.js';
+import { DownloadRemoteFileAction, RegisterFilesViewContribution } from '../../browser/files.contribution.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID } from '../../browser/filesView.js';
 
 suite('Sessions Files view availability', () => {

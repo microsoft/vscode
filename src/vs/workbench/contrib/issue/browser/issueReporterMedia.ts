@@ -49,10 +49,20 @@ export function getIssueReporterMediaFormat(name: string, type = ''): IIssueRepo
 	};
 }
 
+/**
+ * The file of a screenshot. A screenshot that was marked up from an image file keeps the file's name, with the
+ * extension of its format, and `screenshotNumber` numbers the other screenshots.
+ */
 export function getIssueReporterScreenshotFile(screenshot: IIssueReporterScreenshot, screenshotNumber: number): { dataUrl: string; name: string; format: IIssueReporterMediaFormat } {
 	const dataUrl = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
 	const format = getIssueReporterMediaFormat('', dataUrl.slice(5, dataUrl.indexOf(',')).split(';', 1)[0]);
-	return { dataUrl, name: `screenshot-${screenshotNumber}.${format.extension}`, format };
+	if (!screenshot.name) {
+		return { dataUrl, name: `screenshot-${screenshotNumber}.${format.extension}`, format };
+	}
+	const name = getIssueReporterMediaFormat(screenshot.name).mimeType === format.mimeType
+		? screenshot.name
+		: `${screenshot.name.slice(0, screenshot.name.length - extname(screenshot.name).length)}.${format.extension}`;
+	return { dataUrl, name, format };
 }
 
 export function validateIssueReporterMediaFile(file: Pick<File, 'name' | 'type' | 'size'>): IIssueReporterMediaFormat {

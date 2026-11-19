@@ -3,7 +3,8 @@ parameters:
     type: string # linux, win32
 
 # Runs every Copilot test in the Copilot Tests job of the Windows and Linux
-# stages. The Copilot stage (../product-copilot.yml) only typechecks and lints.
+# stages. The Quality Checks job (../product-quality-checks.yml) compiles, type
+# checks and lints Copilot.
 steps:
   - script: git lfs install --local
     condition: and(succeeded(), eq(variables['Build.Repository.Provider'], 'TfsGit'))

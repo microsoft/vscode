@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import './media/openInAgents.css';
-import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventLike, EventType, getWindow } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverWidget, IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IAction } from '../../../../../base/common/actions.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -42,7 +43,7 @@ import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, Sessio
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getOpenInAgentsTitleBarHoverCardDesign } from '../../common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getOpenInAgentsTitleBarHoverCardDesign } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
@@ -78,13 +79,25 @@ function ensureAgentModeEnabled(configurationService: IConfigurationService): vo
 }
 
 function getInvokingWorkspaceFolder(accessor: ServicesAccessor): URI | undefined {
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	return getActiveWorkspaceFolder(accessor.get(IWorkspaceContextService), () => accessor.get(IEditorService));
+}
+
+/** The window's only folder, or in a multi-root workspace the folder of the active editor. */
+export function getActiveWorkspaceFolder(workspaceContextService: IWorkspaceContextService, editorService: () => IEditorService): URI | undefined {
 	const folders = workspaceContextService.getWorkspace().folders;
 	if (folders.length <= 1) {
 		return folders[0]?.uri;
 	}
-	const resource = EditorResourceAccessor.getOriginalUri(accessor.get(IEditorService).activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	const resource = EditorResourceAccessor.getOriginalUri(editorService().activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	return resource ? workspaceContextService.getWorkspaceFolder(resource)?.uri : undefined;
+}
+
+/**
+ * A remote window's own agent host runs on its remote machine. For a session of that agent host, names the machine
+ * so the Agents Window can open the session there, and passes the window's folder, which it opens where it can't.
+ */
+export function getRemoteSessionHandoff(sessionResource: URI, remoteAuthority: string | undefined, folderUri: URI | undefined): Pick<IOpenAgentsWindowOptions, 'folderUri' | 'revealRemoteAuthority'> | undefined {
+	return remoteAuthority && isLocalAgentHostTarget(getChatSessionType(sessionResource)) ? { folderUri: folderUri?.toJSON(), revealRemoteAuthority: remoteAuthority } : undefined;
 }
 
 function isChatWidget(widget: IChatWidget | undefined): widget is IChatWidget {
@@ -262,6 +275,23 @@ export class ResetCopilotHarnessIntroductionAction extends Action2 {
 	}
 }
 
+export class AgentsLauncherAction extends Action2 {
+	constructor() {
+		super({
+			id: AGENTS_LAUNCHER_COMMAND_ID,
+			title: localize2('agentsLauncher', "Show Agents Launcher"),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		ensureAgentModeEnabled(accessor.get(IConfigurationService));
+		await accessor.get(INativeHostService).showAgentsLauncher();
+	}
+}
+
 export class OpenAgentsWindowAction extends Action2 {
 	constructor() {
 		super({
@@ -370,13 +400,11 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const draftOptions = commandOptions?.reveal === 'new' ? getDraftHandoffOptions(accessor, sessionResource, commandOptions.transferDraft === true, inputUri) : {};
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && commandOptions?.reveal !== 'new';
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
-		// A remote window's own agent host runs on its remote machine. Where the Agents Window can't open that host's
-		// sessions, it falls back to the window's folder.
-		const remoteAuthority = sessionResource && hasRealSession && isLocalAgentHostTarget(getChatSessionType(sessionResource)) ? accessor.get(IWorkbenchEnvironmentService).remoteAuthority : undefined;
+		const remote = sessionResource && hasRealSession ? getRemoteSessionHandoff(sessionResource, accessor.get(IWorkbenchEnvironmentService).remoteAuthority, folderUri) : undefined;
 		await nativeHostService.openAgentsWindow({
-			folderUri: remoteAuthority || (!hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file)) ? folderUri?.toJSON() : undefined,
+			folderUri: remote ? remote.folderUri : !hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
 			reveal: hasRealSession ? sessionResource?.toJSON() : commandOptions?.reveal,
-			revealRemoteAuthority: remoteAuthority,
+			revealRemoteAuthority: remote?.revealRemoteAuthority,
 			source,
 			...draftOptions,
 		});
@@ -392,7 +420,9 @@ const RICH_HOVER_MAX_CREATED_SESSIONS = 2;
 /**
  * Renders the "Open in Agents" titlebar entry as an icon-only button that
  * expands to reveal a label on hover / keyboard focus. Users who are new to the
- * Agents window can see a hover card that explains it instead of a simple tooltip.
+ * Agents window can see a hover card that explains it instead of a simple tooltip,
+ * and with {@link ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick},
+ * activating the button opens that card instead of the Agents window.
  */
 class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 
@@ -400,6 +430,8 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 	private static readonly EXPAND_ON_HOVER_TREATMENT = 'chatOpenInAgentsTitleBarExpandOnHover';
 	private readonly treatments = this._register(new MutableDisposable());
 	private readonly hoverCard = this._register(new MutableDisposable<AgentsWindowHoverCard>());
+	/** The hover card shown by activating the button, with focus in it. */
+	private readonly focusedHoverCard = this._register(new MutableDisposable<IHoverWidget>());
 	private readonly usage: AgentsWindowUsage;
 	private labelElement: HTMLElement | undefined;
 	private hover: IManagedHover | undefined;
@@ -552,23 +584,94 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		}
 		const design = this.hoverCardDesign;
 		if (!design) {
+			this.focusedHoverCard.clear();
 			this.hoverCard.clear();
 			this.hover.update(this.hoverText);
 			return;
 		}
+		const element = this.getHoverCard(design).element;
+		this.hover.update({ element: () => element, contentOwnsPadding: true });
+	}
+
+	private getHoverCard(design: AgentsWindowGraphicDesign): AgentsWindowHoverCard {
 		let card = this.hoverCard.value;
 		if (card?.design !== design) {
+			this.focusedHoverCard.clear();
 			card = new AgentsWindowHoverCard({
 				design,
 				onOpen: () => {
 					this.hover?.hide();
+					this.focusedHoverCard.clear();
 					void this.actionRunner.run(this.action, this._context);
 				},
 			});
 			this.hoverCard.value = card;
 		}
-		const element = card.element;
-		this.hover.update({ element: () => element, contentOwnsPadding: true });
+		return card;
+	}
+
+	/**
+	 * While the button shows a hover card, activating it, by click, tap or keyboard, logs the trigger of
+	 * {@link ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick} in every arm. When that setting is enabled,
+	 * it then toggles the card instead of opening the Agents window. Otherwise, the action runs as usual.
+	 */
+	override getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
+		const design = this.hoverCardDesign;
+		if (design === undefined) {
+			return super.getActionToRun(event);
+		}
+		return toAction({
+			id: this.action.id,
+			label: this.action.label,
+			enabled: this.action.enabled,
+			run: (context: unknown) => {
+				logSettingExperimentTrigger(this.telemetryService, ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick);
+				if (this.configurationService.getValue<boolean>(ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick) === true) {
+					this.toggleFocusedHoverCard(design);
+					return;
+				}
+				return this.action.run(context);
+			},
+		});
+	}
+
+	private toggleFocusedHoverCard(design: AgentsWindowGraphicDesign): void {
+		if (this.focusedHoverCard.value && !this.focusedHoverCard.value.isDisposed) {
+			this.focusedHoverCard.clear();
+			return;
+		}
+		if (!this.element) {
+			return;
+		}
+		const trigger = this.element;
+		const card = this.getHoverCard(design);
+		this.hover?.hide();
+		const cardListeners = new DisposableStore();
+		// Shown like the managed hover shows the card, but with focus in it.
+		const hover = this.hoverService.showInstantHover({
+			content: card.element,
+			target: trigger,
+			additionalClasses: ['managed-hover-content-owns-padding'],
+			position: { hoverPosition: HoverPosition.BELOW },
+			appearance: { showPointer: true, compact: true, skipFadeInAnimation: true },
+			trapFocus: true,
+			onDidHide: () => cardListeners.dispose(),
+		}, true);
+		if (!hover) {
+			cardListeners.dispose();
+			return;
+		}
+		this.focusedHoverCard.value = hover;
+		cardListeners.add(card.onDidEscape(() => this.focusedHoverCard.clear()));
+		// The hover service closes the hover on a mousedown that bubbles to the document, but toolbar actions stop
+		// theirs, so close it on any mousedown outside the card. The button's own click toggles the card.
+		cardListeners.add(addDisposableListener(getWindow(trigger).document, EventType.MOUSE_DOWN, e => {
+			const path = e.composedPath();
+			if (!path.includes(card.element) && !path.includes(trigger)) {
+				this.focusedHoverCard.clear();
+			}
+		}, true));
+		card.focus();
 	}
 }
 

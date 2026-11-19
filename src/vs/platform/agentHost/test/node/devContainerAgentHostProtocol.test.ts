@@ -10,7 +10,8 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification } from '../../common/agentHostExtensionProtocol.js';
+import { devContainerEnvironmentImage } from '../../common/devContainerEnvironments.js';
 import type { IDevContainerAgentHostConnectResult } from '../../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { DevContainerAgentHostProtocol, normalizeDevContainerWorkspaceFolder } from '../../node/devContainerAgentHostProtocol.js';
@@ -62,6 +63,25 @@ suite('DevContainerAgentHostProtocol', () => {
 		assert.strictEqual(service.connects[0].sandboxEnabled, true);
 	});
 
+	test('starts and removes environments without workspace trust, rejecting unsupported images and identifiers', async () => {
+		const trustRequests: string[] = [];
+		const { service, protocol } = setup(async workspace => { trustRequests.push(workspace); return false; });
+		const environment = { connectionId: 'environment-connection', environmentId: 'environment-1', image: devContainerEnvironmentImage, name: 'Dev Container on Build', persistUserState: true };
+		await protocol.handleRequest(DevContainerConnectEnvironmentExtensionMethod, environment);
+		await protocol.handleRequest(DevContainerRemoveEnvironmentExtensionMethod, { environmentId: 'environment-1' });
+		await assert.rejects(protocol.handleRequest(DevContainerConnectEnvironmentExtensionMethod, { ...environment, connectionId: 'untrusted-image', image: 'example.com/untrusted' })!, /image must be supported/);
+		await assert.rejects(protocol.handleRequest(DevContainerRemoveEnvironmentExtensionMethod, { environmentId: '../escape' })!, /environmentId must be a valid identifier/);
+		assert.deepStrictEqual({
+			trustRequests,
+			connects: service.connects.map(({ environmentId, image, name, persistUserState }: { environmentId?: string; image?: string; name: string; persistUserState?: boolean }) => ({ environmentId, image, name, persistUserState })),
+			removes: service.removes,
+		}, {
+			trustRequests: [],
+			connects: [{ environmentId: 'environment-1', image: devContainerEnvironmentImage, name: 'Dev Container on Build', persistUserState: true }],
+			removes: [{ environmentId: 'environment-1' }],
+		});
+	});
+
 	test('forwards observed support with the client ID before a failed startup releases ownership', async () => {
 		const { service, protocol, notifications } = setup();
 		const result = new DeferredPromise<IDevContainerAgentHostConnectResult>();
@@ -70,11 +90,16 @@ suite('DevContainerAgentHostProtocol', () => {
 		const rejected = assert.rejects(request, /Unsupported sandbox startup/);
 		await Promise.resolve();
 		service.sandboxSupport.fire({ connectionId: service.connects[0].connectionId, supported: false });
+		service.userState.fire({ connectionId: service.connects[0].connectionId, stage: 'link', outcome: 'failed', reason: 'script', exitCode: 1 });
 		await result.error(new Error('Unsupported sandbox startup'));
 		await rejected;
+		service.userState.fire({ connectionId: service.connects[0].connectionId, stage: 'userCommands', outcome: 'succeeded' });
 		assert.deepStrictEqual(notifications, [{
 			method: DevContainerSandboxSupportNotification,
 			params: { connectionId: config.connectionId, supported: false },
+		}, {
+			method: DevContainerUserStateNotification,
+			params: { connectionId: config.connectionId, stage: 'link', outcome: 'failed', reason: 'script', exitCode: 1 },
 		}]);
 	});
 
@@ -84,15 +109,19 @@ suite('DevContainerAgentHostProtocol', () => {
 			await pending.p;
 			throw new Error('Unsupported sandbox startup');
 		}));
-		const observed: boolean[] = [];
+		const observed: unknown[] = [];
 		store.add(client.onDidChangeSandboxSupport(event => observed.push(event.supported)));
+		store.add(client.onDidReportUserState(event => observed.push(event)));
 		const request = client.connect(config);
 		const rejected = assert.rejects(request, /Unsupported sandbox startup/);
 		client.handleNotification(DevContainerSandboxSupportNotification, { connectionId: config.connectionId, supported: false });
+		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces' });
+		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'unknown', outcome: 'failed' });
 		await pending.complete();
 		await rejected;
 		client.handleNotification(DevContainerSandboxSupportNotification, { connectionId: config.connectionId, supported: true });
-		assert.deepStrictEqual(observed, [false]);
+		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'userCommands', outcome: 'succeeded' });
+		assert.deepStrictEqual(observed, [false, { connectionId: config.connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces' }]);
 	});
 
 	test('isolates IDs and notifications between transports', async () => {

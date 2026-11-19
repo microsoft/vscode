@@ -162,7 +162,8 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			? toolInvocation.toolSpecificData : undefined;
 
 		if (typeof message === 'string' && !disclaimer && !inputData) {
-			return dom.$('.message-wrapper', undefined, message);
+			// A paragraph, so that literal text is spaced like a Markdown message.
+			return dom.$('.message-wrapper', undefined, dom.$('p', undefined, message));
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 				hideToolbar: true,

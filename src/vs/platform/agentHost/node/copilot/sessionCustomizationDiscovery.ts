@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession } from '@microsoft/copilot-sdk';
 import { appendFile, mkdir } from 'fs/promises';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -26,11 +26,16 @@ import { withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationM
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { AGENT_DISCOVERY_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
 import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
+import { withCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
+import { withCustomizationTeamProvided } from '../../common/meta/customizationTeamMeta.js';
 import { withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
 type HooksDiscoveryResult = Awaited<ReturnType<CopilotClient['rpc']['hooks']['discover']>>;
 type InstructionSource = Awaited<ReturnType<CopilotClient['rpc']['instructions']['discover']>>['sources'][number];
+type SessionPlugin = Awaited<ReturnType<CopilotSession['rpc']['plugins']['list']>>['plugins'][number];
+/** Reads the plugin inventory of the session that discovery serves, or `undefined` while that session is not ready. */
+export type SessionPluginInventory = () => Promise<readonly SessionPlugin[] | undefined>;
 export type SessionDiscoveredCustomization = DirectoryCustomization | ((PluginCustomization | McpServerCustomization) & {
 	readonly contents?: undefined;
 	readonly writable?: undefined;
@@ -161,6 +166,11 @@ function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolea
 		map.set(watchUri, entry);
 	}
 	entry.resourcesToWatch.set(resourceToWatch, Math.max(trigger, entry.resourcesToWatch.get(resourceToWatch) ?? 0));
+}
+
+/** The runtime's opaque plugin identity, or the plugin's marketplace specifier on runtimes that do not report one. */
+function pluginIdentity(plugin: Pick<SessionPlugin, 'id' | 'name' | 'marketplace'>): string {
+	return plugin.id || `${plugin.name}@${plugin.marketplace}`;
 }
 
 function isTriggered(e: FileChangesEvent, resource: URI, trigger: WatchTrigger): boolean {
@@ -524,7 +534,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 
-	public async discover(client: CopilotClient, token: CancellationToken): Promise<readonly SessionDiscoveredCustomization[]> {
+	public async discover(client: CopilotClient, token: CancellationToken, sessionPlugins?: SessionPluginInventory): Promise<readonly SessionDiscoveredCustomization[]> {
 		await this.writeCustomizationDiscoveryDebugLog({
 			method: 'discover',
 			workingDirectories: this._workingDirectories.map(d => d.toString()),
@@ -550,7 +560,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			]);
 			throwIfCancelled(token);
 			const mcpServers = mcpDiscovery.servers;
-			const pluginCustomizations = await this.toPluginCustomizations(client, [...agents, ...skills, ...rules, ...(hooks?.children ?? []), ...mcpServers], token);
+			const pluginCustomizations = await this.toPluginCustomizations(client, [...agents, ...skills, ...rules, ...(hooks?.children ?? []), ...mcpServers], token, sessionPlugins);
 			const nestedMcpNames = new Set(pluginCustomizations.flatMap(plugin => plugin.children?.filter(child => child.type === CustomizationType.McpServer).map(child => child.name) ?? []));
 			const nestedHookIds = new Set(pluginCustomizations.flatMap(plugin => plugin.children?.filter(child => child.type === CustomizationType.Hook).map(child => child.id) ?? []));
 			const remainingHooks = hooks && { ...hooks, children: hooks.children?.filter(hook => !nestedHookIds.has(hook.id)) };
@@ -725,15 +735,17 @@ export class SessionCustomizationDiscovery extends Disposable {
 		return skills.filter(skill => skill !== undefined);
 	}
 
-	/** Joins native contributions to runtime-resolved roots using complete opaque plugin IDs. */
-	private async toPluginCustomizations(client: CopilotClient, children: readonly ChildCustomization[], token: CancellationToken): Promise<PluginCustomization[]> {
+	/**
+	 * Joins native contributions to runtime-resolved roots using complete opaque plugin IDs.
+	 * Plugins managed by enterprise settings are published even without contributions or a
+	 * resolved root, so a required plugin that failed to install still shows its organization state.
+	 * The runtime resolves managed settings per session, so only `sessionPlugins` lists such a plugin.
+	 */
+	private async toPluginCustomizations(client: CopilotClient, children: readonly ChildCustomization[], token: CancellationToken, sessionPlugins?: SessionPluginInventory): Promise<PluginCustomization[]> {
 		const pluginIds = new Set(children.flatMap(child => {
 			const pluginId = readCustomizationDiscoveryMeta(child)?.pluginId;
 			return pluginId ? [pluginId] : [];
 		}));
-		if (pluginIds.size === 0) {
-			return [];
-		}
 		let plugins;
 		try {
 			({ plugins } = await raceCancellationError(client.rpc.plugins.list(), token));
@@ -745,11 +757,31 @@ export class SessionCustomizationDiscovery extends Disposable {
 			return [];
 		}
 		const result = new ResourceMap<PluginCustomization>();
-		for (const plugin of plugins) {
-			if (!plugin.id || !pluginIds.has(plugin.id) || !plugin.rootPath) {
+		for (const plugin of [...plugins, ...await this.managedPluginsWithoutContent(sessionPlugins, plugins, token)]) {
+			const contributes = !!plugin.id && pluginIds.has(plugin.id) && !!plugin.rootPath;
+			if (!contributes && !plugin.managed) {
 				continue;
 			}
 			throwIfCancelled(token);
+			// Plugins the host registers itself (such as Computer Use) ship with the agent rather than being installed by the user.
+			const discoveryMeta = plugin.source === 'builtin' ? withCustomizationDiscoveryMeta(undefined, { source: 'builtin' }) : undefined;
+			if (!plugin.rootPath) {
+				// Without a root the plugin isn't usable; only a plugin the organization requires needs explaining.
+				if (plugin.managedDesiredEnabled !== false) {
+					const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: `/plugins/${encodeURIComponent(pluginIdentity(plugin))}` });
+					result.set(uri, {
+						type: CustomizationType.Plugin,
+						id: customizationId(uri.toString()),
+						uri: uri.toString(),
+						name: plugin.name,
+						version: plugin.version,
+						load: { kind: CustomizationLoadStatus.Error, message: localize('copilot.managedPluginNotInstalled', "Your organization requires this plugin, but it isn't installed.") },
+						children: [],
+						_meta: withCustomizationTeamProvided(withCustomizationOrganizationMeta(discoveryMeta, { requiredEnabled: plugin.managedDesiredEnabled }), plugin.team),
+					});
+				}
+				continue;
+			}
 			const root = this._pathToUri(plugin.rootPath);
 			const uri = root.toString();
 			const pluginChildren = new Map<string, ChildCustomization>(result.get(root)?.children?.map(child => [child.id, child]));
@@ -763,6 +795,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					pluginChildren.set(projected.id, projected);
 				}
 			}
+			const meta = withCustomizationTeamProvided(plugin.managed ? withCustomizationOrganizationMeta(discoveryMeta, { requiredEnabled: plugin.managedDesiredEnabled }) : discoveryMeta, plugin.team);
 			result.set(root, {
 				type: CustomizationType.Plugin,
 				id: customizationId(uri),
@@ -771,6 +804,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				version: plugin.version,
 				load: { kind: CustomizationLoadStatus.Loaded },
 				children: [...pluginChildren.values()],
+				...(meta ? { _meta: meta } : {}),
 			});
 		}
 		for (const id of pluginIds) {
@@ -779,6 +813,24 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 		}
 		return [...result.values()];
+	}
+
+	/** Plugins the session reports as managed by the organization that have no content and that `plugins` does not list. */
+	private async managedPluginsWithoutContent(sessionPlugins: SessionPluginInventory | undefined, plugins: readonly Pick<SessionPlugin, 'id' | 'name' | 'marketplace'>[], token: CancellationToken): Promise<readonly SessionPlugin[]> {
+		if (!sessionPlugins) {
+			return [];
+		}
+		try {
+			const listed = new Set(plugins.map(pluginIdentity));
+			const inventory = await raceCancellationError(sessionPlugins(), token);
+			return inventory?.filter(plugin => plugin.managed && !plugin.rootPath && !listed.has(pluginIdentity(plugin))) ?? [];
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+			this._logService.warn(`[SessionCustomizationDiscovery] Session plugin inventory failed: ${error instanceof Error ? error.message : String(error)}`);
+			return [];
+		}
 	}
 
 	private async discoverHooks(client: CopilotClient, token: CancellationToken): Promise<DirectoryCustomization | undefined> {

@@ -189,7 +189,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 async function renderStickyMessageFrame(ctx: ComponentFixtureContext, width: number): Promise<void> {
 	const chat = createMockChat({ title: 'Review panel edges' });
 	const content = renderBar(ctx, [chat], chat, { width });
-	const chatView = $('.chat-view');
+	const chatView = $('.chat-view.sessions-chat');
 	content.style.height = '320px';
 	content.appendChild(chatView);
 	let handle: IChatWidgetFixtureHandle | undefined;

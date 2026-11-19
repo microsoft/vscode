@@ -40,6 +40,7 @@ suite('GetStartedChecklistWidget', () => {
 		}, { focusSessionsList: () => { }, animate: false }));
 		const headers = () => [...widget.domNode.querySelectorAll<HTMLElement>('.get-started-item-header')];
 		return {
+			widget,
 			headers,
 			/** The item that shows its explanation and Show Me action, or `none`. */
 			expanded: () => {
@@ -50,6 +51,17 @@ suite('GetStartedChecklistWidget', () => {
 			complete: (item: GetStartedItemId) => items.set(items.get().map(candidate => candidate.id === item ? { id: item, done: true } : candidate), undefined),
 		};
 	}
+
+	test('uses the shared list interaction contract for its focusable rows', () => {
+		const checklist = createChecklist([]);
+		assert.deepStrictEqual({
+			toggle: checklist.widget.domNode.querySelector('.get-started-toggle')?.className,
+			headers: checklist.headers().map(header => header.className),
+		}, {
+			toggle: 'get-started-toggle agent-sessions-interactive agent-sessions-interactive-list',
+			headers: GET_STARTED_ITEM_IDS.map(() => 'get-started-item-header agent-sessions-interactive agent-sessions-interactive-list'),
+		});
+	});
 
 	test('selecting an item expands it and collapses the one before, and selecting the expanded item collapses it', () => {
 		const checklist = createChecklist([GetStartedItemId.StartSession]);

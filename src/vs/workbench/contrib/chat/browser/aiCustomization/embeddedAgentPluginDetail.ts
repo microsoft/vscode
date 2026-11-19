@@ -18,7 +18,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { Schemas } from '../../../../../base/common/network.js';
 import { asTextOrError, IRequestService } from '../../../../../platform/request/common/request.js';
 import { localize } from '../../../../../nls.js';
-import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { getGitHubRepositorySourceUri, getGitHubRepositoryUri, getMarketplacePluginRepositoryUri, getMarketplacePluginSourceUri, IMarketplacePlugin } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { ContributionEnablementState, isContributionEnabled } from '../../common/enablement.js';
@@ -43,7 +43,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import type { IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
-import { autorun, waitForState } from '../../../../../base/common/observable.js';
+import { getTeamProvidedPluginTooltip, isTeamProvidedVisible, TeamProvidedTag } from './customizationTeamProvenance.js';
+import { autorun, IReader, waitForState } from '../../../../../base/common/observable.js';
 import { detectPluginFormat, getPluginManifestComponent, parsePlugin, readMarkdownComponents, readPluginManifest, resolvePluginComponentDirs } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -151,6 +152,23 @@ export function resolveInstalledPluginSkillLink(item: IAgentPluginItem, link: st
 		: undefined;
 }
 
+/** What the active session reports about an installed plugin, which the plugin alone may not know. */
+export interface IInstalledPluginSessionState {
+	/** Whether to show the plugin as managed by the user's GitHub Team. */
+	isInstalledPluginTeamProvided(item: IInstalledPluginItem, reader: IReader | undefined): boolean;
+	/** Whether the plugin is active. A session can turn on a plugin that the user has not enabled globally. */
+	isInstalledPluginEnabled(item: IInstalledPluginItem, reader: IReader | undefined): boolean;
+}
+
+/**
+ * The status shown beside an installed plugin's name, or `undefined` when it needs none. A plugin that is
+ * active in the session needs none, even when the user has not enabled it globally.
+ */
+export function getInstalledPluginStatusLabel(item: IInstalledPluginItem, sessionState: IInstalledPluginSessionState | undefined, reader?: IReader): string | undefined {
+	const enabled = isContributionEnabled(item.plugin.enablement.read(reader)) || sessionState?.isInstalledPluginEnabled(item, reader) === true;
+	return enabled && !isPluginPolicyBlocked(item.plugin) ? undefined : getPluginInclusionLabel(item.plugin);
+}
+
 /**
  * Compact detail view for an agent plugin inside the AI Customizations management editor's
  * split-pane host. Renders identity, provenance, contribution summary, and description while
@@ -175,6 +193,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly nameRowEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
 	private readonly statusBadgeEl: HTMLElement;
+	private readonly teamTag: TeamProvidedTag;
 	private readonly titleActionsEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
 	private readonly sourceFactsEl: HTMLElement;
@@ -193,6 +212,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly pluginRepositoryDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private current: IAgentPluginItem | undefined;
+	private sessionState: IInstalledPluginSessionState | undefined;
 	private primaryActionButton: Button | undefined;
 	private narrowLayout = false;
 	private readonly readmeRenderGuard = new PluginReadmeRenderGuard();
@@ -249,6 +269,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.nameEl = DOM.append(this.nameRowEl, $('h2.embedded-detail-name'));
 		this.nameEl.setAttribute('role', 'heading');
 		this.statusBadgeEl = DOM.append(this.nameRowEl, $('.inline-badge.embedded-detail-status-badge'));
+		this.teamTag = this._register(new TeamProvidedTag(this.nameRowEl, this.hoverService));
 		this.titleActionsEl = DOM.append(this.headerEl, $('.embedded-detail-title-actions'));
 
 		this.descriptionEl = DOM.append(this.root, $('.embedded-detail-description'));
@@ -303,7 +324,9 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		return this.primaryActionButton;
 	}
 
-	setInput(item: IAgentPluginItem): void {
+	/** Shows `item`. `sessionState` supplies what the active session reports about an installed plugin. */
+	setInput(item: IAgentPluginItem, sessionState?: IInstalledPluginSessionState): void {
+		this.sessionState = sessionState;
 		this.installWaitDisposables.clear();
 		this.contributionLoadDisposables.clear();
 		this.current = item;
@@ -314,6 +337,8 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.inputStateAutorun.value = autorun(reader => {
 				item.plugin.enablement.read(reader);
 				const policyEnablement = getPluginPolicyEnablement(item.plugin, reader);
+				this.readTeamProvided(item, reader);
+				this.sessionState?.isInstalledPluginEnabled(item, reader);
 				item.plugin.version?.read(reader);
 				const installations = this.marketplaceInstallService.installations.read(reader);
 				const repository = getPluginRepository(item, installations);
@@ -343,6 +368,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.installWaitDisposables.clear();
 		this.contributionLoadDisposables.clear();
 		this.current = undefined;
+		this.sessionState = undefined;
 		this.inputStateAutorun.clear();
 		this.renderItem();
 	}
@@ -360,6 +386,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		const hasItem = !!item;
 		this.emptyEl.style.display = hasItem ? 'none' : '';
 		this.root.classList.toggle('is-empty', !hasItem);
+		this.updateTeamTag();
 		if (!item) {
 			this.nameEl.textContent = '';
 			this.statusBadgeEl.textContent = '';
@@ -378,13 +405,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 
 		this.nameEl.textContent = item.name;
-		if (item.kind === AgentPluginItemKind.Installed && (!isContributionEnabled(item.plugin.enablement.get()) || isPluginPolicyBlocked(item.plugin))) {
-			this.statusBadgeEl.textContent = getPluginInclusionLabel(item.plugin);
-			this.statusBadgeEl.style.display = '';
-		} else {
-			this.statusBadgeEl.textContent = '';
-			this.statusBadgeEl.style.display = 'none';
-		}
+		this.updateStatusBadge(item);
 		DOM.clearNode(this.titleActionsEl);
 		this.primaryActionButton = undefined;
 		DOM.clearNode(this.factsEl);
@@ -405,16 +426,30 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	}
 
 	private updateInstalledState(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {
-		if (!isContributionEnabled(item.plugin.enablement.get()) || isPluginPolicyBlocked(item.plugin)) {
-			this.statusBadgeEl.textContent = getPluginInclusionLabel(item.plugin);
-			this.statusBadgeEl.style.display = '';
-		} else {
-			this.statusBadgeEl.textContent = '';
-			this.statusBadgeEl.style.display = 'none';
-		}
+		this.updateStatusBadge(item);
 		this.updateEnablementAction?.();
+		this.updateTeamTag();
 		this.updatePluginVersionFact(item);
 		this._onDidChangeContent.fire();
+	}
+
+	private updateStatusBadge(item: IAgentPluginItem): void {
+		const status = item.kind === AgentPluginItemKind.Installed ? getInstalledPluginStatusLabel(item, this.sessionState) : undefined;
+		this.statusBadgeEl.textContent = status ?? '';
+		this.statusBadgeEl.style.display = status ? '' : 'none';
+	}
+
+	/** Shows the Team tag for an installed plugin the user's GitHub Team assigns, unless the organization manages it. */
+	private updateTeamTag(): void {
+		const item = this.current;
+		const teamProvided = item?.kind === AgentPluginItemKind.Installed && this.readTeamProvided(item, undefined);
+		this.teamTag.update(teamProvided ? getTeamProvidedPluginTooltip() : undefined);
+	}
+
+	private readTeamProvided(item: IInstalledPluginItem, reader: IReader | undefined): boolean {
+		return this.sessionState
+			? this.sessionState.isInstalledPluginTeamProvided(item, reader)
+			: isTeamProvidedVisible(item.plugin.teamProvided?.read(reader), getPluginPolicyEnablement(item.plugin, reader) !== undefined);
 	}
 
 	private renderTitleActions(item: IAgentPluginItem): void {
@@ -510,17 +545,29 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			return;
 		}
 
+		let enablementButton: Button | ButtonWithDropdown;
 		const setEnablement = async (state: ContributionEnablementState) => {
-			splitButton.enabled = false;
+			enablementButton.enabled = false;
 			try {
 				await setAgentPluginEnablement(item.plugin, this.agentPluginService.enablementModel, state);
 				status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
 			} catch (error) {
 				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
 			} finally {
-				splitButton.enabled = true;
+				enablementButton.enabled = true;
 			}
 		};
+		if (item.plugin.copilotCliInstallation) {
+			const button = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, secondary: true }));
+			enablementButton = button;
+			this.updateEnablementAction = () => {
+				button.label = isContributionEnabled(item.plugin.enablement.get()) ? localize('disablePluginGlobally', "Disable Globally") : localize('enablePluginGlobally', "Enable Globally");
+			};
+			this.updateEnablementAction();
+			this.renderDisposables.add(button.onDidClick(() => setEnablement(
+				isContributionEnabled(item.plugin.enablement.get()) ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile)));
+			return;
+		}
 		const contextMenuProvider: IContextMenuProvider = {
 			showContextMenu: delegate => this.contextMenuService.showContextMenu({
 				...delegate,
@@ -546,6 +593,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			},
 			ariaLabel: '',
 		}));
+		enablementButton = splitButton;
 		this.updateEnablementAction = () => {
 			const state = getPluginEnablementActionState(item.plugin.enablement.get());
 			splitButton.element.classList.toggle('embedded-detail-disable-button', state.isEnabled);
@@ -593,6 +641,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		if (item.kind === AgentPluginItemKind.Marketplace) {
 			this.appendPluginVersionFact(item);
 			this.appendFact(this.factsEl, localize('pluginDetailMarketplace', "Marketplace"), this.renderMarketplaceLink(item.marketplace, getMarketplaceUri(item)));
+			this.appendPluginRepositoryFact(item);
 			return;
 		}
 
@@ -620,7 +669,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 	}
 
-	private appendPluginRepositoryFact(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {
+	private appendPluginRepositoryFact(item: IAgentPluginItem): void {
 		this.pluginRepositoryRowEl = DOM.append(this.factsEl, $('.embedded-detail-fact-row'));
 		DOM.append(this.pluginRepositoryRowEl, $('.embedded-detail-fact-label')).textContent = localize('pluginDetailRepository', "Repository");
 		this.pluginRepositoryValueEl = DOM.append(this.pluginRepositoryRowEl, $('.embedded-detail-fact-value.has-actions'));

@@ -6,14 +6,198 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { getEntryAddress, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISSHRemoteAgentHostService, SSHAuthenticationFailedError, SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { categorizeSSHConnectError } from '../../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { type IEntryDrivenProviderOptions } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
 import { ManagedReconnectState } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/managedReconnectAgentHostContribution.js';
-import { shouldPauseSSHReconnectAfterFailure } from '../../browser/sshAgentHost.contribution.js';
+import { RemoteAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
 import { disconnectSSHEntry, sshConnectionKey } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
+import { shouldPauseSSHReconnectAfterFailure, SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
+
+suite('SSHAgentHostContribution reconnect ownership', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createHarness(autoConnect: boolean, connect: () => Promise<void>) {
+		const connectionsChanged = store.add(new Emitter<void>());
+		const entriesChanged = store.add(new Emitter<void>());
+		const configuration = new TestConfigurationService({
+			[RemoteAgentHostsEnabledSettingId]: true,
+			[RemoteAgentHostAutoConnectSettingId]: autoConnect,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		let entries: IRemoteAgentHostEntry[] = [{
+			name: 'Machine',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:machine', sshConfigHost: 'machine', hostName: 'machine.example' },
+		}];
+		const calls: { address: string; userInitiated: boolean | undefined }[] = [];
+		const remote = new class extends mock<IRemoteAgentHostService>() {
+			override readonly onDidChangeConfiguredEntries = entriesChanged.event;
+			override readonly onDidChangeConnections = connectionsChanged.event;
+			override readonly connections = [];
+			override get configuredEntries() { return entries; }
+			override reconnect(address: string, userInitiated?: boolean): void {
+				calls.push({ address, userInitiated });
+			}
+			override async waitForConnection(address: string): Promise<IRemoteAgentHostConnectionInfo> {
+				await connect();
+				return { address, name: 'Machine', status: RemoteAgentHostConnectionStatus.connected };
+			}
+			override async removeRemoteAgentHost(address: string): Promise<void> {
+				entries = entries.filter(entry => getEntryAddress(entry) !== address);
+				entriesChanged.fire();
+				connectionsChanged.fire();
+			}
+		}();
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IRemoteAgentHostService, remote);
+		instantiation.stub(ISSHRemoteAgentHostService, {
+			disconnect: async () => { },
+		});
+		instantiation.stub(IConfigurationService, configuration);
+		instantiation.stub(ILogService, store.add(new NullLogService()));
+		instantiation.stub(ISessionsProvidersService, {});
+		instantiation.stub(INotificationService, new TestNotificationService());
+		instantiation.stub(ITelemetryService, NullTelemetryService);
+		const providers = new Map<string, IEntryDrivenProviderOptions>();
+		let reconciliations = 0;
+		const contribution = store.add(instantiation.createInstance(class extends SSHAgentHostContribution {
+			protected override _reconcile(): void {
+				reconciliations++;
+				super._reconcile();
+			}
+
+			protected override _createProvider(address: string, name: string, options: IEntryDrivenProviderOptions) {
+				const provider = new class extends mock<RemoteAgentHostSessionsProvider>() {
+					override get defaultLabel(): string { return name; }
+					override setConnectionStatus(): void { }
+					override unpublishCachedSessions(): void { }
+				}();
+				const resources = new DisposableStore();
+				this._providerStores.set(address, resources);
+				this._providerInstances.set(address, provider);
+				providers.set(address, options);
+				resources.add(toDisposable(() => {
+					this._providerInstances.delete(address);
+					providers.delete(address);
+				}));
+				return provider;
+			}
+		}));
+		const provider = providers.get('ssh:machine');
+		assert.ok(provider?.connectOnDemand && provider.disconnectOnDemand);
+		return {
+			calls, connectionsChanged, entriesChanged, configuration, contribution, remote,
+			connect: provider.connectOnDemand,
+			disconnect: provider.disconnectOnDemand,
+			getReconciliations: () => reconciliations,
+			fireConfigurationChange: (key: string) => configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean { return section === key; }
+			}()),
+		};
+	}
+
+	for (const autoConnect of [false, true]) {
+		for (const { name, error } of [
+			{ name: 'cancellation', error: new CancellationError() },
+			{ name: 'host key denial', error: new SSHHostKeyDeniedError('machine') },
+			{ name: 'authentication failure', error: new SSHAuthenticationFailedError('Credentials rejected') },
+			{ name: 'network failure', error: new Error('connect ETIMEDOUT') },
+		]) {
+			test(`${name} is not retried by provider events or timers (auto-connect ${autoConnect})`, () => runWithFakedTimers({}, async () => {
+				let failure: Error | undefined = error;
+				const harness = createHarness(autoConnect, async () => {
+					if (failure) {
+						throw failure;
+					}
+				});
+				await harness.connect();
+				harness.connectionsChanged.fire();
+				harness.entriesChanged.fire();
+				harness.fireConfigurationChange(RemoteAgentHostsSettingId);
+				harness.fireConfigurationChange(RemoteAgentHostAutoConnectSettingId);
+				harness.fireConfigurationChange(RemoteAgentHostsEnabledSettingId);
+				await timeout(180_000);
+				const afterFailure = harness.calls.slice();
+
+				failure = undefined;
+				await harness.connect();
+				harness.connectionsChanged.fire();
+				await timeout(60_000);
+				harness.contribution.dispose();
+
+				assert.deepStrictEqual({ afterFailure, afterExplicitReconnect: harness.calls }, {
+					afterFailure: [{ address: 'ssh:machine', userInitiated: true }],
+					afterExplicitReconnect: [
+						{ address: 'ssh:machine', userInitiated: true },
+						{ address: 'ssh:machine', userInitiated: true },
+					],
+				});
+			}));
+		}
+	}
+
+	test('joins an in-flight explicit connection without starting another attempt', () => runWithFakedTimers({}, async () => {
+		const connected = new DeferredPromise<void>();
+		const harness = createHarness(false, () => connected.p);
+		const first = harness.connect();
+		const second = harness.connect();
+		harness.connectionsChanged.fire();
+		await timeout(60_000);
+		await connected.complete();
+		await Promise.all([first, second]);
+		harness.contribution.dispose();
+
+		assert.deepStrictEqual(harness.calls, [{ address: 'ssh:machine', userInitiated: true }]);
+	}));
+
+	test('removing a cancelled host cannot revive it on a later event or timer', () => runWithFakedTimers({}, async () => {
+		const harness = createHarness(true, async () => { throw new CancellationError(); });
+		await harness.connect();
+		await harness.disconnect();
+		harness.connectionsChanged.fire();
+		await timeout(180_000);
+		harness.contribution.dispose();
+
+		assert.deepStrictEqual({ calls: harness.calls, entries: harness.remote.configuredEntries }, {
+			calls: [{ address: 'ssh:machine', userInitiated: true }],
+			entries: [],
+		});
+	}));
+
+	test('periodic reconciliation preserves offline providers without dialing and stops on disposal', () => runWithFakedTimers({}, async () => {
+		const harness = createHarness(false, async () => { });
+		const initial = harness.getReconciliations();
+		await timeout(60_000);
+		const afterTimer = harness.getReconciliations();
+		harness.contribution.dispose();
+		harness.connectionsChanged.fire();
+		harness.entriesChanged.fire();
+		harness.fireConfigurationChange(RemoteAgentHostsSettingId);
+		await timeout(180_000);
+
+		assert.deepStrictEqual({
+			initial,
+			afterTimer,
+			afterDisposal: harness.getReconciliations(),
+			calls: harness.calls,
+		}, { initial: 1, afterTimer: 2, afterDisposal: 2, calls: [] });
+	}));
+});
 
 suite('SSH reconnect state', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -104,14 +288,16 @@ suite('SSH reconnect state', () => {
 suite('shouldPauseSSHReconnectAfterFailure', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('pauses reconnect after cancellation or host key denial but not after regular failures', () => {
+	test('pauses reconnect after cancellation, host key denial, or authentication rejection but not after regular failures', () => {
 		assert.deepStrictEqual({
 			cancellation: shouldPauseSSHReconnectAfterFailure(new CancellationError()),
 			hostKeyDenial: shouldPauseSSHReconnectAfterFailure(new SSHHostKeyDeniedError('test-host')),
+			authenticationFailure: shouldPauseSSHReconnectAfterFailure(new SSHAuthenticationFailedError('Credentials rejected')),
 			regularError: shouldPauseSSHReconnectAfterFailure(new Error('boom')),
 		}, {
 			cancellation: true,
 			hostKeyDenial: true,
+			authenticationFailure: true,
 			regularError: false,
 		});
 	});

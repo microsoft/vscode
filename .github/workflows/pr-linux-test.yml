@@ -25,6 +25,10 @@ on:
         description: Whether the pull request can affect the Browser job, which is skipped when false
         type: boolean
         default: true
+      browser_unit_webkit:
+        description: Whether to run the Browser-Unit (WebKit) job, which only the merge queue runs
+        type: boolean
+        default: false
       remote_affected:
         description: Whether the pull request can affect the Remote jobs, which are skipped when false
         type: boolean
@@ -45,6 +49,10 @@ on:
         description: The branch whose workspace images the jobs use (see .github/workflows/workspace_image/README.md)
         type: string
         default: main
+      runner:
+        description: The runner of the jobs. The merge queue and the pull requests to release branches pass dedicated runners (see the top of pr.yml)
+        type: string
+        default: vscode-large-runners-ubuntu-8-core
 
 env:
   NPM_ARCH: x64
@@ -58,6 +66,7 @@ env:
 # - ELECTRON_TESTS, BROWSER_TESTS or REMOTE_TESTS: the test runner
 # - UNIT_TESTS, INTEGRATION_TESTS, SMOKE_TESTS and AGENT_HOST_E2E_TESTS: the kinds of tests
 # - UNIT_TEST_SUITE: the unit tests of an Electron job, 'electron' or 'node', or both when unset
+# - UNIT_TEST_BROWSER: the browser of the unit tests of a Browser job, 'webkit', or Chromium when unset
 # - INTEGRATION_TEST_SUITE: the integration tests of an Electron job, 'node' for the node.js integration
 #   tests or 'extension-host' for the extension host tests, or both when unset
 # - TEST_SELECTION: run only the test files listed in the test-plan artifact of the workflow run, when
@@ -72,7 +81,7 @@ jobs:
   electron-unit-electron:
     name: Electron-Unit (electron)
     if: ${{ inputs.electron_unit_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-unit-electron
       ELECTRON_TESTS: 'true'
@@ -369,18 +378,40 @@ jobs:
       # A workspace image holds them already, and points PLAYWRIGHT_BROWSERS_PATH at them, which this
       # action would point into the workspace.
       - name: Restore Playwright browsers
-        if: ${{ env.BROWSER_TESTS == 'true' && steps.image.outputs.used != 'true' }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TEST_BROWSER != 'webkit' && steps.image.outputs.used != 'true' }}
         uses: ./.github/actions/restore-playwright
         with:
           browsers: --only-shell chromium
 
       - name: Install Playwright Chromium
-        if: ${{ env.BROWSER_TESTS == 'true' }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TEST_BROWSER != 'webkit' }}
         run: |
           set -e
 
           for i in {1..3}; do
             if pnpm exec playwright install --only-shell chromium; then
+              echo "Install successful on attempt $i"
+              break
+            fi
+
+            if [ $i -eq 3 ]; then
+              echo "Install failed after 3 attempts" >&2
+              exit 1
+            fi
+
+            echo "Install failed on attempt $i, retrying..."
+            sleep 5
+          done
+
+      # No cache holds WebKit, and the runner lacks some of the system packages that it needs
+      - name: Install Playwright WebKit
+        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TEST_BROWSER == 'webkit' }}
+        timeout-minutes: 10
+        run: |
+          set -e
+
+          for i in {1..3}; do
+            if pnpm exec playwright install --with-deps webkit; then
               echo "Install successful on attempt $i"
               break
             fi
@@ -420,20 +451,39 @@ jobs:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
+      # The changed unit test files of the plan (see the List changed unit test files step of pr.yml),
+      # each alone in a fresh window: a test file that passes above only because another test file
+      # registers what it reads fails here.
+      - name: 🧪 Run changed unit test files alone (Electron)
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node' && hashFiles('.build/test-plan/isolate.txt') != '' }}
+        timeout-minutes: 15
+        run: ./scripts/test.sh --isolate --workers 4 --rerun-failed-files 2 --runList .build/test-plan/isolate.txt
+        env:
+          DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
+
       - name: 🧪 Run unit tests (node.js)
         if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'electron' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
         run: pnpm run test-node --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_BROWSER != 'webkit' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 30
         run: pnpm run test-browser-no-install --browser chromium --tfs "Browser Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
         env:
           DEBUG: "*browser*"
 
+      - name: 🧪 Run unit tests (Browser, WebKit)
+        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_BROWSER == 'webkit' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
+        timeout-minutes: 15
+        run: pnpm run test-browser-no-install --browser webkit --tfs "Browser Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
+        env:
+          DEBUG: "*browser*"
+
+      # The node.js integration tests never launch an extension host, so they don't use these extensions
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true' }}
+        if: ${{ (env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'node') || env.SMOKE_TESTS == 'true' }}
         run: |
           set -e
           pnpm run gulp \
@@ -630,7 +680,7 @@ jobs:
   electron-unit-node:
     name: Electron-Unit (node)
     if: ${{ inputs.electron_unit_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-unit-node
       ELECTRON_TESTS: 'true'
@@ -645,7 +695,7 @@ jobs:
   electron-node:
     name: Electron (node.js)
     if: ${{ inputs.node_integration_tests }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-node
       ELECTRON_TESTS: 'true'
@@ -657,7 +707,7 @@ jobs:
   electron-extension-host:
     name: Electron (extension host)
     if: ${{ inputs.electron_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-extension-host
       ELECTRON_TESTS: 'true'
@@ -670,7 +720,7 @@ jobs:
   agent-host-e2e:
     name: Agent-Host-E2E
     if: ${{ inputs.agent_host_e2e_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-agent-host-e2e
       ELECTRON_TESTS: 'true'
@@ -684,7 +734,7 @@ jobs:
   electron-smoke-1:
     name: Electron-Smoke (shard 1/3)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-smoke-shard1
       ELECTRON_TESTS: 'true'
@@ -696,7 +746,7 @@ jobs:
   electron-smoke-2:
     name: Electron-Smoke (shard 2/3)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-smoke-shard2
       ELECTRON_TESTS: 'true'
@@ -708,7 +758,7 @@ jobs:
   electron-smoke-3:
     name: Electron-Smoke (shard 3/3)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-smoke-shard3
       ELECTRON_TESTS: 'true'
@@ -720,7 +770,7 @@ jobs:
   browser-unit:
     name: Browser-Unit
     if: ${{ inputs.browser_unit_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: browser-unit
       BROWSER_TESTS: 'true'
@@ -728,10 +778,28 @@ jobs:
       TEST_SELECTION: 'true'
     steps: *steps
 
+  # The browser unit tests in WebKit on Linux, which the merge queue runs to catch the failures that only
+  # the WebKit unit tests of the macOS product build caught before. A test that fails in WebKit on Linux for a
+  # reason of that port, but not in Chromium or in WebKit on macOS, skips itself there, as tests do on other
+  # platforms: (isLinuxWebKit ? test.skip : test), see src/vs/base/test/browser/linuxWebKit.ts. Its timeout keeps it within the slowest job of the merge
+  # queue (about 13 minutes), which PR Gate waits for anyway: a full run takes about 8 minutes.
+  browser-unit-webkit:
+    name: Browser-Unit (WebKit)
+    if: ${{ inputs.browser_unit_webkit }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 12
+    env:
+      ARTIFACT_NAME: browser-unit-webkit
+      BROWSER_TESTS: 'true'
+      UNIT_TESTS: 'true'
+      UNIT_TEST_BROWSER: webkit
+      TEST_SELECTION: 'true'
+    steps: *steps
+
   browser:
     name: Browser
     if: ${{ inputs.browser_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: browser
       BROWSER_TESTS: 'true'
@@ -744,7 +812,7 @@ jobs:
   remote-integration:
     name: Remote (integration)
     if: ${{ inputs.remote_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: remote
       REMOTE_TESTS: 'true'
@@ -754,7 +822,7 @@ jobs:
   remote-smoke:
     name: Remote (smoke)
     if: ${{ inputs.remote_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: remote-smoke
       REMOTE_TESTS: 'true'

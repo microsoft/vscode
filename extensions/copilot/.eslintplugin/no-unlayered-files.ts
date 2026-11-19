@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
+import type { Context, CreateRule, Visitor } from '@oxlint/plugins';
 import path from 'path';
 
 const layers = new Set([
@@ -15,9 +15,9 @@ const layers = new Set([
 	'vscode-worker',
 ])
 
-export default new class NoUnlayeredFiles implements eslint.Rule.RuleModule {
+export default new class NoUnlayeredFiles implements CreateRule {
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
 		// Use only the path relative to extensions/copilot/ to avoid false positives
 		// from the repo directory name (e.g., "vscode" is both a layer name and the
