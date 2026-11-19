@@ -240,14 +240,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 	/**
 	 * Forgets the cached repository roots of a removed worktree, so lookups stop resolving to a checkout that is gone.
-	 * Entries cached under the canonical path git reported for the worktree are forgotten too.
+	 * Entries cached under the worktree's canonical path, which git reports as the root, are forgotten too.
 	 */
-	private _forgetRepositoryRoots(worktree: URI): void {
+	private async _forgetRepositoryRoots(worktree: URI): Promise<void> {
+		const removedRoots = [worktree, await this._canonicalizeWorktreePath(worktree)];
 		const roots = this._repositoryRoots.get();
-		const removedRoots = [worktree];
-		const canonicalRoot = roots.peek(extUriBiasedIgnorePathCase.getComparisonKey(worktree));
-		if (canonicalRoot) {
-			removedRoots.push(canonicalRoot);
+		const cachedRoot = roots.peek(extUriBiasedIgnorePathCase.getComparisonKey(worktree));
+		if (cachedRoot) {
+			removedRoots.push(cachedRoot);
 		}
 		const isRemoved = (resource: URI) => removedRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(resource, root));
 		// Collect the keys first: the cache throws when it is modified during iteration.
@@ -524,7 +524,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				if (!isRetryableWorktreeRemovalError(error)) {
 					if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 						await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
-						this._forgetRepositoryRoots(worktree);
+						await this._forgetRepositoryRoots(worktree);
 						return;
 					}
 					throw error;
@@ -533,7 +533,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// A zero exit is not proof of success (see the doc above), so confirm de-registration.
 			if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 				await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
-				this._forgetRepositoryRoots(worktree);
+				await this._forgetRepositoryRoots(worktree);
 				return;
 			}
 			if (gitCommandSucceeded) {

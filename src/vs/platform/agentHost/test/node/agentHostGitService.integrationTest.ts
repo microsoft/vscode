@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { rm } from 'fs/promises';
 import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
@@ -2005,6 +2005,44 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { await svc!.removeWorktree(URI.file(dir), worktree, { force: true }); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/root-cache-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('removeWorktree forgets the canonical root when only a descendant was looked up through a symlinked parent', async () => {
+		const dir = initRepo();
+		const parent = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-wt-parent-')));
+		const linkedParent = `${parent}-link`;
+		const worktree = URI.file(join(linkedParent, 'wt'));
+		try {
+			// A junction on Windows, which needs no symlink privilege; the type is ignored elsewhere.
+			symlinkSync(parent, linkedParent, 'junction');
+			await svc!.addWorktree(URI.file(dir), {
+				path: worktree,
+				commitish: 'main',
+				newBranchName: 'agents/symlinked-parent-worktree',
+				track: false,
+			});
+			mkdirSync(join(parent, 'wt', 'nested'));
+			const nested = URI.file(join(linkedParent, 'wt', 'nested'));
+			const canonicalRoot = URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: join(parent, 'wt'), env, encoding: 'utf8' }).trim());
+			const before = await svc!.getRepositoryRoot(nested);
+
+			await svc!.removeWorktree(URI.file(dir), worktree);
+
+			assert.deepStrictEqual({
+				before: before?.fsPath,
+				after: [await svc!.getRepositoryRoot(nested), await svc!.getRepositoryRoot(canonicalRoot)],
+				hasGitRoot: svc!.hasGitRoot(canonicalRoot).get(),
+			}, {
+				before: canonicalRoot.fsPath,
+				after: [undefined, undefined],
+				hasGitRoot: undefined,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), worktree, { force: true }); } catch { /* best-effort cleanup */ }
+			rmSync(linkedParent, { force: true });
+			await rmDirWithRetry(parent);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/symlinked-parent-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
 
