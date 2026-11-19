@@ -33,6 +33,7 @@ import { withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../co
 import { AgentHostWorkspaceTrustConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { Promises } from '../../../../base/node/pfs.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
 type HooksDiscoveryResult = Awaited<ReturnType<CopilotClient['rpc']['hooks']['discover']>>;
@@ -214,6 +215,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	private readonly _watchers = new ResourceMap<IWatchSpec & { readonly disposable: IDisposable }>();
 
+	/** Working directories opened through a symbolic link, with the real path the runtime reports files under. */
+	private _linkedWorkingDirectories: readonly { readonly opened: URI; readonly real: URI }[] = [];
+	private readonly _linkedWorkingDirectoriesResolved: Promise<void>;
+
 	constructor(
 		private readonly _workingDirectories: readonly URI[],
 		private readonly _userHome: URI,
@@ -232,6 +237,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 				this._scheduleRefresh();
 			}
 		}));
+		// The working directories are fixed, so their links are resolved once, alongside the first discovery.
+		this._linkedWorkingDirectoriesResolved = this._resolveLinkedWorkingDirectories().then(linked => { this._linkedWorkingDirectories = linked; });
 		this._register(this._fileService.onDidFilesChange(e => {
 			for (const watcher of this._watchers.values()) {
 				for (const [uri, trigger] of watcher.resourcesToWatch) {
@@ -895,6 +902,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			const discovered = await raceCancellationError(client.rpc.hooks.discover({
 				projectPaths: this._hookWorkingDirectories.map(directory => directory.fsPath),
 			}), token);
+			await this._linkedWorkingDirectoriesResolved;
 			const result = await this.discoverWorkspaceHooksFallback(client, this.withoutUntrustedRepositoryHooks(withUniqueHookIds(discovered), untrustedRoots), untrustedRoots, token);
 			for (const warning of result.warnings) {
 				this._logService.warn(`[SessionCustomizationDiscovery] Hook discovery: ${warning}`);
@@ -1065,6 +1073,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				}
 			};
 		}
+		await this._linkedWorkingDirectoriesResolved;
 		return {
 			servers: result.servers.map(server => {
 				const source = server.effectiveSource;
@@ -1086,8 +1095,36 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 	private _definitionUri(value: string): URI {
-		const uri = URI.parse(value);
-		return uri.scheme === Schemas.file ? this._pathToUri(uri.fsPath) : uri;
+		const parsed = URI.parse(value);
+		const uri = parsed.scheme === Schemas.file ? this._pathToUri(parsed.fsPath) : parsed;
+		for (const { opened, real } of this._linkedWorkingDirectories) {
+			const relative = extUriBiasedIgnorePathCase.relativePath(real, uri);
+			if (relative !== undefined) {
+				return relative ? joinPath(opened, relative) : opened;
+			}
+		}
+		return uri;
+	}
+
+	private async _resolveLinkedWorkingDirectories(): Promise<readonly { readonly opened: URI; readonly real: URI }[]> {
+		const linked = await Promise.all(this._workingDirectories.map(async opened => {
+			// Only folders the runtime sees as local paths; virtual workspaces have no real path.
+			if (!extUriBiasedIgnorePathCase.isEqual(this._pathToUri(opened.fsPath), opened)) {
+				return undefined;
+			}
+			try {
+				const real = this._pathToUri(await this._realpath(opened.fsPath));
+				return extUriBiasedIgnorePathCase.isEqual(real, opened) ? undefined : { opened, real };
+			} catch {
+				return undefined;
+			}
+		}));
+		return linked.filter(entry => entry !== undefined);
+	}
+
+	/** Resolves symbolic links in a working-directory path. */
+	protected _realpath(path: string): Promise<string> {
+		return Promises.realpath(path, { strict: true });
 	}
 
 	private async toDirectoryCustomizations(type: ChildCustomizationType, customizations: readonly ChildCustomization[], allDiscoveredDirectories: readonly IDiscoveredDirectory[], result: DirectoryCustomization[]): Promise<void> {

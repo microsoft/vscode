@@ -29,6 +29,7 @@ import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelIn
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostHooksEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
+import { Promises } from '../../../../base/node/pfs.js';
 import { isWorktreeUnderRepository } from '../../common/worktreePaths.js';
 import { getCopilotApprovalPolicy, isManagedWorkspaceRetrievalWithheld, isWithheldClientTool, MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, type CopilotManagedSettingsActivityReporter, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
@@ -598,6 +599,27 @@ export function areCopilotCustomAgentHooksTrusted(plan: Pick<CopilotSessionLaunc
  */
 export function areCopilotHooksEnabled(configurationService: Pick<IAgentConfigurationService, 'getRootValue'>): boolean {
 	return configurationService.getRootValue(platformRootSchema, AgentHostHooksEnabledConfigKey) !== false;
+}
+
+/**
+ * The working directory given to the runtime. A local folder is given by its real path: the runtime resolves
+ * symbolic links itself, and the working-directory trust it grants applies to the path it was given, so a
+ * folder opened through a link would otherwise lose its repository hooks. Trust is still decided on the
+ * folder as opened in VS Code.
+ */
+export async function getCopilotRuntimeWorkingDirectory(plan: Pick<CopilotSessionLaunchPlan, 'workingDirectory' | 'virtualSessionFs'>): Promise<string | undefined> {
+	if (plan.virtualSessionFs) {
+		return plan.virtualSessionFs.pathMapper.rootSdkPath;
+	}
+	const workingDirectory = plan.workingDirectory;
+	if (workingDirectory?.scheme !== Schemas.file) {
+		return workingDirectory?.fsPath;
+	}
+	try {
+		return await Promises.realpath(workingDirectory.fsPath, { strict: true });
+	} catch {
+		return workingDirectory.fsPath;
+	}
 }
 
 export function resolveCopilotSessionManagedSettings(plan: CopilotSessionLaunchPlan, token = CancellationToken.None, reportActivity?: CopilotManagedSettingsActivityReporter) {
@@ -1366,6 +1388,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			const inheritedFrom = plan.worktreeRepository && !isAgentHostWorkspaceTrusted(plan.workingDirectory, workspaceTrust) ? `, inherited from worktree repository ${plan.worktreeRepository.fsPath}` : '';
 			this._logService.info(`[Copilot:${plan.sessionId}] Granting the runtime '${trustWorkingDirectory}' trust for trusted working directory ${plan.workingDirectory.fsPath}${inheritedFrom}`);
 		}
+		const workingDirectory = await getCopilotRuntimeWorkingDirectory(plan);
 		const raw = await this._withTraceContext(plan.sessionId, () => this._openWithSandboxConfig(plan.sessionId, config, openConfig => plan.client.createSession({
 			...openConfig,
 			...this._eagerDiagnostics(),
@@ -1381,7 +1404,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true, plan.autoTierSupport?.())),
 			},
 			...(trustWorkingDirectory ? { filesystem: { ...openConfig.filesystem, trustWorkingDirectory } } : {}),
-			workingDirectory: plan.virtualSessionFs?.pathMapper.rootSdkPath ?? plan.workingDirectory?.fsPath,
+			workingDirectory,
 		})));
 		if (plan.accountContext) {
 			try {
@@ -1892,7 +1915,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 					onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
 				}),
 			},
-			workingDirectory: plan.virtualSessionFs?.pathMapper.rootSdkPath ?? plan.workingDirectory?.fsPath,
+			workingDirectory: await getCopilotRuntimeWorkingDirectory(plan),
 			systemMessage,
 			agents: {
 				...toolConfiguration.sessionConfig.agents,

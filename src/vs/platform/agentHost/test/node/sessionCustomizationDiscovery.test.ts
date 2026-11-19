@@ -518,6 +518,21 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.deepStrictEqual(result.filter(item => item.contents === CustomizationType.Hook).flatMap(item => item.children?.map(child => child.id) ?? []), ['user']);
 	});
 
+	test('reports hook files of a folder opened through a symbolic link under the opened path', async () => {
+		const opened = inMemoryPathToUri('/link');
+		class LinkedDiscovery extends SessionCustomizationDiscovery {
+			protected override async _realpath(path: string): Promise<string> {
+				return path.replace(/^([\\/])link/, '$1workspace');
+			}
+		}
+		const discovery = disposables.add(instantiationService.createInstance(LinkedDiscovery, [opened], userHome, inMemoryPathToUri));
+		const result = await discovery.discover(hookDiscoveryClient(async () => ({
+			hooks: [{ id: 'root', hookType: 'sessionStart', origin: 'repository', projectPath: opened.fsPath, definitionFileUri: inMemoryPathToUri('/workspace/.github/hooks/a.json').toString(), enabled: true }],
+			warnings: [], errors: [],
+		})), CancellationToken.None);
+		assert.deepStrictEqual(result.flatMap(item => item.contents === CustomizationType.Hook ? item.children?.map(child => URI.parse(child.uri).path) ?? [] : []), ['/link/.github/hooks/a.json']);
+	});
+
 	test('workspace hook fallback failure preserves successful native discovery', async () => {
 		await seed('/workspace/.github/hooks/test.json');
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
