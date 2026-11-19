@@ -3020,6 +3020,8 @@ suite('CopilotChatSessionsProvider', () => {
 					freshModels: provider.getModelsSnapshot(fresh.sessionId).models.map(model => model.identifier),
 					config: provider.getSessionConfig(restored.sessionId, restored.mainChat.get().resource),
 					picker: provider.getModelPickerOptions(restored.sessionId).showAutoModel,
+					automationCatalog: provider.getModelPickerOptions(restored.sessionId).hasLiveModelCatalog === true,
+					ordinaryCatalog: provider.getModelPickerOptions(ordinary.sessionId).hasLiveModelCatalog === true,
 					captured: await provider.getAutomationSessionConfiguration(restored.sessionId),
 					ordinaryModels: provider.getModelsSnapshot(ordinary.sessionId).models.map(model => model.identifier),
 					ordinaryConfig: provider.getSessionConfig(ordinary.sessionId, ordinary.mainChat.get().resource) !== undefined,
@@ -3027,6 +3029,7 @@ suite('CopilotChatSessionsProvider', () => {
 					quickChatModels: provider.getModelsSnapshot(quickChat.sessionId).models.map(model => model.identifier),
 				}, {
 					restoredModels: ['auto', rawModel], freshModels: ['auto', rawModel], config: undefined, picker: false,
+					automationCatalog: true, ordinaryCatalog: false,
 					captured: { sessionTemplate },
 					ordinaryModels: [enabled ? sandboxModel.identifier : rawModel], ordinaryConfig: enabled,
 					creationModels: [enabled ? sandboxModel.identifier : rawModel], quickChatModels: [sandboxModel.identifier],

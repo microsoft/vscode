@@ -902,7 +902,8 @@ export class ModelPickerWidget extends Disposable {
 		const comparisonBusy = !!comparisonSummary && (this._delegate.comparisonBusy?.get() ?? false);
 		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel, models) : undefined;
 		const shownModel = routingTier?.shownModel ?? this._selectedModel;
-		const pendingAutoModel = isPendingLegacyAutoModel(shownModel, this._languageModelsService, models);
+		const presentation = this._delegate.getPresentationOptions();
+		const pendingAutoModel = isPendingLegacyAutoModel(shownModel, this._languageModelsService, presentation.hasLiveModelCatalog ? models : undefined);
 		const displayName = shownModel && !pendingAutoModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
 		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
 		// A HydraFusion model shown as one of Fusion's tiers is named by that tier, even where the label shows only Fusion.
@@ -924,7 +925,7 @@ export class ModelPickerWidget extends Disposable {
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
 		const modelIcon = comparisonBusy ? Codicon.loadingCompact : comparisonSummary ? Codicon.compare : shownModel
-			? (this._delegate.getPresentationOptions().showModelIcon
+			? (presentation.showModelIcon
 				? getCompactModelPickerIcon(shownModel)
 				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
 			: undefined;

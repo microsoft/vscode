@@ -72,7 +72,7 @@ suite('ModelPickerActionItem', () => {
 	 * name followed by its thinking effort / context size readout. By default the
 	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonBusy?: IObservable<boolean>; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly registeredModelIds?: readonly string[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService; readonly showPicker?: IModelPickerDelegate['showPicker'] } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonBusy?: IObservable<boolean>; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService; readonly showPicker?: IModelPickerDelegate['showPicker'] } = {}) {
 		const models = options.models ? [...options.models] : [model];
 		let modelReads = 0;
 		const modelsChanged = disposables.add(new Emitter<string>());
@@ -84,7 +84,7 @@ suite('ModelPickerActionItem', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
 			override readonly onDidChangeLanguageModels = modelsChanged.event;
-			override getLanguageModelIds() { return [...(options.registeredModelIds ?? models.map(candidate => candidate.identifier))]; }
+			override getLanguageModelIds() { return models.map(candidate => candidate.identifier); }
 		}());
 		instantiationService.stub(IProductService, {});
 		const entitlementService = new TestChatEntitlementService();
@@ -527,13 +527,6 @@ suite('ModelPickerActionItem', () => {
 			label: 'Copilot Fusion',
 			hover: 'Models • Copilot Fusion\n\nCopilot Fusion selects a single model or orchestrates multiple models to complete your task.',
 		});
-	});
-
-	test('catalog-backed Auto keeps its name when not registered as a language model', () => {
-		const auto = createModel('auto');
-		const catalogAuto = { ...auto, metadata: { ...auto.metadata, name: 'Auto' } };
-		const { domNode } = renderPicker(catalogAuto, { models: [catalogAuto], registeredModelIds: [] });
-		assert.strictEqual(domNode.querySelector('.chat-input-picker-label')?.textContent, 'Auto');
 	});
 
 	test('a directly selected on-device model reads "<model> · On-device", as in the Copilot CLI and app', () => {

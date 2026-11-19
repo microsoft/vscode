@@ -26,6 +26,8 @@ import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.
 import { IAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
 
 export interface IModelPickerPresentationOptions {
+	/** Offered models come from a live provider catalog, not the language model startup cache. */
+	readonly hasLiveModelCatalog?: boolean;
 	readonly showManageModelsAction: boolean;
 	readonly showUnavailableFeatured: boolean;
 	readonly showAutoModel: boolean;

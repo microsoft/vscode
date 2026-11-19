@@ -1740,7 +1740,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
 		const draft = this._newSessions.get(sessionId);
 		if (draft && (draft.isAutomationDraft || this._usesSandbox(draft))) {
-			return { showUnavailableFeatured: false, showManageModelsAction: false, showAutoModel: false };
+			return { showUnavailableFeatured: false, showManageModelsAction: false, showAutoModel: false, hasLiveModelCatalog: draft.isAutomationDraft && !!this.automations };
 		}
 
 		// A session type that requires an explicit model selection cannot fall
