@@ -2125,7 +2125,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	/** Shows or hides a part beside the chat part so that the chat part gives or takes its width, and the editor area keeps its own. */
 	private setViewVisibleKeepingEditorWidth(view: ISerializableView, visible: boolean): void {
 		const chatPartView = this.chatPartView;
-		if (!chatPartView || this.chatPartHidden || !this.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		if (!this.initialized || !chatPartView || this.chatPartHidden || !this.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			this.workbenchGrid.setViewVisible(view, visible);
 			return;
 		}

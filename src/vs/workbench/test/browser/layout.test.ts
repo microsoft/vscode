@@ -328,7 +328,7 @@ suite('Workbench layout chat part', () => {
 		const grid = store.add(SerializableGrid.deserialize(descriptor, { fromJSON: ({ type }: { type: Parts }) => views.get(type)! }, { proportionalLayout: false }));
 		append(layout.mainContainer, grid.element);
 		grid.layout(configuration.widths?.window ?? 1600, 900);
-		Object.assign(layout, { workbenchGrid: grid });
+		Object.assign(layout, { workbenchGrid: grid, initialized: true });
 		const middle = () => shape((grid.serialize().root.data as ISerializedNode[])[2]);
 		return { layout, grid, middle, save, anchor, views, focus, viewEvents };
 	}
@@ -368,6 +368,13 @@ suite('Workbench layout chat part', () => {
 			});
 		});
 	}
+
+	test('hiding the side bar before the first layout does not throw', () => {
+		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
+		Object.assign(layout, { initialized: false });
+
+		assert.doesNotThrow(() => layout.setPartHidden(true, Parts.SIDEBAR_PART));
+	});
 
 	test('the grid without a chat part is as before it existed', () => {
 		const { layout, descriptor } = createLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' });
