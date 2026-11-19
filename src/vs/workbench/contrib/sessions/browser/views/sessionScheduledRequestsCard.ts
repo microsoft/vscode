@@ -50,7 +50,9 @@ export class ScheduledRequestsIndicatorRenderer {
 		}
 		const store = template.elementDisposables;
 		const indicator = template.scheduledIndicator ??= $(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' });
-		template.compactHoverDescription.after(indicator);
+		if (template.compactHoverDescription.nextSibling !== indicator) {
+			template.compactHoverDescription.after(indicator);
+		}
 		store.add(autorun(reader => {
 			const visible = this.requests
 				? !!this.requests.read(reader).get(getComparisonKey(getResource(reader)))?.length

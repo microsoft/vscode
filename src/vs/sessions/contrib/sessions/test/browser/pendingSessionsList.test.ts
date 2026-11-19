@@ -561,6 +561,17 @@ suite('Sessions - pending list items', () => {
 		}, { sameClock: true, previewConnected: true });
 	});
 
+	test('a focused scheduled clock retains focus during a row refresh', () => {
+		const { list, indicator, session } = createScheduledPreview();
+		indicator.focus();
+		assert.strictEqual(mainWindow.document.activeElement, indicator);
+		list.update();
+		assert.deepStrictEqual({
+			sameClock: list.getItemRow({ session: session.resource })!.querySelector('.session-scheduled-indicator') === indicator,
+			clockFocused: mainWindow.document.activeElement === indicator,
+		}, { sameClock: true, clockFocused: true });
+	});
+
 	test('clicking another clock replaces a locked scheduled preview', async () => {
 		const { indicators, opened, container } = createScheduledPreview(['First session', 'Second session'].map(text => [{
 			id: 'message', text, description: 'Tomorrow', attachments: [], actions: [],

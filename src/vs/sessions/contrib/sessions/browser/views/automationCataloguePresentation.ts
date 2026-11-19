@@ -69,7 +69,7 @@ export function getAutomationsViewContent(automations: readonly IAutomationDescr
 		.map(automation => automation.id));
 	return {
 		automations: automations.filter(automation => !hiddenIds.has(automation.id)),
-		runs: runs.filter(run => !hiddenIds.has(run.automationId)),
+		runs: runs.filter(run => !hiddenIds.has(run.automationId) && !(sendLaterEnabled && run.purpose === 'scheduledChat')),
 	};
 }
 
