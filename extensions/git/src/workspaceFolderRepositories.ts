@@ -38,13 +38,22 @@ interface Opening<T> extends ILocationOpening {
 }
 
 /**
+ * A repository of a workspace folder location. `parentRoot` is the root of the repository it is shown under, which
+ * closes it when it closes.
+ */
+export interface IFolderLocationRepository {
+	readonly root: string;
+	readonly parentRoot?: string;
+}
+
+/**
  * Decides which repositories to show for workspace folders that switch between their locations, so that a folder
  * shows one repository and switches without flicker. The repository of the location that is left is kept warm and
  * shown again right away when the folder switches back. At most `warmCapacity` repositories are kept warm, the least
  * recently left one is closed first. The repository of a location that is not warm opens hidden, and is shown once
  * ready. Only the repositories of the switching folders are affected.
  */
-export class WorkspaceFolderRepositories<T extends { readonly root: string }> {
+export class WorkspaceFolderRepositories<T extends IFolderLocationRepository> {
 
 	/** The warm repositories, the least recently left first. These are ready. */
 	private readonly warm: T[] = [];
@@ -103,7 +112,7 @@ export class WorkspaceFolderRepositories<T extends { readonly root: string }> {
 			// The new location can be a repository nested in the one that is left, which is open while the new one is not yet
 			const left = getDeepest(repositories, from.uri.fsPath);
 			if (left && this.isShown(left) && !changes.show.includes(left) && !this.isCurrent(left, workspaceFolders, repositories, targets)) {
-				this.keepWarm(left, changes);
+				this.keepWarm(left, changes, repositories);
 			}
 		}
 		return changes;
@@ -134,19 +143,20 @@ export class WorkspaceFolderRepositories<T extends { readonly root: string }> {
 			this.takeWarmRepository(repository);
 			changes.show.push(repository);
 		} else if (!this.isPending(repository) && !this.isOpening(repository.root)) {
-			this.keepWarm(repository, changes);
+			this.keepWarm(repository, changes, repositories);
 		}
 		return changes;
 	}
 
 	/**
 	 * Once the locations of the folders are known: shows the warm repository that a folder is at, closes the warm
-	 * repositories of locations that are not known anymore and, when `keepLeftLocationsWarm`, keeps the open repositories
-	 * of other known locations of the folders warm and opens the location of a folder that has no repository. That is
-	 * the case for a folder that switched before its locations were known, whose repositories were handled as the
-	 * ones of any removed and added folder.
+	 * repositories of locations that are not known anymore and, for the `switchingFolders` (the folders that show the
+	 * repository of their current location only), keeps the open repositories of their other known locations warm and
+	 * opens the location of a folder whose repository is not the one of that location. That is the case for a folder
+	 * that switched before its locations were known, whose repositories were handled as the ones of any removed and
+	 * added folder.
 	 */
-	updateLeftLocations(workspaceFolders: readonly WorkspaceFolder[], repositories: readonly T[], keepLeftLocationsWarm: boolean): IRepositoryChanges<T> {
+	updateLeftLocations(workspaceFolders: readonly WorkspaceFolder[], repositories: readonly T[], switchingFolders: readonly WorkspaceFolder[]): IRepositoryChanges<T> {
 		const changes = createChanges<T>();
 		for (const folder of [...this.awaitingLocations]) {
 			if (folder.locations !== undefined || !workspaceFolders.includes(folder)) {
@@ -159,14 +169,13 @@ export class WorkspaceFolderRepositories<T extends { readonly root: string }> {
 			return changes;
 		}
 
-		// A folder that switched to a repository nested in the one it left has none open, as the one it left contained it.
-		// The one it left is warm then, and must not be shown as the folder's repository.
-		if (keepLeftLocationsWarm) {
-			for (const folder of workspaceFolders) {
-				const repository = getDeepest(repositories, folder.uri.fsPath);
-				if ((folder.locations?.length ?? 0) > 1 && (!repository || this.warm.includes(repository)) && !this.isOpening(folder.uri.fsPath)) {
-					changes.open.push(this.addOpening(folder.uri.fsPath));
-				}
+		// A folder that switched to a repository nested in the one it left has none open, as the one it left contained it
+		// and is still open, warm or shown. That one must not be shown as the folder's repository.
+		for (const folder of switchingFolders) {
+			const repository = getDeepest(repositories, folder.uri.fsPath);
+			if ((folder.locations?.length ?? 0) > 1 && !this.isOpening(folder.uri.fsPath)
+				&& (!repository || this.warm.includes(repository) || (!pathEquals(repository.root, folder.uri.fsPath) && isOtherFolderLocation(repository.root, [folder])))) {
+				changes.open.push(this.addOpening(folder.uri.fsPath));
 			}
 		}
 
@@ -181,14 +190,10 @@ export class WorkspaceFolderRepositories<T extends { readonly root: string }> {
 			}
 		}
 
-		if (!keepLeftLocationsWarm) {
-			return changes;
-		}
-
 		for (const repository of repositories) {
 			if (this.isShown(repository) && !this.isOpening(repository.root) && !changes.show.includes(repository)
-				&& isOtherFolderLocation(repository.root, workspaceFolders) && !this.isCurrent(repository, workspaceFolders, repositories)) {
-				this.keepWarm(repository, changes);
+				&& isOtherFolderLocation(repository.root, switchingFolders) && !this.isCurrent(repository, workspaceFolders, repositories)) {
+				this.keepWarm(repository, changes, repositories);
 			}
 		}
 
@@ -229,11 +234,24 @@ export class WorkspaceFolderRepositories<T extends { readonly root: string }> {
 		return [...this.openings].some(o => isAtOrInside(o.location, fsPath));
 	}
 
-	private keepWarm(repository: T, changes: IRepositoryChanges<T>): void {
+	/**
+	 * Keeps `repository` warm, and closes the least recently left warm repositories beyond the capacity. A repository
+	 * that another open repository is shown under is not closed, as that would close the other one too.
+	 */
+	private keepWarm(repository: T, changes: IRepositoryChanges<T>, repositories: readonly T[]): void {
 		this.takeWarmRepository(repository);
 		this.warm.push(repository);
 		changes.warm.push(repository);
-		changes.close.push(...this.warm.splice(0, Math.max(0, this.warm.length - this.warmCapacity)));
+
+		for (const candidate of [...this.warm]) {
+			if (this.warm.length <= this.warmCapacity) {
+				break;
+			}
+			if (!repositories.some(r => r !== candidate && r.parentRoot !== undefined && pathEquals(r.parentRoot, candidate.root))) {
+				this.takeWarmRepository(candidate);
+				changes.close.push(candidate);
+			}
+		}
 	}
 
 	private takeWarm(fsPath: string): T | undefined {
@@ -269,7 +287,7 @@ function createChanges<T>(): IRepositoryChanges<T> {
 /**
  * The deepest of `repositories` that contains `fsPath`.
  */
-function getDeepest<T extends { readonly root: string }>(repositories: readonly T[], fsPath: string): T | undefined {
+function getDeepest<T extends IFolderLocationRepository>(repositories: readonly T[], fsPath: string): T | undefined {
 	return repositories.filter(r => isAtOrInside(r.root, fsPath)).sort((a, b) => b.root.length - a.root.length)[0];
 }
 

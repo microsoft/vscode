@@ -533,8 +533,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 	private async onDidChangeWorkspaceFolderLocations(): Promise<void> {
 		try {
-			const keepLeftLocationsWarm = !workspace.getConfiguration('git').get<boolean>('detectWorktrees');
-			await this.applyRepositoryChanges(this.workspaceFolderRepositories.updateLeftLocations(workspace.workspaceFolders ?? [], this.repositories, keepLeftLocationsWarm));
+			const workspaceFolders = workspace.workspaceFolders ?? [];
+			const switchingFolders = workspaceFolders.filter(folder => !workspace.getConfiguration('git', folder.uri).get<boolean>('detectWorktrees'));
+			await this.applyRepositoryChanges(this.workspaceFolderRepositories.updateLeftLocations(workspaceFolders, this.repositories, switchingFolders));
 		} catch (err) {
 			this.logger.warn(`[Model][onDidChangeWorkspaceFolderLocations] Error: ${err}`);
 		}

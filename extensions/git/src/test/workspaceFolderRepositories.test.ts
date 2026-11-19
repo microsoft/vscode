@@ -142,7 +142,7 @@ class TestWorkspace {
 
 	/** The known locations of the workspace folders change, see `Model.onDidChangeWorkspaceFolderLocations`. */
 	updateLocations(): void {
-		this.apply(this.model.updateLeftLocations(this.folders, this.repositories, true));
+		this.apply(this.model.updateLeftLocations(this.folders, this.repositories, this.folders));
 	}
 
 	get opening(): number { return this.locationSwitches.size > 0 ? 1 : 0; }
@@ -249,6 +249,43 @@ suite('WorkspaceFolderRepositories', () => {
 		assert.deepStrictEqual({ show: back.show.map(r => r.root), warm: back.warm.map(r => r.root), close: back.close.map(r => r.root), open: back.open.length }, {
 			show: [primary], warm: [wt3], close: [], open: 0
 		});
+	});
+
+	test('a full warm cache does not close a repository that other open repositories are shown under', () => {
+		const model = new WorkspaceFolderRepositories<{ root: string; parentRoot?: string }>(3);
+		const repositories = [{ root: primary }, ...[wt1, wt2, wt3, nested].map(root => ({ root, parentRoot: primary }))];
+		const repository = (root: string) => repositories.find(r => r.root === root)!;
+		const at = (fsPath: string) => folder(fsPath, 0, knownLocations);
+		let changes!: IRepositoryChanges<{ root: string; parentRoot?: string }>;
+		const open = [repository(primary)];
+		let current = primary;
+		for (const to of [wt1, wt2, wt3, nested]) {
+			changes = model.switchFolderLocations([{ from: at(current), to: folder(to) }], [folder(to)], open);
+			open.push(repository(to));
+			model.setOpenedRepository(changes.open[0], repository(to));
+			model.completeOpening(changes.open[0], [folder(to)], open);
+			current = to;
+		}
+
+		assert.deepStrictEqual({ warm: changes.warm.map(r => r.root), close: changes.close.map(r => r.root) }, { warm: [wt3], close: [wt1] });
+	});
+
+	test('only the folders that show the repository of their current location only keep the repositories of their other locations warm', () => {
+		const at = folder(wt1, 0, knownLocations);
+		const repositories = [{ root: primary }, { root: wt1 }];
+		const summary = (switchingFolders: WorkspaceFolder[]) => {
+			const changes = new WorkspaceFolderRepositories<{ root: string }>().updateLeftLocations([at], repositories, switchingFolders);
+			return { warm: changes.warm.map(r => r.root), open: changes.open.map(o => o.location) };
+		};
+
+		assert.deepStrictEqual([summary([]), summary([at])], [{ warm: [], open: [] }, { warm: [primary], open: [] }]);
+	});
+
+	test('once its locations are known, a folder at a nested worktree whose containing repository stays open opens its own', () => {
+		const at = folder(nested, 0, knownLocations);
+		const changes = new WorkspaceFolderRepositories<{ root: string }>().updateLeftLocations([at], [{ root: primary }], [at]);
+
+		assert.deepStrictEqual({ open: changes.open.map(o => o.location), warm: changes.warm.map(r => r.root) }, { open: [nested], warm: [primary] });
 	});
 
 	test('a path inside a location that a switch opens is known to be opening, while the repository that contains it is open', () => {

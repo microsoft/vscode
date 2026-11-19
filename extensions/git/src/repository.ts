@@ -911,6 +911,13 @@ export class Repository implements Disposable {
 	private _isWarm: boolean;
 	get isWarm(): boolean { return this._isWarm; }
 
+	private _parentRoot: string | undefined;
+
+	/**
+	 * The root of the repository that this repository is shown under, if any. Closing that one closes this one too.
+	 */
+	get parentRoot(): string | undefined { return this._parentRoot; }
+
 	private _onDidChangeWarm = new EventEmitter<boolean>();
 	private readonly onDidChangeWarm: Event<boolean> = this._onDidChangeWarm.event;
 
@@ -992,6 +999,7 @@ export class Repository implements Disposable {
 		const parent = parentRoot
 			? this.repositoryResolver.getRepository(parentRoot)?.sourceControl
 			: undefined;
+		this._parentRoot = parent ? parentRoot : undefined;
 
 		// Icon
 		const icon = repository.kind === 'submodule'
@@ -3397,6 +3405,11 @@ export class Repository implements Disposable {
 
 		this.logger.trace(`[Repository][setWarm] ${isWarm ? 'Keeping repository warm' : 'Showing repository'}: ${this.root}`);
 		this._isWarm = isWarm;
+		if (!isWarm) {
+			// A repository is shown as the one of a workspace folder's current location, so even a worktree that is
+			// hidden when its main repository is open (see the constructor) is shown
+			this._isHidden = false;
+		}
 		this._sourceControl.isHidden = this.isHidden;
 		this._onDidChangeWarm.fire(isWarm);
 	}
