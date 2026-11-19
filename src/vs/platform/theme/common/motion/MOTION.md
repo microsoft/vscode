@@ -1,6 +1,6 @@
 # Motion implementation
 
-For purpose, pattern selection, token roles, and accessibility, read [Motion design](./motion.design.md). This document owns integration contracts, derivation, implementation recipes, and technical validation.
+For purpose, pattern selection, token roles, and accessibility, read [Motion design](../../../../../../.github/design-system/motion.design.md). This document owns integration contracts, derivation, implementation recipes, and technical validation.
 
 ## Preset contract
 

@@ -1,0 +1,19 @@
+{
+	"version": 1,
+	"id": "modal",
+	"renderer": "guidance",
+	"source": ".github/design-system/modal.design.md",
+	"content": {},
+	"sources": [],
+	"guidance": [
+		{ "id": "modal-overview", "heading": "Overview", "title": "Shared pattern" },
+		{ "id": "modal-usage", "heading": "Usage", "title": "When to use" },
+		{ "id": "modal-anatomy", "heading": "Anatomy", "title": "Shared composition" },
+		{ "id": "modal-composition", "heading": "Composition and adaptation", "title": "Navigation and adaptation" },
+		{ "id": "modal-behavior", "heading": "Behavior", "title": "Interaction contract" },
+		{ "id": "modal-accessibility", "heading": "Accessibility" },
+		{ "id": "modal-scenarios", "heading": "Scenario applications" },
+		{ "id": "modal-visual-treatment", "heading": "Visual treatment", "title": "Reuse and visual consistency" },
+		{ "id": "modal-review", "heading": "Review checklist" }
+	]
+}

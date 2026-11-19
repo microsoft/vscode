@@ -1,0 +1,19 @@
+{
+	"version": 1,
+	"id": "principles",
+	"renderer": "guidance",
+	"source": ".github/design-system/principles.design.md",
+	"content": {},
+	"sources": [
+		{
+			"file": ".github/skills/design-philosophy/SKILL.md"
+		}
+	],
+	"sections": [
+		{
+			"id": "principles-practice",
+			"key": "practice",
+			"heading": "Principles in practice"
+		}
+	]
+}

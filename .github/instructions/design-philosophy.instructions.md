@@ -24,4 +24,4 @@ Reach for a **move** only *after* naming the feeling and the principle - never i
 
 **Full reference** (values, principles, moves, worked examples, phrasebook, and feedback guidance): the [`design-philosophy` skill](../skills/design-philosophy/SKILL.md). **Token mechanics:** [design-tokens.instructions.md](./design-tokens.instructions.md).
 
-For shadows, popup chains, modal decisions, and paint order, follow the [elevation guide](../design-system/guidance/elevation.design.md). Visual lift, stacking, and modality are separate contracts; reuse their existing owners instead of copying CSS from a similar-looking surface.
+For shadows, popup chains, modal decisions, and paint order, follow the [elevation guide](../design-system/elevation.design.md). Visual lift, stacking, and modality are separate contracts; reuse their existing owners instead of copying CSS from a similar-looking surface.

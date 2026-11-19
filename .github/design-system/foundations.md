@@ -22,7 +22,7 @@ Deprecated size names remain available in a collapsed compatibility section with
 
 Keep the base parameters, generated response pairs, semantic behavior bindings, and shared activity cadence distinct. A purpose default can be a literal or an alias; neither creates another base-ramp step. Response durations belong with their generated curves, not in the ordinary duration scale. Generic spinner and progress cycles are shared activity decisions, not additional transition speeds.
 
-The [motion naming contract](../../src/vs/platform/theme/common/motion/motion.design.md#token-roles-and-naming) uses behavior, phase or track, then parameter. This draft migrates its existing in-tree names together; adopted contracts require compatibility planning. Do not retain duplicate naming families or create a token for each example.
+The [motion naming contract](./motion.design.md#token-roles-and-naming) uses behavior, phase or track, then parameter. This draft migrates its existing in-tree names together; adopted contracts require compatibility planning. Do not retain duplicate naming families or create a token for each example.
 
 Component-local matrix choreography, voice breathing, logo drawing, find-option signaling, and confetti parameters stay out of the design-token reference. Their typed options or CSS override hooks are implementation contracts, not shared design choices. Reuse the complete component; do not offer its internal tuning as a global scale.
 

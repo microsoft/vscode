@@ -118,5 +118,5 @@
 			]
 		}
 	],
-	"textSource": "src/vs/platform/theme/common/sizes/spacing.design.md"
+	"textSource": ".github/design-system/spacing.design.md"
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -32,6 +32,80 @@ interface ValidationReport {
 	limits?: string;
 }
 
+interface TopicPlacement {
+	id: string;
+	kind?: 'foundation' | 'pattern';
+	design?: string;
+	page: string;
+}
+
+interface ComponentPlacement {
+	id: string;
+	owner?: string;
+	design?: string;
+}
+
+export async function checkDesignPlacement(root: string): Promise<void> {
+	const directory = '.github/design-system';
+	let text: string;
+	try { text = await readFile(path.join(root, directory, 'topics.json'), 'utf8'); }
+	catch (error) {
+		if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+			console.log('Placement check: no hybrid topic map; source validation determines legacy or basic compatibility.');
+			return;
+		}
+		throw error;
+	}
+	const map: { topics: TopicPlacement[]; documentAliases?: Record<string, string> } = JSON.parse(text);
+	assert.ok(Array.isArray(map.topics), 'Topic map must list its topics');
+	const registered = new Set<string>();
+	const checkFile = async (file: string): Promise<void> => {
+		assert.ok(!path.isAbsolute(file) && !file.split(/[\\/]/).includes('..'), `Invalid source path: ${file}`);
+		const resolved = await realpath(path.join(root, file));
+		assert.ok(resolved.startsWith(`${root}${path.sep}`), `Source leaves checkout: ${file}`);
+	};
+	for (const topic of map.topics) {
+		assert.match(topic.page, /^content\/topics\/[a-z][a-z0-9-]*\.json$/, `${topic.id}: source composition belongs in content/topics`);
+		const composition: { source: string } = JSON.parse(await readFile(path.join(root, directory, topic.page), 'utf8'));
+		if (topic.kind !== undefined || topic.design !== undefined) {
+			assert.ok(topic.kind === 'foundation' || topic.kind === 'pattern', `${topic.id}: shared guidance needs a kind`);
+			const design = topic.design;
+			assert.ok(typeof design === 'string', `${topic.id}: shared guidance needs a design source`);
+			assert.match(design, /^\.github\/design-system\/[a-z][a-z0-9-]*\.design\.md$/, `${topic.id}: shared specs must be flat`);
+			assert.equal(design, composition.source, `${topic.id}: topic map and composition disagree`);
+			await checkFile(design);
+			registered.add(design);
+		} else {
+			assert.ok(!composition.source.endsWith('.design.md'), `${topic.id}: design source needs kind and design metadata`);
+		}
+	}
+	const curation: { productControls: ComponentPlacement[]; additions: ComponentPlacement[]; families: [string, Partial<ComponentPlacement>][] } = JSON.parse(await readFile(path.join(root, directory, 'content/components/curation.json'), 'utf8'));
+	const controls = new Map([...curation.productControls, ...curation.additions].map(control => [control.id, control]));
+	for (const [id, family] of curation.families) { controls.set(id, { ...controls.get(id), ...family, id }); }
+	for (const component of controls.values()) {
+		if (!component.design) { continue; }
+		assert.ok(component.owner, `Component design needs an implementation owner: ${component.design}`);
+		assert.equal(path.dirname(component.design), path.dirname(component.owner), `Component design must stay beside its implementation: ${component.design}`);
+		await checkFile(component.owner);
+		await checkFile(component.design);
+		registered.add(component.design);
+	}
+	for (const scope of [directory, 'src/vs']) {
+		for (const file of await readdir(path.join(root, scope), { recursive: true })) {
+			if (file.endsWith('.design.md')) {
+				const source = path.posix.join(scope, file);
+				assert.ok(registered.has(source), `Unregistered design specification: ${source}`);
+			}
+		}
+	}
+	const aliases = map.documentAliases ?? {};
+	for (const [previous, canonical] of Object.entries(aliases)) {
+		assert.ok(previous !== canonical && !Object.hasOwn(aliases, canonical), `Document aliases must resolve directly: ${previous}`);
+		await checkFile(canonical);
+	}
+	console.log(`Placement check: ${registered.size} specifications registered with canonical source locations.`);
+}
+
 export async function checkRenderedTopic(page: Page, topic: string): Promise<void> {
 	const article = page.locator(`article[data-topic="${topic}"]`);
 	await article.locator('h1').waitFor({ state: 'visible', timeout: 30000 });
@@ -53,6 +127,7 @@ export async function checkRenderedTopic(page: Page, topic: string): Promise<voi
 
 export async function validateDesignSystem({ root = checkout, viewer, output, sourcesOnly = false }: ValidationOptions = {}): Promise<ValidationReport> {
 	root = await realpath(root);
+	await checkDesignPlacement(root);
 	viewer = await realpath(viewer ?? path.join(root, '.github/extensions/vscode-design-system'));
 	const metadata: { name: string; version: string } = JSON.parse(await readFile(path.join(viewer, 'package.json'), 'utf8'));
 	assert.equal(metadata.name, 'vscode-design-system', 'Select a vscode-design-system viewer installation or clone');

@@ -1,6 +1,6 @@
 # Color foundations and component aliases
 
-For design choices, semantic feedback, and accessibility, read [Colors design](colors.design.md). This document owns the existing alias and customization contract.
+For design choices, semantic feedback, and accessibility, read [Colors design](../../../../../../.github/design-system/colors.design.md). This document owns the existing alias and customization contract.
 
 Choose a color by its intended property and purpose, not by a matching hex value. The usage-oriented registrations in [semanticColors.ts](./semanticColors.ts) form the shared foundation. Component and feature registrations remain the public theming contract for existing UI.
 
@@ -23,4 +23,4 @@ Aliases may retain a compatibility value where the intended foundation differs. 
 
 ## Usage
 
-Follow [the component-preservation guidance](colors.design.md#preserve-component-contracts).
+Follow [the component-preservation guidance](../../../../../../.github/design-system/colors.design.md#preserve-component-contracts).

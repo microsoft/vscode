@@ -42,7 +42,7 @@ The resource pill reference is intentionally scoped to the shared product abstra
 
 [Component curation](content/components/curation.json) explicitly selects the canonical families. The records in [toolkit specifications](content/components/toolkit-specifications.json) remain evidence, not obligations to create topics.
 
-The book's single component collection derives registrations from these sources. Add or update a family in curation rather than repeating its title, aliases, and readiness in `book.json`. Keep its authored intent in a colocated `<subject>.design.md`; select public API members by name and let the TypeScript reader derive their declarations. Hidden compatibility registrations preserve old toolkit addresses without qualifying those entries for navigation.
+The book's single component collection derives registrations from these sources. Add or update a family in curation rather than repeating its title, aliases, and readiness in `topics.json`. Keep its authored intent in a colocated `<subject>.design.md`; select public API members by name and let the TypeScript reader derive their declarations. Hidden compatibility registrations preserve old toolkit addresses without qualifying those entries for navigation.
 
 Whole chat/editor/notebook shells, extension-specific rows, window controls, settings pages, glyph fragments, and other feature compositions do not enter the primary component navigation. A code abstraction is evidence of reuse, but not every exported implementation class is a design-system component.
 

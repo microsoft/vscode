@@ -70,7 +70,7 @@
 			"description": {
 				"$text": "Motion"
 			},
-			"file": "src/vs/platform/theme/common/motion/motion.design.md",
+			"file": ".github/design-system/motion.design.md",
 			"anchor": "## Foundations"
 		},
 		{

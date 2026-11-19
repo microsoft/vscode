@@ -1,0 +1,8 @@
+{
+	"version": 1,
+	"id": "components",
+	"renderer": "components",
+	"source": ".github/design-system/components-overview.md",
+	"content": {},
+	"sources": []
+}

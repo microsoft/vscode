@@ -1,0 +1,37 @@
+{
+	"version": 1,
+	"id": "size",
+	"renderer": "foundations",
+	"source": ".github/design-system/size.design.md",
+	"content": {},
+	"sources": [
+		{
+			"file": ".github/skills/design-philosophy/SKILL.md"
+		},
+		{
+			"file": ".github/instructions/design-tokens.instructions.md"
+		},
+		{
+			"file": ".github/skills/ux-css-layout/SKILL.md"
+		}
+	],
+	"guidance": [
+		{
+			"id": "size-guidance",
+			"title": "Build and review",
+			"anchor": "build-and-review"
+		}
+	],
+	"sections": [
+		{
+			"id": "size-glyphs",
+			"key": "glyphs",
+			"heading": "Choose a glyph size"
+		},
+		{
+			"id": "size-reference",
+			"key": "reference",
+			"heading": "Size reference"
+		}
+	]
+}

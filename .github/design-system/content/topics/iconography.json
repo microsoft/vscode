@@ -1,0 +1,15 @@
+{
+	"version": 1,
+	"id": "iconography",
+	"renderer": "icons",
+	"source": ".github/design-system/iconography.design.md",
+	"content": {},
+	"sources": [
+		{
+			"file": ".github/skills/design-philosophy/SKILL.md"
+		},
+		{
+			"file": ".github/instructions/design-tokens.instructions.md"
+		}
+	]
+}

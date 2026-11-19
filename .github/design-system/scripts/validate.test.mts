@@ -10,11 +10,36 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { chromium, type Browser } from '@playwright/test';
-import { checkRenderedTopic, validateDesignSystem } from './validate.mts';
+import { checkDesignPlacement, checkRenderedTopic, validateDesignSystem } from './validate.mts';
 
 let browser: Browser;
 before(async () => { browser = await chromium.launch({ headless: true }); });
 after(async () => { await browser?.close(); });
+
+test('hybrid placement rejects unregistered specs, misplaced shared guidance, and chained bookmarks', async () => {
+	const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'design-placement-')));
+	const directory = '.github/design-system';
+	const design = `${directory}/sample.design.md`;
+	const map = { topics: [{ id: 'sample', kind: 'foundation', design, page: 'content/topics/sample.json' }], documentAliases: { 'old-sample.md': design } };
+	const saveMap = async (value: object) => writeFile(path.join(root, directory, 'topics.json'), JSON.stringify(value));
+	try {
+		await mkdir(path.join(root, directory, 'content/topics'), { recursive: true });
+		await mkdir(path.join(root, directory, 'content/components'), { recursive: true });
+		await mkdir(path.join(root, 'src/vs'), { recursive: true });
+		await writeFile(path.join(root, design), '# Sample');
+		await writeFile(path.join(root, directory, 'content/topics/sample.json'), JSON.stringify({ source: design }));
+		await writeFile(path.join(root, directory, 'content/components/curation.json'), JSON.stringify({ productControls: [], additions: [], families: [] }));
+		await saveMap(map);
+		await checkDesignPlacement(root);
+		await saveMap({ ...map, topics: [{ ...map.topics[0], design: 'src/vs/sample.design.md' }] });
+		await assert.rejects(checkDesignPlacement(root), /shared specs must be flat/);
+		await saveMap({ ...map, documentAliases: { 'old-sample.md': 'another.md', 'another.md': design } });
+		await assert.rejects(checkDesignPlacement(root), /must resolve directly/);
+		await saveMap(map);
+		await writeFile(path.join(root, directory, 'orphan.design.md'), '# Orphan');
+		await assert.rejects(checkDesignPlacement(root), /Unregistered design specification/);
+	} finally { await rm(root, { recursive: true, force: true }); }
+});
 
 test('render checks reject empty chapters, reported errors, and unavailable examples', async () => {
 	const page = await browser.newPage();

@@ -1,8 +1,0 @@
-{
-	"version": 1,
-	"id": "documentation",
-	"renderer": "documents",
-	"source": ".github/design-system/guidance/documentation.md",
-	"content": {},
-	"sources": []
-}

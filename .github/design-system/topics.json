@@ -1,0 +1,406 @@
+{
+	"version": 1,
+	"id": "vscode-design-system",
+	"title": "Visual Studio Code Design System",
+	"documentAliases": {
+		".github/design-system/guidance/illustration.md": ".github/design-system/illustration.design.md",
+		"src/vs/base/browser/ui/actionbar/action-bar-design.md": "src/vs/base/browser/ui/actionbar/action-bar.design.md",
+		"src/vs/base/browser/ui/button/button-bar-design.md": "src/vs/base/browser/ui/button/button-bar.design.md",
+		"src/vs/base/browser/ui/button/button-design.md": "src/vs/base/browser/ui/button/button.design.md",
+		"src/vs/base/browser/ui/countBadge/badge-design.md": "src/vs/base/browser/ui/countBadge/count-badge.design.md",
+		"src/vs/base/browser/ui/dialog/dialog-design.md": "src/vs/base/browser/ui/dialog/dialog.design.md",
+		"src/vs/base/browser/ui/highlightedlabel/label-design.md": "src/vs/base/browser/ui/highlightedlabel/highlighted-label.design.md",
+		"src/vs/base/browser/ui/hover/hover-design.md": "src/vs/base/browser/ui/hover/hover-widget.design.md",
+		"src/vs/base/browser/ui/iconLabel/icon-label-design.md": "src/vs/base/browser/ui/iconLabel/icon-label.design.md",
+		"src/vs/base/browser/ui/inputbox/input-design.md": "src/vs/base/browser/ui/inputbox/input-box.design.md",
+		"src/vs/base/browser/ui/keybindingLabel/keybinding-label-design.md": "src/vs/base/browser/ui/keybindingLabel/keybinding-label.design.md",
+		"src/vs/base/browser/ui/menu/menu-design.md": "src/vs/base/browser/ui/menu/menu.design.md",
+		"src/vs/base/browser/ui/pixelSpinner/spinner-design.md": "src/vs/base/browser/ui/pixelSpinner/pixel-spinner.design.md",
+		"src/vs/base/browser/ui/progressbar/progress-design.md": "src/vs/base/browser/ui/progressbar/progress-bar.design.md",
+		"src/vs/base/browser/ui/radio/radio-design.md": "src/vs/base/browser/ui/radio/radio.design.md",
+		"src/vs/base/browser/ui/selectBox/select-design.md": "src/vs/base/browser/ui/selectBox/select-box.design.md",
+		"src/vs/base/browser/ui/toggle/checkbox-design.md": "src/vs/base/browser/ui/toggle/checkbox.design.md",
+		"src/vs/base/browser/ui/toggle/switch-design.md": "src/vs/base/browser/ui/toggle/switch.design.md",
+		"src/vs/base/browser/ui/toggle/toggle-design.md": "src/vs/base/browser/ui/toggle/toggle.design.md",
+		"src/vs/base/common/iconography.md": ".github/design-system/iconography.design.md",
+		"src/vs/platform/actionWidget/browser/dropdown-design.md": "src/vs/platform/actionWidget/browser/multi-select-dropdown.design.md",
+		"src/vs/platform/theme/common/colors/color-guidance.md": ".github/design-system/colors.design.md",
+		"src/vs/platform/theme/common/elevation.md": ".github/design-system/elevation.design.md",
+		"src/vs/platform/theme/common/elevation.design.md": ".github/design-system/elevation.design.md",
+		"src/vs/platform/theme/common/sizes/shape.md": ".github/design-system/shape.design.md",
+		"src/vs/platform/theme/common/sizes/size.md": ".github/design-system/size.design.md",
+		"src/vs/platform/theme/common/sizes/spacing.md": ".github/design-system/spacing.design.md",
+		"src/vs/platform/theme/common/sizes/stroke.md": ".github/design-system/stroke.design.md",
+		"src/vs/platform/theme/common/sizes/typography.md": ".github/design-system/typography.design.md",
+		"src/vs/platform/theme/common/theming.md": ".github/design-system/theming.design.md",
+		"src/vs/base/browser/ui/countBadge/badge.design.md": "src/vs/base/browser/ui/countBadge/count-badge.design.md",
+		"src/vs/base/browser/ui/highlightedlabel/label.design.md": "src/vs/base/browser/ui/highlightedlabel/highlighted-label.design.md",
+		"src/vs/base/browser/ui/hover/hover.design.md": "src/vs/base/browser/ui/hover/hover-widget.design.md",
+		"src/vs/base/browser/ui/inputbox/input.design.md": "src/vs/base/browser/ui/inputbox/input-box.design.md",
+		"src/vs/base/browser/ui/pixelSpinner/spinner.design.md": "src/vs/base/browser/ui/pixelSpinner/pixel-spinner.design.md",
+		"src/vs/base/browser/ui/progressbar/progress.design.md": "src/vs/base/browser/ui/progressbar/progress-bar.design.md",
+		"src/vs/base/browser/ui/selectBox/select.design.md": "src/vs/base/browser/ui/selectBox/select-box.design.md",
+		"src/vs/platform/actionWidget/browser/dropdown.design.md": "src/vs/platform/actionWidget/browser/multi-select-dropdown.design.md",
+		".github/design-system/guidance/accessibility.md": ".github/design-system/accessibility.design.md",
+		".github/design-system/guidance/layout.md": ".github/design-system/layout.design.md",
+		".github/design-system/guidance/principles.md": ".github/design-system/principles.design.md",
+		".github/design-system/guidance/writing.md": ".github/design-system/content.design.md",
+		".github/design-system/guidance/elevation.design.md": ".github/design-system/elevation.design.md",
+		".github/design-system/guidance/illustration.design.md": ".github/design-system/illustration.design.md",
+		".github/design-system/guidance/modal.design.md": ".github/design-system/modal.design.md",
+		".github/design-system/guidance/interaction-patterns.md": ".github/design-system/interaction-patterns.design.md",
+		".github/design-system/guidance/documentation.md": ".github/design-system/documentation.md",
+		".github/design-system/guidance/overview.md": ".github/design-system/components-overview.md",
+		"src/vs/platform/theme/common/sizes/typography.design.md": ".github/design-system/typography.design.md",
+		"src/vs/platform/theme/common/sizes/spacing.design.md": ".github/design-system/spacing.design.md",
+		"src/vs/platform/theme/common/sizes/shape.design.md": ".github/design-system/shape.design.md",
+		"src/vs/platform/theme/common/sizes/size.design.md": ".github/design-system/size.design.md",
+		"src/vs/platform/theme/common/sizes/stroke.design.md": ".github/design-system/stroke.design.md",
+		"src/vs/platform/theme/common/colors/colors.design.md": ".github/design-system/colors.design.md",
+		"src/vs/platform/theme/common/theming.design.md": ".github/design-system/theming.design.md",
+		"src/vs/platform/theme/common/motion/motion.design.md": ".github/design-system/motion.design.md",
+		"src/vs/platform/theme/common/motion/motion-examples.md": ".github/design-system/motion/examples.md",
+		"src/vs/platform/theme/common/design-tokens.md": ".github/design-system/tokens.design.md",
+		"src/vs/base/common/iconography.design.md": ".github/design-system/iconography.design.md"
+	},
+	"defaultTopic": "principles",
+	"references": {
+		"typography": [
+			{
+				"title": "WCAG 2.2: Text Spacing",
+				"url": "https://www.w3.org/WAI/WCAG22/Understanding/text-spacing.html",
+				"description": "The user-override test exposes clipped or lost content when line, paragraph, letter, and word spacing change; its test values are not default type tokens."
+			}
+		],
+		"colors": [
+			{
+				"title": "WCAG 2.2: Contrast (Minimum)",
+				"url": "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html",
+				"description": "Explains text-contrast thresholds and exceptions for large text and inactive controls, helping evaluate rendered foreground/background pairs rather than swatches."
+			}
+		],
+		"motion": [
+			{
+				"title": "WCAG 2.2: Animation from Interactions",
+				"url": "https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html",
+				"description": "Clarifies the AAA essential-motion exception and distinguishes interaction-triggered animation from automatic animation when evaluating reduced-motion behavior."
+			}
+		],
+		"accessibility": [
+			{
+				"title": "ARIA APG: Developing a Keyboard Interface",
+				"url": "https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/",
+				"description": "Details tab-stop placement, focus versus selection, and navigation inside composite widgets, extending this topic's basic keyboard-operability checks."
+			}
+		]
+	},
+	"documentSources": [
+		{
+			"id": "product",
+			"title": "Product documentation",
+			"root": "src/vs",
+			"origin": "product",
+			"excludeDirectories": [
+				"__snapshots__",
+				"fixtures"
+			]
+		},
+		{
+			"id": "extensions",
+			"title": "Built-in extension documentation",
+			"root": "extensions",
+			"origin": "product",
+			"excludeDirectories": [
+				"test",
+				"tests",
+				"fixtures",
+				"test-workspace",
+				"testWorkspace"
+			]
+		},
+		{
+			"id": "instructions",
+			"title": "Repository instructions",
+			"root": ".github/instructions",
+			"origin": "instruction"
+		},
+		{
+			"id": "skills",
+			"title": "Authoring workflows",
+			"root": ".github/skills",
+			"origin": "skill"
+		},
+		{
+			"id": "design-system",
+			"title": "Design-system guidance",
+			"root": ".github/design-system",
+			"origin": "book"
+		}
+	],
+	"topics": [
+		{
+			"id": "principles",
+			"title": "Design philosophy",
+			"group": "Foundations",
+			"section": "principles",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "guidance",
+			"page": "content/topics/principles.json",
+			"kind": "foundation",
+			"design": ".github/design-system/principles.design.md"
+		},
+		{
+			"id": "accessibility",
+			"title": "Accessibility",
+			"group": "Foundations",
+			"section": "accessibility",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"hidden": false,
+			"renderer": "guidance",
+			"page": "content/topics/accessibility.json",
+			"kind": "foundation",
+			"design": ".github/design-system/accessibility.design.md"
+		},
+		{
+			"id": "content",
+			"title": "Content",
+			"group": "Foundations",
+			"section": "content",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"hidden": false,
+			"renderer": "guidance",
+			"page": "content/topics/content.json",
+			"kind": "foundation",
+			"design": ".github/design-system/content.design.md"
+		},
+		{
+			"id": "tokens",
+			"title": "Design tokens",
+			"group": "Foundations",
+			"section": "tokens",
+			"aliases": [
+				"token lookup"
+			],
+			"compare": true,
+			"fixture": false,
+			"renderer": "tokens",
+			"page": "content/topics/tokens.json",
+			"kind": "foundation",
+			"design": ".github/design-system/tokens.design.md"
+		},
+		{
+			"id": "typography",
+			"title": "Typography",
+			"group": "Foundations",
+			"section": "typography",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "typography",
+			"page": "content/topics/typography.json",
+			"kind": "foundation",
+			"design": ".github/design-system/typography.design.md"
+		},
+		{
+			"id": "colors",
+			"title": "Colors",
+			"group": "Foundations",
+			"section": "colors",
+			"aliases": [],
+			"compare": true,
+			"fixture": true,
+			"renderer": "foundations",
+			"page": "content/topics/colors.json",
+			"kind": "foundation",
+			"design": ".github/design-system/colors.design.md"
+		},
+		{
+			"id": "theming",
+			"title": "Theming",
+			"group": "Foundations",
+			"section": "theming",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "theming",
+			"page": "content/topics/theming.json",
+			"kind": "foundation",
+			"design": ".github/design-system/theming.design.md"
+		},
+		{
+			"id": "layout",
+			"title": "Layout",
+			"group": "Foundations",
+			"section": "layout",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "content/topics/layout.json",
+			"kind": "foundation",
+			"design": ".github/design-system/layout.design.md"
+		},
+		{
+			"id": "spacing",
+			"title": "Spacing",
+			"group": "Foundations",
+			"section": "spacing",
+			"aliases": [],
+			"compare": true,
+			"fixture": true,
+			"renderer": "foundations",
+			"page": "content/topics/spacing.json",
+			"kind": "foundation",
+			"design": ".github/design-system/spacing.design.md"
+		},
+		{
+			"id": "size",
+			"title": "Size",
+			"group": "Foundations",
+			"section": "size",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "content/topics/size.json",
+			"kind": "foundation",
+			"design": ".github/design-system/size.design.md"
+		},
+		{
+			"id": "shape",
+			"title": "Shape",
+			"group": "Foundations",
+			"section": "shape",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "content/topics/shape.json",
+			"kind": "foundation",
+			"design": ".github/design-system/shape.design.md"
+		},
+		{
+			"id": "stroke",
+			"title": "Stroke",
+			"group": "Foundations",
+			"section": "stroke",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "content/topics/stroke.json",
+			"kind": "foundation",
+			"design": ".github/design-system/stroke.design.md"
+		},
+		{
+			"id": "elevation",
+			"title": "Elevation",
+			"group": "Foundations",
+			"section": "elevation",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "content/topics/elevation.json",
+			"kind": "foundation",
+			"design": ".github/design-system/elevation.design.md"
+		},
+		{
+			"id": "iconography",
+			"title": "Iconography",
+			"group": "Foundations",
+			"section": "iconography",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "icons",
+			"page": "content/topics/iconography.json",
+			"kind": "foundation",
+			"design": ".github/design-system/iconography.design.md"
+		},
+		{
+			"id": "illustration",
+			"title": "Illustration",
+			"group": "Foundations",
+			"section": "illustration",
+			"aliases": [
+				"illustrations",
+				"artwork"
+			],
+			"compare": true,
+			"fixture": false,
+			"renderer": "guidance",
+			"page": "content/topics/illustration.json",
+			"kind": "foundation",
+			"design": ".github/design-system/illustration.design.md"
+		},
+		{
+			"id": "motion",
+			"title": "Motion",
+			"group": "Foundations",
+			"section": "motion",
+			"aliases": [],
+			"compare": true,
+			"fixture": true,
+			"renderer": "motion",
+			"page": "content/topics/motion.json",
+			"kind": "foundation",
+			"design": ".github/design-system/motion.design.md"
+		},
+		{
+			"id": "modal",
+			"title": "Modal",
+			"group": "Patterns",
+			"section": "modal",
+			"aliases": [
+				"management modal"
+			],
+			"compare": true,
+			"fixture": false,
+			"renderer": "guidance",
+			"page": "content/topics/modal.json",
+			"kind": "pattern",
+			"design": ".github/design-system/modal.design.md"
+		},
+		{
+			"id": "documentation",
+			"title": "Source library",
+			"group": "Guidance",
+			"navigation": "utility",
+			"section": "documentation",
+			"aliases": [
+				"specifications",
+				"authored guidance",
+				"documents"
+			],
+			"compare": false,
+			"fixture": false,
+			"renderer": "documents",
+			"page": "content/topics/documentation.json"
+		},
+		{
+			"id": "patterns",
+			"title": "Interaction patterns",
+			"group": "Guidance",
+			"section": "patterns",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"hidden": true,
+			"renderer": "guidance",
+			"page": "content/topics/patterns.json",
+			"kind": "pattern",
+			"design": ".github/design-system/interaction-patterns.design.md"
+		}
+	],
+	"components": {
+		"after": "modal",
+		"page": "content/topics/components.json"
+	}
+}
