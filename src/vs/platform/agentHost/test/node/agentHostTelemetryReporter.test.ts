@@ -498,13 +498,14 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.internalEvents, [expected]);
 	});
 
-	test('modelMessageText emits conversation.messageText (source=model) with headerRequestId, and no-ops on empty content', async () => {
+	test('modelMessageText emits conversation.messageText (source=model) as structured JSON with headerRequestId, and no-ops on empty content and reasoning', async () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '', 3, 'client-1'); // dropped: no content
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '', 3, 'client-1'); // dropped: no content or reasoning
 		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, 'sure, here you go', 3, 'client-1'); // emitted
 
+		const structured = JSON.stringify({ role: 'assistant', content: 'sure, here you go' });
 		const expected: IRestrictedCall = {
 			eventName: 'conversation.messageText',
 			properties: {
@@ -514,12 +515,32 @@ suite('AgentHostTelemetryReporter', () => {
 				initiatorClientType: 'agents_window',
 				turnIndex: '3',
 				headerRequestId: 'client-1',
-				messageText: 'sure, here you go',
-				messageTextChunk: zlib.gzipSync(Buffer.from('sure, here you go', 'utf8')).toString('base64'),
+				messageText: structured,
+				messageTextChunk: zlib.gzipSync(Buffer.from(structured, 'utf8')).toString('base64'),
 			},
 		};
 		assert.deepStrictEqual(service.enhancedEvents, [expected]);
 		assert.deepStrictEqual(service.internalEvents, [expected]);
+	});
+
+	test('modelMessageText separates inline think/thinking tags (closed and unclosed) and wire reasoningText', async () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<think>Find call sites.</think>Renamed `getUser`.', 1, 'req-1');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<thinking>Let me check the config file.', 1, 'req-2');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '', 1, 'req-3', undefined, 'Wire-only reasoning');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, 'Example:\n```xml\n<think>literal</think>\n```', 1, 'req-4');
+
+		assert.deepStrictEqual(
+			service.enhancedEvents.map(event => JSON.parse(event.properties!.messageText!)),
+			[
+				{ role: 'assistant', content: 'Renamed `getUser`.', reasoning_text: 'Find call sites.' },
+				{ role: 'assistant', content: '', reasoning_text: 'Let me check the config file.' },
+				{ role: 'assistant', content: '', reasoning_text: 'Wire-only reasoning' },
+				{ role: 'assistant', content: 'Example:\n```xml\n<think>literal</think>\n```' },
+			]
+		);
 	});
 
 	test('text and tools retain SDK conversation identity independently of host grouping and chat hashes', async () => {

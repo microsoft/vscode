@@ -1610,6 +1610,195 @@ export function toSubagentKindTelemetry(isSubagent: boolean, kind: AgentSubagent
 	return isSubagent ? { subagentKind: kind ?? 'task' } : {};
 }
 
+const INLINE_THINK_TAGS = [
+	{ open: '<think>', close: '</think>' },
+	{ open: '<thinking>', close: '</thinking>' },
+] as const;
+
+interface IStructuredModelMessageText {
+	readonly role: 'assistant';
+	readonly content: string;
+	readonly reasoning_text?: string;
+}
+
+function parseFenceMarker(text: string, lineStart: number): { char: string; length: number; lineEnd: number } | undefined {
+	let i = lineStart;
+	while (i < text.length && (text[i] === ' ' || text[i] === '\t')) {
+		i++;
+	}
+	const ch = text[i];
+	if (ch !== '`' && ch !== '~') {
+		return undefined;
+	}
+	let end = i;
+	while (end < text.length && text[end] === ch) {
+		end++;
+	}
+	const length = end - i;
+	if (length < 3) {
+		return undefined;
+	}
+	const nl = text.indexOf('\n', end);
+	const lineEnd = nl === -1 ? text.length : nl + 1;
+	return { char: ch, length, lineEnd };
+}
+
+function isClosingFenceLine(text: string, lineStart: number, fenceChar: string, fenceLength: number): number | undefined {
+	let i = lineStart;
+	while (i < text.length && (text[i] === ' ' || text[i] === '\t')) {
+		i++;
+	}
+	if (text[i] !== fenceChar) {
+		return undefined;
+	}
+	let end = i;
+	while (end < text.length && text[end] === fenceChar) {
+		end++;
+	}
+	if (end - i < fenceLength) {
+		return undefined;
+	}
+	while (end < text.length && (text[end] === ' ' || text[end] === '\t' || text[end] === '\r')) {
+		end++;
+	}
+	if (end === text.length) {
+		return text.length;
+	}
+	return text[end] === '\n' ? end + 1 : undefined;
+}
+
+function extractInlineReasoning(text: string): { content: string; reasoningText: string | undefined } {
+	let pos = 0;
+	let chunkStart = 0;
+	let atLineStart = true;
+	let activeFence: { char: string; length: number } | undefined;
+	let foundTag = false;
+	const contentParts: string[] = [];
+	const reasoningParts: string[] = [];
+
+	while (pos < text.length) {
+		if (atLineStart) {
+			if (activeFence) {
+				const closedEnd = isClosingFenceLine(text, pos, activeFence.char, activeFence.length);
+				if (closedEnd !== undefined) {
+					activeFence = undefined;
+					pos = closedEnd;
+					atLineStart = true;
+					continue;
+				}
+				const nl = text.indexOf('\n', pos);
+				if (nl === -1) {
+					break;
+				}
+				pos = nl + 1;
+				atLineStart = true;
+				continue;
+			}
+			const fence = parseFenceMarker(text, pos);
+			if (fence) {
+				activeFence = { char: fence.char, length: fence.length };
+				pos = fence.lineEnd;
+				atLineStart = true;
+				continue;
+			}
+		}
+
+		const nextTag = text.indexOf('<think', pos);
+		if (nextTag === -1) {
+			break;
+		}
+		const nextNewline = text.indexOf('\n', pos);
+		if (nextNewline !== -1 && nextNewline < nextTag) {
+			pos = nextNewline + 1;
+			atLineStart = true;
+			continue;
+		}
+
+		const matchedTag = INLINE_THINK_TAGS.find(tag => text.startsWith(tag.open, nextTag));
+		if (!matchedTag) {
+			pos = nextTag + 6;
+			atLineStart = false;
+			continue;
+		}
+
+		foundTag = true;
+		const before = text.slice(chunkStart, nextTag);
+		const hasNonWhitespaceContent = contentParts.some(p => p.trim().length > 0);
+		if (before.length > 0 && (hasNonWhitespaceContent || before.trim().length > 0)) {
+			contentParts.push(before);
+		}
+
+		const innerStart = nextTag + matchedTag.open.length;
+		const closeIdx = text.indexOf(matchedTag.close, innerStart);
+		if (closeIdx === -1) {
+			const inner = text.slice(innerStart).trim();
+			if (inner) {
+				reasoningParts.push(inner);
+			}
+			chunkStart = text.length;
+			pos = text.length;
+			break;
+		}
+
+		const inner = text.slice(innerStart, closeIdx).trim();
+		if (inner) {
+			reasoningParts.push(inner);
+		}
+		let afterClose = closeIdx + matchedTag.close.length;
+		if (contentParts.length === 0) {
+			while (afterClose < text.length && (text[afterClose] === ' ' || text[afterClose] === '\t' || text[afterClose] === '\r' || text[afterClose] === '\n')) {
+				afterClose++;
+			}
+		}
+		chunkStart = afterClose;
+		pos = afterClose;
+		atLineStart = pos === 0 || text[pos - 1] === '\n';
+	}
+
+	if (!foundTag) {
+		return { content: text, reasoningText: undefined };
+	}
+	if (chunkStart < text.length) {
+		contentParts.push(text.slice(chunkStart));
+	}
+	return {
+		content: contentParts.join(''),
+		reasoningText: reasoningParts.length > 0 ? reasoningParts.join('\n\n') : undefined,
+	};
+}
+
+/**
+ * Formats assistant text for restricted `conversation.messageText` telemetry into a
+ * structured `{ role, content, reasoning_text? }` JSON payload.
+ *
+ * Uses an O(1) `indexOf('<think')` fast path so messages without inline reasoning tags
+ * incur no parsing overhead. Both closed and unclosed `<think>` / `<thinking>` blocks
+ * outside fenced code blocks are extracted into `reasoning_text`.
+ */
+export function formatModelMessageTextForTelemetry(content: string, wireReasoningText?: string): string {
+	const trimmedWireReasoning = wireReasoningText?.trim();
+	if (content.indexOf('<think') === -1) {
+		const payload: IStructuredModelMessageText = trimmedWireReasoning
+			? { role: 'assistant', content, reasoning_text: trimmedWireReasoning }
+			: { role: 'assistant', content };
+		return JSON.stringify(payload);
+	}
+
+	const extracted = extractInlineReasoning(content);
+	const reasoningParts: string[] = [];
+	if (trimmedWireReasoning) {
+		reasoningParts.push(trimmedWireReasoning);
+	}
+	if (extracted.reasoningText) {
+		reasoningParts.push(extracted.reasoningText);
+	}
+	const reasoningText = reasoningParts.length > 0 ? reasoningParts.join('\n\n') : undefined;
+	const payload: IStructuredModelMessageText = reasoningText
+		? { role: 'assistant', content: extracted.content, reasoning_text: reasoningText }
+		: { role: 'assistant', content: extracted.content };
+	return JSON.stringify(payload);
+}
+
 export class AgentHostTelemetryReporter {
 
 	declare readonly _serviceBrand: undefined;
@@ -1798,20 +1987,24 @@ export class AgentHostTelemetryReporter {
 
 	/**
 	 * The model-message counterpart to {@link userMessageText}. Emitted when an `assistant.message`
-	 * arrives (the agent host's per-model-call boundary), carrying the assistant's response text.
-	 * `headerRequestId` is filled with the model call's client-minted `x-request-id`, matching the
-	 * extension. VS Code-only enrichment dims (code-block languages/counts) are not reconstructed here.
+	 * arrives (the agent host's per-model-call boundary), carrying the assistant's structured
+	 * `{ role, content, reasoning_text? }` JSON payload. `headerRequestId` is filled with the
+	 * model call's client-minted `x-request-id`, matching the extension. VS Code-only enrichment
+	 * dims (code-block languages/counts) are not reconstructed here.
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
-	 * @param content The assistant's response text. No-ops when empty.
+	 * @param content The assistant's response text. No-ops when both `content` and `reasoningText` are empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
 	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to `headerRequestId`.
+	 * @param sdkSessionId The SDK session id, when known.
+	 * @param reasoningText Optional structured wire reasoning text from `assistant.message`.
 	 */
-	async modelMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined, sdkSessionId?: string): Promise<void> {
+	async modelMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined, sdkSessionId?: string, reasoningText?: string): Promise<void> {
 		const restricted = this._restricted;
-		if (!restricted || !content) {
+		if (!restricted || (!content && !reasoningText)) {
 			return;
 		}
+		const messageText = formatModelMessageTextForTelemetry(content, reasoningText);
 		const properties = await multiplexProperties({
 			source: 'model',
 			...(sdkSessionId ? { sdkSessionId } : {}),
@@ -1820,7 +2013,7 @@ export class AgentHostTelemetryReporter {
 			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
 			...(clientRequestId ? { headerRequestId: clientRequestId } : {}),
-			messageText: content,
+			messageText,
 		});
 		const measurements = { messageCharLen: content.length };
 		restricted.sendEnhancedGHTelemetryEvent('conversation.messageText', properties, measurements);

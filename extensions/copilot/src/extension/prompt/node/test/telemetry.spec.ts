@@ -11,7 +11,7 @@ import { gunzipSync, gzipSync } from 'zlib';
 import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import * as telemetry from '../../../../platform/telemetry/common/telemetry';
 import { SpyingTelemetryService } from '../../../../platform/telemetry/node/spyingTelemetryService';
-import { createTelemetryWithId, getModeNameForTelemetry, sendConversationalMessageTelemetry } from '../telemetry';
+import { createTelemetryWithId, formatModelMessageTextForTelemetry, getModeNameForTelemetry, sendConversationalMessageTelemetry } from '../telemetry';
 
 suite('getModeNameForTelemetry', () => {
 	function modeInstructions(props: Partial<ChatRequestModeInstructions>): ChatRequestModeInstructions {
@@ -138,6 +138,55 @@ suite('sendConversationalMessageTelemetry', () => {
 			exceptions: [[error, 'sendConversationalMessageTelemetry']],
 			enhanced: [],
 			internal: [],
+		});
+	});
+
+	test('formats model conversation.messageText as structured JSON and separates inline reasoning tags', async () => {
+		vi.spyOn(telemetry, 'multiplexProperties').mockImplementation(properties => multiplexProperties(properties, gzipBase64));
+		const service = new SpyingTelemetryService();
+		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
+		const raw = '<think>The user wants to rename the function.</think>I renamed `getUser` to `fetchUser`.';
+
+		sendConversationalMessageTelemetry(
+			service,
+			undefined,
+			ChatLocation.Panel,
+			raw,
+			{ source: 'model', headerRequestId: 'request', turnIndex: '1' },
+			{ messageCharLen: raw.length },
+			createTelemetryWithId()
+		);
+
+		await vi.waitFor(() => expect(enhanced).toHaveBeenCalledTimes(1));
+		const emitted = enhanced.mock.calls[0][1]!;
+		assert.deepStrictEqual(JSON.parse(emitted.messageText), {
+			role: 'assistant',
+			content: 'I renamed `getUser` to `fetchUser`.',
+			reasoning_text: 'The user wants to rename the function.',
+		});
+	});
+});
+
+suite('formatModelMessageTextForTelemetry', () => {
+	test('handles plain text, closed tags, unclosed tags, multiple blocks, and fenced code blocks', () => {
+		assert.deepStrictEqual({
+			plain: JSON.parse(formatModelMessageTextForTelemetry('Just an answer.')),
+			closedThink: JSON.parse(formatModelMessageTextForTelemetry('<think>Find all call sites.</think>I renamed `getUser` to `fetchUser`.')),
+			unclosedThinking: JSON.parse(formatModelMessageTextForTelemetry('<thinking>Let me check the config file to find the port setting.')),
+			unclosedThink: JSON.parse(formatModelMessageTextForTelemetry('<think>Checking tests next')),
+			multipleBlocks: JSON.parse(formatModelMessageTextForTelemetry('<think>First thought</think>Part 1 <thinking>Second thought</thinking>Part 2')),
+			fencedCodeIgnored: JSON.parse(formatModelMessageTextForTelemetry('Example:\n```xml\n<think>not reasoning</think>\n```\nDone.')),
+			wireReasoning: JSON.parse(formatModelMessageTextForTelemetry('Answer', 'Wire thought')),
+			wireAndInline: JSON.parse(formatModelMessageTextForTelemetry('<think>Inline thought</think>Answer', 'Wire thought')),
+		}, {
+			plain: { role: 'assistant', content: 'Just an answer.' },
+			closedThink: { role: 'assistant', content: 'I renamed `getUser` to `fetchUser`.', reasoning_text: 'Find all call sites.' },
+			unclosedThinking: { role: 'assistant', content: '', reasoning_text: 'Let me check the config file to find the port setting.' },
+			unclosedThink: { role: 'assistant', content: '', reasoning_text: 'Checking tests next' },
+			multipleBlocks: { role: 'assistant', content: 'Part 1 Part 2', reasoning_text: 'First thought\n\nSecond thought' },
+			fencedCodeIgnored: { role: 'assistant', content: 'Example:\n```xml\n<think>not reasoning</think>\n```\nDone.' },
+			wireReasoning: { role: 'assistant', content: 'Answer', reasoning_text: 'Wire thought' },
+			wireAndInline: { role: 'assistant', content: 'Answer', reasoning_text: 'Wire thought\n\nInline thought' },
 		});
 	});
 });
