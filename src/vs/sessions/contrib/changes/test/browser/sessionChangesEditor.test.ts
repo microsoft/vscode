@@ -58,6 +58,8 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IMatchEditorOptions, IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
 import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
+import '../../../../../workbench/contrib/sessionChanges/browser/changesPicker.contribution.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 suite('SessionChangesEditor empty state layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -314,6 +316,75 @@ suite('SessionChangesEditor changed files list', () => {
 			focused: { ...list, calls: ['focus'] },
 			offAgain: noList,
 			host: true,
+		});
+	});
+});
+
+suite('SessionChangesEditor header', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function headerOf(host: Partial<ISessionsHostLayoutService>, aiEnabled: boolean) {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const parent = append(mainWindow.document.body, $('.editor-instance'));
+		store.add(toDisposable(() => parent.remove()));
+		const hostContextKeyService = store.add(store.add(new ContextKeyService(instantiationService.get(IConfigurationService))).createScoped(parent));
+		hostContextKeyService.createKey(ChatContextKeys.enabled.key, aiEnabled);
+		instantiationService.stub(IContextKeyService, hostContextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = activeSession;
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+		}());
+		stubSessionHosts(instantiationService, store, { session: activeSession });
+		// The header's actions read the changes of the active session, of which there are none
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = constObservable(undefined);
+			override readonly activeSessionTypeObs = constObservable(undefined);
+			override readonly activeSessionIsVirtualWorkspaceObs = constObservable(false);
+			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetsObs = constObservable(undefined);
+			override readonly activeSessionChangesetObs = constObservable(undefined);
+			override readonly activeSessionChangesetLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetOperationsObs = constObservable([]);
+			override readonly activeSessionChangesObs = constObservable([]);
+			override readonly activeSessionLoadingObs = constObservable(false);
+			override readonly activeSessionChangesSummaryObs = constObservable(undefined);
+			override readonly activeSessionStateObs = constObservable(undefined);
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, ...host });
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		instantiationService.stubInstance(MultiDiffEditorWidget, {
+			viewModel: observableValue<MultiDiffEditorViewModel | undefined>('viewModel', undefined),
+			onDidChangeActiveControl: Event.None,
+			setPaddingBottom() { },
+			setVariant() { },
+			setDiffLayoutOptions() { },
+			layout() { },
+			dispose() { },
+		});
+		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		editor.create(parent);
+		const header = parent.querySelector('.session-changes-editor-header-left');
+		return header ? [...header.querySelectorAll('.action-label')].map(label => label.getAttribute('aria-label')) : 'none';
+	}
+
+	test('draws its own header with the changeset picker only where the editor part around it does not, such as in an editor window, and not with AI disabled', () => {
+		assert.deepStrictEqual({
+			agentsWindow: headerOf({}, true),
+			editorWindow: headerOf({ editorPartDrawsEditorHeaders: false }, true),
+			editorWindowWithoutAI: headerOf({ editorPartDrawsEditorHeaders: false }, false),
+		}, {
+			agentsWindow: 'none',
+			editorWindow: ['Versions'],
+			editorWindowWithoutAI: [],
 		});
 	});
 });

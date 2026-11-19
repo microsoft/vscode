@@ -48,6 +48,7 @@ import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../servi
 import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../../sessions/common/changes.js';
 import { ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
+import { SessionChangesEditorDrawsHeaderContext } from '../../sessions/common/contextkeys.js';
 import { getChangesEditorChanges, observeChangesEditorChat } from './changesMultiDiffSourceResolver.js';
 import { IChangesEditorScope, IChangesSessionScope, IChangesViewService } from '../../sessions/common/changesViewService.js';
 import { ChangesActionsBar, createChangesEditorScope } from './changesView.js';
@@ -226,7 +227,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return this.widget?.getContextKeyService();
 	}
 
-	private _desktop = false;
+	/** Whether the editor part draws this editor's header, as the Agents window's desktop layout does, instead of this editor. */
+	private _headerInEditorPart = false;
 	private _scopedInstantiationService: IInstantiationService | undefined;
 
 	/** Session, and chat if it names one, whose changes this editor is currently showing (from its input). */
@@ -374,11 +376,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			new ServiceCollection([IContextKeyService, scopedContextKeyService], [IChangesEditorScope, { _serviceBrand: undefined, scope: this._scope, changesPendingObs: this._changesPendingObs } satisfies IChangesEditorScope])));
 		this._scopedInstantiationService = scopedInstantiationService;
 
-		// In desktop, the header (Branch Changes dropdown, diff stats and primary
+		// In the Agents window's desktop layout, the header (Branch Changes dropdown, diff stats and primary
 		// actions) is hosted by the editor part's full-width header instead of inside
 		// this editor, so it spans the editor content and the docked detail panel.
-		this._desktop = this.hostLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop;
-		if (!this._desktop) {
+		this._headerInEditorPart = this.hostLayoutService.editorPartDrawsEditorHeaders ?? this.hostLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop;
+		if (!this._headerInEditorPart) {
+			SessionChangesEditorDrawsHeaderContext.bindTo(scopedContextKeyService).set(true);
 			const header = append(root, $('.session-changes-editor-header'));
 			const left = append(header, $('.session-changes-editor-header-left'));
 			const right = append(header, $('.session-changes-editor-header-right'));
@@ -507,7 +510,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	get scopedInstantiationService(): IInstantiationService | undefined {
-		return this._desktop ? this._scopedInstantiationService : undefined;
+		return this._headerInEditorPart ? this._scopedInstantiationService : undefined;
 	}
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -836,9 +839,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	override layout(dimension: Dimension): void {
-		// In desktop the header is external (the editor part reserves a top inset),
-		// so the diff fills the full dimension; otherwise reserve the internal header.
-		const bodyHeight = this._desktop ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
+		// Where the editor part draws the header (it reserves a top inset), the diff
+		// fills the full dimension; otherwise reserve the internal header.
+		const bodyHeight = this._headerInEditorPart ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
 		this.fileListWidget?.layout(new Dimension(dimension.width, bodyHeight));
 		this.emptyState?.layout();
 	}
