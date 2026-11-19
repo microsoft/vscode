@@ -518,19 +518,23 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.deepStrictEqual(result.filter(item => item.contents === CustomizationType.Hook).flatMap(item => item.children?.map(child => child.id) ?? []), ['user']);
 	});
 
-	test('reports hook files of a folder opened through a symbolic link under the opened path', async () => {
-		const opened = inMemoryPathToUri('/link');
+	test('reports hook files of a folder opened through a symbolic link under the opened path, leaving other files unchanged', async () => {
+		const opened = inMemoryPathToUri('/links/link');
 		class LinkedDiscovery extends SessionCustomizationDiscovery {
 			protected override async _realpath(path: string): Promise<string> {
-				return path.replace(/^([\\/])link/, '$1workspace');
+				return path.replace(/^([\\/])links[\\/]link/, '$1workspace');
 			}
 		}
 		const discovery = disposables.add(instantiationService.createInstance(LinkedDiscovery, [opened], userHome, inMemoryPathToUri));
 		const result = await discovery.discover(hookDiscoveryClient(async () => ({
-			hooks: [{ id: 'root', hookType: 'sessionStart', origin: 'repository', projectPath: opened.fsPath, definitionFileUri: inMemoryPathToUri('/workspace/.github/hooks/a.json').toString(), enabled: true }],
+			hooks: [
+				{ id: 'root', hookType: 'sessionStart', origin: 'repository', projectPath: opened.fsPath, definitionFileUri: inMemoryPathToUri('/workspace/.github/hooks/a.json').toString(), enabled: true },
+				{ id: 'user', hookType: 'sessionStart', origin: 'user', definitionFileUri: inMemoryPathToUri('/home/.copilot/hooks/u.json').toString(), enabled: true },
+				{ id: 'sibling', hookType: 'sessionStart', origin: 'user', definitionFileUri: inMemoryPathToUri('/workspace-other/hooks/s.json').toString(), enabled: true },
+			],
 			warnings: [], errors: [],
 		})), CancellationToken.None);
-		assert.deepStrictEqual(result.flatMap(item => item.contents === CustomizationType.Hook ? item.children?.map(child => URI.parse(child.uri).path) ?? [] : []), ['/link/.github/hooks/a.json']);
+		assert.deepStrictEqual(result.flatMap(item => item.contents === CustomizationType.Hook ? item.children?.map(child => URI.parse(child.uri).path) ?? [] : []).sort(), ['/home/.copilot/hooks/u.json', '/links/link/.github/hooks/a.json', '/workspace-other/hooks/s.json']);
 	});
 
 	test('workspace hook fallback failure preserves successful native discovery', async () => {
