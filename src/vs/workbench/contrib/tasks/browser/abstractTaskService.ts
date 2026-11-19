@@ -1103,7 +1103,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		evt.veto(
 			runningInFolders().then(tasks => tasks.map(task => nls.localize('taskRunningRemovingFolder', "The task '{0}' is running.", task._label))),
 			async () => {
-				await Promise.all((await runningInFolders()).map(task => this.terminate(task)));
+				const results = await Promise.all((await runningInFolders()).map(task => this.terminate(task)));
+				if (results.some(result => !result.success)) {
+					throw new Error(nls.localize('taskNotTerminated', "A running task could not be terminated."));
+				}
 			});
 	}
 

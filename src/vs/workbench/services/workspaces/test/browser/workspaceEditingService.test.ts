@@ -97,7 +97,7 @@ suite('WorkspaceEditingService', () => {
 			};
 		}
 
-		function createService(options: { current: URI; primaryTrusted: boolean; currentTrusted?: boolean; builtIn?: boolean; state?: WorkbenchState; confirmed?: boolean; destinationTrusted?: boolean; vetoReasons?: string[]; vetoConfirmed?: boolean }) {
+		function createService(options: { current: URI; primaryTrusted: boolean; currentTrusted?: boolean; builtIn?: boolean; state?: WorkbenchState; confirmed?: boolean; destinationTrusted?: boolean; vetoReasons?: string[]; vetoConfirmed?: boolean; stopFails?: boolean }) {
 			const trusted: URI[] = [];
 			const prompts: string[] = [];
 			const switchTrust: (boolean | undefined)[] = [];
@@ -115,6 +115,7 @@ suite('WorkspaceEditingService', () => {
 					getWorkspace: () => ({ folders: [{ uri: current }], uri: URI.file('/work/project') }),
 					getWorkspaceFolder: (uri: URI) => ({ uri, name: 'project' }),
 					removeFolders: async (folders: URI[]) => { events.push(`removed:${folders.map(f => f.path).join(',')}`); },
+					updateFolders: async () => { events.push('updated'); },
 					setFolderLocation: async (location: URI, o?: { trusted?: boolean; onApplied?: () => void }) => { events.push('switch'); current = location; switched.push(location); switchTrust.push(o?.trusted); o?.onApplied?.(); return true; }
 				},
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
@@ -147,9 +148,15 @@ suite('WorkspaceEditingService', () => {
 			ds.add(service.onWillRemoveFolders(e => {
 				events.push(`willRemove:${e.folders.map(f => f.path).join(',')}`);
 				if (options.vetoReasons) {
-					e.veto(options.vetoReasons, async () => { events.push('stop'); });
+					e.veto(options.vetoReasons, async () => {
+						events.push('stop');
+						if (options.stopFails) {
+							throw new Error('cannot stop');
+						}
+					});
 				}
 			}));
+			(service as unknown as { createAndEnterWorkspace(): Promise<void> }).createAndEnterWorkspace = async () => { events.push('entered'); };
 			return { service, reasons, events, dialogs, prompts, switchTrust, trustLookups: () => trustLookups.map(u => u.toString()), trusted: () => trusted.map(u => u.toString()), resolved: () => resolved.length, switched: () => switched.map(u => u?.toString()) };
 		}
 
@@ -196,6 +203,36 @@ suite('WorkspaceEditingService', () => {
 				cancelled: ['willRemove:/work/other'],
 				unattended: ['removed:/work/other']
 			});
+		});
+
+		test('a failure to stop what runs keeps the folder', async () => {
+			const folder = URI.file('/work/other');
+			const removal = createService({ current: URI.file('/work/project'), primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'], vetoConfirmed: true, stopFails: true });
+			await assert.rejects(() => removal.service.removeFolders([folder], false, true), /cannot stop/);
+			const switching = createService({ current: URI.file('/work/project'), primaryTrusted: true, vetoReasons: ['A debug session is running.'], vetoConfirmed: true, stopFails: true });
+			await assert.rejects(() => switching.service.setFolderLocation(URI.file('/work/alt'), { reason: 'user' }), /cannot stop/);
+			assert.deepStrictEqual({ removal: removal.events, switching: switching.events }, { removal: ['willRemove:/work/other', 'stop'], switching: ['willRemove:/work/project', 'stop'] });
+		});
+
+		test('removing or replacing the only folder asks before entering a workspace', async () => {
+			const project = URI.file('/work/project');
+			const removal = createService({ current: project, primaryTrusted: true, vetoReasons: ['A debug session is running.'], vetoConfirmed: false });
+			await removal.service.removeFolders([project], false, true);
+			const replacement = createService({ current: project, primaryTrusted: true, vetoReasons: ['A debug session is running.'], vetoConfirmed: true });
+			await replacement.service.updateFolders(0, 1, [{ uri: URI.file('/work/other') }], false, true);
+			assert.deepStrictEqual({ removal: removal.events, replacement: replacement.events }, {
+				removal: ['willRemove:/work/project'],
+				replacement: ['willRemove:/work/project', 'stop', 'entered']
+			});
+		});
+
+		test('an update only asks about the folders that leave the workspace', async () => {
+			const a = URI.file('/work/a');
+			const retained = createService({ current: a, primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'], vetoConfirmed: false });
+			await retained.service.updateFolders(0, 1, [{ uri: a }, { uri: URI.file('/work/c') }], false, true);
+			const leaving = createService({ current: a, primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'], vetoConfirmed: true });
+			await leaving.service.updateFolders(0, 1, [{ uri: URI.file('/work/c') }], false, true);
+			assert.deepStrictEqual({ retained: retained.events, leaving: leaving.events }, { retained: ['updated'], leaving: ['willRemove:/work/a', 'stop', 'updated'] });
 		});
 
 		test('a user switch that something vetoes asks, and stops what runs before switching once confirmed', async () => {

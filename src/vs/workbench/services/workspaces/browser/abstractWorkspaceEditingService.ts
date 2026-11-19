@@ -31,7 +31,6 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } fr
 import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -307,10 +306,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		this._onWillRemoveFolders.fire({
 			folders,
 			veto: (reasons, stop) => {
-				pending.push(Promise.resolve(reasons).catch(error => {
-					onUnexpectedError(error);
-					return undefined;
-				}));
+				pending.push(Promise.resolve(reasons));
 				if (stop) {
 					stops.push(stop);
 				}
@@ -327,7 +323,11 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		return {
 			reasons: [...reasons],
 			stop: async () => {
-				await Promise.all(stops.map(stop => stop().catch(onUnexpectedError)));
+				const results = await Promise.allSettled(stops.map(stop => stop()));
+				const failure = results.find(result => result.status === 'rejected');
+				if (failure) {
+					throw failure.reason;
+				}
 			}
 		};
 	}
@@ -337,6 +337,10 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	 * Returns whether the folders can be removed.
 	 */
 	private async confirmRemoveFolders(folders: readonly URI[]): Promise<boolean> {
+		if (folders.length === 0) {
+			return true;
+		}
+
 		const vetoes = await this.willRemoveFolders(folders);
 		if (vetoes.reasons.length === 0) {
 			return true;
@@ -357,6 +361,13 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 		await vetoes.stop();
 		return true;
+	}
+
+	/**
+	 * The folders of an update that actually leave the workspace: those that are not added again.
+	 */
+	private getLeavingFolders(foldersToDelete: readonly URI[], foldersToAdd: readonly IWorkspaceFolderCreationData[]): URI[] {
+		return foldersToDelete.filter(folder => !foldersToAdd.some(added => this.uriIdentityService.extUri.isEqual(added.uri, folder)));
 	}
 
 	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean, userInitiated?: boolean): Promise<void> {
@@ -396,6 +407,9 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			// other folders, we handle this specially and just enter workspace
 			// mode with the folders that are being added.
 			if (this.includesSingleFolderWorkspace(foldersToDelete)) {
+				if (userInitiated && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
+					return;
+				}
 				return this.createAndEnterWorkspace(foldersToAdd);
 			}
 
@@ -410,7 +424,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	}
 
 	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError = false, userInitiated = false): Promise<void> {
-		if (userInitiated && !await this.confirmRemoveFolders(foldersToDelete)) {
+		if (userInitiated && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
 			return;
 		}
 
@@ -472,6 +486,9 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we create an empty workspace and enter it.
 		if (this.includesSingleFolderWorkspace(foldersToRemove)) {
+			if (userInitiated && !await this.confirmRemoveFolders(foldersToRemove)) {
+				return;
+			}
 			return this.createAndEnterWorkspace([]);
 		}
 
