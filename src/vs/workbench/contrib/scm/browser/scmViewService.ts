@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey, ISCMRepositorySelectionMode } from '../common/scm.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -120,12 +120,14 @@ export class SCMViewService implements ISCMViewService {
 	private previousState: ISCMViewServiceState | undefined;
 	private readonly disposables = new DisposableStore();
 
+	/** The views of the repositories whose provider is not hidden. */
 	private _repositories: ISCMRepositoryView[] = [];
 
+	/** Follow the providers hiding and showing again while they are registered. */
+	private readonly hiddenListeners = new DisposableMap<ISCMRepository>();
+
 	get repositories(): ISCMRepository[] {
-		return this._repositories
-			.filter(r => r.repository.provider.isHidden !== true)
-			.map(r => r.repository);
+		return this._repositories.map(r => r.repository);
 	}
 
 	readonly didFinishLoadingRepositories = observableValue<boolean>(this, false);
@@ -135,13 +137,13 @@ export class SCMViewService implements ISCMViewService {
 		// the visible repositories are sorted by the selection index instead of the discovery time.
 		if (this._repositoriesSortKey === ISCMRepositorySortKey.DiscoveryTime) {
 			return this._repositories
-				.filter(r => r.repository.provider.isHidden !== true && r.selectionIndex !== -1)
+				.filter(r => r.selectionIndex !== -1)
 				.sort((r1, r2) => r1.selectionIndex - r2.selectionIndex)
 				.map(r => r.repository);
 		}
 
 		return this._repositories
-			.filter(r => r.repository.provider.isHidden !== true && r.selectionIndex !== -1)
+			.filter(r => r.selectionIndex !== -1)
 			.map(r => r.repository);
 	}
 
@@ -355,6 +357,25 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
+		this.hiddenListeners.set(repository, autorun(reader => {
+			if (repository.provider.isHidden.read(reader)) {
+				this.removeRepositoryView(repository);
+			} else {
+				this.addRepositoryView(repository);
+			}
+		}));
+	}
+
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		this.hiddenListeners.deleteAndDispose(repository);
+		this.removeRepositoryView(repository);
+	}
+
+	private addRepositoryView(repository: ISCMRepository): void {
+		if (this._repositories.some(r => r.repository === repository)) {
+			return;
+		}
+
 		if (!this.didFinishLoadingRepositories.get()) {
 			this.eventuallyFinishLoading();
 		}
@@ -431,7 +452,7 @@ export class SCMViewService implements ISCMViewService {
 		}
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
+	private removeRepositoryView(repository: ISCMRepository): void {
 		if (!this.didFinishLoadingRepositories.get()) {
 			this.eventuallyFinishLoading();
 		}
@@ -599,6 +620,7 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	dispose(): void {
+		this.hiddenListeners.dispose();
 		this.disposables.dispose();
 		this._onDidFocusRepository.dispose();
 		this._onDidChangeRepositories.dispose();
