@@ -7,6 +7,7 @@ import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { $, addDisposableListener, append, EventType, ModifierKeyEmitter, prepend } from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IActionProvider } from '../../../base/browser/ui/dropdown/dropdown.js';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
 import { SeparatorSelectOption } from '../../../base/browser/ui/selectBox/selectBox.js';
@@ -438,6 +439,7 @@ export interface IDropdownWithDefaultActionViewItemOptions extends IDropdownMenu
 	renderKeybindingWithDefaultActionLabel?: boolean;
 	togglePrimaryAction?: boolean;
 	primaryActionIds?: readonly string[];
+	excludePrimaryActionFromDropdown?: boolean;
 }
 
 export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
@@ -488,7 +490,11 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 			actionRunner: options?.actionRunner ?? this._register(new ActionRunner()),
 		};
 
-		this._dropdown = this._register(new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions));
+		// Resolved when the dropdown opens, so that it omits the current primary action.
+		const dropdownActions: readonly IAction[] | IActionProvider = options?.excludePrimaryActionFromDropdown
+			? { getActions: () => Separator.clean(submenuAction.actions.filter(action => action.id !== this._defaultAction.action.id)) }
+			: submenuAction.actions;
+		this._dropdown = this._register(new DropdownMenuActionViewItem(submenuAction, dropdownActions, this._contextMenuService, dropdownOptions));
 		if (options?.togglePrimaryAction) {
 			this.registerTogglePrimaryActionListener();
 		}
@@ -534,7 +540,13 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		if (this._container) {
 			this._defaultAction.render(prepend(this._container, $('.action-container')));
+			this._updatePrimaryChecked();
 		}
+	}
+
+	/** Shows the toggled state of the primary action across the whole split button. */
+	private _updatePrimaryChecked(): void {
+		this._container?.classList.toggle('primary-checked', !!this._defaultAction.action.checked);
 	}
 
 	private _canBePrimaryAction(action: IAction): boolean {
@@ -580,6 +592,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		const primaryContainer = $('.action-container');
 		this._defaultAction.render(append(this._container, primaryContainer));
+		this._updatePrimaryChecked();
 		this._register(addDisposableListener(primaryContainer, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow)) {
@@ -662,10 +675,12 @@ export function createActionViewItem(instaService: IInstantiationService, action
 		if (action.item.isSelection) {
 			return instaService.createInstance(SubmenuEntrySelectActionViewItem, action);
 		} else if (action.item.isSplitButton) {
+			const splitButton = typeof action.item.isSplitButton !== 'boolean' ? action.item.isSplitButton : undefined;
 			return instaService.createInstance(DropdownWithDefaultActionViewItem, action, {
 				...options,
-				togglePrimaryAction: typeof action.item.isSplitButton !== 'boolean' ? action.item.isSplitButton.togglePrimaryAction : false,
-				primaryActionIds: typeof action.item.isSplitButton !== 'boolean' ? action.item.isSplitButton.primaryActionIds : undefined,
+				togglePrimaryAction: splitButton?.togglePrimaryAction ?? false,
+				primaryActionIds: splitButton?.primaryActionIds,
+				excludePrimaryActionFromDropdown: splitButton?.excludePrimaryActionFromDropdown ?? false,
 			});
 		} else {
 			return instaService.createInstance(SubmenuEntryActionViewItem, action, options);
