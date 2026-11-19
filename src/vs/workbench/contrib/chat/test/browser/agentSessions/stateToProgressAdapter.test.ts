@@ -804,7 +804,7 @@ suite('stateToProgressAdapter', () => {
 				],
 			});
 			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
-			const explanation = 'Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.';
+			const explanation = 'Computer Use lets Copilot see and control apps on the machine running the agent host. In a remote session, this is the remote machine, not your client. It stays on for Copilot on that machine, including the Copilot CLI, until you run `/computer off`.';
 			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, message: typeof part.message === 'string' ? part.message : part.message.value, state: part.state } : { kind: part.kind }), [
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: `Open \\*Calculator\\*\n\n${explanation}`, state: ElicitationState.Accepted },
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },

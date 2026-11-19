@@ -12261,7 +12261,7 @@ suite('AgentHostChatContribution', () => {
 				cards: 1,
 				carousels: 0,
 				title: 'Turn on Computer Use?',
-				message: 'Open \\*Calculator\\*\n\nComputer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.',
+				message: 'Open \\*Calculator\\*\n\nComputer Use lets Copilot see and control apps on the machine running the agent host. In a remote session, this is the remote machine, not your client. It stays on for Copilot on that machine, including the Copilot CLI, until you run `/computer off`.',
 				buttons: ['Turn On', 'Not Now'],
 				completions: [{ type: ActionType.ChatInputCompleted, requestId: 'cu-activation', response: ChatInputResponseKind.Accept, answers: getComputerUseActivationAnswers('turnOn') }],
 				state: ElicitationState.Accepted,
@@ -12288,7 +12288,7 @@ suite('AgentHostChatContribution', () => {
 				completions: agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).map(d => d.action),
 				state: card?.state.get(),
 			}, {
-				message: 'Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.',
+				message: 'Computer Use lets Copilot see and control apps on the machine running the agent host. In a remote session, this is the remote machine, not your client. It stays on for Copilot on that machine, including the Copilot CLI, until you run `/computer off`.',
 				completions: [{ type: ActionType.ChatInputCompleted, requestId: 'cu-activation', response: ChatInputResponseKind.Decline }],
 				state: ElicitationState.Rejected,
 			});
