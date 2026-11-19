@@ -166,11 +166,19 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				extensionId: undefined, pluginUri: undefined,
 			});
 		}
+		// A disabled directory that reports a degraded load explains why its disabled children won't run.
+		const notRunningMessage = customization.enabled === false && customization.load?.kind === CustomizationLoadStatus.Degraded ? customization.load.message : undefined;
 		for (const child of customization.children ?? []) {
 			const childSource = scope !== undefined || source === AICustomizationSources.builtin ? source : getDirectoryChildSource(workingDirectories, child.uri, source);
 			const item = this.toDirectoryChildItem(child, childSource, scope, isRemote);
 			if (item) {
-				items.push(item);
+				items.push(notRunningMessage && child.type === CustomizationType.Hook && child.enabled === false ? {
+					...item,
+					status: 'degraded',
+					statusMessage: notRunningMessage,
+					badge: localize('customizationWontRun', "Won't run"),
+					badgeTooltip: notRunningMessage,
+				} : item);
 			}
 		}
 		return items;

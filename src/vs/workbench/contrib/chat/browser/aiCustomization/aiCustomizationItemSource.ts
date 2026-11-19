@@ -223,6 +223,8 @@ export async function expandHookFileItems(
 							pluginLabel: item.pluginLabel,
 							status: item.status,
 							statusMessage: item.statusMessage,
+							badge: item.badge,
+							badgeTooltip: item.badgeTooltip,
 							disabledReason: item.disabledReason,
 							organizationControl: item.organizationControl,
 							userInvocable: item.userInvocable,
