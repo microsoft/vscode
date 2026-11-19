@@ -7324,8 +7324,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * session). A scratch folder belongs to one chat, so no other chat may adopt it, or a folder in it, as its workspace.
 	 */
 	private async _requireNonScratchChatFolder(session: URI, folder: URI, operation: 'createChat' | 'setChatWorkspace'): Promise<void> {
-		const recorded = new Set((await this._orchestratorDatabase.listScratchFolders()).map(row => row.folder));
-		const isRecordedScratchFolder = (candidate: string) => recorded.has(candidate) || this._stateManager.isScratchFolder(candidate);
+		const scratchFolderKey = (candidate: string) => extUriBiasedIgnorePathCase.getComparisonKey(URI.parse(candidate));
+		const recorded = new Set((await this._orchestratorDatabase.listScratchFolders()).map(row => scratchFolderKey(row.folder)));
+		const isRecordedScratchFolder = (candidate: string) => recorded.has(scratchFolderKey(candidate)) || this._stateManager.isScratchFolder(candidate);
 		const sessionKey = session.toString();
 		const state = this._stateManager.getSessionState(sessionKey);
 		const sessionScratchFolders = [
@@ -7339,11 +7340,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// The scratch folder that refuses `folder`, in order: a scratch folder of this session that is `folder` itself; the
 		// nearest recorded scratch folder of any chat, of this session or another, that is `folder` or one of its
 		// ancestors; then a scratch folder of this session that contains `folder`, such as its workspace-less primary.
-		const scratch = sessionScratchFolders.find(candidate => isEqual(candidate, folder))
+		const scratch = sessionScratchFolders.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, folder))
 			?? findScratchFolderOrAncestor(folder, isRecordedScratchFolder)
-			?? sessionScratchFolders.find(candidate => isEqualOrParent(folder, candidate));
+			?? sessionScratchFolders.find(candidate => extUriBiasedIgnorePathCase.isEqualOrParent(folder, candidate));
 		if (scratch) {
-			if (isEqual(scratch, folder)) {
+			if (extUriBiasedIgnorePathCase.isEqual(scratch, folder)) {
 				this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, a chat's own scratch folder`);
 				throw new Error(`'${folderLabel(folder)}' is a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
 			}
