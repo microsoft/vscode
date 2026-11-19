@@ -3669,22 +3669,23 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('Dev Containers on this computer offer Connect, while those on remote hosts connect with their host', () => {
+	test('connected Dev Containers offer New Session, with Disconnect only on this computer because those on remote hosts connect with their host', () => {
 		const { parent, model } = createWidget();
 		model.remotes.set([
 			{ id: 'devcontainer:local', kind: 'devContainer', name: 'Dev Container', detail: 'This Computer', description: 'This Computer', canRemove: false, canDelete: true, availability: 'unknown', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 			{ id: 'devcontainer:ssh', kind: 'devContainer', name: 'Dev Container 2', detail: 'Build server', description: 'Build server', canRemove: false, canDelete: true, availability: 'unknown', connectsWithHost: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 		], undefined);
 		const actions = (id: string) => ({
-			connectHidden: getConnectionAction(parent, id).hidden,
-			rename: getMenuAction(parent, id, 'rename').enabled,
-			delete: getMenuAction(parent, id, 'delete').label,
+			connect: getConnectionAction(parent, id).hidden ? undefined : getConnectionAction(parent, id).textContent,
+			newSession: !parent.querySelector<HTMLElement>(`[data-remote-id="${id}"] .remotes-new-session`)!.hidden,
+			menu: getMenuActions(parent, id).filter(action => action.id !== Separator.ID).map(action => action.label),
 		});
-		const local = actions('devcontainer:local');
-		const remote = actions('devcontainer:ssh');
-		assert.deepStrictEqual({ local, remote }, {
-			local: { connectHidden: false, rename: true, delete: 'Delete Dev Container...' },
-			remote: { connectHidden: true, rename: true, delete: 'Delete Dev Container...' },
+		const disconnected = actions('devcontainer:local');
+		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected })), undefined);
+		assert.deepStrictEqual({ disconnected, connected: actions('devcontainer:local'), remote: actions('devcontainer:ssh') }, {
+			disconnected: { connect: 'Connect', newSession: false, menu: ['Connect', 'Hide from Environment Picker', 'Rename...', 'Delete Dev Container...'] },
+			connected: { connect: 'Disconnect', newSession: true, menu: ['New Session', 'Disconnect', 'Hide from Environment Picker', 'Rename...', 'Delete Dev Container...'] },
+			remote: { connect: undefined, newSession: true, menu: ['New Session', 'Hide from Environment Picker', 'Rename...', 'Delete Dev Container...'] },
 		});
 	});
 

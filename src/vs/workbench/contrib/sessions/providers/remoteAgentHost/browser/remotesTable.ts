@@ -665,7 +665,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showGroupCreate = template.column === 'actions' && entry.type === 'group' && !!entry.canCreate;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
 				const showConnect = showConnection && !entry.remote.connectsWithHost;
-				const showNewSession = showConnect && RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus);
+				// Remotes that connect with their host have no Connect action, but can still start sessions once connected.
+				const showNewSession = showConnection && RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus);
 				const pending = isConnectionPending(entry);
 				const offline = showConnection && isRemoteOffline(entry.remote);
 				const problem = showConnection && !pending ? getConnectionProblem(entry.remote) : undefined;
