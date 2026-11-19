@@ -115,9 +115,12 @@ suite('AgentSessionsActions', () => {
 	});
 
 	test('contributes the Chat view session actions to the shared sessions list menu in the right group order and window', () => {
-		for (const action of [OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, OpenSessionsListItemCustomizationsAction, MarkAllAgentSessionsReadAction]) {
+		const actions = [OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, OpenSessionsListItemCustomizationsAction, MarkAllAgentSessionsReadAction];
+		for (const action of actions) {
 			disposables.add(registerAction2(action));
 		}
+		// The menu is shared, so other windows' entries (for example the Agents window's Mark as Read) may be registered too.
+		const ownCommands = new Set([...actions.map(action => new action().desc.id), 'workbench.action.chat.openAgentHostSettings', 'workbench.action.chat.openAgentSessionSettings']);
 		// Menus render the navigation group first.
 		const groupRank = (group: string | undefined) => group === 'navigation' ? 0 : 1;
 		const evaluate = (isSessionsWindow: boolean, providerId = 'local-agent-host') => {
@@ -129,7 +132,7 @@ suite('AgentSessionsActions', () => {
 			};
 			const context: IContext = { getValue: <T>(key: string) => values[key] as T | undefined };
 			return MenuRegistry.getMenuItems(MenuId.SessionItemContextMenu).filter(isIMenuItem)
-				.filter(item => item.command.id.startsWith('workbench.action.chat.open') || item.command.id.startsWith('agentSession.') || item.command.id === 'workbench.action.chat.markAllAgentSessionsRead')
+				.filter(item => ownCommands.has(item.command.id))
 				.filter(item => item.when?.evaluate(context) ?? true)
 				.sort((a, b) => groupRank(a.group) - groupRank(b.group) || (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
 				.map(item => `${item.group}@${item.order}: ${item.command.id}`);
