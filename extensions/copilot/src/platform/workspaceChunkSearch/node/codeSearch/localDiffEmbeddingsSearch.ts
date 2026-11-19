@@ -22,7 +22,8 @@ import { FileRepresentation, IWorkspaceFileIndex } from '../workspaceFileIndex';
  * Searches files that differ from what the remote code search index has indexed.
  *
  * Chunks and embeddings come from the Copilot chunks endpoint and are ranked locally. They are cached in memory
- * per file content version, so repeated searches only recompute files that changed again.
+ * per file representation. The file index replaces a file's representation whenever the file changes, so repeated
+ * searches only recompute files that changed again.
  */
 export class LocalDiffEmbeddingsSearch {
 
@@ -33,7 +34,7 @@ export class LocalDiffEmbeddingsSearch {
 
 	private static readonly maxParallelFileOps = 50;
 
-	private readonly _cache = new ResourceMap<{ readonly contentVersionId: string; readonly chunks: readonly FileChunkWithEmbedding[] }>();
+	private readonly _cache = new ResourceMap<{ readonly file: FileRepresentation; readonly chunks: readonly FileChunkWithEmbedding[] }>();
 
 	constructor(
 		private readonly _embeddingType: EmbeddingType,
@@ -101,9 +102,8 @@ export class LocalDiffEmbeddingsSearch {
 	}
 
 	private async getChunksAndEmbeddings(authToken: string, file: FileRepresentation, batchInfo: ComputeBatchInfo, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<readonly FileChunkWithEmbedding[] | undefined> {
-		const contentVersionId = await file.getFastContentVersionId();
 		const cached = this._cache.get(file.uri);
-		if (cached?.contentVersionId === contentVersionId) {
+		if (cached?.file === file) {
 			return cached.chunks;
 		}
 
@@ -117,7 +117,7 @@ export class LocalDiffEmbeddingsSearch {
 		}
 
 		if (chunks) {
-			this._cache.set(file.uri, { contentVersionId, chunks });
+			this._cache.set(file.uri, { file, chunks });
 		}
 		return chunks;
 	}

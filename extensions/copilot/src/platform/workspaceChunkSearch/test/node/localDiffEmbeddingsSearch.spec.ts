@@ -21,19 +21,18 @@ import { FileRepresentation, IWorkspaceFileIndex } from '../../node/workspaceFil
 const embeddingType = EmbeddingType.text3small_512;
 
 class TestFile extends FileRepresentation {
-	constructor(uri: URI, public version: number, readonly score: number) {
+	constructor(uri: URI, readonly score: number) {
 		super(uri);
 	}
 
 	override isDirty(): boolean { return false; }
 	override async getText(): Promise<string> { return ''; }
-	protected override async getStats() { return { size: 0, mtime: this.version }; }
 }
 
 test('ranks changed files, only recomputes files whose content changed, and skips newly excluded files', async () => {
 	const files = [
-		new TestFile(URI.file('/workspace/a.ts'), 1, 0.2),
-		new TestFile(URI.file('/workspace/b.ts'), 1, 0.9),
+		new TestFile(URI.file('/workspace/a.ts'), 0.2),
+		new TestFile(URI.file('/workspace/b.ts'), 0.9),
 	];
 	const excluded = new Set<string>();
 	const computed: string[] = [];
@@ -71,12 +70,19 @@ test('ranks changed files, only recomputes files whose content changed, and skip
 		return result?.map(x => x.chunk.file.path);
 	};
 
+	// The file index replaces a file's representation when the file changes
+	const edit = (index: number) => {
+		const previous = files[index];
+		files[index] = new TestFile(previous.uri, previous.score);
+		previous.dispose();
+	};
+
 	const first = await doSearch();
 	const unchanged = await doSearch();
-	files[0].version++;
+	edit(0);
 	const afterEdit = await doSearch();
 	excluded.add('/workspace/b.ts');
-	files[1].version++;
+	edit(1);
 	const afterExclusion = await doSearch();
 
 	expect({ first, unchanged, afterEdit, afterExclusion, computed: computed.sort() }).toEqual({
