@@ -14,6 +14,7 @@ import { isDefined } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { IAgentModelRouterRoute } from '../../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { ModelRouterSwitching } from '../../../../../../../platform/agentHost/common/modelRouter.js';
 import { getReasoningEffortLabel } from '../../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
@@ -21,18 +22,26 @@ import { Link } from '../../../../../../../platform/opener/browser/link.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { renderModelCardSection } from './modelPickerCard.js';
 
+export interface IModelRouterDetailsOptions {
+	/** The router's routes, in its file's order. Empty while the router has errors. */
+	readonly routes: readonly IAgentModelRouterRoute[];
+	/** Whether a chat can move to another route after its first message. Absent when there is nothing to switch between. */
+	readonly switching?: ModelRouterSwitching;
+	readonly definitionFile: URI;
+	/** Called before the file opens, so the picker can close. */
+	readonly onWillOpenDefinitionFile: () => void;
+}
+
 /**
  * What a model router adds to its details in the model picker, after what every model shows:
- * the routes it picks between and a link to the file that defines it.
+ * the routes it picks between, whether it switches between them, and a link to the file that
+ * defines it.
  */
 export class ModelRouterDetails extends Disposable {
 
 	constructor(
 		card: HTMLElement,
-		routes: readonly IAgentModelRouterRoute[],
-		definitionFile: URI,
-		/** Called before the file opens, so the picker can close. */
-		onWillOpenDefinitionFile: () => void,
+		{ routes, switching, definitionFile, onWillOpenDefinitionFile }: IModelRouterDetailsOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IEditorService editorService: IEditorService,
@@ -40,6 +49,9 @@ export class ModelRouterDetails extends Disposable {
 		super();
 		if (routes.length) {
 			this._renderRoutes(card, routes);
+		}
+		if (switching) {
+			this._renderSwitching(card, switching);
 		}
 		this._register(instantiationService.createInstance(Link, dom.append(card, dom.$('.chat-model-card-definition-file')), {
 			label: basename(definitionFile),
@@ -80,9 +92,29 @@ export class ModelRouterDetails extends Disposable {
 			}
 			if (index === 0 && routes.length > 1) {
 				label.textContent = localize({ key: 'chat.modelPicker.routeDefault', comment: ['{0} is the name of a route or of a model'] }, "{0} (default)", label.textContent);
-				this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), label, localize('chat.modelPicker.routeDefaultHover', "Used when no route clearly fits.")));
+				this._explain(label, localize('chat.modelPicker.routeDefaultHover', "Used when no route clearly fits."));
 			}
 		});
+	}
+
+	/**
+	 * Whether a chat can move to another route, written as the card writes a model's context
+	 * size: what it is, then one word for how it is set.
+	 */
+	private _renderSwitching(card: HTMLElement, switching: ModelRouterSwitching): void {
+		const automatic = switching === 'auto';
+		const section = renderModelCardSection(card, localize('chat.modelPicker.routeSwitching', "Route switching"), automatic
+			? localize('chat.modelPicker.routeSwitchingAutomatic', "Automatic")
+			: localize('chat.modelPicker.routeSwitchingOff', "Off"));
+		this._explain(section, automatic
+			? localize('chat.modelPicker.routeSwitchingAutomaticHover', "A chat moves to another route when the work clearly changes.")
+			: localize('chat.modelPicker.routeSwitchingOffHover', "A chat keeps the route picked for its first message."));
+	}
+
+	/** Explains a piece of the card's text on hover, and to assistive technology, which has no hover. */
+	private _explain(element: HTMLElement, explanation: string): void {
+		element.setAttribute('aria-description', explanation);
+		this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), element, explanation));
 	}
 }
 

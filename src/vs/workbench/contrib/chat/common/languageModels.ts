@@ -26,6 +26,7 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAgentModelRouterRoute } from '../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { ModelRouterSwitching } from '../../../../platform/agentHost/common/modelRouter.js';
 import { parseProviderQualifiedModelId } from '../../../../platform/agentHost/common/providerQualifiedModelId.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -354,6 +355,8 @@ export interface ILanguageModelChatMetadata {
 	readonly detailsResource?: UriComponents;
 	/** A model router's routes in its file's order, which its details in the model picker list. A chat starts on the first when none clearly fits. */
 	readonly modelRouterRoutes?: readonly IAgentModelRouterRoute[];
+	/** Whether a chat on a model router can move to another route after its first message (`auto`) or keeps that route (`first-turn`). Absent when there is nothing to switch between. */
+	readonly modelRouterSwitching?: ModelRouterSwitching;
 	/**
 	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
 	 * original model is registered under in the renderer's LM service

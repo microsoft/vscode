@@ -509,6 +509,41 @@ suite('Sessions - SessionsList', () => {
 		]);
 	});
 
+	test('keeps the keyboard position when the focused session leaves the list', () => {
+		const now = Date.now();
+		const [a, b, c, d, e] = ['A', 'B', 'C', 'D', 'E'].map((title, index) => createTestSession(title, { createdAt: new Date(now - index * 1000) }));
+		const harness = createListHarness(disposables, [a, b, c, d, e].map(session => session.session));
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(400, 400);
+		list.setExcludeArchived(true);
+		const focusAndFocused = (session: ISession, change?: () => void) => {
+			list.setFocusedItem({ session: session.resource });
+			list.focus();
+			change?.();
+			list.update();
+			return list.getFocusedSessions()?.map(focused => focused.sessionId);
+		};
+
+		// As when the main window shows a new session, which the list does not show
+		const cleared = focusAndFocused(b.session, () => list.clearFocus());
+		const archived = focusAndFocused(b.session, () => b.isArchived.set(true, undefined));
+		const deletedLast = focusAndFocused(e.session, () => {
+			harness.managementService.sessions = [a.session, b.session, c.session, d.session];
+			list.refresh();
+		});
+		list.setExcludeArchived(false);
+		list.setItemCollapsed({ section: 'archived' }, false);
+		const archivedIntoSection = focusAndFocused(a.session, () => a.isArchived.set(true, undefined));
+
+		assert.deepStrictEqual({ cleared, archived, deletedLast, archivedIntoSection, shownArchived: list.getVisibleSessions().map(session => session.sessionId) }, {
+			cleared: ['B'], archived: ['C'], deletedLast: ['D'], archivedIntoSection: ['C'], shownArchived: ['C', 'D', 'A', 'B'],
+		});
+	});
+
 	suite('catalogue refresh scheduling', () => {
 		async function nextFrame(): Promise<void> {
 			await new Promise<void>(resolve => {

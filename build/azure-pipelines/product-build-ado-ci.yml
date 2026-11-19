@@ -252,7 +252,6 @@ extends:
                 path: s
                 fetchDepth: 0
                 fetchTags: false
-                persistCredentials: true
                 retryCountOnTaskFailure: 3
                 displayName: Checkout microsoft/vscode
 
@@ -273,9 +272,13 @@ extends:
                     base_sha=$(git rev-parse HEAD^1)
                     head_sha=$(git rev-parse HEAD^2)
                   else
-                    target_branch="$(System.PullRequest.TargetBranch)"
-                    target_branch="${target_branch#refs/heads/}"
-                    git fetch origin "$target_branch:refs/remotes/origin/$target_branch"
+                    target_branch="${SYSTEM_PULLREQUEST_TARGETBRANCH#refs/heads/}"
+                    refspec="refs/heads/$target_branch:refs/remotes/origin/$target_branch"
+                    if [ "$BUILD_REPOSITORY_PROVIDER" = "TfsGit" ]; then
+                      git --config-env="http.${BUILD_REPOSITORY_URI}.extraheader=GIT_AUTH_HEADER" fetch origin "$refspec"
+                    else
+                      git fetch origin "$refspec"
+                    fi
                     head_sha=$(git rev-parse HEAD)
                     base_sha=$(git merge-base "origin/$target_branch" "$head_sha")
                   fi
@@ -317,6 +320,9 @@ extends:
                     exit 1
                   fi
                 displayName: Verify Commit and Trailer
+                env:
+                  ${{ if eq(variables['Build.Repository.Provider'], 'TfsGit') }}:
+                    GIT_AUTH_HEADER: "Authorization: Bearer $(System.AccessToken)"
 
       - stage: Quality
         dependsOn: []

@@ -25,7 +25,7 @@ import * as nls from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { activeContrastBorder, editorForeground, editorWidgetBackground, editorWidgetBorder, listFocusHighlightForeground, listHighlightForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { activeContrastBorder, editorForeground, editorWidgetBackground, editorWidgetBorder, ifDefinedThenElse, listFocusHighlightForeground, listHighlightForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusHighlightForeground, quickInputListFocusIconForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { CompletionModel } from './completionModel.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
@@ -48,7 +48,9 @@ registerColor('editorSuggestWidget.selectedIconForeground', { dark: quickInputLi
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: quickInputListFocusBackground, light: quickInputListFocusBackground, hcDark: editorSuggestWidgetForeground, hcLight: editorSuggestWidgetForeground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetFocusOutline = registerColor('editorSuggestWidget.focusOutline', activeContrastBorder, nls.localize('editorSuggestWidgetFocusOutline', 'Outline color of the focused (keyboard-navigated) entry in the suggest widget.'));
 registerColor('editorSuggestWidget.highlightForeground', listHighlightForeground, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
-registerColor('editorSuggestWidget.focusHighlightForeground', { dark: listFocusHighlightForeground, light: listFocusHighlightForeground, hcDark: editorSuggestWidgetSelectedForeground, hcLight: editorSuggestWidgetSelectedForeground }, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
+// The focused row inherits its background from Quick Input unless the theme overrides it, so match highlights must follow the same source.
+const editorSuggestWidgetFocusHighlightForegroundDefault = ifDefinedThenElse(editorSuggestWidgetSelectedBackground, listFocusHighlightForeground, quickInputListFocusHighlightForeground);
+registerColor('editorSuggestWidget.focusHighlightForeground', { dark: editorSuggestWidgetFocusHighlightForegroundDefault, light: editorSuggestWidgetFocusHighlightForegroundDefault, hcDark: editorSuggestWidgetSelectedForeground, hcLight: editorSuggestWidgetSelectedForeground }, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
 registerColor('editorSuggestWidgetStatus.foreground', transparent(editorSuggestWidgetForeground, .5), nls.localize('editorSuggestWidgetStatusForeground', 'Foreground color of the suggest widget status.'));
 
 const enum State {

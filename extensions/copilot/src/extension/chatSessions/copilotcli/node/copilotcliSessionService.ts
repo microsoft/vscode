@@ -8,7 +8,7 @@ import * as l10n from '@vscode/l10n';
 import { createReadStream } from 'node:fs';
 import { devNull } from 'node:os';
 import { createInterface } from 'node:readline';
-import type { ChatCustomAgent, ChatRequest, ChatSessionItem } from 'vscode';
+import type { ChatCustomAgent, ChatSessionItem } from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
@@ -103,7 +103,6 @@ export interface ICopilotCLISessionItem {
 	readonly status?: ChatSessionStatus;
 	readonly workingDirectory?: Uri;
 }
-export type ExtendedChatRequest = ChatRequest & { prompt: string };
 export type ISessionOptions = {
 	model?: string;
 	reasoningEffort?: string;
@@ -112,7 +111,6 @@ export type ISessionOptions = {
 	agent?: SweCustomAgent;
 	debugTargetSessionIds?: readonly string[];
 	mcpServerMappings?: McpServerMappings;
-	additionalWorkspaces?: IWorkspaceInfo[];
 	sessionParentId?: string;
 };
 export type IGetSessionOptions = ISessionOptions & { sessionId: string };
@@ -1279,7 +1277,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager, sandboxConfig: SessionOptions['sandboxConfig']): RefCountedSession {
 		sdkSession.permissions.setRequired({ required: true });
-		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, [], sandboxConfig);
+		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, sandboxConfig);
 		this._debugFileLogger.startSession(session.sessionId).catch(err => {
 			this.logService.error('[CopilotCLISession] Failed to start debug log session', err);
 		});
@@ -1492,10 +1490,6 @@ function labelFromPrompt(prompt: string): string {
 export class Mutex {
 	private _locked = false;
 	private readonly _acquireQueue: (() => void)[] = [];
-
-	isLocked(): boolean {
-		return this._locked;
-	}
 
 	// Acquire the lock; resolves with a release function you MUST call.
 	acquire(token: CancellationToken): Promise<IDisposable | undefined> {

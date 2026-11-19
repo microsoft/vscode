@@ -92,8 +92,6 @@ import { IWorkspaceChunkSearchService, WorkspaceChunkSearchService } from '../..
 import { IWorkspaceFileIndex, WorkspaceFileIndex } from '../../../platform/workspaceChunkSearch/node/workspaceFileIndex';
 import { IInstantiationServiceBuilder } from '../../../util/common/services';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
-import { IToolResultContentRenderer } from '../../agentDebug/common/toolResultRenderer';
-import { ToolResultContentRenderer } from '../../agentDebug/vscode-node/toolResultContentRenderer';
 import { GitHubOrgChatResourcesService, IGitHubOrgChatResourcesService } from '../../agents/vscode-node/githubOrgChatResourcesService';
 import { ChatDebugFileLoggerService } from '../../chat/vscode-node/chatDebugFileLoggerService';
 import { ChatHookService } from '../../chat/vscode-node/chatHookService';
@@ -270,7 +268,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(ICopilotInlineCompletionItemProviderService, new SyncDescriptor(CopilotInlineCompletionItemProviderService));
 	builder.define(ISimilarFilesContextService, new SyncDescriptor(SimilarFilesContextService));
 	builder.define(IGitHubOrgChatResourcesService, new SyncDescriptor(GitHubOrgChatResourcesService));
-	builder.define(IToolResultContentRenderer, new SyncDescriptor(ToolResultContentRenderer));
 
 	// Chronicle session store — tracks sessions, turns, files, and refs for /standup
 	const sessionStoreDbPath = extensionContext.globalStorageUri

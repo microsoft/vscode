@@ -717,13 +717,6 @@ function isInlineSuggestion(document: TextDocumentContents, position: IPosition)
 	return isInlineSuggestionFromTextAfterCursor(textAfterCursor);
 }
 
-// This enables tests to control multi line behavior
-export class ForceMultiLine {
-	static readonly default = new ForceMultiLine();
-
-	constructor(readonly requestMultilineOverride = false) { }
-}
-
 function adjustLeadingWhitespace(index: number, text: string, ws: string): GhostCompletion {
 	if (ws.length > 0) {
 		if (text.startsWith(ws)) {
