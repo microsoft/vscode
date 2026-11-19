@@ -351,6 +351,24 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
+	for (const sideBar of [Position.LEFT, Position.RIGHT]) {
+		test(`hiding the primary side bar beside the chat part gives its room to the chat part, not the editor, and showing it takes the room from the chat part, side bar ${sideBar === Position.LEFT ? 'left' : 'right'}`, () => {
+			const { layout, grid, views } = createGridLayout({ sideBar, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
+			const width = (id: Parts) => grid.getViewSize(views.get(id)!).width;
+			const widths = () => ({ bar: layout.isVisible(Parts.SIDEBAR_PART) ? width(Parts.SIDEBAR_PART) : 0, chat: width(Parts.CHAT_PART), editor: width(Parts.EDITOR_PART) });
+			const before = widths();
+			layout.setPartHidden(true, Parts.SIDEBAR_PART);
+			const hidden = widths();
+			layout.setPartHidden(false, Parts.SIDEBAR_PART);
+			const shown = widths();
+
+			assert.deepStrictEqual({ hidden, shown }, {
+				hidden: { bar: 0, chat: before.chat + before.bar, editor: before.editor },
+				shown: before,
+			});
+		});
+	}
+
 	test('the grid without a chat part is as before it existed', () => {
 		const { layout, descriptor } = createLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' });
 		const bannerFirst = (Reflect.get(layout, 'shouldShowBannerFirst') as () => boolean).call(layout);
