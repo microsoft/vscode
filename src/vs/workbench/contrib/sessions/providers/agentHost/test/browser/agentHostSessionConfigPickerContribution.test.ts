@@ -20,6 +20,10 @@ import { IChat, ISession } from '../../../../../../services/sessions/common/sess
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatPhoneInputPresenter } from '../../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { Menus } from '../../../../browser/menus.js';
+import { NewSessionFolderPickerOffersNewWorktreeContext, SessionIdContext } from '../../../../common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../chat/common/actions/chatContextKeys.js';
+import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../browser/sessionsService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -95,6 +99,27 @@ suite('AgentHostSessionConfigPickerContribution', () => {
 		assert.deepStrictEqual({ pickers: pickersOf('chat-window-draft'), configResources: [...new Set(configResources)] }, {
 			pickers: ['Branch', 'Isolation'],
 			configResources: [draft.chat.resource.toString()],
+		});
+	});
+
+	test('leaves out the isolation picker where the composer offers New Worktree itself, as with the folders of an editor window', () => {
+		const { hosts } = setup();
+		hosts.set([hostShowing(constObservable(sessionOf('restricted')))], undefined);
+		const shown = (offersNewWorktree: boolean) => {
+			const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+			contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+			contextKeyService.createKey(SessionIdContext.key, 'restricted');
+			contextKeyService.createKey(NewSessionFolderPickerOffersNewWorktreeContext.key, offersNewWorktree);
+			return MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+				.filter(isIMenuItem)
+				.filter(item => item.when?.serialize().includes(`'restricted'`) && contextKeyService.contextMatchesRules(item.when))
+				.map(item => item.command.title as string)
+				.sort();
+		};
+
+		assert.deepStrictEqual({ agentsWindow: shown(false), editorWindow: shown(true) }, {
+			agentsWindow: ['Branch', 'Isolation'],
+			editorWindow: ['Branch'],
 		});
 	});
 

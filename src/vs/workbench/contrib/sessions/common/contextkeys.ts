@@ -146,6 +146,7 @@ export const SessionWorkspacePickerGroupContext = new RawContextKey<string>('ses
 
 //#region < --- New Session Pickers --- >
 
+export const NewSessionFolderPickerOffersNewWorktreeContext = new RawContextKey<boolean>('newSessionFolderPickerOffersNewWorktree', false, localize('newSessionFolderPickerOffersNewWorktree', "Whether the new-session composer offers New Worktree itself, with the folders it is restricted to, such as in the chat area of an editor window, so its agent's isolation picker does not show"));
 export const NewSessionCreationProviderIdContext = new RawContextKey<string>('newSessionCreationProviderId', '', localize('newSessionCreationProviderId', "The provider selected for new session creation before a draft exists"));
 export const SessionWorkspacePickerVisibleContext = new RawContextKey<boolean>('sessionWorkspacePickerVisible', false, localize('sessionWorkspacePickerVisible', "Whether the new-session view's workspace picker is rendered (as opposed to being replaced by the no-agent-host empty state)"));
 export const SessionEnvironmentPickerVisibleContext = new RawContextKey<boolean>('sessionEnvironmentPickerVisible', false, localize('sessionEnvironmentPickerVisible', "Whether the new-session view's environment picker is visible"));
