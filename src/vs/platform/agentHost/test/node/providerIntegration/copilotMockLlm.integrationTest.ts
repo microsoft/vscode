@@ -408,12 +408,12 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 		await mkdir(extensionDir, { recursive: true });
 		await writeFile(join(extensionDir, 'extension.mjs'), `
 import { writeFileSync } from 'node:fs';
-import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
 writeFileSync(new URL('./observed-environment.json', import.meta.url), JSON.stringify({ copilotHome: process.env.COPILOT_HOME ?? null }));
 let session;
 let requestedAgent = false;
 session = await joinSession({
-	canvases: [createCanvas({
+	canvases: { definitions: [createCanvas({
 		id: 'proof-canvas',
 		displayName: 'Proof canvas',
 		description: 'Integration-test canvas.',
@@ -435,7 +435,7 @@ session = await joinSession({
 				status: 'ready'
 			};
 		}
-	})]
+	})] }
 });
 `, 'utf8');
 
@@ -565,14 +565,14 @@ session = await joinSession({
 			canvases: [{ id: 'env-canvas', displayName: 'Env canvas', description: 'Reads a sensitive environment variable.' }],
 		}), 'utf8');
 		await writeFile(join(extensionDir, 'extension.mjs'), `
-import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
 import declaration from './extension.json' with { type: 'json' };
 await joinSession({
 	requestedEnvironmentVariables: [${JSON.stringify(SENSITIVE_VARIABLE)}],
-	canvases: declaration.canvases.map(canvas => createCanvas({
+	canvases: { definitions: declaration.canvases.map(canvas => createCanvas({
 		...canvas,
 		open: ({ instanceId }) => ({ url: \`http://127.0.0.1:43119/\${instanceId}?env=\${process.env[${JSON.stringify(SENSITIVE_VARIABLE)}] === ${JSON.stringify(SENSITIVE_VALUE)} ? 'visible' : 'hidden'}\` }),
-	})),
+	})) },
 });
 `, 'utf8');
 		let clientSeq = 1;

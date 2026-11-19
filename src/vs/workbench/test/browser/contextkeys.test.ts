@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
@@ -12,13 +13,55 @@ import { ServicesAccessor } from '../../../platform/instantiation/common/instant
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { IWorkspaceContextService, toWorkspaceFolder, WorkbenchState, type IWorkspaceFoldersChangeEvent } from '../../../platform/workspace/common/workspace.js';
+import { testIWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import '../../browser/actions/layoutActions.js';
 import '../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../browser/parts/editor/editor.js';
 import { WorkbenchContextKeysHandler } from '../../browser/contextkeys.js';
+import { VirtualWorkspaceContext, WorkspaceHasVirtualContentContext } from '../../common/contextkeys.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { TestLayoutService, workbenchInstantiationService } from './workbenchTestServices.js';
+
+suite('Workbench Context Keys - Virtual Workspace', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('distinguishes mixed workspaces from fully virtual workspaces as folders change', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const onDidChangeWorkspaceFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const localFolder = toWorkspaceFolder(URI.file('/local'));
+		const virtualFolder = toWorkspaceFolder(URI.parse('test-vfs://provider/virtual'));
+		let folders = [localFolder, virtualFolder];
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IWorkspaceContextService, {
+			getWorkspace: () => testIWorkspace({ id: 'test', folders }),
+			getWorkbenchState: () => WorkbenchState.WORKSPACE,
+			onDidChangeWorkbenchState: Event.None,
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+		});
+		instantiationService.stub(IEditorGroupsService, 'partOptions', { ...DEFAULT_EDITOR_PART_OPTIONS });
+		disposables.add(instantiationService.createInstance(WorkbenchContextKeysHandler));
+
+		const snapshot = () => ({
+			scheme: VirtualWorkspaceContext.getValue(contextKeyService),
+			hasVirtualContent: WorkspaceHasVirtualContentContext.getValue(contextKeyService),
+		});
+		const mixed = snapshot();
+		folders = [localFolder];
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [virtualFolder], changed: [] });
+		const local = snapshot();
+		folders = [virtualFolder];
+		onDidChangeWorkspaceFolders.fire({ added: [virtualFolder], removed: [localFolder], changed: [] });
+
+		assert.deepStrictEqual({ mixed, local, virtual: snapshot() }, {
+			mixed: { scheme: '', hasVirtualContent: true },
+			local: { scheme: '', hasVirtualContent: false },
+			virtual: { scheme: 'test-vfs', hasVirtualContent: true },
+		});
+	});
+});
 
 suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 
@@ -124,5 +167,35 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 			'setEditorHiddenByChat(true)',
 			'setEditorHiddenByChat(false)',
 		]);
+	});
+
+	test('the watermark of the empty editor group offers to hide the editor area only while the chat part shows, with that group alone, in the main window of an editor window, and not while the secondary side bar is maximized over it', () => {
+		const shown = (keys: { chatPartVisible?: boolean; isSessionsWindow?: boolean; isAuxiliaryWindow?: boolean; editorPartMultipleEditorGroups?: boolean; auxiliaryBarMaximized?: boolean }) => {
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			for (const [key, value] of Object.entries(keys)) {
+				contextKeyService.createKey(key, value);
+			}
+			return MenuRegistry.getMenuItems(MenuId.EditorGroupWatermarkToolbar)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id === 'workbench.action.hideEditorAreaForChat' && (!item.when || item.when.evaluate(contextKeyService.getContext(null))))
+				.map(item => ({ title: item.command.title, icon: (item.command.icon as { id: string } | undefined)?.id, group: item.group }));
+		};
+		const steps: string[] = [];
+		const layoutService = new class extends TestLayoutService {
+			override isVisible(part: Parts): boolean { return part === Parts.CHAT_PART; }
+			override setEditorHiddenByChat(hidden: boolean): void { steps.push(`setEditorHiddenByChat(${hidden})`); }
+		}();
+		CommandsRegistry.getCommand('workbench.action.hideEditorAreaForChat')!.handler({ get: () => layoutService } as unknown as ServicesAccessor);
+
+		const offered = [{ title: { value: 'Hide Editor Area', original: 'Hide Editor Area' }, icon: 'close', group: 'navigation' }];
+		assert.deepStrictEqual({
+			chatShows: shown({ chatPartVisible: true }),
+			chatHidden: shown({ chatPartVisible: false }),
+			agentsWindow: shown({ chatPartVisible: true, isSessionsWindow: true }),
+			auxiliaryWindow: shown({ chatPartVisible: true, isAuxiliaryWindow: true }),
+			otherGroups: shown({ chatPartVisible: true, editorPartMultipleEditorGroups: true }),
+			secondarySideBarMaximized: shown({ chatPartVisible: true, auxiliaryBarMaximized: true }),
+			steps,
+		}, { chatShows: offered, chatHidden: [], agentsWindow: [], auxiliaryWindow: [], otherGroups: [], secondarySideBarMaximized: [], steps: ['setEditorHiddenByChat(true)'] });
 	});
 });

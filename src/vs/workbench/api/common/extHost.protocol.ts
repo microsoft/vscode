@@ -32,7 +32,7 @@ import { EditSuggestionId } from '../../../editor/common/textModelEditSource.js'
 import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
-import { ArtifactActionDescriptor, ArtifactAutomationConfiguration, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactCodeResult, ArtifactContributionView, ArtifactDetails, ArtifactPartPresentation, ArtifactPreparation, ArtifactPrompt, ArtifactReconciliation, ArtifactRun } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionDescriptor, ArtifactAutomationConfiguration, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactCodeResult, ArtifactContributionView, ArtifactDetails, ArtifactMainPresentation, ArtifactPreparation, ArtifactPrompt, ArtifactReconciliation, ArtifactRun } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from '../../../platform/configuration/common/configuration.js';
 import { LinkPresentationKind } from '../../../platform/dataChannel/common/dataChannel.js';
 import { ConfigurationScope } from '../../../platform/configuration/common/configurationRegistry.js';
@@ -2413,7 +2413,7 @@ export interface ChatArtifactActionDto extends ArtifactActionDescriptor {
 
 export type ChatArtifactResourceMatchDto =
 	| { readonly kind: 'matched'; readonly resource: UriComponents; readonly key: string; readonly credentialScope: string }
-	| { readonly kind: 'authenticationRequired'; readonly reason: string; readonly main: ArtifactPartPresentation };
+	| { readonly kind: 'authenticationRequired'; readonly reason: string; readonly main: ArtifactMainPresentation };
 
 export interface ChatArtifactActionContextDto {
 	readonly runId: string;

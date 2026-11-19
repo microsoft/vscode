@@ -15,7 +15,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IFolderLocationGroup, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 interface IRegisteredProvider {
 	readonly provider: IWorkspaceFolderLocationProvider;
@@ -138,24 +138,34 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 	}
 
 	async getLocations(primary: URI, token: CancellationToken): Promise<IFolderLocation[]> {
+		return (await this.getLocationGroups(primary, token)).flatMap(group => group.locations);
+	}
+
+	async getLocationGroups(primary: URI, token: CancellationToken): Promise<IFolderLocationGroup[]> {
 		const results = await Promise.all([...this.providers].map(async ({ provider }) => {
 			try {
-				return await provider.provideLocations(primary, token);
+				return { providerId: provider.id, label: provider.label, locations: await provider.provideLocations(primary, token) };
 			} catch (error) {
 				onUnexpectedError(error);
-				return [];
+				return { providerId: provider.id, label: provider.label, locations: [] };
 			}
 		}));
 
 		const seen = new ResourceSet();
-		const locations: IFolderLocation[] = [];
-		for (const location of results.flat()) {
-			if (!seen.has(location.uri)) {
+		const groups: IFolderLocationGroup[] = [];
+		for (const result of results) {
+			const locations = result.locations.filter(location => {
+				if (seen.has(location.uri)) {
+					return false;
+				}
 				seen.add(location.uri);
-				locations.push(location);
+				return true;
+			});
+			if (locations.length) {
+				groups.push({ providerId: result.providerId, label: result.label, locations });
 			}
 		}
-		return locations;
+		return groups;
 	}
 
 	async resolveLocation(primary: URI, location: URI, token: CancellationToken): Promise<IResolvedFolderLocation | undefined> {
@@ -163,7 +173,7 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 			try {
 				const resolved = await provider.resolveLocation(primary, location, token);
 				if (resolved) {
-					return { ...resolved, providerId: provider.id, builtIn };
+					return { ...resolved, providerId: provider.id, builtIn, ...(provider.label ? { group: provider.label } : {}) };
 				}
 			} catch (error) {
 				// a failing provider must not hide the others

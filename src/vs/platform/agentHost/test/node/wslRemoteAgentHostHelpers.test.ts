@@ -34,6 +34,8 @@ suite('WSL Remote Agent Host Helpers', () => {
 				row({ name: 'Debian', state: 'Stopped', version: 2 }),
 				row({ name: 'Ubuntu 22.04', state: 'Running', version: 2 }),
 				row({ name: 'Legacy', state: 'Stopped', version: 1 }),
+				row({ name: 'docker-desktop', state: 'Running', version: 2 }),
+				row({ name: 'docker-desktop-data', state: 'Running', version: 2 }),
 				'',
 				'',
 			].join('\r\n');

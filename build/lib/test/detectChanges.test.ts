@@ -385,11 +385,11 @@ suite('Detect Changes', () => {
 				`\${{ steps.detect-agent-host-e2e.outputs.affected == 'true' && steps.ripple.outputs.selects-no-agent-host-e2e != 'true' }}`,
 			],
 			skippableUnitTests: ['Linux / Electron-Unit (electron)', 'Linux / Electron-Unit (node)', 'Windows / Electron-Unit'].sort(),
-			skippableBrowserUnitTests: ['Linux / Browser-Unit', 'Windows / Browser-Unit'].sort(),
+			skippableBrowserUnitTests: ['Linux / Browser-Unit', 'Linux / Browser-Unit (WebKit)', 'Windows / Browser-Unit'].sort(),
 			skippableNodeIntegrationTests: ['Linux / Electron (node.js)', 'Windows / Electron (node.js)'],
 			skippableAgentHostE2E: ['Linux / Agent-Host-E2E', 'Windows / Agent-Host-E2E (shard 1/3)', 'Windows / Agent-Host-E2E (shard 2/3)', 'Windows / Agent-Host-E2E (shard 3/3)'],
 			planned: [
-				'Linux / Electron-Unit (electron)', 'Linux / Electron-Unit (node)', 'Linux / Browser-Unit', 'Linux / Electron (node.js)',
+				'Linux / Electron-Unit (electron)', 'Linux / Electron-Unit (node)', 'Linux / Browser-Unit', 'Linux / Browser-Unit (WebKit)', 'Linux / Electron (node.js)',
 				'Linux / Agent-Host-E2E',
 				'Windows / Electron-Unit', 'Windows / Browser-Unit', 'Windows / Electron (node.js)',
 				'Windows / Agent-Host-E2E (shard 1/3)', 'Windows / Agent-Host-E2E (shard 2/3)', 'Windows / Agent-Host-E2E (shard 3/3)',
@@ -436,6 +436,8 @@ suite('Detect Changes', () => {
 				'Linux / Electron-Smoke (shard 2/3)': skipsWhenUnaffected('product-tests'),
 				'Linux / Electron-Smoke (shard 3/3)': skipsWhenUnaffected('product-tests'),
 				'Linux / Browser-Unit': skipsWhenUnaffected('selected-browser-unit-tests'),
+				// Only the merge queue runs it
+				'Linux / Browser-Unit (WebKit)': `\${{ github.event_name == 'merge_group' && (needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true') }}`,
 				'Linux / Browser': skipsWhenUnaffected('browser-integration'),
 				'Linux / Remote (integration)': skipsWhenUnaffected('product-tests'),
 				'Linux / Remote (smoke)': skipsWhenUnaffected('product-tests'),

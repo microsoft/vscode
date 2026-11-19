@@ -71,7 +71,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart, IChatScheduledRequestViewModel, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ChatResponseStats, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { getConfiguredProgressAnimation } from './chatWorkingLogo.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime } from '../../common/chatProgressFormatting.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
@@ -621,11 +621,12 @@ export function reconcileChatItemHeight(
 }
 
 /**
- * Renders the response footer: completion timestamp and the model/credits stat.
+ * Renders the response footer: completion timestamp, the model/credits stat, and
+ * the response's working time when `workingTime` is given.
  * `tokenStatsAriaLabel` is folded into the container's accessible name so the
  * token breakdown offered on hover is also available to screen readers.
  */
-export function renderChatResponseDetails(container: HTMLElement, details: string | undefined, completedAt: number | undefined, elapsedMs: number | undefined, verbose: boolean, tokenStatsAriaLabel?: string): HTMLElement | undefined {
+export function renderChatResponseDetails(container: HTMLElement, details: string | undefined, completedAt: number | undefined, elapsedMs: number | undefined, verbose: boolean, tokenStatsAriaLabel?: string, workingTime?: string): HTMLElement | undefined {
 	dom.clearNode(container);
 	container.classList.remove('chat-response-flip-active', 'chat-response-flip-down', 'chat-response-flip-reset');
 
@@ -634,7 +635,7 @@ export function renderChatResponseDetails(container: HTMLElement, details: strin
 	const alternate = completion?.isRelative
 		? formatChatResponseDetails(elapsed, completion.fullText)
 		: elapsed;
-	const responseDetails = formatChatResponseDetails(details, completion?.text);
+	const hasDetails = !!formatChatResponseDetails(details, completion?.text) || !!workingTime;
 
 	let completedAtElement: HTMLElement | undefined;
 	if (completion) {
@@ -651,16 +652,22 @@ export function renderChatResponseDetails(container: HTMLElement, details: strin
 	if (details) {
 		dom.append(container, $('span.chat-response-model-details', undefined, details));
 	}
+	if (workingTime) {
+		if (completion || details) {
+			dom.append(container, $('span.chat-response-details-separator', { 'aria-hidden': 'true' }, '\u2022'));
+		}
+		dom.append(container, $('span.chat-response-working-time', undefined, workingTime));
+	}
 
 	const accessibleTiming = completion
 		? localize('chatResponseCompletedAt', "Completed {0}", completion.fullText)
 		: undefined;
-	const accessibleElapsed = elapsed
-		? localize('chatResponseElapsed', "Elapsed time {0}", elapsed)
+	const accessibleElapsed = elapsed ?? workingTime
+		? localize('chatResponseElapsed', "Elapsed time {0}", elapsed ?? workingTime)
 		: undefined;
 	container.ariaLabel = [accessibleTiming, accessibleElapsed, details, tokenStatsAriaLabel].filter(Boolean).join(', ');
-	container.classList.toggle('hidden', !responseDetails);
-	container.tabIndex = responseDetails ? 0 : -1;
+	container.classList.toggle('hidden', !hasDetails);
+	container.tabIndex = hasDetails ? 0 : -1;
 	return completedAtElement;
 }
 
@@ -2079,7 +2086,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}));
 					templateData.transcriptNotice = notice;
 					templateData.elementDisposables.add(toDisposable(() => { templateData.transcriptNotice = undefined; }));
-					templateData.rowContainer.insertBefore(notice.domNode, templateData.footerToolbarContainer);
+					templateData.rowContainer.prepend(notice.domNode);
 				}
 			}
 		} else {
@@ -2112,13 +2119,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				&& !rendersInlineSystemNotificationTiming
 				? formatResponseTokenStats(element.model.usage?.modelTotals, element.model.completionTimestamp)
 				: undefined;
+			const responseStats = this.configService.getValue<ChatResponseStats>(ChatConfiguration.ResponseStats);
+			const workingTime = isResponseVM(element) && !rendersInlineSystemNotificationTiming && element.isComplete
+				&& responseStats !== ChatResponseStats.Off && Object.values(ChatResponseStats).includes(responseStats)
+				? formatChatResponseElapsedTime(element.model.elapsedMs)
+				: undefined;
 			const completedAtElement = renderChatResponseDetails(
 				responseDetailsContainer,
 				details,
 				isResponseVM(element) ? element.model.completionTimestamp : undefined,
-				isResponseVM(element) && !rendersInlineSystemNotificationTiming ? element.model.elapsedMs : undefined,
+				// The working time already shows, so the timestamp does not flip to it as well.
+				isResponseVM(element) && !rendersInlineSystemNotificationTiming && !workingTime ? element.model.elapsedMs : undefined,
 				isResponseVM(element) && this.configService.getValue<boolean>(ChatConfiguration.Verbose),
 				tokenStats?.footerAriaLabel,
+				workingTime,
 			);
 			// The container (rather than the stat span) is the hover target because it
 			// is the focusable element, which keeps the breakdown reachable by keyboard
@@ -2195,6 +2209,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 			if (e.affectsConfiguration(ChatConfiguration.Verbose)) {
 				updateVerboseDetails();
+				updateResponseDetails();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.ResponseStats)) {
 				updateResponseDetails();
 			}
 			if (e.affectsConfiguration(ChatConfiguration.CollapseCompletedResponses) && isResponseVM(element)) {

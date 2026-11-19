@@ -2280,8 +2280,14 @@ export class Repository {
 		await this.exec(['update-ref', '--no-deref', ref, newSha, oldSha]);
 	}
 
-	async merge(ref: string): Promise<void> {
-		const args = ['merge', ref];
+	async merge(ref: string, opts?: { signCommit?: boolean }): Promise<void> {
+		const args = ['merge'];
+
+		if (opts?.signCommit) {
+			args.push('-S');
+		}
+
+		args.push(ref);
 
 		try {
 			await this.exec(args);

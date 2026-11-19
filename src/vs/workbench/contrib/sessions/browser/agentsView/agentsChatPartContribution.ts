@@ -68,6 +68,12 @@ export interface IEditorWindowChatPartService {
 	 * workbench creates its grid. Features that enable it together share the one chat part.
 	 */
 	enable(options: IEditorWindowChatPartOptions): IDisposable;
+
+	/** Closes the tab of `chatResource` in the chat part, where it has one; creates nothing where it has no chats yet. */
+	closeChat(chatResource: URI): Promise<void>;
+
+	/** Keeps what was typed in the chat part's one unsent composer for its next one; see `IAgentsChatPartService.parkComposerInput`. */
+	parkComposerInput(): boolean;
 }
 
 export class EditorWindowChatPartService extends Disposable implements IEditorWindowChatPartService {
@@ -108,6 +114,16 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 				this._updateAnchor();
 			}
 		});
+	}
+
+	async closeChat(chatResource: URI): Promise<void> {
+		if (this._frame.contentCreated.get()) {
+			await this._frame.content.get()?.closeChat(chatResource);
+		}
+	}
+
+	parkComposerInput(): boolean {
+		return this._frame.contentCreated.get() && !!this._frame.content.get()?.parkComposerInput();
 	}
 
 	private _updateAnchor(): void {

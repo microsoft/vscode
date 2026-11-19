@@ -253,6 +253,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		}
 
 		await this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight), shouldReveal);
+		// The widget is placed among the other widgets at its size, which includes the reply's.
+		await this._commentThreadWidget.whenReplyInitialized();
 		if (this._isDisposed) {
 			return;
 		}
@@ -265,6 +267,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		if (shouldReveal) {
 			this._makeVisible();
 		}
+		// The reply was initialized before the widget was in the editor, so it couldn't take focus then.
+		this._commentThreadWidget.focusReplyIfPending();
 
 		this._bindCommentThreadListeners();
 	}

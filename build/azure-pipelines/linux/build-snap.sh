@@ -44,7 +44,7 @@ SNAP_ROOT="$(pwd)/.build/linux/snap/$VSCODE_ARCH"
 # the snap rather than loading an incompatible host OpenSSL.
 OPENSSL_PREBUILT_DIR="$(pwd)/.build/linux/snap/openssl"
 if [ -f "$OPENSSL_PREBUILT_DIR/libcrypto.a" ] && [ -f "$OPENSSL_PREBUILT_DIR/libssl.a" ]; then
-  for prebuild_dir in "$SNAP_ROOT"/code-*/usr/share/*/resources/app/node_modules.asar.unpacked/@github/copilot-sdk-linux-*/prebuilds/linux-*; do
+  for prebuild_dir in "$SNAP_ROOT"/code-*/usr/share/*/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*; do
     [ -d "$prebuild_dir" ] || continue
     gcc -shared -Wl,-soname,libcrypto.so.3 \
       -Wl,--whole-archive "$OPENSSL_PREBUILT_DIR/libcrypto.a" -Wl,--no-whole-archive \

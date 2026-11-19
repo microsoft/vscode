@@ -1,0 +1,140 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Shared field, label, hint, error and footer styles come from mcpServerConfigurationForm.css. */
+
+.mcp-install-form {
+	box-sizing: border-box;
+	height: 100%;
+	min-height: 0;
+}
+
+.mcp-install-form .mcp-install-form-title {
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	overflow-wrap: anywhere;
+}
+
+/*
+ * The fields scroll when the host is shorter than the form; the title and footer stay in view.
+ * The scrollbar sits in a gutter beside the form, so the fields stay aligned with the title and footer.
+ */
+.mcp-install-form .mcp-install-form-scrollable {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
+	margin-inline-end: calc(-1 * var(--vscode-spacing-size160));
+}
+
+.mcp-install-form .mcp-install-form-scrollable > .scrollbar > .slider {
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.mcp-install-form .mcp-install-form-viewport {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.mcp-install-form .mcp-install-form-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	padding-inline-end: var(--vscode-spacing-size160);
+}
+
+/* A field that takes one value per line starts three lines tall and grows with what is entered. */
+.mcp-install-form .monaco-inputbox > .ibwrapper > .mirror {
+	min-height: calc(3lh + var(--vscode-spacing-size80));
+}
+
+/* The notice shares the footer's line with the buttons and wraps beside them when it is long. */
+.mcp-install-form .mcp-config-form-footer {
+	align-items: center;
+}
+
+.mcp-install-form .mcp-install-form-notice {
+	flex: 1 1 0;
+	min-width: 0;
+	margin-inline-end: var(--vscode-spacing-size80);
+}
+
+.mcp-install-form .mcp-config-form-footer .monaco-button {
+	flex: none;
+}
+
+.mcp-install-form .mcp-install-form-summary {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	margin: 0;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-textCodeBlock-background);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.mcp-install-form .mcp-install-form-summary dt {
+	color: var(--vscode-descriptionForeground);
+}
+
+.mcp-install-form .mcp-install-form-summary dd {
+	margin: 0;
+	color: var(--vscode-foreground);
+	overflow-wrap: anywhere;
+}
+
+.mcp-install-form .mcp-install-form-summary .mcp-install-form-code {
+	font-family: var(--monaco-monospace-font);
+	white-space: pre-wrap;
+}
+
+/* Groups sit further apart than the fields inside them, so each heading reads with its own fields. */
+.mcp-install-form .mcp-install-form-fields {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size240);
+}
+
+.mcp-install-form .mcp-install-form-fields .mcp-config-form-section {
+	gap: var(--vscode-spacing-size120);
+}
+
+.mcp-install-form .mcp-install-form-group-title {
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.mcp-install-form .mcp-install-form-key {
+	margin-inline-start: var(--vscode-spacing-size60);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+	color: var(--vscode-descriptionForeground);
+}
+
+/* A select box has no height or padding of its own outside a toolbar; size it like the inputs. */
+.mcp-install-form .mcp-install-form-select .monaco-select-box {
+	width: 100%;
+	min-height: 26px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size240) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+}
+
+.mcp-install-form .mcp-install-form-checkbox {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.mcp-install-form .mcp-install-form-checkbox .monaco-custom-toggle {
+	flex: none;
+	margin: 0;
+}
+
+.mcp-install-form .mcp-install-form-checkbox .mcp-config-form-label {
+	cursor: pointer;
+}
