@@ -131,6 +131,10 @@ export function mapSubagentSystemMessage(
 		}
 		const spawn = registry.getSpawn(m.tool_use_id);
 		if (!spawn) {
+			if (registry.wasRecentlyCompleted(m.tool_use_id)) {
+				logService?.debug(`[claudeSubagentSignals] task_notification status=${status} for tool_use_id=${m.tool_use_id} ignored; spawn already completed`);
+				return [];
+			}
 			logService?.info(`[claudeSubagentSignals] task_notification status=${status} for tool_use_id=${m.tool_use_id} matches no open subagent spawn; no subagent chat closed`);
 			return [];
 		}
