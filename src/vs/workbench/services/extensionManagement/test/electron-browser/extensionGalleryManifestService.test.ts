@@ -2073,6 +2073,20 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		});
 	});
 
+	test('a replay rejection without invalid_token keeps the legacy manifest and token', async () => {
+		fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		stubResourceScopedAuthentication(() => ({ ...createMicrosoftSession('resource-token'), expiresAfter: 60_000 }));
+		requestHandler = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		const renewed = await service.refreshAccessToken(MARKETPLACE_URL, 'resource-token', 'Bearer realm="marketplace"', false);
+		assert.deepStrictEqual({ renewed, status: service.extensionGalleryManifestStatus, token: await service.getAccessToken(MARKETPLACE_URL) }, {
+			renewed: false, status: ExtensionGalleryManifestStatus.Available, token: 'resource-token',
+		});
+	});
+
 	for (const responseKind of ['foreign origin', 'stripped authorization', 'unknown transport'] as const) {
 		test(`a service-index 401 from ${responseKind} does not refresh the original bearer`, async () => {
 			fakeClock();

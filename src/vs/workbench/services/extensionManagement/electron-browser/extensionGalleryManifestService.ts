@@ -375,8 +375,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 		if (!canRefresh || (!this.authorizationRefresh && this.rejectedTokenRefresh
 			&& (this.rejectedTokenRefresh.accessToken === rejectedAccessToken || performance.now() < this.rejectedTokenRefresh.nextRefreshAfter))) {
-			if (!canRefresh || invalidToken) {
-				this.invalidAuthorization = { accessToken: rejectedAccessToken, accountId, serviceIndexUrl };
+			if (invalidToken) {
 				this.resolutionTokenSource.value?.cancel();
 				this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 				await this.channelUpdate;
