@@ -28,7 +28,7 @@ import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_LIST_SHOW_
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatUnavailableAutomationsMessage, getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
+import { formatAutomationRunStatus as formatRunStatus, formatUnavailableAutomationsMessage, getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
@@ -340,25 +340,6 @@ function formatSchedule(schedule: IAutomationSchedule): string {
 function formatTime(hour: number, minute: number): string {
 	const date = new Date(Date.UTC(2000, 0, 1, Math.max(0, Math.min(23, hour | 0)), Math.max(0, Math.min(59, minute | 0))));
 	return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
-}
-
-function formatRunStatus(run: IAutomationRun): string {
-	if (run.statusDescription) {
-		return run.statusDescription;
-	}
-	if (run.needsInput) {
-		return localize('automationsAccessibleView.needsInput', "Needs input");
-	}
-	switch (run.status) {
-		case 'pending':
-			return localize('automationsAccessibleView.pending', "Pending");
-		case 'running':
-			return localize('automationsAccessibleView.running', "Running");
-		case 'completed':
-			return localize('automationsAccessibleView.completed', "Completed");
-		case 'failed':
-			return localize('automationsAccessibleView.failed', "Failed");
-	}
 }
 
 AccessibleViewRegistry.register(new AutomationsCustomViewAccessibilityHelp());
