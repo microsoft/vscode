@@ -433,6 +433,17 @@ export class SCMViewService implements ISCMViewService {
 					this.didSelectRepository = true;
 				}
 			}
+		} else if (this.previousState && this.didSelectRepository && this.visibleRepositories.length > 0) {
+			// Repositories (ex: submodules) can be discovered after the repositories
+			// finished loading. Keep the repository hidden if it was explicitly hidden
+			// in the previous state.
+			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
+
+			if (index !== -1 && this.previousState.visible.indexOf(index) === -1) {
+				this.insertRepositoryView(this._repositories, repositoryView);
+				this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
+				return;
+			}
 		}
 
 		if (this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Multiple || !this._repositories.find(r => r.selectionIndex !== -1)) {
@@ -601,9 +612,20 @@ export class SCMViewService implements ISCMViewService {
 
 		const all = this.repositories.map(r => getProviderStorageKey(r.provider));
 		const visible = this.visibleRepositories.map(r => all.indexOf(getProviderStorageKey(r.provider)));
-		this.previousState = { all, visible, sortKey: this._repositoriesSortKey } satisfies ISCMViewServiceState;
+		const state = { all, visible, sortKey: this._repositoriesSortKey } satisfies ISCMViewServiceState;
 
-		this.storageService.store('scm:view:visibleRepositories', JSON.stringify(this.previousState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store('scm:view:visibleRepositories', JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		// Remember the previous visibility of repositories that have not been
+		// discovered yet (ex: submodules) so that it is used when they are added
+		const previousState = this.previousState;
+		const undiscovered = previousState?.all.filter(key => !all.includes(key)) ?? [];
+
+		this.previousState = previousState && undiscovered.length > 0 ? {
+			...state,
+			all: [...all, ...undiscovered],
+			visible: [...visible, ...undiscovered.flatMap((key, index) => previousState.visible.includes(previousState.all.indexOf(key)) ? [all.length + index] : [])]
+		} : state;
 	}
 
 	@debounce(5000)
