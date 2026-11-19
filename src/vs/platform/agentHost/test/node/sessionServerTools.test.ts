@@ -2195,55 +2195,32 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(createdChat, false);
 	});
 
-	test('create_session with currentSession rejects a workspace from a quick chat', async () => {
-		let preparedFolder = false;
-		let createdChat = false;
+	test('create_session with currentSession creates a nested chat in a requested folder from a quick chat', async () => {
+		const preparedFolders: string[] = [];
+		const createdChats: (readonly string[] | undefined)[] = [];
 		const accessor = createAccessor({
 			getSession: async session => session.toString() === 'copilot:/s1'
 				? { ...sessionMeta('s1', SessionStatus.InProgress, workspace), _meta: withSessionWorkspaceless(undefined, true) }
 				: undefined,
 			prepareChatWorkingDirectory: async (_session, directory) => {
-				preparedFolder = true;
+				preparedFolders.push(directory.toString());
 				return prepared(directory);
 			},
-			onCreateChat: () => { createdChat = true; },
+			onCreateChat: (_session, _chat, options) => createdChats.push(options?.workingDirectories?.map(directory => directory.toString())),
 		});
 
-		await assert.rejects(applyCreateSessionTool(accessor, {
+		const result = await applyCreateSessionTool(accessor, {
 			relationship: 'currentSession',
 			workspace: 'file:///workspace/other',
 			prompt: 'do it there',
 			title: 'Other Folder',
-		}, URI.parse('copilot:/s1')), /Use set_workspace to attach a workspace to the quick chat first/);
+		}, URI.parse(buildDefaultChatUri('copilot:/s1')));
 
-		assert.deepStrictEqual({ preparedFolder, createdChat }, { preparedFolder: false, createdChat: false });
-	});
-
-	test('create_session with currentSession accepts a workspace from a foldered chat of a quick-chat session', async () => {
-		let createdChat = false;
-		const accessor = createAccessor({
-			getSession: async session => session.toString() === 'copilot:/s1'
-				? {
-					...sessionMeta('s1', SessionStatus.InProgress, workspace),
-					_meta: withSessionWorkspaceless(undefined, true),
-					chats: [
-						{ chat: URI.parse('copilot:/s1-default'), kind: 'default' },
-						{ chat: URI.parse('copilot:/s1'), kind: 'peer', workingDirectories: ['file:///workspace/own'] },
-					],
-				}
-				: undefined,
-			prepareChatWorkingDirectory: async (_session, directory) => prepared(directory),
-			onCreateChat: () => { createdChat = true; },
-		});
-
-		await applyCreateSessionTool(accessor, {
+		assert.deepStrictEqual({ relationship: result.relationship, preparedFolders, createdChats }, {
 			relationship: 'currentSession',
-			workspace: 'file:///workspace/other',
-			prompt: 'do it there',
-			title: 'Other Folder',
-		}, URI.parse('copilot:/s1'));
-
-		assert.strictEqual(createdChat, true);
+			preparedFolders: ['file:///workspace/other'],
+			createdChats: [['file:///workspace/other']],
+		});
 	});
 
 	test('create_session without a relationship creates a chat in the current session', async () => {

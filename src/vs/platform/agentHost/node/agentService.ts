@@ -2387,7 +2387,10 @@ export class AgentService extends Disposable implements IAgentService {
 					...(options.workingDirectories !== undefined ? { workingDirectories: options.workingDirectories } : {}),
 				}
 				: undefined, credentials),
-			prepareChatWorkingDirectory: (session, directory, options) => this.prepareChatWorkingDirectory(session, directory, options),
+			prepareChatWorkingDirectory: async (session, directory, options) => {
+				await this._requireNonScratchChatFolder(session, directory, 'createChat');
+				return this.prepareChatWorkingDirectory(session, directory, options);
+			},
 			renameChat: (session, chat, title) => this._renameChatFromTool(session, chat, title),
 			reportToolError: (toolName, error) => this._logService.error(`[AgentService] ${toolName} failed after the tool returned: ${toErrorMessage(error)}`),
 			archiveSession: session => this._dispatchServerToolAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }),
