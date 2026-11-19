@@ -767,6 +767,56 @@ suite('cloudSandbox telemetry', () => {
 		assert.deepStrictEqual(event, { eventName: 'userLocalRelayConnectionOutcome', data: expected });
 	}));
 
+	test('awake network return measures interrupted sessions, not just a successful relay handshake', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		const connection = store.add(service.trackConnection('connection', 'agentsWeb', 'existing', { environmentKind: 'user-local' }));
+		const sessions = new Map<string, 'snapshot' | 'error'>([['other-host:/private', 'snapshot']]);
+		store.add(connection.observeSessionSubscriptions(() => sessions));
+		connection.onConnectionStateChange('connected');
+		connection.onConnectionStateChange('reconnecting');
+		connection.recordNetworkChange(false);
+		await timeout(20_000);
+		connection.recordNetworkChange(true);
+		await timeout(9000);
+		connection.onConnectionStateChange('reconnecting');
+		connection.recordNetworkChange(true);
+		await timeout(1001);
+		sessions.set('other-host:/private', 'error');
+		sessions.set('other-host:/new', 'snapshot');
+		connection.onConnectionStateChange('connected');
+		connection.onConnectionStateChange('connected');
+		const events = telemetry.events.filter(e => e.data?.operation === 'recover');
+		assert.deepStrictEqual(events.map(({ data }) => [
+			data?.outcome, data?.sessionRecoveryOutcome, data?.sessionRecoverySignal, data?.sessionRecoveryAfterReturnMs, JSON.stringify(data).includes('other-host:'),
+		]), [['success', 'unavailable', 'online', 10_001, false]]);
+	}));
+
+	test('wake followed by network return measures from online and preserves an unsuccessful next outage', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		const connection = store.add(service.trackConnection('connection', 'agentsDesktop', 'existing', { environmentKind: 'user-local' }));
+		store.add(connection.observeSessionSubscriptions(() => new Map([['other-host:/session', 'snapshot']])));
+		const power = (phase: 'power.suspend' | 'power.resume') => connection.recordConnectionDiagnostic({ phase, operationId: 'power', timestamp: Date.now(), outcome: 'info' });
+		connection.onConnectionStateChange('connected');
+		power('power.suspend');
+		connection.onConnectionStateChange('reconnecting');
+		await timeout(600_000);
+		power('power.resume');
+		await timeout(15_000);
+		connection.recordNetworkChange(true);
+		await timeout(10_000);
+		connection.onConnectionStateChange('connected');
+		connection.onConnectionStateChange('reconnecting');
+		connection.onConnectionStateChange('failed');
+		assert.deepStrictEqual(telemetry.events.filter(e => e.data?.operation === 'recover').map(({ data }) => [
+			data?.sessionRecoveryOutcome, data?.sessionRecoverySignal, data?.sessionRecoveryAfterReturnMs, data?.durationMs,
+		]), [
+			['restored', 'online', 10_000, 625_000],
+			['failed', undefined, undefined, 0],
+		]);
+	}));
+
 	for (const environmentKind of ['cloud', 'user-local'] as const) {
 		for (const outcome of ['success', 'failure', 'cancelled'] as const) {
 			test(`reports ${environmentKind} first session request ${outcome} without counting user idle time`, () => runWithFakedTimers({}, async () => {
