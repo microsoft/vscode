@@ -339,6 +339,9 @@ class NewSkillFileAction extends Action2 {
 				if (name.includes('--')) {
 					return localize('commands.new.skill.name.consecutiveHyphens', "Skill name must not contain consecutive hyphens");
 				}
+				if (await fileService.exists(URI.joinPath(folderUri, name))) {
+					return localize('commands.new.skill.name.exists', "A skill with this name already exists");
+				}
 				return undefined;
 			}
 		});
