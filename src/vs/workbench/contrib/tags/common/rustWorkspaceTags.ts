@@ -61,18 +61,84 @@ interface CargoDependency {
 	workspace?: boolean;
 }
 
-export function getCargoDependencyNames(contents: string): string[] {
+export function getCargoDependencyNames(contents: string, inheritedWorkspaceDependencies?: ReadonlyMap<string, string>): string[] {
+	return getCargoDependencyNamesFromManifest(contents, inheritedWorkspaceDependencies);
+}
+
+export function getCargoWorkspaceDependencies(contents: string): ReadonlyMap<string, string> | undefined {
+	const { hasWorkspace, workspaceDependencies } = parseCargoDependencies(contents);
+	if (!hasWorkspace) {
+		return undefined;
+	}
+	const dependencies = new Map<string, string>();
+	for (const [alias, dependency] of workspaceDependencies) {
+		if (!dependency.workspace) {
+			dependencies.set(alias, dependency.packageName ?? alias);
+		}
+	}
+	return dependencies;
+}
+
+function getCargoDependencyNamesFromManifest(contents: string, inheritedWorkspaceDependencies?: ReadonlyMap<string, string>): string[] {
+	const { sections, workspaceDependencies } = parseCargoDependencies(contents);
+	const names = new Set<string>();
+	for (const section of sections) {
+		for (const [alias, dependency] of section) {
+			const workspaceDependency = workspaceDependencies.get(alias);
+			let name: string | undefined;
+			if (dependency.workspace) {
+				name = workspaceDependency ? workspaceDependency.packageName ?? alias : inheritedWorkspaceDependencies?.get(alias);
+			} else {
+				name = dependency.packageName ?? alias;
+			}
+			if (name) {
+				names.add(name);
+			}
+		}
+	}
+	return [...names];
+}
+
+function parseCargoDependencies(contents: string): { sections: Map<string, CargoDependency>[]; workspaceDependencies: Map<string, CargoDependency>; hasWorkspace: boolean } {
 	const workspaceDependencies = new Map<string, CargoDependency>();
-	const sections: Map<string, CargoDependency>[] = [workspaceDependencies];
-	let dependencies: Map<string, CargoDependency> | undefined;
-	let dependencyTable: CargoDependency | undefined;
-	let inlineDependency: { alias: string; value: string; braceDepth: number } | undefined;
+	const sections = new Map<string, Map<string, CargoDependency>>();
+	let tablePath: string[] | undefined = [];
+	let inlineTable: { path: string[]; value: string; braceDepth: number } | undefined;
+	let hasWorkspace = false;
 	const stringState: { multilineQuote?: string } = {};
 
-	const finishInlineDependency = () => {
-		if (inlineDependency && dependencies) {
-			dependencies.set(inlineDependency.alias, parseInlineDependency(inlineDependency.value));
-			inlineDependency = undefined;
+	const getDependencySection = (section: DependencySection): Map<string, CargoDependency> => {
+		if (section.isWorkspace) {
+			return workspaceDependencies;
+		}
+		let dependencies = sections.get(section.id);
+		if (!dependencies) {
+			dependencies = new Map<string, CargoDependency>();
+			sections.set(section.id, dependencies);
+		}
+		return dependencies;
+	};
+
+	const applyDependencyAssignment = (path: string[], value: string) => {
+		const location = getDependencyLocation(path);
+		if (!location) {
+			return;
+		}
+		const dependencies = getDependencySection(location.section);
+		hasWorkspace ||= location.section.isWorkspace;
+		if (!location.alias) {
+			for (const entry of parseInlineTable(value)) {
+				const assignment = parseDependencyAssignment(entry);
+				if (assignment?.keys.length === 1) {
+					dependencies.set(assignment.keys[0], parseInlineDependency(assignment.value));
+				}
+			}
+		} else if (location.property) {
+			const dependency = dependencies.get(location.alias) ?? {};
+			setDependencyProperty(dependency, location.property, value);
+			dependencies.set(location.alias, dependency);
+		} else {
+			dependencies.set(location.alias, parseInlineDependency(value));
 		}
 	};
 
@@ -82,96 +148,104 @@ export function getCargoDependencyNames(contents: string): string[] {
 			continue;
 		}
 
-		if (inlineDependency) {
-			inlineDependency.value += ` ${line}`;
-			inlineDependency.braceDepth += countBraces(line);
-			if (inlineDependency.braceDepth <= 0) {
-				finishInlineDependency();
+		if (inlineTable) {
+			inlineTable.value += ` ${line}`;
+			inlineTable.braceDepth += countBraces(line);
+			if (inlineTable.braceDepth <= 0) {
+				applyDependencyAssignment(inlineTable.path, inlineTable.value);
+				inlineTable = undefined;
 			}
 			continue;
 		}
 
 		if (line.startsWith('[')) {
-			dependencyTable = undefined;
-			dependencies = undefined;
-
-			const section = line.endsWith(']') ? splitTomlDottedKey(line.slice(1, -1)) : undefined;
-			if (!section) {
+			tablePath = parseTomlTableHeader(line);
+			if (!tablePath) {
 				continue;
 			}
-			const dependencyIndex = section[0] === 'workspace' ? 1 : section[0] === 'target' ? 2 : 0;
-			if (!['dependencies', 'dev-dependencies', 'build-dependencies'].includes(section[dependencyIndex]) ||
-				(section.length !== dependencyIndex + 1 && section.length !== dependencyIndex + 2)) {
-				continue;
-			}
-			dependencies = section[0] === 'workspace' ? workspaceDependencies : new Map<string, CargoDependency>();
-			if (dependencies !== workspaceDependencies) {
-				sections.push(dependencies);
-			}
-			if (section.length === dependencyIndex + 2) {
-				dependencyTable = {};
-				dependencies.set(section[dependencyIndex + 1], dependencyTable);
+			hasWorkspace ||= tablePath[0] === 'workspace';
+			const location = getDependencyLocation(tablePath);
+			if (location?.alias && !location.property) {
+				const dependencies = getDependencySection(location.section);
+				if (!dependencies.has(location.alias)) {
+					dependencies.set(location.alias, {});
+				}
 			}
 			continue;
 		}
 
-		if (dependencyTable) {
-			const assignment = parseDependencyAssignment(line);
-			if (assignment && !assignment.property) {
-				setDependencyProperty(dependencyTable, assignment.alias, assignment.value);
-			}
+		if (!tablePath) {
 			continue;
 		}
 
-		if (!dependencies) {
+		const assignment = parseDependencyAssignment(line);
+		if (!assignment) {
 			continue;
 		}
 
-		const dependency = parseDependencyAssignment(line);
-		if (!dependency) {
-			continue;
-		}
-
-		const { alias, property, value } = dependency;
-		if (property) {
-			const entry = dependencies.get(alias) ?? {};
-			setDependencyProperty(entry, property, value);
-			dependencies.set(alias, entry);
-			continue;
-		}
-
-		const braceDepth = countBraces(value);
-		if (value.trimStart().startsWith('{') && braceDepth > 0) {
-			inlineDependency = { alias, value, braceDepth };
+		const path = [...tablePath, ...assignment.keys];
+		const value = assignment.value;
+		if (getDependencyLocation(path) && value.trimStart().startsWith('{') && countBraces(value) > 0) {
+			inlineTable = { path, value, braceDepth: countBraces(value) };
 		} else {
-			dependencies.set(alias, parseInlineDependency(value));
+			applyDependencyAssignment(path, value);
 		}
 	}
 
-	finishInlineDependency();
-	const names = new Set<string>();
-	for (const section of sections) {
-		for (const [alias, dependency] of section) {
-			names.add(dependency.packageName ?? (dependency.workspace ? workspaceDependencies.get(alias)?.packageName : undefined) ?? alias);
-		}
-	}
-	return [...names];
+	return { sections: [...sections.values(), workspaceDependencies], workspaceDependencies, hasWorkspace };
 }
 
-function parseDependencyAssignment(line: string): { alias: string; property?: string; value: string } | undefined {
+interface DependencySection {
+	id: string;
+	isWorkspace: boolean;
+}
+
+function getDependencyLocation(path: string[]): { section: DependencySection; alias?: string; property?: string } | undefined {
+	const dependencySections = ['dependencies', 'dev-dependencies', 'build-dependencies'];
+	let sectionLength: number;
+	if (path[0] === 'workspace' && dependencySections.includes(path[1])) {
+		sectionLength = 2;
+	} else if (path[0] === 'target' && path.length >= 3 && dependencySections.includes(path[2])) {
+		sectionLength = 3;
+	} else if (dependencySections.includes(path[0])) {
+		sectionLength = 1;
+	} else {
+		return undefined;
+	}
+	if (path.length > sectionLength + 2) {
+		return undefined;
+	}
+	const sectionPath = path.slice(0, sectionLength);
+	return {
+		section: { id: JSON.stringify(sectionPath), isWorkspace: sectionPath[0] === 'workspace' },
+		alias: path[sectionLength],
+		property: path[sectionLength + 1]
+	};
+}
+
+function parseTomlTableHeader(line: string): string[] | undefined {
+	if (line.startsWith('[[') && line.endsWith(']]')) {
+		return splitTomlDottedKey(line.slice(2, -2));
+	}
+	if (line.startsWith('[') && line.endsWith(']')) {
+		return splitTomlDottedKey(line.slice(1, -1));
+	}
+	return undefined;
+}
+
+function parseDependencyAssignment(line: string): { keys: string[]; value: string } | undefined {
 	const assignmentIndex = findUnquotedCharacter(line, '=');
 	if (assignmentIndex === -1) {
 		return undefined;
 	}
 
 	const keys = splitTomlDottedKey(line.slice(0, assignmentIndex));
-	if (!keys || keys.length > 2) {
+	if (!keys) {
 		return undefined;
 	}
 
 	return {
-		alias: keys[0],
-		property: keys[1],
+		keys,
 		value: line.slice(assignmentIndex + 1).trim()
 	};
 }
@@ -252,9 +326,20 @@ function setDependencyProperty(dependency: CargoDependency, property: string, va
 
 function parseInlineDependency(value: string): CargoDependency {
 	const dependency: CargoDependency = {};
-	if (!value.startsWith('{')) {
-		return dependency;
+	for (const entry of parseInlineTable(value)) {
+		const assignment = parseDependencyAssignment(entry);
+		if (assignment?.keys.length === 1) {
+			setDependencyProperty(dependency, assignment.keys[0], assignment.value);
+		}
 	}
+	return dependency;
+}
+
+function parseInlineTable(value: string): string[] {
+	if (!value.startsWith('{')) {
+		return [];
+	}
+	const entries: string[] = [];
 	let start = 1;
 	let depth = 0;
 	let quote: '"' | '\'' | undefined;
@@ -271,16 +356,16 @@ function parseInlineDependency(value: string): CargoDependency {
 		} else if (character === '{' || character === '[') {
 			depth++;
 		} else if (depth === 0 && (character === ',' || character === '}')) {
-			const assignment = parseDependencyAssignment(value.slice(start, i));
-			if (assignment && !assignment.property) {
-				setDependencyProperty(dependency, assignment.alias, assignment.value);
+			const entry = value.slice(start, i).trim();
+			if (entry) {
+				entries.push(entry);
 			}
 			start = i + 1;
 		} else if (character === '}' || character === ']') {
 			depth--;
 		}
 	}
-	return dependency;
+	return entries;
 }
 
 function parseTomlKey(value: string): string | undefined {

@@ -9,13 +9,14 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { ITextFileService, ITextFileContent } from '../../../services/textfile/common/textfiles.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isEqualOrParent } from '../../../../base/common/resources.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkspaceTagsService, Tags } from '../common/workspaceTags.js';
 import { getHashedRemotesFromConfig } from './workspaceTags.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, GradleDependencyCompactRegex, GradleDependencyLooseRegex, MavenGroupIdRegex, JavaLibrariesToLookFor } from '../common/javaWorkspaceTags.js';
 import { hashAsync } from '../../../../base/common/hash.js';
-import { getCargoDependencyNames, RustCratesToLookFor } from '../common/rustWorkspaceTags.js';
+import { getCargoDependencyNames, getCargoWorkspaceDependencies, RustCratesToLookFor } from '../common/rustWorkspaceTags.js';
 
 const MetaModulesToLookFor = [
 	// Azure packages
@@ -1547,7 +1548,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			function getFilePromises(filename: string, fileService: IFileService, textFileService: ITextFileService, contentHandler: (content: ITextFileContent) => void): Promise<void>[] {
+			function getFilePromises(filename: string, fileService: IFileService, textFileService: ITextFileService, contentHandler: (content: ITextFileContent, workspaceUri: URI) => void): Promise<void>[] {
 				return !nameSet.has(filename.toLowerCase()) ? [] : (folders as URI[]).map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
 					return fileService.exists(uri).then(exists => {
@@ -1555,7 +1556,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 							return undefined;
 						}
 
-						return textFileService.read(uri, { acceptTextOnly: true }).then(contentHandler);
+						return textFileService.read(uri, { acceptTextOnly: true }).then(content => contentHandler(content, workspaceUri));
 					}).catch(() => {
 						// Ignore missing or inaccessible files
 					});
@@ -1667,19 +1668,9 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				}
 			});
 
-			const cargoTomlPromises = getFilePromises('Cargo.toml', this.fileService, this.textFileService, content => {
-				try {
-					for (const dependency of getCargoDependencyNames(content.value)) {
-						if (RustCratesToLookFor.includes(dependency)) {
-							tags['workspace.cargo.' + dependency] = true;
-						}
-						if (!tags['workspace.cargo.any-azure'] && dependency.startsWith('azure_')) {
-							tags['workspace.cargo.any-azure'] = true;
-						}
-					}
-				} catch (e) {
-					// Ignore errors when resolving file or parsing file contents
-				}
+			const cargoManifests: { folder: URI; contents: string }[] = [];
+			const cargoTomlPromises = getFilePromises('Cargo.toml', this.fileService, this.textFileService, (content, folder) => {
+				cargoManifests.push({ folder, contents: content.value });
 			});
 
 			const pomPromises = getFilePromises('pom.xml', this.fileService, this.textFileService, content => {
@@ -1722,7 +1713,30 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				});
 			});
 
-			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises, ...goModPromises, ...cargoTomlPromises]).then(() => tags);
+			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises, ...goModPromises, ...cargoTomlPromises]).then(() => {
+				const cargoWorkspaces = cargoManifests.flatMap(manifest => {
+					const dependencies = getCargoWorkspaceDependencies(manifest.contents);
+					return dependencies ? [{ folder: manifest.folder, dependencies }] : [];
+				});
+				for (const manifest of cargoManifests) {
+					try {
+						const workspace = cargoWorkspaces
+							.filter(candidate => isEqualOrParent(candidate.folder, manifest.folder))
+							.sort((a, b) => b.folder.path.length - a.folder.path.length)[0];
+						for (const dependency of getCargoDependencyNames(manifest.contents, workspace?.dependencies)) {
+							if (RustCratesToLookFor.includes(dependency)) {
+								tags['workspace.cargo.' + dependency] = true;
+							}
+							if (!tags['workspace.cargo.any-azure'] && dependency.startsWith('azure_')) {
+								tags['workspace.cargo.any-azure'] = true;
+							}
+						}
+					} catch (e) {
+						// Ignore errors when resolving file or parsing file contents
+					}
+				}
+				return tags;
+			});
 		});
 	}
 

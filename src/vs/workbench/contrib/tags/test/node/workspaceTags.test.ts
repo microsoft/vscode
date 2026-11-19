@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as crypto from 'crypto';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from '../../common/workspaceTags.js';
-import { getCargoDependencyNames } from '../../common/rustWorkspaceTags.js';
+import { getCargoDependencyNames, getCargoWorkspaceDependencies } from '../../common/rustWorkspaceTags.js';
 
 function hash(value: string): string {
 	return crypto.createHash('sha256').update(value.toString()).digest('hex');
@@ -69,6 +69,7 @@ version = "0.72"
 
 [workspace.dependencies]
 azure_identity = "1"
+serde_json = "1"
 renamed-azure . package = "azure_storage_blob"
 renamed-azure . version = "1"
 
@@ -126,6 +127,22 @@ package = "tokio"
 `).sort(), ['bindgen', 'client', 'reqwest', 'rustls', 'tokio']);
 	});
 
+	test('Cargo dependencies in dotted paths and inline tables', () => {
+		assert.deepStrictEqual([
+			getCargoDependencyNames('dependencies.tokio = "1"'),
+			getCargoDependencyNames('[workspace]\ndependencies.reqwest = "0.12"'),
+			getCargoDependencyNames('[target.\'cfg(unix)\']\ndependencies.serde_json = "1"'),
+			getCargoDependencyNames('dependencies = { reqwest = "0.12" }'),
+			getCargoDependencyNames('[workspace]\ndependencies = { client = { package = "reqwest" } }')
+		], [
+			['tokio'],
+			['reqwest'],
+			['serde_json'],
+			['reqwest'],
+			['reqwest']
+		]);
+	});
+
 	test('Cargo workspace renames resolve before or after inherited declarations', () => {
 		const workspaces = [`
 [workspace.dependencies]
@@ -153,6 +170,30 @@ client.workspace = true
 				getCargoDependencyNames(inherited + workspace)
 			], [['reqwest'], ['reqwest']]);
 		}
+	});
+
+	test('Cargo workspace aliases resolve across manifests without reporting unknown aliases', () => {
+		const workspaceDependencies = getCargoWorkspaceDependencies(`
+[workspace.dependencies]
+client = { package = "reqwest", version = "0.12" }
+serde_json = "1"
+`);
+		assert.ok(workspaceDependencies);
+		const member = `
+[dependencies]
+client.workspace = true
+serde_json.workspace = true
+unknown.workspace = true
+`;
+		assert.deepStrictEqual([
+			[...workspaceDependencies],
+			getCargoDependencyNames(member),
+			getCargoDependencyNames(member, workspaceDependencies)
+		], [
+			[['client', 'reqwest'], ['serde_json', 'serde_json']],
+			[],
+			['reqwest', 'serde_json']
+		]);
 	});
 
 	test('Cargo ignores dependency-like content in multiline strings', () => {
