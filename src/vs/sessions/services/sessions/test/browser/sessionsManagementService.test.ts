@@ -15,7 +15,7 @@ import { createErrorWithActions } from '../../../../../base/common/errorMessage.
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -85,6 +85,7 @@ import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SessionsCh
 import { DraggedSessionIdentifier, fillSessionChatDragData, getSessionChatDragData, SessionsDataTransfers } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
+import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { SessionActivatingActionRunner } from '../../../../../workbench/contrib/sessions/browser/sessionActionRunner.js';
 import { navigationServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { SessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHostService.js';
@@ -455,9 +456,12 @@ function createView(
 	}());
 	const chatHostOpenerService = new ChatHostOpenerService();
 	instantiationService.stub(IChatHostOpenerService, chatHostOpenerService);
+	const inSidePane = observableValue('sideChatsInSidePane', false);
+	instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane } satisfies ISideChatPlacementService);
 	const view = disposables.add(instantiationService.createInstance(SessionsService));
 	activeWindowChanges.set(view, onDidChangeActiveWindow);
 	chatHostOpeners.set(view, chatHostOpenerService);
+	sideChatsInSidePane.set(view, inSidePane);
 	return view;
 }
 
@@ -466,6 +470,8 @@ const activeWindowChanges = new WeakMap<SessionsService, Emitter<number>>();
 
 /** Where chats another surface shows open and close, for the {@link SessionsService} {@link createView} built. */
 const chatHostOpeners = new WeakMap<SessionsService, IChatHostOpenerService>();
+/** Whether side chats show in the side pane, for the view; false until a test sets it. */
+const sideChatsInSidePane = new WeakMap<SessionsService, ISettableObservable<boolean>>();
 
 suite('SessionsManagementService', () => {
 
@@ -9508,6 +9514,80 @@ suite('SessionsManagementService', () => {
 			assert.strictEqual(activeChatOf(view)?.title.get(), 'sideA');
 		});
 
+		test('while side chats show in the side pane, the grid shows the chat a side chat came from instead of it, and a surface that claims it opens it', async () => {
+			const peerA = chat('peerA');
+			const sideA: IChat = { ...chat('sideA'), origin: { kind: ChatOriginKind.SideChat, parentChat: peerA.resource } };
+			const sessionA = multiChatSession('A', [chat('mainA'), peerA, sideA]);
+			const { view } = setup([sessionA]);
+			const revealed: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: () => false,
+				claimsChat: claimed => sideChatsInSidePane.get(view)!.get() && claimed.toString() === sideA.resource.toString(),
+				reveal: async shown => { revealed.push(shown.path); },
+				openBeside: async () => { },
+				close: async () => undefined,
+			}));
+			const grid = () => ({ active: activeChatOf(view)?.title.get(), tabs: view.activePane.get()?.tabs.visibleChatTabs.get().map(c => c.title.get()) });
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sideA.resource);
+			const before = grid();
+			sideChatsInSidePane.get(view)!.set(true, undefined);
+			const inSidePane = grid();
+			await view.openChat(sessionA, sideA.resource);
+			const opened = { ...grid(), revealed: [...revealed] };
+			sideChatsInSidePane.get(view)!.set(false, undefined);
+
+			assert.deepStrictEqual({ before, inSidePane, opened, after: grid() }, {
+				before: { active: 'sideA', tabs: ['mainA', 'peerA', 'sideA'] },
+				inSidePane: { active: 'peerA', tabs: ['mainA', 'peerA'] },
+				opened: { active: 'peerA', tabs: ['mainA', 'peerA'], revealed: ['/chat/sideA'] },
+				after: { active: 'peerA', tabs: ['mainA', 'peerA', 'sideA'] },
+			});
+		});
+
+		test('a side chat opened before its session loads opens where a surface claims it once it loads, not in the grid', async () => {
+			const mainA = chat('mainA');
+			const sideA: IChat = { ...chat('sideA'), origin: { kind: ChatOriginKind.SideChat, parentChat: mainA.resource } };
+			const chats = observableValue<readonly IChat[]>('chats', [mainA]);
+			const loading = observableValue('loading', true);
+			const sessionA = { ...multiChatSession('A', [mainA]), chats, loading };
+			const { view } = setup([sessionA]);
+			sideChatsInSidePane.get(view)!.set(true, undefined);
+			const revealed: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: () => false,
+				claimsChat: claimed => chats.get().includes(sideA) && claimed.toString() === sideA.resource.toString(),
+				reveal: async shown => { revealed.push(shown.path); },
+				openBeside: async () => { },
+				close: async () => undefined,
+			}));
+
+			const opening = view.openChat(sessionA, sideA.resource);
+			await timeout(0);
+			chats.set([mainA, sideA], undefined);
+			loading.set(false, undefined);
+			await opening;
+
+			assert.deepStrictEqual({ revealed, active: activeChatOf(view)?.title.get() }, { revealed: ['/chat/sideA'], active: 'mainA' });
+		});
+
+		test('a side chat that was the active chat restores as the chat it came from while side chats show in the side pane', async () => {
+			const peerA = chat('peerA');
+			const sideA: IChat = { ...chat('sideA'), origin: { kind: ChatOriginKind.SideChat, parentChat: peerA.resource } };
+			const sessionA = multiChatSession('A', [chat('mainA'), peerA, sideA]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sideA.resource);
+			await view.openSession(sessionB.resource);
+			sideChatsInSidePane.get(view)!.set(true, undefined);
+			await view.openSession(sessionA.resource);
+
+			assert.strictEqual(activeChatOf(view)?.title.get(), 'peerA');
+		});
+
 		test('the active subagent chat is restored after switching sessions', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA'), chat('subagentA', SessionStatus.Completed, ChatOriginKind.Tool)]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);
@@ -9842,6 +9922,25 @@ suite('SessionsManagementService', () => {
 			await view.openChat(sessionB, newB.resource, { referenceChatResource: mainB.resource });
 
 			assert.deepStrictEqual({ beside, active: activeChatOf(view)?.title.get() }, { beside: [], active: 'newB' });
+		});
+
+		test('a chat opened with a reference chat that a surface shows but does not open beside it opens in the grid', async () => {
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('forkB', SessionStatus.Completed, ChatOriginKind.Fork)]);
+			const [mainB, forkB] = sessionB.chats.get();
+			const { view } = setup([sessionB]);
+			await view.openSession(sessionB.resource);
+			const beside: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === mainB.resource.toString(),
+				opensBeside: () => false,
+				reveal: async () => { },
+				openBeside: async opened => { beside.push(opened.path); },
+				close: async () => ({ restore: async () => { } }),
+			}));
+
+			await view.openChat(sessionB, forkB.resource, { referenceChatResource: mainB.resource });
+
+			assert.deepStrictEqual({ beside, active: activeChatOf(view)?.title.get() }, { beside: [], active: 'forkB' });
 		});
 
 		test('a session-list open selects the main chat instead of the previously active chat', async () => {

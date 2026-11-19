@@ -8,7 +8,7 @@ import { equals } from '../../../base/common/arrays.js';
 import { raceTimeout, RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment, OperatingSystem, OS } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -27,6 +27,7 @@ import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { isUnattendedRestartSupported, IUpdateService, RESTART_WHEN_IDLE_SETTING, StateType } from '../common/update.js';
 import { getRelaunchArguments } from './updateRelaunchArguments.js';
+import { createPowerSaveBlocker, isOnBatteryPower, onDidChangeOnBatteryPower } from '../../native/electron-main/power.js';
 
 /**
  * How long the screen must stay locked before restarting. When everything would work as the
@@ -106,24 +107,21 @@ export interface IUnattendedRestartHost {
 }
 
 function createElectronHost(): IUnattendedRestartHost {
-	const { app, BrowserWindow, powerMonitor, powerSaveBlocker } = electron;
+	const { app, BrowserWindow, powerMonitor } = electron;
 
 	return {
 		onDidLockScreen: Event.fromNodeEventEmitter<void>(powerMonitor, 'lock-screen'),
 		onDidUnlockScreen: Event.fromNodeEventEmitter<void>(powerMonitor, 'unlock-screen'),
 		onDidSuspend: Event.fromNodeEventEmitter<void>(powerMonitor, 'suspend'),
 		onDidResume: Event.fromNodeEventEmitter<void>(powerMonitor, 'resume'),
-		onDidSwitchToBattery: Event.fromNodeEventEmitter<void>(powerMonitor, 'on-battery'),
+		onDidSwitchToBattery: Event.map(Event.filter(onDidChangeOnBatteryPower, onBattery => onBattery), () => undefined),
 		onDidChangeThermalState: Event.map(Event.fromNodeEventEmitter<{ state: ThermalState }>(powerMonitor, 'thermal-state-change'), e => e.state),
 		onDidBlurWindow: Event.fromNodeEventEmitter<void>(app, 'browser-window-blur'),
 		isWindowFocused: () => !!BrowserWindow.getFocusedWindow(),
 		getIdleState: () => powerMonitor.getSystemIdleState(60),
-		isOnBatteryPower: () => powerMonitor.isOnBatteryPower(),
+		isOnBatteryPower,
 		getThermalState: () => powerMonitor.getCurrentThermalState(),
-		preventSleep: () => {
-			const id = powerSaveBlocker.start('prevent-app-suspension');
-			return toDisposable(() => powerSaveBlocker.stop(id));
-		},
+		preventSleep: () => createPowerSaveBlocker('prevent-app-suspension'),
 	};
 }
 

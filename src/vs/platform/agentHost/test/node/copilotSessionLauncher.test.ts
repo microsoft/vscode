@@ -20,7 +20,6 @@ import { isLinux } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
-import { ICopilotApiService, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
@@ -4209,14 +4208,9 @@ suite('CopilotSessionLauncher resume config', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Builds a launcher over a config service stubbed with a fixed root-value bag. */
-	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition> & Record<string, unknown>, fileContents?: string | (() => string), isInternalAccount?: (token: string) => Promise<boolean>): CopilotSessionLauncher {
+	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition> & Record<string, unknown>, fileContents?: string | (() => string)): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
-		if (isInternalAccount) {
-			services.set(ICopilotApiService, upcastPartial<ICopilotApiService>({
-				resolveRestrictedTelemetryContext: async token => upcastPartial<IRestrictedTelemetryContext>({ isInternal: await isInternalAccount(token) }),
-			}));
-		}
 		services.set(ICopilotHomeService, { _serviceBrand: undefined, home: URI.file('/copilot-home'), source: 'userHome' });
 		services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
 		services.set(IAgentHostManagedSettingsService, store.add(new AgentHostManagedSettingsService()));
@@ -4600,25 +4594,17 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
-	test('sends the security-review secret detection flag only for an opted-in internal account', async () => {
+	test('sends the security-review secret detection flag when opted in', async () => {
 		const store = disposables.add(new DisposableStore());
-		const opted = { [CopilotCliConfigKey.SecurityReviewSecretDetection]: true };
-		const flag = async (values: Record<string, unknown>, isInternalAccount?: (token: string) => Promise<boolean>) =>
-			(await buildResumeConfig(createLauncher(store, values, undefined, isInternalAccount), { id: 'gpt-5' })).experiments?.flags?.SECURITY_REVIEW_FINE_TUNED_MODEL;
-		const checkedTokens: string[] = [];
+		const flag = async (values: Record<string, unknown>) =>
+			(await buildResumeConfig(createLauncher(store, values), { id: 'gpt-5' })).experiments?.flags?.SECURITY_REVIEW_FINE_TUNED_MODEL;
 
 		assert.deepStrictEqual({
-			notOptedIn: await flag({}, async () => true),
-			internal: await flag(opted, async token => { checkedTokens.push(token); return true; }),
-			external: await flag(opted, async () => false),
-			lookupFailed: await flag(opted, async () => { throw new Error('offline'); }),
-			checkedTokens,
+			notOptedIn: await flag({}),
+			optedIn: await flag({ [CopilotCliConfigKey.SecurityReviewSecretDetection]: true }),
 		}, {
 			notOptedIn: false,
-			internal: true,
-			external: false,
-			lookupFailed: false,
-			checkedTokens: ['token'],
+			optedIn: true,
 		});
 	});
 
