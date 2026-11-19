@@ -107,7 +107,6 @@ export interface ICustomizationRemote {
 	readonly pickerUnavailableReason?: string;
 	readonly metadata?: IRemoteMetadata;
 	readonly metadataIsStale?: boolean;
-	readonly systemMetadataIsStale?: boolean;
 	readonly lastHeartbeatAt?: number;
 	readonly reportedSessionCount?: number;
 	/** Whether this remote's agent host can be shared as a GitHub environment now. */
@@ -1065,7 +1064,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		this.onlineObservations.set(this.getPickerKey(target), Date.now());
 	}
 
-	private getMetadata(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, status: RemoteAgentHostConnectionStatus, reader?: IReader): Pick<ICustomizationRemote, 'metadata' | 'metadataIsStale' | 'systemMetadataIsStale'> {
+	private getMetadata(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, status: RemoteAgentHostConnectionStatus, reader?: IReader): Pick<ICustomizationRemote, 'metadata' | 'metadataIsStale'> {
 		const pickerKey = this.getPickerKey(target);
 		const key = `${metadataKeyPrefix}${pickerKey}`;
 		const previous = this.readMetadata(key);
@@ -1112,11 +1111,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			metadata = { ...next, observedAt: observedChanged ? now : previous.observedAt };
 			this.storageService.store(key, metadata, StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
-		const systemMetadataIsStale = previous?.operatingSystem !== undefined && operatingSystem === undefined
-			|| previous?.architecture !== undefined && resources?.architecture === undefined
-			|| previous?.cpuCount !== undefined && resources?.cpuCount === undefined
-			|| previous?.memoryBytes !== undefined && resources?.memoryBytes === undefined;
-		return { metadata, metadataIsStale: !live || sessionListVersion === 0, systemMetadataIsStale };
+		return { metadata, metadataIsStale: !live || sessionListVersion === 0 };
 	}
 
 	private update(reader?: IReader): void {

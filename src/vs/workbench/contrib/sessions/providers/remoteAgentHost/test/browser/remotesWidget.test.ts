@@ -698,17 +698,16 @@ suite('RemotesWidget', () => {
 		const base = model.remotes.get()[0];
 		const heightBefore = parent.querySelector('[data-remote-id]')!.getBoundingClientRect().height;
 		model.remotes.set([
-			{ ...base, detail: 'developer@build.example:2222', systemMetadataIsStale: true, metadata: { operatingSystem: OperatingSystem.Linux, architecture: 'arm64', cpuCount: 8, memoryBytes: 16 * 1024 ** 3, observedAt: 1 } },
+			{ ...base, detail: 'developer@build.example:2222', metadata: { operatingSystem: OperatingSystem.Linux, architecture: 'arm64', cpuCount: 8, memoryBytes: 16 * 1024 ** 3, observedAt: 1 } },
 			{ ...base, id: 'ssh:other', detail: 'developer@other.example', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 		], undefined);
 		widget.setSearchQuery('arm64');
 		assert.deepStrictEqual({
-			identity: parent.querySelector('[data-remote-id] .remotes-identity-column')?.textContent,
 			system: parent.querySelector('[data-remote-id] .remotes-system-column')?.textContent,
 			systemTooltip: hoverContents.get(parent.querySelector<HTMLElement>('[data-remote-id] .remotes-system-column .remotes-metadata')!),
 			rows: parent.querySelectorAll('[data-remote-id]').length,
 			heights: [heightBefore, parent.querySelector('[data-remote-id]')!.getBoundingClientRect().height],
-		}, { identity: undefined, system: 'Linux', systemTooltip: 'Linux \u00b7 arm64\nCPUs: 8\nMemory: 16 GiB', rows: 1, heights: [28, 28] });
+		}, { system: 'Linux', systemTooltip: 'Linux \u00b7 arm64\nCPUs: 8\nMemory: 16 GiB', rows: 1, heights: [28, 28] });
 	});
 
 	test('GitHub heartbeat information is visible without connecting, while opaque registration IDs are not presentation or search fields', () => {
@@ -722,12 +721,12 @@ suite('RemotesWidget', () => {
 		const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
 		const activity = row.querySelector('.remotes-activity-column')?.textContent;
 		const tooltip = hoverContents.get(row.querySelector<HTMLElement>('.remotes-activity-column .remotes-metadata')!);
-		const address = row.querySelector('.remotes-identity-column')?.textContent;
+		const address = row.textContent?.includes('opaque-registration');
 		widget.setSearchQuery('opaque-registration');
 		const opaqueMatches = parent.querySelectorAll('[data-remote-id]').length;
 		widget.setSearchQuery('last seen');
 		assert.deepStrictEqual({ activity, tooltip, address, opaqueMatches, heartbeatMatches: parent.querySelectorAll('[data-remote-id]').length, connections: model.connectionChanges }, {
-			activity: '1 hr ago', tooltip: '2 sessions\nLast seen: 1 hr ago', address: undefined, opaqueMatches: 0, heartbeatMatches: 1, connections: [],
+			activity: '1 hr ago', tooltip: '2 sessions\nLast seen: 1 hr ago', address: false, opaqueMatches: 0, heartbeatMatches: 1, connections: [],
 		});
 	});
 
@@ -751,10 +750,9 @@ suite('RemotesWidget', () => {
 	test('Filter is the only search action and precedes the separate Refresh control', () => {
 		const { parent } = createWidget();
 		assert.deepStrictEqual({
-			chips: parent.querySelector('.remotes-type-filter'),
 			actions: [...parent.querySelectorAll('.remotes-header-actions .monaco-button')].map(element => element.getAttribute('aria-label')),
 			searchActions: [...parent.querySelectorAll('.remotes-search-container .action-label')].map(element => element.getAttribute('aria-label')),
-		}, { chips: null, actions: ['Refresh the list of remote environments without connecting'], searchActions: ['Filter'] });
+		}, { actions: ['Refresh the list of remote environments without connecting'], searchActions: ['Filter'] });
 	});
 
 	test('stopped WSL distributions are not connected but can be started, not grouped as offline', () => {
@@ -813,7 +811,6 @@ suite('RemotesWidget', () => {
 		]);
 		const overview = parent.querySelector<HTMLElement>('.remotes-overview')!;
 		assert.deepStrictEqual({
-			duplicateStatus: !!overview.querySelector('.remotes-connection-column'),
 			diagnosis: overview.textContent?.includes('Reached through a jump host.'),
 			announced: widget.getAccessibilityContent().includes('Reached through a jump host.'),
 			available: overview.querySelector('.remotes-available-group .remotes-name')?.textContent,
@@ -825,7 +822,7 @@ suite('RemotesWidget', () => {
 				};
 			}),
 		}, {
-			duplicateStatus: false, diagnosis: false, announced: false, available: 'Available',
+			diagnosis: false, announced: false, available: 'Available',
 			states: [
 				{ status: 'Offline', action: undefined },
 				{ status: 'Available', action: 'Connect' },
@@ -962,12 +959,11 @@ suite('RemotesWidget', () => {
 		parent.querySelector<HTMLElement>('.remotes-header-actions .monaco-button')!.click();
 		await timeout(0);
 		assert.deepStrictEqual({
-			addButton: parent.querySelector('.remotes-add'),
 			headerButtons: parent.querySelectorAll('.remotes-search-controls .monaco-button').length,
 			refreshes: model.refreshCalls,
 			connections: model.connectionChanges,
 		}, {
-			addButton: null, headerButtons: 1, refreshes: 1, connections: [],
+			headerButtons: 1, refreshes: 1, connections: [],
 		});
 	});
 
@@ -1336,23 +1332,20 @@ suite('RemotesWidget', () => {
 
 	test('compact row actions preserve connection progress without a redundant status column', async () => {
 		const { parent, model } = createWidget(OperatingSystem.Windows, 'status');
-		const visibleStatuses = () => [...parent.querySelectorAll('.remotes-connection-column:not([hidden]) .remotes-connection-state')].map(element => element.textContent);
-		const initial = visibleStatuses();
 		model.pendingConnection = new DeferredPromise<void>();
 		getConnectionAction(parent, 'tunnel:laptop').click();
-		const connecting = visibleStatuses();
 		const progress = getConnectionAction(parent, 'tunnel:laptop').textContent?.trim();
 		const progressVisibleWithoutHover = dom.getWindow(parent).getComputedStyle(getConnectionAction(parent, 'tunnel:laptop').parentElement!).opacity;
 		const rowHeight = parent.querySelector('[data-remote-id="tunnel:laptop"]')!.getBoundingClientRect().height;
 		await model.pendingConnection.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
-			initial, connecting, connected: visibleStatuses(), progress, rowHeight, progressVisibleWithoutHover,
+			progress, rowHeight, progressVisibleWithoutHover,
 			sessionButtonsPrimary: [...parent.querySelectorAll('.remotes-new-session')].every(button => !button.classList.contains('secondary')),
 			connectionButtonsSecondary: [...parent.querySelectorAll('.remotes-connect-action')].every(button => button.classList.contains('secondary')),
 			spinnerDisplayAfterCompletion: dom.getWindow(parent).getComputedStyle(getConnectionAction(parent, 'tunnel:laptop').querySelector<HTMLElement>('.codicon-loading')!).display,
 		}, {
-			initial: [], connecting: [], connected: [], progress: 'Connecting', rowHeight: 28, progressVisibleWithoutHover: '1', sessionButtonsPrimary: true, connectionButtonsSecondary: true, spinnerDisplayAfterCompletion: 'none',
+			progress: 'Connecting', rowHeight: 28, progressVisibleWithoutHover: '1', sessionButtonsPrimary: true, connectionButtonsSecondary: true, spinnerDisplayAfterCompletion: 'none',
 		});
 	});
 
@@ -2030,9 +2023,8 @@ suite('RemotesWidget', () => {
 		parent.style.setProperty('--vscode-spacing-size80', '8px');
 		assert.deepStrictEqual({
 			groups: parent.querySelectorAll('.monaco-list-row[aria-expanded] .remotes-group-chevron').length > 0,
-			gutter: parent.querySelector('.remotes-gutter-column'),
 			firstColumn: parent.querySelector('.monaco-table-th')!.textContent,
-		}, { groups: true, gutter: null, firstColumn: 'Name' });
+		}, { groups: true, firstColumn: 'Name' });
 	});
 
 	test('Name owns group disclosures and Status is a separate labelled column through resizing', async () => {
@@ -3257,19 +3249,16 @@ suite('RemotesWidget', () => {
 	});
 
 	test('confirmed offline environments omit connection and refresh actions but retain management actions', async () => {
-		const { parent, model, configRequests } = createWidget();
-		model.remotes.set([{ id: 'ssh:unavailable', kind: 'ssh', name: 'Unavailable', detail: 'Host', canRemove: false, unavailableReason: 'Unavailable host', availability: 'offline', connectionStatus: RemoteAgentHostConnectionStatus.disconnected }], undefined);
-		const control = getConnectionAction(parent, 'ssh:unavailable');
+		const { parent, model } = createWidget();
+		model.remotes.set([{ id: 'tunnel:unavailable', kind: 'tunnel', name: 'Unavailable', detail: 'Host', canRemove: false, unavailableReason: 'Unavailable host', availability: 'offline', connectionStatus: RemoteAgentHostConnectionStatus.disconnected }], undefined);
+		const control = getConnectionAction(parent, 'tunnel:unavailable');
 		control.click();
-		await timeout(0);
-		runMenuAction(parent, 'ssh:unavailable', 'configureSSH');
 		await timeout(0);
 		assert.deepStrictEqual({
 			actionHidden: control.hidden, changes: model.connectionChanges, refreshes: model.refreshCalls,
-			menuAction: !!findMenuAction(parent, 'ssh:unavailable', 'actions'),
-			renameDisabled: !getMenuAction(parent, 'ssh:unavailable', 'rename').enabled,
-			configurationOpened: configRequests(),
-		}, { actionHidden: true, changes: [], refreshes: 0, menuAction: false, renameDisabled: false, configurationOpened: 1 });
+			menuAction: !!findMenuAction(parent, 'tunnel:unavailable', 'actions'),
+			renameDisabled: !getMenuAction(parent, 'tunnel:unavailable', 'rename').enabled,
+		}, { actionHidden: true, changes: [], refreshes: 0, menuAction: false, renameDisabled: false });
 	});
 
 	test('offline transitions remove Connect and recover focus', () => {
@@ -3309,18 +3298,17 @@ suite('RemotesWidget', () => {
 			model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, connectionStatus } : remote), undefined);
 			const action = getConnectionAction(parent, 'ssh:build');
 			return {
-				status: parent.querySelector('[data-remote-id="ssh:build"] .remotes-connection-state')?.textContent,
 				action: action.getAttribute('aria-label'),
 				disabled: action.getAttribute('aria-disabled') === 'true',
 			};
 		});
 		assert.deepStrictEqual({ observed, accessible: widget.getAccessibilityContent().includes('Status: Update required') }, {
 			observed: [
-				{ status: undefined, action: 'Disconnect Build server', disabled: false },
-				{ status: undefined, action: 'Connect to Build server', disabled: false },
-				{ status: undefined, action: 'Connecting: Build server', disabled: true },
-				{ status: undefined, action: 'Reconnecting: Build server', disabled: true },
-				{ status: undefined, action: 'Connect to Build server. Update required: Update required', disabled: false },
+				{ action: 'Disconnect Build server', disabled: false },
+				{ action: 'Connect to Build server', disabled: false },
+				{ action: 'Connecting: Build server', disabled: true },
+				{ action: 'Reconnecting: Build server', disabled: true },
+				{ action: 'Connect to Build server. Update required: Update required', disabled: false },
 			],
 			accessible: false,
 		});
@@ -3502,7 +3490,7 @@ suite('RemotesWidget', () => {
 		const snapshot = () => [...parent.querySelectorAll('.remotes-group-row')].map(row => ({
 			name: row.querySelector('.remotes-name')?.textContent,
 			busy: row.parentElement?.getAttribute('aria-busy'),
-			spinning: !!row.querySelector('.remotes-group-count ~ .remotes-group-progress:not([hidden]) .codicon-modifier-spin'),
+			spinning: !!row.querySelector('.remotes-name-column .codicon-modifier-spin'),
 		}));
 		const started = snapshot();
 		const progress = model.refreshProgress[0];
@@ -3510,7 +3498,7 @@ suite('RemotesWidget', () => {
 		const partial = snapshot();
 		const tunnelGroup = [...parent.querySelectorAll<HTMLElement>('.remotes-group-row')].find(row => row.querySelector('.remotes-name')?.textContent === 'Dev Tunnels')!;
 		tunnelGroup.closest<HTMLElement>('.monaco-list-row')!.click();
-		const collapsedSpinner = !!tunnelGroup.querySelector('.remotes-group-progress:not([hidden]) .codicon-modifier-spin');
+		const collapsedSpinner = !!tunnelGroup.querySelector('.remotes-name-column .codicon-modifier-spin');
 		const accessible = widget.getAccessibilityContent().includes('Dev Tunnels\nRefreshing.');
 		await model.pendingRefresh.complete(['tunnel']);
 		await timeout(0);

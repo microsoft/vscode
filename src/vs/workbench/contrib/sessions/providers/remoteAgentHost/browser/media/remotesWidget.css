@@ -100,7 +100,6 @@
 	overflow-wrap: anywhere;
 }
 
-.remotes-sharing-question,
 .remotes-run-question {
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
@@ -472,8 +471,7 @@
 
 .remotes-widget .remotes-name,
 .remotes-widget .remotes-name-detail,
-.remotes-widget .remotes-empty-description,
-.remotes-widget .remotes-connection-state {
+.remotes-widget .remotes-empty-description {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;

@@ -481,15 +481,13 @@ suite('RemotesModel', () => {
 				kind: live.kind,
 				resources: [live.metadata?.operatingSystem, live.metadata?.architecture, live.metadata?.cpuCount, live.metadata?.memoryBytes],
 				loadingSessions: live.metadata?.observedSessionCount,
-				liveSystemStale: live.systemMetadataIsStale,
 				retained: cached.metadata?.architecture,
-				cachedSystemStale: cached.systemMetadataIsStale,
 			});
 		}
 		assert.deepStrictEqual({ samples, connectionChanges }, {
 			samples: ['ssh', 'wsl', 'tunnel', 'environment'].map(kind => ({
 				kind, resources: [OperatingSystem.Linux, 'arm64', 8, 16 * 1024 ** 3],
-				loadingSessions: undefined, liveSystemStale: false, retained: 'arm64', cachedSystemStale: true,
+				loadingSessions: undefined, retained: 'arm64',
 			})),
 			connectionChanges: [],
 		});

@@ -382,13 +382,11 @@ suite('RemotesEditor', () => {
 			hiddenBeforeSharing, offeredWhileSharing,
 			prompt: prompts.map(prompt => ({ title: prompt?.title, value: prompt?.value })),
 			configuredName: configuration.getValue(CONFIGURATION_KEY_HOST_NAME),
-			renameHints: container.querySelectorAll('.remotes-sharing-rename-hint').length,
 			standardToolbar: !!rename.querySelector('.monaco-toolbar .action-label.codicon-edit'),
 		}, {
 			hiddenBeforeSharing: false, offeredWhileSharing: true,
 			prompt: [{ title: 'Rename Tunnel', value: 'my-workstation' }],
 			configuredName: 'renamed-computer',
-			renameHints: 0,
 			standardToolbar: true,
 		});
 	});
@@ -793,7 +791,6 @@ suite('RemotesEditor', () => {
 			tableVisible: !container.querySelector<HTMLElement>('.remotes-editor-table')!.hidden,
 			nameVisible: container.querySelector<HTMLElement>('.remotes-this-computer-name')!.getBoundingClientRect().height > 0,
 			name: container.querySelector('.remotes-this-computer-name')?.textContent,
-			duplicateName: container.querySelector('.remotes-sharing-name-field'),
 			back: container.querySelector('.remotes-task-navigation'),
 			actionsInHeading: !!start.closest('.remotes-this-computer-heading'),
 			actions: [...start.parentElement!.children].map(element => element.textContent),
@@ -804,7 +801,7 @@ suite('RemotesEditor', () => {
 			unchanged: configuration.getValue(AgentHostRemoteConnectionsSettingId),
 		}, {
 			disclosures: 0, tableVisible: true, nameVisible: true, name: 'My Workstation (Code - OSS)',
-			duplicateName: null, back: null, actionsInHeading: true,
+			back: null, actionsInHeading: true,
 			actions: isWindows ? ['Start Sharing', 'Cancel'] : ['Cancel', 'Start Sharing'],
 			collapsedActions: ['Share This Computer'],
 			visibleActions: isWindows ? ['Start Sharing', 'Cancel'] : ['Cancel', 'Start Sharing'],

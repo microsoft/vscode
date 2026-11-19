@@ -474,8 +474,6 @@ export class RemotesWidget extends Disposable {
 				void this.signInToTunnels();
 			} else if (action === 'connect') {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
-			} else if (action === 'configure' && entry.remote.kind === 'ssh') {
-				void this.openConfiguration('ssh');
 			} else if (action === 'newSession') {
 				void this.newSession(entry.remote.id);
 			} else if (action === 'rename') {
@@ -1214,7 +1212,6 @@ export class RemotesWidget extends Disposable {
 	 */
 	setHeading(label: string | undefined): void {
 		this.heading.hidden = !label;
-		this.overview.classList.toggle('remotes-section', !!label);
 		this.headingTitle.textContent = label ?? '';
 		if (label) {
 			this.domNode.setAttribute('role', 'region');

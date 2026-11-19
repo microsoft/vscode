@@ -295,10 +295,6 @@ export function getConnectionLabel(remote: ICustomizationRemote, connecting?: bo
 	return getConnectionPresentation(remote, connecting).label;
 }
 
-export function getConnectionIcon(remote: ICustomizationRemote, connecting?: boolean): ThemeIcon | undefined {
-	return getConnectionPresentation(remote, connecting).icon;
-}
-
 export function renderConnectionStatus(container: HTMLElement, remote: ICustomizationRemote, connecting?: boolean): void {
 	const presentation = getConnectionPresentation(remote, connecting);
 	renderStatusIndicator(container, presentation.icon, presentation.state);
@@ -669,7 +665,6 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				// Those the environment picker can't select, such as GitHub Environments, can't start sessions from here.
 				const showNewSession = showConnection && RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus) && !entry.remote.pickerUnavailableReason;
 				const pending = isConnectionPending(entry);
-				const offline = showConnection && isRemoteOffline(entry.remote);
 				const problem = showConnection && !pending ? getConnectionProblem(entry.remote) : undefined;
 				const canConnect = showConnect && canConnectToRemote(entry.remote);
 				const signIn = showConnection && entry.remote.requiresTunnelSignIn;
@@ -803,12 +798,6 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						showCopyAddress ? [menuAction(template.copyAddress, 'copyAddress')] : [],
 						[
 							menuAction(template.rename, 'rename'),
-							...(offline && entry.remote.kind === 'ssh' ? [toAction({
-								id: 'remotes.configureSSH',
-								label: localize('remotes.openSSHConfiguration', "Open SSH Configuration"),
-								enabled: !entry.busy,
-								run: () => this.onAction(entry, 'configure'),
-							})] : []),
 							...(showLocationPreference ? [menuAction(template.locationPreference, 'locationPreference')] : []),
 							...(showExtension ? [menuAction(template.showExtension, 'showExtension')] : []),
 							...(showUpdate ? [menuAction(template.updateServer, 'updateServer')] : []),
