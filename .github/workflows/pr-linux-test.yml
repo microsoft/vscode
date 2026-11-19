@@ -54,6 +54,10 @@ on:
         type: string
         default: vscode-large-runners-ubuntu-8-core
 
+permissions:
+  contents: read
+  actions: read
+
 env:
   NPM_ARCH: x64
   VSCODE_ARCH: x64
