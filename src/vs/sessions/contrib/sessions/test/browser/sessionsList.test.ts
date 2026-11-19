@@ -6175,7 +6175,7 @@ suite('Sessions - SessionsList', () => {
 						const step = (await payload.resolveSteps!())[0];
 						targetId = step.targetId;
 						const description = typeof step.description === 'string' ? step.description : step.description.value;
-						navigationExplained = description.includes(hasNext ? 'Inbox opened the next session.' : 'focus moved to the Inbox heading.');
+						navigationExplained = description.includes(hasNext ? 'Inbox opened the next session.' : 'Inbox is now empty.');
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();

@@ -49,10 +49,10 @@ export class InboxAutoAdvanceSpotlight extends Disposable {
 							id: 'repliedSession',
 							targetId: target.targetId,
 							title: localize('inboxAutoAdvanceSpotlight.title', "Your session is here"),
-							description: new MarkdownString(localize('inboxAutoAdvanceSpotlight.description', "This is the session you replied to. It appears in Working while the agent processes your reply and returns to Inbox when it needs attention. {0} Choose Return to Session or select the session in the sidebar to return to the conversation. You can turn off automatic navigation in the [Inbox Auto Advance]({1}) setting.",
+							description: new MarkdownString(localize('inboxAutoAdvanceSpotlight.description', "Your reply moved to Working. {0} [Change auto-advance]({1}).",
 								this.hasNext
 									? localize('inboxAutoAdvanceSpotlight.next', "Inbox opened the next session.")
-									: localize('inboxAutoAdvanceSpotlight.empty', "No Inbox sessions remain, so focus moved to the Inbox heading."),
+									: localize('inboxAutoAdvanceSpotlight.empty', "Inbox is now empty."),
 								settingsLink,
 							), { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }),
 							onDidClickLink: link => {

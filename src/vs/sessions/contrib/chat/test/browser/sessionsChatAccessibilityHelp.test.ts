@@ -81,7 +81,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			noNotification: content.includes('in Working instead of showing a notification'),
 			returnAction: content.includes('Choose Return to Session'),
 			dismiss: content.includes('press Escape or Got It to dismiss the spotlight'),
-			settingsLink: content.includes('The Inbox Auto Advance link in the spotlight opens this setting.'),
+			settingsLink: content.includes('The Change auto-advance link in the spotlight opens this setting.'),
 		}, { toggle: true, toggleKeyboard: true, restoreGrouping: true, screenReaderDefault: true, explicitChoices: true, automaticSpotlight: true, noNotification: true, returnAction: true, dismiss: true, settingsLink: true });
 	});
 
