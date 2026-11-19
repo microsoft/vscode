@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { bufferToReadable, bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -595,6 +596,34 @@ suite('File Service', () => {
 				calls: ['open', 'close'],
 				settledBeforeClose: false,
 			});
+		});
+	}
+
+	for (const mode of ['copy', 'move'] as const) {
+		test(`cancelling a ${mode} across providers stops the transfer and removes the partial target`, async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const cts = disposables.add(new CancellationTokenSource());
+			const sourceProvider = disposables.add(new class extends InMemoryFileSystemProvider {
+				reads = 0;
+				override async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+					this.reads++;
+					cts.cancel();
+					return super.read(fd, pos, data, offset, length);
+				}
+			}());
+			disposables.add(service.registerProvider('source', sourceProvider));
+			disposables.add(service.registerProvider('target', disposables.add(new InMemoryFileSystemProvider())));
+			const source = URI.parse('source:/large');
+			const target = URI.parse('target:/large');
+			await service.writeFile(source, VSBuffer.alloc(1024 * 1024));
+
+			await assert.rejects(mode === 'copy' ? service.copy(source, target, false, cts.token) : service.move(source, target, false, undefined, cts.token), CancellationError);
+
+			assert.deepStrictEqual({
+				reads: sourceProvider.reads,
+				sourceExists: await service.exists(source),
+				targetExists: await service.exists(target),
+			}, { reads: 1, sourceExists: true, targetExists: false });
 		});
 	}
 
