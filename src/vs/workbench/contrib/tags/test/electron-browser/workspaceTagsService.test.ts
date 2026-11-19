@@ -20,7 +20,7 @@ import { WorkspaceTagsService } from '../../electron-browser/workspaceTagsServic
 suite('WorkspaceTagsService - Cargo', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function collectTags(nestedResult: FileOperationResult) {
+	async function collectTags(nestedResult: FileOperationResult, oversized?: 'member' | 'ancestor') {
 		const root = URI.parse('test:/repo');
 		const nested = URI.joinPath(root, 'nested');
 		const members = [URI.joinPath(nested, 'first'), URI.joinPath(nested, 'second')];
@@ -37,7 +37,7 @@ suite('WorkspaceTagsService - Cargo', () => {
 			}))
 		});
 		const textFileService = upcastPartial<ITextFileService>({
-			read: async resource => {
+			read: async (resource, options) => {
 				reads.push(resource.path);
 				if (extUri.isEqual(resource, manifest(nested))) {
 					throw new FileOperationError('nested manifest unavailable', nestedResult);
@@ -49,6 +49,12 @@ suite('WorkspaceTagsService - Cargo', () => {
 					value = contents;
 				} else {
 					throw new Error('Unexpected manifest read');
+				}
+				if ((oversized === 'ancestor' && extUri.isEqual(resource, manifest(root))) || (oversized === 'member' && members.some(member => extUri.isEqual(resource, manifest(member))))) {
+					value += `\n#${'x'.repeat(1024 * 1024)}`;
+				}
+				if (options?.limits?.size !== undefined && Buffer.byteLength(value) > options.limits.size) {
+					throw new FileOperationError('manifest exceeds read limit', FileOperationResult.FILE_TOO_LARGE);
 				}
 				return { ...createFileStat(resource), encoding: 'utf8', value };
 			}
@@ -80,6 +86,16 @@ suite('WorkspaceTagsService - Cargo', () => {
 		], [
 			[true, true, 1, 1, 0],
 			[true, undefined, 1, 0, 2]
+		]);
+	});
+
+	test('skips oversized opened and ancestor manifests while preserving direct tags', async () => {
+		assert.deepStrictEqual([
+			await collectTags(FileOperationResult.FILE_NOT_FOUND, 'member'),
+			await collectTags(FileOperationResult.FILE_NOT_FOUND, 'ancestor')
+		], [
+			[undefined, undefined, 0, 0, 2],
+			[true, undefined, 1, 1, 2]
 		]);
 	});
 });

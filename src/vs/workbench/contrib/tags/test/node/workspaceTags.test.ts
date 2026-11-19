@@ -389,7 +389,7 @@ client.workspace = true
 		]);
 	});
 
-	test('Cargo workspace membership honors member patterns and exclusions', async () => {
+	test('Cargo workspace discovery respects exclusions without requiring membership proof', async () => {
 		const root = URI.parse('test:/repo');
 		const workspace = `
 [workspace]
@@ -421,7 +421,7 @@ client = { package = "reqwest", version = "1" }
 			results,
 			reads.every((foldersRead, index) => foldersRead.every(path => extUri.isEqualOrParent(URI.joinPath(root, paths[index]), root.with({ path }))))
 		], [
-			[['reqwest'], ['reqwest'], [], ['reqwest'], [], ['reqwest'], []],
+			[['reqwest'], ['reqwest'], [], ['reqwest'], ['reqwest'], ['reqwest'], []],
 			true
 		]);
 	});
@@ -461,7 +461,7 @@ client = { package = "reqwest", version = "1" }
 		assert.deepStrictEqual(results, [['reqwest'], ['reqwest'], ['reqwest']]);
 	});
 
-	test('Cargo workspace membership follows local and inherited path dependencies', async () => {
+	test('Cargo workspace discovery does not read other members or path dependencies', async () => {
 		const root = URI.parse('test:/repo');
 		const first = URI.joinPath(root, 'crates', 'first');
 		const intermediate = URI.joinPath(root, 'libs', 'intermediate');
@@ -484,159 +484,47 @@ client = { package = "reqwest", version = "1" }
 		assert.deepStrictEqual([
 			getCargoDependencyNames(contents, direct),
 			getCargoDependencyNames(contents, inherited),
-			reads.slice(0, 5)
+			reads
 		], [
 			['reqwest'],
 			['reqwest'],
-			[member.path, URI.joinPath(root, 'libs').path, root.path, first.path, intermediate.path]
+			[member.path, URI.joinPath(root, 'libs').path, root.path, member.path, URI.joinPath(root, 'libs').path, root.path]
 		]);
 	});
 
-	test('Cargo follows external path dependencies that belong to the same workspace', async () => {
-		const outer = URI.parse('test:/repo');
-		const root = URI.joinPath(outer, 'workspace');
-		const entry = URI.joinPath(root, 'entry');
-		const group = URI.joinPath(outer, 'group');
-		const external = URI.joinPath(group, 'external');
-		const member = URI.joinPath(outer, 'member');
-		const contents = '[package]\nworkspace = "../workspace"\n[dependencies]\nclient.workspace = true';
-		const files = new Map([
-			[root.path, '[workspace]\nmembers = ["entry"]\n[workspace.dependencies]\nclient.package = "reqwest"'],
-			[entry.path, '[dependencies]\nexternal.path = "../../group/external"'],
-			[external.path, '[package]\nworkspace = "../../workspace"\n[dependencies]\nmember.path = "../../member"'],
-			[member.path, contents]
-		]);
-		const readManifest = async (folder: URI) => files.get(folder.path);
-		const included = await getCargoWorkspaceDependenciesForFolder(member, contents, [outer], extUri, readManifest, new Map());
-		files.set(external.path, '[dependencies]\nmember.path = "../../member"');
-		files.set(group.path, '[package]\nworkspace = "../workspace"');
-		const inheritedRoot = await getCargoWorkspaceDependenciesForFolder(member, contents, [outer], extUri, readManifest, new Map());
-		files.set(group.path, '[package]\nworkspace = "../other"');
-		const otherWorkspace = await getCargoWorkspaceDependenciesForFolder(member, contents, [outer], extUri, readManifest, new Map());
-		assert.deepStrictEqual([getCargoDependencyNames(contents, included), getCargoDependencyNames(contents, inheritedRoot), otherWorkspace], [['reqwest'], ['reqwest'], undefined]);
-	});
-
-	test('Cargo discovers path dependencies from glob members within opened folders', async () => {
-		const root = URI.parse('test:/repo/[project]');
-		const apps = URI.joinPath(root, 'apps');
-		const team = URI.joinPath(apps, 'team');
-		const app = URI.joinPath(team, 'service-one');
-		const member = URI.joinPath(root, 'libs', 'shared');
-		const contents = '[dependencies]\nclient.workspace = true';
-		const workspace = '[workspace]\nmembers = ["apps/**/service-*"]\n[workspace.dependencies]\nclient.package = "reqwest"';
-		const files = new Map([
-			[root.path, workspace],
-			[app.path, '[dependencies]\nchild.path = "../../../libs/shared"'],
-			[member.path, contents]
-		]);
-		const directories = new Map([
-			[apps.path, [team]],
-			[team.path, [app]]
-		]);
-		const directoriesRead: string[] = [];
-		const readManifest = async (folder: URI) => files.get(folder.path);
-		const readDirectories = async (folder: URI) => {
-			directoriesRead.push(folder.path);
-			return directories.get(folder.path) ?? [];
-		};
-		const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map(), readDirectories);
-		const restricted = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUri, readManifest, new Map(), readDirectories);
-		const direct = await getCargoWorkspaceDependenciesForFolder(app, contents, [app], extUri, async folder =>
-			extUri.isEqual(folder, app) ? contents : files.get(folder.path), new Map(), readDirectories);
-		assert.deepStrictEqual([
-			getCargoDependencyNames(contents, resolved),
-			restricted,
-			getCargoDependencyNames(contents, direct),
-			directoriesRead
-		], [
-			['reqwest'],
-			undefined,
-			['reqwest'],
-			[apps.path, team.path, app.path]
-		]);
-	});
-
-	test('Cargo glob patterns treat braces as literal characters', async () => {
+	test('Cargo workspace discovery ignores costly member patterns and unrelated manifests', async function () {
+		this.timeout(1000);
 		const root = URI.parse('test:/repo');
-		const literal = URI.joinPath(root, 'apps', 'service-{a,b}x');
-		const expanded = URI.joinPath(root, 'apps', 'service-ax');
+		const member = URI.joinPath(root, 'a'.repeat(48));
 		const contents = '[dependencies]\nclient.workspace = true';
-		const workspace = '[workspace]\nmembers = ["apps/service-{a,b}*"]\n[workspace.dependencies]\nclient.package = "reqwest"';
-		const readManifest = async (folder: URI) => extUri.isEqual(folder, root) ? workspace : contents;
-		const included = await getCargoWorkspaceDependenciesForFolder(literal, contents, [literal], extUri, readManifest, new Map());
-		const notIncluded = await getCargoWorkspaceDependenciesForFolder(expanded, contents, [expanded], extUri, readManifest, new Map());
-		assert.deepStrictEqual([getCargoDependencyNames(contents, included), notIncluded], [['reqwest'], undefined]);
-	});
-
-	test('Cargo glob membership does not escape its specified parent directory', async () => {
-		const outer = URI.parse('test:/repo');
-		const root = URI.joinPath(outer, 'workspace');
-		const outside = URI.joinPath(outer, 'member');
-		const explicitlyIncluded = URI.joinPath(outer, 'members', 'member');
-		const outsideContents = '[package]\nworkspace = "../workspace"\n[dependencies]\nclient.workspace = true';
-		const includedContents = '[package]\nworkspace = "../../workspace"\n[dependencies]\nclient.workspace = true';
-		const dependency = '[workspace.dependencies]\nclient.package = "reqwest"';
-		const notIncluded = await getCargoWorkspaceDependenciesForFolder(outside, outsideContents, [outer], extUri, async folder =>
-			extUri.isEqual(folder, root) ? `[workspace]\nmembers = ["**"]\n${dependency}` : undefined, new Map());
-		const included = await getCargoWorkspaceDependenciesForFolder(explicitlyIncluded, includedContents, [outer], extUri, async folder =>
-			extUri.isEqual(folder, root) ? `[workspace]\nmembers = ["../members/*"]\n${dependency}` : undefined, new Map());
-		assert.deepStrictEqual([notIncluded, getCargoDependencyNames(includedContents, included)], [undefined, ['reqwest']]);
-	});
-
-	test('Cargo expands parent paths after a glob instead of normalizing away the match', async () => {
-		const root = URI.parse('test:/repo');
-		const apps = URI.joinPath(root, 'apps');
-		const member = URI.joinPath(root, 'src');
-		const contents = '[dependencies]\nclient.workspace = true';
-		const workspace = '[workspace]\nmembers = ["apps/*/../../src"]\n[workspace.dependencies]\nclient.package = "reqwest"';
-		const readManifest = async (folder: URI) => extUri.isEqual(folder, root) ? workspace : extUri.isEqual(folder, member) ? contents : undefined;
-		const included = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map(), async folder =>
-			extUri.isEqual(folder, apps) ? [URI.joinPath(apps, 'one')] : []);
-		const noMatch = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map(), async () => []);
-		assert.deepStrictEqual([getCargoDependencyNames(contents, included), noMatch], [['reqwest'], undefined]);
-	});
-
-	test('Cargo workspace membership search is bounded', async () => {
-		const root = URI.parse('test:/repo');
-		const member = URI.joinPath(root, 'unlisted');
-		const contents = '[dependencies]\nclient.workspace = true';
-		const members = Array.from({ length: 260 }, (_, index) => `"member${index}"`).join(', ');
-		const workspace = `[workspace]\nmembers = [${members}]\n[workspace.dependencies]\nclient.package = "reqwest"`;
-		let reads = 0;
+		const members = ['*a'.repeat(24) + 'b', ...Array.from({ length: 260 }, (_, index) => `member${index}`)];
+		const workspace = `[workspace]\nmembers = ${JSON.stringify(members)}\n[workspace.dependencies]\nclient.package = "reqwest"`;
+		const reads: string[] = [];
 		const readManifest = async (folder: URI) => {
-			reads++;
-			return extUri.isEqual(folder, root) ? workspace : extUri.isEqual(folder, member) ? contents : undefined;
+			reads.push(folder.path);
+			if (extUri.isEqual(folder, root)) {
+				return workspace;
+			}
+			if (extUri.isEqual(folder, member)) {
+				return contents;
+			}
+			throw new Error('Must not inspect unrelated manifests');
 		};
-		await assert.rejects(getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map()), /membership search exceeded the manifest limit/);
-		assert.strictEqual(reads, 257);
+		const dependencies = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map());
+		assert.deepStrictEqual([getCargoDependencyNames(contents, dependencies), reads], [['reqwest'], [member.path, root.path]]);
 	});
 
-	test('Cargo follows known path dependencies before scanning unrelated members', async () => {
+	test('Cargo workspace discovery needs no membership enumeration for glob path members', async () => {
 		const root = URI.parse('test:/repo');
 		const member = URI.joinPath(root, 'member');
 		const contents = '[dependencies]\nclient.workspace = true';
-		const members = Array.from({ length: 260 }, (_, index) => `"other${index}"`).join(', ');
-		const workspace = `[package]\nname = "root"\nversion = "1.0.0"\n[workspace]\nmembers = [${members}]\n[workspace.dependencies]\nclient.package = "reqwest"\n[dependencies]\nmember.path = "member"`;
+		const workspace = '[workspace]\nmembers = ["apps/**/service-[A-Z]*"]\n[workspace.dependencies]\nclient.package = "reqwest"';
 		const reads: string[] = [];
 		const dependencies = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, async folder => {
 			reads.push(folder.path);
 			return extUri.isEqual(folder, root) ? workspace : extUri.isEqual(folder, member) ? contents : undefined;
 		}, new Map());
 		assert.deepStrictEqual([getCargoDependencyNames(contents, dependencies), reads], [['reqwest'], [member.path, root.path]]);
-	});
-
-	test('Cargo workspace glob expansion is bounded', async () => {
-		const root = URI.parse('test:/repo');
-		const member = URI.joinPath(root, 'unlisted');
-		const contents = '[dependencies]\nclient.workspace = true';
-		const workspace = '[workspace]\nmembers = ["tree/**/source"]\n[workspace.dependencies]\nclient.package = "reqwest"';
-		let directoriesRead = 0;
-		await assert.rejects(getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, async folder =>
-			extUri.isEqual(folder, root) ? workspace : extUri.isEqual(folder, member) ? contents : undefined, new Map(), async folder => {
-				directoriesRead++;
-				return [URI.joinPath(folder, 'nested')];
-			}), /membership search exceeded the directory limit/);
-		assert.strictEqual(directoriesRead, 256);
 	});
 
 	test('Cargo explicit workspace overrides ancestor discovery', async () => {
@@ -737,6 +625,22 @@ client = { package = "reqwest", version = "1" }
 			undefined,
 			['/repo']
 		]);
+	});
+
+	test('Cargo file workspace pointers tolerate case changes with glob member declarations', async () => {
+		const member = URI.file(isWindows ? 'C:\\work\\Repo\\Member' : '/work/Repo/Member');
+		const contents = '[package]\nworkspace = "../../repo"\n[dependencies]\nclient.workspace = true';
+		const root = extUriIgnorePathCase.resolvePath(member, '../../repo');
+		const results: string[][] = [];
+		const reads: string[] = [];
+		for (const pattern of ['*', '[A-Z]*']) {
+			const dependencies = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUriIgnorePathCase, async folder => {
+				reads.push(folder.path);
+				return `[workspace]\nmembers = ["${pattern}"]\n[workspace.dependencies]\nclient.package = "reqwest"`;
+			}, new Map());
+			results.push(getCargoDependencyNames(contents, dependencies));
+		}
+		assert.deepStrictEqual([results, reads], [[['reqwest'], ['reqwest']], [root.path, root.path]]);
 	});
 
 	(isWindows ? test : test.skip)('Cargo workspace resolution honors Windows drive-letter path casing', async () => {

@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { match as matchGlob } from '../../../../base/common/glob.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { isWindows } from '../../../../base/common/platform.js';
 import { IExtUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -64,7 +61,6 @@ export const RustCratesToLookFor = [
 
 interface CargoDependency {
 	packageName?: string;
-	path?: string;
 	workspace?: boolean;
 }
 
@@ -78,9 +74,6 @@ interface CargoManifest {
 	hasWorkspacePath: boolean;
 	workspacePath?: string;
 }
-
-const maxWorkspaceMemberManifests = 256;
-const maxWorkspaceMemberDirectories = 256;
 
 export function isAzureCargoDependency(name: string): boolean {
 	return name.startsWith('azure_') || name.startsWith('azure-');
@@ -108,14 +101,14 @@ function getWorkspaceDependencyNames(manifest: CargoManifest): ReadonlyMap<strin
 	return dependencies;
 }
 
+/** Resolves inherited names for tagging without validating Cargo workspace membership. */
 export async function getCargoWorkspaceDependenciesForFolder(
 	folder: URI,
 	contents: string,
 	workspaceFolders: readonly URI[],
 	extUri: IExtUri,
 	readManifestContents: (folder: URI) => Promise<string | undefined>,
-	cache: Map<string, Promise<string | undefined>>,
-	readDirectories?: (folder: URI) => Promise<readonly URI[]>
+	cache: Map<string, Promise<string | undefined>>
 ): Promise<ReadonlyMap<string, string> | undefined> {
 	const manifest = parseCargoDependencies(contents);
 	if (!manifest.sections.some(section => [...section].some(([alias, dependency]) => dependency.workspace && !manifest.workspaceDependencies.has(alias)))) {
@@ -132,7 +125,7 @@ export async function getCargoWorkspaceDependenciesForFolder(
 		return result;
 	};
 	const workspace = await findCargoWorkspaceForFolder(folder, manifest, workspaceFolders, extUri, readManifest);
-	if (workspace && await isCargoWorkspaceMember(workspace.folder, workspace.manifest, folder, workspaceFolders, extUri, readManifest, readDirectories)) {
+	if (workspace) {
 		return getWorkspaceDependencyNames(workspace.manifest);
 	}
 	return undefined;
@@ -193,249 +186,10 @@ function isAllowedCargoManifestFolder(folder: URI, workspaceFolders: readonly UR
 	return workspaceFolders.some(workspaceFolder => extUri.isEqualOrParent(folder, workspaceFolder) || extUri.isEqualOrParent(workspaceFolder, folder));
 }
 
-function isCargoMemberPattern(pattern: string): boolean {
-	return pattern.includes('*') || pattern.includes('?') || pattern.includes('[');
-}
-
-function escapeCargoMemberPattern(pattern: string): string {
-	let escaped = '';
-	let bracketLength = -1;
-	for (const character of pattern) {
-		if (bracketLength >= 0) {
-			if (character === ']' && bracketLength > 0) {
-				bracketLength = -1;
-			} else {
-				bracketLength++;
-			}
-			escaped += character;
-		} else if (character === '[') {
-			bracketLength = 0;
-			escaped += character;
-		} else if (character === '{' || character === '}') {
-			escaped += `[${character}]`;
-		} else {
-			escaped += character;
-		}
-	}
-	return escaped;
-}
-
-function normalizeCargoPattern(pattern: string, root: URI): string {
-	return root.scheme === Schemas.file && !isWindows ? pattern : pattern.replace(/\\/g, '/');
-}
-
-function cargoGlobHasParentAfterWildcard(pattern: string, root: URI): boolean {
-	let hasWildcard = false;
-	for (const segment of normalizeCargoPattern(pattern, root).split('/')) {
-		if (segment === '..' && hasWildcard) {
-			return true;
-		}
-		hasWildcard ||= isCargoMemberPattern(segment);
-	}
-	return false;
-}
-
-function cargoLeadingParentSegments(path: string): number {
-	let count = 0;
-	for (const segment of path.split('/')) {
-		if (segment !== '..') {
-			break;
-		}
-		count++;
-	}
-	return count;
-}
-
-function matchesCargoMember(root: URI, folder: URI, pattern: string, extUri: IExtUri): boolean {
-	const member = extUri.resolvePath(root, pattern);
-	if (!isCargoMemberPattern(pattern)) {
-		return extUri.isEqual(folder, member);
-	}
-	if (cargoGlobHasParentAfterWildcard(pattern, root) || root.scheme !== folder.scheme || !extUri.isEqualAuthority(root.authority, folder.authority)) {
-		return false;
-	}
-	const memberPath = extUri.relativePath(root, member);
-	const folderPath = extUri.relativePath(root, folder);
-	return memberPath !== undefined && folderPath !== undefined && cargoLeadingParentSegments(memberPath) === cargoLeadingParentSegments(folderPath) && matchGlob(escapeCargoMemberPattern(memberPath), folderPath, { ignoreCase: extUri.ignorePathCasing(folder) });
-}
-
 function isExcludedCargoMember(root: URI, folder: URI, manifest: CargoManifest, extUri: IExtUri): boolean {
 	const excluded = manifest.workspaceExcludes.some(exclude => extUri.isEqualOrParent(folder, extUri.resolvePath(root, exclude)));
-	const explicitMember = manifest.workspaceMembers.some(member => !isCargoMemberPattern(member) && extUri.isEqualOrParent(folder, extUri.resolvePath(root, member)));
+	const explicitMember = manifest.workspaceMembers.some(member => !member.includes('*') && !member.includes('?') && !member.includes('[') && extUri.isEqualOrParent(folder, extUri.resolvePath(root, member)));
 	return excluded && !explicitMember;
-}
-
-async function isCargoWorkspaceMember(
-	root: URI,
-	workspace: CargoManifest,
-	folder: URI,
-	workspaceFolders: readonly URI[],
-	extUri: IExtUri,
-	readManifest: (folder: URI) => Promise<string | undefined>,
-	readDirectories: ((folder: URI) => Promise<readonly URI[]>) | undefined
-): Promise<boolean> {
-	if (extUri.isEqual(root, folder) || workspace.workspaceMembers.some(member => matchesCargoMember(root, folder, member, extUri))) {
-		return true;
-	}
-
-	const candidates = [root];
-	for (const member of workspace.workspaceMembers) {
-		if (!isCargoMemberPattern(member)) {
-			candidates.push(extUri.resolvePath(root, member));
-		}
-	}
-	for (const workspaceFolder of workspaceFolders) {
-		let candidate = workspaceFolder;
-		while (extUri.isEqualOrParent(candidate, root)) {
-			if (workspace.workspaceMembers.some(member => matchesCargoMember(root, candidate, member, extUri))) {
-				candidates.push(candidate);
-			}
-			if (extUri.isEqual(candidate, root)) {
-				break;
-			}
-			candidate = extUri.dirname(candidate);
-		}
-	}
-
-	const visited = new Set<string>();
-	const manifestReads = new Set([extUri.getComparisonKey(root)]);
-	const readMemberManifest = (candidate: URI): Promise<string | undefined> => {
-		const key = extUri.getComparisonKey(candidate);
-		if (!manifestReads.has(key)) {
-			if (manifestReads.size >= maxWorkspaceMemberManifests) {
-				throw new Error('Cargo workspace membership search exceeded the manifest limit');
-			}
-			manifestReads.add(key);
-		}
-		return readManifest(candidate);
-	};
-	const pathDependencies: URI[] = [];
-	let index = 0;
-	let patterns: AsyncGenerator<URI, void, void> | undefined;
-	while (true) {
-		if (!pathDependencies.length && index === candidates.length) {
-			if (!readDirectories) {
-				return false;
-			}
-			patterns ??= expandCargoMemberPatterns(root, workspace.workspaceMembers, workspaceFolders, extUri, readDirectories);
-			const next = await patterns.next();
-			if (next.done) {
-				return false;
-			}
-			candidates.push(next.value);
-			continue;
-		}
-		const candidate = pathDependencies.pop() ?? candidates[index++];
-		const key = extUri.getComparisonKey(candidate);
-		if (visited.has(key) || !isAllowedCargoManifestFolder(candidate, workspaceFolders, extUri) || isExcludedCargoMember(root, candidate, workspace, extUri)) {
-			continue;
-		}
-		if (extUri.isEqual(candidate, folder)) {
-			return true;
-		}
-		visited.add(key);
-		const candidateContents = extUri.isEqual(candidate, root) ? undefined : await readMemberManifest(candidate);
-		const candidateManifest = extUri.isEqual(candidate, root) ? workspace : candidateContents === undefined ? undefined : parseCargoDependencies(candidateContents);
-		if (!candidateManifest || (candidateManifest !== workspace && candidateManifest.hasWorkspace)) {
-			continue;
-		}
-		if (candidateManifest.hasWorkspacePath && (candidateManifest.workspacePath === undefined || !extUri.isEqual(extUri.resolvePath(candidate, candidateManifest.workspacePath), root))) {
-			continue;
-		}
-		if (!extUri.isEqualOrParent(candidate, root) && !candidateManifest.hasWorkspacePath) {
-			const candidateWorkspace = await findCargoWorkspaceForFolder(candidate, candidateManifest, workspaceFolders, extUri, readMemberManifest);
-			if (!candidateWorkspace || !extUri.isEqual(candidateWorkspace.folder, root)) {
-				continue;
-			}
-		}
-		for (const section of candidateManifest.sections) {
-			for (const [alias, dependency] of section) {
-				const inherited = dependency.workspace ? workspace.workspaceDependencies.get(alias) : undefined;
-				const path = inherited?.path ?? (!dependency.workspace ? dependency.path : undefined);
-				if (path !== undefined) {
-					const dependencyFolder = extUri.resolvePath(inherited ? root : candidate, path);
-					if (isAllowedCargoManifestFolder(dependencyFolder, workspaceFolders, extUri)) {
-						pathDependencies.push(dependencyFolder);
-					}
-				}
-			}
-		}
-	}
-}
-
-async function* expandCargoMemberPatterns(
-	root: URI,
-	members: readonly string[],
-	workspaceFolders: readonly URI[],
-	extUri: IExtUri,
-	readDirectories: (folder: URI) => Promise<readonly URI[]>
-): AsyncGenerator<URI, void, void> {
-	const directoryCache = new Map<string, Promise<readonly URI[]>>();
-	for (const member of members) {
-		if (!isCargoMemberPattern(member)) {
-			continue;
-		}
-		let base = root;
-		let pattern: string | undefined;
-		if (cargoGlobHasParentAfterWildcard(member, root)) {
-			pattern = normalizeCargoPattern(member, root);
-			const absolutePrefix = /^(?:[A-Za-z]:\/|\/)/.exec(pattern)?.[0];
-			if (absolutePrefix) {
-				base = extUri.resolvePath(root, absolutePrefix);
-				pattern = pattern.slice(absolutePrefix.length);
-			}
-		} else {
-			pattern = extUri.relativePath(root, extUri.resolvePath(root, member));
-		}
-		if (pattern === undefined) {
-			continue;
-		}
-		const segments = pattern.split('/');
-		const pending = [{ folder: base, index: 0 }];
-		const visited = new Set<string>();
-		for (let index = 0; index < pending.length; index++) {
-			const current = pending[index];
-			const key = `${extUri.getComparisonKey(current.folder)}:${current.index}`;
-			if (visited.has(key)) {
-				continue;
-			}
-			visited.add(key);
-			if (current.index === segments.length) {
-				yield current.folder;
-				continue;
-			}
-			const segment = segments[current.index];
-			if (!isCargoMemberPattern(segment)) {
-				pending.push({ folder: extUri.resolvePath(current.folder, segment), index: current.index + 1 });
-				continue;
-			}
-			if (segment === '**') {
-				pending.push({ folder: current.folder, index: current.index + 1 });
-			}
-			if (!workspaceFolders.some(workspaceFolder => extUri.isEqualOrParent(current.folder, workspaceFolder))) {
-				continue;
-			}
-			const directoryKey = extUri.getComparisonKey(current.folder);
-			let children = directoryCache.get(directoryKey);
-			if (!children) {
-				if (directoryCache.size >= maxWorkspaceMemberDirectories) {
-					throw new Error('Cargo workspace membership search exceeded the directory limit');
-				}
-				children = readDirectories(current.folder);
-				directoryCache.set(directoryKey, children);
-			}
-			for (const child of await children) {
-				if (!extUri.isEqual(extUri.dirname(child), current.folder)) {
-					continue;
-				}
-				if (segment === '**') {
-					pending.push({ folder: child, index: current.index });
-				} else if (matchGlob(escapeCargoMemberPattern(segment), extUri.basename(child), { ignoreCase: extUri.ignorePathCasing(child) })) {
-					pending.push({ folder: child, index: current.index + 1 });
-				}
-			}
-		}
-	}
 }
 
 function getCargoDependencyNamesFromManifest(contents: string, inheritedWorkspaceDependencies?: ReadonlyMap<string, string>): string[] {
@@ -717,8 +471,6 @@ function findUnquotedCharacter(value: string, expectedCharacter: string): number
 function setDependencyProperty(dependency: CargoDependency, property: string, value: string): void {
 	if (property === 'package') {
 		dependency.packageName = parseTomlString(value);
-	} else if (property === 'path') {
-		dependency.path = parseTomlString(value);
 	} else if (property === 'workspace') {
 		dependency.workspace = value.trim() === 'true';
 	}

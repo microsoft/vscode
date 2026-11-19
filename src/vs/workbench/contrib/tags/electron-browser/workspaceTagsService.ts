@@ -19,6 +19,8 @@ import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, Gra
 import { hashAsync } from '../../../../base/common/hash.js';
 import { getCargoDependencyNames, getCargoWorkspaceDependenciesForFolder, isAzureCargoDependency, RustCratesToLookFor } from '../common/rustWorkspaceTags.js';
 
+const maxCargoManifestSize = 1024 * 1024;
+
 const MetaModulesToLookFor = [
 	// Azure packages
 	'@azure',
@@ -1672,8 +1674,25 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			});
 
 			const cargoManifests: { folder: URI; contents: string }[] = [];
-			const cargoTomlPromises = getFilePromises('Cargo.toml', this.fileService, this.textFileService, (content, folder) => {
-				cargoManifests.push({ folder, contents: content.value });
+			const readCargoManifest = async (folder: URI): Promise<string | undefined> => {
+				try {
+					return (await this.textFileService.read(URI.joinPath(folder, 'Cargo.toml'), { acceptTextOnly: true, limits: { size: maxCargoManifestSize } })).value;
+				} catch (error) {
+					if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+						return undefined;
+					}
+					throw error;
+				}
+			};
+			const cargoTomlPromises = !nameSet.has('cargo.toml') ? [] : folders.map(async folder => {
+				try {
+					const contents = await readCargoManifest(folder);
+					if (contents !== undefined) {
+						cargoManifests.push({ folder, contents });
+					}
+				} catch (error) {
+					this.logService.trace('Unable to read Cargo manifest', error);
+				}
 			});
 
 			const pomPromises = getFilePromises('pom.xml', this.fileService, this.textFileService, content => {
@@ -1718,47 +1737,11 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 
 			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises, ...goModPromises, ...cargoTomlPromises]).then(async () => {
 				const extUri = this.uriIdentityService.extUri;
-				const cargoContentsByFolder = new Map(cargoManifests.map(manifest => [extUri.getComparisonKey(manifest.folder), manifest.contents]));
-				const cargoWorkspaceCache = new Map<string, Promise<string | undefined>>();
-				const cargoDirectoriesCache = new Map<string, Promise<readonly URI[]>>();
-				const readCargoManifest = async (folder: URI): Promise<string | undefined> => {
-					const contents = cargoContentsByFolder.get(extUri.getComparisonKey(folder));
-					if (contents !== undefined) {
-						return contents;
-					}
-					const manifest = URI.joinPath(folder, 'Cargo.toml');
-					try {
-						return (await this.textFileService.read(manifest, { acceptTextOnly: true })).value;
-					} catch (error) {
-						if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
-							return undefined;
-						}
-						throw error;
-					}
-				};
-				const readCargoDirectories = (folder: URI): Promise<readonly URI[]> => {
-					const key = extUri.getComparisonKey(folder);
-					let result = cargoDirectoriesCache.get(key);
-					if (!result) {
-						result = (async () => {
-							try {
-								const stat = await this.fileService.resolve(folder);
-								return stat.isSymbolicLink ? [] : (stat.children ?? []).filter(child => child.isDirectory && !child.isSymbolicLink).map(child => child.resource);
-							} catch (error) {
-								if (error instanceof Error && (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND || toFileOperationResult(error) === FileOperationResult.FILE_NOT_DIRECTORY)) {
-									return [];
-								}
-								throw error;
-							}
-						})();
-						cargoDirectoriesCache.set(key, result);
-					}
-					return result;
-				};
+				const cargoWorkspaceCache = new Map(cargoManifests.map(manifest => [extUri.getComparisonKey(manifest.folder), Promise.resolve<string | undefined>(manifest.contents)]));
 				for (const manifest of cargoManifests) {
 					let workspaceDependencies: ReadonlyMap<string, string> | undefined;
 					try {
-						workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(manifest.folder, manifest.contents, folders, extUri, readCargoManifest, cargoWorkspaceCache, readCargoDirectories);
+						workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(manifest.folder, manifest.contents, folders, extUri, readCargoManifest, cargoWorkspaceCache);
 					} catch (error) {
 						this.logService.trace('Unable to resolve Cargo workspace dependencies', error);
 					}
