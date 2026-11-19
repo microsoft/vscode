@@ -23,7 +23,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { createCommandUri, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
@@ -122,8 +122,7 @@ import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/commo
 import { clearChatReferenceDragData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionChatReferenceDragData, onDidEndSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
 import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListSessionDrop } from './sessionsListChatMove.js';
-import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { NotificationText } from '../../../../../platform/notification/common/notificationMessage.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { InboxAutoAdvanceSpotlight } from './inboxAutoAdvanceSpotlight.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
@@ -9689,29 +9688,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.chatEntitlementService.sentiment.hidden || this.storageService.getBoolean(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, StorageScope.PROFILE, false)) {
 			return;
 		}
-		const settingsLink = NotificationText.link(localize('inboxAutoAdvance.settings', "Settings"), createCommandUri('workbench.action.openSettings', `@id:${SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING}`).toString());
-		this.notificationService.prompt(Severity.Info, NotificationText.format(
-			hasNext
-				? localize('inboxAutoAdvance.next', "Your session continues in Working while the agent processes your reply. Inbox opened the next session. You can turn off automatic navigation in {0}.")
-				: localize('inboxAutoAdvance.empty', "Your session continues in Working while the agent processes your reply. No Inbox sessions remain, so focus moved to the Inbox heading. You can turn off automatic navigation in {0}."),
-			settingsLink,
-		), [{
-			label: localize('inboxAutoAdvance.showSession', "Show Session"),
-			run: async () => {
-				if (this._store.isDisposed || this.chatEntitlementService.sentiment.hidden) {
-					return;
-				}
-				const spotlight = this.instantiationService.createInstance(InboxAutoAdvanceSpotlight, () => this.revealSessionForOnboarding(session), () => this.openSession(session));
-				this.inboxAutoAdvanceSpotlight.value = spotlight;
-				try {
-					await spotlight.show();
-				} catch (error) {
-					this.logService.error(error);
-					this.notificationService.error(error);
-				}
-			},
-		}], { sticky: true });
+		const spotlight = this.instantiationService.createInstance(InboxAutoAdvanceSpotlight, () => this.revealSessionForOnboarding(session), () => this.openSession(session), hasNext);
+		this.inboxAutoAdvanceSpotlight.value = spotlight;
 		this.storageService.store(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		void spotlight.show().catch(error => {
+			this.logService.error(error);
+			this.notificationService.error(error);
+		});
 	}
 
 	private getInboxStateContext(session: ISession, reader?: IReader): string {

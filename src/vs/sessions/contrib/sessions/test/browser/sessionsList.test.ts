@@ -7,7 +7,7 @@ import { IGitHubService } from '../../../../../workbench/contrib/sessions/browse
 import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, append, Dimension, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions, isManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -53,8 +53,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { INotificationService, NoOpNotification, Severity } from '../../../../../platform/notification/common/notification.js';
-import { NotificationText } from '../../../../../platform/notification/common/notificationMessage.js';
+import { INotificationService, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IListService, ListService, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -75,7 +74,6 @@ import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { NotificationService } from '../../../../../workbench/services/notification/common/notificationService.js';
-import { NotificationsToasts } from '../../../../../workbench/browser/parts/notifications/notificationsToasts.js';
 import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
@@ -6006,6 +6004,10 @@ suite('Sessions - SessionsList', () => {
 						return new NoOpNotification();
 					}
 				});
+				let tours = 0;
+				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+					runScenario: async () => { tours++; return OnboardingOutcome.Aborted; },
+				}));
 				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
 				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
 				harness.instantiationService.stub(IChatService, new class extends MockChatService {
@@ -6045,7 +6047,7 @@ suite('Sessions - SessionsList', () => {
 					screenReader = true;
 				}
 				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
-				assert.deepStrictEqual({ opened, notifications: notifications.length }, { opened: 0, notifications: 0 });
+				assert.deepStrictEqual({ opened, tours, notifications: notifications.length }, { opened: 0, tours: 0, notifications: 0 });
 			});
 		}
 
@@ -6067,6 +6069,10 @@ suite('Sessions - SessionsList', () => {
 						return new NoOpNotification();
 					}
 				});
+				let tours = 0;
+				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+					runScenario: async () => { tours++; return OnboardingOutcome.Aborted; },
+				}));
 				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 				harness.instantiationService.stub(ISessionsListModelService, model);
 				let navigate = false;
@@ -6090,7 +6096,7 @@ suite('Sessions - SessionsList', () => {
 					await timeout(0);
 				};
 				await send();
-				const afterNoOp = { notifications: notifications.length, shown: shown.get()?.session.sessionId };
+				const afterNoOp = { tours, notifications: notifications.length, shown: shown.get()?.session.sessionId };
 				transaction(tx => {
 					source.status.set(SessionStatus.Completed, tx);
 					source.mainChat.status.set(SessionStatus.Completed, tx);
@@ -6101,10 +6107,10 @@ suite('Sessions - SessionsList', () => {
 
 				assert.deepStrictEqual({
 					afterNoOp,
-					afterNavigation: { notifications: notifications.length, shown: shown.get()?.session.sessionId },
+					afterNavigation: { tours, notifications: notifications.length, shown: shown.get()?.session.sessionId },
 				}, {
-					afterNoOp: { notifications: 0, shown: 'source' },
-					afterNavigation: { notifications: 1, shown: 'next' },
+					afterNoOp: { tours: 0, notifications: 0, shown: 'source' },
+					afterNavigation: { tours: 1, notifications: 0, shown: 'next' },
 				});
 			});
 		}
@@ -6115,9 +6121,7 @@ suite('Sessions - SessionsList', () => {
 			{ hasNext: true, action: 'keyboard' },
 			{ hasNext: false, action: 'keyboard' },
 		] as const) {
-			test(`Inbox explains the first automatic move with a settings link and an opt-in session spotlight (next: ${hasNext}, action: ${action})`, async () => {
-				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
-				disposables.add(toDisposable(() => clock.restore()));
+			test(`Inbox automatically spotlights the moved session once (next: ${hasNext}, action: ${action})`, async () => {
 				const source = buildTestSession({ id: 'source', title: 'Source' });
 				const next = buildTestSession({ id: 'next', title: 'Next', minutesAgo: 1 });
 				const harness = createListHarness(disposables, hasNext ? [source.session, next.session] : [source.session]);
@@ -6140,13 +6144,13 @@ suite('Sessions - SessionsList', () => {
 						notification.close();
 					}
 				}));
-				const toasts = disposables.add(harness.instantiationService.createInstance(NotificationsToasts, harness.createContainer(), notificationService.model));
-				toasts.layout(new Dimension(1024, 600));
-				const toastVisible = Event.toPromise(toasts.onDidChangeVisibility);
 				const tours: { targetIsSource: boolean; hasDismissButton: boolean; targetInteractive: boolean | undefined; role: string | null; focusRestored: boolean; keyboardReturnFocused: boolean | undefined }[] = [];
+				const tourShown = new DeferredPromise<void>();
+				const dismissTour = new DeferredPromise<void>();
 				const tourFinished = new DeferredPromise<void>();
 				let tourId: string | undefined;
 				let targetId: string | undefined;
+				let navigationExplained = false;
 				const focusTarget = append(harness.createContainer(), $('button'));
 				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
 					runScenario: async id => {
@@ -6155,15 +6159,20 @@ suite('Sessions - SessionsList', () => {
 						const payload = scenario.presentation.payload as ISpotlightPayload;
 						const step = (await payload.resolveSteps!())[0];
 						targetId = step.targetId;
+						const description = typeof step.description === 'string' ? step.description : step.description.value;
+						navigationExplained = description.includes(hasNext ? 'Inbox opened the next session.' : 'focus moved to the Inbox heading.');
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
 						const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), harness.instantiationService.get(IContextKeyService), new TestConfigurationService(), NullTelemetryService));
 						const shownTour = new DeferredPromise<void>();
+						const previousFocus = mainWindow.document.activeElement;
 						const result = presentation.run({ ...scenario, presentation: { ...scenario.presentation, payload: { steps: [step] } } }, {
 							targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shownTour.complete(); },
 						});
 						await shownTour.p;
+						void tourShown.complete();
+						await dismissTour.p;
 						const callout = mainWindow.document.querySelector<HTMLElement>('.spotlight-callout')!;
 						const targetIsSource = resolveOnboardingTarget(mainWindow, step.targetId)?.element.closest('.monaco-list-row') === list.getItemRow({ session: source.session.resource });
 						const role = callout.getAttribute('role');
@@ -6184,7 +6193,7 @@ suite('Sessions - SessionsList', () => {
 							targetIsSource,
 							hasDismissButton: step.endTourLabel === 'Got It',
 							targetInteractive: step.allowTargetInteraction,
-							role, focusRestored: mainWindow.document.activeElement === focusTarget, keyboardReturnFocused,
+							role, focusRestored: mainWindow.document.activeElement === previousFocus, keyboardReturnFocused,
 						});
 						void tourFinished.complete();
 						return outcome;
@@ -6215,22 +6224,14 @@ suite('Sessions - SessionsList', () => {
 					accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
 					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 				};
-				await send();
-				const notificationsBeforeOpen = notifications.length;
-				await opening.complete();
-				await toastVisible;
-				clock.tick(10_001);
-				const visibleAfterTimeout = toasts.isVisible;
-				toasts.dispose();
-				await timeout(0);
-				const toursBeforeAction = tours.length;
-				const [severity, message, choices] = notifications[0];
-				const links = message instanceof NotificationText ? message.nodes.filter(node => typeof node !== 'string') : [];
 				focusTarget.focus();
-				await notificationService.model.notifications[0].actions!.primary![0].run();
+				await send();
+				const toursBeforeOpen = tourId ? 1 : 0;
+				await opening.complete();
+				await tourShown.p;
+				await dismissTour.complete();
 				await tourFinished.p;
 				await timeout(0);
-				const notificationsAfterAction = notificationService.model.notifications.length;
 				const shownAfterAction = shown.get()?.session.sessionId;
 				const targetReleased = resolveOnboardingTarget(mainWindow, targetId!) === undefined;
 				list.dispose();
@@ -6245,18 +6246,13 @@ suite('Sessions - SessionsList', () => {
 				await timeout(0);
 
 				assert.deepStrictEqual({
-					notificationsBeforeOpen, severity, notifications: notifications.length, visibleAfterTimeout, notificationsAfterAction, toursBeforeAction, tours,
-					linkArguments: links.map(link => JSON.parse(decodeURIComponent(URI.parse(link.href).query))),
-					linkCommands: links.map(link => URI.parse(link.href).path),
-					showSession: choices[0].label,
+					toursBeforeOpen, notifications: notifications.length, tours, navigationExplained,
 					sourceOpenRequests, shownAfterAction,
 					targetReleased, tourReleased: onboardingScenarioRegistry.getScenario(tourId!),
 				}, {
-					notificationsBeforeOpen: hasNext ? 0 : 1, severity: Severity.Info, notifications: 1, visibleAfterTimeout: true, notificationsAfterAction: 0, toursBeforeAction: 0,
+					toursBeforeOpen: hasNext ? 0 : 1, notifications: 0, navigationExplained: true,
 					tours: [{ targetIsSource: true, hasDismissButton: true, targetInteractive: true, role: 'dialog', focusRestored: true, keyboardReturnFocused: action === 'keyboard' ? true : undefined }],
-					linkArguments: [[`@id:${SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING}`]],
-					linkCommands: ['workbench.action.openSettings'],
-					showSession: 'Show Session', targetReleased: true, tourReleased: undefined,
+					targetReleased: true, tourReleased: undefined,
 					sourceOpenRequests: action === 'keyboard' ? 1 : 0, shownAfterAction: action === 'keyboard' || !hasNext ? 'source' : 'next',
 				});
 			});

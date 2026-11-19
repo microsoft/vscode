@@ -13,11 +13,12 @@ import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardin
 import { OnboardingOutcome } from '../../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../onboarding/common/onboardingScenarioService.js';
 
-/** Reveals the replied-to session only when the user asks where it went. */
+/** Reveals the replied-to session after the first automatic Inbox navigation. */
 export class InboxAutoAdvanceSpotlight extends Disposable {
 	constructor(
 		private readonly revealSession: () => IDisposable & { readonly targetId: string },
 		private readonly openSession: () => void,
+		private readonly hasNext: boolean,
 		@IOnboardingScenarioService private readonly onboardingService: IOnboardingScenarioService,
 	) {
 		super();
@@ -42,7 +43,11 @@ export class InboxAutoAdvanceSpotlight extends Disposable {
 							id: 'repliedSession',
 							targetId: target.targetId,
 							title: localize('inboxAutoAdvanceSpotlight.title', "Your session is here"),
-							description: localize('inboxAutoAdvanceSpotlight.description', "This is the session you replied to. It appears in Working while the agent processes your reply and returns to Inbox when it needs attention. Choose Return to Session or select the session in the sidebar to return to the conversation. You can turn off automatic navigation in the Inbox Auto Advance setting."),
+							description: localize('inboxAutoAdvanceSpotlight.description', "This is the session you replied to. It appears in Working while the agent processes your reply and returns to Inbox when it needs attention. {0} Choose Return to Session or select the session in the sidebar to return to the conversation. You can turn off automatic navigation in the Inbox Auto Advance setting.",
+								this.hasNext
+									? localize('inboxAutoAdvanceSpotlight.next', "Inbox opened the next session.")
+									: localize('inboxAutoAdvanceSpotlight.empty', "No Inbox sessions remain, so focus moved to the Inbox heading."),
+							),
 							primaryAction: {
 								label: localize('inboxAutoAdvanceSpotlight.return', "Return to Session"),
 								run: () => { returnToSession = true; },
