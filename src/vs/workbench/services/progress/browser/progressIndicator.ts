@@ -73,11 +73,17 @@ export class EditorProgressIndicator extends Disposable implements IProgressIndi
 
 		return {
 			total: (total: number) => {
+				if (this.latestReporter !== reporter) {
+					return;
+				}
 				this.infiniteShownAt = undefined;
 				this.progressBar.total(total);
 			},
 
 			worked: (worked: number) => {
+				if (this.latestReporter !== reporter) {
+					return;
+				}
 				if (this.progressBar.hasTotal()) {
 					this.progressBar.worked(worked);
 				} else {

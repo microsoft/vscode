@@ -237,4 +237,19 @@ suite('Progress Indicator', () => {
 		});
 	});
 
+	test('EditorProgressIndicator - a reporter that another replaced reports no more work', () => {
+		const testProgressBar = disposables.add(new TestProgressBar(document.createElement('div')));
+		const group = upcastPartial<IEditorGroupView>({ isEmpty: false, onDidModelChange: Event.None });
+		const testObject = disposables.add(new EditorProgressIndicator(testProgressBar, group));
+
+		const replaced = testObject.show(100);
+		testObject.show(true).done();
+		replaced.total(50);
+		replaced.worked(1);
+		const afterReplacedReported = { done: testProgressBar.fDone, total: testProgressBar.fTotal, worked: testProgressBar.fWorked, infinite: testProgressBar.fInfinite };
+		replaced.done();
+
+		assert.deepStrictEqual(afterReplacedReported, { done: true, total: null, worked: null, infinite: null });
+	});
+
 });
