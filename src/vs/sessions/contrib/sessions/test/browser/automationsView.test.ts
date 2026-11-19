@@ -2709,6 +2709,124 @@ suite('AutomationsCardsWidget', () => {
 		}, { initial: 0, expanded: { rows: 1, focused: true }, afterUpdate: { rows: 2, focusPreserved: true } });
 	});
 
+	test('history pagination reveals newly shown rows above older active runs', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const history = createHistoryRuns(sessionsManagementService, 41);
+		for (let index = 31; index < history.length; index++) {
+			sessionsManagementService.addSession(history[index].sessionResource!, `History ${index}`, constObservable(SessionStatus.InProgress));
+		}
+		const scroller = document.createElement('div');
+		scroller.style.cssText = 'height: 300px; width: 640px; overflow: auto;';
+		document.body.appendChild(scroller);
+		scroller.appendChild(widget.element);
+		disposables.add(toDisposable(() => scroller.remove()));
+		widget.layout(600, 300);
+		automationService.setRuns(history);
+		const button = widget.element.querySelector<HTMLElement>('.automations-history-show-more')!;
+		button.focus();
+		scroller.scrollTop = scroller.scrollHeight;
+		const before = scroller.scrollTop;
+		button.click();
+		const focusedRow = widget.element.querySelector<HTMLElement>('.monaco-list-row.focused')!;
+		const rowBounds = focusedRow.getBoundingClientRect();
+		const viewport = scroller.getBoundingClientRect();
+		assert.deepStrictEqual({
+			title: focusedRow.querySelector('.monaco-highlighted-label')?.textContent,
+			scrolledUp: scroller.scrollTop < before,
+			visible: rowBounds.top >= viewport.top && rowBounds.bottom <= viewport.bottom,
+		}, { title: 'History 10', scrolledUp: true, visible: true });
+	});
+
+	test('history pagination waits for mark-all-read without deferring focus', async () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const history = createHistoryRuns(sessionsManagementService, 20);
+		automationService.setRuns([run(), ...history]);
+		const pending = new DeferredPromise<void>();
+		const markRead = stub(sessionsManagementService, 'markAllRead').callsFake(() => pending.p);
+		disposables.add(toDisposable(() => markRead.restore()));
+		const button = widget.element.querySelector<HTMLElement>('.automations-history-show-more')!;
+		widget.element.querySelector<HTMLElement>('.automations-mark-all-read')!.click();
+		const disabled = button.getAttribute('aria-disabled');
+		button.click();
+		widget.focus();
+		await pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			disabled,
+			enabledAfter: button.getAttribute('aria-disabled'),
+			rows: widget.element.querySelectorAll('.automations-run-session-list .monaco-list-row').length,
+			focusPreserved: document.activeElement === widget.element,
+		}, { disabled: 'true', enabledAfter: 'false', rows: 10, focusPreserved: true });
+	});
+
+	test('history pagination keeps hydrated cloud sessions visible while the provider is active', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const history = createHistoryRuns(sessionsManagementService, 11);
+		const providerStatus = observableValue('providerStatus', SessionStatus.Completed);
+		sessionsManagementService.addSession(history[10].sessionResource!, 'Active cloud conversation', providerStatus);
+		history[10] = { ...history[10], externalResource: URI.parse('https://github.com/owner/repo/tasks/history') };
+		automationService.setRuns(history);
+		const titles = () => [...widget.element.querySelectorAll('.automations-run-session-list .monaco-highlighted-label')].map(label => label.textContent);
+		const initial = titles();
+		providerStatus.set(SessionStatus.InProgress, undefined);
+		const running = titles();
+		providerStatus.set(SessionStatus.NeedsInput, undefined);
+		const needsInput = titles();
+		providerStatus.set(SessionStatus.Completed, undefined);
+		const recent = Array.from({ length: 10 }, (_, index) => `History ${index}`);
+		assert.deepStrictEqual({ initial, running, needsInput, completed: titles() }, {
+			initial: recent, running: [...recent, 'Active cloud conversation'], needsInput: [...recent, 'Active cloud conversation'], completed: recent,
+		});
+	});
+
+	test('history pagination preserves toolbar focus across the page boundary', async () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const history = createHistoryRuns(sessionsManagementService, 11).map(run => ({ ...run, startedAt: new Date().toISOString() }));
+		automationService.setRuns(history);
+		await waitForSessionActions();
+		const rows = widget.element.querySelectorAll<HTMLElement>('.automations-run-session-list .monaco-list-row');
+		widget.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list')!.focus();
+		rows[0].click();
+		rows[9].classList.add('hovered');
+		const action = rows[9].querySelector<HTMLElement>('.action-label')!;
+		action.focus();
+		const toolbarFocused = document.activeElement === action;
+		automationService.setRuns([history[10], ...history.slice(0, 10)]);
+		const focusedList = document.activeElement?.closest('.automations-run-session-list');
+		const focusedRow = document.activeElement?.closest('.monaco-list-row') ?? focusedList?.querySelector('.monaco-list-row.focused');
+		assert.deepStrictEqual({
+			toolbarFocused,
+			rows: widget.element.querySelectorAll('.automations-run-session-list .monaco-list-row').length,
+			focusedTitle: focusedRow?.querySelector('.monaco-highlighted-label')?.textContent,
+		}, { toolbarFocused: true, rows: 11, focusedTitle: 'History 9' });
+	});
+
+	test('history pagination restores the focused session when an active cloud row splits its list', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const history = createHistoryRuns(sessionsManagementService, 12).map(run => ({ ...run, startedAt: new Date().toISOString() }));
+		sessionsManagementService.addSession(history[11].sessionResource!, 'Older active session', constObservable(SessionStatus.InProgress));
+		const cloud = { ...history[10], sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/repo/tasks/history') };
+		automationService.setRuns([...history.slice(0, 10), cloud, history[11]]);
+		const olderRow = [...widget.element.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.textContent?.includes('Older active session'))!;
+		const originalList = olderRow.closest('.automations-run-session-list')!;
+		originalList.querySelector<HTMLElement>('.monaco-list')!.focus();
+		olderRow.click();
+		const originalFocus = originalList.querySelector('.monaco-list-row.focused .monaco-highlighted-label')?.textContent;
+		automationService.setRuns([...history.slice(0, 10), { ...cloud, status: 'running' }, history[11]]);
+		const focusedList = document.activeElement?.closest('.automations-run-session-list');
+		assert.deepStrictEqual({
+			originalFocus,
+			originalListConnected: originalList.isConnected,
+			movedToNewList: !!focusedList && focusedList !== originalList,
+			focusedTitle: focusedList?.querySelector('.monaco-list-row.focused .monaco-highlighted-label')?.textContent,
+		}, { originalFocus: 'Older active session', originalListConnected: true, movedToNewList: true, focusedTitle: 'Older active session' });
+	});
+
 	test('mixed history interleaves cloud rows and contiguous native lists and merges lists after removal', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation(), automation({ id: 'cloud', name: 'Cloud review' })]);
