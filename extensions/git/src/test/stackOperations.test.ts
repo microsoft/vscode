@@ -248,7 +248,7 @@ suite('git stack operations', () => {
 				await config.update('enableCommitSigning', true, ConfigurationTarget.Global);
 				const enabled = await repository.merge('feature').then(
 					() => 'merged',
-					error => error instanceof GitError && /gpg failed to sign/.test(error.stderr ?? '') ? 'signing requested' : String(error));
+					(error: { stderr?: string }) => /gpg failed to sign/.test(error.stderr ?? '') ? 'signing requested' : String(error));
 				if (enabled !== 'merged') {
 					await repository.mergeAbort();
 				}
