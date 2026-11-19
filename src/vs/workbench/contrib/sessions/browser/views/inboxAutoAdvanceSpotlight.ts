@@ -59,7 +59,8 @@ export class InboxAutoAdvanceSpotlight extends Disposable {
 							allowTargetInteraction: true,
 							advanceOnTargetClick: true,
 							hideNext: false,
-							missingTarget: { kind: 'abort' },
+							// The list can briefly recycle the row as the send and automatic navigation settle.
+							missingTarget: { kind: 'wait', timeoutMs: 2000, onTimeout: 'abort' },
 						}];
 					},
 				} satisfies ISpotlightPayload,

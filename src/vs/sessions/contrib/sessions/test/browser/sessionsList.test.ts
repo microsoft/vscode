@@ -6120,6 +6120,7 @@ suite('Sessions - SessionsList', () => {
 			{ hasNext: false, action: 'gotIt' },
 			{ hasNext: true, action: 'keyboard' },
 			{ hasNext: false, action: 'keyboard' },
+			{ hasNext: true, action: 'rerender' },
 		] as const) {
 			test(`Inbox automatically spotlights the moved session once (next: ${hasNext}, action: ${action})`, async () => {
 				const source = buildTestSession({ id: 'source', title: 'Source' });
@@ -6229,6 +6230,15 @@ suite('Sessions - SessionsList', () => {
 				const toursBeforeOpen = tourId ? 1 : 0;
 				await opening.complete();
 				await tourShown.p;
+				if (action === 'rerender') {
+					list.setItemCollapsed({ section: SessionInboxSection.Working }, true);
+					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					list.setItemCollapsed({ section: SessionInboxSection.Working }, false);
+					await retry(async () => {
+						assert.strictEqual(mainWindow.document.querySelector<HTMLElement>('.spotlight-overlay')?.style.display, '');
+					}, 10, 100);
+				}
 				await dismissTour.complete();
 				await tourFinished.p;
 				await timeout(0);
