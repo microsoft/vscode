@@ -26,8 +26,10 @@ suite('Copilot SDK - canvas lifecycle', () => {
 	/**
 	 * Writes a model-free canvas provider and returns runtime clients configured to load it.
 	 * A lazy provider declares its canvas in an `extension.json` sidecar, so the runtime starts it on first use.
+	 * A legacy provider is written like a published SDK v1 extension: it imports `@github/copilot-sdk/extension` and passes a flat
+	 * `canvases` array instead of `canvases.definitions`.
 	 */
-	async function createCanvasContract(options?: { lazy?: boolean; sensitiveEnvironment?: boolean; onPermissionRequest?: PermissionHandler }) {
+	async function createCanvasContract(options?: { lazy?: boolean; legacy?: boolean; sensitiveEnvironment?: boolean; onPermissionRequest?: PermissionHandler }) {
 		const { runtimePath, extensionSdkPath, extensionBootstrapPath } = await resolveCopilotRuntimePaths(getAppNodeModulesUri());
 		assert.ok(extensionSdkPath && extensionBootstrapPath, 'Bundled canvas extension assets must be available');
 		const root = await mkdtemp(join(tmpdir(), 'ahp-canvas-contract-'));
@@ -81,6 +83,8 @@ suite('Copilot SDK - canvas lifecycle', () => {
 				onRequest: options?.onPermissionRequest ?? approveAll,
 			},
 		};
+		const sdkModule = options?.legacy ? '@github/copilot-sdk/extension' : '@microsoft/copilot-sdk/extension';
+		const canvasesOption = (definitions: string) => options?.legacy ? definitions : `{ definitions: ${definitions} }`;
 		try {
 			await mkdir(extensionDirectory, { recursive: true });
 			if (options?.lazy) {
@@ -96,29 +100,29 @@ suite('Copilot SDK - canvas lifecycle', () => {
 				}), 'utf8');
 				await writeFile(join(extensionDirectory, 'extension.mjs'), `
 import { randomUUID } from 'node:crypto';
-import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
+import { createCanvas, joinSession } from '${sdkModule}';
 import declaration from './extension.json' with { type: 'json' };
 const generation = randomUUID();
 await joinSession({
 	${options.sensitiveEnvironment ? `requestedEnvironmentVariables: [${JSON.stringify(sensitiveVariable)}],` : ''}
-	canvases: { definitions: declaration.canvases.map(canvas => createCanvas({
+	canvases: ${canvasesOption(`declaration.canvases.map(canvas => createCanvas({
 		...canvas,
 		open: ({ instanceId, input }) => ({ url: \`http://127.0.0.1:43119/\${generation}/\${instanceId}?label=\${input?.label}&env=\${process.env[${JSON.stringify(sensitiveVariable)}] === ${JSON.stringify(sensitiveValue)} ? 'visible' : 'hidden'}\` }),
-	})) },
+	}))`)},
 });
 `, 'utf8');
 			} else {
 				await writeFile(join(extensionDirectory, 'extension.mjs'), `
 import { randomUUID } from 'node:crypto';
-import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
+import { createCanvas, joinSession } from '${sdkModule}';
 const generation = randomUUID();
 await joinSession({
-	canvases: { definitions: [createCanvas({
+	canvases: ${canvasesOption(`[createCanvas({
 		id: 'contract',
 		displayName: 'Contract canvas',
 		description: 'Model-free canvas lifecycle test.',
 		open: ({ instanceId }) => ({ url: \`http://127.0.0.1:43119/\${generation}/\${instanceId}\` }),
-	})] },
+	})]`)},
 });
 `, 'utf8');
 			}
@@ -424,5 +428,48 @@ await joinSession({
 				}
 			}
 		}
+	});
+
+	/**
+	 * Published SDK v1 canvas extensions (Kusto, session timeline) import `@github/copilot-sdk/extension` and pass flat options. The
+	 * bundled runtime must resolve the legacy import to its own SDK and accept flat canvases, both for an extension that registers on
+	 * start and for one whose `extension.json` declaration must still match what it registers.
+	 */
+	test('opens canvases from legacy extensions that import @github/copilot-sdk and pass flat canvases', async function () {
+		this.timeout(180_000);
+		const observations: { lazy: boolean; status: string | undefined; label: string | null }[] = [];
+		for (const lazy of [false, true]) {
+			const { root, config, createClient } = await createCanvasContract({ lazy, legacy: true });
+			const client = createClient();
+			let session: CopilotSession | undefined;
+			try {
+				await client.start();
+				session = await client.createSession(config);
+				await waitForContractCanvas(session);
+				const opened = await session.rpc.canvas.open({ canvasId: 'contract', instanceId, input: { label: 'legacy' } });
+				const url = await waitForOpen(session, undefined);
+				assert.strictEqual(opened.url, url);
+				observations.push({
+					lazy,
+					status: (await session.rpc.extensions.list()).extensions.find(extension => extension.id === 'project:canvas-contract')?.status,
+					label: new URL(url).searchParams.get('label'),
+				});
+			} finally {
+				try {
+					await session?.disconnect();
+				} finally {
+					try {
+						await client.stop();
+					} finally {
+						await rm(root, { recursive: true, force: true });
+					}
+				}
+			}
+		}
+
+		assert.deepStrictEqual(observations, [
+			{ lazy: false, status: 'running', label: null },
+			{ lazy: true, status: 'running', label: 'legacy' },
+		]);
 	});
 });
