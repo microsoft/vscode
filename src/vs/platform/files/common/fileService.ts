@@ -1519,7 +1519,7 @@ export class FileService extends Disposable implements IFileService {
 	private async doPipeUnbufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI, token: CancellationToken): Promise<void> {
 		throwIfCancelled(token);
 
-		const buffer = await sourceProvider.readFile(source);
+		const buffer = await sourceProvider.readFile(source, undefined, token);
 		throwIfCancelled(token);
 
 		return targetProvider.writeFile(target, buffer, { create: true, overwrite: true, unlock: false, atomic: false });
@@ -1537,7 +1537,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// Read entire buffer from source and write buffered
 		try {
-			const buffer = await sourceProvider.readFile(source);
+			const buffer = await sourceProvider.readFile(source, undefined, token);
 			throwIfCancelled(token);
 
 			await this.doWriteBuffer(targetProvider, targetHandle, VSBuffer.wrap(buffer), buffer.byteLength, 0, 0);

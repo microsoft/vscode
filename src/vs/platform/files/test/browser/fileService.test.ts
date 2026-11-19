@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../base/common/async.js';
 import { bufferToReadable, bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -626,6 +626,46 @@ suite('File Service', () => {
 			}, { reads: 1, sourceExists: true, targetExists: false });
 		});
 	}
+
+	test('cancelling a copy from a provider that reads whole files stops the read', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const cts = disposables.add(new CancellationTokenSource());
+		const readStarted = new DeferredPromise<void>();
+		let readCancelled = false;
+		disposables.add(service.registerProvider('source', disposables.add(new class extends InMemoryFileSystemProvider {
+			override get capabilities(): FileSystemProviderCapabilities {
+				return FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.PathCaseSensitive;
+			}
+
+			override async readFile(resource: URI, opts?: IFileAtomicReadOptions, token?: CancellationToken): Promise<Uint8Array> {
+				readStarted.complete();
+				if (!token) {
+					throw new Error('The read cannot be cancelled without a token');
+				}
+
+				try {
+					return await raceCancellationError(new DeferredPromise<Uint8Array>().p, token);
+				} catch (error) {
+					readCancelled = true;
+					throw error;
+				}
+			}
+		}())));
+		disposables.add(service.registerProvider('target', disposables.add(new InMemoryFileSystemProvider())));
+		const source = URI.parse('source:/large');
+		const target = URI.parse('target:/large');
+		await service.writeFile(source, VSBuffer.alloc(1024));
+
+		const copy = service.copy(source, target, false, cts.token);
+		await readStarted.p;
+		cts.cancel();
+		await assert.rejects(copy, CancellationError);
+
+		assert.deepStrictEqual({
+			readCancelled,
+			targetExists: await service.exists(target),
+		}, { readCancelled: true, targetExists: false });
+	});
 
 	test('enforced atomic read/write/delete', async () => {
 		const service = disposables.add(new FileService(new NullLogService()));
