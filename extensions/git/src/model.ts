@@ -1130,7 +1130,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				return liveRepository;
 			}
 
-			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup || hint === repository.untrackedGroup) {
+			if (repository.sourceControlResourceGroups.some(group => group === hint)) {
 				return liveRepository;
 			}
 		}

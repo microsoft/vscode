@@ -350,7 +350,9 @@ export class Resource implements SourceControlResourceState {
 	}
 }
 
-export interface GitResourceGroup extends SourceControlResourceGroup {
+export interface GitResourceGroup {
+	readonly id: 'merge' | 'index' | 'workingTree' | 'untracked';
+	readonly label: string;
 	resourceStates: Resource[];
 }
 
@@ -753,17 +755,19 @@ export class Repository implements Disposable {
 
 	get inputBox(): SourceControlInputBox { return this._sourceControl.inputBox; }
 
-	private _mergeGroup: SourceControlResourceGroup;
-	get mergeGroup(): GitResourceGroup { return this._mergeGroup as GitResourceGroup; }
+	readonly mergeGroup: GitResourceGroup = { id: 'merge', label: l10n.t('Merge Changes'), resourceStates: [] };
+	readonly indexGroup: GitResourceGroup = { id: 'index', label: l10n.t('Staged Changes'), resourceStates: [] };
+	readonly workingTreeGroup: GitResourceGroup = { id: 'workingTree', label: l10n.t('Changes'), resourceStates: [] };
+	readonly untrackedGroup: GitResourceGroup = { id: 'untracked', label: l10n.t('Untracked Changes'), resourceStates: [] };
 
-	private _indexGroup: SourceControlResourceGroup;
-	get indexGroup(): GitResourceGroup { return this._indexGroup as GitResourceGroup; }
+	private readonly _sourceControlResourceGroups: Map<GitResourceGroup, SourceControlResourceGroup>;
+	get sourceControlResourceGroups(): SourceControlResourceGroup[] { return [...this._sourceControlResourceGroups.values()]; }
 
-	private _workingTreeGroup: SourceControlResourceGroup;
-	get workingTreeGroup(): GitResourceGroup { return this._workingTreeGroup as GitResourceGroup; }
+	// The resource states last copied into each source control resource group
+	private readonly sourceControlResourceStates = new Map<GitResourceGroup, readonly Resource[]>();
 
-	private _untrackedGroup: SourceControlResourceGroup;
-	get untrackedGroup(): GitResourceGroup { return this._untrackedGroup as GitResourceGroup; }
+	private _commitTemplate: string | undefined;
+	get commitTemplate(): string | undefined { return this._commitTemplate; }
 
 	private _EMPTY_TREE: string | undefined;
 
@@ -876,7 +880,7 @@ export class Repository implements Disposable {
 		this.indexGroup.resourceStates = [];
 		this.workingTreeGroup.resourceStates = [];
 		this.untrackedGroup.resourceStates = [];
-		this._sourceControl.count = 0;
+		this.updateSourceControl();
 	}
 
 	get root(): string {
@@ -1054,14 +1058,20 @@ export class Repository implements Disposable {
 		this.updateInputBoxPlaceholder();
 		this.disposables.push(this.onDidRunGitStatus(() => this.updateInputBoxPlaceholder()));
 
-		this._mergeGroup = this._sourceControl.createResourceGroup('merge', l10n.t('Merge Changes'));
-		this._indexGroup = this._sourceControl.createResourceGroup('index', l10n.t('Staged Changes'), { multiDiffEditorEnableViewChanges: true });
-		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', l10n.t('Changes'), { multiDiffEditorEnableViewChanges: true });
-		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', l10n.t('Untracked Changes'), { multiDiffEditorEnableViewChanges: true });
+		const mergeGroup = this._sourceControl.createResourceGroup(this.mergeGroup.id, this.mergeGroup.label);
+		const indexGroup = this._sourceControl.createResourceGroup(this.indexGroup.id, this.indexGroup.label, { multiDiffEditorEnableViewChanges: true });
+		const workingTreeGroup = this._sourceControl.createResourceGroup(this.workingTreeGroup.id, this.workingTreeGroup.label, { multiDiffEditorEnableViewChanges: true });
+		const untrackedGroup = this._sourceControl.createResourceGroup(this.untrackedGroup.id, this.untrackedGroup.label, { multiDiffEditorEnableViewChanges: true });
+		this._sourceControlResourceGroups = new Map([
+			[this.mergeGroup, mergeGroup],
+			[this.indexGroup, indexGroup],
+			[this.workingTreeGroup, workingTreeGroup],
+			[this.untrackedGroup, untrackedGroup]
+		]);
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
-			this.indexGroup.hideWhenEmpty = !config.get<boolean>('alwaysShowStagedChangesResourceGroup');
+			indexGroup.hideWhenEmpty = !config.get<boolean>('alwaysShowStagedChangesResourceGroup');
 		};
 
 		const onConfigListener = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.alwaysShowStagedChangesResourceGroup', root));
@@ -1071,6 +1081,7 @@ export class Repository implements Disposable {
 		workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.mergeEditor')) {
 				this.mergeGroup.resourceStates = this.mergeGroup.resourceStates.map(r => r.clone());
+				this.updateSourceControl();
 			}
 		}, undefined, this.disposables);
 
@@ -1092,13 +1103,13 @@ export class Repository implements Disposable {
 		onConfigListenerForInputBoxVisibility(updateInputBoxVisibility, this, this.disposables);
 		updateInputBoxVisibility();
 
-		this.mergeGroup.hideWhenEmpty = true;
-		this.untrackedGroup.hideWhenEmpty = true;
+		mergeGroup.hideWhenEmpty = true;
+		untrackedGroup.hideWhenEmpty = true;
 
-		this.disposables.push(this.mergeGroup);
-		this.disposables.push(this.indexGroup);
-		this.disposables.push(this.workingTreeGroup);
-		this.disposables.push(this.untrackedGroup);
+		this.disposables.push(mergeGroup);
+		this.disposables.push(indexGroup);
+		this.disposables.push(workingTreeGroup);
+		this.disposables.push(untrackedGroup);
 
 		// Don't allow auto-fetch in untrusted workspaces
 		if (workspace.isTrusted) {
@@ -3109,7 +3120,8 @@ export class Repository implements Disposable {
 			this.mergeInProgress = mergeInProgress;
 			this.cherryPickInProgress = cherryPickInProgress;
 
-			this._sourceControl.commitTemplate = commitTemplate;
+			this._commitTemplate = commitTemplate;
+			this.updateSourceControl();
 
 			// Execute cancellable long-running operation
 			const [resourceGroups, refs] =
@@ -3144,7 +3156,18 @@ export class Repository implements Disposable {
 			this._isWorktreeMigrating = false;
 		}
 
-		// set count badge
+		this.updateSourceControl();
+	}
+
+	private updateSourceControl(): void {
+		for (const [group, sourceControlGroup] of this._sourceControlResourceGroups) {
+			if (this.sourceControlResourceStates.get(group) !== group.resourceStates) {
+				sourceControlGroup.resourceStates = group.resourceStates;
+				this.sourceControlResourceStates.set(group, group.resourceStates);
+			}
+		}
+
+		this._sourceControl.commitTemplate = this._commitTemplate;
 		this.setCountBadge();
 	}
 
