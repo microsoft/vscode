@@ -124,6 +124,7 @@ import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionChatRefer
 import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListSessionDrop } from './sessionsListChatMove.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { InboxAutoAdvanceSpotlight } from './inboxAutoAdvanceSpotlight.js';
+import { ONBOARDING_ENABLED_CONFIG } from '../../../onboarding/common/onboardingScenarioService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
@@ -5178,6 +5179,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.scheduleListUpdate();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ONBOARDING_ENABLED_CONFIG) && this.configurationService.getValue<boolean>(ONBOARDING_ENABLED_CONFIG) === false) {
+				this.inboxAutoAdvanceSpotlight.clear();
+			}
 			if (e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING) || e.affectsConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) || e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
 				this.update();
 			}
@@ -6101,6 +6105,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.refreshSessions();
 		}
 		this.renderValidUntil = this.getRenderValidUntil();
+		this.updateInboxDemand();
 		const activeSession = this._mainWindowShown.get()?.session;
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const grouping = this.options.grouping();
@@ -6159,7 +6164,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 
 		const sorting = this.options.sorting();
-		this.updateInboxDemand();
 		this.inboxObserver.clear();
 		this.inboxPlacements = undefined;
 		if (inbox && this.visible) {
@@ -7534,7 +7538,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		} else {
 			this.inboxObserver.clear();
 			this.inboxPlacements = undefined;
-			this.inboxAutoAdvanceSpotlight.clear();
 		}
 	}
 
@@ -7543,6 +7546,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.inboxDemand.value ??= this.sessionAttentionService.acquireSessionAttention();
 		} else {
 			this.inboxDemand.clear();
+			this.inboxAutoAdvanceSpotlight.clear();
 		}
 	}
 
@@ -9663,7 +9667,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (next) {
 				void this.beginOpenRequest(next, undefined, false, false, () => {
 					if (!this._store.isDisposed && this.visible && this.isInboxLayout() && isEqual(this._mainWindowShown.get()?.session.resource, next.resource)) {
-						this.explainInboxAutoAdvance(inboxSessions[index], true);
+						void this.explainInboxAutoAdvance(inboxSessions[index], true);
 					}
 				}).catch(onUnexpectedError);
 			} else {
@@ -9673,7 +9677,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.tree.setFocus([inbox]);
 					this.tree.reveal(inbox);
 					this.tree.domFocus();
-					this.explainInboxAutoAdvance(inboxSessions[index], false);
+					void this.explainInboxAutoAdvance(inboxSessions[index], false);
 				}
 			}
 		});
@@ -9684,17 +9688,30 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return mode === 'on' || mode === 'auto' && !this.accessibilityService.isScreenReaderOptimized();
 	}
 
-	private explainInboxAutoAdvance(session: ISession, hasNext: boolean): void {
-		if (this.chatEntitlementService.sentiment.hidden || this.storageService.getBoolean(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, StorageScope.PROFILE, false)) {
+	private async explainInboxAutoAdvance(session: ISession, hasNext: boolean): Promise<void> {
+		if (!this.visible || !this.isInboxLayout() || this.inboxAutoAdvanceSpotlight.value
+			|| this.chatEntitlementService.sentiment.hidden
+			|| this.configurationService.getValue<boolean>(ONBOARDING_ENABLED_CONFIG) === false
+			|| this.storageService.getBoolean(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, StorageScope.PROFILE, false)) {
 			return;
 		}
-		const spotlight = this.instantiationService.createInstance(InboxAutoAdvanceSpotlight, () => this.revealSessionForOnboarding(session), () => this.openSession(session), hasNext);
+		const spotlight = this.instantiationService.createInstance(InboxAutoAdvanceSpotlight,
+			() => this.revealSessionForOnboarding(session),
+			() => this.openSession(session),
+			hasNext,
+			() => this.storageService.store(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, true, StorageScope.PROFILE, StorageTarget.USER),
+		);
 		this.inboxAutoAdvanceSpotlight.value = spotlight;
-		this.storageService.store(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
-		void spotlight.show().catch(error => {
+		try {
+			await spotlight.show();
+		} catch (error) {
 			this.logService.error(error);
 			this.notificationService.error(error);
-		});
+		} finally {
+			if (this.inboxAutoAdvanceSpotlight.value === spotlight) {
+				this.inboxAutoAdvanceSpotlight.clear();
+			}
+		}
 	}
 
 	private getInboxStateContext(session: ISession, reader?: IReader): string {

@@ -77,7 +77,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			restoreGrouping: content.includes('restore your previous grouping, remembered across reloads'),
 			screenReaderDefault: content.includes('auto, keeps you in the current conversation when a screen reader is attached'),
 			explicitChoices: content.includes('Set it to off to always stay, or on to always advance'),
-			automaticSpotlight: content.includes('The first automatic move spotlights the session you replied to in Working'),
+			automaticSpotlight: content.includes('When onboarding is enabled, the first automatic move spotlights the session you replied to in Working'),
 			noNotification: content.includes('in Working instead of showing a notification'),
 			returnAction: content.includes('Choose Return to Session'),
 			dismiss: content.includes('press Escape or Got It to dismiss the spotlight'),

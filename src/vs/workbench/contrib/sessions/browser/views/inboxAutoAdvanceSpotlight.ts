@@ -22,6 +22,7 @@ export class InboxAutoAdvanceSpotlight extends Disposable {
 		private readonly revealSession: () => IDisposable & { readonly targetId: string },
 		private readonly openSession: () => void,
 		private readonly hasNext: boolean,
+		private readonly onDidShow: () => void,
 		@IOnboardingScenarioService private readonly onboardingService: IOnboardingScenarioService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
@@ -48,6 +49,7 @@ export class InboxAutoAdvanceSpotlight extends Disposable {
 						return [{
 							id: 'repliedSession',
 							targetId: target.targetId,
+							onDidShow: this.onDidShow,
 							title: localize('inboxAutoAdvanceSpotlight.title', "Your session is here"),
 							description: new MarkdownString(localize('inboxAutoAdvanceSpotlight.description', "Your reply moved to Working. {0} [Change auto-advance]({1}).",
 								this.hasNext

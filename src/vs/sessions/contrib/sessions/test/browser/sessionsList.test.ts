@@ -78,7 +78,7 @@ import { SpotlightPresentation } from '../../../../../workbench/contrib/onboardi
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
-import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
+import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
@@ -6112,6 +6112,160 @@ suite('Sessions - SessionsList', () => {
 				}, {
 					afterNoOp: { tours: 0, notifications: 0, shown: 'source' },
 					afterNavigation: { tours: 1, notifications: 0, shown: 'next' },
+				});
+			});
+		}
+
+		test('Inbox automatic spotlight respects disabled onboarding without consuming the introduction', async () => {
+			const source = buildTestSession({ id: 'source', title: 'Source' });
+			const harness = createListHarness(disposables, [source.session]);
+			const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configuration.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, false);
+			stubSessionHosts(harness.instantiationService, disposables, {
+				session: constObservable({ session: source.session, chat: source.session.mainChat.get() }),
+			});
+			const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+			harness.instantiationService.stub(IChatService, new class extends MockChatService {
+				override readonly onDidAcceptRequest = accepted.event;
+			});
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			let tours = 0;
+			harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+				runScenario: async id => {
+					tours++;
+					const payload = onboardingScenarioRegistry.getScenario(id)!.presentation.payload as ISpotlightPayload;
+					const [step] = await payload.resolveSteps!();
+					step.onDidShow?.();
+					return OnboardingOutcome.Completed;
+				},
+			}));
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			const send = async () => {
+				transaction(tx => {
+					source.status.set(SessionStatus.Completed, tx);
+					source.mainChat.status.set(SessionStatus.Completed, tx);
+				});
+				list.update();
+				transaction(tx => {
+					source.status.set(SessionStatus.InProgress, tx);
+					source.mainChat.status.set(SessionStatus.InProgress, tx);
+				});
+				accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+				await timeout(0);
+			};
+			const storage = harness.instantiationService.get(IStorageService);
+			const state = () => ({ tours, explained: storage.getBoolean('sessionsListControl.inboxAutoAdvanceExplained', StorageScope.PROFILE, false) });
+			await send();
+			const disabled = state();
+			await configuration.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, true);
+			await send();
+
+			assert.deepStrictEqual({ disabled, enabled: state() }, {
+				disabled: { tours: 0, explained: false },
+				enabled: { tours: 1, explained: true },
+			});
+		});
+
+		for (const reason of ['hidden', 'grouping', 'disabled', 'aborted'] as const) {
+			test(`Inbox automatic spotlight retries after ${reason} before showing and suppresses duplicate pending tours`, async () => {
+				const source = buildTestSession({ id: 'source', title: 'Source' });
+				const harness = createListHarness(disposables, [source.session]);
+				const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+				stubSessionHosts(harness.instantiationService, disposables, {
+					session: constObservable({ session: source.session, chat: source.session.mainChat.get() }),
+				});
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				const releaseFirst = new DeferredPromise<void>();
+				const firstFinished = new DeferredPromise<void>();
+				let tours = 0;
+				let resolved = 0;
+				let cancelled = false;
+				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+					runScenario: async (id, token) => {
+						tours++;
+						if (tours === 1) {
+							const listener = disposables.add(token!.onCancellationRequested(() => {
+								cancelled = true;
+								void releaseFirst.complete();
+							}));
+							await releaseFirst.p;
+							listener.dispose();
+							void firstFinished.complete();
+							return OnboardingOutcome.Aborted;
+						}
+						const payload = onboardingScenarioRegistry.getScenario(id)!.presentation.payload as ISpotlightPayload;
+						const [step] = await payload.resolveSteps!();
+						resolved++;
+						step.onDidShow?.();
+						return OnboardingOutcome.Completed;
+					},
+				}));
+				let grouping = SessionsGrouping.Inbox;
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => grouping, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+				}));
+				list.layout(600, 400);
+				const send = async () => {
+					transaction(tx => {
+						source.status.set(SessionStatus.Completed, tx);
+						source.mainChat.status.set(SessionStatus.Completed, tx);
+					});
+					list.update();
+					transaction(tx => {
+						source.status.set(SessionStatus.InProgress, tx);
+						source.mainChat.status.set(SessionStatus.InProgress, tx);
+					});
+					accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					await timeout(0);
+				};
+				const storage = harness.instantiationService.get(IStorageService);
+				const state = () => ({
+					tours, resolved,
+					explained: storage.getBoolean('sessionsListControl.inboxAutoAdvanceExplained', StorageScope.PROFILE, false),
+					registered: !!onboardingScenarioRegistry.getScenario('sessions.inboxAutoAdvance'),
+				});
+				await send();
+				const pending = state();
+				await send();
+				const duplicate = state();
+				if (reason === 'hidden') {
+					list.setVisible(false);
+				} else if (reason === 'grouping') {
+					grouping = SessionsGrouping.Workspace;
+					list.update();
+				} else if (reason === 'disabled') {
+					await configuration.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, false);
+					configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+						affectsConfiguration: key => key === ONBOARDING_ENABLED_CONFIG,
+					}));
+				} else {
+					await releaseFirst.complete();
+				}
+				await firstFinished.p;
+				await timeout(0);
+				const afterCancellation = { ...state(), cancelled };
+				await configuration.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, true);
+				grouping = SessionsGrouping.Inbox;
+				list.setVisible(true);
+				await send();
+				await send();
+
+				assert.deepStrictEqual({ pending, duplicate, afterCancellation, retried: state() }, {
+					pending: { tours: 1, resolved: 0, explained: false, registered: true },
+					duplicate: { tours: 1, resolved: 0, explained: false, registered: true },
+					afterCancellation: { tours: 1, resolved: 0, explained: false, registered: false, cancelled: reason !== 'aborted' },
+					retried: { tours: 2, resolved: 1, explained: true, registered: false },
 				});
 			});
 		}
