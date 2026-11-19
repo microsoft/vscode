@@ -185,4 +185,27 @@ second line"
 		const parsed = parseEnvFile(env);
 		assert.strictEqual(parsed.get('MULTI'), 'line with \\"escaped\\" quotes\nsecond line');
 	});
+
+	test('handles indented export prefix for single-line and multi-line values', () => {
+		const env = [
+			'  export INDENTED="value"',
+			'\texport TAB_INDENTED=\'another\'',
+			'   export MULTI_INDENTED="multi',
+			'line"'
+		].join('\n');
+		const parsed = parseEnvFile(env);
+		assert.strictEqual(parsed.get('INDENTED'), 'value');
+		assert.strictEqual(parsed.get('TAB_INDENTED'), 'another');
+		assert.strictEqual(parsed.get('MULTI_INDENTED'), 'multi\nline');
+	});
+
+	test('handles single-quoted values with literal trailing backslash', () => {
+		const env = `
+DIR='C:\\temp\\'
+NEXT_VAR=123
+`;
+		const parsed = parseEnvFile(env);
+		assert.strictEqual(parsed.get('DIR'), 'C:\\temp\\');
+		assert.strictEqual(parsed.get('NEXT_VAR'), '123');
+	});
 });

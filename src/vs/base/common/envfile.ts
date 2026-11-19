@@ -40,7 +40,7 @@ export function parseEnvFile(src: string) {
 			if (quoteChar === '"' || quoteChar === '\'' || quoteChar === '`') {
 				let hasClosingQuote = false;
 				for (let idx = 1; idx < valueStart.length; idx++) {
-					if (valueStart[idx] === quoteChar && !isEscaped(valueStart, idx)) {
+					if (valueStart[idx] === quoteChar && (quoteChar === '\'' || !isEscaped(valueStart, idx))) {
 						hasClosingQuote = true;
 						break;
 					}
@@ -52,7 +52,7 @@ export function parseEnvFile(src: string) {
 						const nextLine = lines[j];
 						let foundInNextLine = false;
 						for (let k = 0; k < nextLine.length; k++) {
-							if (nextLine[k] === quoteChar && !isEscaped(nextLine, k)) {
+							if (nextLine[k] === quoteChar && (quoteChar === '\'' || !isEscaped(nextLine, k))) {
 								foundInNextLine = true;
 								break;
 							}
@@ -81,9 +81,10 @@ export function parseEnvFile(src: string) {
 	return result;
 
 	function parseLine(line: string): [string, string] | [null, null] {
+		line = line.trimStart();
 		// Handle export prefix
 		if (line.startsWith('export ')) {
-			line = line.substring(7).trim();
+			line = line.substring(7).trimStart();
 		}
 
 		// Find the key-value separator
@@ -130,7 +131,7 @@ export function parseEnvFile(src: string) {
 			const char = text[i];
 
 			if (inQuote) {
-				if (char === quoteChar && !isEscaped(text, i)) {
+				if (char === quoteChar && (quoteChar === '\'' || !isEscaped(text, i))) {
 					inQuote = false;
 				}
 			} else if (char === '"' || char === '\'' || char === '`') {
