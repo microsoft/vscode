@@ -191,7 +191,7 @@ suite('WorkspaceEditingService', () => {
 			const cancelled = createService({ current: URI.file('/work/project'), primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'], vetoConfirmed: false });
 			await cancelled.service.removeFolders([folder]);
 			const unattended = createService({ current: URI.file('/work/project'), primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'] });
-			await unattended.service.removeFolders([folder], false, true);
+			await unattended.service.removeFolders([folder], { force: true });
 			assert.deepStrictEqual({
 				confirmed: confirmed.events,
 				dialog: confirmed.dialogs.map(({ message, detail, primaryButton }) => ({ message, detail, primaryButton })),
@@ -268,9 +268,9 @@ suite('WorkspaceEditingService', () => {
 		test('an update and a single-folder replacement skip the veto when asked to', async () => {
 			const project = URI.file('/work/project');
 			const replacement = createService({ current: project, primaryTrusted: true, vetoReasons: ['A debug session is running.'] });
-			await replacement.service.updateFolders(0, 1, [{ uri: URI.file('/work/other') }], false, true);
+			await replacement.service.updateFolders(0, 1, [{ uri: URI.file('/work/other') }], { force: true });
 			const workspace = createService({ current: project, primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'] });
-			await workspace.service.updateFolders(0, 1, [{ uri: URI.file('/work/other') }], false, true);
+			await workspace.service.updateFolders(0, 1, [{ uri: URI.file('/work/other') }], { force: true });
 			assert.deepStrictEqual({ replacement: replacement.events, workspace: workspace.events }, { replacement: ['entered'], workspace: ['updated'] });
 		});
 

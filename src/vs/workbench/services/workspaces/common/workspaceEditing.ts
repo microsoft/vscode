@@ -43,6 +43,23 @@ export interface IWillRemoveFoldersEvent {
 	veto(reasons: string | readonly string[] | undefined | Promise<string | readonly string[] | undefined>, stop?: () => Promise<void>): void;
 }
 
+/**
+ * Options of {@link IWorkspaceEditingService.removeFolders} and {@link IWorkspaceEditingService.updateFolders}.
+ */
+export interface IWorkspaceFoldersEditOptions {
+
+	/**
+	 * When `true`, errors are bubbled up. Otherwise, the service handles the error with proper message and action.
+	 */
+	readonly donotNotifyError?: boolean;
+
+	/**
+	 * When `true`, the user is not asked to confirm when something runs against the removed folders ({@link IWorkspaceEditingService.onWillRemoveFolders}).
+	 * Callers that must not ask, such as an extension or an unattended request, pass `force`. Otherwise, the user is asked.
+	 */
+	readonly force?: boolean;
+}
+
 export interface IWorkspaceEditingService {
 
 	readonly _serviceBrand: undefined;
@@ -67,17 +84,13 @@ export interface IWorkspaceEditingService {
 
 	/**
 	 * Remove folders from the existing workspace
-	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
-	 * Unless `force` is `true`, the user is asked to confirm when something runs against the folders ({@link onWillRemoveFolders}). Callers that must not ask, such as an extension or an unattended request, pass `force`.
 	 */
-	removeFolders(folders: URI[], donotNotifyError?: boolean, force?: boolean): Promise<void>;
+	removeFolders(folders: URI[], options?: IWorkspaceFoldersEditOptions): Promise<void>;
 
 	/**
 	 * Allows to add and remove folders to the existing workspace at once.
-	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
-	 * Unless `force` is `true`, the user is asked to confirm when something runs against the folders ({@link onWillRemoveFolders}). Callers that must not ask, such as an extension or an unattended request, pass `force`.
 	 */
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean, force?: boolean): Promise<void>;
+	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], options?: IWorkspaceFoldersEditOptions): Promise<void>;
 
 	/**
 	 * Moves the folder to `location`; pass the `uri` of the workspace's single-folder identifier

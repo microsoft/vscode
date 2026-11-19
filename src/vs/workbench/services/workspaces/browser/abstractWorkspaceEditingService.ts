@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FolderLocationChangeReason, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
-import { IDidEnterWorkspaceEvent, IWillRemoveFoldersEvent, IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { IDidEnterWorkspaceEvent, IWillRemoveFoldersEvent, IWorkspaceEditingService, IWorkspaceFoldersEditOptions } from '../common/workspaceEditing.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -365,7 +365,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		return foldersToDelete.filter(folder => !foldersToAdd.some(added => this.uriIdentityService.extUri.isEqual(added.uri, folder)));
 	}
 
-	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean, force?: boolean): Promise<void> {
+	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], options?: IWorkspaceFoldersEditOptions): Promise<void> {
 		const folders = this.contextService.getWorkspace().folders;
 
 		let foldersToDelete: URI[] = [];
@@ -387,12 +387,12 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 		// Add Folders
 		if (wantsToAdd && !wantsToDelete) {
-			return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+			return this.doAddFolders(foldersToAdd, index, options?.donotNotifyError);
 		}
 
 		// Delete Folders
 		if (wantsToDelete && !wantsToAdd) {
-			return this.removeFolders(foldersToDelete, false, force);
+			return this.removeFolders(foldersToDelete, { force: options?.force });
 		}
 
 		// Add & Delete Folders
@@ -402,7 +402,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			// other folders, we handle this specially and just enter workspace
 			// mode with the folders that are being added.
 			if (this.includesSingleFolderWorkspace(foldersToDelete)) {
-				if (!force && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
+				if (!options?.force && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
 					return;
 				}
 				return this.createAndEnterWorkspace(foldersToAdd);
@@ -410,23 +410,23 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 			// if we are not in workspace-state, we just add the folders
 			if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-				return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+				return this.doAddFolders(foldersToAdd, index, options?.donotNotifyError);
 			}
 
 			// finally, update folders within the workspace
-			return this.doUpdateFolders(foldersToAdd, foldersToDelete, index, donotNotifyError, force);
+			return this.doUpdateFolders(foldersToAdd, foldersToDelete, index, options);
 		}
 	}
 
-	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError = false, force = false): Promise<void> {
-		if (!force && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
+	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, options?: IWorkspaceFoldersEditOptions): Promise<void> {
+		if (!options?.force && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
 			return;
 		}
 
 		try {
 			await this.contextService.updateFolders(foldersToAdd, foldersToDelete, index);
 		} catch (error) {
-			if (donotNotifyError) {
+			if (options?.donotNotifyError) {
 				throw error;
 			}
 
@@ -476,18 +476,18 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 	}
 
-	async removeFolders(foldersToRemove: URI[], donotNotifyError = false, force = false): Promise<void> {
+	async removeFolders(foldersToRemove: URI[], options?: IWorkspaceFoldersEditOptions): Promise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we create an empty workspace and enter it.
 		if (this.includesSingleFolderWorkspace(foldersToRemove)) {
-			if (!force && !await this.confirmRemoveFolders(foldersToRemove)) {
+			if (!options?.force && !await this.confirmRemoveFolders(foldersToRemove)) {
 				return;
 			}
 			return this.createAndEnterWorkspace([]);
 		}
 
-		if (!force && !await this.confirmRemoveFolders(foldersToRemove)) {
+		if (!options?.force && !await this.confirmRemoveFolders(foldersToRemove)) {
 			return;
 		}
 
@@ -495,7 +495,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		try {
 			await this.contextService.removeFolders(foldersToRemove);
 		} catch (error) {
-			if (donotNotifyError) {
+			if (options?.donotNotifyError) {
 				throw error;
 			}
 
