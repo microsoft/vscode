@@ -25,8 +25,14 @@ import type { ViewLinesGpu } from '../viewParts/viewLinesGpu/viewLinesGpu.js';
 import { TopBottomDragScrolling, LeftRightDragScrolling } from './dragScrolling.js';
 import { TextDirection } from '../../common/model.js';
 
+/**
+ * Set on the margin while the mouse is over a part of it where a click places the cursor (see margin.css).
+ */
+const MARGIN_MOUSE_CURSOR_TEXT_CLASS_NAME = 'mouse-cursor-text';
+
 export interface IPointerHandlerHelper {
 	viewDomNode: HTMLElement;
+	marginDomNode: HTMLElement;
 	linesContentDomNode: HTMLElement;
 	viewLinesDomNode: HTMLElement;
 	viewLinesGpu: ViewLinesGpu | undefined;
@@ -66,6 +72,7 @@ export class MouseHandler extends ViewEventHandler {
 	private lastMouseLeaveTime: number;
 	private _height: number;
 	private _mouseLeaveMonitor: IDisposable | null = null;
+	private _marginMouseCursorIsText = false;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
@@ -282,10 +289,31 @@ export class MouseHandler extends ViewEventHandler {
 			return;
 		}
 
+		const target = this._createMouseTarget(e, true);
+		this._setMarginMouseCursorIsText(this._isMarginTargetForContent(e, target));
 		this.viewController.emitMouseMove({
 			event: e,
-			target: this._createMouseTarget(e, true)
+			target
 		});
+	}
+
+	/**
+	 * Some clicks in the margin (e.g. right of the folding chevron) place the cursor like clicks on the content.
+	 */
+	private _isMarginTargetForContent(e: EditorMouseEvent, target: IMouseTarget): boolean {
+		const options = this._context.configuration.options;
+		return (
+			target.type === MouseTargetType.CONTENT_EMPTY
+			&& e.relativePos.x < options.get(EditorOption.layoutInfo).contentLeft
+			&& options.get(EditorOption.mouseStyle) === 'text'
+		);
+	}
+
+	private _setMarginMouseCursorIsText(isText: boolean): void {
+		if (this._marginMouseCursorIsText !== isText) {
+			this._marginMouseCursorIsText = isText;
+			this.viewHelper.marginDomNode.classList.toggle(MARGIN_MOUSE_CURSOR_TEXT_CLASS_NAME, isText);
+		}
 	}
 
 	protected _onMouseLeave(e: EditorMouseEvent): void {
@@ -293,6 +321,7 @@ export class MouseHandler extends ViewEventHandler {
 			this._mouseLeaveMonitor.dispose();
 			this._mouseLeaveMonitor = null;
 		}
+		this._setMarginMouseCursorIsText(false);
 		this.lastMouseLeaveTime = (new Date()).getTime();
 		this.viewController.emitMouseLeave({
 			event: e,
