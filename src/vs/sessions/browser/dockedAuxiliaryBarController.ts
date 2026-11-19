@@ -29,6 +29,11 @@ export interface IDockedAuxiliaryBarHost {
 	/** Height of the editor tabs above the optional header. */
 	getTabsHeight(): number;
 	getEditorContentTop(): number;
+	/**
+	 * Whether the editor header spans details docked beside the editor content, or filling the frame while it is
+	 * hidden, which then start below the header rather than below the tabs.
+	 */
+	headerSpansDetails?(): boolean;
 }
 
 /** Positions and resizes desktop details beside, above, or below editor content. */
@@ -122,6 +127,10 @@ export class DockedAuxiliaryBarController extends Disposable {
 		if (editorContentHidden) {
 			this._layoutState = undefined;
 		}
+
+		// Applying the insets relayouts the editor group, which can change the header that
+		// spanning details sit below, so measure the top only afterwards.
+		this.host.setEditorContentInsets(position === 'right' ? auxWidth : 0, 0, 0, position === 'left' ? auxWidth : 0);
 		const top = this._getTop();
 		const height = Math.max(0, editorRect.height - top);
 
@@ -133,7 +142,6 @@ export class DockedAuxiliaryBarController extends Disposable {
 		auxiliaryBarContainer.style.width = `${auxWidth}px`;
 		auxiliaryBarContainer.style.height = `${height}px`;
 
-		this.host.setEditorContentInsets(position === 'right' ? auxWidth : 0, 0, 0, position === 'left' ? auxWidth : 0);
 		this.auxiliaryBarPart.layout(auxWidth, height, top, position === 'left' ? 0 : editorRect.width - auxWidth);
 
 		this._ensureSash();
@@ -314,7 +322,8 @@ export class DockedAuxiliaryBarController extends Disposable {
 		}));
 	}
 
+	/** Top of details that are docked beside the editor content or fill the frame while it is hidden. */
 	private _getTop(): number {
-		return this.host.getTabsHeight();
+		return this.host.headerSpansDetails?.() ? this.host.getEditorContentTop() : this.host.getTabsHeight();
 	}
 }

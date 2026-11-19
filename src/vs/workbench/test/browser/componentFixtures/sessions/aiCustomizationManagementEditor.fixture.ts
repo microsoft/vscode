@@ -31,7 +31,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agent.js';
+import { IAgentCustomizationInstallationConfigurationRequest, IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agent.js';
 import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -87,6 +87,7 @@ import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from 
 import { IChatAgentData, IChatAgentService } from '../../../../contrib/chat/common/participants/chatAgents.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { CustomizationInstallationConfigurationService, ICustomizationInstallationConfigurationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/customizationInstallationConfigurationService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -1344,6 +1345,8 @@ interface IRenderEditorOptions {
 	readonly policyConfiguration?: Record<string, unknown>;
 	/** Adds local plugins that organization policy requires or blocks. */
 	readonly organizationManagedLocalPlugins?: boolean;
+	/** Starts an MCP server installation that asks for this configuration. */
+	readonly mcpInstallRequest?: IAgentCustomizationInstallationConfigurationRequest;
 	/** Names of plugins the agent host runtime installed, which pair with the agent-host plugins of the same name. */
 	readonly runtimeInstalledPlugins?: readonly string[];
 }
@@ -1902,6 +1905,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}();
 			const secretStorageService = ctx.disposableStore.add(new TestSecretStorageService());
 			reg.defineInstance(ISecretStorageService, secretStorageService);
+			reg.define(ICustomizationInstallationConfigurationService, CustomizationInstallationConfigurationService);
 			const mcpServerMigrationProvider = ctx.disposableStore.add(new AgentHostMcpServerMigrationProvider(
 				harnessService,
 				activeClientService,
@@ -2281,6 +2285,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
+	if (options.mcpInstallRequest) {
+		void instantiationService.get(ICustomizationInstallationConfigurationService).collect(options.mcpInstallRequest, CancellationToken.None);
+		assert(ctx.container.querySelector('.mcp-install-container .mcp-install-form') !== null, 'The install form must open as a page of the editor.');
+	}
 	if (options.curatedFeedsEnabled || options.clearDiscoveryQuery) {
 		await browseHomeReady.p;
 	}
@@ -2328,7 +2336,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
 		assert(ctx.container.querySelector('.customization-discovery-search-actions .codicon-filter') !== null, 'Discover must expose Marketplace-style search filters.');
 		assert(ctx.container.querySelector('.customization-discovery-filters') === null, 'Discover must keep filters in the search toolbar instead of rendering quick-filter pills.');
-		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All Sources') === true, 'Discover must default to all customization sources.');
+		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All Marketplaces') === true, 'Discover must default to all marketplaces.');
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		assert(
 			description?.textContent === 'Tailor your agent to your tools, your team, and your workflow. Learn more'
@@ -3940,6 +3948,58 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	// The form that configures an MCP server installation, as a page of the editor
+	McpServerInstallPage: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The content area shows the Install Contoso Files form in place of the MCP Servers list: a summary of the server and its command, fields grouped under Arguments, Environment Variables and Secrets, and Cancel and Install buttons at the bottom. The sidebar stays visible.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			mcpInstallRequest: {
+				kind: 'configuration',
+				operationId: 'operation',
+				hostGeneration: 'generation',
+				ownershipToken: 'ownership',
+				displayName: 'Contoso Files',
+				serverName: 'io.github.contoso/files',
+				target: 'io.github.contoso/files',
+				choices: [{
+					choiceId: 'package:0',
+					transport: 'stdio',
+					command: 'npx @contoso/files-mcp@1.2.3 ${input:directory} --port ${input:port}',
+					env: { LOG_LEVEL: '${input:LOG_LEVEL}' },
+					configurationFields: ['args', 'command', 'env', 'type'],
+					values: [
+						{ key: 'directory', category: 'package-argument', valueType: 'path', required: true, isRepeated: false, title: 'Root directory', description: 'The only directory the server can read and write.' },
+						{ key: '--port', category: 'package-argument', valueType: 'number', required: false, isRepeated: false, defaultValue: '3000' },
+						{ key: 'LOG_LEVEL', category: 'environment-variable', valueType: 'enum', required: false, isRepeated: false, defaultValue: 'info', enumValues: ['error', 'info', 'debug'] },
+					],
+					secrets: [{ key: 'CONTOSO_TOKEN', placeholder: '${secret:1}' }],
+				}],
+			},
+		}),
+	}),
+
+	// A server that needs no configuration is reviewed on the same page
+	McpServerInstallReviewPage: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The content area shows the Install Contoso Notes page in place of the MCP Servers list: a summary with the server and its endpoint, and a footer with the trust notice and Cancel and Install buttons. There are no fields. The sidebar stays visible.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			mcpInstallRequest: {
+				kind: 'configuration',
+				operationId: 'operation',
+				hostGeneration: 'generation',
+				ownershipToken: 'ownership',
+				displayName: 'Contoso Notes',
+				serverName: 'com.contoso/notes',
+				target: 'com.contoso/notes',
+				choices: [{ choiceId: 'operation', transport: 'http', endpointSummary: 'https://mcp.contoso.com/notes', configurationFields: ['tools', 'type', 'url'], values: [], secrets: [] }],
+			},
+		}),
+	}),
+
 	McpServersCopilotConnectors: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The MCP Servers tree includes the connected Work IQ Mail MCP server with its catalog icon, Connector source, and row actions. Disconnected and unavailable connectors are not shown.'],
@@ -4851,7 +4911,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverClearedSearch: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Clearing the search restores the Browse source sections immediately and the source picker defaults to All Sources.'],
+		expectedVisualDescriptions: ['Clearing the search restores the Browse source sections immediately and the source picker defaults to All Marketplaces.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -5702,6 +5762,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Standalone embedded plugin detail widget — marketplace plugin.
 	EmbeddedPluginDetailMarketplace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The uninstalled plugin shows a linked Repository in Details alongside Version and Marketplace.'],
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeMarketplacePluginItem('Sentry', 'Error monitoring and performance tracing')),
 	}),
 

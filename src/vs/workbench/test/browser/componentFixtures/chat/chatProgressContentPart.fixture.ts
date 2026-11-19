@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Event } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -27,6 +27,7 @@ import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/wi
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatProgressMessage } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatConfiguration, ChatResponseStats, ChatResponseStatsTokens } from '../../../../contrib/chat/common/constants.js';
 import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { IChatResponseModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ISessionChatPillVisibilityService } from '../../../../contrib/chat/common/sessionChatPills.js';
@@ -41,6 +42,7 @@ import { type IChatBackgroundShell } from '../../../../common/chatBackgroundShel
 function createMockContext(opts?: { isComplete?: boolean; hasFollowingContent?: boolean }): IChatContentPartRenderContext {
 	const element = new class extends mock<IChatResponseViewModel>() {
 		override readonly isComplete = opts?.isComplete ?? false;
+		override readonly sessionResource = URI.parse('chat-session:/progress-fixture');
 	}();
 	return {
 		element,
@@ -121,10 +123,11 @@ function renderProgressPart(
 	container.appendChild(itemContainer);
 }
 
-async function renderWorkingBackgroundActivity(context: ComponentFixtureContext, openDropdown: boolean, kind: 'subagents' | 'backgroundShells' | 'mixed' = 'subagents', showReference = false): Promise<void> {
+async function renderWorkingBackgroundActivity(context: ComponentFixtureContext, openDropdown: boolean, kind: 'subagents' | 'backgroundShells' | 'mixed' | 'none' = 'subagents', showReference = false, responseStats?: ChatResponseStats, responseStatsTokens?: ChatResponseStatsTokens): Promise<void> {
 	const { container, disposableStore, theme } = context;
-	container.style.width = kind === 'subagents' ? '440px' : '920px';
-	container.style.height = openDropdown || kind !== 'subagents' ? '260px' : showReference ? '140px' : '80px';
+	const wide = kind === 'backgroundShells' || kind === 'mixed';
+	container.style.width = wide ? '920px' : '440px';
+	container.style.height = openDropdown || wide ? '260px' : showReference ? '140px' : '80px';
 	container.style.padding = '8px';
 	container.classList.add('interactive-session', 'agent-sessions-workbench');
 	const instantiationService = createEditorServices(disposableStore, {
@@ -147,6 +150,13 @@ async function renderWorkingBackgroundActivity(context: ComponentFixtureContext,
 		throw new Error('Expected fixture configuration service');
 	}
 	await configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
+	await configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
+	if (responseStats) {
+		await configurationService.setUserConfiguration(ChatConfiguration.ResponseStats, responseStats);
+	}
+	if (responseStatsTokens) {
+		await configurationService.setUserConfiguration(ChatConfiguration.ResponseStatsTokens, responseStatsTokens);
+	}
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 	const subagents = createSessionSubagentsPillData(observableValue('subagents', [
 		{ id: 'tests', title: 'Checking the regression tests', isActive: false, open: () => { } },
@@ -166,6 +176,11 @@ async function renderWorkingBackgroundActivity(context: ComponentFixtureContext,
 		override readonly model = upcastPartial<IChatResponseModel>({
 			isIncomplete: observableValue('isIncomplete', true),
 			onDidChange: Event.None,
+			// The response has worked for 2m 43s and waits for a confirmation, which keeps that time still.
+			confirmationAdjustedTimestamp: constObservable(1000),
+			isPendingConfirmation: constObservable({ startedWaitingAt: 164_000 }),
+			usageObs: constObservable({ kind: 'usage', promptTokens: 18_000, completionTokens: 310, latestModelCall: { duration: 5000 } }),
+			completionTokenCountObs: constObservable(12_840),
 		});
 		override setVote(): void { }
 	}();
@@ -176,7 +191,7 @@ async function renderWorkingBackgroundActivity(context: ComponentFixtureContext,
 		suppressProgressShimmer: true,
 		backgroundActivityPillSections: { subagents: subagents.inProgressSections, backgroundShells: shells },
 	};
-	const part = disposableStore.add(instantiationService.createInstance(ChatWorkingProgressContentPart, {
+	const part = disposableStore.add(instantiationService.createInstance(ChatWorkingProgressContentPart, kind === 'none' ? { kind: 'working' } : {
 		kind: 'working',
 		content: new MarkdownString(kind === 'subagents' ? '2 subagents running' : kind === 'backgroundShells' ? '1 background command running' : '2 subagents and 1 background command running'),
 		backgroundActivity: {
@@ -256,6 +271,38 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		virtualTime: { enabled: false },
 		render: ctx => renderWorkingBackgroundActivity(ctx, true, 'mixed'),
+	}),
+
+	ResponseStats: defineComponentFixture({
+		labels: { kind: 'animated' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		render: ctx => renderWorkingBackgroundActivity(ctx, false, 'none', false, ChatResponseStats.Progress),
+	}),
+
+	RunningSubagentsResponseStats: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: ctx => renderWorkingBackgroundActivity(ctx, false, 'subagents', false, ChatResponseStats.Progress),
+	}),
+
+	ResponseStatsWithMessage: defineComponentFixture({
+		labels: { kind: 'animated' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		render: ctx => renderWorkingBackgroundActivity(ctx, false, 'none', false, ChatResponseStats.ProgressWithMessage),
+	}),
+
+	RunningSubagentsResponseStatsWithMessage: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: ctx => renderWorkingBackgroundActivity(ctx, false, 'subagents', false, ChatResponseStats.ProgressWithMessage),
+	}),
+
+	ResponseStatsTokenCount: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: ctx => renderWorkingBackgroundActivity(ctx, false, 'none', false, ChatResponseStats.ProgressWithMessage, ChatResponseStatsTokens.Count),
 	}),
 
 	WithSpinner: defineComponentFixture({

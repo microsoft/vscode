@@ -9,6 +9,7 @@ import './media/chatViewWelcome.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { equals } from '../../../../../base/common/arrays.js';
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -123,7 +124,7 @@ import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
-import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
+import { ChatSubmitRequestOutcome, IChatSubmitRequestHandlerService, IChatSubmitRequestResult } from '../chatSubmitRequestHandlerService.js';
 import { getChatPetListPadding, IChatPetPlatformOccupation } from './chatPetWidget.js';
 import { IChatPetWidgetService } from './chatPetWidgetService.js';
 import { IChatPetService } from '../chatPetService.js';
@@ -222,6 +223,14 @@ export async function acceptAndAwaitSentRequest(result: ChatSendResult, onReques
 
 	const sent = ChatSendResult.isQueued(result) ? await result.deferred : result;
 	return ChatSendResult.isSent(sent) ? sent : undefined;
+}
+
+/**
+ * Whether the last request waits on an unanswered question, such as one asked with the ask questions tool.
+ * MCP form elicitations are not questions here: like tool confirmations, a new message cancels them.
+ */
+function hasUnansweredQuestion(model: IChatModel): boolean {
+	return !!model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed && part.source?.type !== 'mcp');
 }
 
 export function shouldUnlockChatPetRequestRevision(isEditing: boolean, isUserQuery: boolean): boolean {
@@ -354,6 +363,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/** User input accepted by this widget for sending or queuing, excluding preserved-input background requests. */
 	readonly onDidAcceptRequest = this._onDidAcceptRequest.event;
 	private _submitHandlerInFlight = false;
+	/** A submission that a pre-submit handler holds: another one meanwhile is not sent. */
+	private _preSubmitInFlight = false;
 	private _participantRedirectInFlight = false;
 
 	private _onDidChangeAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
@@ -2586,6 +2597,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	revealScheduledRequest(requestId: string): void {
+		const request = this.viewModel?.getItems().find((item): item is IChatScheduledRequestViewModel => isScheduledRequestVM(item) && item.id === `scheduled:${requestId}`);
+		if (!request?.editing || this._readOnly) {
+			return;
+		}
+
+		// View-model changes are batched; refresh before revealing a newly edited, virtualized row.
+		this.listWidget.refresh();
+		this.listWidget.reveal(request);
+		if (this._scheduledRequestEdit?.state === request.editing) {
+			this.input.focus();
+		}
+	}
+
 	private clickedRequest(item: IChatListItemTemplate) {
 
 		const currentElement = item.currentElement;
@@ -3765,6 +3790,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	private _getAttachmentIds(): string[] {
+		return this.input.getAttachedContext().asArray().map(attachment => attachment.id);
+	}
+
 	private _createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): IForkPromptSourceInput | undefined {
 		// Only a submission of the composer's own draft can own it.
 		if (query || options?.preserveInput) {
@@ -4103,11 +4132,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		if (isUserQuery) {
-			const preSubmitResult = await this.chatSubmitRequestHandlerService.tryHandle({
-				sessionResource: this.viewModel.sessionResource,
-				input: inputValue,
-			});
-			if (preSubmitResult) {
+			if (this._preSubmitInFlight) {
+				// Submitted again while a handler holds the draft: that submission goes on once it answers
+				return;
+			}
+			const sourceModel = this.viewModel.model;
+			const sourceInput = this.input;
+			const sourceAttachments = this._getAttachmentIds();
+			let preSubmitResult: IChatSubmitRequestResult;
+			this._preSubmitInFlight = true;
+			try {
+				preSubmitResult = await this.chatSubmitRequestHandlerService.tryHandle({
+					sessionResource: this.viewModel.sessionResource,
+					input: inputValue,
+				});
+			} finally {
+				this._preSubmitInFlight = false;
+			}
+			// A handler that held the submission: where the widget closed, hid or moved to another chat meanwhile, or the
+			// draft was edited, it is neither sent nor cleared, so the draft stays as it is with its own chat
+			if (preSubmitResult.held && (this._store.isDisposed || !this.visible || this.input !== sourceInput || this.viewModel?.model !== sourceModel
+				|| this.getInput() !== inputValue || !equals(this._getAttachmentIds(), sourceAttachments))) {
+				return;
+			}
+			if (preSubmitResult.outcome === ChatSubmitRequestOutcome.Cancelled) {
+				return;
+			}
+			if (preSubmitResult.outcome === ChatSubmitRequestOutcome.Handled) {
 				this.setInput('');
 				return;
 			}
@@ -4194,13 +4245,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			options.queue = undefined;
 		}
 		const requestInProgress = model.requestInProgress.get();
-		// Cancel the request if the user chooses to take a different path.
-		// This is a bit of a heuristic for the common case of tool confirmation+reroute.
-		// But we don't do this if there are queued messages, because we would either
-		// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
-		// which could be a surprising behavior if the user finishes typing a steering
-		// request just as confirmation is triggered.
-		if (!options.cancelCurrentRequest && model.requestNeedsInput.get() && !model.getPendingRequests().length) {
+		const requestNeedsInput = !options.cancelCurrentRequest && !!model.requestNeedsInput.get();
+		if (requestNeedsInput && hasUnansweredQuestion(model)) {
+			// An open question stays open: the message waits in the queue until the
+			// question is answered and the request completes.
+			options.queue ??= ChatRequestQueueKind.Queued;
+		} else if (requestNeedsInput && !model.getPendingRequests().length) {
+			// Cancel the request if the user chooses to take a different path.
+			// This is a bit of a heuristic for the common case of tool confirmation+reroute.
+			// But we don't do this if there are queued messages, because we would either
+			// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
+			// which could be a surprising behavior if the user finishes typing a steering
+			// request just as confirmation is triggered.
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}

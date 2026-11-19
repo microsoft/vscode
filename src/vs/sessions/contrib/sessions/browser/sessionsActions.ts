@@ -859,7 +859,7 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 			menu: [{
 				id: Menus.SessionChatItemContext,
 				group: '2_organize',
-				order: 3,
+				order: 4,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionChatItemCanMoveContext),
 			}],
 		});
@@ -926,8 +926,8 @@ registerAction2(class MoveChatToSessionAction extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.SessionChatItemContext,
-				group: '1_move',
-				order: 2,
+				group: '2_organize',
+				order: 3,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext),
 			}],
 		});
@@ -971,8 +971,8 @@ registerAction2(class MoveSessionIntoSessionAction extends Action2 {
 			precondition: SessionItemIsMultiSelectionContext.negate(),
 			menu: [{
 				id: MenuId.SessionItemContextMenu,
-				group: '1_move',
-				order: 1,
+				group: '2_organize',
+				order: 3,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionItemHasMoveDestinationContext),
 			}],
 		});

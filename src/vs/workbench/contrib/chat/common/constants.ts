@@ -8,7 +8,7 @@ import { IChatSessionsService, isAgentHostTarget, isRemoteAgentHostTarget, local
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { hasVirtualWorkspaceContent, isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
@@ -25,6 +25,31 @@ import { ILocalChatAvailabilityService } from './localChatAvailability.js';
 
 export function managedPolicyRequiresAgentHostMessage(): string {
 	return localize('chat.managedPolicy.requireAgentHost', "Your organization requires the new Copilot experience. Move to Copilot to keep your conversation. If Copilot cannot start, try again or contact your administrator. Your original conversation is still available.");
+}
+
+/**
+ * Why a new chat does not start as a local chat while a feature hides local chats ({@link ILocalChatAvailabilityService}):
+ * no agent is available yet (`unavailable`), or its session type failed to start (`failed`).
+ */
+export function localChatHiddenMessage(reason: 'unavailable' | 'failed'): string {
+	return reason === 'unavailable'
+		? localize('chat.localChatHidden.unavailable', "No agent is available to start a chat yet. Try again once an agent is available.")
+		: localize('chat.localChatHidden.failed', "The chat could not start. Try again or choose another available agent.");
+}
+
+/**
+ * Why a new chat cannot fall back to a local chat, such as once its session type could not start: an organization that
+ * requires the new Copilot experience, or a feature that hides local chats, outside the exceptions of
+ * {@link isEditorLocalAgentEnabled}. Undefined where it can.
+ */
+export function getLocalChatFallbackRefusal(configurationService: IConfigurationService, workspace: IWorkspace, managedPolicyRequiresAgentHost: boolean, localChatHidden: boolean, reason: 'unavailable' | 'failed' = 'failed'): string | undefined {
+	if (managedPolicyRequiresAgentHost) {
+		return managedPolicyRequiresAgentHostMessage();
+	}
+	if (localChatHidden && !isLocalChatExemptFromHiding(configurationService, workspace)) {
+		return localChatHiddenMessage(reason);
+	}
+	return undefined;
 }
 
 export function isLocalChatSessionSubjectToManagedPolicy(sessionResource: URI, location: ChatAgentLocation): boolean {
@@ -54,6 +79,11 @@ export enum ChatConfiguration {
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	/** Desktop only: lets chat attach a screenshot of the window of another app. */
 	AppWindowScreenshotsEnabled = 'chat.appWindowScreenshots.enabled',
+	/**
+	 * Lets an editor window with one local folder move that folder between its own location and the worktrees its agent
+	 * host sessions work in, following the chat that the user opens.
+	 */
+	EditorWindowEnableWorktree = 'chat.editorWindow.enableWorktree',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	UtilityModel = 'chat.utilityModel',
@@ -108,6 +138,8 @@ export enum ChatConfiguration {
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
+	ResponseStats = 'chat.responseStats',
+	ResponseStatsTokens = 'chat.responseStatsTokens',
 	ProgressBorder = 'chat.progressBorder.enabled',
 	PersistentProgress = 'chat.persistentProgress',
 	PersistentProgressVerbosity = 'chat.persistentProgressVerbosity',
@@ -392,6 +424,24 @@ export enum ChatProgressVerbosity {
 	Conversation = 'conversation',
 }
 
+/** Whether, and where, a running response's working time and output speed show. */
+export enum ChatResponseStats {
+	Off = 'off',
+	Title = 'title',
+	/** In the working progress indicator, in place of its phrase. */
+	Progress = 'progress',
+	/** In the working progress indicator, after its phrase, which then changes periodically. */
+	ProgressWithMessage = 'progressWithMessage',
+}
+
+/** How a running response's stats report its output tokens. */
+export enum ChatResponseStatsTokens {
+	/** The output speed of the latest model call. */
+	Speed = 'speed',
+	/** The output tokens of the response so far. */
+	Count = 'count',
+}
+
 export enum CollapsedToolsDisplayMode {
 	Off = 'off',
 	WithThinking = 'withThinking',
@@ -503,7 +553,10 @@ export function getComputedDefaultSessionType(
 		return localChatSessionType;
 	}
 
-	return getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace)[0] ?? localChatSessionType;
+	// Without another session type, a new chat is local, unless a feature hides local chats: then it is Copilot, which reports
+	// when it cannot start rather than a local chat starting in its place
+	return getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace)[0]
+		?? (localChatHidden && !isLocalChatExemptFromHiding(configurationService, workspace) ? SessionType.AgentHostCopilot : localChatSessionType);
 }
 
 export function getComputedDefaultSessionResource(
@@ -529,7 +582,8 @@ export function isNewChatSessionTypeUsable(
 	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType) {
 		return false;
 	}
-	if (chatSessionsService.getChatSessionContribution(sessionType)?.hideFromSessionTypePicker) {
+	const contribution = chatSessionsService.getChatSessionContribution(sessionType);
+	if (contribution?.hideFromSessionTypePicker) {
 		return false;
 	}
 	if (sessionType === localChatSessionType) {
@@ -538,10 +592,10 @@ export function isNewChatSessionTypeUsable(
 	if (isAgentHostTarget(sessionType)) {
 		// Remote agent hosts are per-window; require that this window registered the host's contribution.
 		return agentHostEnabled
-			&& (!isRemoteAgentHostTarget(sessionType) || !!chatSessionsService.getChatSessionContribution(sessionType))
+			&& (!isRemoteAgentHostTarget(sessionType) || !!contribution)
 			&& !isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, configurationService)
-			// Of the local harnesses, only Copilot can work on a virtual workspace's files.
-			&& (!isVirtualWorkspace(workspace) || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot);
+			// In workspaces with virtual folders, defer to contribution visibility for non-Copilot harnesses.
+			&& (!!contribution || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot || !hasVirtualWorkspaceContent(workspace));
 	}
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace, managedSandboxEnforced);
 }
@@ -729,6 +783,11 @@ function isCopilotHarnessPreferred(configurationService: IConfigurationService, 
  * Whether the legacy local chat harness is enabled. Virtual workspaces always keep it. Outside
  * virtual workspaces, an enterprise-mandated sandbox floor disables it: the sandbox is implemented
  * by the Agent Host, so the enterprise has declared these users governed.
+ *
+ * A feature that hides local chats (`localChatHidden`, see `ILocalChatAvailabilityService`) turns
+ * them off, also as the fallback of a new chat, except for the documented exceptions of
+ * {@link isLocalChatExemptFromHiding}: virtual workspaces, and the managed policy that keeps
+ * local chat the default.
  */
 export function isEditorLocalAgentEnabled(configurationService: IConfigurationService, workspace: IWorkspace, managedSandboxEnforced = false, localChatHidden = false): boolean {
 	if (isVirtualWorkspace(workspace) || isTemporaryDefaultToLocalHarnessEnabled(configurationService)) {
@@ -741,6 +800,14 @@ export function isEditorLocalAgentEnabled(configurationService: IConfigurationSe
 
 	// A feature that hides new local chats turns them off as the setting does, leaving the setting as it is
 	return !localChatHidden && (configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true);
+}
+
+/**
+ * Whether local chats stay available while a feature hides them: in virtual workspaces, whose files only local chat and
+ * Copilot work on, and while the managed policy keeps local chat the default of new chats.
+ */
+function isLocalChatExemptFromHiding(configurationService: IConfigurationService, workspace: IWorkspace): boolean {
+	return isVirtualWorkspace(workspace) || isTemporaryDefaultToLocalHarnessEnabled(configurationService);
 }
 
 export function isVisibleEditorChatSessionType(
@@ -757,7 +824,8 @@ export function isVisibleEditorChatSessionType(
 		return true;
 	}
 	if (sessionType === localChatSessionType) {
-		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced, localChatHidden) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace).length === 0;
+		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced, localChatHidden)
+			|| (!localChatHidden && getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace).length === 0);
 	}
 
 	if (sessionType === SessionType.CopilotCLI) {

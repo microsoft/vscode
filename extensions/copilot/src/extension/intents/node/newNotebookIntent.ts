@@ -5,17 +5,16 @@
 import * as l10n from '@vscode/l10n';
 import { Raw } from '@vscode/prompt-tsx';
 import type { CancellationToken, ChatResponseFileTreePart, ChatResponseStream, NotebookDocument } from 'vscode';
-import { IChatMLFetcher, IResponsePart } from '../../../platform/chat/common/chatMLFetcher';
+import { IResponsePart } from '../../../platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
-import { IConversationOptions } from '../../../platform/chat/common/conversationOptions';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IResponseDelta } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { IAlternativeNotebookContentEditGenerator, NotebookEditGenerationTelemtryOptions, NotebookEditGenrationSource } from '../../../platform/notebook/common/alternativeContentEditGenerator';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
-import { extractCodeBlocks, filepathCodeBlockMarker } from '../../../util/common/markdown';
-import { extractNotebookOutline, INotebookSection } from '../../../util/common/notebooks';
+import { filepathCodeBlockMarker } from '../../../util/common/markdown';
+import { extractNotebookOutline } from '../../../util/common/notebooks';
 import { AsyncIterableObject, AsyncIterableSource, DeferredPromise } from '../../../util/vs/base/common/async';
 import { Lazy } from '../../../util/vs/base/common/lazy';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -26,7 +25,6 @@ import { IBuildPromptContext } from '../../prompt/common/intents';
 import { IResponseProcessorContext } from '../../prompt/node/intents';
 import { LineFilters, LineOfText, streamLines } from '../../prompt/node/streamingEdits';
 import { renderPromptElement } from '../../prompts/node/base/promptRenderer';
-import { NewNotebookCodeGenerationPrompt, NewNotebookCodeImprovementPrompt } from '../../prompts/node/panel/newNotebook';
 import { sendEditNotebookTelemetry } from '../../tools/node/editNotebookTool';
 import { NewNotebookToolPrompt } from '../../tools/node/newNotebookTool';
 
@@ -243,58 +241,4 @@ function filterFilePathFromCodeBlock2(source: AsyncIterable<LineOfText>): AsyncI
 			emitter.emitOne(line);
 		}
 	});
-}
-
-// @Yoyokrazy -- look at removing the following fn's as debt. newNb is likely not needed at minimum
-export async function newNotebookCodeCell(instantiationService: IInstantiationService, chatMLFetcher: IChatMLFetcher, endpoint: IChatEndpoint, options: IConversationOptions, history: readonly Raw.ChatMessage[] | undefined, description: string, section: INotebookSection, existingCode: string, languageId: string, uri: Uri, token: CancellationToken) {
-	const { messages } = await renderPromptElement(instantiationService, endpoint, NewNotebookCodeGenerationPrompt, {
-		history,
-		description,
-		section,
-		existingCode,
-		languageId,
-		uri
-	});
-
-	const modelResponse = await endpoint.makeChatRequest2({
-		debugName: 'newNotebookCodeCell',
-		messages,
-finishedCb: undefined,
-		location: ChatLocation.Panel,
-	}, token);
-	if (modelResponse.type !== ChatFetchResponseType.Success) {
-		return;
-	}
-
-	const codeBlocks = extractCodeBlocks(modelResponse.value);
-
-	if (codeBlocks.length > 0) {
-		return codeBlocks[0].code;
-	}
-
-	return modelResponse.value;
-}
-
-export async function improveNotebookCodeCell(instantiationService: IInstantiationService, chatMLFetcher: IChatMLFetcher, endpoint: IChatEndpoint, options: IConversationOptions, description: string, section: INotebookSection, existingCode: string, code: string, languageId: string, uri: Uri, token: CancellationToken) {
-
-	const { messages } = await renderPromptElement(instantiationService, endpoint, NewNotebookCodeImprovementPrompt, {
-		description,
-		section,
-		existingCode,
-		code,
-		languageId,
-		uri
-	});
-
-	const modelResponse = await endpoint.makeChatRequest2({
-		debugName: 'improveNotebookCodeCell',
-		messages,
-finishedCb: undefined,
-		location: ChatLocation.Panel,
-	}, token);
-	if (modelResponse.type !== ChatFetchResponseType.Success) {
-		return;
-	}
-
-	return modelResponse.value;
 }

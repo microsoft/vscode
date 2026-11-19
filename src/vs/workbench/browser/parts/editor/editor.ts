@@ -316,6 +316,13 @@ export interface IEditorGroupViewOptions {
 	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
 
 	/**
+	 * Whether the enabled group header of the active editor is laid out across the full group
+	 * width, including the content left and right insets. By default the header follows the
+	 * inset editor content.
+	 */
+	readonly headerSpansContentInset?: (editor: EditorInput | undefined) => boolean;
+
+	/**
 	 * Whether the enabled group header shows for the active editor, such as not for a terminal in a group that shows its
 	 * header only for other editors. When unset, it shows for every editor.
 	 */

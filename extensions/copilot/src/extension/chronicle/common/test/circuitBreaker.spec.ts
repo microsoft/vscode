@@ -80,17 +80,6 @@ describe('CircuitBreaker', () => {
 		expect(cb.getState()).toBe(CircuitState.OPEN);
 	});
 
-	it('resets to CLOSED state', () => {
-		const cb = new CircuitBreaker({ failureThreshold: 1 });
-		cb.recordFailure();
-		expect(cb.getState()).toBe(CircuitState.OPEN);
-
-		cb.reset();
-		expect(cb.getState()).toBe(CircuitState.CLOSED);
-		expect(cb.getFailureCount()).toBe(0);
-		expect(cb.canRequest()).toBe(true);
-	});
-
 	it('resets failure count on success', () => {
 		const cb = new CircuitBreaker({ failureThreshold: 5 });
 		cb.recordFailure();

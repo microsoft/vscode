@@ -261,7 +261,12 @@ export type IRemoteAgentHostDevContainerConnection = {
 	readonly address: string;
 	/** VS Code SSH, tunnel, or WSL authority of the source host, absent for local containers. */
 	readonly hostAuthority?: string;
-} & ({ readonly hostPath: string; readonly repository?: never } | { readonly repository: IDevContainerRepository; readonly hostPath?: never });
+} & (
+		| { readonly hostPath: string; readonly repository?: never; readonly environmentId?: never }
+		| { readonly repository: IDevContainerRepository; readonly hostPath?: never; readonly environmentId?: never }
+		/** A Dev Container environment, which has no source folder or repository. */
+		| { readonly environmentId: string; readonly hostPath?: never; readonly repository?: never }
+	);
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection | IRemoteAgentHostExtensionConnection;
 

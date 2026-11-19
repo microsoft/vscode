@@ -562,6 +562,11 @@
 	text-overflow: ellipsis;
 }
 
+/* The model details give way first, so the working time is never cut off mid-number. */
+.interactive-item-container .chat-response-working-time {
+	flex-shrink: 0;
+}
+
 .interactive-item-container.interactive-response .chat-footer-toolbar .chat-footer-details.hidden {
 	display: none;
 }
@@ -1252,13 +1257,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-dnd-overlay .attach-context-overlay-text {
-	padding: 0.6em;
-	margin: 0.2em;
-	line-height: 12px;
-	height: 12px;
 	display: flex;
 	align-items: center;
-	text-align: center;
+}
+
+.chat-dnd-overlay .attach-context-overlay-text .overlay-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .chat-dnd-overlay .attach-context-overlay-text .codicon {
@@ -3852,6 +3858,32 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+.chat-working-progress > .chat-live-response-stats {
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
+/* Leading stats take the place of a generic working phrase, and lead a label or activities that name a state. */
+.chat-working-progress-generic-label > .chat-working-progress-leading-stats:not([hidden]) ~ .rendered-markdown.progress-step {
+	display: none;
+}
+
+.chat-working-progress:not(.chat-working-progress-generic-label) > .chat-working-progress-leading-stats::after {
+	/* The separator between the stats themselves. */
+	content: ' \00b7  ';
+	white-space: pre;
+}
+
+/* Trailing stats follow the phrase, label or activities, after the same separator. */
+.chat-working-progress > .chat-working-progress-trailing-stats::before {
+	content: ' \00b7  ';
+	white-space: pre;
+}
+
+/* The slot of the activities' chevron, which shows on hover, already sets them apart. */
+.chat-working-progress-has-activities > .chat-working-progress-trailing-stats::before {
+	content: '\00b7  ';
+}
+
 .chat-working-activities {
 	--chat-pill-background: transparent;
 	display: flex;
@@ -5309,48 +5341,138 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.scheduled-request-editor-actions {
 		display: flex;
-		gap: var(--vscode-spacing-size80);
+		justify-content: flex-end;
+		align-items: center;
+		gap: var(--vscode-spacing-size40);
 	}
 
 	.scheduled-request-editor .monaco-button {
 		width: auto;
 		flex: 0 0 auto;
 		margin: 0;
+		height: var(--chat-input-control-height);
+		padding: 0 var(--vscode-spacing-size80);
+		border: none;
+		font-size: var(--vscode-fontSize-label1);
+		border-radius: var(--vscode-cornerRadius-circle);
+	}
 
-		&.scheduled-request-edit-time {
-			flex: 0 1 auto;
-			margin-right: auto;
+	.scheduled-request-cancel {
+		color: var(--vscode-foreground);
+		background-color: transparent;
+	}
+
+	.scheduled-request-cancel:not(.disabled):hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+		outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+		outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	}
+
+	.scheduled-request-save {
+		display: flex;
+		min-width: 0;
+		border-radius: var(--vscode-cornerRadius-circle);
+		background-color: var(--vscode-button-background);
+		box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastBorder, transparent);
+	}
+
+	.scheduled-request-save .scheduled-request-save-label {
+		flex: 0 1 auto;
+		min-width: 0;
+		padding-left: var(--vscode-spacing-size100);
+		border-radius: var(--vscode-cornerRadius-circle) 0 0 var(--vscode-cornerRadius-circle);
+
+		> span {
 			min-width: 0;
-
-			> span:not(.codicon) {
-				min-width: 0;
-				overflow: hidden;
-				white-space: nowrap;
-				text-overflow: ellipsis;
-			}
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
 		}
 	}
 
-	.scheduled-request-actions {
-		top: -17px;
-		opacity: 0;
+	.scheduled-request-save-separator {
+		align-self: stretch;
+		width: var(--vscode-strokeThickness);
+		margin: var(--vscode-spacing-size40) 0;
+		background-color: var(--vscode-button-separator);
 	}
 
-	&:focus-within .scheduled-request-actions {
+	.scheduled-request-save .scheduled-request-edit-time {
+		width: var(--vscode-spacing-size240);
+		padding: 0;
+		border-radius: 0 var(--vscode-cornerRadius-circle) var(--vscode-cornerRadius-circle);
+
+		.codicon {
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
+	}
+
+	.scheduled-request-editor-actions .monaco-button:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: var(--vscode-strokeThickness);
+	}
+
+	&.interactive-request .scheduled-request-actions {
+		/* Keep the toolbar out of the preceding message's inline editor. */
+		top: calc(-1 * var(--vscode-spacing-size80));
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	&.interactive-request:hover .scheduled-request-actions,
+	&.interactive-request:focus-within .scheduled-request-actions {
 		opacity: 1;
+		pointer-events: auto;
 	}
 
 	.scheduled-request-header {
 		display: flex;
 		align-items: center;
-		gap: var(--vscode-spacing-size80);
+		gap: var(--vscode-spacing-size40);
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-chat-font-size-body-xs);
+	}
+
+	.value .rendered-markdown .scheduled-request-header > .codicon {
+		top: 0;
+		font-size: var(--vscode-codiconFontSize-compact);
 	}
 
 	.scheduled-request-description {
 		flex: 1;
 		min-width: 0;
+	}
+
+	.scheduled-request-time {
+		flex: 0 1 auto;
+		display: inline-grid;
+		overflow: hidden;
+
+		> time {
+			grid-area: 1 / 1;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			transition: opacity 160ms ease, transform 160ms ease;
+		}
+
+		> .scheduled-request-exact {
+			opacity: 0;
+			transform: translateY(100%);
+		}
+	}
+
+	.scheduled-request-time:hover,
+	.rendered-markdown:focus-visible .scheduled-request-time {
+		> .scheduled-request-from-now {
+			opacity: 0;
+			transform: translateY(-100%);
+		}
+
+		> .scheduled-request-exact {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 
 	.scheduled-request-text,
@@ -5362,6 +5484,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.scheduled-request-attachments {
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-chat-font-size-body-xs);
+	}
+}
+
+.monaco-reduce-motion .interactive-item-container.scheduled-request .scheduled-request-time > time {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.interactive-item-container.scheduled-request .scheduled-request-time > time {
+		transition: none;
 	}
 }
 

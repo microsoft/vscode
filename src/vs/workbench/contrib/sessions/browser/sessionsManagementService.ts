@@ -23,7 +23,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../chat/common/widget/chatWidgetHistoryService.js';
 import { dedupeMigratedCopilotCliSessions } from '../../chat/browser/copilotCliEventsUri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, ICreateNewSessionSlotOptions, IDeferredNewSessionRequestOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionChange, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError, getSessionChatOfResource } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, ICreateNewSessionSlotOptions, IDeferredNewSessionRequestOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestDispatchedEvent, INewSessionRequestEndedEvent, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionChange, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError, getSessionChatOfResource } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, type ISessionReplacedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../../../services/sessions/common/session.js';
@@ -157,6 +157,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidAcceptNewSessionRequest = this._register(new Emitter<INewSessionRequestAcceptedEvent>());
 	readonly onDidAcceptNewSessionRequest: Event<INewSessionRequestAcceptedEvent> = this._onDidAcceptNewSessionRequest.event;
+	private readonly _onDidDispatchNewSessionRequest = this._register(new Emitter<INewSessionRequestDispatchedEvent>());
+	readonly onDidDispatchNewSessionRequest: Event<INewSessionRequestDispatchedEvent> = this._onDidDispatchNewSessionRequest.event;
 	private readonly _onDidEndNewSessionRequest = this._register(new Emitter<INewSessionRequestEndedEvent>());
 	readonly onDidEndNewSessionRequest: Event<INewSessionRequestEndedEvent> = this._onDidEndNewSessionRequest.event;
 
@@ -345,11 +347,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return resource;
 	}
 
-	getSessions(): ISession[] {		// Dedup only affects the displayed list; lookups (`getSession`,
+	getSessions(options?: { readonly includeHidden?: boolean }): ISession[] {		// Dedup only affects the displayed list; lookups (`getSession`,
 		// `getSessionForChatResource`) use every session, unscoped and undeduped, so a hidden row can
 		// still be resolved by resource, and {@link resolveSessionResource} redirects
 		// it to its agent-host twin when it is opened.
-		const sessions = this._getMergedSessions();
+		const sessions = options?.includeHidden ? this._getAllSessions() : this._getMergedSessions();
 		for (const { session } of this._inFlightNewSessionRequests.values()) {
 			if (!sessions.some(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, session.resource))) {
 				sessions.push(session);
@@ -957,7 +959,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			const ownership = this._acceptNewSessionRequest(session, session, true);
 			let started: ISession | undefined;
 			let error: unknown;
-			void this._prepareAndSendNewChatRequestInBackground(provider, session, options)
+			void this._prepareAndSendNewChatRequestInBackground(provider, session, options, ownership)
 				.then(startedSession => { started = startedSession; })
 				.catch(e => {
 					error = e;
@@ -1008,7 +1010,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._pendingSendChatResources.add(chatResourceKey);
 			let updatedSession: ISession;
 			try {
-				updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+				updatedSession = await provider.sendRequest(session.sessionId, chat.resource, this._reportingDispatch(options, ownership, session));
 			} finally {
 				this._pendingSendChatResources.delete(chatResourceKey);
 			}
@@ -1059,6 +1061,29 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		return accepted;
+	}
+
+	/**
+	 * The options to send the request accepted as `ownership` with to its provider, in `session`: they also report its
+	 * dispatch, the first time the provider forwards them a response ({@link onDidDispatchNewSessionRequest}). Other requests
+	 * are sent with `options` themselves.
+	 */
+	private _reportingDispatch(options: ISendRequestOptions, ownership: INewSessionOwnership | undefined, session: ISession): ISendRequestOptions {
+		if (!ownership) {
+			return options;
+		}
+		let dispatched = false;
+		return {
+			...options,
+			onDidCreateResponse: (response, kind) => {
+				// A queued or rejected request has no response.
+				if (response && !dispatched) {
+					dispatched = true;
+					this._onDidDispatchNewSessionRequest.fire({ session, owner: ownership.owner });
+				}
+				options.onDidCreateResponse?.(response, kind);
+			},
+		};
 	}
 
 	/**
@@ -1378,13 +1403,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		super.dispose();
 	}
 
-	private async _prepareAndSendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions): Promise<ISession | undefined> {
+	private async _prepareAndSendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions, ownership: INewSessionOwnership | undefined): Promise<ISession | undefined> {
 		let graduatingProvider = provider;
 		let graduatingSession = session;
 		try {
 			const newSessionConfig = provider.getNewSessionConfig ? await provider.getNewSessionConfig(session.sessionId) : undefined;
 			({ provider: graduatingProvider, session: graduatingSession } = await this._prepareNewSessionForSend(provider, session, undefined, false, options.query));
-			return await this._sendNewChatRequestInBackground(graduatingProvider, graduatingSession, options, newSessionConfig);
+			return await this._sendNewChatRequestInBackground(graduatingProvider, graduatingSession, options, newSessionConfig, CancellationToken.None, ownership);
 		} catch (error) {
 			graduatingProvider.deleteNewSession(graduatingSession.sessionId);
 			throw error;
@@ -1405,9 +1430,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * {@link ISessionsProvider.deleteNewSession}).
 	 *
 	 * Providers are multi-new-session aware, so the graduating session and a
-	 * concurrently reseeded composer draft coexist without conflict.
+	 * concurrently reseeded composer draft coexist without conflict. The request
+	 * of a slot, `ownership`, also reports its dispatch.
 	 */
-	private async _sendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions, newSessionConfig: ISendRequestSentEvent['newSessionConfig'], token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
+	private async _sendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions, newSessionConfig: ISendRequestSentEvent['newSessionConfig'], token: CancellationToken = CancellationToken.None, ownership?: INewSessionOwnership): Promise<ISession | undefined> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -1429,7 +1455,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		});
 		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, this._reportingDispatch(options, ownership, session));
 		} finally {
 			cancellationListener.dispose();
 			this._pendingSendChatResources.delete(chatResourceKey);
@@ -1558,6 +1584,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	sessionWorktreeExists(session: ISession, token?: CancellationToken): Promise<boolean | undefined> {
 		return this._getProvider(session)?.sessionWorktreeExists?.(session.sessionId, token) ?? Promise.resolve(undefined);
+	}
+
+	canCleanupWorktree(owner: ISession | IManagedSessionWorktree): boolean {
+		if (hasKey(owner, { sessionId: true })) {
+			return this._getProvider(owner)?.supportsWorktreeCleanup === true;
+		}
+		return this.sessionsProvidersService.getProvider(owner.providerId)?.supportsManagedWorktreeCleanup === true;
 	}
 
 	canForceWorktreeCleanup(owner: ISession | IManagedSessionWorktree): boolean {

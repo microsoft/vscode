@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ModelCapabilitiesOverride, NamedProviderConfig, ProviderModelConfig } from '@github/copilot-sdk';
+import type { ModelCapabilitiesOverride, NamedProviderConfig, ProviderModelConfig } from '@microsoft/copilot-sdk';
 import * as fs from 'fs';
 import * as os from 'os';
 import { Throttler } from '../../../../../../base/common/async.js';

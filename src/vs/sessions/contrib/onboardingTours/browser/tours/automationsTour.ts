@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable } from '../../../../../base/common/observable.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorPartModalVisibleContext } from '../../../../../workbench/common/contextkeys.js';
@@ -22,7 +22,7 @@ export const AUTOMATIONS_TOUR_ID = 'sessions.onboarding.automations';
 onboardingScenarioRegistry.registerDescriptor({ id: AUTOMATIONS_TOUR_ID });
 
 /** Introduces agent-assisted creation once, using the target shared by both catalogue states. */
-export function createAutomationsTour(signal: IObservable<boolean>): IOnboardingScenario<ISpotlightPayload> {
+export function createAutomationsTour(): IOnboardingScenario<ISpotlightPayload> {
 	return {
 		id: AUTOMATIONS_TOUR_ID,
 		seenKey: AUTOMATIONS_TOUR_SEEN_KEY,
@@ -34,7 +34,8 @@ export function createAutomationsTour(signal: IObservable<boolean>): IOnboarding
 			NewSessionOnboardingHandoffContext.toNegated(),
 			SessionsWelcomeVisibleContext.toNegated(),
 		),
-		trigger: { kind: 'observable', signal },
+		// The creation action checks nudge eligibility before explicitly running this tour.
+		trigger: { kind: 'observable', signal: constObservable(false) },
 		presentation: {
 			kind: SPOTLIGHT_PRESENTATION_KIND,
 			payload: {
@@ -44,9 +45,9 @@ export function createAutomationsTour(signal: IObservable<boolean>): IOnboarding
 					title: localize('sessions.onboarding.automations.title', "Create with agent"),
 					description: localize('sessions.onboarding.automations.description', "Closes Automations and starts a new session draft. Describe what you want automated and the agent sets it up."),
 					nextButtonLabel: localize('sessions.onboarding.automations.gotIt', "Got It"),
-					allowTargetInteraction: true,
-					advanceOnTargetClick: true,
+					advanceOnTargetClick: 'advanceOnly',
 					hideNext: false,
+					missingTarget: { kind: 'abort' },
 				}],
 			},
 		},

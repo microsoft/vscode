@@ -462,7 +462,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		await this.mutate(entry.entry.repository, (client, _ref, cancellationToken) => client.tasks.abort(entry.task.id, cancellationToken, { caller: 'cloudAutomations' }));
 	}
 
-	async refreshHistory(options?: IAutomationRefreshOptions): Promise<void> {
+	async refreshHistory(options?: IAutomationRefreshOptions, include: (entry: ICloudAutomationEntry) => boolean = () => true): Promise<void> {
 		this.requireAccount();
 		const cancellationToken = this.lifetime.token;
 		const requestOptions: ApiRequestOptions = { caller: 'cloudAutomations', priority: options?.background ? 'background' : undefined };
@@ -476,6 +476,9 @@ export class GitHubCloudAutomationStore extends Disposable {
 					const history = await Promise.all(this.cachedEntries.get().map(entry => limiter.queue(async () => {
 						try {
 							CancellationToken.throwIfCanceled(historyToken);
+							if (!include(entry)) {
+								return [];
+							}
 							const tasks = await client.automations.listRuns(entry.definition.id, historyToken, { ...requestOptions, query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } }).catch(error => {
 								if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
 									throw error;
@@ -492,6 +495,9 @@ export class GitHubCloudAutomationStore extends Disposable {
 							});
 							const result: ICloudAutomationHistoryEntry[] = [];
 							for (const task of tasks?.data.tasks ?? []) {
+								if (!include(entry)) {
+									break;
+								}
 								const detail = ['queued', 'in_progress', 'running', 'waiting_for_user'].includes(task.state)
 									? await client.tasks.get(task.id, historyToken, requestOptions) : task;
 								result.push({ entry, task: detail });

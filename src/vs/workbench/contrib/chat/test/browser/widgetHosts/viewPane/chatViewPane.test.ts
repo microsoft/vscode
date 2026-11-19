@@ -1061,6 +1061,44 @@ suite('ChatViewPane managed permission rules', () => {
 			});
 		}
 	}
+
+	for (const localHidden of [false, true]) {
+		for (const result of ['missing', 'error'] as const) {
+			test(`New Chat without another agent ${localHidden ? 'reports an error instead of starting Local while Local chats are hidden' : 'falls back to Local'} with ${result} Copilot`, async () => {
+				const selected: string[] = [];
+				const errors: string[] = [];
+				const localModel = { object: upcastPartial<IChatModel>({}), dispose: () => { } };
+				let localStarts = 0;
+				const pane: { acquireDefaultNewSession(token: CancellationToken): Promise<{ modelRef?: IChatModelReference }> } = Object.assign(Object.create(ChatViewPane.prototype), {
+					accountPolicyGateService: { gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } },
+					managedSettingsService: new NullManagedSettingsService(),
+					configurationService: new TestConfigurationService({ [ChatConfiguration.EditorLocalAgentEnabled]: false }),
+					workspaceContextService: new TestContextService(),
+					storageService: store.add(new TestStorageService()),
+					chatSessionsService: new MockChatSessionsService(),
+					agentHostEnablementService: { enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+					localChatAvailabilityService: { hidden: constObservable(localHidden) },
+					logService: new NullLogService(),
+					notificationService: { error: (message: string) => errors.push(message) },
+					chatService: {
+						startNewLocalSession: () => { localStarts++; return localModel; },
+						acquireOrLoadSession: async (resource: URI): Promise<IChatModelReference | undefined> => {
+							selected.push(getChatSessionType(resource));
+							if (result === 'error') {
+								throw new Error('host unavailable');
+							}
+							return undefined;
+						},
+					},
+				});
+				const pending = pane.acquireDefaultNewSession(CancellationToken.None);
+				const rejected = await pending.then(() => false, () => true);
+				assert.deepStrictEqual({ rejected, selected, localStarts, errors }, localHidden
+					? { rejected: true, selected: [SessionType.AgentHostCopilot], localStarts: 0, errors: [result === 'missing' ? 'No agent is available to start a chat yet. Try again once an agent is available.' : 'The chat could not start. Try again or choose another available agent.'] }
+					: { rejected: false, selected: [], localStarts: 1, errors: [] });
+			});
+		}
+	}
 });
 
 suite('ChatViewPane chat open diagnostics', () => {
