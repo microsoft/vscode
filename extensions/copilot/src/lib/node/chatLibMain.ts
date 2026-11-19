@@ -218,6 +218,19 @@ export interface INESProviderOptions {
 	 */
 	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
 	/**
+	 * Language context (for example declarations from the host IDE's code model)
+	 * offered to the NES prompt when `languageContext.enabled` is on. When omitted,
+	 * falls back to {@link NullLanguageContextProviderService}, which offers none.
+	 */
+	readonly languageContextProvider?: ILanguageContextProviderService;
+	/**
+	 * Workspace the NES provider uses to look up text documents, for example the
+	 * active document when requesting language context or the target of a
+	 * cross-file edit. When omitted, falls back to {@link NullWorkspaceService},
+	 * which knows no documents.
+	 */
+	readonly workspaceService?: IWorkspaceService;
+	/**
 	 * Tokenizer provider backing prompt rendering and token budgeting. When
 	 * omitted, falls back to the built-in {@link TokenizerProvider}, which
 	 * loads its own BPE dictionaries. Embedders that already have the
@@ -503,11 +516,11 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(IConfigurationService, new SyncDescriptor(OverridableConfigurationService, [options.configOverrides ?? new Map()]));
 	builder.define(IExperimentationService, new SyncDescriptor(SimpleExperimentationService, [options.waitForTreatmentVariables]));
 	builder.define(ISimulationTestContext, new SyncDescriptor(NulSimulationTestContext));
-	builder.define(IWorkspaceService, new SyncDescriptor(NullWorkspaceService));
+	builder.define(IWorkspaceService, options.workspaceService ?? new SyncDescriptor(NullWorkspaceService));
 	builder.define(IDiffService, new SyncDescriptor(DiffServiceImpl, [false]));
 	builder.define(ILogService, new SyncDescriptor(LogServiceImpl, [[logTarget || new ConsoleLog(undefined, InternalLogLevel.Trace)]]));
 	builder.define(IGitExtensionService, new SyncDescriptor(NullGitExtensionService));
-	builder.define(ILanguageContextProviderService, new SyncDescriptor(NullLanguageContextProviderService));
+	builder.define(ILanguageContextProviderService, options.languageContextProvider ?? new SyncDescriptor(NullLanguageContextProviderService));
 	builder.define(ILanguageDiagnosticsService, options.languageDiagnosticsService || new SyncDescriptor(TestLanguageDiagnosticsService));
 	builder.define(IIgnoreService, new SyncDescriptor(NullIgnoreService));
 	builder.define(ISnippyService, new SyncDescriptor(NullSnippyService));
