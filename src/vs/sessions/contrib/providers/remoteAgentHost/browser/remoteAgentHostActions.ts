@@ -167,6 +167,7 @@ interface ISSHAuthMethodPickItem extends IQuickPickItem {
 
 /**
  * Parse a free-form SSH connection string of the form `[user@]host[:port]`.
+ * The host follows the last `@`, because user names can contain `@` and host names can't.
  * Returns `undefined` for empty or invalid input.
  */
 export function parseSSHHostInput(value: string): { host: string; username?: string; port?: number } | undefined {
@@ -174,7 +175,7 @@ export function parseSSHHostInput(value: string): { host: string; username?: str
 	if (!trimmed) {
 		return undefined;
 	}
-	const atIdx = trimmed.indexOf('@');
+	const atIdx = trimmed.lastIndexOf('@');
 	if (atIdx === 0 || atIdx === trimmed.length - 1) {
 		return undefined;
 	}
@@ -219,7 +220,7 @@ function validateSSHHostInput(value: string): string | undefined {
 	if (!v) {
 		return localize('sshHostEmpty', "Enter an SSH host.");
 	}
-	const atIdx = v.indexOf('@');
+	const atIdx = v.lastIndexOf('@');
 	if (atIdx === 0) {
 		return localize('sshUsernameMissingInHost', "Enter a username before '@'.");
 	}

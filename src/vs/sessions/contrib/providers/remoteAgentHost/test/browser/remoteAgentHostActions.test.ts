@@ -255,6 +255,7 @@ suite('Remote Agent Host actions', () => {
 			{ hostName: '2001:db8::1', user: 'alice', port: 2222 },
 			{ hostName: 'host.example.com', user: 'alice', port: 22 },
 			{ hostName: '192.0.2.1', user: undefined, port: undefined },
+			{ hostName: 'build.example.com', user: 'alice@example.com', port: 2222 },
 		];
 		assert.deepStrictEqual(connections.map(connection => {
 			const address = getCopyableRemoteAddress({
@@ -268,6 +269,7 @@ suite('Remote Agent Host actions', () => {
 			{ host: '2001:db8::1', username: 'alice', port: 2222 },
 			{ host: 'host.example.com', username: 'alice', port: undefined },
 			{ host: '192.0.2.1', username: undefined, port: undefined },
+			{ host: 'build.example.com', username: 'alice@example.com', port: 2222 },
 		]);
 	});
 

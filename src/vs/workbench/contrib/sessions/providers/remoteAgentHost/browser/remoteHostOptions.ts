@@ -89,7 +89,7 @@ export async function renameRemoteHost(
 	}
 	const name = await quickInputService.input({
 		title: localize('workspacePicker.renameRemoteTitle', "Rename remote environment"),
-		prompt: localize('workspacePicker.renameRemotePrompt', "Enter a display name for this environment in this profile. Leave it empty to use the default name."),
+		prompt: localize('workspacePicker.renameRemotePrompt', "Enter a display name for this environment in this client. Leave it empty to use the default name."),
 		value: provider.label,
 		valueSelection: [0, provider.label.length],
 		ignoreFocusLost: true,
