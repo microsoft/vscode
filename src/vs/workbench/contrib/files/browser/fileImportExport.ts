@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
-import { ByteSize, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStat, IFileStatWithMetadata, IFileStatWithPartialMetadata, toFileOperationResult } from '../../../../platform/files/common/files.js';
+import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStat, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IExplorerService } from './files.js';
@@ -168,27 +168,17 @@ export class BrowserFileUpload {
 					return;
 				}
 
-				// Confirm overwrite or merge as needed
-				const existing = entry.name ? target.getChild(entry.name) : undefined;
-				let merge = false;
-				if (existing) {
-					if (entry.isDirectory && isMergeableFolder(existing)) {
-						const choice = await confirmMergeOrReplace(this.dialogService, [existing.resource]);
-						if (choice === FolderConflictChoice.Cancel) {
-							return;
-						}
-
-						merge = choice === FolderConflictChoice.Merge;
-					} else {
-						const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(existing.name));
-						if (!confirmed) {
-							return;
-						}
+				// Confirm overwrite as needed
+				if (target && entry.name && target.getChild(entry.name)) {
+					const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(entry.name));
+					if (!confirmed) {
+						return;
 					}
 
-					if (!merge) {
-						await this.replaceExisting(existing.resource, existing.isDirectory);
-					}
+					await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true, folder: target.getChild(entry.name)?.isDirectory })], {
+						undoLabel: localize('overwrite', "Overwrite {0}", entry.name),
+						progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
+					});
 
 					if (token.isCancellationRequested) {
 						return;
@@ -196,7 +186,7 @@ export class BrowserFileUpload {
 				}
 
 				// Upload entry
-				const result = await this.doUploadEntry(entry, target.resource, merge, progress, operation, token);
+				const result = await this.doUploadEntry(entry, target.resource, target, progress, operation, token);
 				if (result) {
 					results.push(result);
 				}
@@ -212,31 +202,7 @@ export class BrowserFileUpload {
 		}
 	}
 
-	private async replaceExisting(resource: URI, isDirectory: boolean): Promise<void> {
-		const name = basename(resource);
-		await this.explorerService.applyBulkEdit([new ResourceFileEdit(resource, undefined, { recursive: true, folder: isDirectory })], {
-			undoLabel: localize('overwrite', "Overwrite {0}", name),
-			progressLabel: localize('overwriting', "Overwriting {0}", name),
-		});
-	}
-
-	private async statIfExists(resource: URI): Promise<IFileStatWithPartialMetadata | undefined> {
-		try {
-			return await this.fileService.stat(resource);
-		} catch (error) {
-			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
-				return undefined;
-			}
-
-			throw error;
-		}
-	}
-
-	/**
-	 * @param merge whether `entry` is uploaded into a folder that already existed and is
-	 * being merged, in which case `entry` may conflict with an existing entry.
-	 */
-	private async doUploadEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, merge: boolean, progress: IProgress<IProgressStep>, operation: IBrowserUploadOperation, token: CancellationToken): Promise<{ isFile: boolean; resource: URI } | undefined> {
+	private async doUploadEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: IBrowserUploadOperation, token: CancellationToken): Promise<{ isFile: boolean; resource: URI } | undefined> {
 		if (token.isCancellationRequested || !entry.name || (!entry.isFile && !entry.isDirectory)) {
 			return undefined;
 		}
@@ -270,27 +236,8 @@ export class BrowserFileUpload {
 		operation.filesUploaded++;
 		reportProgress(0, 0);
 
-		const resource = joinPath(parentResource, entry.name);
-
-		// When merging, keep existing folders to merge into and existing files to overwrite,
-		// but replace any other existing entry that the upload would conflict with
-		let mergeChildren = false;
-		if (merge) {
-			const existing = await this.statIfExists(resource);
-			if (existing) {
-				if (entry.isDirectory && isMergeableFolder(existing)) {
-					mergeChildren = true;
-				} else if (!entry.isFile || !existing.isFile || existing.isSymbolicLink) {
-					await this.replaceExisting(resource, existing.isDirectory);
-				}
-
-				if (token.isCancellationRequested) {
-					return undefined;
-				}
-			}
-		}
-
 		// Handle file upload
+		const resource = joinPath(parentResource, entry.name);
 		if (entry.isFile) {
 			const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
 
@@ -339,6 +286,7 @@ export class BrowserFileUpload {
 			operation.filesTotal += childEntries.length;
 
 			// Split up files from folders to upload
+			const folderTarget = target?.getChild(entry.name) || undefined;
 			const fileChildEntries: IWebkitDataTransferItemEntry[] = [];
 			const folderChildEntries: IWebkitDataTransferItemEntry[] = [];
 			for (const childEntry of childEntries) {
@@ -352,12 +300,12 @@ export class BrowserFileUpload {
 			// Upload files (up to `MAX_PARALLEL_UPLOADS` in parallel)
 			const fileUploadQueue = new Limiter(BrowserFileUpload.MAX_PARALLEL_UPLOADS);
 			await Promises.settled(fileChildEntries.map(fileChildEntry => {
-				return fileUploadQueue.queue(() => this.doUploadEntry(fileChildEntry, resource, mergeChildren, progress, operation, token));
+				return fileUploadQueue.queue(() => this.doUploadEntry(fileChildEntry, resource, folderTarget, progress, operation, token));
 			}));
 
 			// Upload folders (sequentially give we don't know their sizes)
 			for (const folderChildEntry of folderChildEntries) {
-				await this.doUploadEntry(folderChildEntry, resource, mergeChildren, progress, operation, token);
+				await this.doUploadEntry(folderChildEntry, resource, folderTarget, progress, operation, token);
 			}
 
 			return { isFile: false, resource };
