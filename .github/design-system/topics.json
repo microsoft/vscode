@@ -187,22 +187,6 @@
 			"design": ".github/design-system/content.design.md"
 		},
 		{
-			"id": "designing-for-ai",
-			"title": "Designing for AI",
-			"group": "Foundations",
-			"section": "designing-for-ai",
-			"aliases": [
-				"AI design",
-				"human-AI interaction"
-			],
-			"compare": true,
-			"fixture": false,
-			"renderer": "guidance",
-			"page": "content/topics/designing-for-ai.json",
-			"kind": "foundation",
-			"design": ".github/design-system/designing-for-ai.design.md"
-		},
-		{
 			"id": "tokens",
 			"title": "Design tokens",
 			"group": "Foundations",
@@ -375,6 +359,22 @@
 			"page": "content/topics/motion.json",
 			"kind": "foundation",
 			"design": ".github/design-system/motion.design.md"
+		},
+		{
+			"id": "designing-for-ai",
+			"title": "Designing for AI",
+			"group": "Patterns",
+			"section": "designing-for-ai",
+			"aliases": [
+				"AI design",
+				"human-AI interaction"
+			],
+			"compare": true,
+			"fixture": false,
+			"renderer": "guidance",
+			"page": "content/topics/designing-for-ai.json",
+			"kind": "pattern",
+			"design": ".github/design-system/designing-for-ai.design.md"
 		},
 		{
 			"id": "modal",
