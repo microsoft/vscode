@@ -18,7 +18,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IObservable, IReader, observableFromEvent, observableValue, runOnChange } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableFromEvent, observableValue, runOnChange } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -1030,7 +1030,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 		const sessionsList = this._register(new MutableDisposable<DisposableStore>());
 		sessionsList.value = createSessionsList().store;
-		this._register(runOnChange(this.chatViewHostService.sessionsList, () => {
+		// What the Chat view's list follows: the provided list, or while there is none, whether one is still to register
+		const sessionsListState = derived(this, reader => this.chatViewHostService.sessionsList.read(reader) ?? this.chatViewHostService.sessionsListExpected.read(reader));
+		this._register(runOnChange(sessionsListState, () => {
 			// Focus moves to the list that replaces the one that had it, or to the chat while that list does not show; focus
 			// elsewhere, such as in the chat or an editor, stays
 			const hadFocus = isAncestorOfActiveElement(sessionsControlContainer);

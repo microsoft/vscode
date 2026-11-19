@@ -44,8 +44,11 @@ export class ViewMenuActions extends Disposable {
 		this.didChange();
 		return toDisposable(() => {
 			listener.dispose();
-			this.sources.splice(this.sources.indexOf(source), 1);
-			this.didChange();
+			const index = this.sources.indexOf(source);
+			if (index !== -1) {
+				this.sources.splice(index, 1);
+				this.didChange();
+			}
 		});
 	}
 

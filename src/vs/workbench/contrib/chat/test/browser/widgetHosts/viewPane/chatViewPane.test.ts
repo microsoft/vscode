@@ -253,18 +253,16 @@ suite('ChatViewPane sessions refresh', () => {
 		]);
 	});
 
-	test('while a provided sessions list is expected but not registered yet, the Chat view creates no list of its own, so none shows that the provided one replaces', () => {
-		const seam = createSeam();
+	function createExpectedListHost(seam: ReturnType<typeof createSeam>) {
 		seam.sessionsListExpected.set(true, undefined);
-		let ownLists = 0;
+		const counts = { ownLists: 0 };
 		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
-		const providedControl = Object.assign(upcastPartial<AgentSessionsControl>({ dispose: () => { }, setVisible: () => { } }), { titleActions: upcastPartial<ViewMenuActions>({}) });
 		const host = {
 			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
 			instantiationService: {
 				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar) => {
 					if (ctor === AgentSessionsControl) {
-						ownLists++;
+						counts.ownLists++;
 						return upcastPartial<AgentSessionsControl>({ dispose: () => { }, setVisible: () => { } });
 					}
 					return ctor === AgentSessionsFilter ? filter : Object.assign(toDisposable(() => { }), { context: undefined });
@@ -289,15 +287,36 @@ suite('ChatViewPane sessions refresh', () => {
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
 		createControl.call(host, document.createElement('div'));
-		const steps = [{ ownLists, control: host.sessionsControl, titleActive: host.titleActive }];
+		return { host, counts };
+	}
+
+	test('while a provided sessions list is expected but not registered yet, the Chat view creates no list of its own, so none shows that the provided one replaces', () => {
+		const seam = createSeam();
+		const { host, counts } = createExpectedListHost(seam);
+		const providedControl = Object.assign(upcastPartial<AgentSessionsControl>({ dispose: () => { }, setVisible: () => { } }), { titleActions: upcastPartial<ViewMenuActions>({}) });
+		const steps = [{ ownLists: counts.ownLists, control: host.sessionsControl, titleActive: host.titleActive }];
 
 		store.add(seam.provide(upcastPartial<IChatViewSessionsListProvider>({ create: () => ({ control: providedControl, hasHeader: true }) }), true));
 		seam.sessionsListExpected.set(false, undefined);
-		steps.push({ ownLists, control: host.sessionsControl, titleActive: host.titleActive });
+		steps.push({ ownLists: counts.ownLists, control: host.sessionsControl, titleActive: host.titleActive });
 
 		assert.deepStrictEqual(steps, [
 			{ ownLists: 0, control: undefined, titleActive: true },
 			{ ownLists: 0, control: providedControl, titleActive: true },
+		]);
+	});
+
+	test('when the provided sessions list is no longer expected and none registered, the Chat view creates its own list', () => {
+		const seam = createSeam();
+		const { host, counts } = createExpectedListHost(seam);
+		const steps = [{ ownLists: counts.ownLists, titleActive: host.titleActive }];
+
+		seam.sessionsListExpected.set(false, undefined);
+		steps.push({ ownLists: counts.ownLists, titleActive: host.titleActive });
+
+		assert.deepStrictEqual(steps, [
+			{ ownLists: 0, titleActive: true },
+			{ ownLists: 1, titleActive: false },
 		]);
 	});
 
