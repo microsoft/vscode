@@ -6,7 +6,6 @@
 import type * as vscode from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { ChatSessionWorktreeProperties } from './chatSessionWorktreeService';
-import type { IWorkspaceInfo } from './workspaceInfo';
 
 export interface WorkspaceFolderEntry {
 	readonly folderPath: string;
@@ -120,17 +119,6 @@ export interface ChatSessionMetadataFile {
 	modified?: number;
 }
 
-/**
- * One line in `~/.copilot/vscode.session.worktree.jsonl`. Maps a session id
- * to the path of its worktree so folder → session lookups work even when the
- * session has been evicted from the bulk metadata cache.
- */
-export interface WorktreeSessionEntry {
-	readonly id: string;
-	readonly path: string;
-	readonly created: number;
-}
-
 export const IChatSessionMetadataStore = createServiceIdentifier<IChatSessionMetadataStore>('IChatSessionMetadataStore');
 
 export interface IChatSessionMetadataStore {
@@ -144,8 +132,6 @@ export interface IChatSessionMetadataStore {
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
 	getSessionWorkspaceFolder(sessionId: string): Promise<vscode.Uri | undefined>;
 	getSessionWorkspaceFolderEntry(sessionId: string): Promise<WorkspaceFolderEntry | undefined>;
-	getAdditionalWorkspaces(sessionId: string): Promise<IWorkspaceInfo[]>;
-	setAdditionalWorkspaces(sessionId: string, workspaces: IWorkspaceInfo[]): Promise<void>;
 	getSessionFirstUserMessage(sessionId: string): Promise<string | undefined>;
 	setSessionFirstUserMessage(sessionId: string, message: string): Promise<void>;
 	getCustomTitle(sessionId: string): Promise<string | undefined>;

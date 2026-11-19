@@ -8,8 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaPropertyFromLimits } from '../../common/agentModelConfiguration.js';
-import { withAgentModelExperimentalMeta } from '../../common/meta/agentModelMeta.js';
-import { IModelRouter, IModelRouterDiagnostic, matchModelReference, ModelReferenceMatch, MODEL_ROUTER_MAX_DECISION_TEXT_BYTES, MODEL_ROUTER_MAX_FILE_BYTES, ModelRouterDiagnosticSeverity, modelRouterDecisionTextBytes, modelRouterNameFromFileName, modelRouterNameFromModelId, parseModelRouter, resolveModelRouter } from '../../common/modelRouter.js';
+import { readAgentModelRouterRoutesMeta, withAgentModelExperimentalMeta, withAgentModelRouterRoutesMeta } from '../../common/meta/agentModelMeta.js';
+import { IModelRouter, IModelRouterDiagnostic, matchModelReference, ModelReferenceMatch, MODEL_ROUTER_MAX_DECISION_TEXT_BYTES, MODEL_ROUTER_MAX_FILE_BYTES, ModelRouterDiagnosticSeverity, modelRouterDecisionTextBytes, modelRouterNameFromFileName, modelRouterNameFromModelId, parseModelRouter, resolveModelRouter, summarizeModelRouterRoutes } from '../../common/modelRouter.js';
 import { ReasoningEffortConfigKey } from '../../common/reasoningEffort.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 
@@ -359,6 +359,36 @@ suite('modelRouter', () => {
 				'Route 2: b doesn\'t support effort `high`; it supports `low`.',
 				'Route 3: c has no reasoning effort setting, so effort `low` is ignored.',
 			]);
+		});
+
+		test('a router\'s picker row lists its routes that have a model, with what the router sets each to', () => {
+			const contextSizes = { type: 'number' as const, title: 'Context', enum: [200_000, 1_000_000] };
+			const models = [model('a', { efforts: ['low', 'medium', 'high'] }), model('b', { efforts: ['low'] }), { ...model('c'), configSchema: { type: 'object' as const, properties: { [ContextSizeConfigKey]: contextSizes } } }];
+			const routes: IModelRouter['routes'] = [
+				{ models: ['a'], when: 'A.', examples: [], name: 'build', effort: 'high' },
+				{ models: ['b'], when: 'B.', examples: [] },
+				{ models: ['c'], when: 'C.', examples: [], contextSize: 'long' },
+				{ models: ['gone'], when: 'D.', examples: [] },
+			];
+			// The routes are added to the router's row beside what it already carries.
+			const row = { ...model('row'), _meta: withAgentModelRouterRoutesMeta({ other: 1 }, summarizeModelRouterRoutes(router(routes), models)) };
+			assert.deepStrictEqual({
+				chosen: readAgentModelRouterRoutesMeta(row),
+				kept: row._meta?.other,
+				effortOff: summarizeModelRouterRoutes(router(routes, 'off'), models),
+				// Effort is chosen with the route, so it is not chosen when one route is left.
+				oneRoute: summarizeModelRouterRoutes(router(routes.slice(1, 2)), models),
+				// A row from another host lists only what reads as a route.
+				malformed: readAgentModelRouterRoutesMeta({ ...model('row'), _meta: { 'vscode.chat.modelRouterRoutes': [{ model: 'A', effort: 3, contextTokens: -1 }, { name: 'x' }, 'y'] } }),
+				otherModel: readAgentModelRouterRoutesMeta(model('row')),
+			}, {
+				chosen: [{ name: 'build', model: 'a', effort: 'high' }, { model: 'b', effort: 'auto' }, { model: 'c', contextTokens: 1_000_000 }],
+				kept: 1,
+				effortOff: [{ name: 'build', model: 'a' }, { model: 'b' }, { model: 'c', contextTokens: 1_000_000 }],
+				oneRoute: [{ model: 'b' }],
+				malformed: [{ model: 'A' }],
+				otherModel: [],
+			});
 		});
 
 		test('warns about retiring models and when too few routes are left', () => {

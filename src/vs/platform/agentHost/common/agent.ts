@@ -1077,7 +1077,7 @@ export interface IAgentChatContext {
 	 * reason when the send used it, or with the bounded reason it was discarded
 	 * and the send launched one instead.
 	 */
-	readonly reportPrewarmedSession?: (discardReason?: string) => void;
+	readonly reportPrewarmedSession?: (discardReason?: string, claim?: IAgentPrewarmClaim) => void;
 	/**
 	 * Records, before progress can complete the addressed turn, that its send
 	 * materialized a deferred provider session without a pre-warmed one to
@@ -1114,6 +1114,12 @@ export interface IAgentChatContext {
 	readonly originalMessageText?: string;
 	/** Records provider timing for the current send or resumed execution. */
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
+	/**
+	 * The still-pending turn-start checkpoint capture, supplied only for the send of a
+	 * provider that sets {@link IAgentChats.awaitsTurnStartCheckpoint}. The provider
+	 * must await it before any tool of the turn runs and must not run tools if it rejects.
+	 */
+	readonly turnStartCheckpoint?: Promise<void>;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
 	/**
@@ -1476,6 +1482,24 @@ export interface IAgentChatReleaseOptions {
 	readonly canContinue?: () => boolean;
 }
 
+/** What a deferred chat's composer would send with, used to shape its warm runtime ({@link IAgentChats.warmChat}). */
+export interface IAgentWarmChatSelection {
+	/** The model to warm with; `undefined` keeps the chat's current model. */
+	readonly model: ModelSelection | undefined;
+	/** The custom agent to warm with; `undefined` is the default agent. */
+	readonly agent: AgentSelection | undefined;
+}
+
+/** How a send found the pre-warmed provider session it used, for turn telemetry ({@link IAgentChatContext.reportPrewarmedSession}). */
+export interface IAgentPrewarmClaim {
+	/** When the used launch became ready, as `Date.now()` in the reporting process. */
+	readonly readyAt: number;
+	/** The draft's warm launches so far, including the used one; more than one means it was warmed again. */
+	readonly launchCount: number;
+	/** Whether the launch's background warm-up, such as MCP startup and tool initialization, had finished. */
+	readonly warmUpComplete: boolean;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -1487,10 +1511,18 @@ export interface IAgentChatReleaseOptions {
  */
 export interface IAgentChats {
 	/**
+	 * Whether the provider awaits the turn-start checkpoint itself, before the
+	 * turn's first tool runs, via {@link IAgentChatContext.turnStartCheckpoint}.
+	 * The host then sends without waiting for the capture; otherwise it awaits
+	 * the capture before {@link sendMessage}.
+	 */
+	readonly awaitsTurnStartCheckpoint?: boolean;
+
+	/**
 	 * Optional pre-send preparation, such as materializing a deferred provider
 	 * session, after the turn's model/agent selection and working directories
 	 * are resolved. The host may run it concurrently with the turn-start
-	 * checkpoint capture and awaits both before {@link sendMessage} for the same
+	 * checkpoint capture and awaits it before {@link sendMessage} for the same
 	 * `turnId`, so implementations must not send a prompt or modify the working
 	 * tree. Preparation that is not needed must resolve without doing work.
 	 */
@@ -1514,8 +1546,15 @@ export interface IAgentChats {
 	 * disposing the chat discards it. Resolves `true` when a warm runtime is
 	 * live afterwards; a chat that cannot be warmed resolves `false` without
 	 * doing work.
+	 *
+	 * The host calls it again while the user composes. A warm runtime that
+	 * still matches `selection` is kept and its unclaimed lifetime extended;
+	 * one launched with another model or agent is replaced; and a chat whose
+	 * warm runtime expired or was torn down is warmed again. `selection` only
+	 * shapes the warm launch: the first send still selects its own model and
+	 * agent and replaces a launch that does not match them.
 	 */
-	warmChat?(chat: URI, context: IAgentChatContext): Promise<boolean>;
+	warmChat?(chat: URI, context: IAgentChatContext, selection?: IAgentWarmChatSelection): Promise<boolean>;
 
 	/**
 	 * Records why the host is not (yet) warming a deferred chat

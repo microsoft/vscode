@@ -81,7 +81,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnable
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentPrewarmClaim, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -1214,6 +1214,9 @@ class MockCopilotSession {
 				await this.mcpStopGate;
 				return { success: true };
 			},
+		},
+		tools: {
+			initializeAndValidate: async (): Promise<Awaited<ReturnType<CopilotSession['rpc']['tools']['initializeAndValidate']>>> => ({}),
 		},
 		eventLog: {
 			read: async () => ({ events: this.historyEvents, cursor: 'end', hasMore: false, cursorStatus: 'ok' as const }),
@@ -23171,18 +23174,25 @@ suite('CopilotAgent', () => {
 		const tool = (name: string) => ({ name, description: name, inputSchema: { type: 'object' as const } });
 
 		/** Creates an agent whose SDK sessions are recorded and which fails if anything resumes an unclaimed warm session. */
-		async function createWarmableAgent(name: string, createGate?: Promise<void>, options?: { readonly workspacelessHome?: URI; readonly model?: ModelSelection; readonly rootConfig?: Record<string, unknown>; readonly userHome?: URI; readonly fileService?: FileService }) {
-			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+		async function createWarmableAgent(name: string, createGate?: Promise<void>, options?: { readonly workspacelessHome?: URI; readonly model?: ModelSelection; readonly models?: readonly { readonly id: string; readonly name: string }[]; readonly rootConfig?: Record<string, unknown>; readonly userHome?: URI; readonly fileService?: FileService; readonly mcpListGate?: Promise<void> }) {
+			const client = new TestCopilotClient([], options?.models ?? [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
 			const sdkSessions: MockCopilotSession[] = [];
 			const launchConfigs: Parameters<ITestCopilotClient['createSession']>[0][] = [];
 			let mcpLists = 0;
+			const warmSteps: string[] = [];
 			client.createSession = async config => {
 				launchConfigs.push(config);
 				await createGate;
 				const sdkSession = new MockCopilotSession(config.sessionId);
 				sdkSession.rpc.mcp.list = async () => {
 					mcpLists++;
+					warmSteps.push('mcpList');
+					await options?.mcpListGate;
 					return { servers: [] };
+				};
+				sdkSession.rpc.tools.initializeAndValidate = async () => {
+					warmSteps.push('toolsInitialized');
+					return {};
 				};
 				sdkSessions.push(sdkSession);
 				return sdkSession as unknown as CopilotSession;
@@ -23199,9 +23209,19 @@ suite('CopilotAgent', () => {
 			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e)));
 			// What each send reported: 'used', the reason it discarded the early launch, or why it found none.
 			const prewarm: string[] = [];
-			const sendContext: IAgentChatContext = { ...context, reportPrewarmedSession: discardReason => prewarm.push(discardReason ?? 'used'), reportPrewarmSkipped: reason => prewarm.push(`skipped:${reason}`) };
+			const claims: IAgentPrewarmClaim[] = [];
+			const sendContext: IAgentChatContext = {
+				...context, reportPrewarmedSession: (discardReason, claim) => {
+					prewarm.push(discardReason ?? 'used');
+					if (claim) {
+						claims.push(claim);
+					}
+				}, reportPrewarmSkipped: reason => prewarm.push(`skipped:${reason}`)
+			};
 			return {
-				agent, client, chat, context, sendContext, sdkSessions, launchConfigs, materialized, resolvedWorkingDirectory: result.resolvedWorkingDirectory,
+				agent, client, chat, context, sendContext, sdkSessions, launchConfigs, materialized, resolvedWorkingDirectory: result.resolvedWorkingDirectory, warmSteps,
+				/** What each send that used a warm launch reported about it, without the time it became ready. */
+				claims: () => claims.map(({ launchCount, warmUpComplete }) => ({ launchCount, warmUpComplete })),
 				sdkSessionId: () => chatBackings(agent).get(chat.toString())?.sdkSessionId,
 				state: () => ({ creates: sdkSessions.length, mcpLists, materialized: materialized.length, prewarm: [...prewarm], deleted: client.deletedSessionIds.length, live: hasLiveChat(agent, chat) }),
 			};
@@ -23331,7 +23351,7 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('warming launches and starts MCP without announcing the chat, and the first send claims it', async () => {
+		test('warming launches, starts MCP and then initializes tools without announcing the chat, and the first send claims it', async () => {
 			const h = await createWarmableAgent('warm-claim');
 			afterTest(() => disposeAgent(h.agent));
 			const warmed = await h.agent.chats.warmChat!(h.chat, h.context);
@@ -23339,12 +23359,92 @@ suite('CopilotAgent', () => {
 			const afterWarm = { warmed, ...h.state() };
 			await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
 
-			assert.deepStrictEqual({ afterWarm, afterSend: h.state(), sends: h.sdkSessions[0].sendCalls }, {
+			assert.deepStrictEqual({ afterWarm, afterSend: h.state(), warmSteps: h.warmSteps, sends: h.sdkSessions[0].sendCalls, claims: h.claims() }, {
 				afterWarm: { warmed: true, creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
 				afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true },
+				warmSteps: ['mcpList', 'toolsInitialized'],
 				sends: 1,
+				claims: [{ launchCount: 1, warmUpComplete: true }],
 			});
 		});
+
+		test('a send that claims the warm session while its MCP servers start stops it from initializing tools', async () => {
+			const mcpListed = new DeferredPromise<void>();
+			const h = await createWarmableAgent('warm-claim-starting', undefined, { mcpListGate: mcpListed.p });
+			afterTest(() => disposeAgent(h.agent));
+			await h.agent.chats.warmChat!(h.chat, h.context);
+			await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+			mcpListed.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({ warmSteps: h.warmSteps, prewarm: h.state().prewarm, claims: h.claims() }, { warmSteps: ['mcpList'], prewarm: ['used'], claims: [{ launchCount: 1, warmUpComplete: false }] });
+		});
+
+		test('composing does not hold the chat behind the runtime reads that check the warm session\'s customizations', async () => {
+			const h = await createWarmableAgent('warm-check-off-queue');
+			afterTest(() => disposeAgent(h.agent));
+			await h.agent.chats.warmChat!(h.chat, h.context);
+			const configRead = new DeferredPromise<void>();
+			const list = h.client.rpc.mcp.config.list;
+			h.client.rpc.mcp.config.list = async () => {
+				await configRead.p;
+				return list();
+			};
+			// The composer changed only its text: the matching launch is kept without waiting for the runtime.
+			const kept = await h.agent.chats.warmChat!(h.chat, h.context, { model: undefined, agent: undefined });
+			configRead.complete();
+			await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+			assert.deepStrictEqual({ kept, creates: h.state().creates, prewarm: h.state().prewarm }, { kept: true, creates: 1, prewarm: ['used'] });
+		});
+
+		test('warming again with another model replaces the warm launch, and a first send with that model claims it', async () => {
+			const h = await createWarmableAgent('warm-rewarm-model', undefined, { model: { id: 'claude-sonnet' }, models: [{ id: 'claude-sonnet', name: 'Claude Sonnet' }, { id: 'gpt-x', name: 'GPT X' }] });
+			afterTest(() => disposeAgent(h.agent));
+			await h.agent.chats.warmChat!(h.chat, h.context);
+			// The composer settled on another model: the chat's own selection still waits for the send.
+			const replaced = await h.agent.chats.warmChat!(h.chat, h.context, { model: { id: 'gpt-x' }, agent: undefined });
+			const kept = await h.agent.chats.warmChat!(h.chat, h.context, { model: { id: 'gpt-x' }, agent: undefined });
+			const { creates, deleted, live } = h.state();
+			await h.agent.chats.changeModel(h.chat, { id: 'gpt-x' }, h.context);
+			await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+			assert.deepStrictEqual({ replaced, kept, afterRewarm: { creates, deleted, live }, prewarm: h.state().prewarm, creates: h.state().creates, models: h.launchConfigs.map(config => config.model), launchCounts: h.claims().map(claim => claim.launchCount) }, {
+				replaced: true,
+				kept: true,
+				afterRewarm: { creates: 2, deleted: 1, live: true },
+				prewarm: ['used'],
+				creates: 2,
+				models: ['claude-sonnet', 'gpt-x'],
+				// The used launch is the draft's second.
+				launchCounts: [2],
+			});
+		});
+
+		test('warming again extends a matching launch past its lifetime, and warms the draft again once it expired', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = await createWarmableAgent('warm-extend');
+			try {
+				const selection = { model: undefined, agent: undefined };
+				const snapshot = () => ({ creates: h.state().creates, deleted: h.state().deleted, live: h.state().live });
+				await h.agent.chats.warmChat!(h.chat, h.context, selection);
+				await timeout(4 * 60_000);
+				await h.agent.chats.warmChat!(h.chat, h.context, selection);
+				await timeout(4 * 60_000);
+				const extended = snapshot();
+				await timeout(2 * 60_000);
+				const expired = snapshot();
+				await h.agent.chats.warmChat!(h.chat, h.context, selection);
+				const rewarmed = snapshot();
+
+				assert.deepStrictEqual({ extended, expired, rewarmed }, {
+					extended: { creates: 1, deleted: 0, live: true },
+					expired: { creates: 1, deleted: 1, live: false },
+					rewarmed: { creates: 2, deleted: 1, live: true },
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		}));
 
 		test('a prepared turn that claims the warm launch reports it once', async () => {
 			const h = await createWarmableAgent('warm-prepared-turn');

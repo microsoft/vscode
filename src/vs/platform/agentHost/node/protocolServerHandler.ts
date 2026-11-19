@@ -17,6 +17,7 @@ import { lstat, realpath, stat } from 'fs/promises';
 import { parseSessionDbUri } from '../common/sessionDbUri.js';
 import { parsePendingEditContentUri } from '../common/pendingEditContentUri.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
+import { getCopilotBuiltinSkillSource } from './copilot/copilotBuiltinSkills.js';
 import { resolveBranchChangesetScopeForOwner } from './agentHostBranchChangesetScope.js';
 import { basename, dirname, relative, isAbsolute, resolve, sep } from '../../../base/common/path.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -3140,6 +3141,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		for (const field of fields) {
 			const value = isParamsObject(params) ? params[field] ?? (field === 'cwd' ? this._config.defaultDirectory : undefined) : undefined;
 			const readOnly = configProbe || ['resourceRead', 'resourceList', 'resourceResolve', 'createResourceWatch'].includes(method) || (method === 'resourceCopy' && field === 'source') || (method === 'resourceRequest' && isParamsObject(params) && params.write !== true);
+			if (method === 'resourceRead' && typeof value === 'string' && getCopilotBuiltinSkillSource(URI.parse(value, true)) !== undefined) {
+				continue;
+			}
 			if (typeof value !== 'string' || (!await this._isGrantedRelayResource(value, readOnly) && !await this._isPublishedPlanResource(value, method, readOnly))) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Resource is outside the host workspace grants');
 			}

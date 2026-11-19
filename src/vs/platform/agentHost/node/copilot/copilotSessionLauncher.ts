@@ -40,7 +40,7 @@ import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
 import { defaultAutoModeTier, getAdvertisedAutoModeTierSupport, getSupportedAutoModeTiers, isAutoAdvertisedAsFusion, isSupportedAutoModeTier, normalizeAutoModeTier, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { AgentCustomization, ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
-import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
+import { ContextSizeConfigKey, ContextTierConfigKey, CopilotReasoningEffortConfigKey, modelContextTiers } from '../../common/agentModelConfiguration.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
@@ -51,7 +51,6 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
-import { ICopilotApiService } from '../shared/copilotApiService.js';
 import type { CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
@@ -80,15 +79,8 @@ import { createCopilotVirtualSearchTools } from './copilotVirtualSearchTools.js'
 import { readAgentToolFullReferenceName, readAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
-export const CopilotReasoningEffortConfigKey = 'reasoningEffort';
 export const CopilotAutoTierConfigKey = 'autoTier';
-export { ContextSizeConfigKey };
-/**
- * @deprecated Legacy config key that stored the resolved tier string (`'default'` / `'long_context'`)
- * directly. Replaced by the numeric {@link ContextSizeConfigKey}; still read from persisted sessions
- * for backward compatibility.
- */
-export const ContextTierConfigKey = 'contextTier';
+export { ContextSizeConfigKey, ContextTierConfigKey, CopilotReasoningEffortConfigKey };
 /**
  * Config key for the Auto model's routing-profile ("Optimize for") selection. Named to match the
  * Copilot Chat extension's `AUTO_MODE_TIER_PROPERTY` so both Auto surfaces use the same picker key.
@@ -116,6 +108,7 @@ type AgentHostReasoningEffort = ReasoningEffortLevel;
 
 // Every create and resume config states both image generation options, so finalizing a session reads them without defaults.
 interface ICopilotSessionConfig extends ResumeSessionOptions {
+	lifecycleDiagnostics: { persist: boolean };
 	tools: NonNullable<ResumeSessionOptions['tools']> & { imageGeneration: { enabled: boolean; watermark: boolean } };
 }
 
@@ -183,7 +176,6 @@ function toSdkExpAssignments(assignmentContext: unknown): { assignments?: Copilo
 	return { assignments: { Features: [], Flights: {}, Configs: [], AssignmentContext: assignmentContext } };
 }
 
-const ContextTiers = ['default', 'long_context'] as const;
 /** Copilot runtime feature flag that stores memories in the repository's `.github/copilot-memories.jsonl`. */
 const COPILOT_LOCAL_MEMORY_FEATURE_FLAG = 'copilot_swe_agent_memory_in_repo_store';
 
@@ -591,7 +583,7 @@ export function isCopilotReasoningEffort(value: unknown): value is AgentHostReas
 }
 
 function isContextTier(value: unknown): value is ContextTier {
-	return ContextTiers.some(contextTier => contextTier === value);
+	return modelContextTiers.some(contextTier => contextTier === value);
 }
 
 function getCopilotSdkErrorCode(err: unknown): number | undefined {
@@ -1146,7 +1138,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@ICopilotAccountService private readonly _accountService: ICopilotAccountService,
-		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 	) { }
 
 	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials, githubHostUri: string): Promise<CopilotSession> {
@@ -1515,23 +1506,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	/**
-	 * Whether the session's own GitHub account is internal (staff or an internal organization).
-	 * Gates staff-only runtime features per session, since root config is shared by every client
-	 * and editable through host settings. Fails closed.
-	 */
-	private async _isInternalAccount(githubToken: string | undefined): Promise<boolean> {
-		if (!githubToken) {
-			return false;
-		}
-		try {
-			return (await this._copilotApiService.resolveRestrictedTelemetryContext(githubToken)).isInternal === true;
-		} catch (error) {
-			this._logService.debug(`[Copilot] Could not resolve whether the account is internal: ${error instanceof Error ? error.message : String(error)}`);
-			return false;
-		}
-	}
-
-	/**
 	 * Builds the SDK session config. `resetAutoTier` is set for a resume whose forced Auto tier leaves routing to the
 	 * runtime: a resume config cannot clear the journaled tier, so the launch clears it once the session is open.
 	 */
@@ -1553,8 +1527,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;
-		const securityReviewSecretDetectionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SecurityReviewSecretDetection) === true
-			&& await this._isInternalAccount(plan.githubCredentials.token);
+		const securityReviewSecretDetectionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SecurityReviewSecretDetection) === true;
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
 		const featureFlags = {
 			AUTO_APPROVAL: true,
@@ -1811,6 +1784,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const virtualSessionFs = plan.virtualSessionFs;
 		const config: ICopilotSessionConfig = {
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+			// TODO: Remove on the next Copilot SDK bump. The bundled runtime runs an uncached Team-repository git probe on every session create (~90 ms in non-git folders); this is fixed upstream.
+			lifecycleDiagnostics: { persist: false },
 			inference: {
 				...byok,
 				// A resumed session keeps its journaled effort unless an override is configured.

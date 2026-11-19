@@ -1430,4 +1430,19 @@ suite('ModelCard', () => {
 			duringAnimation: { selected: [fast.identifier], accepted: 0 }, accepted: 1,
 		});
 	});
+
+	test('what a kind of model adds follows the card\'s own sections, and is replaced when the card renders again', () => {
+		const events: string[] = [];
+		const { card } = createCard({}, {
+			renderAdditionalSections: container => {
+				container.appendChild(mainWindow.document.createElement('footer')).textContent = 'Routes';
+				events.push('render');
+				return toDisposable(() => events.push('dispose'));
+			},
+		});
+		card.refresh();
+		assert.deepStrictEqual({ last: card.element.lastElementChild?.textContent, count: card.element.querySelectorAll('footer').length, events }, {
+			last: 'Routes', count: 1, events: ['render', 'dispose', 'render'],
+		});
+	});
 });

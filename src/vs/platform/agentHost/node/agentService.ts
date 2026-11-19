@@ -162,7 +162,7 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostAuthenticationService, SESSION_CREDENTIAL_PRINCIPAL_KEY } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostChatResourcesConfigKey, AgentHostCodexEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostChatResourcesConfigKey, AgentHostCodexEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostSessionModelOptionsConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/titleGenerationConfiguration.js';
 import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -1985,7 +1985,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 *  - the tail carries any additional session roots as-is (only index 0 is
 	 *    worktree-remapped; additional roots are passed through unchanged).
 	 */
-	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource; agentMergeTurn?: boolean }): Promise<readonly URI[] | undefined> {
+	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource; agentMergeTurn?: boolean; onResolved?: (workingDirectories: readonly URI[]) => void }): Promise<readonly URI[] | undefined> {
 		if (params.credentials) {
 			if (!params.agentMergeTurn) {
 				await this._bindExecutionCredentials(params.session, params.credentials, params.chat);
@@ -2013,6 +2013,7 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._recreateMissingScratchFolder(params.chat, pickedFolderUri);
 			const resolved = await this._resolveWorkingDirectoryForResume(URI.parse(params.session), sessionId, pickedFolderUri);
 
+			params.onResolved?.([resolved, ...tail]);
 			const config = this._configurationService.getSessionConfigValues(params.session);
 			if (config?.[SessionConfigKey.Isolation] === 'folder' && !this._stateManager.isEphemeralSession(params.session)) {
 				const session = URI.parse(params.session);
@@ -2273,7 +2274,6 @@ export class AgentService extends Disposable implements IAgentService {
 				const chat = URI.parse(defaultChat);
 				return { chat, context: this._chatContext(session, chat, await this._resolveDefaultChatStorageResource(session, chat)) };
 			},
-			session => this._hostCustomizations(URI.isUri(session) ? session : URI.parse(session)),
 			this._sessionDataService,
 		));
 		this._register(this._completions.registerProvider(provider));
@@ -2365,6 +2365,10 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				return models;
 			},
+			getModelsForCredentials: async credentials => {
+				const catalogs = await Promise.all(this._providerService.getProviders().map(provider => provider.getModelsForCredentials?.(credentials) ?? []));
+				return catalogs.flat();
+			},
 			getCreationDefaults: (source, sourceTurnId) => this._getServerToolCreationDefaults(source, sourceTurnId),
 			restoreChat: async (session, chat, credentials) => {
 				if (credentials && !this._isSessionRestored(session.toString())) {
@@ -2398,6 +2402,8 @@ export class AgentService extends Disposable implements IAgentService {
 				_meta: withSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta, depth),
 			}),
 			isChatMoveEnabled: () => this._configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true,
+			getSessionModelOptions: () => this._configurationService.getRootValue(platformRootSchema, AgentHostSessionModelOptionsConfigKey) ?? 'off',
+			usesCredentialScopedModels: session => this._authService.getSessionCredentialSource(session.toString()) !== undefined,
 			supportsChatMoves: session => !!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleChats,
 			// Queued like the moves themselves: the check restores sessions, which must not overlap a running move.
 			checkChatMove: move => this._logRefusedServerToolMove(this._chatMoveSequencer.queue(() => this._withMoveLeases(leases => this._checkServerToolMove(move, leases)))),
