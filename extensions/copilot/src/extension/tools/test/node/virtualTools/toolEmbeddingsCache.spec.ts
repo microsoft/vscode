@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
+import { CopilotToken, createTestExtendedTokenInfo } from '../../../../../platform/authentication/common/copilotToken';
 import { Embedding, EmbeddingType, IEmbeddingsComputer } from '../../../../../platform/embeddings/common/embeddingsComputer';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
@@ -19,13 +21,14 @@ class TestToolEmbeddingsComputer extends ToolEmbeddingsComputer {
 		@IEmbeddingsComputer embeddingsComputer: IEmbeddingsComputer,
 		@ILogService logService: ILogService,
 		@IGithubAvailableEmbeddingTypesService availableEmbeddingTypesService: IGithubAvailableEmbeddingTypesService,
+		@IAuthenticationService authService: IAuthenticationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(embeddingsComputer, logService, availableEmbeddingTypesService, instantiationService);
+		super(embeddingsComputer, logService, availableEmbeddingTypesService, authService, instantiationService);
 	}
-	protected override getCaches(instantiationService: IInstantiationService) {
+	protected override getCaches(_instantiationService: IInstantiationService, embeddingType: EmbeddingType) {
 		return {
-			embeddingType: EmbeddingType.text3small_512,
+			embeddingType,
 			caches: [{
 				initialize: () => Promise.resolve(),
 				get: t => this._testCache.get(t.name),
@@ -249,5 +252,34 @@ describe('ToolEmbeddingsComputer', () => {
 		expect(result[0]).toBe('tool1');
 		expect(result[1]).toBe('tool3');
 		expect(embeddingsComputerMock.computeEmbeddings).toHaveBeenCalledTimes(1);
+	});
+
+	describe('searchToolsByQuery embedding type', () => {
+		async function searchWithSku(sku: string) {
+			const testingServiceCollection = createExtensionUnitTestingServices();
+			const computeEmbeddings = vi.fn().mockResolvedValue({ type: EmbeddingType.text3small_512, values: [] });
+			testingServiceCollection.define(IEmbeddingsComputer, { _serviceBrand: undefined, computeEmbeddings } as unknown as IEmbeddingsComputer);
+			testingServiceCollection.define(IAuthenticationService, {
+				getCopilotToken: async () => new CopilotToken(createTestExtendedTokenInfo({ sku })),
+			} as unknown as IAuthenticationService);
+			const searchAccessor = testingServiceCollection.createTestingAccessor();
+			try {
+				const computer = searchAccessor.get(IInstantiationService).createInstance(TestToolEmbeddingsComputer, new Map());
+				await computer.searchToolsByQuery('open a browser page', [], 5, token);
+				return computeEmbeddings.mock.calls[0][0] as EmbeddingType;
+			} finally {
+				searchAccessor.dispose();
+			}
+		}
+
+		it('uses text3small for no-auth users and Metis for signed-in users', async () => {
+			expect({
+				noAuth: (await searchWithSku('no_auth_limited_copilot')).id,
+				signedIn: (await searchWithSku('copilot_for_business_seat')).id,
+			}).toEqual({
+				noAuth: EmbeddingType.text3small_512.id,
+				signedIn: EmbeddingType.metis_1024_I16_Binary.id,
+			});
+		});
 	});
 });

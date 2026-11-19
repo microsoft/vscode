@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -13,15 +14,22 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actio
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import type { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { AgentHostRemoteConnectionsSettingId, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type TunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, RemoteNameContext } from '../../../../../workbench/common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { RemoteTunnelCommandIds } from '../../../../../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { TOGGLE_SHARING_ID } from '../../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
 import { SessionsTunnelHostTitlebarContribution, TOGGLE_SHARING_FROM_AGENTS_ID } from '../../electron-browser/tunnelHost.contribution.js';
 
 class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
+	override async stopTunnel(): Promise<void> { }
 	override getMode(): Promise<TunnelMode> {
 		return Promise.resolve(INACTIVE_TUNNEL_MODE);
 	}
@@ -42,17 +50,19 @@ class TestCommandService extends mock<ICommandService>() {
 
 suite('Sessions - Tunnel Host Contribution', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('registers the remote connections toggle with the titlebar contribution', () => {
 		const findToggle = (menu: MenuId, id: string) => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === id);
 
-		assert.strictEqual(findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
+		assert.strictEqual(findToggle(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 		assert.strictEqual(CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 
-		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService());
+		const titlebarConfiguration = new TestConfigurationService();
+		store.add(titlebarConfiguration.onDidChangeConfigurationEmitter);
+		const contribution = new SessionsTunnelHostTitlebarContribution(new NullActionViewItemService(), titlebarConfiguration, new TestCommandService());
 
 		const summarize = (menu: MenuId, id: string) => {
 			const item = findToggle(menu, id);
@@ -65,14 +75,14 @@ suite('Sessions - Tunnel Host Contribution', () => {
 
 		try {
 			assert.deepStrictEqual({
-				titlebar: summarize(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID),
+				titlebar: summarize(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID),
 				chatInput: summarize(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID),
 			}, {
 				titlebar: { group: 'navigation', order: 90, icon: Codicon.radioTower.id },
 				chatInput: { group: 'navigation', order: 10, icon: Codicon.radioTower.id },
 			});
 
-			const titlebarToggle = findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID);
+			const titlebarToggle = findToggle(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID);
 			const chatInputToggle = findToggle(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID);
 			if (!titlebarToggle?.when || !chatInputToggle?.when) {
 				assert.fail('remote connections menu items should have when clauses');
@@ -105,7 +115,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 			contribution.dispose();
 		}
 
-		assert.strictEqual(findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
+		assert.strictEqual(findToggle(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 		assert.strictEqual(CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 	});
 
@@ -114,20 +124,41 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		const commandService = new TestCommandService();
 		instantiationService.stub(IRemoteTunnelService, new TestRemoteTunnelService());
 		instantiationService.stub(ICommandService, commandService);
-		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		store.add(new SessionsTunnelHostTitlebarContribution(new NullActionViewItemService(), configuration, commandService));
 
-		try {
-			const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
-			assert.ok(command);
+		const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
+		assert.ok(command);
 
-			await instantiationService.invokeFunction(command.handler);
+		await instantiationService.invokeFunction(command.handler);
 
-			assert.deepStrictEqual(commandService.calls, [{
-				id: RemoteTunnelCommandIds.turnOn,
-				args: [{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false }],
-			}]);
-		} finally {
-			contribution.dispose();
-		}
+		assert.deepStrictEqual(commandService.calls, [{
+			id: RemoteTunnelCommandIds.turnOn,
+			args: [{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false }],
+		}]);
+	});
+
+	test('Agents sharing toggle uses Mission Control when selected', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: 'missionControl' });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const commandService = new TestCommandService();
+		const calls: boolean[] = [];
+		instantiation.stub(IRemoteTunnelService, new TestRemoteTunnelService());
+		instantiation.stub(ICommandService, commandService);
+		instantiation.stub(IConfigurationService, configuration);
+		instantiation.stub(ILogService, store.add(new NullLogService()));
+		instantiation.stub(INotificationService, new TestNotificationService());
+		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
+			override readonly state = observableValue<'disabled' | 'connecting' | 'enabled'>(this, 'disabled');
+			override async setEnabled(enabled: boolean) { calls.push(enabled); }
+		}());
+		store.add(new SessionsTunnelHostTitlebarContribution(new NullActionViewItemService(), configuration, commandService));
+		const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
+		assert.ok(command);
+		await instantiation.invokeFunction(command.handler);
+		assert.deepStrictEqual({ calls, commands: commandService.calls }, { calls: [true], commands: [] });
 	});
 });

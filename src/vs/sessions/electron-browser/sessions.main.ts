@@ -28,6 +28,7 @@ import { RemoteAgentService } from '../../workbench/services/remote/electron-bro
 import { IRemoteAgentService } from '../../workbench/services/remote/common/remoteAgentService.js';
 import { FileService } from '../../platform/files/common/fileService.js';
 import { IFileService } from '../../platform/files/common/files.js';
+import { BrowserResourceService, IBrowserResourceService } from '../../platform/files/browser/browserResourceService.js';
 import { RemoteFileSystemProviderClient } from '../../workbench/services/remote/common/remoteFileSystemProviderClient.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
 import { IProductService } from '../../platform/product/common/productService.js';
@@ -40,6 +41,8 @@ import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { NativeLogService } from '../../workbench/services/log/electron-browser/logService.js';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from '../../workbench/services/workspaces/common/workspaceTrust.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
+import { CanonicalUriService } from '../../workbench/services/workspaces/common/canonicalUriService.js';
+import { ICanonicalUriService } from '../../platform/workspace/common/canonicalUri.js';
 import { safeStringify } from '../../base/common/objects.js';
 import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from '../../workbench/services/utilityProcess/electron-browser/utilityProcessWorkerWorkbenchService.js';
 import { isCI, isMacintosh, isTahoeOrNewer } from '../../base/common/platform.js';
@@ -57,7 +60,7 @@ import { UserDataProfileService } from '../../workbench/services/userDataProfile
 import { IUserDataProfileService } from '../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { BrowserSocketFactory } from '../../platform/remote/browser/browserSocketFactory.js';
 import { RemoteSocketFactoryService, IRemoteSocketFactoryService } from '../../platform/remote/common/remoteSocketFactoryService.js';
-import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-browser/electronRemoteResourceLoader.js';
+import { createBrowserResourceUriProvider, ElectronRemoteResourceLoader } from '../../platform/remote/electron-browser/electronRemoteResourceLoader.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { applyZoom } from '../../platform/window/electron-browser/window.js';
 import { mainWindow } from '../../base/browser/window.js';
@@ -65,7 +68,7 @@ import { IDefaultAccountService } from '../../platform/defaultAccount/common/def
 import { DefaultAccountService } from '../../workbench/services/accounts/browser/defaultAccount.js';
 import { AccountPolicyService, IAccountPolicyGateService } from '../../workbench/services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
-import { Workbench as AgenticWorkbench } from '../browser/workbench.js';
+import type { Workbench as AgenticWorkbench } from '../browser/workbench.js';
 import { createSessionsWorkbench } from '../browser/workbenchFactory.js';
 import { NativeMenubarControl } from '../../workbench/electron-browser/parts/titlebar/menubarControl.js';
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
@@ -263,7 +266,9 @@ export class SessionsMain extends Disposable {
 		serviceCollection.set(IFileService, fileService);
 
 		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService, new ElectronRemoteResourceLoader(environmentService.window.id, mainProcessService, fileService));
+		const browserResourceService = this._register(new BrowserResourceService(createBrowserResourceUriProvider(environmentService.window.id), fileService));
+		serviceCollection.set(IBrowserResourceService, browserResourceService);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService, this._register(new ElectronRemoteResourceLoader(environmentService.window.id, mainProcessService, fileService, browserResourceService)));
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Local Files
@@ -337,10 +342,13 @@ export class SessionsMain extends Disposable {
 		]);
 
 		// Workspace Trust Service
+		const canonicalUriService = this._register(new CanonicalUriService());
+		serviceCollection.set(ICanonicalUriService, canonicalUriService);
+
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, workspaceContextService, workspaceTrustEnablementService, fileService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, workspaceContextService, workspaceTrustEnablementService, fileService, canonicalUriService, logService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 

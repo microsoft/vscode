@@ -219,6 +219,10 @@ Themed icons using `registerIcon(id, codicon, label)`:
 
 **Registration:** Import `./aiCustomization/aiCustomization.contribution.js` in `chat.contribution.ts`
 
+## Search
+
+Every Customizations search filter (list pages, Browse, Plugins, MCP servers, Tools, Canvases, and the marketplace services that pre-filter their results) must use `matchesCustomizationSearchQuery` or `customizationSearchMatchesAny` from `../../common/aiCustomizationSearch.ts`. Never filter with ad-hoc `toLowerCase().includes()` or a different matcher: `-`, `_`, `.`, `/` and spaces must stay interchangeable on every surface. Relevance-ranked sources that score words independently must tokenize with `splitCustomizationSearchWords`. Add a dashed-and-spaced query case to the surface's tests.
+
 ---
 
 *Update this file when making architectural changes to the AI Customization view.*

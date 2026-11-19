@@ -13,8 +13,11 @@ import { NativeMcpDiscovery } from './nativeMpcDiscovery.js';
 import { WorkbenchMcpGatewayService } from './mcpGatewayService.js';
 import { McpGatewayToolBrokerContribution } from './mcpGatewayToolBrokerContribution.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IMcpCopilotGlobalConfigurationService } from '../common/mcpCopilotGlobalConfigurationService.js';
+import { NativeMcpCopilotGlobalConfigurationService } from './mcpCopilotGlobalConfigurationService.js';
 
 mcpDiscoveryRegistry.register(new SyncDescriptor(NativeMcpDiscovery));
+registerSingleton(IMcpCopilotGlobalConfigurationService, NativeMcpCopilotGlobalConfigurationService, InstantiationType.Delayed);
 registerSingleton(IMcpDevModeDebugging, McpDevModeDebuggingNode, InstantiationType.Delayed);
 registerSingleton(IWorkbenchMcpGatewayService, WorkbenchMcpGatewayService, InstantiationType.Delayed);
 registerWorkbenchContribution2('mcpGatewayToolBrokerLocal', McpGatewayToolBrokerContribution, WorkbenchPhase.AfterRestored);

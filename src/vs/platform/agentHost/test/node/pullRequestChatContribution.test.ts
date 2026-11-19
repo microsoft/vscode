@@ -8,50 +8,57 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentMergeConfigKey } from '../../common/agentMerge.js';
+import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { createPullRequestOperationMeta, IPullRequestCreateOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { createPullRequestChatMeta, IPullRequestChatOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { PullRequestChatContribution } from '../../node/chatContributions/pullRequest/pullRequestChatContribution.js';
 import { TurnAdmissionContribution } from '../../node/chatContributions/turnAdmission/turnAdmissionContribution.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 suite('PullRequestChatContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const options: IPullRequestCreateOptions = {
-		title: 'Create PR', description: '', draft: false, agentMerge: true,
+	const options: IPullRequestChatOptions = {
+		draft: false, agentMerge: true,
 		agentMergeOptions: { addressReviews: true, fixCI: true, resolveConflicts: false, mergePullRequest: 'never' },
 	};
 
-	function setup(selected: IPullRequestCreateOptions = options, archived = false) {
+	function setup(selected: IPullRequestChatOptions = options, archived = false, otherFolder?: string) {
 		const log = new NullLogService();
 		const state = store.add(new AgentHostStateManager(log));
 		const config = store.add(new AgentConfigurationService(state, log));
 		const session = 'copilot:/pull-request-chat';
-		const chat = buildDefaultChatUri(session);
+		const chat = otherFolder ? buildChatUri(session, 'other-folder') : buildDefaultChatUri(session);
 		state.createSession({
 			resource: session, provider: 'test', title: 'Test',
 			status: archived ? SessionStatus.IsArchived : SessionStatus.IsRead,
 			createdAt: '2026-09-10T00:00:00.000Z', modifiedAt: '2026-09-10T00:00:00.000Z',
+			workingDirectories: ['file:///repo'],
+			defaultChat: buildDefaultChatUri(session),
 		});
+		if (otherFolder) {
+			state.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
+		}
 		state.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		config.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
 		const instantiation = store.add(new InstantiationService(new ServiceCollection(
-			[ILogService, log], [IAgentConfigurationService, config], [IAgentHostStateManager, state],
+			[ILogService, log], [IAgentConfigurationService, config], [IAgentHostStateManager, state], [IAgentHostChatOwnershipService, createTestChatOwnershipService(state)],
 		), true));
 		const contributions: IAgentHostChatContributions = store.add(new AgentHostChatContributions(log, instantiation));
 		store.add(contributions.registerContribution(TurnAdmissionContribution));
 		store.add(contributions.registerContribution(PullRequestChatContribution));
 		const turn = {
 			session, chat, turnId: 'create-pr',
-			message: { text: 'Create a pull request', origin: { kind: MessageKind.User }, _meta: createPullRequestOperationMeta(selected) },
+			message: { text: 'Create a pull request', origin: { kind: MessageKind.User }, _meta: createPullRequestChatMeta(selected) },
 		};
 		const incoming = {
 			...turn, turnChannel: chat, source: 'direct' as const, clientId: undefined,
@@ -72,13 +79,10 @@ suite('PullRequestChatContribution', () => {
 		const result = await contributions.outgoingTurn(turn);
 		assert.deepStrictEqual({
 			admission, beforeDispatch, message: result.message,
-			configuration: config.getSessionConfigValues(turn.session),
+			configuration: readAgentMergeSessionState(config.getSessionConfigValues(turn.session)),
 		}, {
 			admission: { kind: 'accept' }, beforeDispatch: undefined, message: turn.message,
-			configuration: {
-				[SessionConfigKey.AgentMerge]: { enabled: true, overrides: options.agentMergeOptions },
-				[SessionConfigKey.AgentMergeController]: {},
-			},
+			configuration: { enabled: true, overrides: options.agentMergeOptions },
 		});
 	});
 
@@ -111,7 +115,22 @@ suite('PullRequestChatContribution', () => {
 		config.updateSessionConfig(turn.session, { [SessionConfigKey.AgentMerge]: { enabled: true, overrides: options.agentMergeOptions } });
 		start();
 		await contributions.outgoingTurn(turn);
-		assert.deepStrictEqual(config.getSessionConfigValues(turn.session)?.[SessionConfigKey.AgentMerge], { enabled: false, overrides: options.agentMergeOptions });
+		assert.deepStrictEqual(readAgentMergeSessionState(config.getSessionConfigValues(turn.session)), { enabled: false, overrides: options.agentMergeOptions });
+	});
+
+	test('a chat in another folder changes only that folder Agent Merge', async () => {
+		const enabling = setup(options, false, 'file:///other');
+		const manual = setup({ ...options, agentMerge: false, agentMergeOptions: undefined }, false, 'file:///other');
+		manual.config.updateSessionConfig(manual.turn.session, { [SessionConfigKey.AgentMerge]: { enabled: true, overrides: options.agentMergeOptions } });
+		manual.start();
+		await manual.contributions.outgoingTurn(manual.turn);
+		assert.deepStrictEqual({
+			enabling: enabling.contributions.incomingRequest(enabling.incoming).kind,
+			manual: readAgentMergeSessionState(manual.config.getSessionConfigValues(manual.turn.session)),
+		}, {
+			enabling: 'accept',
+			manual: { enabled: true, overrides: options.agentMergeOptions },
+		});
 	});
 
 	test('enabling without form overrides preserves existing session options', async () => {
@@ -119,7 +138,7 @@ suite('PullRequestChatContribution', () => {
 		config.updateSessionConfig(turn.session, { [SessionConfigKey.AgentMerge]: { enabled: false, overrides: options.agentMergeOptions } });
 		start();
 		await contributions.outgoingTurn(turn);
-		assert.deepStrictEqual(config.getSessionConfigValues(turn.session)?.[SessionConfigKey.AgentMerge], { enabled: true, overrides: options.agentMergeOptions });
+		assert.deepStrictEqual(readAgentMergeSessionState(config.getSessionConfigValues(turn.session)), { enabled: true, overrides: options.agentMergeOptions });
 	});
 
 	test('ordinary messages leave configuration unchanged', async () => {
@@ -141,6 +160,6 @@ suite('PullRequestChatContribution', () => {
 		});
 		start();
 		await contributions.outgoingTurn(turn);
-		assert.deepStrictEqual(config.getSessionConfigValues(turn.session)?.[SessionConfigKey.AgentMergeController], { injectedConfiguration });
+		assert.deepStrictEqual(readAgentMergeSessionState(config.getSessionConfigValues(turn.session))?.injectedConfiguration, injectedConfiguration);
 	});
 });

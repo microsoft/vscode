@@ -8,7 +8,8 @@ import { ILocalMcpServer, IMcpManagementService, IGalleryMcpServer, InstallOptio
 import { IInstantiationService, refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IMcpResourceScannerService, McpResourceTarget } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
+import { collectMcpInputIds, IMcpResourceScannerService, McpResourceTarget } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../configuration/common/configuration.js';
@@ -27,6 +28,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { McpResourceFormat, WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX, WORKSPACE_ROOT_MCP_CONFIG_FILE } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { localize } from '../../../../nls.js';
+import { IMcpWorkspaceInstallTargetService } from './mcpWorkspaceInstallTargetService.js';
 
 export const USER_CONFIG_ID = 'usrlocal';
 export const REMOTE_USER_CONFIG_ID = 'usrremote';
@@ -137,6 +139,8 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IMcpWorkspaceInstallTargetService private readonly workspaceInstallTargetService: IMcpWorkspaceInstallTargetService,
+		@IMcpResourceScannerService private readonly mcpResourceScannerService: IMcpResourceScannerService,
 	) {
 		super(allowedMcpServersService, logService);
 
@@ -415,6 +419,16 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	}
 
 	private validateWorkspaceConfigOptions(options: IWorkbencMcpServerInstallOptions): void {
+		const targets = this.workspaceInstallTargetService.getTargets();
+		const workspaceConfiguration = this.workspaceContextService.getWorkspace().configuration;
+		if ((options.target === ConfigurationTarget.WORKSPACE || options.mcpResource && workspaceConfiguration && this.uriIdentityService.extUri.isEqual(options.mcpResource, workspaceConfiguration))
+			&& !targets.includes(ConfigurationTarget.WORKSPACE)) {
+			throw new Error(localize('unsupportedMcpWorkspaceTarget', "This workspace configuration does not support MCP server installation. Select a workspace folder instead."));
+		}
+		const target = options.target;
+		if (isWorkspaceFolder(target) && !targets.some(candidate => isWorkspaceFolder(candidate) && this.uriIdentityService.extUri.isEqual(candidate.uri, target.uri))) {
+			throw new Error(localize('unsupportedMcpWorkspaceFolderTarget', "This workspace folder is no longer available for MCP server installation."));
+		}
 		if (options.workspaceConfig !== undefined && !isWorkspaceFolder(options.target)) {
 			throw new Error(localize('workspaceConfigRequiresFolder', "An MCP workspace configuration file can only be selected for a workspace folder."));
 		}
@@ -443,18 +457,55 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	}
 
 	async uninstall(server: IWorkbenchLocalMcpServer): Promise<void> {
+		const mcpResource = server.mcpResource;
+		const options: UninstallOptions = {
+			preserveInputIds: server.format === undefined || server.format === McpResourceFormat.Vscode
+				? await this.getInputIdsReferencedByOtherResources(mcpResource)
+				: undefined,
+		};
 		if (server.scope === LocalMcpServerScope.Workspace) {
-			return this.workspaceMcpManagementService.uninstall(server);
+			return this.workspaceMcpManagementService.uninstall(server, options);
 		}
 
 		if (server.scope === LocalMcpServerScope.RemoteUser) {
 			if (!this.remoteMcpManagementService) {
 				throw new Error(`Illegal target: ${server.scope}`);
 			}
-			return this.remoteMcpManagementService.uninstall(server);
+			return this.remoteMcpManagementService.uninstall(server, { ...options, mcpResource });
 		}
 
-		return this.mcpManagementService.uninstall(server, { mcpResource: this.userDataProfileService.currentProfile.mcpResource });
+		return this.mcpManagementService.uninstall(server, { ...options, mcpResource });
+	}
+
+	private async getInputIdsReferencedByOtherResources(mcpResource: URI): Promise<string[]> {
+		const resources = new ResourceMap<McpResourceTarget>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+		const userResource = this.userDataProfileService.currentProfile.mcpResource;
+		resources.set(userResource, ConfigurationTarget.USER);
+		if (this.remoteMcpManagementService) {
+			const remoteResource = await this.getRemoteMcpResource(userResource);
+			if (remoteResource) {
+				resources.set(remoteResource, ConfigurationTarget.USER);
+			}
+		}
+		const workspace = this.workspaceContextService.getWorkspace();
+		if (workspace.configuration) {
+			resources.set(workspace.configuration, ConfigurationTarget.WORKSPACE);
+		}
+		for (const folder of workspace.folders) {
+			resources.set(folder.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]), ConfigurationTarget.WORKSPACE_FOLDER);
+		}
+		resources.delete(mcpResource);
+
+		const referencedInputs = new Set<string>();
+		await Promise.all(Array.from(resources, async ([resource, target]) => {
+			try {
+				const configuration = await this.mcpResourceScannerService.scanMcpServers(resource, target);
+				collectMcpInputIds(configuration, referencedInputs);
+			} catch (error) {
+				throw new Error(localize('readMcpConfigurationError', "Unable to read MCP configuration '{0}': {1}", resource.toString(), getErrorMessage(error)), { cause: error });
+			}
+		}));
+		return [...referencedInputs];
 	}
 
 	private async getRemoteMcpResource(mcpResource?: URI): Promise<URI | undefined> {

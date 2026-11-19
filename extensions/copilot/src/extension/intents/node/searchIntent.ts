@@ -14,6 +14,7 @@ import { IResponseDelta } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { extractCodeBlocks } from '../../../util/common/markdown';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
+import { appendEscapedMarkdownInlineCode } from '../../../util/vs/base/common/htmlContent';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { Intent } from '../../common/constants';
 import { IBuildPromptContext } from '../../prompt/common/intents';
@@ -72,21 +73,49 @@ export function parseSearchParams(modelResponseString: string): any {
 	return args;
 }
 
-function jsonToTable(args: any): string[] {
+const findInFilesArgKeys: readonly (keyof FindInFilesArgs)[] = ['query', 'replace', 'filesToInclude', 'filesToExclude', 'isRegex', 'isCaseSensitive'];
+
+/**
+ * Renders model-provided text as literal code inside a single markdown table cell.
+ *
+ * Line breaks would end the table row, so they are collapsed to spaces. GFM splits a row at every
+ * `|` that follows an even number of backslashes, even inside a code span, and then removes one
+ * backslash before each remaining `|`. Backslashes are otherwise literal inside a code span, so they
+ * must not be escaped. A pipe after an even backslash run gets one extra backslash, which keeps it in
+ * the cell and renders it unchanged. A pipe after an odd run cannot be represented inside a code span
+ * at all, so the code span is closed before it and the pipe is emitted as `&#124;` instead.
+ */
+function toTableCellCode(value: string): string {
+	const text = value.replace(/\r\n|[\r\n\u2028\u2029]/g, ' ');
+	const segments: string[] = [];
+	let segment = '';
+	for (const match of text.matchAll(/(?<backslashes>\\*)\||[^\\|]+|\\+/g)) {
+		const backslashes = match.groups?.backslashes;
+		if (backslashes === undefined) {
+			segment += match[0];
+		} else if (backslashes.length % 2 === 0) {
+			segment += `${backslashes}\\|`;
+		} else {
+			segments.push(segment + backslashes);
+			segment = '';
+		}
+	}
+	segments.push(segment);
+	return segments.map(segment => segment ? appendEscapedMarkdownInlineCode(segment) : '').join('&#124;');
+}
+
+export function jsonToTable(args: any): string[] {
 	if (!args) {
 		return [];
 	}
 	const table = ['| Parameter  | Value |\n', '| ------ | ----- |\n'];
-	for (const [key, value] of Object.entries(args)) {
-		if (value === '') {
+	// Only the known parameters are used by the search follow-up, and their fixed names need no escaping.
+	for (const key of findInFilesArgKeys) {
+		const value = args[key];
+		if (value === undefined || value === '') {
 			continue;
 		}
-		let nonEscapeValue = value;
-		if (typeof value === 'string' || value instanceof String) {
-			// CodeQL [SM02383] Since this is inside of a markdown table cell, only a `|` pipe character would interfere with formatting.
-			nonEscapeValue = value.replace(/\|/g, '\\|');
-		}
-		table.push(`| ${key} | \`${nonEscapeValue}\` |\n`);
+		table.push(`| ${key} | ${toTableCellCode(String(value))} |\n`);
 	}
 	table.push(`\n`);
 	return table;

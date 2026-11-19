@@ -8,7 +8,7 @@ import type { URI } from '../../../../base/common/uri.js';
 import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { createErrorResponsePart, ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -17,6 +17,7 @@ import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayNam
 import { claudeToolDenialCode } from './claudeToolDenial.js';
 import { ClaudeToolCallRegistry } from './claudeToolCallRegistry.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind, type StringOrMarkdown } from '../../common/state/protocol/state.js';
+import type { SessionClientToolsModel } from './clientTools/claudeSessionClientToolsModel.js';
 
 /**
  * Cross-call state for {@link mapSDKMessageToAgentSignals}. One instance
@@ -68,6 +69,13 @@ export class ClaudeMapperState {
 	 * populated for tracked file-edit tools.
 	 */
 	private readonly _completedFileEdits = new Map<string, ToolResultFileEditContent>();
+
+	/**
+	 * Terminal content for retained shell output, staged by
+	 * `ClaudeTerminalOutputs.capture` and consumed by {@link mapUserMessage}
+	 * like {@link _completedFileEdits}. Keyed by SDK `tool_use_id`.
+	 */
+	private readonly _retainedTerminalOutputs = new Map<string, ToolResultTerminalContent>();
 
 	/**
 	 * Reset per-message state. Called on `message_start`. Cross-message
@@ -166,6 +174,18 @@ export class ClaudeMapperState {
 		return content;
 	}
 
+	/** Stage terminal content for retained shell output until its `tool_result` is mapped. */
+	cacheTerminalOutput(toolUseId: string, content: ToolResultTerminalContent): void {
+		this._retainedTerminalOutputs.set(toolUseId, content);
+	}
+
+	/** Consume the terminal content staged for this `tool_use_id`, if any. */
+	takeTerminalOutput(toolUseId: string): ToolResultTerminalContent | undefined {
+		const content = this._retainedTerminalOutputs.get(toolUseId);
+		this._retainedTerminalOutputs.delete(toolUseId);
+		return content;
+	}
+
 	/**
 	 * Drop any cross-message tracking that is still pending at the end
 	 * of a turn. A `tool_use` whose `tool_result` never arrives — model
@@ -234,7 +254,7 @@ export function mapSDKMessageToAgentSignals(
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
-	clientToolOwner?: (toolName: string) => string | undefined,
+	clientTools?: SessionClientToolsModel,
 	turnDuration?: number,
 ): AgentSignal[] {
 	if (logService.getLevel() <= LogLevel.Trace) {
@@ -248,7 +268,7 @@ export function mapSDKMessageToAgentSignals(
 	switch (message.type) {
 		case 'stream_event':
 			return tagWithParent(
-				mapStreamEvent(message.event, chat, turnId, state, logService, message.parent_tool_use_id, registry, clientToolOwner),
+				mapStreamEvent(message.event, chat, turnId, state, logService, message.parent_tool_use_id, registry, clientTools),
 				chat,
 				message.parent_tool_use_id,
 				registry,
@@ -257,7 +277,7 @@ export function mapSDKMessageToAgentSignals(
 			return mapResult(message, chat, turnId, turnDuration, state, logService, registry);
 		case 'assistant':
 			return tagWithParent(
-				mapAssistantCanonical(message, chat, turnId, state, message.parent_tool_use_id, registry, clientToolOwner),
+				mapAssistantCanonical(message, chat, turnId, state, message.parent_tool_use_id, registry, clientTools),
 				chat,
 				message.parent_tool_use_id,
 				registry,
@@ -305,7 +325,7 @@ function mapAssistantCanonical(
 	state: ClaudeMapperState,
 	parentToolUseId: string | null,
 	registry: SubagentRegistry,
-	clientToolOwner?: (toolName: string) => string | undefined,
+	clientTools?: SessionClientToolsModel,
 ): AgentSignal[] {
 	const completedSignal: AgentSignal = {
 		kind: 'model_call_completed',
@@ -324,7 +344,7 @@ function mapAssistantCanonical(
 		}
 		return top;
 	}
-	return [...completedSignals, ...emitInnerAssistantSignals(message, chat, turnId, state, parentToolUseId, registry, clientToolOwner)];
+	return [...completedSignals, ...emitInnerAssistantSignals(message, chat, turnId, state, parentToolUseId, registry, clientTools)];
 }
 
 /**
@@ -365,6 +385,10 @@ function mapUserMessage(
 		const fileEdit = state.takeFileEdit(block.tool_use_id);
 		if (fileEdit) {
 			content.push(fileEdit);
+		}
+		const terminalOutput = state.takeTerminalOutput(block.tool_use_id);
+		if (terminalOutput) {
+			content.push(terminalOutput);
 		}
 		const info = state.toolCalls.lookup(block.tool_use_id)?.info;
 		const resultText = content
@@ -478,6 +502,22 @@ function mapResult(
 					outputTokens: message.usage.output_tokens,
 					cacheReadTokens: message.usage.cache_read_input_tokens,
 					...(modelKey ? { model: modelKey } : {}),
+					...(modelKey ? {
+						_meta: {
+							turnTokenTotals: [{
+								model: modelKey,
+								inputTokens: message.usage.input_tokens,
+								cachedTokens: message.usage.cache_read_input_tokens,
+								outputTokens: message.usage.output_tokens,
+							}],
+							directTurnTokenTotals: [{
+								model: modelKey,
+								inputTokens: message.usage.input_tokens,
+								cachedTokens: message.usage.cache_read_input_tokens,
+								outputTokens: message.usage.output_tokens,
+							}],
+						},
+					} : {}),
 				},
 			},
 		});
@@ -543,7 +583,7 @@ function mapStreamEvent(
 	logService: ILogService,
 	parentToolUseId: string | null,
 	registry: SubagentRegistry,
-	clientToolOwner: ((toolName: string) => string | undefined) | undefined,
+	clientTools: SessionClientToolsModel | undefined,
 ): AgentSignal[] {
 	switch (event.type) {
 		case 'message_start':
@@ -620,7 +660,7 @@ function mapStreamEvent(
 				// produced by `buildClaudeToolMeta` because
 				// `getClaudeToolKind('Task') === 'subagent'`.
 				const meta = isClientTool ? undefined : buildClaudeToolMeta(toolName);
-				const toolClientId = isClientTool ? clientToolOwner?.(toolName) : undefined;
+				const toolClientId = isClientTool ? clientTools?.ownerOf(toolName) : undefined;
 				return [{
 					kind: 'action',
 					resource: chat,

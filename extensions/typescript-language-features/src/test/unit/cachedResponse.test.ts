@@ -9,6 +9,8 @@ import * as vscode from 'vscode';
 import { CachedResponse } from '../../tsServer/cachedResponse';
 import type * as Proto from '../../tsServer/protocol/protocol';
 import { ServerResponse } from '../../typescriptService';
+import { disposeAll } from '../../utils/dispose';
+import { createRandomFile, deleteFile } from '../testUtils';
 
 suite('CachedResponse', () => {
 	test('should cache simple response for same document', async () => {
@@ -30,6 +32,38 @@ suite('CachedResponse', () => {
 		assertResult(await response.execute(doc2, respondWith('test-3')), 'test-2');
 		assertResult(await response.execute(doc1, respondWith('test-4')), 'test-4');
 		assertResult(await response.execute(doc1, respondWith('test-5')), 'test-4');
+	});
+
+	test('should invalidate cache when a document is reopened', async () => {
+		const file = await createRandomFile('const original = 1;', 'ts');
+		const disposables: vscode.Disposable[] = [];
+		try {
+			// Avoid openTextDocument's temporary model reference when testing close.
+			await vscode.commands.executeCommand('vscode.open', file);
+			const document = vscode.window.activeTextEditor?.document;
+			assert.ok(document);
+			const response = new CachedResponse();
+			assertResult(await response.execute(document, respondWith('original')), 'original');
+
+			const closed = new Promise<void>(resolve => {
+				vscode.workspace.onDidCloseTextDocument(closedDocument => {
+					if (closedDocument === document) {
+						resolve();
+					}
+				}, undefined, disposables);
+			});
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await closed;
+
+			await vscode.workspace.fs.writeFile(file, Buffer.from('const updated = 2;'));
+			const reopened = await vscode.workspace.openTextDocument(file);
+			assert.strictEqual(reopened.version, document.version);
+			assertResult(await response.execute(reopened, respondWith('updated')), 'updated');
+		} finally {
+			disposeAll(disposables);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await deleteFile(file);
+		}
 	});
 
 	test('should not cache cancelled responses', async () => {

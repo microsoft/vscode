@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
-import type { CancellationToken, McpHttpServerDefinition, McpServerDefinitionProvider } from 'vscode';
+import type { AuthenticationSession, CancellationToken, McpHttpServerDefinition, McpServerDefinitionProvider } from 'vscode';
 import { authProviderId, IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { resolveGitHubSessionUri } from '../../../platform/authentication/common/enterprise';
 import { AuthProviderId, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { Event } from '../../../util/vs/base/common/event';
 import { URI } from '../../../util/vs/base/common/uri';
-
-const EnterpriseURLConfig = 'github-enterprise.uri';
 
 export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<McpHttpServerDefinition> {
 
@@ -51,25 +50,24 @@ export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<
 					logService.debug('GitHubMcpDefinitionProvider: Configuration change affects GitHub auth provider.');
 					return true;
 				}
-				// If they change the GHE URL
-				if (e.affectsConfiguration(EnterpriseURLConfig)) {
-					logService.debug('GitHubMcpDefinitionProvider: Configuration change affects GitHub Enterprise URL.');
-					return true;
-				}
 				return false;
 			})
 			// void event
 			.map(() => { })
 		);
 		let havePermissiveToken = !!this.authenticationService.permissiveGitHubSession;
+		let authorizationServer = this.authenticationService.anyGitHubSession?.authorizationServer?.toString();
 		const authEvent = Event.chain(this.authenticationService.onDidAuthenticationChange, $ => $
 			.filter(() => {
 				const hadToken = havePermissiveToken;
+				const previousAuthorizationServer = authorizationServer;
 				havePermissiveToken = !!this.authenticationService.permissiveGitHubSession;
-				return hadToken !== havePermissiveToken;
+				authorizationServer = this.authenticationService.anyGitHubSession?.authorizationServer?.toString();
+				return hadToken !== havePermissiveToken
+					|| (authProviderId(this.configurationService) === AuthProviderId.GitHubEnterprise && previousAuthorizationServer !== authorizationServer);
 			})
 			.map(() => {
-				this.logService.debug(`GitHubMcpDefinitionProvider: Permissive GitHub session availability changed: ${havePermissiveToken}`);
+				this.logService.debug('GitHubMcpDefinitionProvider: GitHub authorization server or permissions changed.');
 			})
 		);
 		this.onDidChangeMcpServerDefinitions = Event.any(configurationEvent, authEvent);
@@ -91,18 +89,16 @@ export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<
 		return this.configurationService.getConfig<ConfigKey.GitHubMcpChannelValue>(ConfigKey.GitHubMcpChannel);
 	}
 
-	private get gheConfig(): string | undefined {
-		return this.configurationService.getNonExtensionConfig<string>(EnterpriseURLConfig);
-	}
-
-	private getGheUri(): URI {
-		const uri = this.gheConfig;
-		if (!uri) {
-			throw new Error('GitHub Enterprise URI is not configured.');
+	private getServerUri(session: AuthenticationSession | undefined): URI {
+		const providerId = authProviderId(this.configurationService);
+		if (providerId === AuthProviderId.GitHub) {
+			return URI.parse('https://api.githubcopilot.com/mcp/');
 		}
-		// Prefix with 'copilot-api.'
-		const url = URI.parse(uri).with({ path: '/mcp/' });
-		return url.with({ authority: `copilot-api.${url.authority}` });
+		if (!session) {
+			throw new Error(l10n.t('GitHub Enterprise authentication has not selected a server.'));
+		}
+		const uri = resolveGitHubSessionUri(session, providerId);
+		return uri.with({ authority: `copilot-api.${uri.authority}`, path: '/mcp/' });
 	}
 
 	provideMcpServerDefinitions(): McpHttpServerDefinition[] {
@@ -112,10 +108,15 @@ export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<
 		const lockdown = this.lockdown;
 		const channel = this.channel;
 		const isSignedIn = !!this.authenticationService.permissiveGitHubSession;
+		const session = this.authenticationService.anyGitHubSession;
+		if (providerId === AuthProviderId.GitHubEnterprise && !session) {
+			return [];
+		}
 
-		const basics = providerId === AuthProviderId.GitHubEnterprise
-			? { label: 'GitHub Enterprise', uri: this.getGheUri() }
-			: { label: 'GitHub', uri: URI.parse('https://api.githubcopilot.com/mcp/') };
+		const basics = {
+			label: providerId === AuthProviderId.GitHubEnterprise ? 'GitHub Enterprise' : 'GitHub',
+			uri: this.getServerUri(session),
+		};
 
 		// Build headers object conditionally
 		const headers: Record<string, string> = {};
@@ -141,6 +142,9 @@ export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<
 		} else {
 			version = 'signedout';
 		}
+		if (providerId === AuthProviderId.GitHubEnterprise && session?.authorizationServer) {
+			version += `|issuer=${encodeURIComponent(session.authorizationServer.toString())}`;
+		}
 		return [
 			{
 				...basics,
@@ -151,26 +155,40 @@ export class GitHubMcpDefinitionProvider implements McpServerDefinitionProvider<
 	}
 
 	async resolveMcpServerDefinition(server: McpHttpServerDefinition, token: CancellationToken): Promise<McpHttpServerDefinition> {
-		const accessToken = this.authenticationService.permissiveGitHubSession?.accessToken;
-		if (accessToken) {
-			server.headers['Authorization'] = `Bearer ${accessToken}`;
-			return server;
+		const selected = this.authenticationService.anyGitHubSession;
+		this.assertCurrentDefinition(server, selected);
+		let session = this.authenticationService.permissiveGitHubSession;
+		if (selected && session && selected.authorizationServer?.toString() !== session.authorizationServer?.toString()) {
+			session = undefined;
 		}
 
-		if (this._askedForAuth) {
-			throw new Error('User denied authentication. Cannot connect to GitHub MCP Server.');
+		if (!session) {
+			if (this._askedForAuth) {
+				throw new Error('User denied authentication. Cannot connect to GitHub MCP Server.');
+			}
+			try {
+				session = await this.authenticationService.getGitHubSession('permissive', {
+					createIfNone: {
+						detail: l10n.t('Additional permissions are required to use GitHub MCP Server'),
+					},
+					authorizationServer: selected?.authorizationServer,
+				});
+			} finally {
+				this._askedForAuth = true;
+			}
 		}
+		this.assertCurrentDefinition(server, session);
+		this.assertCurrentDefinition(server, this.authenticationService.anyGitHubSession);
+		server.headers['Authorization'] = `Bearer ${session.accessToken}`;
+		return server;
+	}
 
-		try {
-			const session = await this.authenticationService.getGitHubSession('permissive', {
-				createIfNone: {
-					detail: l10n.t('Additional permissions are required to use GitHub MCP Server'),
-				},
-			});
-			server.headers['Authorization'] = `Bearer ${session.accessToken}`;
-			return server;
-		} finally {
-			this._askedForAuth = true;
+	private assertCurrentDefinition(server: McpHttpServerDefinition, session: AuthenticationSession | undefined): void {
+		const enterprise = authProviderId(this.configurationService) === AuthProviderId.GitHubEnterprise;
+		const uri = this.getServerUri(session);
+		const issuer = session?.authorizationServer;
+		if (server.uri.toString() !== uri.toString() || (enterprise && (!issuer || !server.version?.endsWith(`|issuer=${encodeURIComponent(issuer.toString())}`)))) {
+			throw new Error(l10n.t('The GitHub authorization server changed. Refresh the GitHub MCP server definition.'));
 		}
 	}
 }

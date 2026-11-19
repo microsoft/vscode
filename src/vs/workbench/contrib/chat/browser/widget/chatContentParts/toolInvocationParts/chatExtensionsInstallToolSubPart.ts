@@ -18,7 +18,7 @@ import { CancelChatActionId } from '../../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../../actions/chatToolActions.js';
 import { IChatWidgetService } from '../../../chat.js';
 import { ChatConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
-import { IChatContentPartRenderContext } from '../chatContentParts.js';
+import { focusChatInput, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatExtensionsContentPart } from '../chatExtensionsContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
@@ -73,7 +73,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				},
 				{
 					label: cancelLabel,
-					data: { type: ToolConfirmKind.Denied },
+					data: { type: ToolConfirmKind.Denied, source: 'user' },
 					isSecondary: true,
 					tooltip: cancelTooltip
 				}
@@ -89,11 +89,12 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				}
 			));
 			this._confirmWidget = confirmWidget;
+			this.primaryAction = () => confirmWidget.runPrimaryAction();
 			dom.append(this.domNode, confirmWidget.domNode);
 			this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 				IChatToolInvocation.confirmWith(toolInvocation, button.data);
 				if (!isTouchClick) {
-					chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
+					focusChatInput(context, chatWidgetService);
 				}
 			}));
 			const hasToolConfirmationKey = ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService);

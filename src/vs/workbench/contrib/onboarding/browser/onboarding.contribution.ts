@@ -11,6 +11,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -22,6 +23,8 @@ import { OnboardingScenarioService } from './onboardingService.js';
 import { RunOnboardingStepPresentation } from './sequence/runOnboardingStep.js';
 import { OnboardingSequencePresentation } from './sequence/sequencePresentation.js';
 import { SpotlightPresentation } from './spotlight/spotlightPresentation.js';
+import { SPOTLIGHT_BACKDROP_CONFIG, SPOTLIGHT_CLOSE_BUTTON_CONFIG } from './spotlight/spotlightTypes.js';
+import './onboardingTryout.contribution.js';
 
 registerSingleton(IOnboardingScenarioService, OnboardingScenarioService, InstantiationType.Delayed);
 
@@ -38,7 +41,10 @@ function buildDeveloperModeConfigurationNode(): IConfigurationNode {
 	const defaultValue: IStringDictionary<boolean> = {};
 	const variationProperties: IStringDictionary<IConfigurationPropertySchema> = {};
 	const variationDefaultValue: IStringDictionary<string> = {};
-	for (const scenario of [...onboardingScenarioRegistry.getScenarios()].sort((a, b) => a.id.localeCompare(b.id))) {
+	for (const scenario of [...onboardingScenarioRegistry.getScenarioDescriptors()].sort((a, b) => a.id.localeCompare(b.id))) {
+		if (scenario.tryout) {
+			continue;
+		}
 		properties[scenario.id] = { type: 'boolean', default: false };
 		defaultValue[scenario.id] = false;
 		if (scenario.developerModeVariations?.length) {
@@ -82,6 +88,19 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: localize('onboarding.enabled', "When enabled, onboarding tours and hints may appear automatically to highlight features. Disabling this does not affect tours you start manually.")
+		},
+		[SPOTLIGHT_BACKDROP_CONFIG]: {
+			type: 'boolean',
+			default: product.quality !== 'insider',
+			tags: ['experimental', 'advanced'],
+			description: localize('onboarding.spotlight.backdrop', "Controls whether onboarding spotlights dim the rest of the window behind the highlighted element. Takes effect the next time a spotlight is shown.")
+		},
+		[SPOTLIGHT_CLOSE_BUTTON_CONFIG]: {
+			type: 'boolean',
+			default: product.quality === 'insider',
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			description: localize('onboarding.spotlight.closeButton', "Controls whether onboarding spotlights show a close button next to the title instead of an End Tour button. Takes effect the next time a spotlight is shown.")
 		}
 	}
 });

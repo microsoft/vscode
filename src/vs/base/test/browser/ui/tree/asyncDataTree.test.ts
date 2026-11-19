@@ -509,6 +509,82 @@ suite('AsyncDataTree', function () {
 		});
 	});
 
+	suite('issue #347997 - expanding a stale node while an ancestor refresh is in flight', () => {
+
+		function createTree() {
+			const container = document.createElement('div');
+			const pending = new Map<string, () => void>();
+			const requests: string[] = [];
+			const dataSource = new class implements IAsyncDataSource<Element, Element> {
+				hasChildren(element: Element): boolean {
+					return !!element.children && element.children.length > 0;
+				}
+				getChildren(element: Element): Promise<Element[]> {
+					requests.push(element.id);
+					return new Promise(c => pending.set(element.id, () => c(element.children || [])));
+				}
+			};
+			const model = new Model({
+				id: 'root',
+				children: [
+					{ id: 'a', children: [{ id: 'aa' }] },
+					{ id: 'b', children: [{ id: 'ba' }] }
+				]
+			});
+			const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+			tree.layout(200);
+			const resolve = async (id: string) => {
+				const complete = pending.get(id);
+				assert.ok(complete, `getChildren(${id}) should be pending`);
+				pending.delete(id);
+				complete();
+				await timeout(0);
+			};
+			const state = () => ({
+				rows: [...container.querySelectorAll('.monaco-list-row')].map(row => row.textContent),
+				requests: requests.splice(0),
+				pending: [...pending.keys()]
+			});
+			return { tree, model, resolve, state };
+		}
+
+		test('expanding it before the refresh reaches it fetches its children once', async () => {
+			const { tree, model, resolve, state } = createTree();
+			const pSetInput = tree.setInput(model.root);
+			await resolve('root');
+			await pSetInput;
+			state();
+
+			const pRefresh = tree.updateChildren(model.root);
+			tree.toggleCollapsed(model.get('a')); // the user expands `a` before the refresh fetched the children of the root
+			await resolve('root');
+			await resolve('a');
+			await pRefresh;
+
+			assert.deepStrictEqual(state(), { rows: ['a', 'aa', 'b'], requests: ['root', 'a'], pending: [] });
+		});
+
+		test('expanding it after the refresh sampled it as collapsed keeps it expanded', async () => {
+			const { tree, model, resolve, state } = createTree();
+			const pSetInput = tree.setInput(model.root);
+			await resolve('root');
+			await pSetInput;
+			const pExpandB = tree.expand(model.get('b'));
+			await resolve('b');
+			await pExpandB;
+			state();
+
+			const pRefresh = tree.updateChildren(model.root);
+			await resolve('root'); // the refresh samples `a` as collapsed and waits for the children of `b`
+			tree.toggleCollapsed(model.get('a'));
+			await resolve('b');
+			await pRefresh;
+			await resolve('a');
+
+			assert.deepStrictEqual(state(), { rows: ['a', 'aa', 'b', 'ba'], requests: ['root', 'b', 'a'], pending: [] });
+		});
+	});
+
 	test('issue #78388 - tree should react to hasChildren toggles', async () => {
 		const container = document.createElement('div');
 		const model = new Model({
@@ -699,6 +775,69 @@ suite('AsyncDataTree', function () {
 
 		await tree.updateChildren(model.root, true);
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b', 'b.txt', 'c', 'c.txt']);
+	});
+
+	test('issues #145510, #149084 - autoExpandCompressedChildren only expands single children compressed with their parent', async () => {
+		const dataSource = new DataSource();
+		const compressionDelegate = new class implements ITreeCompressionDelegate<Element> {
+			isIncompressible(element: Element): boolean {
+				return !dataSource.hasChildren(element) || element.id === 'nest';
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'b', children: [{ id: 'b.txt' }] }]
+			}, {
+				id: 'n', children: [{ id: 'nest', children: [{ id: 'nest.txt' }] }]
+			}]
+		});
+
+		const expandAndRefresh = async (compressionEnabled: boolean) => {
+			const container = document.createElement('div');
+			const tree = store.add(new CompressibleAsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, { identityProvider: new IdentityProvider(), compressionEnabled, autoExpandCompressedChildren: true }));
+			tree.layout(200);
+
+			await tree.setInput(model.root);
+			await tree.expand(model.get('a'));
+			await tree.expand(model.get('n'));
+			await tree.updateChildren(model.root);
+			return Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent);
+		};
+
+		assert.deepStrictEqual({
+			compressed: await expandAndRefresh(true),
+			uncompressed: await expandAndRefresh(false),
+		}, {
+			compressed: ['a/b', 'b.txt', 'n', 'nest'],
+			uncompressed: ['a', 'b', 'n', 'nest'],
+		});
+	});
+
+	test('autoExpandSingleChildren expands single children that are not compressed', async () => {
+		const container = document.createElement('div');
+
+		const dataSource = new DataSource();
+		const compressionDelegate = new class implements ITreeCompressionDelegate<Element> {
+			isIncompressible(element: Element): boolean {
+				return true;
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'b', children: [{ id: 'b.txt' }] }]
+			}]
+		});
+
+		const tree = store.add(new CompressibleAsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, { identityProvider: new IdentityProvider(), autoExpandSingleChildren: true }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		await tree.expand(model.get('a'));
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b', 'b.txt']);
 	});
 
 	test('Tree Navigation: AsyncDataTree', async () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { ExplorerItem } from '../../common/explorerModel.js';
@@ -16,8 +17,10 @@ import { provideDecorations } from '../../browser/views/explorerDecorationsProvi
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IWorkspace, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -31,6 +34,7 @@ import { IEditorResolverService } from '../../../../services/editor/common/edito
 import { IExplorerService } from '../../browser/files.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class TestExplorerView extends ExplorerView {
 	renderForTesting(container: HTMLElement): void {
@@ -51,6 +55,39 @@ suite('Files - ExplorerView', () => {
 	function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, isSymLink = false, isUnknown = false): ExplorerItem {
 		return new ExplorerItem(toResource.call(this, path), fileService, configService, NullFilesConfigurationService, undefined, isFolder, isSymLink, false, false, name, mtime, isUnknown);
 	}
+
+	test('explorer root aria label follows the presented label while switched', () => {
+		const primary = URI.file('/work/project');
+		const alternate = URI.file('/work/project-alt');
+		let switched = true;
+		const renderer = ds.add(new FilesRenderer(
+			dom.$('div'), undefined!, undefined!, () => { },
+			undefined!, configService, undefined!,
+			{ getFolderLocationLabel: (folder: URI) => switched && folder.toString() === alternate.toString() ? 'Alternate · feature/x' : undefined } as unknown as ILabelService,
+			{ getWorkspace: () => ({ folders: [{ uri: alternate }] }) } as unknown as IWorkspaceContextService,
+			undefined!));
+		const root = new ExplorerItem(alternate, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'project', 0, false);
+		const child = new ExplorerItem(URI.file('/work/project-alt/a'), fileService, configService, NullFilesConfigurationService, root, false, false, false, false, 'a', 0, false);
+		const staleRoot = new ExplorerItem(primary, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'project', 0, false);
+		const switchedLabels = [renderer.getAriaLabel(root), renderer.getAriaLabel(child), renderer.getAriaLabel(staleRoot)];
+		switched = false;
+		assert.deepStrictEqual(
+			[switchedLabels, renderer.getAriaLabel(root)],
+			[['project (Alternate · feature/x)', 'a', 'project'], 'project']);
+	});
+
+	test('explorer root labels and aria labels are the plain folder names at the primary location in single and multi-root workspaces', () => {
+		const folders = [URI.file('/work/project'), URI.file('/work/other')];
+		const renderer = ds.add(new FilesRenderer(
+			dom.$('div'), undefined!, undefined!, () => { },
+			undefined!, configService, undefined!,
+			{ getFolderLocationLabel: () => undefined } as unknown as ILabelService,
+			{ getWorkspace: () => ({ folders: folders.map(uri => ({ uri })) }) } as unknown as IWorkspaceContextService,
+			undefined!));
+		const roots = folders.map((uri, index) => new ExplorerItem(uri, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, `name${index}`, 0, false));
+
+		assert.deepStrictEqual(roots.map(root => renderer.getAriaLabel(root)), ['name0', 'name1']);
+	});
 
 	test('getContext', async function () {
 		const d = new Date().getTime();
@@ -79,6 +116,7 @@ suite('Files - ExplorerView', () => {
 		let target: ExplorerItem;
 		let opened: ExplorerItem[];
 		let controllers: Map<ExplorerItem, ICompressedNavigationController[]>;
+		let refreshGate: DeferredPromise<void> | undefined;
 
 		setup(async () => {
 			const createItem = (path: string, isDirectory = false) => new ExplorerItem(URI.file(path), fileService, configService, NullFilesConfigurationService, undefined, isDirectory);
@@ -95,6 +133,7 @@ suite('Files - ExplorerView', () => {
 			menuShown = ds.add(new Emitter<void>());
 			opened = [];
 			controllers = new Map();
+			refreshGate = undefined;
 
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({ explorer: { autoReveal: false, compactFolders: false } }),
@@ -107,10 +146,12 @@ suite('Files - ExplorerView', () => {
 				roots: [root],
 				registerView: () => { },
 				findClosest: () => root,
+				findClosestRoot: () => root,
 				isEditable: () => false,
 				getEditable: () => undefined,
 			});
 			instantiationService.stub(IClipboardService, new TestClipboardService());
+			instantiationService.stub(IWorkspaceFolderLocationService, new class extends mock<IWorkspaceFolderLocationService>() { override readonly onDidChangeLocation = Event.None; });
 			instantiationService.stub(IContextMenuService, {
 				showContextMenu: delegate => {
 					assert.ok(hasKey(delegate, { menuActionOptions: true }));
@@ -150,7 +191,10 @@ suite('Files - ExplorerView', () => {
 				}],
 				{
 					hasChildren: item => Array.isArray(item) || item.children.size > 0,
-					getChildren: item => Array.isArray(item) ? item : [...item.children.values()],
+					getChildren: async item => {
+						await refreshGate?.p;
+						return Array.isArray(item) ? item : [...item.children.values()];
+					},
 				},
 				{
 					compressionEnabled: false,
@@ -179,6 +223,55 @@ suite('Files - ExplorerView', () => {
 				dispose: () => { },
 			});
 			view.renderForTesting(container);
+		});
+
+		test('waits for a newly queued tree refresh before selecting a folder', async () => {
+			view.setVisible(true);
+			await view.setTreeInput();
+			tree.setFocus([target]);
+			tree.setSelection([target]);
+			refreshGate = new DeferredPromise<void>();
+			const refresh = view.setTreeInput();
+			let selected = false;
+			const selection = view.selectResource(folder.resource, 'force').then(() => { selected = true; });
+			await timeout(0);
+			const selectedBeforeRefresh = selected;
+			await refreshGate.complete();
+			await Promise.all([refresh, selection]);
+			assert.deepStrictEqual({
+				selectedBeforeRefresh,
+				focus: tree.getFocus().map(item => item.resource),
+				selection: tree.getSelection().map(item => item.resource),
+			}, {
+				selectedBeforeRefresh: false,
+				focus: [folder.resource],
+				selection: [folder.resource],
+			});
+		});
+
+		test('preserves folder selection after reopening a hidden Explorer', async () => {
+			view.setVisible(true);
+			await view.setTreeInput();
+			tree.setFocus([target]);
+			tree.setSelection([target]);
+			view.setVisible(false);
+			refreshGate = new DeferredPromise<void>();
+			view.setVisible(true);
+			let selected = false;
+			const selection = view.selectResource(folder.resource, 'force').then(() => { selected = true; });
+			await timeout(0);
+			const selectedBeforeRefresh = selected;
+			await refreshGate.complete();
+			await selection;
+			assert.deepStrictEqual({
+				selectedBeforeRefresh,
+				focus: tree.getFocus().map(item => item.resource),
+				selection: tree.getSelection().map(item => item.resource),
+			}, {
+				selectedBeforeRefresh: false,
+				focus: [folder.resource],
+				selection: [folder.resource],
+			});
 		});
 
 		function getContextMenuTarget(item: ExplorerItem | null): HTMLElement {
@@ -377,7 +470,7 @@ suite('Files - ExplorerView', () => {
 	test('preserves workspace name case only for user named workspaces', async function () {
 		const untitledWorkspacesHome = TestEnvironmentService.untitledWorkspacesHome;
 		function workspace(configuration: URI | null): IWorkspace {
-			return { id: 'test', folders: [], configuration };
+			return testIWorkspace({ id: 'test', folders: [], configuration });
 		}
 
 		assert.deepStrictEqual({

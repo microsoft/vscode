@@ -203,12 +203,15 @@ function computeVsCodeMermaidThemeVariables(): VsCodeMermaidThemeVariables {
 	set('secondaryTextColor', '--vscode-input-foreground', '--vscode-foreground');
 	set('secondaryBorderColor', '--vscode-input-border', '--vscode-editorWidget-border');
 
-	// Tertiary / subgraph (cluster) colors
+	// Tertiary colors
 	set('tertiaryColor', '--vscode-textBlockQuote-background', '--vscode-input-background');
 	set('tertiaryTextColor', '--vscode-foreground');
 	set('tertiaryBorderColor', '--vscode-textBlockQuote-border', '--vscode-editorWidget-border');
-	set('clusterBkg', '--vscode-textBlockQuote-background', '--vscode-input-background');
-	set('clusterBorder', '--vscode-textBlockQuote-border', '--vscode-editorWidget-border');
+
+	// Subgraphs (clusters) are outlined on the diagram's background, so nested subgraphs stand out by
+	// their borders. The fill stays opaque because block diagrams fade it, which drops transparency.
+	set('clusterBkg', '--vscode-editor-background');
+	set('clusterBorder', '--vscode-chart-guide', '--vscode-editorWidget-border');
 
 	// Notes
 	set('noteBkgColor', '--vscode-textBlockQuote-background', '--vscode-editorWidget-background');

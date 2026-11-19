@@ -67,10 +67,13 @@ export class FlushableJSONFile<T> {
 
 		const tempFilePath = this.filePath + '.new';
 		// TODO test what can go wrong here!
+		// eslint-disable-next-line local/code-no-sync-fs -- Recorder disposal cannot await flushAsync; persist buffered state before returning so extension-host shutdown cannot discard it.
 		writeFileSync(tempFilePath, json, { encoding: 'utf8' });
 		if (this._exists) {
+			// eslint-disable-next-line local/code-no-sync-fs -- Recorder disposal cannot await flushAsync; removing the old state must finish before the synchronous replacement rename.
 			unlinkSync(this.filePath);
 		}
+		// eslint-disable-next-line local/code-no-sync-fs -- Recorder disposal cannot await flushAsync; publish the completed state file before returning so shutdown cannot leave only the temporary file.
 		renameSync(tempFilePath, this.filePath);
 		this._exists = true;
 
@@ -118,6 +121,7 @@ export class FlushableSafeJSONLFile<T> {
 
 		const text = this._getTextAndClear();
 		if (text === '') { return; }
+		// eslint-disable-next-line local/code-no-sync-fs -- Recorder disposal cannot await flushAsync; persist buffered log entries before returning so extension-host shutdown cannot discard them.
 		appendFileSync(this.filePath, text, { encoding: 'utf8' });
 	}
 }

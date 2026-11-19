@@ -13,6 +13,8 @@ import * as types from '../../common/extHostTypes.js';
 import { createTextModel } from '../../../../editor/test/common/testTextModel.js';
 import { Position as EditorPosition, Position } from '../../../../editor/common/core/position.js';
 import { Range as EditorRange } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { Cache } from '../../common/cache.js';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
 import { IMarkerService } from '../../../../platform/markers/common/markers.js';
 import { MarkerService } from '../../../../platform/markers/common/markerService.js';
@@ -46,7 +48,7 @@ import { nullExtensionDescription as defaultExtension } from '../../../services/
 import { provideSelectionRanges } from '../../../../editor/contrib/smartSelect/browser/smartSelect.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
@@ -71,6 +73,7 @@ suite('ExtHostLanguageFeatures', function () {
 	let languageFeaturesService: ILanguageFeaturesService;
 	let originalErrorHandler: (e: any) => any;
 	let instantiationService: TestInstantiationService;
+	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
 
 	setup(() => {
 
@@ -105,7 +108,7 @@ suite('ExtHostLanguageFeatures', function () {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
+		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
@@ -152,7 +155,31 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync();
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('AutoClosingPair.beforeText requires proposed API', async () => {
+		const setLanguageConfiguration = sinon.stub(mainThread, '$setLanguageConfiguration');
+		store.add(toDisposable(() => setLanguageConfiguration.restore()));
+		disposables.add(extHost.setLanguageConfiguration(defaultExtension, 'testLanguage', {
+			autoClosingPairs: [{ open: '{', close: '}' }]
+		}));
+
+		const configuration: vscode.LanguageConfiguration = {
+			autoClosingPairs: [{ open: '{', close: '}', beforeText: /\{$/ }]
+		};
+		assert.throws(
+			() => extHost.setLanguageConfiguration(defaultExtension, 'testLanguage', configuration),
+			/CANNOT use API proposal: autoClosingPairBeforeText/
+		);
+
+		disposables.add(extHost.setLanguageConfiguration(
+			{ ...defaultExtension, enabledApiProposals: ['autoClosingPairBeforeText'] },
+			'testLanguage',
+			configuration
+		));
+		await rpcProtocol.sync();
+		assert.strictEqual(setLanguageConfiguration.callCount, 2);
+	});
 
 	test('DocumentDropEdits does not cache an empty edit array without release IDs', async () => {
 		disposables.add(extHost.registerDocumentOnDropEditProvider(defaultExtension, defaultSelector, {
@@ -172,25 +199,68 @@ suite('ExtHostLanguageFeatures', function () {
 			await rpcProtocol.sync();
 			const provider = languageFeaturesService.documentDropEditProvider.all(model)[0];
 			const release = sinon.spy(extHost, '$releaseDocumentOnDropEdits');
-			try {
-				for (let i = 0; i < declinedRequests; i++) {
-					assert.strictEqual(await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None), undefined);
-				}
-				const first = await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None);
-				assert.ok(first);
-				disposables.add(first);
-				const second = await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None);
-				assert.ok(second);
-				disposables.add(second);
-				second.dispose();
-				first.dispose();
-				await rpcProtocol.sync();
-				assert.deepStrictEqual(release.args.map(([, cacheId]) => cacheId), [2, 1]);
-			} finally {
-				release.restore();
+			store.add(toDisposable(() => release.restore()));
+			for (let i = 0; i < declinedRequests; i++) {
+				assert.strictEqual(await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None), undefined);
 			}
+			const first = await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None);
+			assert.ok(first);
+			disposables.add(first);
+			const second = await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None);
+			assert.ok(second);
+			disposables.add(second);
+			second.dispose();
+			first.dispose();
+			await rpcProtocol.sync();
+			assert.deepStrictEqual(release.args.map(([, cacheId]) => cacheId), [2, 1]);
 		});
 	}
+
+	// --- paste edits
+
+	for (const declinedRequests of [0, 2]) {
+		test(`DocumentPasteEdits releases cache IDs after ${declinedRequests} declined requests`, async () => {
+			let requests = 0;
+			disposables.add(extHost.registerDocumentPasteEditProvider(defaultExtension, defaultSelector, {
+				provideDocumentPasteEdits: () => ++requests <= declinedRequests ? undefined : [new types.DocumentPasteEdit('pasted text', 'Test paste', types.DocumentDropOrPasteEditKind.Text)]
+			}, { pasteMimeTypes: ['text/plain'], providedPasteEditKinds: [types.DocumentDropOrPasteEditKind.Text] }));
+			await rpcProtocol.sync();
+			const provider = languageFeaturesService.documentPasteEditProvider.all(model)[0];
+			const release = sinon.spy(extHost, '$releasePasteEdits');
+			const provide = () => provider.provideDocumentPasteEdits!(model, [new Selection(1, 1, 1, 1)], new VSDataTransfer(), { triggerKind: languages.DocumentPasteTriggerKind.Automatic }, CancellationToken.None);
+			store.add(toDisposable(() => release.restore()));
+			for (let i = 0; i < declinedRequests; i++) {
+				const declined = await provide();
+				declined?.dispose();
+			}
+			await rpcProtocol.sync();
+			release.resetHistory();
+			const first = await provide();
+			assert.ok(first);
+			disposables.add(first);
+			const second = await provide();
+			assert.ok(second);
+			disposables.add(second);
+			second.dispose();
+			first.dispose();
+			await rpcProtocol.sync();
+			assert.deepStrictEqual(release.args.map(([, cacheId]) => cacheId), [2, 1]);
+		});
+	}
+
+	test('DocumentPasteEdits does not cache empty results without release IDs', async () => {
+		disposables.add(extHost.registerDocumentPasteEditProvider(defaultExtension, defaultSelector, {
+			provideDocumentPasteEdits: () => []
+		}, { pasteMimeTypes: ['text/plain'], providedPasteEditKinds: [types.DocumentDropOrPasteEditKind.Text] }));
+		await rpcProtocol.sync();
+		const provider = languageFeaturesService.documentPasteEditProvider.all(model)[0];
+		const cache = sinon.spy(Cache.prototype, 'add');
+		store.add(toDisposable(() => cache.restore()));
+		const result = await provider.provideDocumentPasteEdits!(model, [new Selection(1, 1, 1, 1)], new VSDataTransfer(), { triggerKind: languages.DocumentPasteTriggerKind.Automatic }, CancellationToken.None);
+		result?.dispose();
+		await rpcProtocol.sync();
+		assert.strictEqual(cache.callCount, 0);
+	});
 
 	// --- outline
 
@@ -269,6 +339,100 @@ suite('ExtHostLanguageFeatures', function () {
 
 		assert.strictEqual(value.length, 6);
 		assert.deepStrictEqual(value.map(s => s.name), ['containers', 'container 0', 'name', 'ports', 'ports 0', 'containerPort']);
+	});
+
+	suite('Structural diff', () => {
+		const extension = { ...defaultExtension, enabledApiProposals: ['structuralDiff'] };
+		let originalModel: ITextModel;
+		const context: languages.StructuralDiffContext = {
+			changes: [{
+				originalRange: new EditorRange(1, 1, 1, 5),
+				modifiedRange: new EditorRange(1, 1, 1, 5),
+			}],
+		};
+
+		setup(() => {
+			originalModel = disposables.add(createTextModel(model.getValue(), undefined, undefined, URI.parse('far://testing/original.a')));
+			extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
+				addedDocuments: [{
+					isDirty: false,
+					versionId: originalModel.getVersionId(),
+					languageId: originalModel.getLanguageId(),
+					uri: originalModel.uri,
+					lines: originalModel.getLinesContent(),
+					EOL: originalModel.getEOL(),
+					encoding: 'utf8',
+				}],
+			});
+		});
+
+		function createResult(): vscode.StructuralDiff {
+			const fullRange = new types.Range(0, 0, model.getLineCount() - 1, model.getLineMaxColumn(model.getLineCount()) - 1);
+			return {
+				root: {
+					id: 'file',
+					originalItem: { name: 'original.a', kind: types.SymbolKind.File, range: fullRange },
+					modifiedItem: { name: 'file.a', kind: types.SymbolKind.File, range: fullRange },
+					originalChanges: [],
+					modifiedChanges: [],
+					children: [],
+				},
+				isIncomplete: true,
+			};
+		}
+
+		function provide(): Promise<languages.StructuralDiff | null | undefined> {
+			const provider = languageFeaturesService.structuralDiffProvider.ordered(model)[0];
+			return Promise.resolve(provider.provideStructuralDiff(originalModel, model, context, CancellationToken.None));
+		}
+
+		test('registers and unregisters providers', async () => {
+			const registration = disposables.add(extHost.registerStructuralDiffProvider(extension, defaultSelector, {
+				provideStructuralDiff: () => undefined,
+			}));
+			await rpcProtocol.sync();
+			const before = languageFeaturesService.structuralDiffProvider.all(model).length;
+			registration.dispose();
+			await rpcProtocol.sync();
+			assert.deepStrictEqual([before, languageFeaturesService.structuralDiffProvider.all(model).length], [1, 0]);
+		});
+
+		test('forwards both documents and the text changes and returns the converted result', async () => {
+			let received: { uris: string[]; contents: string[]; versions: number[]; context: vscode.StructuralDiffContext } | undefined;
+			const fullRange = { ...model.getFullModelRange() };
+			disposables.add(extHost.registerStructuralDiffProvider(extension, defaultSelector, {
+				provideStructuralDiff: (originalDocument, modifiedDocument, value) => {
+					received = {
+						uris: [originalDocument.uri.toString(), modifiedDocument.uri.toString()],
+						contents: [originalDocument.getText(), modifiedDocument.getText()],
+						versions: [originalDocument.version, modifiedDocument.version],
+						context: value,
+					};
+					return createResult();
+				},
+			}));
+			await rpcProtocol.sync();
+			const result = await provide();
+			assert.deepStrictEqual({ received, result }, {
+				received: {
+					uris: [originalModel.uri.toString(), model.uri.toString()],
+					contents: [originalModel.getValue(), model.getValue()],
+					versions: [originalModel.getVersionId(), model.getVersionId()],
+					context: { changes: [{ originalRange: new types.Range(0, 0, 0, 4), modifiedRange: new types.Range(0, 0, 0, 4) }] },
+				},
+				result: {
+					root: {
+						id: 'file',
+						originalItem: { name: 'original.a', kind: languages.SymbolKind.File, range: fullRange },
+						modifiedItem: { name: 'file.a', kind: languages.SymbolKind.File, range: fullRange },
+						originalChanges: [],
+						modifiedChanges: [],
+						children: [],
+					},
+					isIncomplete: true,
+				},
+			});
+		});
 	});
 
 	// --- code lens
@@ -551,7 +715,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
+		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None, false))!;
 		assert.strictEqual(value.size, 1);
 		const [entry] = Array.from(value.values())[0];
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -572,7 +736,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
+		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None, false))!;
 		assert.strictEqual(value.size, 1);
 		const [entry] = Array.from(value.values())[0];
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -593,7 +757,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
+		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None, false))!;
 		assert.strictEqual(value.size, 1);
 		const [entry] = Array.from(value.values())[0];
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 3 });
@@ -615,7 +779,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None);
+		const value = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None, false);
 		assert.strictEqual(value!.size, 1);
 	});
 

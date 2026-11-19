@@ -41,6 +41,7 @@ export class RecordingAgentSdkDownloader implements IAgentSdkDownloader {
 
 	/** What `loadSdkRoot` resolves to. Unset means "no download was expected here". */
 	loadSdkRootResult: (() => Promise<string>) | undefined;
+	installedSdkRoot: string | undefined;
 
 	constructor(public available = true) { }
 
@@ -64,6 +65,10 @@ export class RecordingAgentSdkDownloader implements IAgentSdkDownloader {
 
 	async isSdkResolvableWithoutDownload(): Promise<boolean> {
 		return this.resolvableWithoutDownload ?? this.available;
+	}
+
+	async resolveInstalledSdkRoot(): Promise<string | undefined> {
+		return this.installedSdkRoot;
 	}
 
 	loadSdkRoot(pkg: IAgentSdkPackage): Promise<string> {

@@ -545,6 +545,15 @@
 	background-image: url('../../../chat/browser/chatSetup/media/apple-dark.svg');
 }
 
+.monaco-workbench.hc-light .onboarding-a-provider-mark.microsoft,
+.monaco-workbench.vs .onboarding-a-provider-mark.microsoft {
+	background-image: url('../../../chat/browser/chatSetup/media/microsoft-light.svg');
+}
+
+.onboarding-a-provider-mark.microsoft {
+	background-image: url('../../../chat/browser/chatSetup/media/microsoft-dark.svg');
+}
+
 /* Personalize step */
 .onboarding-a-personalize {
 	display: flex;

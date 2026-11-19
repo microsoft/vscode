@@ -1,0 +1,133 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import path from 'node:path';
+import { setTimeout } from 'node:timers/promises';
+import { isCloudSandbox, prepareCloudSandbox, prepareCloudSandboxPnpm, raiseCloudSandboxFileLimit } from './cloudSandbox.ts';
+import { getPinnedPnpmVersion, getPnpmCommand } from '../lib/pnpm.ts';
+import { getNodeGypHeadersDirectory } from './nodeGypHeaders.ts';
+
+const root = fs.realpathSync.native(path.dirname(path.dirname(import.meta.dirname)));
+
+async function acquireSetupLock(lockFile: string): Promise<() => void> {
+	const deadline = performance.now() + 20 * 60_000;
+	while (true) {
+		let descriptor: number;
+		try {
+			descriptor = fs.openSync(lockFile, 'wx');
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+				throw error;
+			}
+			let owner: number;
+			try {
+				owner = Number(fs.readFileSync(lockFile, 'utf8'));
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+					continue;
+				}
+				throw error;
+			}
+			if (Number.isSafeInteger(owner) && owner > 1) {
+				try {
+					process.kill(owner, 0);
+				} catch (error) {
+					const code = (error as NodeJS.ErrnoException).code;
+					if (code === 'ESRCH') {
+						throw new Error(`Cloud Sandbox setup: stale lock ${lockFile} belongs to exited process ${owner}. Remove it after confirming no setup is running, then retry.`);
+					}
+					if (code !== 'EPERM') {
+						throw error;
+					}
+				}
+			}
+			if (performance.now() >= deadline) {
+				throw new Error(`Cloud Sandbox setup: timed out waiting for ${lockFile}. If its owning process has exited, remove the stale lock before retrying.`);
+			}
+			await setTimeout(100);
+			continue;
+		}
+		try {
+			fs.writeFileSync(descriptor, String(process.pid));
+		} catch (error) {
+			fs.unlinkSync(lockFile);
+			throw error;
+		} finally {
+			fs.closeSync(descriptor);
+		}
+		return () => fs.unlinkSync(lockFile);
+	}
+}
+
+function setupFingerprint(nodeVersion: string): string {
+	const hash = createHash('sha256')
+		.update(JSON.stringify([process.env.GITHUB_ENVIRONMENT_ID, nodeVersion, process.arch, getPinnedPnpmVersion(root)]));
+	for (const file of [
+		'.nvmrc', 'build/npm/cloudSandbox.ts', 'build/npm/cloudSandboxSetup.ts', 'build/npm/preinstall.ts',
+	]) {
+		hash.update(file).update(fs.readFileSync(path.join(root, file)));
+	}
+	// The runtimes whose headers the preinstall downloads, without the rest of the manifests.
+	for (const file of ['package.json', 'remote/package.json']) {
+		const nativeBuild = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8')).nativeBuild;
+		hash.update(file).update(JSON.stringify(nativeBuild ?? null));
+	}
+	const customHeaders = path.join(root, 'build/npm/headers');
+	if (fs.existsSync(customHeaders)) {
+		for (const file of fs.readdirSync(customHeaders).sort()) {
+			hash.update(file).update(fs.readFileSync(path.join(customHeaders, file)));
+		}
+	}
+	return hash.digest('hex');
+}
+
+/**
+ * Whether node-gyp's cache still has the headers that the preinstall installs for the native
+ * modules of the repository root.
+ */
+function hasElectronHeaders(): boolean {
+	const target: string | undefined = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).nativeBuild?.target;
+	const directory = target === undefined ? undefined : getNodeGypHeadersDirectory(target);
+	return directory === undefined || fs.existsSync(directory);
+}
+
+if (isCloudSandbox()) {
+	// Serialize across checkouts too: Node downloads and OS packages are shared by the sandbox.
+	const directory = path.join(os.homedir(), '.local/share/vscode-cloud-sandbox');
+	fs.mkdirSync(directory, { recursive: true });
+	const release = await acquireSetupLock(path.join(directory, 'setup.lock'));
+	try {
+		const stateFile = path.join(root, '.build/cloud-sandbox-setup');
+		let node = process.execPath;
+		let fingerprint = setupFingerprint(process.versions.node);
+		const completed = fs.existsSync(stateFile)
+			&& fs.readFileSync(stateFile, 'utf8') === fingerprint
+			&& hasElectronHeaders();
+		if (!completed) {
+			node = prepareCloudSandbox()!;
+			prepareCloudSandboxPnpm({ env: { ...process.env, PATH: `${path.dirname(node)}${path.delimiter}${process.env.PATH ?? ''}` } });
+			fingerprint = setupFingerprint(execFileSync(node, ['--version'], { encoding: 'utf8' }).trim().replace(/^v/, ''));
+		}
+		// These limits belong to processes, not the cached checkout setup.
+		const agentPid = process.argv[2] === '--agent-pid' ? Number(process.argv[3]) : process.ppid;
+		raiseCloudSandboxFileLimit(agentPid);
+		raiseCloudSandboxFileLimit(process.pid);
+		if (!completed) {
+			// pnpm runs the preinstall with the selected Node executable (first on PATH) and passes its node-gyp.
+			const env = { ...process.env, PATH: `${path.dirname(node)}${path.delimiter}${process.env.PATH ?? ''}` };
+			const pnpm = getPnpmCommand(env, process.platform, node);
+			execFileSync(pnpm.command, [...pnpm.args, 'run', 'preinstall'], { cwd: root, stdio: 'inherit', env, shell: pnpm.shell });
+			fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+			fs.writeFileSync(stateFile, fingerprint);
+		}
+		console.log('Cloud Sandbox prerequisites are ready. pnpm install can now build native dependencies.');
+	} finally {
+		release();
+	}
+}

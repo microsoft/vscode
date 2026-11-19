@@ -11,6 +11,7 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID } from './hoverActionIds.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { getEditorMarkdownSanitizerConfig } from '../../../browser/editorMarkdownSanitizer.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IModelDecoration, ITextModel } from '../../../common/model.js';
@@ -524,6 +525,7 @@ function renderMarkdown(
 
 		const renderedContents = disposables.add(markdownRendererService.render(markdownString, {
 			context: editor,
+			sanitizerConfig: getEditorMarkdownSanitizerConfig(editor),
 			asyncRenderCallback: () => {
 				hoverContentsElement.className = 'hover-contents code-hover-contents';
 				onFinishedRendering();

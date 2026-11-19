@@ -1,0 +1,67 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.customizations-marketplace-welcome-container {
+	width: 100%;
+
+	&.hide {
+		display: none;
+	}
+
+	.customizations-marketplace-welcome-content {
+		box-sizing: border-box;
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		column-gap: var(--vscode-spacing-size120);
+		min-width: 0;
+		margin: var(--vscode-spacing-size40) var(--vscode-spacing-size100);
+		padding: var(--vscode-spacing-size100);
+		border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+		border-radius: var(--vscode-cornerRadius-medium);
+		background: var(--vscode-editorWidget-background);
+
+		.customizations-marketplace-welcome-icon {
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-codiconFontSize);
+		}
+
+		.customizations-marketplace-welcome-text {
+			min-width: 0;
+		}
+
+		.customizations-marketplace-welcome-title {
+			margin: 0;
+			font-size: var(--vscode-fontSize-body1);
+			font-weight: var(--vscode-fontWeight-semiBold);
+			line-height: normal;
+		}
+
+		.customizations-marketplace-welcome-description {
+			margin-top: var(--vscode-spacing-size20);
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-fontSize-body2);
+			overflow-wrap: anywhere;
+
+			p {
+				margin: 0;
+			}
+
+			a {
+				color: var(--vscode-textLink-foreground);
+			}
+		}
+
+		.customizations-marketplace-welcome-button-container {
+			display: flex;
+			align-items: center;
+		}
+	}
+}
+
+.hc-black .customizations-marketplace-welcome-content,
+.hc-light .customizations-marketplace-welcome-content {
+	border-color: var(--vscode-contrastBorder);
+}

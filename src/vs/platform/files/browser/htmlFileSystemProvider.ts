@@ -437,9 +437,9 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 	}
 
-	private async getDirectoryHandle(resource: URI): Promise<FileSystemDirectoryHandle | undefined> {
+	async getDirectoryHandle(resource: URI): Promise<FileSystemDirectoryHandle | undefined> {
 		const handle = await this.doGetHandle(resource);
-		if (handle instanceof FileSystemDirectoryHandle) {
+		if (handle && WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
 			return handle;
 		}
 

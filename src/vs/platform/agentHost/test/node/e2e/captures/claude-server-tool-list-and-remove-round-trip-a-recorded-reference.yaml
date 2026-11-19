@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -20,7 +20,7 @@ exchanges:
                 link: https://example.com/design
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -39,12 +39,12 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Added reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+              content: 'Added reference: ${uuid_0}'
     response:
       content: added
       stopReason: end_turn
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -63,7 +63,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Added reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+              content: 'Added reference: ${uuid_0}'
         - role: assistant
           content: added
         - role: user
@@ -76,7 +76,7 @@ exchanges:
           input: {}
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -95,7 +95,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Added reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+              content: 'Added reference: ${uuid_0}'
         - role: assistant
           content: added
         - role: user
@@ -114,7 +114,7 @@ exchanges:
       content: listed
       stopReason: end_turn
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -133,7 +133,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Added reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+              content: 'Added reference: ${uuid_0}'
         - role: assistant
           content: added
         - role: user
@@ -161,7 +161,7 @@ exchanges:
             id: ${uuid_0}
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -180,7 +180,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'Added reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+              content: 'Added reference: ${uuid_0}'
         - role: assistant
           content: added
         - role: user
@@ -209,7 +209,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_2
-              content: 'Removed reference: ${uuid_0} (website, reference) Design notes — https://example.com/design'
+              content: 'Removed reference: ${uuid_0}'
     response:
       content: removed
       stopReason: end_turn

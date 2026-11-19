@@ -88,7 +88,7 @@ export interface PerformanceInfo {
 	workspaceInfo?: string;
 }
 
-export interface IWorkspaceInformation extends IWorkspace {
+export interface IWorkspaceInformation extends Omit<IWorkspace, 'uri'> {
 	telemetryId: string | undefined;
 	rendererSessionId: string;
 }

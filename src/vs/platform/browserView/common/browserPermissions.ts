@@ -6,6 +6,7 @@
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
 
@@ -171,7 +172,6 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 	 *   - Storage Access (`storage-access`, `top-level-storage-access`)
 	 *
 	 * Not currently implemented (in approximate order of 'might want')
-	 *   - Local Network Access (`local-network-access`, `local-network`, `loopback-network`)
 	 *   - Screen Capture, Captured Surface Control (`display-capture`, `captured-surface-control`)
 	 *   - File Writing (`fileSystem`)
 	 *   - Open External (`openExternal`)
@@ -188,10 +188,18 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 
 /**
  * Raw Electron permission strings that are granted unconditionally, with no
- * recorded state and no management control. These are low-risk capabilities
- * that Chrome itself also always grants automatically.
+ * recorded state and no management control.
  */
 export const ALWAYS_ALLOWED_PERMISSIONS: ReadonlySet<string> = new Set([
+	// Electron disables LocalNetworkAccessChecks, so local and loopback network
+	// access is already allowed. Report that effective state to permissions.query()
+	// too: a false denial breaks sites that check first, such as Okta FastPass.
+	// https://github.com/electron/electron/issues/48655
+	'local-network-access',
+	'local-network',
+	'loopback-network',
+
+	// These are low-risk capabilities that Chrome itself also always grants automatically.
 	'pointerLock',
 	'keyboardLock',
 	'fullscreen',
@@ -266,13 +274,8 @@ function resolveMediaCategories(mediaKinds?: ReadonlyArray<'video' | 'audio'>): 
 }
 
 /**
- * Normalize a full URL down to a stable permission key.
- *
- * For URLs with a real origin (http/https/etc.) this returns the origin
- * (scheme + host + port), e.g. "https://example.com:8443". Host-less URLs such
- * as `file:` have no meaningful origin, so they key off the scheme and full
- * path instead (query and fragment removed), e.g. "file:///home/user/page.html".
- * Falls back to the trimmed raw input if it cannot be parsed.
+ * Normalize a URL to a stable origin key, retaining the full URL for files without query or fragment.
+ * Opaque origins have no key; unparseable inputs fall back to their trimmed value.
  */
 export function toOriginKey(url: string | undefined | null): string {
 	// Trim first so leading/trailing whitespace doesn't push otherwise valid
@@ -286,13 +289,12 @@ export function toOriginKey(url: string | undefined | null): string {
 	}
 	try {
 		const parsed = new URL(trimmed);
-		// Host-less schemes such as file: have no meaningful origin (it is
-		// reported as "null" in Node but "file://" in Chromium), so key off the
-		// scheme and full path instead -- query and fragment are dropped.
-		if (!parsed.host) {
-			return `${parsed.protocol}//${parsed.pathname}`;
+		if (parsed.protocol === `${Schemas.file}:`) {
+			parsed.search = '';
+			parsed.hash = '';
+			return parsed.href;
 		}
-		return parsed.origin;
+		return parsed.origin === 'null' ? '' : parsed.origin;
 	} catch {
 		return trimmed;
 	}

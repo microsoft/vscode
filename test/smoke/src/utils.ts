@@ -14,20 +14,72 @@ export interface MockLlmServer {
 	readonly url: string;
 	requestCount(): number;
 	getRequests(): readonly { readonly path: string; readonly method: string; readonly body: unknown }[];
+	closeConnections(): void;
 	close(): Promise<void>;
 }
 
 /**
- * The model-configuration button label the mock server's `mock-config-model`
- * must show before any option is picked, i.e. the labels of its two schema
- * defaults: reasoning effort `medium` (the `mock-config` family default) and the
- * `default` billing tier's 272000-token context window.
+ * Checks only the latest user message so scenario tags from earlier turns cannot match.
+ * The runtime may append text-only user items that contain only `<system_reminder>` blocks
+ * (for example, when deferred tools are available) after the prompt; those are skipped.
  */
-export const MOCK_CONFIG_MODEL_DEFAULT_LABEL = 'Medium 272K';
+export function latestUserInputCarriesTag(body: unknown, scenarioTag: string): boolean {
+	if (!body || typeof body !== 'object') {
+		return false;
+	}
+	const request = body as Record<string, unknown>;
+	const input = request.messages ?? request.input;
+	if (!Array.isArray(input)) {
+		return false;
+	}
+
+	for (let i = input.length - 1; i >= 0; i--) {
+		const item: unknown = input[i];
+		if (!item || typeof item !== 'object' || (item as Record<string, unknown>).role !== 'user') {
+			continue;
+		}
+		const content = (item as Record<string, unknown>).content;
+		const text = getMessageText(content);
+		const withoutReminders = text.replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, '');
+		if (isTextOnly(content) && withoutReminders !== text && !withoutReminders.trim()) {
+			continue;
+		}
+		return text.includes(scenarioTag);
+	}
+	return false;
+}
+
+function getMessageText(content: unknown): string {
+	if (typeof content === 'string') {
+		return content;
+	}
+	if (!Array.isArray(content)) {
+		return '';
+	}
+	return content.map((part: unknown) => {
+		const text = part && typeof part === 'object' ? (part as Record<string, unknown>).text : undefined;
+		return typeof text === 'string' ? text : '';
+	}).join('');
+}
+
+function isTextOnly(content: unknown): boolean {
+	return typeof content === 'string' || (Array.isArray(content) && content.every((part: unknown) => {
+		const record = part && typeof part === 'object' ? part as Record<string, unknown> : undefined;
+		return (record?.type === 'input_text' || record?.type === 'text') && typeof record.text === 'string';
+	}));
+}
+
+/**
+ * The model-configuration readout the mock server's `mock-config-model` must
+ * show before any option is picked, i.e. the labels of its two schema defaults:
+ * reasoning effort `medium` (the `mock-config` family default) and the `default`
+ * billing tier's 272000-token context window.
+ */
+export const MOCK_CONFIG_MODEL_DEFAULT_LABEL = 'Medium \u00b7 272K';
 
 /**
  * Every option `mock-config-model` declares in its configuration schema, in the
- * order the model-configuration dropdown renders them. The `Thinking Effort`
+ * order the model details page renders them. The `Effort Level`
  * options come from `capabilities.supports.reasoning_effort`, the `Context Size`
  * options from the `default` / `long_context` billing tiers (272000 and
  * `max_context_window_tokens - max_output_tokens` = 922000, which
@@ -38,18 +90,18 @@ export const MOCK_CONFIG_MODEL_DEFAULT_LABEL = 'Medium 272K';
  */
 export const MOCK_CONFIG_MODEL_DEFAULT_SECTIONS: readonly IModelConfigSection[] = [
 	{
-		header: 'Thinking Effort',
+		header: 'Effort Level',
 		options: [
-			{ label: 'Low', description: '', checked: false },
-			{ label: 'Medium', description: 'Default', checked: true },
-			{ label: 'High', description: '', checked: false },
+			{ label: 'Low', checked: false },
+			{ label: 'Medium', checked: true },
+			{ label: 'High', checked: false },
 		],
 	},
 	{
 		header: 'Context Size',
 		options: [
-			{ label: '272K', description: 'Default', checked: true },
-			{ label: '1M', description: '', checked: false },
+			{ label: '272K', checked: true },
+			{ label: '1M', checked: false },
 		],
 	},
 ];

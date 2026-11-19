@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindowId } from '../../../base/browser/dom.js';
+import { getWindowId, onDidUnregisterWindow } from '../../../base/browser/dom.js';
 import { PixelRatio } from '../../../base/browser/pixelRatio.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -42,6 +42,13 @@ export class FontMeasurementsImpl extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange = this._onDidChange.event;
+
+	constructor() {
+		super();
+		this._register(onDidUnregisterWindow(({ vscodeWindowId }) => {
+			this._cache.delete(vscodeWindowId);
+		}));
+	}
 
 	public override dispose(): void {
 		if (this._evictUntrustedReadingsTimeout !== -1) {
@@ -83,7 +90,10 @@ export class FontMeasurementsImpl extends Disposable {
 	}
 
 	private _evictUntrustedReadings(targetWindow: Window): void {
-		const cache = this._ensureCache(targetWindow);
+		const cache = this._cache.get(getWindowId(targetWindow));
+		if (!cache) {
+			return; // The window closed or the font cache was cleared while waiting.
+		}
 		const values = cache.getValues();
 		let somethingRemoved = false;
 		for (const item of values) {
@@ -202,15 +212,23 @@ export class FontMeasurementsImpl extends Disposable {
 			this._createRequest(monospaceTestChars.charAt(i), CharWidthRequestType.Bold, all, monospace);
 		}
 
+		if (bareFontInfo.fontFeatureSettings !== EditorFontLigatures.OFF) {
+			const monospaceLigatureTestStrings = ['fi', '<=', '=>', '==='];
+			for (const testString of monospaceLigatureTestStrings) {
+				this._createRequest(testString, CharWidthRequestType.Regular, all, monospace);
+			}
+		}
+
 		readCharWidths(targetWindow, bareFontInfo, all);
 
 		const maxDigitWidth = Math.max(digit0.width, digit1.width, digit2.width, digit3.width, digit4.width, digit5.width, digit6.width, digit7.width, digit8.width, digit9.width);
 
-		let isMonospace = (bareFontInfo.fontFeatureSettings === EditorFontLigatures.OFF);
+		let isMonospace = true;
 		const referenceWidth = monospace[0].width;
 		for (let i = 1, len = monospace.length; isMonospace && i < len; i++) {
-			const diff = referenceWidth - monospace[i].width;
-			if (diff < -0.001 || diff > 0.001) {
+			const request = monospace[i];
+			const diff = referenceWidth * request.chr.length - request.width;
+			if (diff < -0.005 || diff > 0.005) {
 				isMonospace = false;
 				break;
 			}
