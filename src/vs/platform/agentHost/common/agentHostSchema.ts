@@ -731,6 +731,24 @@ export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPrep
  * Copilot draft starts its SDK session and MCP servers before the first send.
  */
 export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
+export const AgentHostKeepAwakeConfigKey = 'keepAwakeWhileWorking';
+
+export const enum AgentHostKeepAwakeMode {
+	Never = 'never',
+	Always = 'always',
+	WhenPluggedIn = 'whenPluggedIn',
+}
+
+export const agentHostKeepAwakeConfiguration = {
+	type: 'string' as const,
+	enum: [AgentHostKeepAwakeMode.Never, AgentHostKeepAwakeMode.Always, AgentHostKeepAwakeMode.WhenPluggedIn],
+	enumDescriptions: [
+		localize('agentHost.config.keepAwake.never', "Allow idle sleep while a chat is working."),
+		localize('agentHost.config.keepAwake.always', "Prevent idle sleep while a chat is working, even on battery power."),
+		localize('agentHost.config.keepAwake.whenPluggedIn', "Prevent idle sleep only while the host is plugged in. On Linux desktop, the power source is unavailable, so this option allows idle sleep."),
+	],
+	default: AgentHostKeepAwakeMode.Always,
+};
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
@@ -1157,6 +1175,11 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
 		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
 		default: true,
+	}),
+	[AgentHostKeepAwakeConfigKey]: schemaProperty<AgentHostKeepAwakeMode>({
+		...agentHostKeepAwakeConfiguration,
+		title: localize('agentHost.config.keepAwake.title', "Keep Awake While Working"),
+		description: localize('agentHost.config.keepAwake.description', "Controls when this Agent Host prevents idle sleep while a chat is working. The display can turn off and explicit sleep is not inhibited."),
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',

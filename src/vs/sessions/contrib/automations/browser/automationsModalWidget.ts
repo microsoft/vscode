@@ -46,7 +46,7 @@ import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/co
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { formatAutomationRunStatus, formatSchedule, getAutomationsViewContent, getAutomationRemoteStatusPresentation, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, getVisibleAutomations } from '../../sessions/browser/views/automationCataloguePresentation.js';
+import { formatAutomationRunStatus, formatSchedule, getAutomationsViewContent, getAutomationRemoteStatusPresentation, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons } from '../../sessions/browser/views/automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from '../../sessions/browser/views/automationRunProgress.js';
 import { AutomationCommands } from './automationCommands.js';
 import { IAutomationRunDispatch } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
@@ -285,6 +285,7 @@ export class AutomationsModalWidget extends Disposable {
 				automationService.automations.read(reader),
 				automationService.runs.read(reader),
 				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+				configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 			);
 			const providers = [...automationService.availableProviders.read(reader), ...automationService.unavailableProviders.read(reader)];
 			const catalogueState = automationService.catalogueState.read(reader);
@@ -307,7 +308,7 @@ export class AutomationsModalWidget extends Disposable {
 					latestRuns.set(run.automationId, run);
 				}
 			}
-			this.allRows = getVisibleAutomations(automations, configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true).map(automation => {
+			this.allRows = automations.map(automation => {
 				const provider = providers.find(provider => provider.id === automation.target.providerId);
 				const last = latestRuns.get(automation.id);
 				const time = last?.startedAt ?? automation.lastRunAt ?? '';

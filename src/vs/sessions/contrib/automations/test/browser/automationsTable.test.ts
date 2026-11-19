@@ -32,7 +32,7 @@ import { IAutomationDescriptor } from '../../../../../workbench/contrib/chat/com
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationService, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner, IAutomationRunDispatch, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { AutomationsModalCommands } from '../../browser/automationsModalActions.js';
@@ -178,6 +178,27 @@ suite('Automations modal table', () => {
 		}, {
 			actions: [{ id: AutomationsModalCommands.run.id, enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: 'sessions.automations.disable', enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: AutomationCommands.duplicate.id, enabled: true }, { id: AutomationCommands.export.id, enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: AutomationCommands.edit.id, enabled: true }, { id: 'sessions.automations.delete', enabled: true }],
 			command: 'sessions.automations.delete', automation: 'bravo', focused: true, definitions: 3,
+		});
+	});
+
+	test('Send Later hides scheduled chats before and after dispatch', async () => {
+		const { configurationService, automations, names } = setup();
+		await configurationService.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, true);
+		automations.automations.set([
+			tableAutomation('regular', 'Regular'),
+			tableAutomation('pending', 'Pending chat', { purpose: 'scheduledChat' }),
+			tableAutomation('sent', 'Sent chat', { purpose: 'scheduledChat', oneTimeDispatchedAt: '2026-02-02T00:00:00Z' }),
+		], undefined);
+		const hidden = names();
+		await configurationService.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, false);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === SESSIONS_SEND_LATER_ENABLED_SETTING,
+			affectedKeys: new Set([SESSIONS_SEND_LATER_ENABLED_SETTING]),
+			change: { keys: [SESSIONS_SEND_LATER_ENABLED_SETTING], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+		assert.deepStrictEqual({ hidden, shown: names() }, {
+			hidden: ['Regular'], shown: ['Pending chat', 'Regular', 'Sent chat'],
 		});
 	});
 

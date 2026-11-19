@@ -41,6 +41,7 @@ import { Menus, SessionHeaderMenus, SessionsViewShowGroup } from '../menus.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISideChatPlacementService } from '../sideChatPlacement.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { resolveSessionCommandTarget } from '../sessionCommandTarget.js';
@@ -1822,11 +1823,12 @@ function createSessionsListActions(): DisposableStore {
 			}
 			const sessions = Array.isArray(context) ? context : [context];
 			const sessionsManagementService = accessor.get(ISessionsManagementService);
+			const hideSideChats = accessor.get(ISideChatPlacementService).inSidePane.get();
 			void Promise.all(sessions.map(session => {
 				if (session.isArchived.get() || session.capabilities.get().supportsIndependentChatReadState !== true) {
 					return;
 				}
-				return sessionsManagementService.markChatsRead(session, getSessionListChats(session).filter(chat => !chat.isRead.get()));
+				return sessionsManagementService.markChatsRead(session, getSessionListChats(session, undefined, false, hideSideChats).filter(chat => !chat.isRead.get()));
 			})).catch(onUnexpectedError);
 		}
 	}));

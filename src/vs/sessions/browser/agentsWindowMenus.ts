@@ -69,6 +69,8 @@ export const AgentsWindowMenus = {
 	 */
 	SessionsEmptyEditorGroupAddTab: new MenuId('SessionsEmptyEditorGroupAddTab'),
 	SessionActivityBarCanvas: new MenuId('SessionActivityBarCanvas'),
+	/** The side chats of the active chat, a submenu of the Session Activity Bar while it has more than one. */
+	SessionActivityBarSideChats: new MenuId('SessionActivityBarSideChats'),
 } as const;
 
 /**

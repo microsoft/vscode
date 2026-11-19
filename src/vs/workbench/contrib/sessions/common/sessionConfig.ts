@@ -15,6 +15,9 @@ export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 export const SESSIONS_DETAILS_POSITION_SETTING = 'sessions.experimental.detailsPosition';
 export const SESSIONS_FLOATING_DETAILS_SETTING = 'sessions.experimental.floatingDetails';
 
+/** Whether side chats (`/btw`) show as tabs of the desktop Agents window's side pane instead of as chat tabs and sessions list rows. */
+export const SESSIONS_SIDE_CHATS_IN_SIDE_PANE_SETTING = 'sessions.experimental.sideChatsInSidePane';
+
 export type DetailsPosition = 'right' | 'left' | 'top' | 'bottom';
 
 /** Whether the Session Activity Bar is shown beside the active chat in the desktop Agents window. */
