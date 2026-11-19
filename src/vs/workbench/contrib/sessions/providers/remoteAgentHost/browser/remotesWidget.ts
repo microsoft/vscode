@@ -29,10 +29,11 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agen
 import { GITHUB_ENVIRONMENTS_DOCS_URL, GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { WSL_INSTALL_DOCS_URL } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { MANAGE_EXTENSION_COMMAND_ID } from '../../../../../../platform/extensions/common/extensions.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -73,6 +74,14 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 		label: localize('remotes.empty.environments', "No GitHub Environments available."),
 		description: localize('remotes.empty.environments.description', "Sign in to GitHub and share a GitHub Environment on another computer."),
 		documentation: { label: localize('remotes.docs.environments', "GitHub environments setup guide"), href: GITHUB_ENVIRONMENTS_DOCS_URL },
+	},
+	extension: {
+		label: localize('remotes.empty.extensions', "No remotes registered by extensions."),
+		description: localize('remotes.empty.extensions.description', "Extensions that provide agent hosts list them here while they are enabled."),
+	},
+	devContainer: {
+		label: localize('remotes.empty.devContainers', "No Dev Containers yet."),
+		description: localize('remotes.empty.devContainers.description', "Run sessions in an Ubuntu container that keeps its files in a Docker volume."),
 	},
 };
 
@@ -394,7 +403,9 @@ export class RemotesWidget extends Disposable {
 		this._register(autorun(reader => {
 			const remotes = this.model.remotes.read(reader);
 			this.model.tunnelAuthenticationRequired.read(reader);
-			const kinds = getVisibleRemoteKinds(operatingSystem, this.model.environmentsEnabled.read(reader));
+			const canCreateDevContainer = this.model.canCreateDevContainer.read(reader);
+			const hasDevContainers = canCreateDevContainer || remotes.some(remote => remote.kind === 'devContainer');
+			const kinds = getVisibleRemoteKinds(operatingSystem, this.model.environmentsEnabled.read(reader), remotes.some(remote => remote.kind === 'extension'), hasDevContainers);
 			const kindsChanged = !equals(this.kinds, kinds);
 			this.kinds = kinds;
 			const remotesById = new Map(remotes.map(remote => [remote.id, remote]));
@@ -425,6 +436,8 @@ export class RemotesWidget extends Disposable {
 	private runRowAction(entry: RemoteTableEntry, action: RemoteRowAction): void {
 		if (entry.type === 'empty' && action === 'signIn') {
 			void this.signInToTunnels();
+		} else if (entry.type === 'empty' && action === 'createDevContainer' && entry.action?.enabled) {
+			void this.createDevContainer();
 		} else if (entry.type === 'group') {
 			if (action === 'toggleGroup') {
 				this.toggleGroup(entry.id);
@@ -432,6 +445,8 @@ export class RemotesWidget extends Disposable {
 				void this.openConfiguration(entry.kind);
 			} else if (action === 'documentation' && entry.documentation) {
 				void this.openDocumentation(entry.documentation.href);
+			} else if (action === 'createDevContainer' && entry.canCreate) {
+				void this.createDevContainer();
 			}
 		} else if (entry.type === 'remote') {
 			if (action === 'toggleVisibility') {
@@ -460,9 +475,13 @@ export class RemotesWidget extends Disposable {
 				this.openDetails(entry.remote, 'troubleshoot');
 			} else if (action === 'githubEnvironment' && entry.remote.gitHubEnvironment?.state !== 'unavailable' && (entry.remote.canShareAsGitHubEnvironment || entry.remote.gitHubEnvironment)) {
 				void this.manageRemote(entry.remote, 'githubEnvironment');
+			} else if (action === 'showExtension' && entry.remote.contributedBy) {
+				void this.showExtension(entry.remote.contributedBy.extensionId);
 			} else if (action === 'updateServer') {
 				void this.manageRemote(entry.remote, 'updateServer');
-			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh') && entry.remote.canDelete)) {
+			} else if (action === 'createDevContainer' && entry.remote.canCreateDevContainer) {
+				void this.createDevContainer(entry.remote.id);
+			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh' || entry.remote.kind === 'devContainer') && entry.remote.canDelete)) {
 				void this.deleteRemote(entry.remote.id, entry.remote.kind);
 			}
 		}
@@ -542,6 +561,15 @@ export class RemotesWidget extends Disposable {
 	private async openDocumentation(href: string): Promise<void> {
 		try {
 			await this.openerService.open(href);
+		} catch (error) {
+			this.notificationService.error(error);
+		}
+	}
+
+	/** Shows the extension's page, where disabling or uninstalling it removes the remotes it registers. */
+	private async showExtension(extensionId: string): Promise<void> {
+		try {
+			await this.commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, extensionId);
 		} catch (error) {
 			this.notificationService.error(error);
 		}
@@ -674,7 +702,7 @@ export class RemotesWidget extends Disposable {
 
 	private getFilteredRemotes(): readonly ICustomizationRemote[] {
 		return this.displayedRemotes.filter(remote => this.kinds.includes(remote.kind)
-			&& `${remote.name} ${getRemoteAddressLabel(remote)} ${remoteKindLabels[remote.kind]} ${getRemoteTypeLabel(remote.kind)} ${getRemoteAvailabilityLabel(remote)} ${getRemoteMetadataDetails(remote, 'system')} ${getRemoteMetadataDetails(remote, 'activity')} ${getRemoteMetadataLabel(remote, 'activity')}`.toLowerCase().includes(this.query))
+			&& `${remote.name} ${remote.description ?? ''} ${remote.contributedBy?.displayName ?? ''} ${getRemoteAddressLabel(remote)} ${remoteKindLabels[remote.kind]} ${getRemoteTypeLabel(remote.kind)} ${getRemoteAvailabilityLabel(remote)} ${getRemoteMetadataDetails(remote, 'system')} ${getRemoteMetadataDetails(remote, 'activity')} ${getRemoteMetadataLabel(remote, 'activity')}`.toLowerCase().includes(this.query))
 			.sort((a, b) => {
 				if (this.sortBy === 'availability') {
 					const rank = (remote: ICustomizationRemote) => {
@@ -745,6 +773,7 @@ export class RemotesWidget extends Disposable {
 				type: 'empty', id,
 				label: remoteSetup.tunnel.label,
 				action: {
+					id: 'signIn',
 					label: this.signingInToTunnels
 						? localize('remotes.tunnels.signingIn', "Signing in...")
 						: localize('remotes.tunnels.signInAccount', "Sign in to {0}", providerLabel),
@@ -760,6 +789,9 @@ export class RemotesWidget extends Disposable {
 				description: this.getRefreshWarning(kind),
 				documentation: remoteSetup[kind].documentation,
 			};
+		}
+		if (kind === 'devContainer' && this.model.canCreateDevContainer.get()) {
+			return { type: 'empty', id, ...remoteSetup[kind], action: { id: 'createDevContainer', label: localize('remotes.empty.devContainers.create', "Create Dev Container"), enabled: true } };
 		}
 		if (!this.hasRefreshed) {
 			return { type: 'empty', id, label: localize('remotes.empty.findKind', "Refresh to look for {0}.", remoteKindLabels[kind]), documentation: remoteSetup[kind].documentation };
@@ -817,6 +849,7 @@ export class RemotesWidget extends Disposable {
 				type: 'group', id, kind, label: remoteKindLabels[kind],
 				count: groupRemotes.length, collapsed, refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
 				documentation: remoteSetup[kind].documentation,
+				...(kind === 'devContainer' && this.model.canCreateDevContainer.get() ? { canCreate: true } : {}),
 			});
 			if (!collapsed) {
 				entries.push(...(groupRemotes.length ? groupRemotes.map(remoteEntry) : [this.getEmptyEntry(kind)]));
@@ -1002,7 +1035,21 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async deleteRemote(id: string, kind: 'environment' | 'tunnel' | 'ssh'): Promise<void> {
+	/**
+	 * Creates a Dev Container on a host, or from the section, asking where to create it when there is more than one choice.
+	 * Its new row shows its progress, so the create actions stay available for creating more in parallel.
+	 */
+	private async createDevContainer(id?: string): Promise<void> {
+		try {
+			await this.model.createDevContainer(id);
+		} catch (error) {
+			if (!isCancellationError(error) && !this._store.isDisposed) {
+				this.notificationService.error(error);
+			}
+		}
+	}
+
+	private async deleteRemote(id: string, kind: 'environment' | 'tunnel' | 'ssh' | 'devContainer'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
@@ -1015,6 +1062,8 @@ export class RemotesWidget extends Disposable {
 				await this.model.deleteTunnel(id);
 			} else if (kind === 'ssh') {
 				await this.model.deleteSSHHost(id);
+			} else if (kind === 'devContainer') {
+				await this.model.deleteDevContainer(id);
 			} else {
 				await this.model.remove(id);
 			}
@@ -1097,9 +1146,10 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private getRemoteAriaLabel(remote: ICustomizationRemote): string {
+		const displayName = remote.description ? localize('remotes.nameWithDescription', "{0} on {1}", remote.name, remote.description) : remote.name;
 		const name = remote.pickerUnavailableReason
-			? localize('remotes.unavailablePickerName', "{0} (not shown in environment picker: {1})", remote.name, remote.pickerUnavailableReason)
-			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from environment picker)", remote.name) : remote.name;
+			? localize('remotes.unavailablePickerName', "{0} (not shown in environment picker: {1})", displayName, remote.pickerUnavailableReason)
+			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from environment picker)", displayName) : displayName;
 		const availability = getRemoteAvailabilityLabel(remote);
 		const sentences = [
 			availability ? localize('remotes.accessibleRow', "{0}. Status: {1}.", name, availability) : localize('remotes.accessibleRowWithoutStatus', "{0}.", name),
@@ -1122,6 +1172,9 @@ export class RemotesWidget extends Disposable {
 		if (gitHubEnvironment) {
 			sentences.push(gitHubEnvironment);
 		}
+		if (remote.contributedBy) {
+			sentences.push(localize('remotes.accessibleContributedBy', "Registered by the {0} extension.", remote.contributedBy.displayName));
+		}
 		return sentences.join(' ');
 	}
 
@@ -1137,6 +1190,8 @@ export class RemotesWidget extends Disposable {
 			case 'wsl': return localize('remotes.wslRefreshWarning', "Couldn't refresh WSL distributions. Check that WSL is available. See the Window log for more details.");
 			case 'tunnel': return localize('remotes.tunnelRefreshWarning', "Couldn't refresh tunnels. Check your sign-in and network connection. See the Window log for more details.");
 			case 'environment': return localize('remotes.environmentRefreshWarning', "Couldn't refresh environments. Check your GitHub sign-in and network connection. See the Window log for more details.");
+			case 'extension': return undefined;
+			case 'devContainer': return undefined;
 		}
 	}
 

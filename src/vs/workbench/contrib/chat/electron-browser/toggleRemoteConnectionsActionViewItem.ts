@@ -25,9 +25,11 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IRemoteTunnelService } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, IRemoteTunnelAccessState, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, TUNNEL_ACCESS_DOCS_URL } from './remoteConnectionsSharing.js';
+import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, IRemoteTunnelAccessState, RemoteConnectionsCompactMenuSettingId, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, TUNNEL_ACCESS_DOCS_URL } from './remoteConnectionsSharing.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getManagedSupportUrl, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { getOrganizationSupportActionLabel, getOrganizationSupportActionTooltip, openOrganizationSupport } from '../../../services/policies/common/organizationSupport.js';
 
 export interface IRemoteConnectionsActionViewItemOptions {
@@ -65,6 +67,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(undefined, action);
 
@@ -154,7 +158,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const options: IActionListOptions = {
 			minWidth: 300,
 			maxWidth: 320,
-			wrapDetails: true,
+			wrapDetails: !this._isCompactMenu(),
 			...this._getNameHeader(),
 			widgetClassName: 'remote-connections-picker',
 			hideDefaultKeybindingTooltip: true,
@@ -229,7 +233,18 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		await this._sharing.rename();
 	}
 
+	private _isCompactMenu(): boolean {
+		return this._configurationService.getValue<boolean>(RemoteConnectionsCompactMenuSettingId) === true;
+	}
+
 	private _getConnectionMethods(): IActionWidgetDropdownAction[] {
+		// The menu is opening, in every experiment arm, before the arms render it differently.
+		logSettingExperimentTrigger(this._telemetryService, RemoteConnectionsCompactMenuSettingId);
+		const compact = this._isCompactMenu();
+		// The compact menu moves each method's explanation from a second line to a hover and the accessible description.
+		const explain = (explanation: string): Pick<IActionWidgetDropdownAction, 'detail' | 'hover' | 'ariaDescription'> => compact
+			? { hover: { content: explanation }, ariaDescription: explanation }
+			: { detail: explanation };
 		const environments = this._sharing.gitHubEnvironmentsAvailability;
 		// Checks the method chosen last, also in another surface, while choices are being applied.
 		const active = this._sharing.pendingMethod ?? this._sharing.activeMethod;
@@ -241,34 +256,37 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					checked: active === 'off',
 					run: () => this._selectConnectionMethod('off'),
 				}),
-				hover: { content: getOffDetail() },
-				ariaDescription: getOffDetail(),
+				labelIcon: compact ? undefined : Codicon.circleSlash,
+				...explain(getOffDetail()),
 			},
 		];
 		if (environments !== 'unavailable') {
 			methods.push({
 				...toAction({
 					id: 'remoteConnections.githubEnvironment',
-					label: localize('remoteConnections.githubEnvironmentMethod', "GitHub Environment"),
+					label: compact
+						? localize('remoteConnections.githubEnvironmentMethod', "GitHub Environment")
+						: localize('remoteConnections.githubEnvironment', "GitHub Environments"),
 					enabled: environments === 'enabled',
 					checked: active === 'githubEnvironment',
 					run: () => this._selectConnectionMethod('githubEnvironment'),
 				}),
-				labelIcon: environments === 'policyDisabled' ? Codicon.briefcase : undefined,
-				hover: { content: getGitHubEnvironmentsDetail(environments) },
-				ariaDescription: getGitHubEnvironmentsDetail(environments),
+				labelIcon: environments === 'policyDisabled' ? Codicon.briefcase : compact ? undefined : Codicon.github,
+				...explain(getGitHubEnvironmentsDetail(environments)),
 				badge: localize('remoteConnections.preview', "Preview"),
 			});
 		}
 		methods.push({
 			...toAction({
 				id: 'remoteConnections.devTunnel',
-				label: localize('remoteConnections.devTunnelMethod', "Dev Tunnel"),
+				label: compact
+					? localize('remoteConnections.devTunnelMethod', "Dev Tunnel")
+					: localize('remoteConnections.devTunnel', "Dev Tunnels"),
 				checked: active === 'devTunnel',
 				run: () => this._selectConnectionMethod('devTunnel'),
 			}),
-			hover: { content: getDevTunnelsDetail() },
-			ariaDescription: getDevTunnelsDetail(),
+			labelIcon: compact ? undefined : Codicon.radioTower,
+			...explain(getDevTunnelsDetail()),
 		});
 		const usesGitHubEnvironment = this._sharing.usesGitHubEnvironment;
 		const management = this._options.getManagementAction?.() ?? toAction({
@@ -288,7 +306,9 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 				enabled: management.enabled,
 				run: () => management.run(),
 			}),
-			hover: { content: management.tooltip || management.label },
+			...(compact
+				? { hover: { content: management.tooltip || management.label }, ariaDescription: management.tooltip || management.label }
+				: { labelIcon: Codicon.settingsGear }),
 			// Keeps the label aligned with the checkable connection methods.
 			icon: Codicon.blank,
 			category: { label: 'management', order: 1 },

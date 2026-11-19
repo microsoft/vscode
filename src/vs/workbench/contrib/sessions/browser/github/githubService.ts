@@ -287,8 +287,8 @@ export class GitHubService extends Disposable implements IGitHubService {
 	}
 
 	async getCommit(owner: string, repo: string, sha: string, token: CancellationToken): Promise<GitHubCommit> {
-		return this._apiClient.withClient(async (client, signal) => {
-			const commit = await client.repositories.getCommit({ owner, repo }, sha, signal, { priority: 'enrichment' });
+		return this._apiClient.withClient(async (client, cancellationToken) => {
+			const commit = await client.repositories.getCommit({ owner, repo }, sha, cancellationToken, { caller: 'sessions.github', priority: 'enrichment' });
 			const committedAt = commit.commit.author?.date;
 			if (!committedAt) {
 				throw new GitHubRequestError('GitHub commit did not include its author date', 'malformedResponse');
@@ -332,8 +332,8 @@ export class GitHubService extends Disposable implements IGitHubService {
 	}
 
 	async getFileContent(owner: string, repo: string, path: string, ref: string): Promise<string> {
-		return this._apiClient.withClient(async (client, signal) => {
-			const content = await client.content.getContent({ owner, repo }, path, signal, { query: { ref } });
+		return this._apiClient.withClient(async (client, cancellationToken) => {
+			const content = await client.content.getContent({ owner, repo }, path, cancellationToken, { caller: 'sessions.github', query: { ref } });
 			if (content.type !== 'file' || content.encoding !== 'base64') {
 				throw new Error(`GitHub file content not found: ${owner}/${repo}/${path}@${ref}`);
 			}
@@ -391,8 +391,9 @@ export class GitHubService extends Disposable implements IGitHubService {
 	}
 
 	private async _fetchPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined> {
-		return this._apiClient.withClient(async (client, signal) => {
-			const pullRequests = await client.pullRequests.list({ owner, repo }, signal, {
+		return this._apiClient.withClient(async (client, cancellationToken) => {
+			const pullRequests = await client.pullRequests.list({ owner, repo }, cancellationToken, {
+				caller: 'sessions.github',
 				priority: 'background',
 				query: { head: `${owner}:${branch}`, state: 'all', sort: 'updated', direction: 'desc', per_page: 1 },
 			});

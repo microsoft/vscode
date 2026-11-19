@@ -29,14 +29,19 @@ import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybindin
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../../../services/layout/browser/layoutService.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
-import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, OpenAgentSessionCustomizationsAction, RenameAgentSessionAction, RestoreAgentSessionAction, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation } from '../../../browser/agentSessions/agentSessions.js';
+import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, OpenAgentSessionCustomizationsAction, RenameAgentSessionAction, RestoreAgentSessionAction, ShowAgentSessionsSidebar, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
@@ -543,5 +548,50 @@ suite('AgentSessionsActions', () => {
 		await instantiationService.invokeFunction(accessor => action.run(accessor, child));
 
 		assert.strictEqual(archiveCalls, 0);
+	});
+
+	test('Show Agent Sessions Sidebar widens the Chat view until its body fits side by side, past the chrome of its part, or maximizes it, and leaves one wide enough', async () => {
+		const run = async (partWidth: number, bodyWidth: number, applies: boolean, staleStackedBodyWidth?: number) => {
+			const calls: string[] = [];
+			let width = partWidth;
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
+				getPanelPosition: () => Position.BOTTOM,
+				getSize: () => ({ width, height: 800 }),
+				setSize: (_part, size) => { calls.push(`setSize ${size.width}`); if (applies) { width = size.width; } },
+				isAuxiliaryBarMaximized: () => false,
+				setAuxiliaryBarMaximized: maximized => { calls.push(`maximized ${maximized}`); return true; },
+				mainContainerDimension: { width: 1200, height: 800 },
+			}));
+			instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({ getViewLocationById: () => ViewContainerLocation.AuxiliaryBar }));
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true, [ChatConfiguration.ChatViewSessionsOrientation]: 'sideBySide' }));
+			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+				getActiveViewWithId: (<T>() => upcastPartial<ChatViewPane>({
+					// With a stale stacked width, the Chat view is laid out side by side now
+					getSessionsViewerOrientation: () => staleStackedBodyWidth === undefined ? AgentSessionsViewerOrientation.Stacked : AgentSessionsViewerOrientation.SideBySide,
+					getLastDimensions: orientation => orientation === AgentSessionsViewerOrientation.Stacked ? { width: staleStackedBodyWidth ?? bodyWidth, height: 800 } : staleStackedBodyWidth === undefined ? undefined : { width: bodyWidth, height: 800 },
+					updateConfiguredSessionsViewerOrientation: () => { },
+				}) as T) as IViewsService['getActiveViewWithId'],
+			}));
+			instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({ getPartId: () => Parts.AUXILIARYBAR_PART }));
+			await instantiationService.invokeFunction(accessor => new ShowAgentSessionsSidebar().run(accessor));
+			// The calls besides leaving the maximized state, which the action does before it widens
+			return calls.filter(call => call !== 'maximized false');
+		};
+
+		assert.deepStrictEqual({
+			// The part fits 601 but its body of 591 does not fit 600: it widens past the part's chrome of 9
+			narrowBody: await run(600, 591, true),
+			// The window cannot give the part that width
+			refused: await run(600, 591, false),
+			wideEnough: await run(700, 691, true),
+			// The chrome comes from the current layout, not from the other orientation's older one
+			staleOtherOrientation: await run(700, 691, true, 591),
+		}, {
+			narrowBody: ['setSize 609'],
+			refused: ['setSize 609', 'maximized true'],
+			wideEnough: [],
+			staleOtherOrientation: [],
+		});
 	});
 });

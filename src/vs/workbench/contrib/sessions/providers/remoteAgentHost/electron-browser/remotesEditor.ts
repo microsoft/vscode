@@ -122,6 +122,9 @@ export class RemotesEditor extends EditorPane {
 		this.disabledMessage.hidden = enabled;
 		this.content.hidden = !enabled;
 		if (!enabled) {
+			if (this.input instanceof RemotesEditorInput) {
+				this.input.sharingState = undefined;
+			}
 			this.detailsVisibility.clear();
 			this.widget.clear();
 			this.thisComputer.clear();
@@ -140,13 +143,25 @@ export class RemotesEditor extends EditorPane {
 		const showThisComputer = this.isThisComputerEnabled();
 		this.thisComputerContainer.hidden = !showThisComputer;
 		if (!showThisComputer) {
+			if (this.input instanceof RemotesEditorInput) {
+				this.input.sharingState = undefined;
+			}
 			this.thisComputer.clear();
 			this.sharingExpandedContext?.reset();
 		} else if (!this.thisComputer.value) {
 			this.thisComputer.value = this.widgetInstantiationService.createInstance(ThisComputerSection, this.thisComputerContainer, expanded => {
 				this.sharingExpandedContext?.set(expanded);
 				this.layoutContents();
+			}, state => {
+				if (this.input instanceof RemotesEditorInput) {
+					this.input.sharingState = state;
+				}
 			});
+			if (this.input instanceof RemotesEditorInput && this.input.sharingState) {
+				const state = this.input.sharingState;
+				this.input.sharingState = undefined;
+				this.thisComputer.value.restoreState(state);
+			}
 		}
 		this.widget.value.setHeading(showThisComputer ? localize('remotes.otherEnvironments', "Other environments") : undefined);
 		this.widget.value.setVisible(this.isVisible());

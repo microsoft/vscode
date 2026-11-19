@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
@@ -81,6 +82,56 @@ suite('AgentHostGitService', () => {
 		assert.deepStrictEqual({ failed, retried: await git.getBranch(directory, 'main'), reads }, {
 			failed: [{ status: 'rejected', reason: error }, { status: 'rejected', reason: error }],
 			retried: undefined, reads: 2,
+		});
+	});
+
+	suite('getRepositoryRoot', () => {
+		// An existing directory, so lookups reach the stubbed git probe.
+		const directory = URI.file(tmpdir());
+
+		function createGitService(runGit: () => Promise<string | undefined>): AgentHostGitService {
+			return new class extends AgentHostGitService {
+				protected override _runGit(): Promise<string | undefined> {
+					return runGit();
+				}
+			}(new class extends mock<IFileService>() { }(), new class extends mock<INativeEnvironmentService>() { }(), new NullLogService());
+		}
+
+		test('concurrent forced lookups share a failed probe without caching an I/O failure', async () => {
+			const started = new DeferredPromise<void>();
+			const answer = new DeferredPromise<string | undefined>();
+			let probes = 0;
+			const git = createGitService(() => {
+				probes++;
+				void started.complete();
+				return answer.p;
+			});
+			const first = git.getRepositoryRoot(directory, { refreshIfNone: true });
+			await started.p;
+			const second = git.getRepositoryRoot(directory, { refreshIfNone: true });
+			await answer.error(new Error('Git unavailable'));
+			const roots = await Promise.all([first, second]);
+
+			assert.deepStrictEqual({ roots, probes, availability: git.hasGitRoot(directory).get() }, {
+				roots: [undefined, undefined], probes: 1, availability: undefined,
+			});
+		});
+
+		test('a forced lookup after a shared failed probe settles re-probes', async () => {
+			const answer = new DeferredPromise<string | undefined>();
+			let probes = 0;
+			const git = createGitService(() => ++probes === 1 ? answer.p : Promise.resolve(directory.fsPath));
+			const pending = Promise.all([
+				git.getRepositoryRoot(directory, { refreshIfNone: true }),
+				git.getRepositoryRoot(directory, { refreshIfNone: true }),
+			]);
+			await answer.complete(undefined);
+			const before = await pending;
+			const after = await git.getRepositoryRoot(directory, { refreshIfNone: true });
+
+			assert.deepStrictEqual({ before, after: after?.fsPath, probes }, {
+				before: [undefined, undefined], after: directory.fsPath, probes: 2,
+			});
 		});
 	});
 

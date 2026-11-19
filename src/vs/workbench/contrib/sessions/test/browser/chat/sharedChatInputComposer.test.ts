@@ -7,8 +7,9 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -16,11 +17,13 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../../chat/common/attachments/chatVariables.js';
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
+import { IChatDraft } from '../../../../chat/common/attachments/chatDraft.js';
 import { IModelPickerComparison } from '../../../../chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../chat/common/constants.js';
 import { IChatSlashCommandService, IChatSlashData } from '../../../../chat/common/participants/chatSlashCommands.js';
@@ -33,7 +36,7 @@ import { ILayoutService } from '../../../../../../platform/layout/browser/layout
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { IChatWidget, IQuickChatService } from '../../../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetViewOptions, IQuickChatService } from '../../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
 import { ChatWidgetService } from '../../../../chat/browser/widget/chatWidgetService.js';
 import { ChatInputPart } from '../../../../chat/browser/widget/input/chatInputPart.js';
@@ -41,6 +44,7 @@ import { IChatService } from '../../../../chat/common/chatService/chatService.js
 import { ComposerInputSnapshot, IComposerInputSnapshot, IComposerSendAttempt, readNewChatDraftState } from '../../../common/newChatDraftState.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
+import { ChatSubmitRequestOutcome, IChatSubmitRequestResult } from '../../../../chat/browser/chatSubmitRequestHandlerService.js';
 
 suite('SharedChatInputComposer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,7 +52,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean> } = {}) {
+	function createComposer(options: { submitOverride?: INewChatComposerInputOptions['submitOverride']; shouldPersistInput?: () => boolean; sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; getSavedDraftId?: () => string | undefined; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean | IChatSubmitRequestResult>; session?: IObservable<{ resource: URI; providerId: string; sessionId: string } | undefined> } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -125,12 +129,15 @@ suite('SharedChatInputComposer', () => {
 			_canSendRequest: typeof options.canSendRequest === 'object' ? options.canSendRequest : constObservable(options.canSendRequest ?? true),
 			_modelRef: { value: { object: { inputModel: { setState: (state: object) => { draftModelState = state; } } } } },
 			options: {
-				session: constObservable(options.tryHandle ? { resource: URI.parse('session:/1'), providerId: 'provider', sessionId: '1' } : undefined),
+				submitOverride: options.submitOverride,
+				shouldPersistInput: options.shouldPersistInput,
+				session: options.session ?? constObservable(options.tryHandle ? { resource: URI.parse('session:/1'), providerId: 'provider', sessionId: '1' } : undefined),
 				canSchedule: constObservable(!!options.scheduleRequest),
 				scheduleRequest: options.scheduleRequest,
 				confirmSend: options.confirmSend && (() => options.confirmSend!.p),
 				preserveInputFocusOnSend: options.preserveInputFocusOnSend,
 				inputSnapshot: options.inputSnapshot,
+				getSavedDraftId: options.getSavedDraftId,
 				sendRequest: async (request: INewChatInputSendRequest) => {
 					attemptIds.push(request.attemptId);
 					options.onSendRequest?.();
@@ -148,13 +155,56 @@ suite('SharedChatInputComposer', () => {
 			},
 			storageService,
 			logService: new NullLogService(),
-			notificationService: { error: (message: string) => { errors.push(message); }, warn: (message: string) => { warnings.push(message); } },
+			notificationService: { error: (message: string | Error) => { errors.push(String(message)); }, warn: (message: string) => { warnings.push(message); } },
 			chatSlashCommandService: slashCommands,
-			chatSubmitRequestHandlerService: { tryHandle: (request: { input: string }) => options.tryHandle?.(request.input) ?? Promise.resolve(false) },
+			// As the service answers for its handlers: a handler's `true` handled the request, its `false` went on
+			chatSubmitRequestHandlerService: { tryHandle: async (request: { input: string }) => { const answer = await options.tryHandle?.(request.input) ?? false; return typeof answer === 'boolean' ? { outcome: answer ? ChatSubmitRequestOutcome.Handled : ChatSubmitRequestOutcome.Continue } : answer; } },
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
 		});
 		return { composer, widget, executeToolbarElement, readinessWait, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, warnings, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
 	}
+
+	test('scheduled drafts remain editable and save without sending or overwriting ordinary input', async () => {
+		let saves = 0;
+		const { composer, state, storageWrites } = createComposer({ submitOverride: async () => { saves++; return true; }, shouldPersistInput: () => false, getSavedDraftId: () => 'saved-draft' });
+		composer.setInputEnabled(true);
+		composer.saveState();
+		await composer.submit(true);
+		assert.deepStrictEqual({
+			saves,
+			enabled: state().input.enabled,
+			requests: state().requests,
+			storageWrites: storageWrites(),
+		}, { saves: 1, enabled: true, requests: [], storageWrites: 0 });
+	});
+
+	for (const cancelled of [true, false]) {
+		test(`scheduled submit override failures keep input and only report non-cancellation errors, cancelled: ${cancelled}`, async () => {
+			const error = cancelled ? new CancellationError() : new Error('Schedule changed');
+			const { composer, state } = createComposer({ submitOverride: async () => { throw error; } });
+			const sent = await composer.submit();
+			assert.deepStrictEqual({ sent, errors: state().errors, requests: state().requests, input: state().input }, {
+				sent: false, errors: cancelled ? [] : [String(error)], requests: [],
+				input: { text: 'Build it', attachments: [context.id], enabled: true },
+			});
+		});
+	}
+
+	test('backs up the saved identity with input and clears it for a new composition', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		let savedDraftId: string | undefined = 'saved-draft';
+		const attachment = { kind: 'file' as const, id: 'file', name: 'file.ts', value: URI.file('/workspace/file.ts') };
+		const { composer } = createComposer({ storageService, text: 'saved input', attachments: [attachment], getSavedDraftId: () => savedDraftId });
+		composer.saveState();
+		const saved = readNewChatDraftState(storageService);
+		savedDraftId = undefined;
+		composer.setDraft({ inputText: 'new input', attachments: [] });
+		composer.saveState();
+		assert.deepStrictEqual({ saved, next: readNewChatDraftState(storageService) }, {
+			saved: { inputText: 'saved input', attachments: [attachment], references: undefined, savedDraftId: 'saved-draft' },
+			next: { inputText: 'new input', attachments: [], references: undefined },
+		});
+	});
 
 	test('scheduling supplies the send controls as the picker anchor and keeps input on cancel', async () => {
 		let anchor: HTMLElement | undefined;
@@ -423,6 +473,20 @@ suite('SharedChatInputComposer', () => {
 				// A refused send leaves the user in the input to change the request.
 				focusRestored: !confirmed,
 			});
+		});
+	}
+
+	for (const confirmed of [true, false]) {
+		test(`a submit is submitting from before the host confirms it until it is ${confirmed ? 'sent' : 'refused'}, so its host doesn't retarget it meanwhile`, async () => {
+			const confirmation = new DeferredPromise<boolean>();
+			const snapshot = new ComposerInputSnapshot();
+			const { composer } = createComposer({ confirmSend: confirmation, focused: true, inputSnapshot: snapshot });
+			const sending = composer.submit(false);
+			const whileConfirming = { submitting: snapshot.isSubmitting, attempt: !!snapshot.get().attempt };
+			confirmation.complete(confirmed);
+			await sending;
+
+			assert.deepStrictEqual({ whileConfirming, after: snapshot.isSubmitting }, { whileConfirming: { submitting: true, attempt: false }, after: false });
 		});
 	}
 
@@ -725,6 +789,56 @@ suite('SharedChatInputComposer', () => {
 		});
 	}
 
+	test('a request waiting on a submit handler is sent for its own draft only: not once the composer moved to another with the same input, which keeps it and says so, nor once it was closed; also where the handler acted on it, which clears neither and says nothing, while one it acted on for its own draft clears the input as before', async () => {
+		const results = [];
+		for (const [change, handled] of [['switched', false], ['closed', false], ['switched', true], ['closed', true], ['unchanged', true]] as const) {
+			const handling = new DeferredPromise<boolean>();
+			const session = observableValue<{ resource: URI; providerId: string; sessionId: string } | undefined>('session', { resource: URI.parse('session:/1'), providerId: 'provider', sessionId: '1' });
+			const { composer, widget, state } = createComposer({ tryHandle: () => handling.p, session });
+			const sending = composer.submit();
+			await timeout(0);
+			if (change === 'switched') {
+				session.set({ resource: URI.parse('session:/2'), providerId: 'provider', sessionId: '2' }, undefined);
+			} else if (change === 'closed') {
+				composer.dispose();
+				widget.input = undefined;
+			}
+			handling.complete(handled);
+			const sent = await sending;
+			results.push({ change, handled, sent, requests: state().requests.length, warnings: state().warnings.length, input: state().input.text });
+		}
+
+		assert.deepStrictEqual(results, [
+			{ change: 'switched', handled: false, sent: false, requests: 0, warnings: 1, input: 'Build it' },
+			{ change: 'closed', handled: false, sent: false, requests: 0, warnings: 0, input: 'Build it' },
+			{ change: 'switched', handled: true, sent: false, requests: 0, warnings: 0, input: 'Build it' },
+			{ change: 'closed', handled: true, sent: false, requests: 0, warnings: 0, input: 'Build it' },
+			{ change: 'unchanged', handled: true, sent: true, requests: 0, warnings: 0, input: '' },
+		]);
+	});
+
+	test('a request sent again while a submit handler holds the first is ignored: the first is sent once', async () => {
+		const handling = new DeferredPromise<boolean>();
+		let handled = 0;
+		const { composer, state } = createComposer({ tryHandle: () => { handled++; return handling.p; } });
+		const first = composer.submit();
+		await timeout(0);
+		const again = await composer.submit();
+		handling.complete(false);
+
+		assert.deepStrictEqual({ again, first: await first, handled, requests: state().requests.map(request => request.query) }, { again: false, first: true, handled: 1, requests: ['Build it'] });
+	});
+
+	test('a request a submit handler cancels is neither sent nor cleared, and keeps its input', async () => {
+		const { composer, state } = createComposer({ tryHandle: async () => ({ outcome: ChatSubmitRequestOutcome.Cancelled }) });
+		const sent = await composer.submit();
+		assert.deepStrictEqual({ sent, requests: state().requests, input: state().input }, {
+			sent: false,
+			requests: [],
+			input: { text: 'Build it', attachments: ['context'], enabled: true },
+		});
+	});
+
 	test('a send whose session does not get ready in time is not sent, gives its input back as it was and says so', () => runWithFakedTimers({}, async () => {
 		const { composer, inputTransitions, state } = createComposer({ canSendRequest: false, focused: true });
 		const sent = await composer.submit(true);
@@ -806,23 +920,27 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
-	test('keeps the input\'s inline references when another draft is bound', async () => {
+	test('keeps the input, inline references, and saved snapshot when another draft is bound', async () => {
 		const reference: IDynamicVariable = { id: 'file', range: new Range(1, 5, 1, 17), data: 'foo.ts' };
+		const contentChanged = store.add(new Emitter<void>());
+		const snapshots: IChatDraft[] = [];
 		let input = 'Fix #file:foo.ts';
 		const dynamicVariables = {
 			variables: [reference],
+			onDidChangeReferences: Event.None,
 			setInputState: (state: Readonly<Record<string, unknown>>) => { dynamicVariables.variables = state[ChatDynamicVariableModel.ID] as IDynamicVariable[]; },
 		};
-		const attachmentModel = { attachments: [], clearAndSetContext: () => { } };
-		const composer: { _bindModel(resource: URI): Promise<void> } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+		const attachmentModel = { attachments: [], onDidChange: Event.None, clearAndSetContext: () => { } };
+		const composer: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_store: store.add(new DisposableStore()),
 			_modelRef: store.add(new MutableDisposable()),
 			_modelBinding: 0,
+			options: { onDidChangeDraft: (draft: IChatDraft) => snapshots.push(draft) },
 			_widget: {
 				viewModel: {},
 				supportsFileReferences: true,
 				input: { attachmentModel },
-				inputEditor: { getValue: () => input },
+				inputEditor: { getValue: () => input, onDidChangeModelContent: contentChanged.event },
 				attachmentModel,
 				getContrib: () => dynamicVariables,
 				getInput: () => input,
@@ -830,16 +948,21 @@ suite('SharedChatInputComposer', () => {
 				setModel: () => {
 					input = '';
 					dynamicVariables.variables = [];
+					contentChanged.fire();
 				},
 			},
-			setInputValue: (value: string) => { input = value; },
+			setInputValue: (value: string) => { input = value; contentChanged.fire(); },
 			chatService: { acquireOrLoadSession: async () => ({ object: {}, dispose: () => { } }) },
 			logService: new NullLogService(),
 		});
 
-		await composer._bindModel(URI.parse('draft:/replacement'));
+		store.add(Reflect.get(SharedChatInputComposer.prototype, '_trackInputSnapshot').call(composer, composer.widget));
+		await Reflect.get(SharedChatInputComposer.prototype, '_bindModel').call(composer, URI.parse('draft:/replacement'));
 
-		assert.deepStrictEqual({ input, references: dynamicVariables.variables }, { input: 'Fix #file:foo.ts', references: [reference] });
+		assert.deepStrictEqual({ input, references: dynamicVariables.variables, snapshots }, {
+			input: 'Fix #file:foo.ts', references: [reference],
+			snapshots: [{ inputText: 'Fix #file:foo.ts', attachments: [], references: [reference] }],
+		});
 	});
 
 	test('binds the latest draft and releases an earlier draft that finishes loading later', async () => {
@@ -956,4 +1079,60 @@ suite('SharedChatInputComposer', () => {
 
 		assert.deepStrictEqual(busy.filter(value => value !== ''), []);
 	}));
+
+	test('renders without an overflow widgets element of its own, so suggest shows in the window its chat widget is attached to later, such as the Agents Launcher\'s', () => {
+		const renderStore = store.add(new DisposableStore());
+		const windowContainer = dom.$('.monaco-workbench');
+		let widgetOptions: IChatWidgetViewOptions | undefined;
+		const widget = {
+			render: () => { },
+			setVisible: () => { },
+			setInputPartMaxHeightOverride: () => { },
+			layout: () => { },
+			onDidFocus: Event.None,
+			inputEditor: { onDidChangeModelContent: Event.None },
+			attachmentModel: { onDidChange: Event.None },
+			scopedContextKeyService: new MockContextKeyService(),
+			input: { gettingStartedTipContainerElement: dom.$('div'), registerChatPetHorizontalPlatformProvider: () => Disposable.None },
+			inputPart: {},
+			dispose: () => { },
+		};
+		const composer: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+			_store: renderStore,
+			options: { session: constObservable(undefined) },
+			contextKeyService: new MockContextKeyService(),
+			layoutService: { getContainer: () => windowContainer },
+			sessionsProvidersService: { onDidChangeProviders: Event.None },
+			sessionTypePicker: { onDidChangeChatPetPlatform: Event.None },
+			instantiationService: { createInstance: () => Disposable.None },
+			_scopedInstantiationService: {
+				createChild: () => ({
+					createInstance: (_ctor: unknown, _location: unknown, _viewContext: unknown, options: IChatWidgetViewOptions) => {
+						widgetOptions = options;
+						return widget;
+					},
+					dispose: () => { },
+				}),
+			},
+			_createHostModelSelection: () => undefined,
+			_renderBusyState: () => { },
+			_registerVoiceTarget: () => Disposable.None,
+			_renderSessionControls: () => { },
+			_restoreInput: () => { },
+			_bindChatModel: () => { },
+			_renderAttachmentOffset: () => { },
+		});
+
+		// Rendered detached, as its view renders before a window, such as the Agents Launcher's, attaches it. An element the
+		// composer put into a window's container now would stay in the main window; the chat widget's own one follows it.
+		composer.render(dom.$('div'), dom.$('div'));
+
+		assert.deepStrictEqual({
+			overflowWidgetsElement: widgetOptions?.editorOverflowWidgetsDomNode,
+			windowContainerChildren: windowContainer.childElementCount,
+		}, {
+			overflowWidgetsElement: undefined,
+			windowContainerChildren: 0,
+		});
+	});
 });

@@ -20,14 +20,14 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getCanvasInputResource } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { CanvasExtensionConsentDeniedError, notifyCanvasExtensionConsentDenied } from '../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
+import { CanvasExtensionConsentDeniedError, CanvasOpenFailedError, notifyCanvasOpenFailure } from '../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasIdentity, IPinnedCanvasService, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState, PinnedCanvasTarget } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
-import { getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
+import { getCanvasReferenceKey, ICanvas, ICanvasOpenOptions, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
 
 const PINNED_CANVASES_STORAGE_KEY = 'sessions.pinnedCanvases';
 
@@ -654,22 +654,25 @@ export class PinnedCanvasService extends Disposable implements IPinnedCanvasServ
 				if (!pin.failReopen(reopen)) {
 					return;
 				}
-				if (error instanceof CanvasExtensionConsentDeniedError) {
-					notifyCanvasExtensionConsentDenied(this.notificationService, error, () => this.retryDeniedReopen(pin, type));
+				if (error instanceof CanvasExtensionConsentDeniedError || error instanceof CanvasOpenFailedError) {
+					notifyCanvasOpenFailure(this.notificationService, error, pin.title.get(), options => this.retryReopen(pin, type, options));
 				} else {
 					this.notificationService.error(localize('pinnedCanvas.reopenFailed', "Could not reopen canvas {0}: {1}", pin.title.get(), toErrorMessage(error)));
 				}
 			});
 	}
 
-	/** Asks about the declined extension of a pin's canvas again, then shows the pin, which binds once its chat publishes the canvas. */
-	private async retryDeniedReopen(pin: PinnedCanvas, type: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>): Promise<void> {
+	/**
+	 * Opens a pin's canvas again as the warning about its failed reopen offers, for example asking about its declined
+	 * extension again, then shows the pin, which binds once its chat publishes the canvas.
+	 */
+	private async retryReopen(pin: PinnedCanvas, type: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, options: ICanvasOpenOptions | undefined): Promise<void> {
 		const session = this.sessionsManagementService.getSession(pin.identity.session);
 		const chat = session?.chats.get().find(candidate => isEqual(candidate.resource, pin.identity.chat));
 		if (!session || !chat || !this.getEntry(pin)) {
 			return;
 		}
-		await this.sessionsManagementService.openCanvas(session, chat, type, pin.identity.instanceId, { retryDeniedConsent: true });
+		await this.sessionsManagementService.openCanvas(session, chat, type, pin.identity.instanceId, options);
 		await this.show(pin);
 	}
 

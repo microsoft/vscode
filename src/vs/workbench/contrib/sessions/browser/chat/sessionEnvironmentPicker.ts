@@ -15,8 +15,9 @@ import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../.
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IExtensionRemoteAgentHostsService, toExtensionRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type RemoteAgentHostConnection } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -35,12 +36,13 @@ import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { MANAGE_REMOTE_ENVIRONMENTS_TOOLTIP, OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
+import { getManageRemoteEnvironmentsDescription, OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../common/chatConstants.js';
+import { LocalDevContainerEnvironmentHost } from '../../common/devContainerAgentHostService.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -123,6 +125,17 @@ export function getDefaultSessionCreationEnvironment(environments: readonly ISes
 		?? local;
 }
 
+/**
+ * The environment a draft keeps for the user's pick: as currently listed, or as picked while one of
+ * its providers is registered, such as a host hidden from the picker. Once all of them are gone, for
+ * example because their host was unregistered, the pick no longer applies; it applies again if a
+ * provider of it returns, as when one is recreated.
+ */
+export function getPickedSessionCreationEnvironment(picked: ISessionCreationEnvironment, environments: readonly ISessionCreationEnvironment[], providers: readonly ISessionsProvider[]): ISessionCreationEnvironment | undefined {
+	return environments.find(environment => environment.id === picked.id)
+		?? (providers.some(provider => picked.providerIds.includes(provider.id)) ? picked : undefined);
+}
+
 interface IEnvironmentPickerItem {
 	readonly run: () => Promise<void>;
 	readonly checked?: boolean;
@@ -162,6 +175,7 @@ export class SessionEnvironmentPicker extends Disposable {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IMissionControlEnvironmentService private readonly environmentService: IMissionControlEnvironmentService,
+		@IExtensionRemoteAgentHostsService private readonly extensionRemoteAgentHostsService: IExtensionRemoteAgentHostsService,
 	) {
 		super();
 	}
@@ -241,8 +255,8 @@ export class SessionEnvironmentPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			label: environment.label,
 			description: environment.description,
-			hover: { content: this.getEnvironmentHover(environment, escapeMarkdownSyntaxTokens(environment.label)) },
-			ariaDescription: this.getEnvironmentHover(environment, environment.label),
+			hover: { content: this.getEnvironmentHover(environment, escapeMarkdownSyntaxTokens) },
+			ariaDescription: this.getEnvironmentHover(environment, text => text),
 			submenuActions: showManage && this.isManagedInRemotes(environment) ? undefined : this.getActions(environment),
 			group: { title: '', icon: environment.icon },
 			item: { run: () => this.select(environment), checked: environment.id === this.selected.get()?.id },
@@ -269,13 +283,14 @@ export class SessionEnvironmentPicker extends Disposable {
 		if (remotesEnabled && environmentPickerEnabled) {
 			logSettingExperimentTrigger(this.telemetryService, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 			if (showManage) {
+				const manageHover = getManageRemoteEnvironmentsDescription();
 				items.push(
 					{ kind: ActionListItemKind.Separator, label: '' },
 					{
 						kind: ActionListItemKind.Action,
 						label: localize('environmentPicker.manage', "Manage Remote Environments..."),
-						hover: { content: MANAGE_REMOTE_ENVIRONMENTS_TOOLTIP },
-						ariaDescription: MANAGE_REMOTE_ENVIRONMENTS_TOOLTIP,
+						hover: { content: manageHover },
+						ariaDescription: manageHover,
 						group: { title: '', icon: Codicon.settingsGear },
 						item: { run: async () => { await this.commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID); } },
 					},
@@ -301,7 +316,8 @@ export class SessionEnvironmentPicker extends Disposable {
 		}, ENVIRONMENT_PICKER_LIST_OPTIONS);
 	}
 
-	private getEnvironmentHover(environment: ISessionCreationEnvironment, label: string): string {
+	/** @param escape Escapes host-supplied text, such as names, for where the hover is rendered. */
+	private getEnvironmentHover(environment: ISessionCreationEnvironment, escape: (text: string) => string): string {
 		switch (environment.kind) {
 			case 'local':
 				return environment.hover ?? localize('environmentPicker.localHover', "Run this session directly on this computer");
@@ -309,44 +325,79 @@ export class SessionEnvironmentPicker extends Disposable {
 				return environment.hover ?? localize('environmentPicker.cloudHover', "Run this session in a cloud environment, not on this computer");
 			case 'container':
 				return localize('environmentPicker.containerHover', "Run this session in a dev container for the selected folder");
-			case 'remote':
-				switch (this.getConnectionKind(environment)) {
-					case 'githubEnvironment':
-						return localize('environmentPicker.githubEnvironmentHover', "Run this session on {0}, shared through GitHub Environments", label);
+			case 'remote': {
+				const label = escape(environment.label);
+				const connection = this.getConnection(environment);
+				if (connection === 'devContainer') {
+					return localize('environmentPicker.devContainerHover', "Run this session in a dev container on {0}", escape(this.getDevContainerHostLabel(environment) ?? ''));
+				}
+				if (connection === 'githubEnvironment') {
+					return localize('environmentPicker.githubEnvironmentHover', "Run this session on {0}, shared through GitHub Environments", label);
+				}
+				switch (connection?.type) {
 					case RemoteAgentHostEntryType.SSH:
 						return localize('environmentPicker.sshHover', "Run this session on {0} over SSH", label);
 					case RemoteAgentHostEntryType.Tunnel:
 						return localize('environmentPicker.tunnelHover', "Run this session on {0} through a Dev Tunnel", label);
 					case RemoteAgentHostEntryType.WSL:
 						return localize('environmentPicker.wslHover', "Run this session on {0} in WSL", label);
+					case RemoteAgentHostEntryType.Extension:
+						return localize('environmentPicker.extensionHover', "Run this session on {0}, registered by the {1} extension", label, escape(connection.extensionDisplayName));
 					default:
 						return localize('environmentPicker.remoteHover', "Run this session on {0}", label);
 				}
+			}
 		}
 	}
 
 	private isManagedInRemotes(environment: ISessionCreationEnvironment): boolean {
-		const kind = this.getConnectionKind(environment);
-		return kind === RemoteAgentHostEntryType.WSL ? isWindows : !!kind;
+		const connection = this.getConnection(environment);
+		if (connection === 'githubEnvironment' || connection === 'devContainer') {
+			return true;
+		}
+		switch (connection?.type) {
+			case RemoteAgentHostEntryType.SSH:
+			case RemoteAgentHostEntryType.Tunnel:
+			case RemoteAgentHostEntryType.Extension:
+				return true;
+			case RemoteAgentHostEntryType.WSL:
+				return isWindows;
+			default:
+				return false;
+		}
 	}
 
-	private getConnectionKind(environment: ISessionCreationEnvironment): 'githubEnvironment' | RemoteAgentHostEntryType.SSH | RemoteAgentHostEntryType.Tunnel | RemoteAgentHostEntryType.WSL | undefined {
+	private getDevContainerHostLabel(environment: ISessionCreationEnvironment): string | undefined {
+		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
+		const host = provider && isAgentHostProvider(provider) ? provider.devContainerEnvironmentHost : undefined;
+		if (host === LocalDevContainerEnvironmentHost) {
+			return localize('environmentPicker.devContainerThisComputer', "this computer");
+		}
+		return host && (this.remoteAgentHostService.getDisplayNameOverride(host)
+			?? this.remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === host)?.name
+			?? host);
+	}
+
+	/**
+	 * The connection behind a remote environment, `'githubEnvironment'` for a host shared through GitHub Environments,
+	 * or `'devContainer'` for a Dev Container environment.
+	 */
+	private getConnection(environment: ISessionCreationEnvironment): 'githubEnvironment' | 'devContainer' | RemoteAgentHostConnection | undefined {
 		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
 		if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
 			return undefined;
+		}
+		if (provider.devContainerEnvironmentHost) {
+			return 'devContainer';
 		}
 		if (this.environmentService.enabled && this.environmentService.accountKey
 			&& this.environmentService.hosts.get().some(host => host.kind === 'user-local' && cloudSandboxAddress(host.id) === provider.remoteAddress)) {
 			return 'githubEnvironment';
 		}
-		const connection = this.remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === provider.remoteAddress)?.connection;
-		switch (connection?.type) {
-			case RemoteAgentHostEntryType.SSH:
-			case RemoteAgentHostEntryType.Tunnel:
-			case RemoteAgentHostEntryType.WSL:
-				return connection.type;
-			default:
-				return undefined;
-		}
+		const remoteAddress = provider.remoteAddress;
+		const configured = this.remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === remoteAddress)?.connection;
+		// An extension's host that the user disconnected is not dialed, so only its registration describes it.
+		const registered = configured ? undefined : this.extensionRemoteAgentHostsService.hosts.get().find(host => host.address === remoteAddress);
+		return configured ?? (registered && toExtensionRemoteAgentHostEntry(registered).connection);
 	}
 }

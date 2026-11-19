@@ -133,6 +133,11 @@
 	background-color: var(--vscode-agentsPanel-background) !important;
 }
 
+/* The chat part of an editor window holds the background it paints, rather than whatever frame it is in. */
+.monaco-workbench .part.editor.agents-chat-part.sessions-chat-surface {
+	position: relative;
+}
+
 .monaco-workbench .part.editor.sessions-chat-surface > .content,
 .monaco-workbench .part.editor.sessions-chat-surface .editor-container {
 	/* Over the inline backgrounds of the part's content and of its editors. */

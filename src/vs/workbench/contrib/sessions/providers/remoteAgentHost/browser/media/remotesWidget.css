@@ -472,6 +472,7 @@
 }
 
 .remotes-widget .remotes-name,
+.remotes-widget .remotes-name-detail,
 .remotes-widget .remotes-empty-description,
 .remotes-widget .remotes-connection-state {
 	min-width: 0;
@@ -557,6 +558,14 @@
 
 .remotes-widget .remotes-empty-row .remotes-empty-description {
 	max-width: 72ch;
+	color: var(--vscode-descriptionForeground);
+}
+
+.remotes-widget .remotes-name-detail {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -855,6 +864,17 @@
 	visibility: hidden;
 }
 
+/* Spin only the glyph of a busy action, so the action's focus outline stays in place. */
+.remotes-widget .monaco-action-bar .action-label.codicon-loading {
+	animation: none;
+}
+
+.remotes-widget .monaco-action-bar .action-label.codicon-loading::before {
+	display: inline-block;
+	transform-origin: center center;
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
 .remotes-widget .remotes-empty-actions {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -880,6 +900,7 @@
 .remotes-widget .remotes-refresh-warning[hidden],
 .remotes-widget .remotes-connection-indicator[hidden],
 .remotes-widget .remotes-empty-description[hidden],
+.remotes-widget .remotes-name-detail[hidden],
 .remotes-widget .remotes-empty-actions[hidden] {
 	display: none;
 }

@@ -18,7 +18,7 @@ import { Disposable, DisposableStore, IDisposable, markAsSingleton, toDisposable
 import { stringify } from '../../base/common/marshalling.js';
 import { Mimes } from '../../base/common/mime.js';
 import { FileAccess, Schemas } from '../../base/common/network.js';
-import { isWindows } from '../../base/common/platform.js';
+import { isMacintosh, isWindows } from '../../base/common/platform.js';
 import { basename, isEqual } from '../../base/common/resources.js';
 import { URI } from '../../base/common/uri.js';
 import { CodeDataTransfers, Extensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat, LocalSelectionTransfer, createDraggedEditorInputFromRawResourcesData, extractEditorsAndFilesDropData } from '../../platform/dnd/browser/dnd.js';
@@ -62,6 +62,13 @@ export interface IInputDropTarget {
 	 * through the overlay into the input's {@link area} where it is, it also says that holding that key does the same.
 	 */
 	getHint(passThroughModifier: string | undefined): string;
+
+	/**
+	 * Called as a placement overlay that showed `hint` over the input gives it the drag, as the drag moves over it or is let
+	 * through to it: the input's own feedback says the same where the hint said it, so that what shows over it does not
+	 * change, until the drag leaves it.
+	 */
+	adoptHint?(hint: string): void;
 }
 
 const inputDropTargets = new Map<HTMLElement, IInputDropTarget>();
@@ -132,6 +139,32 @@ export function isPassThroughDrag(element: HTMLElement, event: DragEvent): boole
 	return false;
 }
 
+/** The key, as it shows, that lets a drag through a placement overlay while it is held (see {@link isPassThroughModifierHeld}). */
+export const PASS_THROUGH_MODIFIER_LABEL = isMacintosh ? '⇧' : 'Shift';
+
+/** Whether the key that lets a drag through a placement overlay is held, such as to drop into an editor or to attach to a chat. */
+export function isPassThroughModifierHeld(event: DragEvent): boolean {
+	return event.shiftKey;
+}
+
+/**
+ * Whether a placement overlay over `scope` lets the drag through to an input under it, such as a chat input that attaches
+ * what is dragged: the {@link PASS_THROUGH_MODIFIER_LABEL key} is held, and the drag is over the
+ * {@link IInputDropTarget.area area} of a registered input inside `scope` that takes it, where {@link InputDropTargetHints}
+ * says so.
+ */
+export function isPassThroughToInputDrag(event: DragEvent, scope: HTMLElement): boolean {
+	if (!isPassThroughModifierHeld(event)) {
+		return false;
+	}
+	for (const [input, target] of inputDropTargets) {
+		if (scope.contains(input) && isOver(target.area ?? input, event) && target.accepts(event)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /**
  * @param accepts whether a registered target takes the drag; asked last, for the targets under the drag only, as it runs
  * on every `dragover` and can cost more than the position checks.
@@ -177,6 +210,9 @@ export class InputDropTargetHints extends Disposable {
 
 	private _inputTakesPassThrough = false;
 
+	/** The drag that last reached the overlay: where it is when the overlay goes away tells which input takes it then. */
+	private lastEvent: DragEvent | undefined;
+
 	/**
 	 * Whether, where the drag last was, an input takes the drag that the `passThroughModifier` lets through: its hint says
 	 * so, in place of what the overlay says holding the key does.
@@ -194,10 +230,46 @@ export class InputDropTargetHints extends Disposable {
 
 		this.element = append(overlay, $('.input-drop-target-hints', { 'aria-hidden': 'true' }));
 		this._register(toDisposable(() => this.element.remove()));
+
+		// Before the overlay handles the drag, which it can give to an input then, going away
+		for (const type of [EventType.DRAG_ENTER, EventType.DRAG_OVER]) {
+			this._register(addDisposableListener(overlay, type, (e: DragEvent) => this.lastEvent = e, true));
+		}
+	}
+
+	override dispose(): void {
+		this.handOver();
+		super.dispose();
+	}
+
+	/**
+	 * Gives the input that takes the drag as the overlay goes away, as the drag is over it or let through to it, the hint
+	 * that showed over it (see {@link IInputDropTarget.adoptHint}).
+	 */
+	private handOver(): void {
+		const event = this.lastEvent;
+		this.lastEvent = undefined;
+		if (!event) {
+			return;
+		}
+		for (const [input, hint] of this.hints) {
+			const target = inputDropTargets.get(input);
+			if (!target?.adoptHint || hint.text === undefined || !target.accepts(event)) {
+				continue;
+			}
+			const takesPassThrough = !!this.passThroughModifier && isPassThroughModifierHeld(event) && isOver(target.area ?? input, event);
+			if (isOver(input, event) || takesPassThrough) {
+				target.adoptHint(hint.text);
+			}
+		}
 	}
 
 	/** Shows the hints over the inputs that take the drag, or none without a drag, such as for one that no input takes. */
 	update(event: DragEvent | undefined): void {
+		if (event) {
+			this.lastEvent = event;
+		}
+
 		// Measures everything before it changes the DOM, as this runs on every `dragover`: the window then lays out once,
 		// not once per input.
 		const layouts = new Map<HTMLElement, { readonly rect: DOMRect; readonly borderRadius: string; readonly text: string }>();
@@ -236,8 +308,8 @@ export class InputDropTargetHints extends Disposable {
 		for (const [input, { rect, borderRadius, text }] of layouts) {
 			let hint = this.hints.get(input);
 			if (!hint) {
-				const element = append(this.element, $('.input-drop-target-hint'));
-				hint = { element, label: append(element, $('span.input-drop-target-hint-label')), text: undefined };
+				const element = append(this.element, $('.input-drop-target-hint.input-drop-target-outline'));
+				hint = { element, label: append(element, $('span.input-drop-target-hint-label.drop-overlay-label')), text: undefined };
 				this.hints.set(input, hint);
 			}
 

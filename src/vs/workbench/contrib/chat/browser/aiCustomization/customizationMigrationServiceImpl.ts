@@ -358,10 +358,10 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 	}
 
 	private getConfiguredPluginMarketplaceCandidates(): IPluginMarketplaceCustomizationMigrationCandidate[] {
-		const defaultCanonicalIds = new Set(parseMarketplaceReferences(
-			this.configurationService.inspect<readonly unknown[]>(ChatConfiguration.PluginMarketplaces)?.defaultValue ?? []
-		).map(reference => reference.canonicalId));
-		return parseMarketplaceReferences(this.getPluginMarketplaceUserValues())
+		const inspected = this.configurationService.inspect<readonly unknown[]>(ChatConfiguration.PluginMarketplaces);
+		const defaultCanonicalIds = new Set(parseMarketplaceReferences(inspected?.defaultValue ?? []).map(reference => reference.canonicalId));
+		const configuredValue = inspected?.applicationValue ?? inspected?.userValue;
+		return parseMarketplaceReferences(Array.isArray(configuredValue) ? configuredValue : [])
 			.filter(reference => !defaultCanonicalIds.has(reference.canonicalId))
 			.map(reference => ({
 				type: CustomizationMigrationType.PluginMarketplaces,
@@ -409,12 +409,6 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		const reference = parseMarketplaceReferences([value])[0]
 			?? (kind === 'directory' ? parseMarketplaceReferences([URI.file(value).toString()])[0] : undefined);
 		return reference?.canonicalId;
-	}
-
-	private getPluginMarketplaceUserValues(): readonly unknown[] {
-		const inspected = this.configurationService.inspect<readonly unknown[]>(ChatConfiguration.PluginMarketplaces);
-		const configuredValue = inspected?.applicationValue ?? inspected?.userValue;
-		return Array.isArray(configuredValue) ? configuredValue : [];
 	}
 
 	private isMigrationEnabled(): boolean {

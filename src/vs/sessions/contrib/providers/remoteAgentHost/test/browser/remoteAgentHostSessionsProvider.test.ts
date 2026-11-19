@@ -347,7 +347,7 @@ function createSession(id: string, opts?: { session?: URI; provider?: string; su
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { fileDialogService?: IFileDialogService; address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; logService?: ILogService; defaultDirectory?: string; activeSession?: IObservable<ITestSessionWithChat | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand']; telemetryService?: ITelemetryService; workingDirectoryResolver?: IAgentHostSessionWorkingDirectoryResolver }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { fileDialogService?: IFileDialogService; address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; logService?: ILogService; defaultDirectory?: string; activeSession?: IObservable<ITestSessionWithChat | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand']; telemetryService?: ITelemetryService; workingDirectoryResolver?: IAgentHostSessionWorkingDirectoryResolver; notificationService?: Pick<INotificationService, 'error' | 'info'> }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -360,7 +360,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IConfigurationService, overrides?.configurationService ?? new TestConfigurationService({
 		[DevContainerIdleTimeoutSettingId]: 300, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true,
 	}));
-	instantiationService.stub(INotificationService, { error: () => { } });
+	instantiationService.stub(INotificationService, overrides?.notificationService ?? { error: () => { } });
 	instantiationService.stub(ITelemetryService, overrides?.telemetryService ?? NullTelemetryService);
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return overrides?.workspaceTrusted ?? true; }
@@ -845,7 +845,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			all: resources(catalog.getAllSessions()),
 			toIsListed: catalog.getAllSessions().includes(to),
 		})));
-		catalog.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+		catalog.setListingScope({ folders: constObservable([]) });
 		events.length = 0;
 		bind();
 
@@ -860,7 +860,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		// The task is still pending, so what the empty scope hides is the runtime's session
 		catalog.attach(task.taskId, runtime, task);
 		discover();
-		catalog.setListingScope({ folders: constObservable([URI.file('/elsewhere')]), repositories: constObservable([]) });
+		catalog.setListingScope({ folders: constObservable([URI.file('/elsewhere')]) });
 		events.length = 0;
 
 		catalog.clear();
@@ -911,7 +911,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		disposables.add(catalog.onDidReplaceSession(() => atReplacement.push({ listed: resources(catalog.getSessions()), all: resources(catalog.getAllSessions()) })));
 		const events: { added: string[]; removed: string[]; changed: string[] }[] = [];
 		disposables.add(catalog.onDidChangeAllSessions(event => events.push({ added: resources(event.added), removed: resources(event.removed), changed: resources(event.changed) })));
-		catalog.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+		catalog.setListingScope({ folders: constObservable([]) });
 
 		bindings.set('task-session', cloudSandboxTaskResource('the-task'));
 		runtime.reconcileTaskResource('task-session');
@@ -1466,8 +1466,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const provider = createProvider(disposables, connection, { noConnection: result === 'disconnected' });
 			provider.seedSessions([createSession('existence', {
 				session: URI.parse('other-host:/opaque/session'),
-				project: { uri: toAgentHostUri(URI.file('/repo'), 'test-host'), displayName: 'repo' },
-				workingDirectory: toAgentHostUri(URI.file('/repo.worktrees/existence'), 'test-host'),
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/existence'),
 			})]);
 			const check = provider.sessionWorktreeExists(provider.getSessions()[0].sessionId);
 			if (result === 'permission' || result === 'unavailable' || result === 'unsupported') {
@@ -1525,6 +1525,61 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			],
 			unchanged: true,
 		});
+	});
+
+	test('remote cleanup capabilities and existence follow the owning connection across reconnects', async () => {
+		connection.handshakeState.set({
+			...connection.handshakeState.get(), _meta: {
+				'vscode.worktreeCleanup': true, 'vscode.prepareSessionWorktreeCleanup': true, 'vscode.managedWorktrees': true,
+			}
+		}, undefined);
+		const calls: string[] = [];
+		connection.prepareSessionWorktreeCleanup = async () => { };
+		connection.sessionWorktreeCleanup = async () => ({ state: 'pending' });
+		connection.listManagedWorktrees = async () => [];
+		connection.cleanupManagedWorktree = async (repository, worktree) => { calls.push(`${repository.toString()} ${worktree.toString()}`); };
+		connection.resourceResolve = async () => { throw new ProtocolError(AhpErrorCodes.NotFound, 'Removed'); };
+		const provider = createProvider(disposables, connection);
+		const worktree = {
+			repository: connection.resourceUris.fromAgentHost(URI.file('/repo')).toString(),
+			worktree: connection.resourceUris.fromAgentHost(URI.file('/repo.worktrees/task')).toString(),
+			branch: 'agents/task', cleanupStatus: { state: 'unknown' as const },
+		};
+		const supported = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup];
+		provider.clearConnection();
+		const disconnected = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup, await provider.managedWorktreeExists(worktree)];
+		await assert.rejects(provider.cleanupManagedWorktree(worktree), /Connect to this worktree's host/);
+		provider.setConnection(connection);
+		await provider.cleanupManagedWorktree(worktree);
+		const reconnected = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup, await provider.managedWorktreeExists(worktree)];
+		connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: undefined }, undefined);
+		assert.deepStrictEqual({ supported, disconnected, reconnected, unsupported: [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup], calls }, {
+			supported: [true, true], disconnected: [false, false, undefined], reconnected: [true, true, false], unsupported: [false, false],
+			calls: ['file:///repo file:///repo.worktrees/task'],
+		});
+	});
+
+	test('cleanup capabilities follow live availability without replacing the connection', () => {
+		const liveConnection = disposables.add(new class extends MockAgentConnection {
+			override readonly connectionAvailable = observableValue(this, true);
+		}());
+		liveConnection.handshakeState.set({
+			...liveConnection.handshakeState.get(), _meta: {
+				'vscode.worktreeCleanup': true, 'vscode.prepareSessionWorktreeCleanup': true, 'vscode.managedWorktrees': true,
+			}
+		}, undefined);
+		liveConnection.prepareSessionWorktreeCleanup = async () => { };
+		liveConnection.sessionWorktreeCleanup = async () => ({ state: 'pending' });
+		liveConnection.listManagedWorktrees = async () => [];
+		liveConnection.cleanupManagedWorktree = async () => { };
+		const provider = createProvider(disposables, liveConnection);
+		const capabilities = () => [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup];
+		const states = [capabilities()];
+		liveConnection.connectionAvailable.set(false, undefined);
+		states.push(capabilities());
+		liveConnection.connectionAvailable.set(true, undefined);
+		states.push(capabilities());
+		assert.deepStrictEqual(states, [[true, true], [false, false], [true, true]]);
 	});
 
 	suite('Copilot head-branch PR metadata', () => {
@@ -1781,7 +1836,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				override readonly onDidChangeDisplayName = displayNameChanged.event;
 				override getDisplayNameOverride(address: string): string | undefined { return names.get(address); }
 			}();
-			const provider = createProvider(disposables, connection, { address, remoteAgentHostService, noConnection, isWebPlatform: false });
+			const provider = createProvider(disposables, connection, { address, remoteAgentHostService, noConnection, isWebPlatform: false, defaultDirectory: '/home/test' });
 			provider.seedSessions([createSession('local-host-name', {
 				project: { uri: URI.parse('https://github.com/owner/repo'), displayName: 'owner/repo' },
 			})]);
@@ -2601,11 +2656,45 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	// ---- Browse actions -------
 
 	test('has one browse action for remote folders', () => {
-		const provider = createProvider(disposables, connection);
+		const provider = createProvider(disposables, connection, { defaultDirectory: '/home/test' });
 
 		assert.strictEqual(provider.browseActions.length, 1);
 		assert.ok(provider.browseActions[0].label.includes('Folders'));
 		assert.strictEqual(provider.browseActions[0].providerId, provider.id);
+	});
+
+	test('browses only folders on the host, and not a host that only lists sessions', async () => {
+		const dialogs: (string | undefined)[] = [];
+		const infos: string[] = [];
+		const fileDialogService = upcastPartial<IFileDialogService>({
+			showOpenDialog: async options => {
+				dialogs.push(options.defaultUri?.toString());
+				return undefined;
+			},
+		});
+		const notificationService = { error: () => { }, info: (message: unknown) => { infos.push(String(message)); } };
+		const project = { uri: 'https://github.com/microsoft/vscode', displayName: 'microsoft/vscode' };
+		const listingOnly = createProvider(disposables, connection, { fileDialogService, notificationService });
+		fireSessionAdded(connection, 'job', { project });
+		const connectedWithoutFolders = listingOnly.browseActions.length;
+
+		const offline = createProvider(disposables, connection, {
+			address: 'localhost:4322', fileDialogService, notificationService, noConnection: true,
+			connectOnDemand: async () => offline.setConnection(connection),
+		});
+		const offlineBrowseActions = offline.browseActions.length;
+		await offline.browseActions[0]?.run();
+
+		const workingDirectory = 'file:///workspace/project';
+		fireSessionAdded(connection, 'job-in-folder', { project, workingDirectory });
+		await listingOnly.browseActions[0]?.run();
+
+		assert.deepStrictEqual({ connectedWithoutFolders, offlineBrowseActions, infos, dialogs }, {
+			connectedWithoutFolders: 0,
+			offlineBrowseActions: 1,
+			infos: ['\'Test Host\' does not offer folders to browse.'],
+			dialogs: [toAgentHostUri(URI.parse(workingDirectory), 'localhost__4321').toString()],
+		});
 	});
 
 	for (const workingDirectory of ['file:///C:/Users/test/project', 'test-fs://host/projects/project']) {

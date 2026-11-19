@@ -40,9 +40,11 @@ import type { IAgentHostChatContributionContext, ITurnEnd } from '../../common/a
 
 class TestLogService extends NullLogService {
 	readonly warnings: string[] = [];
+	readonly commands: string[] = [];
 	repositoryRootLookups = 0;
 
 	override trace(message: string): void {
+		this.commands.push(message);
 		if (message === '[agentHostGitService] > git rev-parse --show-toplevel') {
 			this.repositoryRootLookups++;
 		}
@@ -288,7 +290,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 
 		assert.deepStrictEqual({ roots: roots.map(root => root?.fsPath), lookups: logService.repositoryRootLookups, resolveFailures: logService.warnings.filter(warning => warning.includes('Failed to resolve repository root')) }, {
 			roots: [expectedRoot, undefined, undefined, undefined],
-			lookups: 3,
+			lookups: 2,
 			resolveFailures: [],
 		});
 	});
@@ -425,7 +427,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 		assert.deepStrictEqual(values, [undefined, true]);
 	}).timeout(30_000);
 
-	(hasGit ? test : test.skip)('orders refresh after an in-flight lookup and before subsequent readers', async () => {
+	(hasGit ? test : test.skip)('shares a negative result with forced refreshes requested during an in-flight lookup', async () => {
 		const directory = URI.file(tmpRoot);
 		const first = service.getRepositoryRoot(directory);
 		const refreshed = service.getRepositoryRoot(directory, { refreshIfNone: true });
@@ -434,7 +436,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 
 		assert.deepStrictEqual({ roots, lookups: logService.repositoryRootLookups }, {
 			roots: [undefined, undefined, undefined],
-			lookups: 2,
+			lookups: 1,
 		});
 	});
 
@@ -590,11 +592,46 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('name-only HEAD reads skip branch details and preserve detached commit names', async () => {
+		const dir = initRepo();
+		const directory = URI.file(dir);
+		const attached = await svc!.getHEAD(directory, { nameOnly: true });
+		const commit = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+		cp.execFileSync('git', ['checkout', '--detach', '-q'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual({ attached, detached: await svc!.getHEAD(directory, { nameOnly: true }), commands: logService.commands }, {
+			attached: { ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
+			detached: { name: commit, kind: GitRefType.DetachedHead },
+			commands: ['symbolic-ref HEAD', 'symbolic-ref HEAD', 'rev-parse HEAD'].map(command => `[agentHostGitService] > git ${command}`),
+		});
+	});
+
+	(hasGit ? test : test.skip)('name-only HEAD reads do not treat non-branch symbolic refs as branches', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['tag', 'sample'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['symbolic-ref', 'HEAD', 'refs/tags/sample'], { cwd: dir, stdio: 'pipe' });
+		const directory = URI.file(dir);
+
+		assert.deepStrictEqual({
+			full: await svc!.getHEAD(directory),
+			nameOnly: await svc!.getHEAD(directory, { nameOnly: true }),
+		}, { full: undefined, nameOnly: undefined });
+	});
+
 	(hasGit ? test : test.skip)('getHEAD returns undefined for an unborn HEAD', async () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-unborn-'));
 		cp.execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: tmpRoot, stdio: 'pipe' });
 
-		assert.strictEqual(await svc!.getHEAD(URI.file(tmpRoot)), undefined);
+		const directory = URI.file(tmpRoot);
+		assert.deepStrictEqual({
+			full: await svc!.getHEAD(directory),
+			nameOnly: await svc!.getHEAD(directory, { nameOnly: true }),
+			commands: logService.commands,
+		}, {
+			full: undefined,
+			nameOnly: { ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
+			commands: ['symbolic-ref HEAD', 'for-each-ref --format=%(refname)%00%(upstream) refs/heads/main', 'symbolic-ref HEAD'].map(command => `[agentHostGitService] > git ${command}`),
+		});
 	});
 
 	(hasGit ? test : test.skip)('getCurrentBranchName throws on failed strict lookup without changing best-effort callers', async () => {
@@ -701,6 +738,20 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 				upstream: undefined,
 				kind: GitRefType.Head,
 			},
+		});
+	});
+
+	(hasGit ? test : test.skip)('resolves the default branch from a non-origin remote when origin is absent', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['remote', 'add', 'upstream', 'https://github.com/microsoft/vscode.git'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/upstream/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/upstream/HEAD', 'refs/remotes/upstream/main'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.getDefaultBranch2(URI.file(dir)), {
+			ref: 'refs/heads/main',
+			name: 'main',
+			upstream: undefined,
+			kind: GitRefType.Head,
 		});
 	});
 

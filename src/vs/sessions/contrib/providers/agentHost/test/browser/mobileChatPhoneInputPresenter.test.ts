@@ -78,7 +78,7 @@ import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/c
 import { MockChatSessionsService } from '../../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
-import { ISessionHost, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind, ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionHosts } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { MobilePermissionPicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/mobilePermissionPicker.js';
 import { MobileAgentHostModePicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileAgentHostModePicker.js';
@@ -253,6 +253,7 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 			[ICommandService, upcastPartial<ICommandService>({})],
 			[IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ mainContainer: container })],
 			[ISessionsService, upcastPartial<ISessionsService>({ slotPanes: constObservable([]) })],
+			[ISessionHostService, upcastPartial<ISessionHostService>({ hosts: constObservable([]) })],
 			[ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 				getSessionForChatResource: resource => {
 					for (const session of provider.getSessions()) {

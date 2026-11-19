@@ -40,7 +40,7 @@ import { getConnectionLabel, getRemoteMetadataLabel, getRemoteTypeLabel, remoteA
 
 export type RemoteEnvironmentDetailsMode = 'runBehavior' | 'troubleshoot';
 
-const remoteConnectionHelp: Record<RemoteKind, { readonly label: string; readonly href: string }> = {
+const remoteConnectionHelp: Partial<Record<RemoteKind, { readonly label: string; readonly href: string }>> = {
 	ssh: {
 		label: localize('remotes.connectionHelp.ssh', "SSH connection guide"),
 		href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-ssh',
@@ -397,10 +397,10 @@ export class RemoteEnvironmentDetails extends Disposable {
 		}
 		recovery.append(this.footer, this.feedback);
 		if (!connected && !pending) {
-			const help = incompatible ? {
+			const help = (incompatible ? undefined : remoteConnectionHelp[remote.kind]) ?? {
 				label: localize('remotes.connectionHelp.incompatible', "Remote agent connection troubleshooting"),
 				href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_troubleshoot-remote-sessions',
-			} : remoteConnectionHelp[remote.kind];
+			};
 			const documentation = dom.append(recovery, dom.$('p.remotes-recovery-links'));
 			this.controls.add(this.instantiationService.createInstance(Link, documentation, help, { hoverDelegate: this.hoverDelegate }));
 		}

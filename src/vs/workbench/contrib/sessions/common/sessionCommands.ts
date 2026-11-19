@@ -87,7 +87,10 @@ export const SESSION_GRID_FOCUS_COMMANDS = {
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';
 export const OPEN_REMOTES_EDITOR_COMMAND_ID = 'sessions.openRemotes';
-export const MANAGE_REMOTE_ENVIRONMENTS_TOOLTIP = localize('manageRemoteEnvironmentsTooltip', "Connect to and manage remote environments");
+/** Describes {@link OPEN_REMOTES_EDITOR_COMMAND_ID} wherever a menu offers it, e.g. the antenna menu and the Environment picker. */
+export function getManageRemoteEnvironmentsDescription(): string {
+	return localize('manageRemoteEnvironmentsDescription', "Connect to and manage remote environments");
+}
 /** Turns this computer's remote connections on or off from the Agents window. */
 export const TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID = 'sessions.tunnelHost.toggleSharingFromAgents';
 

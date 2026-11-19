@@ -24,11 +24,11 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
-import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation } from './automationCataloguePresentation.js';
+import { formatUnavailableAutomationsMessage, getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
@@ -41,31 +41,35 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const automationService = accessor.get(IAutomationService);
 		const agentPluginService = accessor.get(IAgentPluginService);
+		const configurationService = accessor.get(IConfigurationService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		const templates = readAutomationTemplates(agentPluginService.plugins.get());
-		const hasSavedAutomations = automationService.automations.get().length > 0;
-		const builtInTemplatesVisible = templates.some(template => !template.source);
+		const automations = getVisibleAutomations(getAutomationsViewContent(
+			automationService.automations.get(), [],
+			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+		).automations, configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true);
+		const builtInTemplatesVisible = hasEmptyAutomationSection(automations) && templates.some(template => !template.source);
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
+			localize('automationsCustomView.help.settings', "By default, Shared automations and run history only include shared automations you created. When cloud automations are enabled, the View options menu in the view header offers Refresh cloud automations to reload definitions and history. When shared automations created by others or with unknown creators are discovered, this menu also offers Show automations created by others to include their automations and runs. This preference is remembered. Use the arrow keys to reach View options, Enter or Space to open its menu, and Escape to close it."),
 			localize('automationsCustomView.help.manageRemotes', "When a dev tunnel is disconnected and remote management is enabled, the unavailable message shows how many dev tunnels are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage dev tunnels. GitHub Environments do not appear in Automations warnings or this count."),
-			localize('automationsCustomView.help.disabled', "Disabled automations are grouped above templates in the Disabled automations section, which starts collapsed. Press Enter or Space on its heading to expand or collapse it. The expansion state is remembered on this machine. Run history and the Accessible View still include disabled automations."),
+			localize('automationsCustomView.help.disabled', "Disabled automations sort last within Your automations or Shared automations. The View options menu always offers Show disabled automations, even when cloud automations are disabled. It starts unchecked; activate it to show or hide your disabled automations. Your choice is remembered on this machine. When no cards remain visible, the empty state and Built-in Templates are shown. Shared automations, run history, and the Accessible View are not filtered."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected provider, not in this window. Creation and changes require an available provider that supports automations. Run now requests execution from that provider; a disconnected or unsupported provider never falls back to local execution. To use another provider, duplicate the automation. The original history stays with its provider, and an enabled original keeps scheduling until you disable it."),
-			localize('automationsCustomView.help.conditions', "For Agent Host automations, expand Advanced Settings in the automation dialog with Enter or Space, then Tab to Disables after. Advanced Settings starts collapsed. You can also ask an agent in chat to set an end date and time. Manual runs remain available after the end date. Use Remove end date in a card's More menu to clear the end date. Removing the end date does not enable a disabled automation."),
-			localize('automationsCustomView.help.duration', "Choose Never for no end date, or Days, Weeks, or Months to reveal a number field before the unit picker. Enter a positive whole number, use the Up and Down Arrow keys, or use Increase Duration and Decrease Duration. A changed duration starts when saved; calendar months use the last valid day when needed. Existing end dates show approximate days remaining and are preserved until you edit the duration. The estimated end date is shown in your local time zone. Cloud automations do not support end dates."),
+			localize('automationsCustomView.help.conditions', "For Agent Host automations, expand Advanced Settings in the automation dialog with Enter or Space, then Tab to Disable after. Advanced Settings starts collapsed. Select End Date opens the shared calendar and time picker. A saved end date appears on that button; activate it to change the date, or choose Clear to remove it. You can also ask an agent in chat to set an end date and time. Manual runs remain available after the end date. Use Remove end date in a card's More menu to clear the end date. Removing the end date does not enable a disabled automation."),
+			localize('automationsCustomView.help.endDatePicker', "In the end date calendar, Left and Right Arrow move by day, Up and Down Arrow move by week, Home and End move to the start or end of the week, and Page Up and Page Down change month. Enter or Space selects the focused day. Tab reaches the month buttons, time dropdown, Select, and Cancel. Exact Time allows a time outside the fifteen-minute steps. Select confirms a future date and time in this device's time zone. Cancel or Escape leaves the end date unchanged and returns focus to its button. Existing timestamps are preserved until changed. Cloud automations do not support end dates."),
 			localize('automationsCustomView.help.expired', "Enabling an expired automation opens a confirmation. Choose Remove expiration and enable to clear its end date and enable scheduling together, or cancel to leave it unchanged."),
 			localize('automationsCustomView.help.cardLimits', "Enabled automation cards show the end date as part of the schedule text in the metadata row below the prompt. Disabled cards hide it but retain their saved end date."),
 			...(builtInTemplatesVisible ? [
-				hasSavedAutomations
-					? localize('automationsCustomView.help.builtInTemplatesCollapsed', "The Built-in Templates section is collapsed by default because saved automations exist. Press Enter or Space on its disclosure control to expand it.")
-					: localize('automationsCustomView.help.builtInTemplatesExpanded', "The Built-in Templates section is expanded by default while there are no saved automations. Tab to a template and press Enter or Space to open a New automation dialog with an editable name, prompt, and schedule."),
+				localize('automationsCustomView.help.builtInTemplatesEmptyState', "The Built-in Templates section is available in the creation empty state. When Your automations is empty and Shared automations are shown, it appears between those sections. It starts expanded. Tab to a template and press Enter or Space to open a New automation dialog with an editable name, prompt, and schedule."),
 			] : []),
 			...(pluginTemplatesVisible ? [
 				localize('automationsCustomView.help.pluginTemplates', "The Templates from Plugins section is available whenever enabled plugins provide templates. Press Enter or Space on its disclosure control to expand or collapse it. A blue marker indicates templates added since the section was last expanded. Plugin templates start disabled."),
 			] : []),
-			localize('automationsCustomView.help.sharing', "Use Import Automation in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. For Agent Host automations, open the context menu and choose Export to save a portable blueprint. Cloud automations do not currently offer Export."),
-			localize('automationsCustomView.help.creation', "Create with Agent opens a new session with /automate prefilled and the input focused. This button is in the empty state, or in the view header once automations exist. Choose Create Manually from its adjacent More Actions dropdown to open the automation dialog. In the header, use Left Arrow and Right Arrow to move between the button and dropdown; in the empty state, use Tab and Shift+Tab. Press Enter or Space to activate either control. Create Manually remains available while chat is not ready."),
-			localize('automationsCustomView.help.replaceDraft', "If your new-session draft contains text or attachments, Create with Agent asks before replacing its text with /automate. Existing attachments are kept. Choose Cancel to keep the draft unchanged."),
+			localize('automationsCustomView.help.sharing', "Choose Import Automation from Create Manually's adjacent More Actions dropdown in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. For Agent Host automations, open the context menu and choose Export to save a portable blueprint. Cloud automations do not currently offer Export."),
+			localize('automationsCustomView.help.creation', "Create with Agent opens a new session with /automate prefilled and the input focused. It is the only creation button in the empty state. Once an automation exists, Create with Agent moves to the view header and is followed by a secondary Create Manually split button. Activate Create Manually to open the automation dialog, or use its adjacent More Actions dropdown to import an automation. Use Left Arrow and Right Arrow to move between header actions and the parts of the split button. Press Enter or Space to activate a control. Create Manually remains available while chat is not ready."),
+			localize('automationsCustomView.help.spotlight', "The first time you activate Create with Agent, a spotlight explains what will happen, unless you have already seen the introduction. Activate Got It or the highlighted button to continue to the new session draft, or press Escape to dismiss it and stay in Automations. The introduction does not appear again."),
+			localize('automationsCustomView.help.replaceDraft', "When saved drafts are disabled and your new-session draft contains text or attachments, Create with Agent asks before replacing its text with /automate. Existing attachments are kept. Choose View Draft to return to the new session page without changing the draft, or Cancel to stay in Automations. With saved drafts enabled, this warning is skipped."),
 			localize('automationsCustomView.help.cards2', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and More Actions. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. More Actions opens the automation menu. Duplicate opens a prefilled New automation dialog for portable schedules and is unavailable for event-triggered automations. Disable prevents future runs. Delete asks for confirmation and warns that the automation, its run history, and associated sessions will be permanently deleted and that this cannot be undone. Run now requests execution from the selected provider when available."),
 			localize('automationsCustomView.help.externalDefinition', "For cloud automation cards, More Actions also offers Open on GitHub to open the automation's details in your browser."),
 			localize('automationsCustomView.help.ownership', "Saved cards are grouped under collapsible Your automations and Shared automations sections. Press Enter or Space on a section header to expand or collapse it. The Shared automations info icon explains who can view and edit those automations. Cloud creation has an Owner control after Tools. Use the arrow keys to choose Only me or Repository; Only me is the default. Ownership cannot be changed when editing. Repository readers can view Shared automations; writers can manage them. A failed save leaves the dialog open with the server's explanation above Create."),
@@ -113,7 +117,10 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 			AccessibleViewProviderId.Automations,
 			{ type: AccessibleViewType.View },
 			() => {
-				const runs = automationService.runs.get();
+				const { automations, runs } = getAutomationsViewContent(
+					automationService.automations.get(), automationService.runs.get(),
+					configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+				);
 				const sessions = sessionsManagementService.getSessions();
 				const hasCatalogedSession = (resource: URI) => sessions.some(session => isEqual(session.resource, resource));
 				const hasSession = (resource: URI) => sessionsManagementService.getSession(resource) !== undefined;
@@ -132,7 +139,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 					remoteManagementEnabled,
 				);
 				return buildAutomationsAccessibleContent(
-					automationService.automations.get(),
+					getVisibleAutomations(automations, configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true),
 					runs.filter(run => {
 						const retainedHistory = automationService.getAutomationHistoryState?.(run.automationId) !== undefined;
 						return retainedHistory || (
@@ -173,10 +180,18 @@ function createFocusRestorer(layoutService: IWorkbenchLayoutService): () => void
 
 export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], historyState?: AutomationCatalogueState, chatModels: Iterable<IChatModel> = [], historyName?: (id: string) => string | undefined, retainedHistoryState?: (id: string) => AutomationHistoryState | undefined, canDeleteRetainedHistory?: (id: string) => boolean, startingAutomationIds: ReadonlySet<string> = new Set()): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
-	const builtInTemplates = templates.filter(template => !template.source);
+	const builtInTemplates = hasEmptyAutomationSection(automations) ? templates.filter(template => !template.source) : [];
 	const pluginTemplates = templates.filter(template => !!template.source);
+	const builtInTemplateLines = builtInTemplates.length > 0 ? [
+		localize('automationsAccessibleView.builtInTemplates', "Built-in Templates"),
+		...builtInTemplates.map(template => localize('automationsAccessibleView.template', "{0}, {1}. {2}", template.name, formatSchedule(template.schedule), template.description)),
+	] : [];
+	const templatesBeforeShared = builtInTemplates.length > 0 && automations.some(automation => automation.ownership === 'repository');
 	if (automations.length > 0) {
 		for (const group of getAutomationOwnershipGroups(automations)) {
+			if (templatesBeforeShared && group.ownership === 'repository') {
+				lines.push('', ...builtInTemplateLines);
+			}
 			lines.push('', group.label);
 			if (group.description) {
 				lines.push(group.description);
@@ -228,14 +243,11 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 	} else {
 		lines.push(localize('automationsAccessibleView.empty', "No automations."));
 	}
-	if (builtInTemplates.length > 0 || pluginTemplates.length > 0) {
+	if (builtInTemplates.length > 0 && !templatesBeforeShared || pluginTemplates.length > 0) {
 		lines.push('');
 		lines.push(localize('automationsAccessibleView.templates', "Available templates"));
-		if (builtInTemplates.length > 0) {
-			lines.push(localize('automationsAccessibleView.builtInTemplates', "Built-in Templates"));
-			for (const template of builtInTemplates) {
-				lines.push(localize('automationsAccessibleView.template', "{0}, {1}. {2}", template.name, formatSchedule(template.schedule), template.description));
-			}
+		if (!templatesBeforeShared) {
+			lines.push(...builtInTemplateLines);
 		}
 		if (pluginTemplates.length > 0) {
 			lines.push(localize('automationsAccessibleView.pluginTemplates', "Templates from Plugins"));

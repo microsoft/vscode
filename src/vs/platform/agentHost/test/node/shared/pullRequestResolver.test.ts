@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -41,7 +42,7 @@ suite('AgentHostPullRequestResolver', () => {
 			override readonly credentials = new class extends mock<IGitHubCredentials>() {
 				override readonly onDidInvalidate = Event.None;
 				override async getCredential() {
-					return { account: { host: apiHost, accountId: '1' }, token: 'token', generation: 1, signal: new AbortController().signal };
+					return { account: { host: apiHost, accountId: '1' }, token: 'token', generation: 1, cancellationToken: CancellationToken.None };
 				}
 			}();
 			override readonly pullRequests = new class extends mock<IPullRequestResources>() {

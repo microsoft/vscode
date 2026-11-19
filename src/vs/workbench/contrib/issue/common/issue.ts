@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { UriComponents } from '../../../../base/common/uri.js';
 import { RepositoryRef } from '../../../../platform/github/common/client/types.js';
 import { CreateIssueRequest } from '../../../../platform/github/common/core/issues.js';
@@ -172,9 +173,9 @@ export interface IIssueFormService {
 	showClipboardDialog(): Promise<boolean>;
 	sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined>;
 	closeReporter(): Promise<void>;
-	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, signal?: AbortSignal): Promise<boolean>;
-	searchGitHubIssues(repo: string, title: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]>;
-	createGitHubIssue(providerId: string, session: AuthenticationSession, repository: RepositoryRef, request: CreateIssueRequest, signal: AbortSignal): Promise<string>;
+	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, cancellationToken?: CancellationToken): Promise<boolean>;
+	searchGitHubIssues(repo: string, title: string, cancellationToken: CancellationToken): Promise<readonly ISimilarIssue[]>;
+	createGitHubIssue(providerId: string, session: AuthenticationSession, repository: RepositoryRef, request: CreateIssueRequest, cancellationToken: CancellationToken): Promise<string>;
 }
 
 export interface ISimilarIssue {

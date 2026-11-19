@@ -38,9 +38,10 @@ import { INewSessionComposerService } from '../../../../../workbench/contrib/ses
 import { WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
-import { SessionsArchiveActionsContribution, registerSessionsListActions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import { SessionsArchiveActionsContribution, registerSessionsListActions, registerSessionsListReadStateActions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 
 registerSessionsListActions();
+registerSessionsListReadStateActions();
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -242,9 +243,10 @@ const SessionGroupingSectionContext = ContextKeyExpr.or(
 
 /**
  * Opens a new session that starts in the workspace and environment of `session`, or in the
- * composer's own choice of workspace without one.
+ * composer's own choice of workspace without one. With `environmentOnly`, it starts in the
+ * environment of `session` as choosing it in the Environment picker does.
  */
-async function openNewSessionLike(accessor: ServicesAccessor, session: ISession | undefined): Promise<void> {
+async function openNewSessionLike(accessor: ServicesAccessor, session: ISession | undefined, environmentOnly = false): Promise<void> {
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
@@ -256,7 +258,9 @@ async function openNewSessionLike(accessor: ServicesAccessor, session: ISession 
 	await sessionsService.openNewSession();
 
 	const folderUri = session?.workspace.get()?.folders[0]?.root;
-	if (session && folderUri) {
+	if (session && environmentOnly) {
+		sessionsPartService.getSessionView(mainWindowHost.session.get()?.sessionId)?.selectEnvironment(session.providerId);
+	} else if (session && folderUri) {
 		const target = inheritableSessionTarget(sessionsManagementService, session, folderUri);
 		sessionsPartService.getSessionView(mainWindowHost.session.get()?.sessionId)?.selectWorkspace(target.folderUri ?? folderUri, { providerId: target.providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
 	}
@@ -305,12 +309,15 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		if (!context || !context.sessions || context.sessions.length === 0) {
 			return;
 		}
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const latest = (sessions: readonly ISession[]) => sessions.reduce<ISession | undefined>((latest, session) => !latest || session.createdAt.getTime() > latest.createdAt.getTime() ? session : latest, undefined);
 		// Sections spanning workspaces start like their most recently created available session.
 		const source = context.repository || context.environment
-			? getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService), accessor.get(ISessionsManagementService))
-				.reduce<ISession | undefined>((latest, { session }) => !latest || session.createdAt.getTime() > latest.createdAt.getTime() ? session : latest, undefined)
+			? latest(getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService), sessionsManagementService).map(({ session }) => session))
 			: undefined;
-		return openNewSessionLike(accessor, source ?? context.sessions.find(session => canStartNewSessionLike(session, accessor.get(ISessionsManagementService))));
+		const like = source ?? context.sessions.find(session => canStartNewSessionLike(session, sessionsManagementService));
+		// An environment whose sessions have no workspace to start in, such as an extension's host of jobs, still starts there.
+		return like || !context.environment ? openNewSessionLike(accessor, like) : openNewSessionLike(accessor, latest(context.sessions), true);
 	}
 });
 

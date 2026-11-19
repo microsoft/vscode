@@ -41,6 +41,7 @@ import { type IChatBackgroundShell } from '../../../../common/chatBackgroundShel
 function createMockContext(opts?: { isComplete?: boolean; hasFollowingContent?: boolean }): IChatContentPartRenderContext {
 	const element = new class extends mock<IChatResponseViewModel>() {
 		override readonly isComplete = opts?.isComplete ?? false;
+		override readonly sessionResource = URI.parse('chat-session:/progress-fixture');
 	}();
 	return {
 		element,

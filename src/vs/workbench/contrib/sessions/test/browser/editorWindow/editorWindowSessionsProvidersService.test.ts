@@ -11,9 +11,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { EditorWindowSessionsProvidersService } from '../../../browser/editorWindow/editorWindowSessionsProvidersService.js';
+import { SessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ISessionsListingScope, ISessionsProvider } from '../../../common/sessionsProvider.js';
 
 suite('EditorWindowSessionsProvidersService', () => {
@@ -27,7 +28,9 @@ suite('EditorWindowSessionsProvidersService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: Event.None,
-			getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.parse('vscode-remote://host/work/repo') })] }),
+			onDidChangeWorkbenchState: Event.None,
+			getWorkbenchState: () => WorkbenchState.FOLDER,
+			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.parse('vscode-remote://host/work/repo'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.parse('vscode-remote://host/work/repo') })] }),
 		}));
 		return store.add(instantiationService.createInstance(EditorWindowSessionsProvidersService));
 	}
@@ -59,5 +62,14 @@ suite('EditorWindowSessionsProvidersService', () => {
 			],
 			providers: ['local', 'dev-container', 'unscoped', 'backend'],
 		});
+	});
+
+	test('the Agents window\'s service scopes no provider: each lists all of its sessions', () => {
+		const scoped: string[] = [];
+		const service = store.add(new SessionsProvidersService(upcastPartial<ILifecycleService>({ willShutdown: false })));
+		store.add(service.registerProvider(upcastPartial<ISessionsProvider>({ id: 'local', order: 0, setListingScope: () => scoped.push('local') })));
+		store.add(service.registerSessionBackend('local', upcastPartial<ISessionsProvider>({ id: 'backend', order: 0, setListingScope: () => scoped.push('backend') })));
+
+		assert.deepStrictEqual(scoped, []);
 	});
 });

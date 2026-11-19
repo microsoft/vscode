@@ -68,6 +68,12 @@ export interface ArtifactPartPresentation {
 	readonly detailsId: string;
 }
 
+/** The presentation of the artifact as a whole. */
+export interface ArtifactMainPresentation extends ArtifactPartPresentation {
+	/** Labels the artifact where it shows as a pill of its own, rather than as a dropdown row, which shows the label. */
+	readonly pillLabel?: string;
+}
+
 export interface ArtifactSectionPresentation extends ArtifactPartPresentation {
 	readonly id: string;
 }
@@ -103,7 +109,7 @@ export interface ArtifactActionView extends ArtifactActionAvailability {
 
 export interface ArtifactContributionView {
 	readonly availability: ArtifactAvailability;
-	readonly main?: ArtifactPartPresentation;
+	readonly main?: ArtifactMainPresentation;
 	/**
 	 * Gives the artifact a pill of its own, shared with the other artifacts whose main integration assigns the same ID,
 	 * including those of other integrations. Without one, the artifact is listed in the pill for its kind, such as
@@ -245,6 +251,11 @@ export interface IArtifactBindingContext {
 	readonly artifact: ArtifactRecord;
 	readonly configuration: IObservable<ArtifactAutomationConfiguration>;
 	readonly state: IArtifactBindingStateStore;
+	/**
+	 * Posts plain text about a change of the bound resource as a system notice in the chat that recorded the artifact.
+	 * It is never sent to an agent. Absent when the runtime cannot post notices.
+	 */
+	postNotice?(content: string): Promise<void>;
 }
 
 export interface ArtifactResourceMatch {
@@ -263,7 +274,7 @@ export interface ArtifactAuthenticationRequest {
 
 /** Allows matching or resource creation to expose recovery without establishing an account binding. */
 export class ArtifactAuthenticationRequiredError extends Error {
-	constructor(message: string, readonly main: ArtifactPartPresentation) {
+	constructor(message: string, readonly main: ArtifactMainPresentation) {
 		super(message);
 		this.name = 'ArtifactAuthenticationRequiredError';
 	}

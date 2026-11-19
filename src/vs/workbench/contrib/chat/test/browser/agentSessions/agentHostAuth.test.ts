@@ -15,7 +15,6 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import { AuthenticateTargetKind, type McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
-import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { readAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
@@ -2260,11 +2259,11 @@ suite('authenticateProtectedResources', () => {
 			assert.deepStrictEqual({
 				requests: requests.map(request => ({
 					resource: request.resource, scopes: request.scopes, token: request.token,
-					providerId: readAuthenticationAccount(request)?.providerId, accountId: readAuthenticationAccount(request)?.accountId,
+					accountId: request.accountId,
 				})),
 				prompts: commands.calls.length,
 			}, {
-				requests: [{ resource: resource.resource, scopes: resource.scopes_supported, token: primary.accessToken, providerId: 'github', accountId: primary.account.id }],
+				requests: [{ resource: resource.resource, scopes: resource.scopes_supported, token: primary.accessToken, accountId: '["github","selected-account",null]' }],
 				prompts: 0,
 			});
 		});
@@ -2335,7 +2334,7 @@ suite('authenticateProtectedResources', () => {
 			assert.deepStrictEqual({ request, scopedQueries: calls.filter(([, scopes]) => scopes !== undefined) }, {
 				request: {
 					resource: resource.resource, scopes: resource.scopes_supported, token: scoped.accessToken,
-					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id }),
+					accountId: '["microsoft","selected-account",null]',
 				},
 				scopedQueries: [['microsoft', resource.scopes_supported, { account, authorizationServer: URI.parse(resource.authorization_servers[0]), silent: true }, true]],
 			});
@@ -2423,7 +2422,7 @@ suite('authenticateProtectedResources', () => {
 			resource: protectedResource.resource,
 			scopes: ['read'],
 			token: 'provider-token',
-			_meta: authenticationAccountMeta({ providerId: 'example-provider', accountId: 'account' }),
+			accountId: '["example-provider","account",null]',
 		}]);
 	});
 
@@ -2621,18 +2620,56 @@ suite('authenticateProtectedResources', () => {
 		});
 		const instantiation = createAuthInstantiationService(disposables, authentication);
 		const agents = [new class extends mock<AgentInfo>() { override readonly protectedResources = [resource]; }()];
-		const requests: { resource: string; account: ReturnType<typeof readAuthenticationAccount>; metadata: Record<string, unknown> | undefined }[] = [];
+		const requests: IAgentHostAuthenticateRequest[] = [];
 		await instantiation.invokeFunction(authenticateProtectedResources, agents, {
 			logPrefix: '[AgentHost]',
 			authenticate: async request => {
-				requests.push({ resource: request.resource, account: readAuthenticationAccount(request), metadata: request._meta });
+				requests.push(request);
 			},
 		});
 		assert.deepStrictEqual(requests, [{
 			resource: resource.resource,
-			account: { providerId: 'provider', accountId: 'provider-account' },
-			metadata: { 'vscode.authentication.account': { providerId: 'provider', accountId: 'provider-account' } },
+			scopes: ['read'],
+			token: 'token',
+			accountId: '["provider","provider-account",null]',
 		}]);
+	});
+
+	test('account hints survive renewal and distinguish account, provider, and issuer changes', async () => {
+		const resource = { ...protectedResource, authorization_servers: [...protectedResource.authorization_servers ?? [], 'https://other-issuer.example/'] };
+		let providerId = 'provider';
+		let session: AuthenticationSession = {
+			id: 'session', scopes: ['read'], accessToken: 'token',
+			account: { id: 'account', label: 'Private label' },
+		};
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => providerId,
+			getSessions: async () => [session],
+		});
+		const instantiation = createAuthInstantiationService(disposables, authentication);
+		const agents = [new class extends mock<AgentInfo>() { override readonly protectedResources = [resource]; }()];
+		const accountIds: (string | undefined)[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async request => { accountIds.push(request.accountId); },
+		};
+		const forward = () => instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+		await forward();
+		session = { ...session, id: 'renewed-session', accessToken: 'renewed-token', expiresAfter: 60_000, scopes: ['read', 'write'], account: { ...session.account, label: 'Changed label' } };
+		await forward();
+		session = { ...session, account: { ...session.account, id: 'other-account' } };
+		await forward();
+		providerId = 'other-provider';
+		await forward();
+		session = { ...session, authorizationServer: URI.parse('https://other-issuer.example/') };
+		await forward();
+		assert.deepStrictEqual(accountIds, [
+			'["provider","account",null]',
+			'["provider","account",null]',
+			'["provider","other-account",null]',
+			'["other-provider","other-account",null]',
+			'["other-provider","other-account","https://other-issuer.example/"]',
+		]);
 	});
 
 	for (const enabled of [undefined, false, true]) {
@@ -3400,7 +3437,7 @@ suite('resolveAuthenticationInteractively', () => {
 			commandCalls: 0,
 			requests: [{
 				resource: protectedResource.resource, scopes: ['read'], token: 'fresh-token',
-				_meta: authenticationAccountMeta({ providerId: 'provider-1', accountId: 'account-1' }),
+				accountId: '["provider-1","account-1",null]',
 			}],
 		});
 	});

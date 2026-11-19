@@ -702,6 +702,10 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		return this._internalOrg;
 	}
 
+	async setEarlyStagingDefault(_enabled: boolean): Promise<void> {
+		// noop
+	}
+
 	protected getUpdateType(): UpdateType {
 		return UpdateType.Archive;
 	}

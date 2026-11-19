@@ -25,9 +25,10 @@ import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentH
 import { RemoteAgentHostConnectionStatus } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { RemoteAgentHostLocationPreference } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { MANAGE_EXTENSION_COMMAND_ID } from '../../../../../../../platform/extensions/common/extensions.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
-import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IProgress } from '../../../../../../../platform/progress/common/progress.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { getIconsStyleSheet } from '../../../../../../../platform/theme/browser/iconsStyleSheet.js';
@@ -46,6 +47,7 @@ import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessions
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly environmentsEnabled = observableValue(this, false);
+	readonly canCreateDevContainer = observableValue(this, false);
 	readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, undefined);
 	pendingSignIn: DeferredPromise<void> | undefined;
 	signInCalls = 0;
@@ -69,6 +71,8 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly gitHubEnvironmentChanges: { id: string; shared: boolean }[] = [];
 	readonly tunnelDeletions: string[] = [];
 	readonly sshDeletions: string[] = [];
+	readonly devContainerCreations: (string | undefined)[] = [];
+	readonly devContainerDeletions: string[] = [];
 	copyFailure: Error | undefined;
 	pendingConnection: DeferredPromise<void> | undefined;
 	pendingManagement: DeferredPromise<void> | undefined;
@@ -145,6 +149,22 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 	}
 
+	async createDevContainer(id?: string): Promise<void> {
+		this.devContainerCreations.push(id);
+		await this.pendingManagement?.p;
+		const host = id ?? 'local';
+		this.remotes.set([...this.remotes.get(), {
+			id: `devcontainer:${host}:${this.remotes.get().length}`, kind: 'devContainer', name: 'Dev Container', detail: host, description: host,
+			canRemove: false, canDelete: true, availability: 'unknown', connectionStatus: RemoteAgentHostConnectionStatus.connected,
+		}], undefined);
+	}
+
+	async deleteDevContainer(id: string): Promise<void> {
+		this.devContainerDeletions.push(id);
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
+	}
+
 	async remove(id: string): Promise<void> {
 		this.managementChanges.push({ id, action: 'remove' });
 		await this.pendingManagement?.p;
@@ -194,7 +214,7 @@ suite('RemotesWidget', () => {
 		const copied: string[] = [];
 		let diagnosticCopyFailure: Error | undefined;
 		let pendingDiagnosticCopy: DeferredPromise<void> | undefined;
-		const commands: string[] = [];
+		const commands: (string | readonly string[])[] = [];
 		instantiationService.stub(IClipboardService, {
 			writeText: async text => {
 				await pendingDiagnosticCopy?.p;
@@ -204,7 +224,7 @@ suite('RemotesWidget', () => {
 				copied.push(text);
 			}
 		});
-		instantiationService.stub(ICommandService, { executeCommand: async id => { commands.push(id); } });
+		instantiationService.stub(ICommandService, { executeCommand: async (id: string, ...args: string[]) => { commands.push(args.length ? [id, ...args] : id); } });
 		const sessionActions: string[] = [];
 		const activeComposer = observableValue<INewSessionComposer | undefined>('composer', upcastPartial<INewSessionComposer>({
 			selectEnvironment: async providerId => { sessionActions.push(providerId); },
@@ -845,7 +865,9 @@ suite('RemotesWidget', () => {
 		model.remotes.set(remotes.map(remote => ({ ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected })), undefined);
 		const connected = snapshot();
 		const expected = [
+			{ name: 'devContainer', metadata: ['Linux', 'Dev Containers'] },
 			{ name: 'environment', metadata: ['Linux', 'GitHub Environment (Preview)'] },
+			{ name: 'extension', metadata: ['Linux', 'Extensions'] },
 			{ name: 'ssh', metadata: ['Linux', 'SSH'] },
 			{ name: 'tunnel', metadata: ['Linux', 'Dev Tunnel'] },
 			{ name: 'wsl', metadata: ['Linux', 'WSL'] },
@@ -2570,6 +2592,34 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual({ copyable, copied: model.copiedAddresses, connections: model.connectionChanges }, { copyable: ['ssh:build'], copied: ['ssh:build'], connections: [] });
 	});
 
+	test('extension rows name their registering extension, find it by search and show it on request', async () => {
+		const { parent, model, widget, commands, hoverContents, mouseHoverTargets } = createWidget();
+		model.remotes.set([...model.remotes.get(), {
+			id: '127.0.0.1:8445', kind: 'extension', name: 'Jobs', detail: '127.0.0.1:8445', canRemove: false,
+			contributedBy: { extensionId: 'publisher.jobs', displayName: 'Job Runner' },
+			availability: 'unknown', connectionStatus: RemoteAgentHostConnectionStatus.connected,
+		}], undefined);
+		const row = parent.querySelector<HTMLElement>('[data-remote-id="127.0.0.1:8445"]')!;
+		const detail = row.querySelector<HTMLElement>('.remotes-name-detail')!;
+		const extensionAction = getMenuAction(parent, '127.0.0.1:8445', 'showExtension');
+		runMenuAction(parent, '127.0.0.1:8445', 'showExtension');
+		await timeout(0);
+		widget.setSearchQuery('job runner');
+		assert.deepStrictEqual({
+			details: [...parent.querySelectorAll<HTMLElement>('.remotes-name-detail:not([hidden])')].map(element => element.textContent),
+			detailHover: mouseHoverTargets.has(detail) ? hoverContents.get(detail) : undefined,
+			extensionAction: extensionAction.label,
+			commands,
+			searched: [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row => row.dataset.remoteId),
+		}, {
+			details: ['Registered by the Job Runner extension'],
+			detailHover: 'Registered by the Job Runner extension',
+			extensionAction: 'Show Job Runner Extension',
+			commands: [[MANAGE_EXTENSION_COMMAND_ID, 'publisher.jobs']],
+			searched: ['127.0.0.1:8445'],
+		});
+	});
+
 	for (const id of ['ssh:build', 'tunnel:laptop']) {
 		test(`${id} run behavior opens a task page and saves an explicit choice once`, async () => {
 			const { parent, model } = createWidget();
@@ -4267,6 +4317,79 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual({ hidden, shown, settings, guidance, disabled: groups() }, {
 			hidden: ['Dev Tunnels', 'SSH'], shown: ['GitHub Environments', 'Dev Tunnels', 'SSH'],
 			settings: [{ query: GitHubEnvironmentsEnabledSettingId }], guidance: true, disabled: ['Dev Tunnels', 'SSH'],
+		});
+	});
+
+	test('Dev Containers appears while one can be created, guides getting started, and keeps creating available in parallel', async () => {
+		const { widget, parent, model } = createWidget();
+		const groups = () => [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(node => node.textContent);
+		const header = () => parent.querySelector<HTMLElement>('.remotes-group-row [aria-label="Create Dev Container"]');
+		const hidden = groups();
+		model.canCreateDevContainer.set(true, undefined);
+		toggleMethodGroup(parent, 'Dev Containers');
+		const emptyRow = parent.querySelector<HTMLElement>('.remotes-empty-row');
+		const empty = {
+			text: [...emptyRow?.querySelectorAll('.remotes-name, .remotes-empty-description, .remotes-empty-signin .monaco-link') ?? []].map(node => node.textContent),
+			accessible: widget.getAccessibilityContent().includes('No Dev Containers yet.'),
+		};
+		model.pendingManagement = new DeferredPromise<void>();
+		header()!.click();
+		emptyRow!.querySelector<HTMLElement>('.remotes-empty-signin .monaco-link')!.click();
+		header()!.click();
+		const whileCreating = { creations: [...model.devContainerCreations], headerDisabled: header()!.getAttribute('aria-disabled') };
+		model.pendingManagement.complete();
+		await timeout(0);
+		model.canCreateDevContainer.set(false, undefined);
+		assert.deepStrictEqual({ hidden, shown: groups(), empty, whileCreating, created: model.remotes.get().filter(remote => remote.kind === 'devContainer').length, headerAfterUnavailable: !!header() }, {
+			hidden: ['Dev Tunnels', 'SSH'],
+			shown: ['Dev Tunnels', 'SSH', 'Dev Containers'],
+			empty: { text: ['No Dev Containers yet.', 'Run sessions in an Ubuntu container that keeps its files in a Docker volume.', 'Create Dev Container'], accessible: true },
+			whileCreating: { creations: [undefined, undefined, undefined], headerDisabled: null },
+			created: 3,
+			headerAfterUnavailable: false,
+		});
+	});
+
+	test('Dev Containers on this computer offer Connect, while those on remote hosts connect with their host', () => {
+		const { parent, model } = createWidget();
+		model.remotes.set([
+			{ id: 'devcontainer:local', kind: 'devContainer', name: 'Dev Container', detail: 'This Computer', description: 'This Computer', canRemove: false, canDelete: true, availability: 'unknown', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+			{ id: 'devcontainer:ssh', kind: 'devContainer', name: 'Dev Container 2', detail: 'Build server', description: 'Build server', canRemove: false, canDelete: true, availability: 'unknown', connectsWithHost: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+		], undefined);
+		const actions = (id: string) => ({
+			connectHidden: getConnectionAction(parent, id).hidden,
+			rename: getMenuAction(parent, id, 'rename').enabled,
+			delete: getMenuAction(parent, id, 'delete').label,
+		});
+		const local = actions('devcontainer:local');
+		const remote = actions('devcontainer:ssh');
+		runMenuAction(parent, 'devcontainer:local', 'troubleshoot');
+		assert.deepStrictEqual({ local, remote, help: parent.querySelector<HTMLAnchorElement>('.remotes-recovery-links a')?.getAttribute('href') }, {
+			local: { connectHidden: false, rename: true, delete: 'Delete Dev Container...' },
+			remote: { connectHidden: true, rename: true, delete: 'Delete Dev Container...' },
+			help: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_troubleshoot-remote-sessions',
+		});
+	});
+
+	test('Dev Container creation stays in More Actions alongside connection and management actions', async () => {
+		const { parent, model } = createWidget();
+		const tunnel: ICustomizationRemote = { id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', copyableAddress: 'work-laptop', canRemove: true, canDelete: true, availability: 'online', canShareAsGitHubEnvironment: true, connectionStatus: RemoteAgentHostConnectionStatus.connected };
+		const actions = () => ({
+			connect: getConnectionAction(parent, tunnel.id).getAttribute('aria-label'),
+			create: findMenuAction(parent, tunnel.id, 'createDevContainer')?.label,
+			copy: getMenuAction(parent, tunnel.id, 'copyAddress').label,
+			delete: getMenuAction(parent, tunnel.id, 'delete').label,
+		});
+		model.remotes.set([tunnel], undefined);
+		const before = actions();
+		model.remotes.set([{ ...tunnel, canCreateDevContainer: true }], undefined);
+		const after = actions();
+		runMenuAction(parent, tunnel.id, 'createDevContainer');
+		await timeout(0);
+		assert.deepStrictEqual({ before, after, creations: model.devContainerCreations }, {
+			before: { connect: 'Disconnect Laptop', create: undefined, copy: 'Copy Address', delete: 'Delete Dev Tunnel...' },
+			after: { connect: 'Disconnect Laptop', create: 'Create Dev Container on Laptop', copy: 'Copy Address', delete: 'Delete Dev Tunnel...' },
+			creations: [tunnel.id],
 		});
 	});
 

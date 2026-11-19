@@ -598,6 +598,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		const inspectTarget = windowConfiguration?.aiFeaturesDisabled
 			? undefined
 			: params.frame && await view.inspector.getElementHandle(BrowserViewInspectElementId.ContextMenuTarget, params.frame);
+		// The lookup may attach the debugger first, so the tab can be closed or hidden by now.
+		if (webContents.isDestroyed() || !view.isVisible() || win.isDestroyed() || view.getElectronWindow() !== win) {
+			inspectTarget?.dispose();
+			return;
+		}
 		const menu = new Menu();
 
 		if (params.linkURL) {

@@ -34,6 +34,7 @@ import { defaultButtonStyles } from '../../../../../../platform/theme/browser/de
 import { devTunnelSharingClients, getOffDetail, gitHubEnvironmentSharingClients, gitHubEnvironmentSharingDiscovery, GitHubEnvironmentsAvailability, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, validateSharingName } from '../../../../chat/electron-browser/remoteConnectionsSharing.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { IRemotesSharingViewState } from '../browser/remotesEditorInput.js';
 
 type SharingMethod = Exclude<RemoteConnectionsMethod, 'off'>;
 
@@ -98,6 +99,7 @@ export class ThisComputerSection extends Disposable {
 	constructor(
 		container: HTMLElement,
 		private readonly onDidChangeExpansion: (expanded: boolean) => void,
+		private readonly onWillOpenLog: (state: IRemotesSharingViewState) => void,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService commandService: ICommandService,
 		@IHoverService hoverService: IHoverService,
@@ -227,6 +229,12 @@ export class ThisComputerSection extends Disposable {
 			label: localize('thisComputer.openSharingLog', "Open Sharing Log"), href: '#',
 		}, {
 			opener: async () => {
+				this.onWillOpenLog({
+					expanded: this.showingOptions,
+					selectedMethod: this.selectedMethod,
+					failedMethod: this.failedMethod,
+					failure: this.changeFailed ? this.feedback.textContent ?? undefined : undefined,
+				});
 				await commandService.executeCommand('workbench.action.closeModalEditor');
 				await commandService.executeCommand(this.failedMethod === 'devTunnel' ? RemoteTunnelCommandIds.showLog : showWindowLogActionId);
 			}
@@ -312,6 +320,16 @@ export class ThisComputerSection extends Disposable {
 		}
 	}
 
+	restoreState(state: IRemotesSharingViewState): void {
+		this.showingOptions = state.expanded;
+		this.selectedMethod = state.selectedMethod;
+		this.failedMethod = state.failedMethod;
+		this.changeFailed = state.failure !== undefined;
+		this.feedback.textContent = state.failure ?? '';
+		this.update();
+		this.onDidChangeExpansion(this.showingOptions);
+	}
+
 	private async apply(method: RemoteConnectionsMethod): Promise<void> {
 		if (this.isBusy) {
 			return;
@@ -325,13 +343,20 @@ export class ThisComputerSection extends Disposable {
 		}
 		this.update();
 		let error: string | undefined;
+		let canceled = false;
 		try {
-			error = await this.sharing.selectMethod(method, method !== 'off' && this.showingOptions ? this.sharingName : undefined);
+			const feedback = await this.sharing.selectMethod(method);
+			error = feedback?.error;
+			canceled = feedback?.canceled ?? false;
 		} finally {
 			this.applying = false;
 			if (!this._store.isDisposed) {
 				this.update();
-				if (!error && this.sharing.activeMethod === method) {
+				if (canceled) {
+					this.changeFailed = false;
+					this.feedback.textContent = '';
+					this.update();
+				} else if (!error && this.sharing.activeMethod === method) {
 					this.changeFailed = false;
 					this.feedback.textContent = '';
 					this.close();
@@ -435,7 +460,7 @@ export class ThisComputerSection extends Disposable {
 			? localize('thisComputer.startDetail', "Share this computer using the selected connection type and sharing name")
 			: localize('thisComputer.switchDetail', "Stop sharing with the current method and start with the selected method"));
 		this.applyButton.enabled = !this.isBusy && !state.isConnecting && !!this.selectedMethod
-			&& this.sharing.namesLoaded && !!name && !nameError
+			&& this.sharing.isNameLoadedForMethod(this.selectedMethod) && !!name && !nameError
 			&& this.selectedMethod !== active
 			&& (this.selectedMethod !== 'githubEnvironment' || availability === 'enabled');
 		this.cancelButton.enabled = !this.isBusy;

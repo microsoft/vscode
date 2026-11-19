@@ -68,6 +68,10 @@ export class ContentPart extends EditorPart implements IContentPart {
 		return true;
 	}
 
+	get singleTabTitleProvidedByEditor(): boolean {
+		return !!this.createOptions.singleTabTitleProvidedByEditor;
+	}
+
 	override create(parent: HTMLElement, options?: object): void {
 		parent.classList.add('part', 'editor');
 

@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getConnectionDiagnosticError, type IConnectionDiagnosticError } from '../../common/connectionDiagnostics.js';
-import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification } from '../../common/connectionTelemetry.js';
+import { CategorizedConnectionError, getConnectionTelemetryError, type ConnectionTelemetryErrorClassification } from '../../common/connectionTelemetry.js';
+import { MissionControlOwnerMismatchError } from '../../common/missionControlEnvironment.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 
 suite('Connection telemetry privacy', () => {
@@ -50,6 +51,21 @@ suite('Connection telemetry privacy', () => {
 			{ errorCategory: 'network' },
 			{ errorCategory: 'authentication' },
 			{ errorCategory: 'authorization', statusCode: 403 },
+		]);
+	});
+
+	test('classifies source-categorized failures ahead of their raw causes', () => {
+		const errors = [
+			new CategorizedConnectionError('AgentHostFileSystem', 'private', { cause: Object.assign(new Error('/Users/alice/private'), { code: 'ENOENT' }) }),
+			new CategorizedConnectionError('AgentHostUnavailable', 'private', { cause: Object.assign(new Error('private'), { name: 'TimeoutError' }) }),
+			new CategorizedConnectionError('AgentHostInvalidResponse', 'private', { cause: new SyntaxError('private') }),
+			new MissionControlOwnerMismatchError('private'),
+		];
+		assert.deepStrictEqual(errors.map(error => getConnectionTelemetryError(getConnectionDiagnosticError(error))), [
+			{ errorCategory: 'fileSystem' },
+			{ errorCategory: 'unavailable' },
+			{ errorCategory: 'invalidResponse' },
+			{ errorCategory: 'conflict' },
 		]);
 	});
 
