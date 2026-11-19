@@ -43,7 +43,7 @@ import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { localize } from '../../../../../../nls.js';
 import { getAgentHostPluginEnablementActions } from '../../agentPluginActions.js';
-import type { ICustomizationHookItem, ICustomizationSkillItem } from '../../aiCustomization/aiCustomizationItemSource.js';
+import { CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX, type ICustomizationHookItem, type ICustomizationSkillItem } from '../../aiCustomization/aiCustomizationItemSource.js';
 import { getMcpCustomizationSource } from '../../aiCustomization/mcpCustomizationSource.js';
 
 
@@ -69,6 +69,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	private readonly _contentExpander: AgentCustomizationContentExpander;
 	protected readonly _sourceFolderReadinessTimeoutMs: number = SOURCE_FOLDER_CUSTOMIZATION_READINESS_TIMEOUT_MS;
 	private _draftCustomAgents: IObservable<readonly AgentCustomization[]> | undefined;
+	private _listsCustomAgentHooks = false;
 	private _draftCustomizations: IObservable<readonly ClientPluginCustomization[]> | undefined;
 
 	constructor(
@@ -90,6 +91,12 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		this._register(this._promptsService.onDidChangeSkills(() => {
 			this._onDidChange.fire();
 		}));
+	}
+
+	/** Lists the hooks declared in custom agent files, for agent hosts whose runtime runs them. */
+	setListsCustomAgentHooks(lists: boolean): void {
+		this._listsCustomAgentHooks = lists;
+		this._onDidChange.fire();
 	}
 
 	setDraftCustomAgents(customAgents: IObservable<readonly AgentCustomization[]>): void {
@@ -531,7 +538,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				userInvocable: true,
 			});
 		}
-		for (const item of await this.getCustomAgentHooks([...items.values()])) {
+		for (const item of this._listsCustomAgentHooks ? await this.getCustomAgentHooks([...items.values()]) : []) {
 			items.set(item.itemKey ?? item.uri.toString(), item);
 		}
 		return [...items.values()];
@@ -542,8 +549,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	 * only while that agent is selected.
 	 */
 	private async getCustomAgentHooks(items: readonly ICustomizationItem[]): Promise<ICustomizationHookItem[]> {
-		// The host lists an agent file as a hook that won't run when the session leaves its hooks out, as in an untrusted folder.
-		const notRunning = new ResourceSet(items.filter(item => item.type === PromptsType.hook && item.enabled === false && item.status === 'degraded').map(item => item.uri));
+		// The host lists agent files whose hooks the session leaves out, as in an untrusted folder, as hooks that won't run. A session
+		// leaves out the hooks of every custom agent when any of its folders is untrusted, including agents the host could not list.
+		const notRunningItems = items.filter(item => item.type === PromptsType.hook && item.enabled === false && item.status === 'degraded');
+		const notRunning = new ResourceSet(notRunningItems.map(item => item.uri));
+		const notRunningMessage = notRunningItems[0]?.statusMessage;
 		const agents = items.filter(item => item.type === PromptsType.agent && hasReadableCustomizationContent(item.uri) && !notRunning.has(item.uri));
 		const hooks = await Promise.all(agents.map(async agent => {
 			let content: string;
@@ -554,7 +564,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 			const header = new PromptFileParser().parse(agent.uri, content).header?.hooksRaw;
 			return (header?.properties ?? []).flatMap(({ key, value }) => value.type !== 'sequence' ? [] : value.items.map((_, index): ICustomizationHookItem => ({
-				itemKey: `agent-hook:${agent.uri.toString()}#${key.value}/${index}`,
+				itemKey: `${CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX}${agent.uri.toString()}#${key.value}/${index}`,
 				uri: agent.uri,
 				type: PromptsType.hook,
 				name: getAgentHookMetadata(Target.GitHubCopilot, key.value)?.label ?? key.value,
@@ -569,6 +579,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				extensionLabel: agent.extensionLabel,
 				pluginUri: agent.pluginUri,
 				pluginLabel: agent.pluginLabel,
+				...(notRunningMessage ? { status: 'degraded', statusMessage: notRunningMessage, badge: localize('customizationWontRun', "Won't run"), badgeTooltip: notRunningMessage } : {}),
 			})));
 		}));
 		return hooks.flat();

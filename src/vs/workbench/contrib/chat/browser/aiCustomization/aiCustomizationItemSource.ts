@@ -58,6 +58,9 @@ export interface ICustomizationHookItem extends ICustomizationItem {
 	readonly isHookAction?: boolean;
 }
 
+/** Prefix of the item keys of hooks declared in a custom agent file, which are edited in that file rather than deleted. */
+export const CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX = 'agent-hook:';
+
 /**
  * Identifies who supplied a customization within its scope.
  * Items sharing an origin `id` are shown together under one separator.

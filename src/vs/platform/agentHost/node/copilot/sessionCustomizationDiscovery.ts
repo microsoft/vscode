@@ -870,10 +870,16 @@ export class SessionCustomizationDiscovery extends Disposable {
 		return this._hookWorkingDirectories.filter(root => !this._isTrusted(root));
 	}
 
-	/** Custom agent files in untrusted folders that declare hooks; sessions leave those hooks out. */
+	/**
+	 * Custom agent files that declare hooks, when a folder of the session is untrusted. Sessions then leave out the
+	 * hooks of every custom agent, because an agent's source folder is not always known.
+	 */
 	private async discoverUntrustedAgentHookFiles(agents: readonly AgentCustomization[], token: CancellationToken): Promise<readonly URI[]> {
-		const untrustedRoots = this._untrustedHookWorkingDirectories();
-		const candidates = agents.map(agent => URI.parse(agent.uri)).filter(uri => untrustedRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(uri, root)));
+		if (this._workingDirectories.every(root => this._isTrusted(root))) {
+			return [];
+		}
+		// Plugin agents are listed with their plugin, whose rows show that their hooks won't run.
+		const candidates = agents.filter(agent => readCustomizationDiscoveryMeta(agent)?.source !== 'plugin').map(agent => URI.parse(agent.uri));
 		const declaring = await Promise.all(candidates.map(async uri => {
 			try {
 				return customAgentFileDeclaresHooks((await raceCancellationError(this._fileService.readFile(uri), token)).value.toString()) ? uri : undefined;

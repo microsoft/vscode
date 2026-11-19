@@ -213,7 +213,7 @@ export async function toSdkCustomAgents(
 	fileService: IFileService,
 	availableModelIds?: ReadonlySet<string>,
 	clientToolNames?: ReadonlyMap<string, string>,
-	includeHooks: (agent: ISdkCustomAgentResource) => boolean = () => true,
+	includeHooks = true,
 ): Promise<ICopilotCustomAgentConfig[]> {
 	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
@@ -233,7 +233,7 @@ export async function toSdkCustomAgents(
 				const description = md.getStringValue('description');
 				const tools = md.getStringArrayValue('tools');
 				const skills = md.getStringArrayValue('skills');
-				const hooks = includeHooks(agent) ? getCustomAgentHooks(md) : undefined;
+				const hooks = includeHooks ? getCustomAgentHooks(md) : undefined;
 				const reasoningEffort = md.getStringValue('reasoning-effort');
 				let infer = md.getBooleanValue('infer');
 				const disableModelInvocation = resolveAgentDisableModelInvocation(infer, md.getBooleanValue('disable-model-invocation'));
