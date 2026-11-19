@@ -93,7 +93,7 @@ suite('ChatDailyUsage', () => {
 		});
 	});
 
-	test('seeds totals once and last usage from editor and Agents Window usage recorded before tracking', () => {
+	test('seeds totals and last usage once from editor and Agents Window usage recorded before tracking, and ignores their later usage', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const editor = new EditorChatUsage(storage);
 		const agentsWindow = new AgentsWindowUsage(storage);
@@ -110,9 +110,25 @@ suite('ChatDailyUsage', () => {
 		usage.recordMessage(true, 10 * day + 45 * minute);
 		assert.deepStrictEqual({ seeded, restarted, recorded: usage.getTelemetry(10 * day + hour) }, {
 			seeded: { messagesLast7Days: 0, messagesLast30Days: 0, messagesTotal: 3, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 2, activeDaysLast7Days: 0, activeDaysLast30Days: 0, activeDaysTotal: 0, minutesSinceLastMessage: 60, trackedDays: 0 },
-			restarted: { messagesLast7Days: 0, messagesLast30Days: 0, messagesTotal: 3, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 2, activeDaysLast7Days: 0, activeDaysLast30Days: 0, activeDaysTotal: 0, minutesSinceLastMessage: 20, trackedDays: 0 },
+			restarted: { messagesLast7Days: 0, messagesLast30Days: 0, messagesTotal: 3, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 2, activeDaysLast7Days: 0, activeDaysLast30Days: 0, activeDaysTotal: 0, minutesSinceLastMessage: 60, trackedDays: 0 },
 			recorded: { messagesLast7Days: 1, messagesLast30Days: 1, messagesTotal: 4, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 3, activeDaysLast7Days: 1, activeDaysLast30Days: 1, activeDaysTotal: 1, minutesSinceLastMessage: 15, trackedDays: 0 },
 		});
+	});
+
+	test('seeds the last message time once for machines that started tracking before it was seeded, from usage up to the end of the first tracked day', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store('chat.dailyUsage.trackingStartDay', 10, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+		storage.store('chat.dailyUsage', '{"days":[],"messagesTotal":3,"sessionsTotal":2}', StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+		new AgentsWindowUsage(storage).recordSessionCreated(10 * day + 2 * hour);
+		const editor = new EditorChatUsage(storage);
+		editor.recordSubmission(SessionType.Local, true, false, false, 11 * day);
+		const usage = new ChatDailyUsage(storage);
+		const unseeded = usage.getTelemetry(12 * day).minutesSinceLastMessage;
+		usage.startTracking(12 * day);
+		editor.recordSubmission(SessionType.Local, false, false, false, 12 * day);
+		new AgentsWindowUsage(storage).recordSessionCreated(12 * day);
+		usage.startTracking(12 * day + hour);
+		assert.deepStrictEqual({ unseeded, seeded: usage.getTelemetry(12 * day).minutesSinceLastMessage }, { unseeded: undefined, seeded: 46 * 60 });
 	});
 
 	test('derives the active day total from retained days for usage stored before the total existed', () => {

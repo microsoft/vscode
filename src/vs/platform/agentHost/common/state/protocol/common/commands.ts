@@ -10,7 +10,7 @@ import type { URI, Snapshot, ChannelReceiveLimits, ChannelFlowControl, ResumedCh
 import type { ActionEnvelope, StateAction } from './actions.js';
 import type { AutomationRunCancelRequestedAction } from '../channels-automation-run/actions.js';
 import type { AutomationCreateRequestedAction } from '../channels-automation/actions.js';
-import type { AutomationSchedule, AutomationScheduleTrigger, AutomationSessionTemplate, AutomationEntry, AutomationState } from '../channels-automation/state.js';
+import type { AutomationDefinition, AutomationSchedule, AutomationScheduleTrigger, AutomationSessionTemplate, AutomationEntry, AutomationState, AutomationChatTarget, AutomationNewSessionTarget, AutomationPreviousSessionTarget } from '../channels-automation/state.js';
 import type { TelemetryCapabilities } from '../channels-otlp/state.js';
 import type { TcpConnectionsCapability } from '../channels-tcp/state.js';
 
@@ -395,7 +395,53 @@ export interface AutomationCapabilities {
 	 * client plugins for the host to capture.
 	 */
 	customizations?: AutomationCustomizationsCapability;
+	/**
+	 * Present when definitions may set {@link AutomationDefinition.target}.
+	 * Absence means each run creates a session.
+	 */
+	targets?: AutomationTargetsCapabilities;
 }
+
+/**
+ * Run targets supported for {@link AutomationDefinition.target}.
+ * {@link AutomationNewSessionTarget} is always supported.
+ *
+ * @category Commands
+ */
+export interface AutomationTargetsCapabilities {
+	/**
+	 * Present when {@link AutomationDefinition.target} may be an
+	 * {@link AutomationPreviousSessionTarget}. Clients SHOULD NOT author that
+	 * target when this is absent.
+	 */
+	previousSession?: AutomationPreviousSessionTargetCapability;
+	/**
+	 * Present when {@link AutomationDefinition.target} may be an
+	 * {@link AutomationChatTarget}. Clients SHOULD NOT author that target when
+	 * this is absent.
+	 */
+	chat?: AutomationChatTargetCapability;
+}
+
+/**
+ * Presence capability for {@link AutomationPreviousSessionTarget}.
+ *
+ * The empty object means "supported"; fields are reserved for future
+ * options.
+ *
+ * @category Commands
+ */
+export interface AutomationPreviousSessionTargetCapability { }
+
+/**
+ * Presence capability for {@link AutomationChatTarget}.
+ *
+ * The empty object means "supported"; fields are reserved for future
+ * options.
+ *
+ * @category Commands
+ */
+export interface AutomationChatTargetCapability { }
 
 /**
  * Presence capability for

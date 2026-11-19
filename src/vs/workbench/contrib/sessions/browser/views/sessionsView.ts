@@ -496,7 +496,7 @@ export class SessionsView extends ViewPane {
 				const requests = new Map<string, IChatScheduledRequest[]>();
 				for (const item of this.scheduledChatsService.items.read(reader)) {
 					if (item.conversation) {
-						const key = getComparisonKey(item.conversation.sessionResource);
+						const key = getComparisonKey(item.conversation.chatResource);
 						requests.set(key, [...requests.get(key) ?? [], item]);
 					}
 				}

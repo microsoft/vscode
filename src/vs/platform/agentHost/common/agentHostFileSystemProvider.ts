@@ -12,6 +12,7 @@ import { createFileSystemProviderError, FileChangeType, FilePermission, FileSyst
 import { getAgentHostPathStyle, type IAgentHostEnvironmentConnection } from './agentHostPathStyle.js';
 import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
 import { MCP_RESOURCE_SCHEME } from './mcpResourceUri.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_BUILTIN_SKILL_SCHEME } from './agentHostCustomizationUri.js';
 import { ContentEncoding, PathStyle, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
@@ -457,7 +458,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		return isAgentHostContentRefUri(resource)
 			|| decoded.scheme === 'session-db'
 			|| decoded.scheme === 'git-blob'
-			|| decoded.scheme === MCP_RESOURCE_SCHEME;
+			|| decoded.scheme === MCP_RESOURCE_SCHEME
+			|| decoded.scheme === AGENT_BUILTIN_SKILL_SCHEME
+			|| (decoded.scheme === AGENT_BUILTIN_CUSTOMIZATION_SCHEME && decoded.path.startsWith('/skill/'));
 	}
 
 	async stat(resource: URI): Promise<IStat> {

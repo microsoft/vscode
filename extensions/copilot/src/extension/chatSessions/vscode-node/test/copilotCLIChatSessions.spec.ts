@@ -97,14 +97,12 @@ class TestWorktreeService extends mock<IChatSessionWorktreeService>() {
 	override getWorktreeProperties = vi.fn(async (_sessionId: string | vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined> => undefined);
 	override setWorktreeProperties = vi.fn(async () => { });
 	override getWorktreeChanges = vi.fn<IChatSessionWorktreeService['getWorktreeChanges']>(async () => []);
-	override hasCachedChanges = vi.fn(async () => false);
 	override onDidChangeWorktreeChanges = Event.None;
 }
 
 class TestWorkspaceFolderService extends mock<IChatSessionWorkspaceFolderService>() {
 	declare readonly _serviceBrand: undefined;
 	override getWorkspaceChanges = vi.fn(async () => []);
-	override hasCachedChanges = vi.fn(async () => false);
 	override onDidChangeWorkspaceFolderChanges = Event.None;
 }
 
@@ -127,7 +125,6 @@ class TestFolderRepositoryManager extends mock<IFolderRepositoryManager>() {
 		trusted: undefined,
 	}));
 	override getRepositoryInfo = vi.fn(async () => ({ repository: undefined, headBranchName: undefined }));
-	override getFolderMRU = vi.fn(async () => []);
 }
 
 class TestGitService extends mock<IGitService>() {
@@ -508,7 +505,6 @@ describe('CopilotCLIChatSessionContentProvider (additional)', () => {
 			worktreePath: '/worktree',
 			autoCommit: true,
 		});
-		worktreeService.hasCachedChanges.mockResolvedValue(true);
 		worktreeService.getWorktreeChanges.mockResolvedValue([
 			{
 				uri: vscodeShim.Uri.file('/repository/file'),

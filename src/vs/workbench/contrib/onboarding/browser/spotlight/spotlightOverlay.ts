@@ -42,6 +42,8 @@ type PointerSide = 'top' | 'right' | 'bottom' | 'left';
 export interface ISpotlightContent {
 	readonly title: string;
 	readonly description: string | IMarkdownString;
+	/** Handles links in the callout description. */
+	readonly onDidClickLink?: (link: string) => void;
 	/** Localized primary button label, replacing the default Next or Done. */
 	readonly nextButtonLabel?: string;
 	/**
@@ -79,6 +81,8 @@ export interface ISpotlightShowOptions {
 	/** Uses the control's activation event instead of DOM clicks when advancing after its action. */
 	readonly onDidActivateTarget?: Event<void>;
 	readonly focusTarget?: IOnboardingFocusTarget;
+	/** Restores the focused callout control after replacing a lost target. */
+	readonly preserveFocus?: boolean;
 }
 
 /**
@@ -128,6 +132,7 @@ export class SpotlightOverlay extends Disposable {
 	private _hasShown = false;
 	private _previousFocus: HTMLElement | undefined;
 	private _scheduledLayout: IDisposable | undefined;
+	private _calloutFocusIndex = -1;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -191,6 +196,8 @@ export class SpotlightOverlay extends Disposable {
 
 	/** Show `content` spotlighting `target`. */
 	show(target: HTMLElement, content: ISpotlightContent, options: ISpotlightShowOptions = {}): void {
+		const calloutFocusIndex = options.preserveFocus ? this._calloutFocusIndex : -1;
+		this._calloutFocusIndex = -1;
 		if (!this._hasShown) {
 			this._hasShown = true;
 			this._previousFocus = isHTMLElement(getActiveElement()) ? getActiveElement() as HTMLElement : undefined;
@@ -316,7 +323,7 @@ export class SpotlightOverlay extends Disposable {
 		// to advance) or, otherwise, into the callout's primary action. An explicit
 		// focusEndTour wins, as the target may not be focusable.
 		const closeButton = this._titleCloseButton && content.endTourLabel === undefined ? this._closeButton : undefined;
-		this._focus(content.focusEndTour ? (closeButton ?? this._skipButton).element : hideNext ? focusElement : this._nextButton.element);
+		this._focus(this._collectCalloutFocusable()[calloutFocusIndex] ?? (content.focusEndTour ? (closeButton ?? this._skipButton).element : hideNext ? focusElement : this._nextButton.element));
 	}
 
 	/** Prevents duplicate activation while waiting for an action to be accepted. */
@@ -380,6 +387,7 @@ export class SpotlightOverlay extends Disposable {
 
 		const rect = target.getBoundingClientRect();
 		if (!target.isConnected || rect.width === 0 || rect.height === 0) {
+			this._calloutFocusIndex = this._collectCalloutFocusable().findIndex(element => element === getActiveElement());
 			this._root.style.display = 'none';
 			this._onDidLoseTarget.fire();
 			return;
@@ -534,7 +542,7 @@ export class SpotlightOverlay extends Disposable {
 		this._descriptionRenderStore.clear();
 		this._description.replaceChildren();
 		if (isMarkdownString(content.description)) {
-			const rendered = this._descriptionRenderStore.add(renderMarkdown(content.description));
+			const rendered = this._descriptionRenderStore.add(renderMarkdown(content.description, { actionHandler: content.onDidClickLink }));
 			this._description.appendChild(rendered.element);
 		} else {
 			this._description.textContent = content.description;
@@ -623,6 +631,10 @@ export class SpotlightOverlay extends Disposable {
 				// eslint-disable-next-line eslint-js/no-restricted-syntax -- querying the spotlight target subtree for focusable controls
 				: [this._target, ...this._target.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
 			: [];
+		return [...targetFocusables.filter(element => this._isTabbable(element)), ...this._collectCalloutFocusable()];
+	}
+
+	private _collectCalloutFocusable(): HTMLElement[] {
 		const descriptionFocusables = Array.from(
 			// eslint-disable-next-line eslint-js/no-restricted-syntax -- querying our own callout description subtree for focusable markdown content (e.g. links)
 			this._description.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
@@ -631,7 +643,7 @@ export class SpotlightOverlay extends Disposable {
 			.filter(button => button.element.style.display !== 'none')
 			.map(button => button.element);
 		const closeButton = this._closeButton ? [this._closeButton.element] : [];
-		return [...targetFocusables, ...closeButton, ...descriptionFocusables, ...buttons].filter(element => this._isTabbable(element));
+		return [...closeButton, ...descriptionFocusables, ...buttons].filter(element => this._isTabbable(element));
 	}
 
 	private _isTabbable(element: HTMLElement): boolean {

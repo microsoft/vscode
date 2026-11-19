@@ -2949,13 +2949,86 @@ suite('CopilotAgentSession', () => {
 
 		for (const resume of [false, true]) {
 			test(`every attached SDK session receives the working directory's repository (resume=${resume})`, async () => {
-				const { session, mockSession } = await createAgentSession(disposables, { resume, workingDirectory, gitService: withRemotes(['git@github.com:Microsoft/VSCode.git', 'https://github.com/fork/vscode.git']) });
+				const { session, mockSession } = await createAgentSession(disposables, {
+					resume, workingDirectory, gitService: withRemotes(['git@github.com:Microsoft/VSCode.git', 'https://github.com/fork/vscode.git']),
+					configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+					configureMockSession: mock => { mock.permissionModeResult = { success: true, mode: 'assisted' }; },
+					duringLaunch: runtime => { runtime.resolveInitialPermissionMode?.(); },
+				});
 				session.markTelemetryRevocationRequiresRestart();
 				await session.revalidateTelemetryBeforeRegistration();
 				const context = { assistedApprovalContext: { source: 'vscode.repository', value: { repository: 'microsoft/vscode', host: 'github.com' } } };
 				assert.deepStrictEqual(contexts(mockSession), [context, context]);
 			});
 		}
+
+		test('a resumed session with an unknown permission mode still receives repository context', async () => {
+			const { mockSession } = await createAgentSession(disposables, {
+				resume: true, keepsRestoredPermissionMode: true, workingDirectory,
+				gitService: withRemotes(['https://github.com/microsoft/vscode.git']),
+				duringLaunch: runtime => { runtime.resolveInitialPermissionMode?.(); },
+			});
+			assert.deepStrictEqual(contexts(mockSession), [
+				{ assistedApprovalContext: { source: 'vscode.repository', value: { repository: 'microsoft/vscode', host: 'github.com' } } },
+			]);
+		});
+
+		for (const level of ['default', 'autoApprove'] as const) {
+			test(`non-Assisted launches and sends do not discover remotes (${level})`, async () => {
+				const getFetchRemoteUrls = spy(async () => ['https://github.com/microsoft/vscode.git']);
+				const { session, mockSession } = await createAgentSession(disposables, {
+					workingDirectory,
+					gitService: { ...createNoopGitService(), getFetchRemoteUrls },
+					configValues: { [SessionConfigKey.AutoApprove]: level },
+					duringLaunch: runtime => { runtime.resolveInitialPermissionMode?.(); },
+				});
+				await session.send('hello', undefined, 'non-assisted');
+				assert.deepStrictEqual({ reads: getFetchRemoteUrls.callCount, contexts: contexts(mockSession) }, { reads: 0, contexts: [] });
+			});
+		}
+
+		test('switching to Assisted waits for context before enabling the judge and sending, without repeating discovery', async () => {
+			const getFetchRemoteUrls = spy(async () => ['https://github.com/microsoft/vscode.git']);
+			const { session, mockSession, setConfigValue } = await createAgentSession(disposables, {
+				workingDirectory,
+				gitService: { ...createNoopGitService(), getFetchRemoteUrls },
+				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+				configureMockSession: mock => { mock.permissionModeResult = { success: true, mode: 'manual' }; },
+				duringLaunch: runtime => { runtime.resolveInitialPermissionMode?.(); },
+			});
+			assert.strictEqual(getFetchRemoteUrls.callCount, 0);
+			const configureEntered = new DeferredPromise<void>();
+			const configureRelease = new DeferredPromise<void>();
+			mockSession.permissionConfigureGate = configureRelease.p;
+			mockSession.onPermissionConfigure = () => { void configureEntered.complete(); };
+			setConfigValue(SessionConfigKey.AutoApprove, 'assisted');
+			const sending = session.send('hello', undefined, 'first-assisted');
+			try {
+				await configureEntered.p;
+				const beforeContextApplied = { modes: [...mockSession.permissionModeSetCalls], sends: mockSession.sendRequests.length };
+				await configureRelease.complete();
+				await sending;
+				setConfigValue(SessionConfigKey.AutoApprove, 'default');
+				await session.syncPermissionMode('config-change');
+				setConfigValue(SessionConfigKey.AutoApprove, 'assisted');
+				await session.syncPermissionMode('config-change');
+				assert.deepStrictEqual({
+					beforeContextApplied,
+					reads: getFetchRemoteUrls.callCount,
+					contexts: contexts(mockSession),
+					modes: mockSession.permissionModeSetCalls,
+					sends: mockSession.sendRequests.length,
+				}, {
+					beforeContextApplied: { modes: [], sends: 0 },
+					reads: 1,
+					contexts: [{ assistedApprovalContext: { source: 'vscode.repository', value: { repository: 'microsoft/vscode', host: 'github.com' } } }],
+					modes: ['assisted', 'manual', 'assisted'],
+					sends: 1,
+				});
+			} finally {
+				await configureRelease.complete();
+			}
+		});
 
 		test('a session without a recognized repository sends no context', async () => {
 			const sent = async (options: { readonly workingDirectory?: URI; readonly remotes?: readonly string[] }) => {
@@ -18525,6 +18598,35 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(turnStarted.queuedMessageId, 'steer-1');
 		});
 
+		test('records the original turn across repeated steering without extending execution routing lifetime', async () => {
+			const telemetryService = new TestDataTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('original');
+			mockSession.fire('user.message', { content: 'start', interactionId: 'interaction' } as SessionEventPayload<'user.message'>['data']);
+			const originalTurn = session['_currentTurn'].value!;
+			await session.sendSteering({ id: 'steer-1', message: { text: 'first steering', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', { content: 'first steering', interactionId: 'interaction', delivery: 'steering' } as SessionEventPayload<'user.message'>['data']);
+			const first = session.currentTurnId;
+			await session.sendSteering({ id: 'steer-2', message: { text: 'second steering', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', { content: 'second steering', interactionId: 'interaction', delivery: 'steering' } as SessionEventPayload<'user.message'>['data']);
+			const second = session.currentTurnId;
+			session.resetTurnState('independent');
+			mockSession.fire('user.message', { content: 'new request', interactionId: 'new-interaction' } as SessionEventPayload<'user.message'>['data']);
+			assert.deepStrictEqual({
+				oldRoutingReleased: originalTurn.interactionIds.size === 0,
+				edges: telemetryService.events.filter(event => event.name === 'agentHost.turnSteered').map(event => ({
+					turn: event.data.turnId, previous: event.data.steeredFromTurn, original: event.data.originalTurnId,
+				})),
+				associations: ['original', first!, second!, 'independent'].map(turn => ({
+					turn, original: session.turnInteractionCorrelation.get(turn)?.originalTurnId,
+				})),
+			}, {
+				oldRoutingReleased: true,
+				edges: [{ turn: first, previous: 'original', original: 'original' }, { turn: second, previous: first, original: 'original' }],
+				associations: [{ turn: 'original', original: 'original' }, { turn: first, original: 'original' }, { turn: second, original: 'original' }, { turn: 'independent', original: 'independent' }],
+			});
+		});
+
 		test('promotes scaffolded steering with attachments to its own turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
@@ -18701,6 +18803,44 @@ Use the attached image as context.
 				readyAfterEcho: true,
 			});
 		});
+
+		for (const sameInteraction of [true, false]) {
+			test(`records idle-before-echo steering lineage only with matching interaction evidence (${sameInteraction})`, async () => {
+				const telemetryService = new TestDataTelemetryService();
+				const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+				session.resetTurnState('original');
+				mockSession.fire('user.message', { content: 'start', interactionId: 'original-interaction' } as SessionEventPayload<'user.message'>['data']);
+				const sendGate = new DeferredPromise<string>();
+				mockSession.send = async () => sendGate.p;
+				const sending = session.sendSteering({ id: 'steer', message: { text: 'steer', origin: { kind: MessageKind.User } } });
+				await timeout(0);
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				const successor = session.currentTurnId;
+				mockSession.fire('assistant.turn_start', {
+					turnId: 'steering-sdk-turn',
+					interactionId: sameInteraction ? 'original-interaction' : 'new-interaction',
+				} as SessionEventPayload<'assistant.turn_start'>['data']);
+				const interimOrigin = session.turnInteractionCorrelation.get(successor!)?.originalTurnId;
+				sendGate.complete('steering-message');
+				await sending;
+				mockSession.fire('user.message', {
+					content: 'steer', messageId: 'steering-message',
+					delivery: sameInteraction ? 'steering' : 'idle',
+					interactionId: sameInteraction ? 'original-interaction' : 'new-interaction',
+				} as SessionEventPayload<'user.message'>['data']);
+				assert.deepStrictEqual({
+					interimOrigin,
+					edges: telemetryService.events.filter(event => event.name === 'agentHost.turnSteered').map(event => ({
+						turn: event.data.turnId, previous: event.data.steeredFromTurn, original: event.data.originalTurnId,
+					})),
+					original: session.turnInteractionCorrelation.get(successor!)?.originalTurnId,
+				}, {
+					interimOrigin: undefined,
+					edges: [{ turn: successor, previous: 'original', original: sameInteraction ? 'original' : successor }],
+					original: sameInteraction ? 'original' : successor,
+				});
+			});
+		}
 
 		for (const ending of ['idle', 'abort'] as const) {
 			test(`clears promoted steering readiness on ${ending}`, async () => {
@@ -30125,6 +30265,94 @@ Use the attached image as context.
 
 	suite('SDK callback logging', () => {
 
+		suite('turn-start checkpoint', () => {
+			const hook = {
+				sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo',
+				toolName: 'edit', toolArgs: { path: '/repo/file.ts' },
+			};
+			const send = (session: CopilotAgentSession, checkpoint?: Promise<void>, turnId = 'turn-checkpoint') =>
+				session.send('Edit the file', undefined, turnId, undefined, undefined, AgentHostClientType.Unknown, undefined, undefined, false, undefined, undefined, undefined, checkpoint);
+
+			test('waits before dispatch when managed policy may suppress SDK hooks', async () => {
+				for (const failClosed of [false, true]) {
+					const checkpoint = new DeferredPromise<void>();
+					const { session, runtime, mockSession } = await createAgentSession(disposables);
+					const resolved = {
+						source: 'server' as const, serverManaged: true, deviceManaged: false,
+						bypassPermissionsDisabled: false, failClosed,
+						managedKeys: failClosed ? [] : ['allowManagedHooksOnly'],
+						settings: failClosed ? undefined : { allowManagedHooksOnly: true },
+					};
+					if (failClosed) {
+						runtime.setApprovalPolicy?.(resolved, {});
+					} else {
+						runtime.onSessionEvent?.({ type: 'session.managed_settings_resolved', id: 'policy', timestamp: new Date(0).toISOString(), parentId: null, ephemeral: true, data: resolved });
+					}
+					let sent = false;
+					const sending = send(session, checkpoint.p).then(() => { sent = true; });
+					await timeout(0);
+					const pending = { sent, sends: mockSession.sendRequests.length };
+					checkpoint.complete();
+					await sending;
+
+					assert.deepStrictEqual({ pending, sent, sends: mockSession.sendRequests.length }, {
+						pending: { sent: false, sends: 0 }, sent: true, sends: 1,
+					});
+				}
+			});
+
+			test('waits for the checkpoint before any pre-tool work', async () => {
+				const checkpoint = new DeferredPromise<void>();
+				const { session, runtime } = await createAgentSession(disposables);
+				let editStarts = 0;
+				(session as unknown as ISessionInternalsForTest)._editTracker.trackEditStart = async () => { editStarts++; };
+				await send(session, checkpoint.p);
+				let resolved = 0;
+				const preToolUse = Promise.all(['edit', 'external_tool', 'docs-search'].map(toolName => runtime.handlePreToolUse({ ...hook, toolName }).then(result => {
+					resolved++;
+					return result;
+				})));
+				await timeout(0);
+				const pending = { resolved, editStarts };
+				checkpoint.complete();
+				const result = await preToolUse;
+
+				assert.deepStrictEqual({ pending, result, editStarts }, {
+					pending: { resolved: 0, editStarts: 0 }, result: [undefined, undefined, undefined], editStarts: 1,
+				});
+			});
+
+			test('denies tools without edit tracking when the checkpoint rejects', async () => {
+				const checkpoint = new DeferredPromise<void>();
+				const logService = new CapturingLogService();
+				const { session, runtime } = await createAgentSession(disposables, { logService });
+				let editStarts = 0;
+				(session as unknown as ISessionInternalsForTest)._editTracker.trackEditStart = async () => { editStarts++; };
+				await send(session, checkpoint.p);
+				const preToolUse = runtime.handlePreToolUse(hook);
+				const error = new Error('checkpoint failed');
+				checkpoint.error(error);
+				const reason = 'The checkpoint of the working tree could not be captured before this turn, so tools cannot run.';
+
+				assert.deepStrictEqual({ result: await preToolUse, editStarts, errors: logService.errors }, {
+					result: { permissionDecision: 'deny', permissionDecisionReason: reason, additionalContext: reason },
+					editStarts: 0,
+					errors: [{ first: error, args: ['[Copilot:test-session-1] Failed to capture turn-start checkpoint: tool=edit'] }],
+				});
+			});
+
+			test('subagent tools do not wait for the checkpoint', async () => {
+				const checkpoint = new DeferredPromise<void>();
+				const { session, runtime } = await createAgentSession(disposables);
+				let editStarts = 0;
+				(session as unknown as ISessionInternalsForTest)._editTracker.trackEditStart = async () => { editStarts++; };
+				await send(session, checkpoint.p);
+
+				assert.deepStrictEqual({ result: await runtime.handlePreToolUse({ ...hook, agentId: 'agent-1' }), editStarts }, { result: undefined, editStarts: 1 });
+				checkpoint.complete();
+			});
+		});
+
 		test('logs and rethrows user input callback failures', async () => {
 			const logService = new CapturingLogService();
 			const { session, runtime } = await createAgentSession(disposables, { logService });
@@ -33990,6 +34218,27 @@ Use the attached image as context.
 			const tools = runtime.createServerSdkTools();
 			assert.deepStrictEqual(tools.map(t => t.name).sort(), [...serverToolHost.toolNames].sort());
 			assert.deepStrictEqual(tools.map(t => t.defer), tools.map(() => 'never'));
+		});
+
+		test('sends a server tool\'s deferred-only schema only while the tool is deferred', async () => {
+			const inputSchema = { type: 'object' as const, properties: { model: { type: 'string', description: 'Model.' } } };
+			const deferredInputSchema = { type: 'object' as const, properties: { model: { type: 'string', description: 'Model. Available models: a, b.' } } };
+			const serverToolHost = new FakeServerToolHost([
+				{ name: 'deferred', description: 'Deferred', inputSchema, deferredInputSchema },
+				{ name: 'eager', description: 'Eager', inputSchema, deferredInputSchema, deferLoading: false },
+			]);
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
+			const describe = (toolSearchActive: boolean) => runtime.createServerSdkTools(toolSearchActive).map(({ name, parameters, defer }) => ({ name, parameters, defer }));
+			assert.deepStrictEqual({ toolSearch: describe(true), noToolSearch: describe(false) }, {
+				toolSearch: [
+					{ name: 'deferred', parameters: deferredInputSchema, defer: 'auto' },
+					{ name: 'eager', parameters: inputSchema, defer: 'never' },
+				],
+				noToolSearch: [
+					{ name: 'deferred', parameters: inputSchema, defer: 'never' },
+					{ name: 'eager', parameters: inputSchema, defer: 'never' },
+				],
+			});
 		});
 
 		for (const resume of [false, true]) {

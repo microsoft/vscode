@@ -30,27 +30,55 @@ suite('MultiDiffEditor Actions', () => {
 		assert.ok(submenu);
 		const actions = [new ViewFileListAsListAction(), new ViewFileListAsTreeAction(), new PositionFileListLeftAction(), new PositionFileListRightAction()];
 		const entries = actions.map(action => {
-			const menu = action.desc.menu;
-			assert.ok(menu && !Array.isArray(menu));
+			const menu = [action.desc.menu ?? []].flat().find(menu => menu.id === submenu.submenu);
+			assert.ok(menu);
 			const toggled = action.desc.toggled;
 			return { id: action.desc.id, submenu: menu.id.id, group: menu.group, order: menu.order, toggled: toggled && (hasKey(toggled, { condition: true }) ? toggled.condition : toggled).serialize(), whenKeys: menu.when?.keys().sort(), preconditionKeys: action.desc.precondition?.keys().sort() };
 		});
-		const toggle = new ToggleFileListAction().desc;
-		assert.ok(toggle.menu && !Array.isArray(toggle.menu));
 		// The view mode and position stay available in the Agents window, which contributes the submenu to its own editor title menu.
 		// Hidden where the editor has no file list, so a host's own entries are not shown next to disabled ones.
 		const whenKeys = ['activeEditor', 'multiDiffEditorFileListAvailable'];
 		const preconditionKeys = ['activeEditor', 'multiDiffEditorFileListAvailable'];
-		assert.deepStrictEqual({ group: submenu.group, icon: toggle.icon, toggleOrder: toggle.menu.order, togglePreconditionKeys: toggle.precondition?.keys().sort(), entries }, {
+		assert.deepStrictEqual({ group: submenu.group, entries }, {
 			group: 'z_files',
-			icon: { id: 'list-flat' },
-			toggleOrder: 100001,
-			togglePreconditionKeys: ['activeEditor', 'isSessionsWindow', 'multiDiffEditorFileListAvailable'],
 			entries: [
 				{ id: 'multiDiffEditor.viewFileListAsList', submenu: submenu.submenu.id, group: '1_view', order: 1, toggled: 'multiDiffEditorFileListViewMode == \'list\'', whenKeys, preconditionKeys },
 				{ id: 'multiDiffEditor.viewFileListAsTree', submenu: submenu.submenu.id, group: '1_view', order: 2, toggled: 'multiDiffEditorFileListViewMode == \'tree\'', whenKeys, preconditionKeys },
 				{ id: 'multiDiffEditor.positionFileListLeft', submenu: submenu.submenu.id, group: '2_position', order: 1, toggled: 'multiDiffEditorFileListPosition == \'left\'', whenKeys, preconditionKeys },
 				{ id: 'multiDiffEditor.positionFileListRight', submenu: submenu.submenu.id, group: '2_position', order: 2, toggled: 'multiDiffEditorFileListPosition == \'right\'', whenKeys, preconditionKeys },
+			],
+		});
+	});
+
+	test('offers Toggle Files as a split button whose dropdown puts the list on either side of the diffs', () => {
+		const splitButton = MenuRegistry.getMenuItems(MenuId.EditorTitle)
+			.filter(isISubmenuItem)
+			.find(item => item.submenu.id === 'MultiDiffEditorFileListToggle');
+		assert.ok(splitButton);
+		const entries = [new ToggleFileListAction(), new PositionFileListLeftAction(), new PositionFileListRightAction()].map(action => {
+			const menu = [action.desc.menu ?? []].flat().find(menu => menu.id === splitButton.submenu);
+			return { id: action.desc.id, title: typeof action.desc.title === 'string' ? action.desc.title : action.desc.title.value, group: menu?.group, order: menu?.order, hasToggled: !!action.desc.toggled };
+		});
+		assert.deepStrictEqual({
+			group: splitButton.group,
+			order: splitButton.order,
+			icon: splitButton.icon,
+			isSplitButton: splitButton.isSplitButton,
+			isAlwaysShown: splitButton.isAlwaysShown,
+			// Not in the Agents window, which offers Toggle Details instead.
+			whenKeys: splitButton.when?.keys().sort(),
+			entries,
+		}, {
+			group: 'navigation',
+			order: 100001,
+			icon: { id: 'list-flat' },
+			isSplitButton: { excludePrimaryActionFromDropdown: true },
+			isAlwaysShown: true,
+			whenKeys: ['activeEditor', 'isSessionsWindow', 'multiDiffEditorFileListAvailable'],
+			entries: [
+				{ id: 'multiDiffEditor.toggleFileList', title: 'Toggle Files', group: 'navigation', order: 1, hasToggled: true },
+				{ id: 'multiDiffEditor.positionFileListLeft', title: 'Left', group: '2_position', order: 1, hasToggled: true },
+				{ id: 'multiDiffEditor.positionFileListRight', title: 'Right', group: '2_position', order: 2, hasToggled: true },
 			],
 		});
 	});

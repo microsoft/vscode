@@ -26,7 +26,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete } from '../common/chatActionBuilders.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
-import { AutomationDisableConditionKind, AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition, type AutomationEntry } from '../../common/state/protocol/channels-automation/state.js';
+import { AutomationDisableConditionKind, AutomationMisfirePolicy, AutomationOperation, AutomationTargetKind, AutomationTriggerKind, type AutomationDefinition, type AutomationEntry } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
 import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type Message, type SessionActiveClient } from '../../common/state/sessionState.js';
@@ -174,6 +174,7 @@ suite('AgentHostAutomationService', () => {
 			getRecoverableSessionProvider: execution?.getRecoverableSessionProvider ?? (async session => stateManager.getSessionSummary(session.toString())?.provider),
 			deleteSession: execution?.deleteSession ?? (async () => { }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
+			prepareSessionMessage: execution?.prepareSessionMessage,
 			cancelSession: execution?.cancelSession ?? (async () => false),
 			resumeTurn: execution?.resumeTurn ?? (async () => false),
 		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections, systemWake);
@@ -1744,6 +1745,235 @@ suite('AgentHostAutomationService', () => {
 			}, { createdModel: model, sentModel: model, savedSessionModel: undefined });
 		}));
 	}
+
+	function previousSessionDefinition(): AutomationDefinition {
+		return { ...definition(), session: { provider: 'mock', model: { id: 'mock-model' } }, target: { kind: AutomationTargetKind.PreviousSession } };
+	}
+
+	/**
+	 * A host whose new sessions run one turn and that queues a continued run's message in its session's default chat,
+	 * unless `unusable` rejects the session or `restoreError` fails restoring it.
+	 */
+	function createPreviousSessionService(sessions: readonly URI[], options: { readonly unusable?: () => boolean; readonly restoreError?: () => Error | undefined; readonly cancelled?: string[]; readonly createGate?: Promise<void> } = {}) {
+		const created: string[] = [];
+		const prepared: { readonly session: string; readonly provider: string; readonly id: string; readonly model: unknown }[] = [];
+		const service = createService({
+			createSession: async () => {
+				const session = sessions[created.length];
+				created.push(session.toString());
+				await options.createGate;
+				stateManager.createSession({ resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), defaultChat: buildDefaultChatUri(session.toString()) });
+				return session;
+			},
+			startSession: async (session, message) => {
+				const chat = buildDefaultChatUri(session.toString());
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: `created-${session.path}`, startedAt: new Date().toISOString(), message });
+				stateManager.dispatchServerAction(chat, chatTurnComplete(`created-${session.path}`, 1));
+			},
+			prepareSessionMessage: async (session, provider, _template, message, id) => {
+				const restoreError = options.restoreError?.();
+				if (restoreError) {
+					throw restoreError;
+				}
+				if (options.unusable?.()) {
+					return undefined;
+				}
+				prepared.push({ session: session.toString(), provider, id, model: message.model });
+				return () => stateManager.dispatchServerAction(buildDefaultChatUri(session.toString()), { type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id, message });
+			},
+			cancelSession: async (session, turnId) => {
+				options.cancelled?.push(`${session}#${turnId}`);
+				stateManager.dispatchServerAction(buildDefaultChatUri(session.toString()), { type: ActionType.ChatTurnCancelled, turnId: turnId!, duration: 1 });
+				return true;
+			},
+		});
+		return { service, created, prepared };
+	}
+
+	function nextQueuedMessage(): Promise<unknown> {
+		return Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.ChatPendingMessageSet));
+	}
+
+	function startTurn(chat: string, turnId: string, queuedMessageId?: string): void {
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId, startedAt: new Date().toISOString(), message: { text: 'Hi', origin: { kind: MessageKind.User } }, ...(queuedMessageId ? { queuedMessageId } : {}) });
+	}
+
+	test('continues the previous run\'s session with a queued message that only its own turn ends, until a settings edit', async () => {
+		const [first, afterEdit] = [URI.parse('mock:/first'), URI.parse('mock:/after-edit')];
+		const chat = buildDefaultChatUri(first.toString());
+		const { service, created, prepared } = createPreviousSessionService([first, afterEdit]);
+		const automation = createAction().resource;
+		const run = (requestId: string) => service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId });
+		await service.handleCreate({ ...createAction(), definition: previousSessionDefinition() });
+		await terminalRun((await run('first')).resource);
+
+		// A user's turn is running when the next run is due, so its message waits in the queue.
+		startTurn(chat, 'user-turn');
+		const queued = nextQueuedMessage();
+		const second = await run('second');
+		await queued;
+		const statuses: AutomationRunStatus[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === second.resource && envelope.action.type === ActionType.AutomationRunLifecycleChanged) {
+				statuses.push(envelope.action.lifecycle.status);
+			}
+		}));
+		const waiting = stateManager.getAutomationRunState(second.resource);
+		stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 1));
+		startTurn(chat, 'second-turn', second.resource);
+		stateManager.dispatchServerAction(chat, chatTurnComplete('second-turn', 1));
+		await terminalRun(second.resource);
+
+		// The session keeps the mode it was created with, so changing the mode starts over.
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automation, changes: { session: { ...previousSessionDefinition().session, config: { mode: 'autopilot' } } } });
+		const third = await run('third');
+		await terminalRun(third.resource);
+
+		assert.deepStrictEqual({
+			targets: service.capabilities?.targets,
+			created, prepared,
+			waiting: { status: waiting?.lifecycle.status, sessions: waiting?.sessions, primarySession: waiting?.primarySession },
+			statuses,
+			third: stateManager.getAutomationRunState(third.resource)?.primarySession,
+		}, {
+			targets: { previousSession: {} },
+			created: [first.toString(), afterEdit.toString()],
+			prepared: [{ session: first.toString(), provider: 'mock', id: second.resource, model: { id: 'mock-model' } }],
+			waiting: { status: AutomationRunStatus.Pending, sessions: [first.toString()], primarySession: first.toString() },
+			statuses: [AutomationRunStatus.Running, AutomationRunStatus.Completed],
+			third: afterEdit.toString(),
+		});
+		await assert.rejects(service.handleCreate({ ...createAction('ahp-automation:/chat-target'), definition: { ...definition(), target: { kind: AutomationTargetKind.Chat, session: first.toString(), chat } } }), /target is not available: chat/);
+	});
+
+	test('cancelling or withdrawing a queued run never touches another turn, and archiving its session fails it', async () => {
+		const [first, afterArchive] = [URI.parse('mock:/first'), URI.parse('mock:/after-archive')];
+		const chat = buildDefaultChatUri(first.toString());
+		const cancelled: string[] = [];
+		let archived = false;
+		const { service, created } = createPreviousSessionService([first, afterArchive], { cancelled, unusable: () => archived });
+		const automation = createAction().resource;
+		const queue = async (requestId: string) => {
+			const queued = nextQueuedMessage();
+			const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId });
+			await queued;
+			return run.resource;
+		};
+		await service.handleCreate({ ...createAction(), definition: previousSessionDefinition() });
+		await terminalRun((await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'first' })).resource);
+		startTurn(chat, 'user-turn');
+
+		const cancelledWhileQueued = await queue('cancelled');
+		await service.handleCancel(cancelledWhileQueued, { type: ActionType.AutomationRunCancelRequested });
+		const withdrawn = await queue('withdrawn');
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Queued, id: withdrawn });
+		await terminalRun(withdrawn);
+		const userTurn = stateManager.getChatState(chat)?.activeTurn?.id;
+
+		stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 1));
+		const cancelledWhileRunning = await queue('running');
+		startTurn(chat, 'running-turn', cancelledWhileRunning);
+		await service.handleCancel(cancelledWhileRunning, { type: ActionType.AutomationRunCancelRequested });
+		await terminalRun(cancelledWhileRunning);
+
+		startTurn(chat, 'other-turn');
+		const archivedWhileQueued = await queue('archived');
+		archived = true;
+		stateManager.dispatchServerAction(first.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		await terminalRun(archivedWhileQueued);
+		const next = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'next' });
+		await terminalRun(next.resource);
+
+		const status = (run: string) => stateManager.getAutomationRunState(run)?.lifecycle.status;
+		assert.deepStrictEqual({
+			statuses: [cancelledWhileQueued, withdrawn, cancelledWhileRunning, archivedWhileQueued].map(status),
+			userTurn, cancelled, created,
+			queued: stateManager.getChatState(chat)?.queuedMessages ?? [],
+			next: stateManager.getAutomationRunState(next.resource)?.primarySession,
+		}, {
+			statuses: [AutomationRunStatus.Cancelled, AutomationRunStatus.Cancelled, AutomationRunStatus.Cancelled, AutomationRunStatus.Failed],
+			userTurn: 'user-turn',
+			cancelled: [`${first}#running-turn`],
+			created: [first.toString(), afterArchive.toString()],
+			queued: [],
+			next: afterArchive.toString(),
+		});
+	});
+
+	test('a previous session that fails to restore fails the run instead of starting over', async () => {
+		const first = URI.parse('mock:/first');
+		let restoreError: Error | undefined;
+		const { service, created, prepared } = createPreviousSessionService([first, URI.parse('mock:/unexpected')], { restoreError: () => restoreError });
+		const automation = createAction().resource;
+		const run = (requestId: string) => service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId });
+		await service.handleCreate({ ...createAction(), definition: previousSessionDefinition() });
+		await terminalRun((await run('first')).resource);
+
+		restoreError = new Error('disk unavailable');
+		const failed = await run('failed');
+		await terminalRun(failed.resource);
+		restoreError = undefined;
+		const queued = nextQueuedMessage();
+		const retried = await run('retried');
+		await queued;
+
+		const lifecycle = stateManager.getAutomationRunState(failed.resource)?.lifecycle;
+		assert.deepStrictEqual({
+			failed: { status: lifecycle?.status, error: lifecycle?.status === AutomationRunStatus.Failed ? lifecycle.error?.message : undefined },
+			created, prepared: prepared.map(entry => entry.id),
+		}, {
+			failed: { status: AutomationRunStatus.Failed, error: 'disk unavailable' },
+			created: [first.toString()],
+			prepared: [retried.resource],
+		});
+	});
+
+	test('overlapping previous-session runs share the session that the earliest one creates', async () => {
+		const resource = createAction().resource;
+		const epoch = new Date(0).toISOString();
+		storageService.set('automations', {
+			catalog: { automations: [{ resource, definition: previousSessionDefinition(), runs: [], operations: [], createdAt: epoch, modifiedAt: epoch }] },
+			runs: ['earlier', 'later'].map(id => ({ resource: `ahp-automation-run:/${id}`, automation: resource, origin: { kind: AutomationRunOriginKind.Manual }, sessions: [], lifecycle: { status: AutomationRunStatus.Pending, createdAt: epoch } })),
+		});
+		await storageService.whenIdle();
+		const session = URI.parse('mock:/shared');
+		const release = new DeferredPromise<void>();
+		const queued = nextQueuedMessage();
+		const { service, created, prepared } = createPreviousSessionService([session, URI.parse('mock:/unexpected')], { createGate: release.p });
+		await service.handleConfigurationChanged();
+		await release.complete();
+		await queued;
+		assert.deepStrictEqual({ created, prepared: prepared.map(entry => entry.id) }, { created: [session.toString()], prepared: ['ahp-automation-run:/later'] });
+	});
+
+	test('a previous-session run waiting for its turn is queued again after a restart and covers due occurrences meanwhile', async () => {
+		const now = new Date();
+		const scheduledFor = new Date(now.getTime() - 2 * 60_000).toISOString();
+		const resource = createAction().resource;
+		const session = URI.parse('mock:/waiting');
+		const waiting = 'ahp-automation-run:/waiting';
+		stateManager.createSession({ resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle, createdAt: now.toISOString(), modifiedAt: now.toISOString(), defaultChat: buildDefaultChatUri(session.toString()) });
+		storageService.set('automations', {
+			catalog: {
+				automations: [{
+					resource, definition: { ...previousSessionDefinition(), triggers: scheduledDefinition().triggers }, nextRunAt: scheduledFor, runs: [], operations: [],
+					createdAt: now.toISOString(), modifiedAt: now.toISOString(), _meta: { 'vscode.scheduleCursors': { schedule: scheduledFor } },
+				}],
+			},
+			runs: [{ resource: waiting, automation: resource, origin: { kind: AutomationRunOriginKind.Manual }, sessions: [session.toString()], primarySession: session.toString(), lifecycle: { status: AutomationRunStatus.Pending, createdAt: now.toISOString() } }],
+			runProviders: { [waiting]: 'mock' },
+		});
+		await storageService.whenIdle();
+		const queued = nextQueuedMessage();
+		const claimed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.AutomationSet && Date.parse(envelope.action.automation.nextRunAt ?? '') > now.getTime()));
+		const { prepared } = createPreviousSessionService([]);
+		await Promise.all([queued, claimed]);
+		assert.deepStrictEqual({
+			prepared: prepared.map(entry => entry.id),
+			runs: stateManager.getAutomationCatalogState()?.entries[0].runs.map(run => run.resource),
+			queued: stateManager.getChatState(buildDefaultChatUri(session.toString()))?.queuedMessages?.map(message => message.id),
+		}, { prepared: [waiting], runs: [waiting], queued: [waiting] });
+	});
 
 	test('logs the saved run configuration despite an edit while the session is being created', async () => {
 		const session = URI.parse('copilotcli:/configured-session');
