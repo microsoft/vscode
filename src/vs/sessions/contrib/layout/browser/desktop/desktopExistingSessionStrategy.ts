@@ -7,12 +7,12 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableFromEvent, observableSignal } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -33,6 +33,7 @@ import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '..
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
 import { FilesDetailsState, getFilesDetailsState, getFloatingMarkdownDetailsState, getLayoutWorkspace, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty, isQuickChatShown } from './desktopSharedHelpers.js';
@@ -664,7 +665,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 	private _registerToggleDetailsAction(): IDisposable {
 		const that = this;
-		return registerAction2(class extends Action2 {
+		const action = registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: TOGGLE_DETAILS_COMMAND_ID,
@@ -682,27 +683,11 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 							IsAuxiliaryWindowContext.toNegated(),
 							DesktopLayoutContext)
 					},
+					// The primary action of the split button below.
 					menu: {
-						id: MenuId.EditorTitleLayout,
+						id: Menus.DetailsToggle,
 						group: 'navigation',
-						order: desktopHeaderToggleDetailsOrder,
-						// Not every tab type has a detail panel to show/hide (e.g. browser and
-						// search tabs), so only surface the toggle for tab types that do, or
-						// for a multi diff editor whose file list it toggles instead.
-						when: ContextKeyExpr.and(
-							IsSessionsWindowContext,
-							IsAuxiliaryWindowContext.toNegated(),
-							IsTopRightEditorGroupContext,
-							DesktopLayoutContext,
-							ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
-							MainEditorAreaVisibleContext,
-							ContextKeyExpr.or(
-								HasDockedDetailsContext,
-								toggleMultiDiffEditorFileListContext,
-								// The Changes tab also keeps the toggle while a session switch replaces the
-								// Changes editor, matching the changeset picker in the header.
-								ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
-								DesktopChangesEditorTransitionContext))
+						order: 1,
 					}
 				});
 			}
@@ -721,5 +706,34 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				that.toggleDetails();
 			}
 		});
+
+		// Toggle Details with a dropdown of the details positions.
+		const splitButton = MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
+			submenu: Menus.DetailsToggle,
+			title: localize2('detailsPosition', "Details Position"),
+			icon: Codicon.listSelection,
+			isSplitButton: { excludePrimaryActionFromDropdown: true },
+			group: 'navigation',
+			order: desktopHeaderToggleDetailsOrder,
+			// Not every tab type has a detail panel to show/hide (e.g. browser and
+			// search tabs), so only surface the toggle for tab types that do, or
+			// for a multi diff editor whose file list it toggles instead.
+			when: ContextKeyExpr.and(
+				IsSessionsWindowContext,
+				IsAuxiliaryWindowContext.toNegated(),
+				IsTopRightEditorGroupContext,
+				DesktopLayoutContext,
+				ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
+				MainEditorAreaVisibleContext,
+				ContextKeyExpr.or(
+					HasDockedDetailsContext,
+					toggleMultiDiffEditorFileListContext,
+					// The Changes tab also keeps the toggle while a session switch replaces the
+					// Changes editor, matching the changeset picker in the header.
+					ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+					DesktopChangesEditorTransitionContext))
+		});
+
+		return combinedDisposable(action, splitButton);
 	}
 }

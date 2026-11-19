@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -43,6 +43,7 @@ import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/brow
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorFileListAvailableContext, observableMultiDiffEditorFileListVisible } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
@@ -2003,15 +2004,18 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[D7 desktop] contributes Toggle Details after Maximize with the editor title layout actions', () => {
+	test('[D7 desktop] contributes Toggle Details as a split button after Maximize with the editor title layout actions', () => {
 		createDesktopController();
 
 		const items = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu === Menus.DetailsToggle);
 		const maximizeItem = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.maximizeMainEditorPart');
+		const primaryItems = MenuRegistry.getMenuItems(Menus.DetailsToggle)
+			.filter(isIMenuItem)
+			.filter(item => item.group === 'navigation');
 
 		assert.strictEqual(items.length, 1, 'exactly one Toggle Details item on the editor header');
 		assert.ok(maximizeItem, 'Maximize item should be registered');
@@ -2027,10 +2031,11 @@ suite('DesktopLayoutController', () => {
 		});
 		assert.deepStrictEqual({
 			group: items[0].group,
-			icon: ThemeIcon.isThemeIcon(items[0].command.icon) ? items[0].command.icon.id : undefined,
+			icon: ThemeIcon.isThemeIcon(items[0].icon) ? items[0].icon.id : undefined,
 			order: items[0].order,
 			afterMaximize: (items[0].order ?? 0) > (maximizeItem.order ?? 0),
-			hasToggled: !!items[0].command.toggled,
+			isSplitButton: items[0].isSplitButton,
+			primaryActions: primaryItems.map(item => ({ id: item.command.id, hasToggled: !!item.command.toggled })),
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
 			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
 			gatedOnMultiDiffEditorFileList: when.includes(MultiDiffEditorFileListAvailableContext.key),
@@ -2041,7 +2046,8 @@ suite('DesktopLayoutController', () => {
 			icon: Codicon.listSelection.id,
 			order: 10,
 			afterMaximize: true,
-			hasToggled: true,
+			isSplitButton: { excludePrimaryActionFromDropdown: true },
+			primaryActions: [{ id: TOGGLE_DETAILS_COMMAND_ID, hasToggled: true }],
 			gatedOnEditorArea: true,
 			gatedOnDockedDetails: true,
 			gatedOnMultiDiffEditorFileList: true,
@@ -2054,8 +2060,8 @@ suite('DesktopLayoutController', () => {
 		createDesktopController();
 
 		const [toggleDetails] = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu === Menus.DetailsToggle);
 		const isShown = (activeEditor: string, options: { hasDockedDetails?: boolean; transition?: boolean } = {}) => {
 			const values: Record<string, ContextKeyValue> = {
 				[IsSessionsWindowContext.key]: true,

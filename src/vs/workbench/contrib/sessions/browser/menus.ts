@@ -85,6 +85,11 @@ export const Menus = {
 	/** Actions of the editor header row after {@link SessionsEditorHeaderSecondary}, behind a separator. */
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	DetailsPosition: new MenuId('SessionsDetailsPosition'),
+	/**
+	 * The Toggle Details split button of the editor title layout actions. Toggle Details is its
+	 * primary action, and its dropdown lists the entries of {@link DetailsPosition}.
+	 */
+	DetailsToggle: new MenuId('SessionsDetailsToggle'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	EmptyChangesActions: new MenuId('SessionsEmptyChangesActions'),

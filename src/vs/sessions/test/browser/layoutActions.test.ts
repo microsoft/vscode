@@ -271,6 +271,8 @@ suite('Sessions - Layout Actions', () => {
 			}),
 			separateEntries: [AgentsWindowMenus.TitleBarContext, Menus.SessionsEditorTitle, MenuId.MenubarAppearanceMenu].flatMap(menu =>
 				MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentSessions.toggleFloatingDetails')),
+			toggleDetailsDropdown: MenuRegistry.getMenuItems(Menus.DetailsToggle).filter(isIMenuItem).filter(item => item.group !== 'navigation')
+				.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(item => ({ group: item.group, command: item.command })),
 		}, {
 			enabled: ['bottom', true],
 			top: ['workbench.action.agentSessions.detailsPosition.top'],
@@ -286,6 +288,8 @@ suite('Sessions - Layout Actions', () => {
 			menuLabels: ['Above Editor', 'Below Editor', 'Left', 'Right', 'Floating'],
 			paletteLabels: ['Move Details Above Editor', 'Move Details Below Editor', 'Move Details Left', 'Move Details Right', 'Floating Details Panel'],
 			separateEntries: [],
+			// The dropdown of the Toggle Details split button offers the same entries.
+			toggleDetailsDropdown: options.map(item => ({ group: '2_organize', command: item.command })),
 		});
 	});
 
