@@ -1792,6 +1792,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		this._agentEmptyChatMessage = text ? { agentName: mode.name.get(), markdown: new MarkdownString(text, { isTrusted: true, supportThemeIcons: true }) } : undefined;
+		this.welcomeMessageContainer?.classList.toggle('chat-agent-empty-chat-message', !!this._agentEmptyChatMessage);
 		this.renderWelcomeViewContentIfNeeded();
 	}
 
