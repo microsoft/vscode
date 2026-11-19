@@ -10,6 +10,7 @@ import { rawPartAsThinkingData } from '../../endpoint/common/thinkingDataContain
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ThinkingData, ThinkingDataInMessage } from '../../thinking/common/thinking';
 import { ICopilotReference, RequestId } from './fetch';
+import type { TelemetryMessage } from './messageTelemetry';
 
 /**
  * How the logprobs field looks in the OpenAI API chunks.
@@ -134,14 +135,6 @@ export interface OpenAIContextManagementResponse {
 }
 
 
-export enum ChatRole {
-	System = 'system',
-	User = 'user',
-	Assistant = 'assistant',
-	Function = 'function',
-	Tool = 'tool'
-}
-
 
 export type CAPIChatMessage = OpenAI.ChatMessage & {
 	/**
@@ -157,18 +150,6 @@ export type CAPIChatMessage = OpenAI.ChatMessage & {
 		'type': 'ephemeral';
 	};
 } & ThinkingDataInMessage;
-
-export function getCAPITextPart(content: string | OpenAI.ChatCompletionContentPart[] | OpenAI.ChatCompletionContentPart): string {
-	if (Array.isArray(content)) {
-		return content.map((part) => getCAPITextPart(part)).join('');
-	} else if (typeof content === 'string') {
-		return content;
-	} else if (typeof content === 'object' && 'text' in content) {
-		return content.text;
-	} else {
-		return '';
-	}
-}
 
 export type RawMessageConversionCallback = (message: CAPIChatMessage, thinkingData?: ThinkingData) => void;
 /**
@@ -310,6 +291,8 @@ export enum FilterReason {
 
 export interface ChatCompletion {
 	message: Raw.ChatMessage;
+	/** Provider-native messages retained only for restricted telemetry, never for model replay. */
+	telemetryMessages?: TelemetryMessage[];
 	choiceIndex: number;
 	requestId: RequestId;
 	tokens: readonly string[];

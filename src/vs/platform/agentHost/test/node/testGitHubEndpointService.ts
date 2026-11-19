@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { deriveGitHubEndpoints, gitHubCopilotResource, gitHubRepoResource } from '../../common/githubEndpoints.js';
+import { deriveGitHubEndpoints } from '../../../github/common/githubEndpoints.js';
+import { gitHubCopilotResource, gitHubRepoResource } from '../../common/githubEndpoints.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 
 /**

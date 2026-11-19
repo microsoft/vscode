@@ -7,6 +7,7 @@ import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
@@ -33,11 +34,12 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAuthenticationService authenticationService: IAuthenticationService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@ILogService logService: ILogService,
 	) {
-		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService);
+		super(disableExtensions, data, os, product, window, true, undefined, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService, logService);
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 
 		const webInfo = this.window.navigator.userAgent;
@@ -58,7 +60,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 			this.issueReporterModel.update({ issueType: issueType });
 
 			// Resets placeholder
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
 			if (descriptionTextArea) {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");

@@ -15,6 +15,7 @@ import { INormalizedVersion, normalizeVersion, parseVersion } from './extensionE
 import { JsonStringScanner } from './jsonReconstruct';
 import { implicitActivationEvent, redundantImplicitActivationEvent } from './constants';
 
+// eslint-disable-next-line local/code-no-sync-fs -- TODO: preload product badge/proposal allowlists before registering the linter; async module initialization would otherwise expose incomplete validation rules.
 const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
 const allowedBadgeProvidersRegex: RegExp[] = (product.extensionAllowedBadgeProvidersRegex || []).map((r: string) => new RegExp(r));

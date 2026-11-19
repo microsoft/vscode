@@ -56,7 +56,7 @@ function getRangesToReplace(document: vscode.TextDocument, nodeToUpdate: HtmlFla
 		const emmetMode = getEmmetMode(document.languageId, {}, []) ?? '';
 		const emmetConfig = getEmmetConfiguration(emmetMode);
 		if (emmetMode && emmetConfig.syntaxProfiles[emmetMode] &&
-			(emmetConfig.syntaxProfiles[emmetMode]['selfClosingStyle'] === 'xhtml' || emmetConfig.syntaxProfiles[emmetMode]['self_closing_tag'] === 'xhtml')) {
+			(emmetConfig.syntaxProfiles[emmetMode].selfClosingStyle === 'xhtml' || emmetConfig.syntaxProfiles[emmetMode].self_closing_tag === 'xhtml')) {
 			textToReplaceWith = ' ' + textToReplaceWith;
 		}
 	}

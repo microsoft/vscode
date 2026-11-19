@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/paneCompositePart.css';
 import { localize } from '../../../nls.js';
 import { Action, IAction, Separator } from '../../../base/common/actions.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from '../../../base/browser/dom.js';
@@ -278,7 +279,9 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.badgeContent = append(this.badge, $('.badge-content'));
 
 		// pane composite bar active border + background
-		append(container, $('.active-item-indicator'));
+		const indicator = append(container, $('.active-item-indicator'));
+		append(indicator, $('.tab-connected-edge')).setAttribute('aria-hidden', 'true');
+		append(container, $('span.tab-divider')).setAttribute('aria-hidden', 'true');
 
 		hide(this.badge);
 

@@ -1,0 +1,39 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''copied.txt'', require(''fs'').readFileSync(''marker.txt''))"`. Use the shell''s existing working directory: omit workdir, cwd, and all directory overrides from the tool arguments; do not prefix the command with cd or replace relative paths. Then reply exactly "done".'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node -e "require('fs').writeFileSync('copied.txt', require('fs').readFileSync('marker.txt'))"
+            description: Run node command to copy marker.txt to copied.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''copied.txt'', require(''fs'').readFileSync(''marker.txt''))"`. Use the shell''s existing working directory: omit workdir, cwd, and all directory overrides from the tool arguments; do not prefix the command with cd or replace relative paths. Then reply exactly "done".'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: node -e "require('fs').writeFileSync('copied.txt', require('fs').readFileSync('marker.txt'))"
+                description: Run node command to copy marker.txt to copied.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 0>'
+    response:
+      content: done
+      stopReason: end_turn

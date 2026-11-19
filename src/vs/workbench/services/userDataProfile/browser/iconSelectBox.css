@@ -1,0 +1,28 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.icon-select-box .icon-select-reset {
+	margin: 0 var(--vscode-spacing-size60) var(--vscode-spacing-size60);
+}
+
+.icon-select-box .icon-select-reset > hr {
+	border: 0;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-pickerGroup-border);
+	margin: var(--vscode-spacing-size60) 0;
+	pointer-events: none;
+}
+
+.icon-select-box .icon-select-reset > .monaco-button {
+	justify-content: flex-start;
+	min-height: 22px;
+	padding: 0 var(--vscode-spacing-size60);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: inherit;
+}
+
+.icon-select-box .icon-select-reset > .monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}

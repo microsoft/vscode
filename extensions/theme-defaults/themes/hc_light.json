@@ -571,6 +571,7 @@
 	],
 	"colors": {
 		"actionBar.toggledBackground": "#dddddd",
+		"browser.border": "#00000000",
 		"titleBar.inactiveBackground": "#FFFFFF",
 		"statusBar.inactiveBackground": "#FFFFFF",
 		"statusBarItem.remoteBackground": "#FFFFFF",

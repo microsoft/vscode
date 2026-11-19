@@ -8,7 +8,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableResourceMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorunDelta, autorunIterableDelta, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorunDelta, autorunIterableDelta, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -16,34 +16,12 @@ import { FocusMode } from '../../../../platform/native/common/native.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatModel, IChatRequestNeedsInputInfo } from '../common/model/chatModel.js';
+import { observeChatModelIsIdle } from '../common/model/chatModelIdle.js';
 import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../common/chatService/chatService.js';
 import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
-import { ChatNotificationKind, getChatNotificationDedupeKey } from '../common/chatNotification.js';
+import { ChatNotificationKind, getChatNotificationDedupeKey, getChatNotificationResource } from '../common/chatNotification.js';
 import { ChatConfiguration, ChatNotificationMode } from '../common/constants.js';
 import { IChatWidgetService } from './chat.js';
-
-/**
- * Observes whether a session has nothing left to do: no request running, no
- * input needed, and no queued work that is still going to run. Queued requests
- * are event-based on the model, so they are lifted into an observable as a
- * count, which is stable across the array being mutated in place.
- */
-function observeIsIdle(model: IChatModel): IObservable<boolean> {
-	const pendingRequestCount = observableFromEvent(model.onDidChangePendingRequests, () => model.getPendingRequests().length);
-	return derived(reader => {
-		if (model.requestInProgress.read(reader) || model.requestNeedsInput.read(reader)) {
-			return false;
-		}
-		if (pendingRequestCount.read(reader) === 0) {
-			return true;
-		}
-		// A queue only keeps the session busy while it can still drain. Both the chat
-		// service and the agent host stop draining after an error or a cancellation, so
-		// a session left in either state has no more work to do despite the queue.
-		const response = model.lastRequestObs.read(reader)?.response;
-		return !!response && (response.isCanceled || !!response.result?.errorDetails);
-	});
-}
 
 /**
  * Whether the session's last response finished while this window was watching it.
@@ -112,7 +90,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 
 	private _trackModel(model: IChatModel) {
 		const store = new DisposableStore();
-		const isIdle = observeIsIdle(model);
+		const isIdle = observeChatModelIsIdle(model);
 		const watchingSince = Date.now();
 		const idleScheduler = store.add(new RunOnceScheduler(() => void this._notifyIdleIfNeeded(model, isIdle, watchingSince), this._getIdleNotificationDelay()));
 		store.add(autorunDelta(model.requestNeedsInput, ({ lastValue, newValue }) => {
@@ -121,7 +99,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 
 			// Only notify on transition from false -> true
 			if (!previousNeedsInput && currentNeedsInput && newValue) {
-				this._notifyIfNeeded(model.sessionResource, newValue);
+				this._notifyIfNeeded(model, newValue);
 			} else if (previousNeedsInput && !currentNeedsInput) {
 				// Clear any active notification for this session when input is no longer needed
 				this._clearNotification(model.sessionResource);
@@ -139,7 +117,8 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		return store;
 	}
 
-	private async _notifyIfNeeded(sessionResource: URI, info: IChatRequestNeedsInputInfo): Promise<void> {
+	private async _notifyIfNeeded(model: IChatModel, info: IChatRequestNeedsInputInfo): Promise<void> {
+		const sessionResource = model.sessionResource;
 		// Check configuration
 		const mode = this._configurationService.getValue<ChatNotificationMode>(ChatConfiguration.NotifyWindowOnConfirmation);
 		if (mode === ChatNotificationMode.Off) {
@@ -147,7 +126,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		}
 
 		// Find the widget to determine the target window
-		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
+		const widget = this._chatWidgetService.getWidgetBySessionResource(getChatNotificationResource(model));
 		const targetWindow = widget ? dom.getWindow(widget.domNode) : mainWindow;
 		await this._delayForBackgroundWindow(widget?.visible === true);
 		if (!this._chatService.getSession(sessionResource)?.requestNeedsInput.get()) {
@@ -185,7 +164,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 				title: this._sanitizeOSToastText(notificationTitle),
 				body: this._getNotificationBody(sessionResource, info, isQuestionCarousel),
 				actions: [actionLabel],
-				dedupeKey: getChatNotificationDedupeKey(sessionResource, ChatNotificationKind.NeedsInput),
+				dedupeKey: getChatNotificationDedupeKey(getChatNotificationResource(model), ChatNotificationKind.NeedsInput),
 			}, cts.token);
 
 			if (result.actionIndex === 0 && !isQuestionCarousel && this._confirmAllow(sessionResource)) {
@@ -195,7 +174,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 			if (result.clicked || typeof result.actionIndex === 'number') {
 				await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
 
-				const widget = await this._chatWidgetService.openSession(sessionResource);
+				const widget = await this._chatWidgetService.openSession(getChatNotificationResource(model));
 				widget?.focusInput();
 			}
 		} finally {
@@ -211,7 +190,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		if (mode === ChatNotificationMode.Off) {
 			return;
 		}
-		const widget = this._chatWidgetService.getWidgetBySessionResource(model.sessionResource);
+		const widget = this._chatWidgetService.getWidgetBySessionResource(getChatNotificationResource(model));
 		const targetWindow = widget ? dom.getWindow(widget.domNode) : mainWindow;
 		await this._delayForBackgroundWindow(widget?.visible === true);
 		if (!isIdle.get() || model.requestNeedsInput.get()) {
@@ -233,11 +212,11 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 				title: this._sanitizeOSToastText(title),
 				body: localize('chat.idleNotificationDetail', "Session finished."),
 				actions: [localize('openChatAction', "Open Session")],
-				dedupeKey: getChatNotificationDedupeKey(model.sessionResource, ChatNotificationKind.Idle),
+				dedupeKey: getChatNotificationDedupeKey(getChatNotificationResource(model), ChatNotificationKind.Idle),
 			}, cts.token);
 			if (result.clicked || typeof result.actionIndex === 'number') {
 				await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
-				const openedWidget = await this._chatWidgetService.openSession(model.sessionResource);
+				const openedWidget = await this._chatWidgetService.openSession(getChatNotificationResource(model));
 				openedWidget?.focusInput();
 			}
 		} finally {

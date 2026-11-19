@@ -10,6 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatToolCallReady, chatToolCallStart } from '../common/chatActionBuilders.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/protocol/state.js';
@@ -17,6 +18,7 @@ import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claud
 import { CLAUDE_USER_DECLINED_MESSAGE } from '../../node/claude/claudeToolDenial.js';
 import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/proxyChatError.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
+import { SessionClientToolsModel } from '../../node/claude/clientTools/claudeSessionClientToolsModel.js';
 import {
 	makeAssistantMessage,
 	makeContentBlockStartText,
@@ -267,14 +269,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
 			resource: SESSION,
-			action: {
-				type: ActionType.ChatToolCallStart,
-				turnId: TURN_ID,
-				toolCallId: 'tu_1',
-				toolName: 'Read',
-				displayName: 'Read file',
-				_meta: { toolKind: 'read' },
-			},
+			action: chatToolCallStart(TURN_ID, 'tu_1', 'Read', 'Read file', { _meta: { toolKind: 'read' } }),
 		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
@@ -289,6 +284,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 		const CLIENT_ID = 'client-abc';
+		const clientTools = new SessionClientToolsModel();
+		clientTools.setTools(CLIENT_ID, [{ name: 'problems', inputSchema: { type: 'object' } }]);
 
 		const signals = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_c', 'mcp__client__problems')),
@@ -297,20 +294,13 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			state,
 			log,
 			r(),
-			() => CLIENT_ID,
+			clientTools,
 		);
 
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
 			resource: SESSION,
-			action: {
-				type: ActionType.ChatToolCallStart,
-				turnId: TURN_ID,
-				toolCallId: 'tu_c',
-				toolName: 'problems',
-				displayName: 'problems',
-				contributor: { kind: ToolCallContributorKind.Client, clientId: CLIENT_ID },
-			},
+			action: chatToolCallStart(TURN_ID, 'tu_c', 'problems', 'problems', { contributor: { kind: ToolCallContributorKind.Client, clientId: CLIENT_ID } }),
 		}]);
 		assert.deepStrictEqual(log.warns, []);
 	});
@@ -485,6 +475,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('client tools with Claude built-in names preserve client semantics throughout the lifecycle', () => {
 		const state = new ClaudeMapperState();
 		const resolver = r();
+		const clientTools = new SessionClientToolsModel();
+		clientTools.setTools('client-1', [{ name: 'Write', inputSchema: { type: 'object' } }]);
 		const start = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_client_write', 'mcp__client__Write')),
 			SESSION,
@@ -492,7 +484,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			state,
 			new NullLogService(),
 			resolver,
-			() => 'client-1',
+			clientTools,
 		);
 
 		const delta = mapSDKMessageToAgentSignals(
@@ -524,14 +516,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			{
 				kind: 'action',
 				resource: SESSION,
-				action: {
-					type: ActionType.ChatToolCallStart,
-					turnId: TURN_ID,
-					toolCallId: 'tu_client_write',
-					toolName: 'Write',
-					displayName: 'Write',
-					contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
-				},
+				action: chatToolCallStart(TURN_ID, 'tu_client_write', 'Write', 'Write', { contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' } }),
 			},
 			{
 				kind: 'action',
@@ -546,14 +531,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			{
 				kind: 'action',
 				resource: SESSION,
-				action: {
-					type: ActionType.ChatToolCallReady,
-					turnId: TURN_ID,
-					toolCallId: 'tu_client_write',
-					invocationMessage: 'Write',
-					toolInput: '{\n  "value": "client input"\n}',
-					confirmed: ToolCallConfirmationReason.NotNeeded,
-				},
+				action: chatToolCallReady(TURN_ID, 'tu_client_write', 'Write', { toolInput: '{\n  "value": "client input"\n}', confirmed: ToolCallConfirmationReason.NotNeeded }),
 			},
 			{
 				kind: 'action',
@@ -878,6 +856,10 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 						outputTokens: 34,
 						cacheReadTokens: 5,
 						model: 'claude-test',
+						_meta: {
+							turnTokenTotals: [{ model: 'claude-test', inputTokens: 12, cachedTokens: 5, outputTokens: 34 }],
+							directTurnTokenTotals: [{ model: 'claude-test', inputTokens: 12, cachedTokens: 5, outputTokens: 34 }],
+						},
 					},
 				},
 			},

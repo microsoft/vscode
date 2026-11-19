@@ -9,7 +9,8 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { AgentHostAgentDebugLogEnabledSettingId, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
@@ -79,13 +80,10 @@ export function renderChatDebugLoggingDisabledMessage(
 	);
 }
 
-/**
- * Whether AHP (client↔host protocol) logging is enabled. When `false` no
- * protocol frames are captured, so the AHP Log view surfaces a hint to enable
- * the setting instead of empty content.
- */
-export function isWireLogLoggingEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+/** Host-owned Mission Control logs remain viewable independently of the client window's capture setting. */
+export function isWireLogLoggingEnabled(configurationService: IConfigurationService, connection?: IAgentConnection): boolean {
+	return connection?.clientConnectionKind === AgentHostClientConnectionKind.MissionControl
+		|| configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 }
 
 /**

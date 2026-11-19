@@ -90,6 +90,12 @@ export interface PullRequestSearchItem {
 	headRefName?: string;
 	baseRefName?: string;
 	body: string;
+	closingIssuesReferences?: {
+		nodes: readonly {
+			readonly url: string;
+			readonly title: string;
+		}[];
+	};
 }
 
 export type PullRequestState = 'open' | 'closed' | 'merged' | 'draft';
@@ -113,41 +119,11 @@ export function derivePullRequestState(pr: Pick<PullRequestSearchItem, 'state' |
 	return 'open';
 }
 
-export interface PullRequestSearchResult {
-	search: {
-		nodes: PullRequestSearchItem[];
-		pageInfo: {
-			hasNextPage: boolean;
-			endCursor: string | null;
-		};
-		issueCount: number;
-	};
-}
-
 export interface AssignableActor {
 	__typename: string;
 	login: string;
 	avatarUrl?: string;
 	url?: string;
-}
-
-export interface AssignableActorsResponse {
-	repository: {
-		suggestedActors?: {
-			nodes: AssignableActor[];
-			pageInfo: {
-				hasNextPage: boolean;
-				endCursor: string | null;
-			};
-		};
-		assignableUsers?: {
-			nodes: AssignableActor[];
-			pageInfo: {
-				hasNextPage: boolean;
-				endCursor: string | null;
-			};
-		};
-	};
 }
 
 export interface GitHubAPIRequestOptions {
@@ -304,6 +280,12 @@ export async function makeSearchGraphQLRequest(
 							name
 						}
 						body
+						closingIssuesReferences(first: 100) {
+							nodes {
+								url
+								title
+							}
+						}
 					}
 				}
 				pageInfo {
@@ -373,6 +355,12 @@ export async function getPullRequestFromGlobalId(
 						name
 					}
 					body
+					closingIssuesReferences(first: 100) {
+						nodes {
+							url
+							title
+						}
+					}
 				}
 			}
 		}

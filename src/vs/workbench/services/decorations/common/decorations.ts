@@ -28,6 +28,11 @@ export const DECORATION_LABEL_COLOR_CLASS = 'monaco-decoration-itemColor';
  */
 export const DECORATION_BADGE_CLASS = 'monaco-decoration-badge';
 
+/**
+ * Stable marker class set on a label with a text decoration badge.
+ */
+export const DECORATION_TEXT_BADGE_CLASS = 'monaco-decoration-text-badge';
+
 export interface IDecorationData {
 	readonly weight?: number;
 	readonly color?: ColorIdentifier;
@@ -43,6 +48,7 @@ export interface IDecoration extends IDisposable {
 	readonly labelClassName: string;
 	readonly badgeClassName: string;
 	readonly iconClassName: string;
+	readonly isTextBadge: boolean;
 }
 
 export interface IDecorationsProvider {

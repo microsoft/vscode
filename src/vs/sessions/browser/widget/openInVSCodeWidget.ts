@@ -33,7 +33,7 @@ export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 
-		container.classList.add('open-in-vscode-titlebar-widget');
+		container.classList.add('open-in-vscode-titlebar-widget', 'agent-sessions-interactive');
 		container.setAttribute('role', 'button');
 
 		// Set quality attribute for distro icon selection. Only set when quality is
@@ -46,7 +46,7 @@ export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
 		const label = this.action.label;
 		const hoverText = this.keybindingService.appendKeybinding(localize('openInVSCodeHover', "Open in VS Code Editor Window"), this.keybindingCommandId);
 		container.setAttribute('aria-label', hoverText);
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, hoverText));
+		this._register(this.hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), container, hoverText));
 
 		const icon = append(container, $('span.open-in-vscode-titlebar-widget-icon'));
 		icon.setAttribute('aria-hidden', 'true');

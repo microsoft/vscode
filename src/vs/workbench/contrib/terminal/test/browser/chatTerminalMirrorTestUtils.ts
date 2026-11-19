@@ -15,8 +15,9 @@ import type { IDetachedTerminalInstance, IDetachedXTermOptions } from '../../bro
  * a custom font to model renderer metrics that differ from the configuration estimate.
  */
 export function createFakeDetachedTerminal(RawCtor: typeof Terminal, options: IDetachedXTermOptions, font: ITerminalFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 14 }) {
-	const raw = new RawCtor({ cols: options.cols, rows: options.rows });
+	const raw = new RawCtor({ cols: options.cols, rows: options.rows, ...(options.scrollback !== undefined ? { scrollback: options.scrollback } : {}) });
 	const counters = { resizeCalls: 0, writeCalls: 0 };
+	const writes: string[] = [];
 	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	const instance = {
 		xterm: {
@@ -27,6 +28,7 @@ export function createFakeDetachedTerminal(RawCtor: typeof Terminal, options: ID
 			getFont: () => font,
 			write: (data: string, callback?: () => void) => {
 				counters.writeCalls++;
+				writes.push(data);
 				raw.write(data, callback);
 			},
 			resize: (columns: number, rows: number) => {
@@ -38,5 +40,5 @@ export function createFakeDetachedTerminal(RawCtor: typeof Terminal, options: ID
 		attachToElement: () => { },
 		dispose: () => raw.dispose()
 	} as unknown as IDetachedTerminalInstance;
-	return { raw, counters, instance };
+	return { raw, counters, writes, instance };
 }

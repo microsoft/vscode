@@ -7,7 +7,7 @@ import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
-import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from '../model/chatModel.js';
+import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings, getLegacySubagentMarkdown, isNestedSubagentResponsePart } from '../model/chatModel.js';
 import { IChatAgentVulnerabilityDetails } from '../chatService/chatService.js';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
@@ -19,12 +19,21 @@ export interface IAnnotatedChatContent {
 
 export function annotateSpecialMarkdownContentWithSource(response: Iterable<IChatProgressResponseContent>): IAnnotatedChatContent[] {
 	let refIdPool = 0;
+	const parts = Array.from(response);
+	const legacySubagentMarkdown = getLegacySubagentMarkdown(parts);
 
 	const result: IAnnotatedChatContent[] = [];
 	let sourceIndex = 0;
-	for (const item of response) {
+	for (let item of parts) {
 		const currentSourceIndex = sourceIndex++;
-		const previousItemIndex = result.findLastIndex(p => p.content.kind !== 'textEditGroup' && p.content.kind !== 'undoStop');
+		const normalizedMarkdown = legacySubagentMarkdown.get(currentSourceIndex);
+		if (item.kind === 'markdownContent' && normalizedMarkdown !== undefined) {
+			if (!normalizedMarkdown.trim()) {
+				continue;
+			}
+			item = { ...item, content: { ...item.content, value: normalizedMarkdown } };
+		}
+		const previousItemIndex = result.findLastIndex(p => p.content.kind !== 'textEditGroup' && p.content.kind !== 'notebookEditGroup' && p.content.kind !== 'undoStop' && !isNestedSubagentResponsePart(p.content) && !(p.content.kind === 'markdownContent' && p.content.codeblockUri));
 		const previousEntry = result[previousItemIndex];
 		const previousItem = previousEntry?.content;
 		if (item.kind === 'inlineReference') {
@@ -77,7 +86,7 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 					});
 				}
 			}
-		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent') {
+		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent' && !previousItem.codeblockUri && !item.codeblockUri) {
 			if (canMergeMarkdownStrings(previousItem.content, item.content)) {
 				const merged = appendMarkdownString(previousItem.content, item.content);
 				result[previousItemIndex] = {
@@ -119,7 +128,12 @@ export function annotateSpecialMarkdownContentWithSource(response: Iterable<ICha
 				});
 			}
 		} else if (item.kind === 'codeblockUri') {
-			if (previousItem?.kind === 'markdownContent') {
+			if (item.isStandalone || (item.subAgentInvocationId && (previousItem?.kind !== 'markdownContent' || !isInsideCodeContext(previousItem.content.value)))) {
+				result.push({
+					content: { kind: 'markdownContent', content: item.isEdit ? new MarkdownString('```\n\n```') : new MarkdownString().appendLink(item.uri, basename(item.uri)), codeblockUri: item },
+					sourceIndexes: [currentSourceIndex],
+				});
+			} else if (previousItem?.kind === 'markdownContent') {
 				const isEditText = item.isEdit ? ` isEdit` : '';
 				const subAgentText = item.subAgentInvocationId ? ` subAgentInvocationId="${encodeURIComponent(item.subAgentInvocationId)}"` : '';
 				const markdownText = `<vscode_codeblock_uri${isEditText}${subAgentText}>${item.uri.toString()}</vscode_codeblock_uri>`;
@@ -254,30 +268,48 @@ export interface IMarkdownVulnerability {
 	readonly description: string;
 	readonly range: IRange;
 }
+const codeblockUriPattern = /<vscode_codeblock_uri( isEdit)?( subAgentInvocationId="([^"]*)")?>([\s\S]*?)<\/vscode_codeblock_uri>/ms;
+
 export function extractCodeblockUrisFromText(text: string): { uri: URI; isEdit?: boolean; subAgentInvocationId?: string; textWithoutResult: string } | undefined {
-	const match = /<vscode_codeblock_uri( isEdit)?( subAgentInvocationId="([^"]*)")?>([\s\S]*?)<\/vscode_codeblock_uri>/ms.exec(text);
-	if (match) {
-		const [all, isEdit, , encodedSubAgentId, uriString] = match;
-		if (uriString) {
-			let result: URI;
-			try {
-				result = URI.parse(uriString);
-			} catch {
-				return undefined;
-			}
-			const textWithoutResult = text.substring(0, match.index) + text.substring(match.index + all.length);
-			let subAgentInvocationId: string | undefined;
-			if (encodedSubAgentId) {
-				try {
-					subAgentInvocationId = decodeURIComponent(encodedSubAgentId);
-				} catch {
-					subAgentInvocationId = encodedSubAgentId;
-				}
-			}
-			return { uri: result, textWithoutResult, isEdit: !!isEdit, subAgentInvocationId };
+	const match = codeblockUriPattern.exec(text);
+	if (!match) {
+		return undefined;
+	}
+	const info = parseCodeblockUriMatch(match);
+	return info ? { ...info, textWithoutResult: text.substring(0, match.index) + text.substring(match.index + match[0].length) } : undefined;
+}
+
+export function extractEditCodeblockUrisFromText(text: string): URI[] {
+	const resources: URI[] = [];
+	for (const match of text.matchAll(new RegExp(codeblockUriPattern, 'gms'))) {
+		const info = parseCodeblockUriMatch(match);
+		if (info?.isEdit) {
+			resources.push(info.uri);
 		}
 	}
-	return undefined;
+	return resources;
+}
+
+function parseCodeblockUriMatch(match: RegExpExecArray): { uri: URI; isEdit: boolean; subAgentInvocationId?: string } | undefined {
+	const [, isEdit, , encodedSubAgentId, uriString] = match;
+	if (!uriString) {
+		return undefined;
+	}
+	let uri: URI;
+	try {
+		uri = URI.parse(uriString);
+	} catch {
+		return undefined;
+	}
+	let subAgentInvocationId: string | undefined;
+	if (encodedSubAgentId) {
+		try {
+			subAgentInvocationId = decodeURIComponent(encodedSubAgentId);
+		} catch {
+			subAgentInvocationId = encodedSubAgentId;
+		}
+	}
+	return { uri, isEdit: !!isEdit, subAgentInvocationId };
 }
 
 export function extractSubAgentInvocationIdFromText(text: string): string | undefined {

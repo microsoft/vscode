@@ -276,14 +276,14 @@ The extension uses numerous proposed VS Code APIs for advanced functionality:
 ## Development Workflow
 
 ### Setup and Build
-- `npm install`: Install dependencies
-- `npm run compile`: Development build
-- `npm run watch:*`: Various watch modes for development
+- `pnpm install`: Install dependencies
+- `pnpm run compile`: Development build
+- `pnpm run watch:*`: Various watch modes for development
 
 ### Testing
-- `npm run test:unit`: Unit tests
-- `npm run test:extension`: VS Code integration tests
-- `npm run simulate`: Scenario-based simulation tests
+- `pnpm run test:unit`: Unit tests
+- `pnpm run test:extension`: VS Code integration tests
+- `pnpm run simulate`: Scenario-based simulation tests
 
 ### Key Entry Points for Edits
 

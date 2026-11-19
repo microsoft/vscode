@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from '../../node/ripgrepTextSearchEngine.js';
+import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep, getExcludeExceptionGlobs } from '../../node/ripgrepTextSearchEngine.js';
 import { Range, TextSearchMatch2, TextSearchQuery2, TextSearchResult2 } from '../../common/searchExtTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { RipgrepTextSearchOptions } from '../../common/searchExtTypesInternal.js';
@@ -364,6 +364,59 @@ suite('RipgrepTextSearchEngine', () => {
 				[['**/a/*', '**/b/*'], ['-g', '**/a/*', '-g', '**/b/*']],
 				[['foo/*bar/something/**'], ['-g', '!*', '-g', '/foo', '-g', '/foo/*bar', '-g', '/foo/*bar/something', '-g', '/foo/*bar/something/**']],
 			].forEach(([includes, expectedFromIncludes]) => testGetRgArgs(<string[]>includes, <string[]>expectedFromIncludes)));
+		});
+
+		test('exclude exception run', () => {
+			const options: RipgrepTextSearchOptions = {
+				folderOptions: {
+					includes: ['src/**'],
+					excludes: ['node_modules'],
+					useIgnoreFiles: {
+						local: true,
+						global: false,
+						parent: true
+					},
+					followSymlinks: false,
+					folder: URI.file('/some/folder'),
+					encoding: 'utf8',
+				},
+				maxResults: 1000,
+			};
+
+			assert.deepStrictEqual(getRgArgs({ pattern: 'test' }, options, ['node_modules/@types']), [
+				'--hidden',
+				'--no-require-git',
+				'--ignore-case',
+				'-g', '!*',
+				'-g', '/node_modules/',
+				'-g', '/node_modules/@types',
+				'-g', '/node_modules/@types/**',
+				'-g', '!**/.git',
+				'-g', '!**/.svn',
+				'-g', '!**/.hg',
+				'-g', '!**/.jj',
+				'--no-ignore',
+				'--crlf',
+				'--fixed-strings',
+				'--no-config',
+				'--no-ignore-global',
+				'--json',
+				'--',
+				'test',
+				'.'
+			]);
+		});
+
+		test('exclude exception globs', () => {
+			assert.deepStrictEqual({
+				anchored: getExcludeExceptionGlobs(['node_modules/{@types,typescript}', 'src/**/keep.js', 'gulpfile.js']),
+				unanchored: getExcludeExceptionGlobs(['node_modules/@types', '**/Scripts']),
+				versionControl: getExcludeExceptionGlobs(['{.git,.hg}/hooks']),
+			}, {
+				anchored: ['!*', '/node_modules/', '/src/', '/src/**/', '/node_modules/@types', '/node_modules/@types/**', '/node_modules/typescript', '/node_modules/typescript/**', '/src/**/keep.js', '/src/**/keep.js/**', '/gulpfile.js', '/gulpfile.js/**', '!**/.git', '!**/.svn', '!**/.hg', '!**/.jj'],
+				unanchored: ['/node_modules/@types', '/node_modules/@types/**', '**/Scripts', '**/Scripts/**', '!**/.git', '!**/.svn', '!**/.hg', '!**/.jj'],
+				versionControl: ['!*', '/.git/', '/.hg/', '/.git/hooks', '/.git/hooks/**', '/.hg/hooks', '/.hg/hooks/**', '!**/.svn', '!**/.jj'],
+			});
 		});
 	});
 

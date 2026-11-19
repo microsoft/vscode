@@ -14,7 +14,6 @@ export type CloudBackendOperation =
 	| 'fetchSessionList'
 	| 'fetchContent'
 	| 'fetchEvents'
-	| 'pollUpdate'
 	| 'followUp'
 	| 'createPullRequest';
 
@@ -22,7 +21,6 @@ const MAX_ERROR_MESSAGE_LENGTH = 300;
 
 export interface ICloudBackendInstrumentation {
 	sessionCreated(outcome: CloudBackendOutcome, durationMs: number, error?: unknown): void;
-	sessionActivated(durationMs: number): void;
 	followUp(outcome: CloudBackendOutcome, error?: unknown): void;
 	operationFailed(operation: CloudBackendOperation, error: unknown, status?: number): void;
 }
@@ -69,7 +67,7 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether task creation succeeded or failed." },
 					"errorType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Low-cardinality error classifier (e.g. http_500) when creation failed." },
 					"errorMessage": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Error message when creation failed." },
-					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from create attempt to failure." }
+					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from create attempt to success or failure." }
 				}
 			*/
 			this._telemetryService.sendMSFTTelemetryErrorEvent('copilotcloud.chat.sessionCreate', {
@@ -83,24 +81,12 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 					"owner": "osortega",
 					"comment": "Cloud agent task creation outcome.",
 					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether task creation succeeded or failed." },
-					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from create attempt to success." }
+					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from create attempt to success or failure." }
 				}
 			*/
 			this._telemetryService.sendMSFTTelemetryEvent('copilotcloud.chat.sessionCreate', { outcome }, { durationMs });
 		}
 		GenAiMetrics.recordCloudOperation(this._otelService, 'createSession', outcome === 'success', durationMs);
-	}
-
-	sessionActivated(durationMs: number): void {
-		/* __GDPR__
-			"copilotcloud.chat.sessionActivated" : {
-				"owner": "osortega",
-				"comment": "Cloud agent task started producing output.",
-				"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from creation to activation." }
-			}
-		*/
-		this._telemetryService.sendMSFTTelemetryEvent('copilotcloud.chat.sessionActivated', {}, { durationMs });
-		GenAiMetrics.recordCloudOperation(this._otelService, 'sessionActivated', true, durationMs);
 	}
 
 	followUp(outcome: CloudBackendOutcome, error?: unknown): void {
@@ -156,7 +142,6 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 
 export const NullCloudBackendInstrumentation: ICloudBackendInstrumentation = {
 	sessionCreated() { },
-	sessionActivated() { },
 	followUp() { },
 	operationFailed() { },
 };

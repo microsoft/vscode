@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isChatContextIconPath, isExplicitFileOrImageVariableEntry, resolveChatContextIcon } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatPasteAttachmentMetadata, getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isChatContextIconPath, isExplicitFileOrImageVariableEntry, resolveChatContextIcon, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 
 suite('Chat variable entries', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,6 +20,15 @@ suite('Chat variable entries', () => {
 		assert.strictEqual(isExplicitFileOrImageVariableEntry(fileEntry), true);
 		assert.strictEqual(isExplicitFileOrImageVariableEntry(imageEntry), true);
 		assert.strictEqual(isExplicitFileOrImageVariableEntry(workspaceEntry), false);
+	});
+
+	test('retains explicit file classification for portable snapshots without changing ordinary paste context', () => {
+		const snapshot = toPasteVariableEntry('Unsaved file', 'Draft contents', { _meta: { [ChatPasteAttachmentMetadata.FileSnapshot]: true } });
+		const paste = toPasteVariableEntry('Pasted text', 'Context');
+		assert.deepStrictEqual({
+			explicit: [snapshot, paste].map(isExplicitFileOrImageVariableEntry),
+			summary: getExplicitFileOrImageAttachmentSummary([snapshot, paste]),
+		}, { explicit: [true, false], summary: 'Attached 1 file' });
 	});
 
 	test('summarizes explicit file and image entries', () => {

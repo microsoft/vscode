@@ -3,51 +3,79 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { createCancellableFetch } from '../../../base/parts/request/common/fetch.js';
+import { createGitHubClientMetadata } from '../../github/common/githubRequestMetadata.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
+import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
-import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
-import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
+import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema } from '../common/agentHostSchema.js';
+import { MissionControlUseLocalCredentialsConfigKey } from '../common/missionControlEnvironment.js';
+import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentServiceCallbackBinder, IAgentServiceCallbacks } from './agentService.js';
 import type { IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import type { IAgentServiceSessionServerToolAccessor } from './shared/sessionServerTools.js';
-import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 
 export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder {
 	private callbacks: IAgentServiceCallbacks | undefined;
 
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor = {
-		isActiveAgentTitleGenerationEnabled: () => this.value.sessionServerToolAccessor.isActiveAgentTitleGenerationEnabled(),
+		getCredentialSource: chat => this.value.sessionServerToolAccessor.getCredentialSource(chat),
+		getAutomaticTitleGenerationStrategy: session => this.value.sessionServerToolAccessor.getAutomaticTitleGenerationStrategy(session),
+		startedWorkspaceless: session => this.value.sessionServerToolAccessor.startedWorkspaceless(session),
 		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
+		supportsChatWorkingDirectories: session => this.value.sessionServerToolAccessor.supportsChatWorkingDirectories(session),
+		getChatHarnesses: session => this.value.sessionServerToolAccessor.getChatHarnesses(session),
+		canCreateSessions: provider => this.value.sessionServerToolAccessor.canCreateSessions(provider),
 		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
 		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
 		getWorktreeRoots: workspace => this.value.sessionServerToolAccessor.getWorktreeRoots(workspace),
 		createSession: config => this.value.sessionServerToolAccessor.createSession(config),
 		getModels: () => this.value.sessionServerToolAccessor.getModels(),
+		getModelsForCredentials: credentials => this.value.sessionServerToolAccessor.getModelsForCredentials(credentials),
 		getCreationDefaults: source => this.value.sessionServerToolAccessor.getCreationDefaults(source),
-		startPrompt: (session, chat, prompt, delegation) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt, delegation),
-		createChat: (session, chat, options) => this.value.sessionServerToolAccessor.createChat(session, chat, options),
+		restoreChat: (session, chat, credentials) => this.value.sessionServerToolAccessor.restoreChat(session, chat, credentials),
+		startPrompt: (session, chat, prompt, delegation, credentials) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt, delegation, credentials),
+		createChat: (session, chat, options, credentials) => this.value.sessionServerToolAccessor.createChat(session, chat, options, credentials),
+		prepareChatWorkingDirectory: (session, directory, options) => this.value.sessionServerToolAccessor.prepareChatWorkingDirectory(session, directory, options),
 		renameChat: (session, chat, title) => this.value.sessionServerToolAccessor.renameChat(session, chat, title),
 		reportToolError: (toolName, error) => this.value.sessionServerToolAccessor.reportToolError(toolName, error),
+		archiveSession: session => this.value.sessionServerToolAccessor.archiveSession(session),
+		archiveChat: chat => this.value.sessionServerToolAccessor.archiveChat(chat),
 		deleteSession: session => this.value.sessionServerToolAccessor.deleteSession(session),
 		getChatContext: (session, chatId) => this.value.sessionServerToolAccessor.getChatContext(session, chatId),
 		getSessionSpawnDepth: session => this.value.sessionServerToolAccessor.getSessionSpawnDepth(session),
 		setSessionSpawnDepth: (session, depth) => this.value.sessionServerToolAccessor.setSessionSpawnDepth(session, depth),
+		isChatMoveEnabled: () => this.value.sessionServerToolAccessor.isChatMoveEnabled(),
+		getSessionModelOptions: () => this.value.sessionServerToolAccessor.getSessionModelOptions(),
+		usesCredentialScopedModels: session => this.value.sessionServerToolAccessor.usesCredentialScopedModels(session),
+		supportsChatMoves: session => this.value.sessionServerToolAccessor.supportsChatMoves(session),
+		checkChatMove: move => this.value.sessionServerToolAccessor.checkChatMove(move),
+		applyChatMove: move => this.value.sessionServerToolAccessor.applyChatMove(move),
+		isKnownSessionLink: (session, chatId) => this.value.sessionServerToolAccessor.isKnownSessionLink(session, chatId),
 	};
 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
 		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
+		isChatResourcesEnabled: () => this.value.artifactServerToolAccessor.isChatResourcesEnabled?.() === true,
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
+		associatePullRequest: (chat, url) => this.value.artifactServerToolAccessor.associatePullRequest?.(chat, url) ?? Promise.resolve(false),
+		associatePullRequests: (chat, urls) => this.value.artifactServerToolAccessor.associatePullRequests?.(chat, urls) ?? Promise.resolve({ pending: [], unmatched: [...urls] }),
+		removePendingPullRequest: (session, chat, url) => this.value.artifactServerToolAccessor.removePendingPullRequest?.(session, chat, url) ?? Promise.resolve(),
+		reportAssociationError: error => this.value.artifactServerToolAccessor.reportAssociationError?.(error),
 	};
 
 	bind(callbacks: IAgentServiceCallbacks): void {
@@ -78,7 +106,7 @@ export interface IAgentServiceFoundation {
 	readonly proxyResolver: IAgentHostProxyResolver;
 	readonly requestService: IRequestService;
 	readonly fetchFn: typeof globalThis.fetch;
-	readonly gitHubServiceOptions: GitHubServiceOptions;
+	readonly gitHubServiceOptions: Omit<GitHubServiceOptions, 'credentialProvider'>;
 }
 
 export interface ICreateAgentServiceFoundationOptions {
@@ -101,6 +129,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			canEvict: changeset => callbackAdapter.canEvictChangeset(changeset),
 		},
 	}));
+	const managedSettingsService = options.owned.add(new AgentHostManagedSettingsService());
 	const configurationService = options.owned.add(new AgentConfigurationService(
 		stateManager,
 		options.logService,
@@ -112,14 +141,20 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			Object.values(AgentHostProxyConfigKey).map(key => [key, undefined])
 		));
 	}
-	const authenticationService = options.owned.add(new AgentHostAuthenticationService(options.logService));
+	configurationService.publishRootTransientValues({ [MissionControlUseLocalCredentialsConfigKey]: undefined });
 	const gitHubEndpointService = options.owned.add(new AgentHostGitHubEndpointService(configurationService, options.logService));
 	const proxyResolver = options.proxyResolver ?? options.owned.add(new AgentHostProxyResolver(configurationService, options.logService));
 	const requestService = options.owned.add(new AgentHostRequestService(options.logService, proxyResolver));
 	const fetchFn = options.fetchFn ?? proxyResolver.fetch.bind(proxyResolver);
+	const authenticationService = options.owned.add(new AgentHostAuthenticationService(options.logService, fetchFn, {
+		isEnabled: () => configurationService.getRootValue(platformRootSchema, MissionControlUseLocalCredentialsConfigKey) === true,
+		getResources: () => [gitHubEndpointService.getCopilotResource(), gitHubEndpointService.getRepoResource()],
+		onDidChange: configurationService.onDidRootConfigChange,
+	}));
 
 	options.services.set(IAgentHostStateManager, stateManager);
 	options.services.set(IAgentConfigurationService, configurationService);
+	options.services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	options.services.set(IAgentHostAuthenticationService, authenticationService);
 	options.services.set(IAgentHostAuthenticationController, authenticationService);
 	options.services.set(IAgentHostGitHubEndpointService, gitHubEndpointService);
@@ -136,14 +171,12 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 		requestService,
 		fetchFn,
 		gitHubServiceOptions: {
-			endpoint: gitHubEndpointService,
-			tokenProvider: {
-				getToken: () => {
-					const resource = gitHubEndpointService.getRepoResource();
-					return authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-			},
-			fetch: fetchFn,
+			telemetrySource: 'agentHost',
+			clientMetadata: createGitHubClientMetadata(options.productService, 'agent-host', 'node'),
+			onDidChangeTelemetryLevel: Event.filter<TelemetryLevel, undefined>(Event.map(configurationService.onDidRootConfigChange, () =>
+				agentHostConfigValueToTelemetryLevel(configurationService.getRootConfigValues()[AgentHostTelemetryLevelConfigKey])
+				, options.owned), (level): level is TelemetryLevel => level !== undefined, options.owned),
+			fetch: createCancellableFetch(fetchFn),
 		},
 	};
 }

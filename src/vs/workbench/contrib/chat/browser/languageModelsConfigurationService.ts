@@ -16,7 +16,7 @@ import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/edi
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { JSONVisitor, visit } from '../../../../base/common/json.js';
+import { JSONVisitor, setObjectProperty, visit } from '../../../../base/common/json.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
@@ -248,7 +248,7 @@ export function parseLanguageModelsProviderGroups(model: ITextModel): LanguageMo
 		if (Array.isArray(currentParent)) {
 			(currentParent as unknown[]).push(value);
 		} else if (currentProperty !== null) {
-			(currentParent as Record<string, unknown>)[currentProperty] = value;
+			setObjectProperty(currentParent as Record<string, unknown>, currentProperty, value);
 		}
 	}
 

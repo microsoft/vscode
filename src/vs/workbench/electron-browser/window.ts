@@ -28,9 +28,14 @@ import { getFlatActionBarActions } from '../../platform/actions/browser/menuEntr
 import { RunOnceScheduler } from '../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService } from '../services/lifecycle/common/unattendedRestart.js';
+import { IUnattendedRestartReadinessProvider, UnattendedRestartChannelName } from '../../platform/lifecycle/common/unattendedRestart.js';
+import { RESTART_WHEN_IDLE_SETTING } from '../../platform/update/common/update.js';
+import { IMainProcessService } from '../../platform/ipc/common/mainProcessService.js';
+import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/workspaces.js';
 import { IIntegrityService } from '../services/integrity/common/integrity.js';
-import { isWindows, isMacintosh } from '../../base/common/platform.js';
+import { isWindows, isMacintosh, isLinux } from '../../base/common/platform.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
@@ -91,6 +96,8 @@ export class NativeWindow extends BaseWindow {
 
 	private isDocumentedEdited = false;
 
+	private pendingWaitMarkerFiles = 0;
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -130,6 +137,8 @@ export class NativeWindow extends BaseWindow {
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
 		@IHostService hostService: IHostService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IUnattendedRestartService private readonly unattendedRestartService: IUnattendedRestartService,
+		@IMainProcessService private readonly mainProcessService: IMainProcessService,
 	) {
 		super(mainWindow, undefined, hostService, nativeEnvironmentService, contextMenuService, layoutService);
 
@@ -399,6 +408,17 @@ export class NativeWindow extends BaseWindow {
 		if (filesToWait) {
 			this.trackClosedWaitFiles(filesToWait.waitMarkerFileUri, coalesce(filesToWait.paths.map(path => path.fileUri)));
 		}
+
+		// Unattended restart (e.g. to apply an update while the user is away)
+		this.mainProcessService.registerChannel(UnattendedRestartChannelName, ProxyChannel.fromService({
+			canRestartUnattended: async () => ({
+				...await this.unattendedRestartService.canRestartUnattended(),
+				enabled: this.configurationService.getValue<boolean>(RESTART_WHEN_IDLE_SETTING) === true
+			})
+		} satisfies IUnattendedRestartReadinessProvider, this._store));
+		this._register(this.unattendedRestartService.registerParticipant({
+			check: () => this.pendingWaitMarkerFiles > 0 ? 'cli.waitingForEditorClose' : undefined
+		}));
 
 		// macOS OS integration: represented file name
 		if (isMacintosh) {
@@ -756,11 +776,12 @@ export class NativeWindow extends BaseWindow {
 			}
 		}
 
-		// macOS 11 warning
+		// macOS 13 and 14 warning
 		if (isMacintosh) {
 			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
 			const eolReleases = new Map<string, string>([
-				['20', 'macOS Big Sur'],
+				['22', 'macOS Ventura'],
+				['23', 'macOS Sonoma'],
 			]);
 
 			if (eolReleases.has(majorVersion)) {
@@ -774,12 +795,31 @@ export class NativeWindow extends BaseWindow {
 						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
 					}],
 					{
-						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						neverShowAgain: { id: `macoseol.${majorVersion}`, isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
 						priority: NotificationPriority.URGENT,
 						sticky: true
 					}
 				);
 			}
+		}
+
+		// Linux arm32 warning
+		if (isLinux && this.nativeEnvironmentService.os.arch === 'arm') {
+			const message = localize('linuxarm32eolmessage', "{0} on 32-bit ARM Linux will soon stop receiving updates. Consider using a 64-bit version of {0} and a 64-bit operating system.", this.productService.nameLong);
+
+			this.notificationService.prompt(
+				Severity.Warning,
+				message,
+				[{
+					label: localize('learnMore', "Learn More"),
+					run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-linux-arm-32-eol'))
+				}],
+				{
+					neverShowAgain: { id: 'linuxarm32eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+					priority: NotificationPriority.URGENT,
+					sticky: true
+				}
+			);
 		}
 
 		// Slow shell environment progress indicator
@@ -1054,12 +1094,17 @@ export class NativeWindow extends BaseWindow {
 	}
 
 	private async trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): Promise<void> {
+		this.pendingWaitMarkerFiles++;
+		try {
 
-		// Wait for the resources to be closed in the text editor...
-		await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, resourcesToWaitFor));
+			// Wait for the resources to be closed in the text editor...
+			await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, resourcesToWaitFor));
 
-		// ...before deleting the wait marker file
-		await this.fileService.del(waitMarkerFile);
+			// ...before deleting the wait marker file
+			await this.fileService.del(waitMarkerFile);
+		} finally {
+			this.pendingWaitMarkerFiles--;
+		}
 	}
 
 	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean, mergeMode: boolean): Promise<readonly IEditorPane[]> {

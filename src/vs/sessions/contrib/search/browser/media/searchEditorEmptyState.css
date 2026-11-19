@@ -10,6 +10,64 @@
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
-	padding: var(--vscode-spacing-size200);
 	pointer-events: none;
+}
+
+.sessions-search-empty-state .sessions-empty-state-content {
+	width: min(320px, 100%);
+	pointer-events: auto;
+}
+
+.agent-sessions-workbench .search-editor.search-editor-empty > .query-container {
+	--search-editor-query-controls-hidden: true;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .search-editor.search-editor-empty > .query-container {
+	margin: auto auto var(--vscode-spacing-size160);
+	padding: 0;
+	width: calc(100% - 2 * var(--vscode-spacing-size240));
+	max-width: 320px;
+	min-height: 0;
+	border-bottom: 0;
+	grid-template-columns: minmax(0, 1fr);
+	column-gap: 0;
+}
+
+.agent-sessions-workbench .search-editor.search-editor-empty .monaco-findInput > .controls,
+.agent-sessions-workbench .search-editor.search-editor-empty .context-lines-input,
+.agent-sessions-workbench .search-editor.search-editor-empty .search-container > .monaco-custom-toggle,
+.agent-sessions-workbench .search-editor.search-editor-empty .query-container > .includes-excludes {
+	display: none;
+}
+
+.agent-sessions-workbench .search-editor.search-editor-empty .monaco-findInput {
+	flex: 1 0 100%;
+}
+
+.agent-sessions-workbench .search-editor.search-editor-empty .query-container > .messages {
+	margin-top: 0;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .search-editor.search-editor-empty > .search-results {
+	flex: 0 0 calc(2 * var(--vscode-spacing-size280));
+	min-height: 0;
+	min-width: 0;
+	width: min(320px, calc(100% - 2 * var(--vscode-spacing-size240)));
+	margin: 0 auto auto;
+}
+
+.agent-sessions-workbench .search-editor.search-editor-empty .search-results .margin,
+.agent-sessions-workbench .search-editor.search-editor-empty .search-results .view-lines,
+.agent-sessions-workbench .search-editor.search-editor-empty .search-results .view-overlays,
+.agent-sessions-workbench .search-editor.search-editor-empty .search-results .cursors-layer,
+.agent-sessions-workbench .search-editor.search-editor-empty .search-results .scroll-decoration,
+.agent-sessions-workbench .search-editor.search-editor-empty .search-results .minimap,
+.agent-sessions-workbench .search-editor.search-editor-empty .search-results .decorationsOverviewRuler,
+.agent-sessions-workbench .search-editor.search-editor-empty .search-results .scrollbar {
+	display: none;
+	visibility: hidden;
+}
+
+.agent-sessions-workbench .search-editor.search-editor-empty .messages .message.prominent {
+	display: none;
 }

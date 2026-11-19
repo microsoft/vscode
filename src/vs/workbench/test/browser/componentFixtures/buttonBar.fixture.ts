@@ -20,7 +20,8 @@ export default defineThemedFixtureGroup({ path: 'platform/' }, {
 
 	ButtonBars: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Four captioned rows each show a bar: a labelled primary button followed by two secondary icon-only buttons, a split button with a chevron half, that same split button with the pixel spinner in place of the icon on its primary half, and a primary button beside a chevron-only overflow button.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Four captioned rows each show a bar: a labelled primary button followed by two secondary icon-only buttons, a split button with a chevron half, that same split button with the pixel spinner in place of the icon on its primary half, and a primary button beside a chevron-only overflow button. Each split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
 		render: renderButtonBars,
 	}),
 
@@ -141,7 +142,7 @@ function renderButtons(context: ComponentFixtureContext): void {
 	const instantiationService = createServices(context);
 
 	const commit = action('fixture.commit', 'Commit', Codicon.gitCommit);
-	const noIcon = action('fixture.publish', 'Publish Branch');
+	const noIcon = action('fixture.publish', 'Publish Test Branch');
 	const disabled = action('fixture.merge', 'Merge', Codicon.gitMerge, false);
 
 	const scenarios: readonly [caption: string, action: IAction, config: ReturnType<IButtonConfigProvider>][] = [

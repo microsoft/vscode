@@ -12,7 +12,7 @@ import { createTextModel } from '../../common/testTextModel.js';
 import { TestLanguageConfigurationService } from '../../common/modes/testLanguageConfigurationService.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 
-export function testViewModel(text: string[], options: IEditorOptions, callback: (viewModel: ViewModel, model: TextModel) => void): void {
+export function testViewModel(text: string[], options: IEditorOptions, callback: (viewModel: ViewModel, model: TextModel, configuration: TestConfiguration) => void): void {
 	const EDITOR_ID = 1;
 
 	const configuration = new TestConfiguration(options);
@@ -26,7 +26,7 @@ export function testViewModel(text: string[], options: IEditorOptions, callback:
 		batchChanges: (cb) => cb(),
 	});
 
-	callback(viewModel, model);
+	callback(viewModel, model, configuration);
 
 	viewModel.dispose();
 	model.dispose();

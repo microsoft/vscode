@@ -31,7 +31,7 @@ import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseProgressPart2 } from '../../../../vscodeTypes';
 import { ToolCallingLoop } from '../../../intents/node/toolCallingLoop';
-import { IResultMetadata } from '../../../prompt/common/conversation';
+import { getCurrentTaskHistoryStart, IResultMetadata } from '../../../prompt/common/conversation';
 import { IBuildPromptContext, IToolCallRound } from '../../../prompt/common/intents';
 import { ToolName } from '../../../tools/common/toolNames';
 import { normalizeToolSchema } from '../../../tools/common/toolSchemaNormalizer';
@@ -238,6 +238,7 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 	override async render(state: void, sizing: PromptSizing) {
 		// Iterate over the turns in reverse order until we find a turn with a tool call round that was summarized
 		const history: PromptElement[] = [];
+		const currentTaskStart = getCurrentTaskHistoryStart(this.props.promptContext.history, !!this.props.promptContext.request?.isSystemInitiated);
 
 		// If we have a stop hook query, add it as a new user message at the very end of the conversation.
 		// Push it first so that after history.reverse() it will be last.
@@ -349,6 +350,7 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 				toolCallRounds={toolCallRounds}
 				toolCallResults={toolCallResults}
 				isHistorical={!(toolCallResultInNextTurn && i === this.props.promptContext.history.length - 1)}
+				isCurrentTask={i >= currentTaskStart}
 				truncateAt={this.props.maxToolResultLength}
 			/>);
 

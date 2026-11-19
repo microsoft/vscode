@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as nls from '../../../../nls.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Extensions, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { IRemoteExplorerService, PORT_AUTO_FALLBACK_SETTING, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, PortsEnablement, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from '../../../services/remote/common/remoteExplorerService.js';
@@ -350,7 +351,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 	}
 }
 
-class OnAutoForwardedAction extends Disposable {
+export class OnAutoForwardedAction extends Disposable {
 	private lastNotifyTime: Date;
 	private static NOTIFY_COOL_DOWN = 5000; // milliseconds
 	private lastNotification: INotificationHandle | undefined;
@@ -464,9 +465,7 @@ class OnAutoForwardedAction extends Disposable {
 	}
 
 	private linkMessage() {
-		return nls.localize(
-			{ key: 'remote.tunnelsView.notificationLink2', comment: ['[See all forwarded ports]({0}) is a link. Only translate `See all forwarded ports`. Do not change brackets and parentheses or {0}'] },
-			"[See all forwarded ports]({0})", `command:${TunnelPanel.ID}.focus`);
+		return NotificationText.link(nls.localize('remote.tunnelsView.notificationLinkLabel', "See all forwarded ports"), `command:${TunnelPanel.ID}.focus`);
 	}
 
 	private async showNotification(tunnel: RemoteTunnel) {
@@ -491,9 +490,8 @@ class OnAutoForwardedAction extends Disposable {
 			choices.push(this.makePublicChoice(tunnel));
 		}
 
-		message += this.linkMessage();
-
-		this.lastNotification = this.notificationService.prompt(Severity.Info, message, choices, { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
+		const linkedMessage = NotificationText.concat(message, this.linkMessage());
+		this.lastNotification = this.notificationService.prompt(Severity.Info, linkedMessage, choices, { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
 		this.lastShownPort = tunnel.tunnelRemotePort;
 		this.lastNotifyTime = new Date();
 		this.notificationDisposable.value = this.lastNotification.onDidClose(() => {
@@ -554,7 +552,7 @@ class OnAutoForwardedAction extends Disposable {
 				this.lastNotification?.close();
 				this.lastShownPort = newTunnel.tunnelRemotePort;
 				this.lastNotification = this.notificationService.prompt(Severity.Info,
-					await this.basicMessage(newTunnel) + this.linkMessage(),
+					NotificationText.concat(await this.basicMessage(newTunnel), this.linkMessage()),
 					[this.openBrowserChoice(newTunnel), this.openPreviewChoice(tunnel)],
 					{ neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
 				this.notificationDisposable.value = this.lastNotification.onDidClose(() => {

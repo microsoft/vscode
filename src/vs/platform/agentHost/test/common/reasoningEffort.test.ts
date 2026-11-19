@@ -35,6 +35,10 @@ suite('reasoningEffort', () => {
 			resolveDefaultReasoningEffort(['low', 'medium', 'high'], undefined, 'gpt-5'),
 			resolveDefaultReasoningEffort(['low', 'medium', 'high'], 'nonsense', 'gpt-5'),
 			resolveDefaultReasoningEffort(['low', 'medium', 'high'], undefined, 'claude-opus-5'),
+			resolveDefaultReasoningEffort(['low', 'medium', 'high'], undefined, 'claude-opus-5.5'),
+			resolveDefaultReasoningEffort(['low', 'medium', 'high'], undefined, 'claude-haiku-5-5'),
+			resolveDefaultReasoningEffort(['low', 'medium', 'high'], undefined, 'claude-sonnet-5.5'),
+			resolveDefaultReasoningEffort(['low', 'medium', 'high'], 'high', 'claude-opus-5.5'),
 			resolveDefaultReasoningEffort(['minimal', 'max'], undefined, 'gpt-5'),
 			resolveDefaultReasoningEffort([], undefined, 'gpt-5'),
 			resolveDefaultReasoningEffort(undefined, undefined, 'gpt-5'),
@@ -43,9 +47,20 @@ suite('reasoningEffort', () => {
 			'medium',
 			'medium',
 			'high',
+			'medium',
+			'medium',
+			'high',
+			'high',
 			'minimal',
 			undefined,
 			undefined,
 		]);
+	});
+
+	test('prefers high effort for Kimi K3 and newer', () => {
+		assert.deepStrictEqual(
+			['kimi-k2.7-code', 'kimi-k3-copilot-picker', 'moonshotai/Kimi-K3:latest', 'kimi-k3.5', 'kimi-k4', 'accounts/fireworks/models/kimi-k3p5', 'k3-256k', 'kimi-k3x', 'k30'].map(modelId => resolveDefaultReasoningEffort(['low', 'high', 'max'], undefined, modelId)),
+			['low', 'high', 'high', 'high', 'high', 'high', 'high', 'low', 'low'],
+		);
 	});
 });

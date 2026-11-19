@@ -35,8 +35,9 @@
 .agent-host-chat-input-picker-slot span.action-label {
 	display: inline-flex;
 	align-items: center;
-	height: 16px;
-	padding: 3px 8px;
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+	padding: 0 var(--vscode-spacing-size60);
 	border-radius: 4px;
 	color: var(--vscode-icon-foreground);
 }
@@ -104,15 +105,15 @@
 }
 
 .interactive-session .compact-picker .agent-host-chat-input-picker-slot {
-	width: 22px;
-	height: 22px;
+	width: var(--chat-input-control-height);
+	height: var(--chat-input-control-height);
 }
 
 .interactive-session .compact-picker .agent-host-chat-input-picker-slot .action-label {
 	box-sizing: border-box;
-	width: 22px;
-	height: 22px;
-	min-width: 22px;
+	width: var(--chat-input-control-height);
+	height: var(--chat-input-control-height);
+	min-width: var(--chat-input-control-height);
 	padding: 0;
 	justify-content: center;
 }
@@ -167,4 +168,54 @@
 .agent-host-chat-input-picker-sandbox-icon {
 	flex-shrink: 0;
 	margin-left: var(--vscode-spacing-size60);
+}
+
+/* A chat's own value is still loading: show the session's value dimmed until it arrives. */
+.agent-host-chat-input-picker-slot.resolving .action-label {
+	opacity: 0.6;
+	cursor: default;
+}
+
+/* The Chat view's folder chip always shows its name: a long one is ellipsized rather than clipping its neighbors */
+.interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar .chat-input-picker-item .action-label.agent-host-folder-chip .chat-input-picker-label {
+	max-width: 160px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/*
+ * The folder picker's rows with a detail, such as the folder with Current beside its name: the list sets a row's line
+ * height to its height, so the first line keeps to its text as the title does, and the detail fits below it.
+ */
+.action-widget .agent-host-folder-picker-list .monaco-list .monaco-list-row.action.has-detail .description {
+	line-height: 14px;
+}
+
+/*
+ * A checkbox in the chat input's chip row, such as New Worktree, which stands in for the folder chip: laid out as the chips
+ * beside it, with their row, padding, gap and text. Its box is the compact checkbox (`size: 14`), whose check is at the
+ * compact codicon size of their icons.
+ */
+.interactive-session .chat-secondary-toolbar .monaco-action-bar .checkbox-action-item.chat-input-checkbox-item {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+	padding: 0 var(--vscode-spacing-size60);
+	gap: var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-icon-foreground);
+}
+
+.interactive-session .chat-secondary-toolbar .monaco-action-bar .checkbox-action-item.chat-input-checkbox-item > .monaco-custom-toggle.monaco-checkbox {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+}
+
+.interactive-session .chat-secondary-toolbar .monaco-action-bar .checkbox-action-item.chat-input-checkbox-item > .checkbox-label {
+	font-size: var(--vscode-fontSize-body2);
+	white-space: nowrap;
+	cursor: pointer;
 }

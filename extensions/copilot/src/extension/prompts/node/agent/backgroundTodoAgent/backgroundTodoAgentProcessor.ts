@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken, ChatParticipantToolToken, Uri } from 'vscode';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { IEndpointProvider } from '../../../../../lib/node/chatLibMain';
 import { ILogger, ILogService } from '../../../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
@@ -21,25 +22,6 @@ import { ChatFetchResponseType, ChatLocation } from '../../../../../platform/cha
 import { renderPromptElement } from '../../base/promptRenderer';
 import { BackgroundTodoPrompt } from './backgroundTodoAgentPrompt';
 import { CancellationTokenSource } from '../../../../../util/vs/base/common/cancellation';
-
-/**
- * External state the policy needs but does not own.
- * Callers construct this once and pass it in.
- */
-export interface IBackgroundTodoPolicyInput {
-	/** Whether the combined background todo agent gate is enabled. */
-	readonly backgroundTodoAgentEnabled: boolean;
-	/** Whether the user explicitly referenced the todo tool (e.g. `#todo`), used for diagnostics. */
-	readonly todoToolExplicitlyEnabled: boolean;
-	/** Whether the current prompt is the main agent prompt. */
-	readonly isAgentPrompt: boolean;
-	/** The current prompt context for delta computation. */
-	readonly promptContext: IBuildPromptContext;
-	/** ID of the current user turn, used to reset turn-scoped policy backoff. */
-	readonly turnId?: string;
-	/** Whether a todo list already exists for this session. `undefined` means unknown. */
-	readonly todoListExists?: boolean;
-}
 
 
 const enum BackgroundTodoAgentProcessorState {

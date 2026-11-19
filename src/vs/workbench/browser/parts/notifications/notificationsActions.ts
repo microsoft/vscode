@@ -13,6 +13,7 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { NotificationActionTelemetryId, withNotificationActionTelemetry } from '../../../../platform/notification/common/notificationTelemetry.js';
 
 const clearIcon = registerIcon('notifications-clear', Codicon.close, localize('clearIcon', 'Icon for the clear action in notifications.'));
 const clearAllIcon = registerIcon('notifications-clear-all', Codicon.clearAll, localize('clearAllIcon', 'Icon for the clear all action in notifications.'));
@@ -211,6 +212,7 @@ export class CopyNotificationMessageAction extends Action {
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(id, label);
+		withNotificationActionTelemetry(this, NotificationActionTelemetryId.Copy);
 	}
 
 	override run(notification: INotificationViewItem): Promise<void> {

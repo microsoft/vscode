@@ -25,6 +25,9 @@ export declare function readBinaryVersion(bin: string): string;
 /** Reads the pinned version from build/codex/codex-version.txt. */
 export declare function readPinnedVersion(): string;
 
+/** Normalize en dashes in comments without changing TypeScript tokens. */
+export declare function normalizeCommentDashes(text: string): string;
+
 /**
  * Regenerates the protocol client into `outDir` using `bin`, stamping `codexVersion` into the
  * per-file header. Wipes `outDir` first (except README.md). Output is byte-identical regardless

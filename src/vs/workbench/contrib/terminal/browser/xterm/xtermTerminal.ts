@@ -12,9 +12,10 @@ import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serializ
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
 import type { ClipboardAddon as ClipboardAddonType } from '@xterm/addon-clipboard';
 import * as dom from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { IXtermCore } from '../xterm-private.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { IShellIntegration, ITerminalLogService, TerminalSettingId, type IDecorationAddon } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalFont, ITerminalConfiguration } from '../../common/terminal.js';
@@ -50,6 +51,7 @@ import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { ensureCanvasFontLeadingWhitespaceFix, updateTerminalFontRendering } from './terminalFontRendering.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -100,6 +102,8 @@ export interface IXtermTerminalOptions {
 	xtermAddonImporter?: XtermAddonImporter;
 	/** Whether to disable the overview ruler. */
 	disableOverviewRuler?: boolean;
+	/** The rows of scrollback to keep, overriding the `terminal.integrated.scrollback` setting. */
+	scrollback?: number;
 	/**
 	 * When true, skips registering listeners on global singleton services
 	 * (configuration, theme, log level) to avoid accumulating listeners when
@@ -122,6 +126,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private readonly _xtermColorProvider: IXtermColorProvider;
 	private readonly _capabilities: ITerminalCapabilityStore;
 	private readonly _disableOverviewRuler: boolean;
+	private readonly _scrollback: number | undefined;
 
 	private static _suggestedRendererType: 'dom' | undefined = undefined;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
@@ -149,6 +154,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _webglAddonCustomGlyphs?: boolean;
 	private _webglAddonLoading = false;
 	private _webglAddonLoadId = 0;
+	/** The window the WebGL renderer was created in: its canvas loses its context in another window. */
+	private _webglWindow: Window | undefined;
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
 	private readonly _ligaturesAddon: MutableDisposable<LigaturesAddonType> = this._register(new MutableDisposable());
@@ -233,6 +240,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._xtermColorProvider = options.xtermColorProvider;
 		this._capabilities = options.capabilities;
 		this._disableOverviewRuler = options.disableOverviewRuler ?? false;
+		this._scrollback = options.scrollback;
 
 		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), undefined, true);
 		const config = this._terminalConfigurationService.config;
@@ -244,7 +252,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			rows: options.rows,
 			documentOverride: layoutService.mainContainer.ownerDocument,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
-			scrollback: config.scrollback,
+			scrollback: this._scrollback ?? config.scrollback,
 			theme: this.getXtermTheme(),
 			drawBoldTextInBrightColors: config.drawBoldTextInBrightColors,
 			fontFamily: font.fontFamily,
@@ -505,6 +513,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this.raw.open(container);
 		}
 
+		updateTerminalFontRendering(this.raw, this._terminalConfigurationService.config.fontRendering);
+
 		// TODO: Move before open so the DOM renderer doesn't initialize
 		if (options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
@@ -538,7 +548,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		this._attached = { container, options };
 		// Screen must be created at this point as xterm.open is called
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		return this._attached?.container.querySelector('.xterm-screen')!;
 	}
 
@@ -595,7 +605,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorStyleInactive(config.cursorStyleInactive);
 		this._setCursorWidth(config.cursorWidth);
-		this.raw.options.scrollback = config.scrollback;
+		this.raw.options.scrollback = this._scrollback ?? config.scrollback;
 		this.raw.options.drawBoldTextInBrightColors = config.drawBoldTextInBrightColors;
 		this.raw.options.minimumContrastRatio = config.minimumContrastRatio;
 		this.raw.options.tabStopWidth = config.tabStopWidth;
@@ -611,6 +621,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
 		this.raw.options.allowTransparency = config.enableImages;
+		updateTerminalFontRendering(this.raw, config.fontRendering);
 		this.raw.options.vtExtensions = {
 			kittyKeyboard: config.enableKittyKeyboardProtocol,
 			win32InputMode: config.enableWin32InputMode,
@@ -720,6 +731,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return this._terminalConfigurationService.getFont(dom.getWindow(this.raw.element), this._core);
 	}
 
+	setBufferLineWrapped(lineIndex: number, isWrapped: boolean): void {
+		this._core._bufferService.buffer.setWrapped(lineIndex, isWrapped);
+	}
+
 	getLongestViewportWrappedLineLength(): number {
 		let maxLineLength = 0;
 		for (let i = this.raw.buffer.active.length - 1; i >= this.raw.buffer.active.viewportY; i--) {
@@ -753,26 +768,44 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	scrollDownLine(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollLines(1);
 	}
 
 	scrollDownPage(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollPages(1);
 	}
 
 	scrollToBottom(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollToBottom();
 	}
 
 	scrollUpLine(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollLines(-1);
 	}
 
 	scrollUpPage(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollPages(-1);
 	}
 
 	scrollToTop(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollToTop();
 	}
 
@@ -781,16 +814,29 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	clearBuffer(): void {
+		const isNormalBuffer = this.raw.buffer.active.type === 'normal';
+		// Clearing the alternate buffer leaves the normal buffer's output and markers intact.
+		if (isNormalBuffer) {
+			this._decorationAddon.clearDecorations();
+			this._capabilities.get(TerminalCapability.CommandDetection)?.clearCommands();
+			this._capabilities.get(TerminalCapability.PartialCommandDetection)?.clearCommands();
+		}
 		this.raw.clear();
-		// xterm.js does not clear the first prompt, so trigger these to simulate
-		// the prompt being written
-		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
-		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
+		if (isNormalBuffer) {
+			// xterm.js does not clear the first prompt, so trigger these to simulate
+			// the prompt being written
+			this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
+			this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
+		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 
 	reset(): void {
 		this.raw.reset();
+	}
+
+	registerOscHandler(ident: number, callback: (data: string) => boolean | Promise<boolean>): IDisposable {
+		return this.raw.parser.registerOscHandler(ident, callback);
 	}
 
 	hasSelection(): boolean {
@@ -935,6 +981,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._webglAddon = new Addon({
 			customGlyphs
 		});
+		this._webglWindow = dom.getWindow(this.raw.element);
+		ensureCanvasFontLeadingWhitespaceFix(mainWindow);
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
@@ -1033,8 +1081,23 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 	}
 
+	/**
+	 * Recreates the WebGL renderer once the terminal shows in another window than the one it was created in, such as
+	 * after its editor moved to an auxiliary window: the canvas of the renderer loses its context there.
+	 */
+	updateGpuRendererWindow(): void {
+		if (!this._webglAddon || !this.raw.element || dom.getWindow(this.raw.element) === this._webglWindow) {
+			return;
+		}
+		this._disposeOfWebglRenderer();
+		if (this._attached?.options.enableGpu && this._shouldLoadWebgl()) {
+			this._enableWebglRenderer();
+		}
+	}
+
 	private _disposeOfWebglRenderer(): void {
 		this._webglAddonLoadId++;
+		this._webglWindow = undefined;
 		this._webglAddonLoading = false;
 		this._webglAddonCustomGlyphs = undefined;
 		this._webglContextLossListener.clear();
@@ -1156,7 +1219,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line ts-eslint-js/naming-convention
 	_writeText(data: string): void {
 		this.raw.write(data);
 	}

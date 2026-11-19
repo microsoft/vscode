@@ -13,13 +13,14 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../platform/work
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ConfigurationMigration, ConfigurationMigrationWorkbenchContribution, Extensions, IConfigurationMigrationRegistry } from '../../common/configuration.js';
+import { testIWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('ConfigurationMigrationWorkbenchContribution', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function migrate(includeApplication: boolean | undefined): Promise<ConfigurationTarget[]> {
-		const key = includeApplication ? 'agents.voice.voice' : 'configurationMigration.test.default';
+		const key = includeApplication ? 'configurationMigration.test.application' : 'configurationMigration.test.default';
 		const migration = {
 			key,
 			includeApplication,
@@ -49,7 +50,7 @@ suite('ConfigurationMigrationWorkbenchContribution', () => {
 		const workspaceService = new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = Event.None;
 			override getWorkbenchState(): WorkbenchState { return WorkbenchState.EMPTY; }
-			override getWorkspace() { return { id: 'test', folders: [] }; }
+			override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
 		}();
 
 		disposables.add(new ConfigurationMigrationWorkbenchContribution(configurationService, workspaceService));
@@ -61,7 +62,7 @@ suite('ConfigurationMigrationWorkbenchContribution', () => {
 		assert.deepStrictEqual(await migrate(undefined), [ConfigurationTarget.USER]);
 	});
 
-	test('includes application configuration for the opted-in voice migration', async () => {
+	test('includes application configuration when the migration opts in', async () => {
 		assert.deepStrictEqual(await migrate(true), [ConfigurationTarget.APPLICATION, ConfigurationTarget.USER]);
 	});
 });

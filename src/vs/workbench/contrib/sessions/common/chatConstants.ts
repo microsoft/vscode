@@ -1,0 +1,28 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { ChatConfiguration } from '../../chat/common/constants.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING } from './sessionComparison.js';
+
+export { NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID as NEW_SESSION_ACTION_ID } from '../../chat/common/chatSessionsService.js';
+/** New Session in a chat window: it starts the session in the chat window it runs in. */
+export const NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID = 'sessions.chatWindow.newSession';
+export const AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING = 'chat.agentSessions.responseSelectionMenu.enabled';
+export const AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING = 'chat.agentSessions.appearanceTools.enabled';
+export { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING };
+export const COMPARE_AGENTS_OPEN_IN_GRID_SETTING = 'sessions.chat.compareAgents.openInGrid';
+export const COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING = 'sessions.chat.compareAgents.showPickerHint';
+export const COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING = 'sessions.chat.compareAgents.showSpotlight';
+export const WORKSPACE_OPT_OUT_SETTING = 'sessions.chat.experimental.workspaceOptOut';
+export const ENVIRONMENT_PICKER_SETTING = 'sessions.chat.experimental.environmentPicker';
+export const ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING = 'sessions.chat.experimental.environmentPickerManageRemotes';
+export const REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING = 'sessions.chat.experimental.remoteEnvironmentsThisComputer';
+export const NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING = 'sessions.chat.experimental.newSessionComposerOptionsExpanded';
+export const AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING = ChatConfiguration.AgentsPickerInAttachContextMenu;
+export const COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING = 'sessions.chat.experimental.collapsedSessionOptionsShowIcons';
+export const NEW_SESSION_WELCOME_PHRASES_SETTING = 'sessions.chat.experimental.welcomePhrases';
+export const NEW_SESSION_WELCOME_NAME_SETTING = 'sessions.chat.experimental.welcomeName';
+export const NEW_SESSION_WELCOME_MESSAGES_SETTING = 'sessions.chat.experimental.welcomeMessages';
+export const NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING = 'sessions.chat.experimental.connectorRecommendations';

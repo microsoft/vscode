@@ -16,6 +16,7 @@ import { TestThemeService } from '../../../../../platform/theme/test/common/test
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 suite('DecorationsService', function () {
 
@@ -95,6 +96,38 @@ suite('DecorationsService', function () {
 		assert.strictEqual(callCounter, 1);
 
 		reg.dispose();
+	});
+
+	test('Classifies text, icon, and bubbled badges', function () {
+		const textUri = URI.parse('file:///text.txt');
+		const iconUri = URI.parse('file:///icon.txt');
+		const parentUri = URI.parse('file:///folder/');
+		const childUri = URI.parse('file:///folder/child.txt');
+		const decorationData = new Map<string, IDecorationData>([
+			[textUri.toString(), { letter: 'M' }],
+			[iconUri.toString(), { letter: Codicon.lockSmall }],
+			[childUri.toString(), { letter: 'M', bubble: true }],
+		]);
+		const registration = service.registerDecorationsProvider({
+			label: 'Badge types',
+			onDidChange: Event.None,
+			provideDecorations: resource => decorationData.get(resource.toString()),
+		});
+
+		const textDecoration = service.getDecoration(textUri, false)!;
+		const iconDecoration = service.getDecoration(iconUri, false)!;
+		service.getDecoration(childUri, false)?.dispose();
+		const bubbleDecoration = service.getDecoration(parentUri, true)!;
+
+		assert.deepStrictEqual(
+			[textDecoration.isTextBadge, iconDecoration.isTextBadge, bubbleDecoration.isTextBadge],
+			[true, false, false]
+		);
+
+		textDecoration.dispose();
+		iconDecoration.dispose();
+		bubbleDecoration.dispose();
+		registration.dispose();
 	});
 
 	test('Falls back to lower-weight decoration color when a theme color is undefined', function () {

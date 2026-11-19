@@ -147,7 +147,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 			if (this._notebookOverlayDomNode) {
 				// Update label
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				const labelElement = this._notebookOverlayDomNode.querySelector('div:nth-child(2)') as HTMLElement;
 				if (labelElement) {
 					labelElement.textContent = `ScrollTop: ${scrollTop}px`;
@@ -155,7 +155,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 				}
 
 				// Update top line
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				const topLineElement = this._notebookOverlayDomNode.querySelector('div:first-child') as HTMLElement;
 				if (topLineElement) {
 					topLineElement.style.top = `${listViewTop}px`;

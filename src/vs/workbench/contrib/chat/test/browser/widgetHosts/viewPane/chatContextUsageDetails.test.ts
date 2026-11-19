@@ -38,6 +38,23 @@ suite('ChatContextUsageDetails', () => {
 		assert.strictEqual(tokenText(details), '42%');
 	});
 
+	test('groups session cost digits and refreshes the value in place', () => {
+		const { details, observable } = createDetails(data({ sessionCost: 12268 }));
+		const initialCost = details.domNode.querySelector('.session-cost-value')?.textContent;
+
+		observable.set(data({ sessionCost: 12345.67 }), undefined);
+
+		assert.deepStrictEqual({
+			initialCost,
+			updatedCost: details.domNode.querySelector('.session-cost-value')?.textContent,
+			display: details.domNode.querySelector<HTMLElement>('.session-cost-section')?.style.display,
+		}, {
+			initialCost: '12,268 credits',
+			updatedCost: '12,345.7 credits',
+			display: '',
+		});
+	});
+
 	test('re-renders in place when the observable changes (open-popover refresh)', () => {
 		const { details, observable } = createDetails(data({ percentage: 80 }));
 		assert.strictEqual(tokenText(details), '80%');

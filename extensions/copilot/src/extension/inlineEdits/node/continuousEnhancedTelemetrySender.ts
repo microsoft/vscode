@@ -96,7 +96,7 @@ export interface IContinuousRecording {
  * ## Reconstruction
  *
  * Each event carries a `sessionId` (stable per sender lifetime — note that a new sender is created
- * whenever `InlineEditProviderFeature`'s autorun reruns, e.g. on copilot-token change, so one extension
+ * whenever `InlineEditProviderFeatureContribution`'s autorun reruns, e.g. on copilot-token change, so one extension
  * session can produce multiple `sessionId`s), a monotonically increasing `sequenceNumber`, and explicit
  * `windowStart`/`windowEnd` timestamps. The backend stitches a longer recording by grouping events by
  * `sessionId`, ordering by `windowStart`, and deduplicating entries in the overlap zone by
