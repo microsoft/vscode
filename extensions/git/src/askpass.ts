@@ -19,6 +19,14 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 	private cacheEvictionTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	private credentialsProviders = new Set<CredentialsProvider>();
 
+	private _cancelledPromptCount = 0;
+	/**
+	 * Number of credential prompts that the user has dismissed. Callers can compare
+	 * snapshots of this value to detect whether a prompt was dismissed while a git
+	 * operation was running.
+	 */
+	get cancelledPromptCount(): number { return this._cancelledPromptCount; }
+
 	readonly featureDescription = 'git auth provider';
 
 	constructor(
@@ -111,7 +119,7 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 			ignoreFocusOut: true
 		};
 
-		return await window.showInputBox(options) || '';
+		return this.onDidPrompt(await window.showInputBox(options));
 	}
 
 	async handleSSHAskpass(argv: string[]): Promise<string> {
@@ -139,7 +147,7 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 				ignoreFocusOut: true
 			};
 
-			return await window.showInputBox(options) || '';
+			return this.onDidPrompt(await window.showInputBox(options));
 		}
 
 		// authenticity
@@ -155,7 +163,16 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 			title: l10n.t('"{0}" has fingerprint "{1}"', host ?? '', fingerprint ?? '')
 		};
 		const items = [l10n.t('yes'), l10n.t('no')];
-		return await window.showQuickPick(items, options) ?? '';
+		return this.onDidPrompt(await window.showQuickPick(items, options));
+	}
+
+	private onDidPrompt(result: string | undefined): string {
+		if (result === undefined) {
+			this._cancelledPromptCount++;
+			this.logger.trace('[Askpass][onDidPrompt] Prompt was cancelled');
+		}
+
+		return result || '';
 	}
 
 	getEnv(): { [key: string]: string } {
