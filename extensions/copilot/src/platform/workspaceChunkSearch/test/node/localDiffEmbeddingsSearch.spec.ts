@@ -58,6 +58,7 @@ test('ranks changed files, only recomputes files whose content changed, and skip
 		new class extends mock<ILogService>() { override debug() { } }(),
 		new class extends mock<IWorkspaceFileIndex>() {
 			override async shouldIndexWorkspaceFile(uri: URI) { return !excluded.has(uri.path); }
+			override get(uri: URI) { return files.find(f => f.uri.toString() === uri.toString()); }
 			override async tryLoad(uri: URI) { return files.find(f => f.uri.toString() === uri.toString()); }
 		}(),
 	);

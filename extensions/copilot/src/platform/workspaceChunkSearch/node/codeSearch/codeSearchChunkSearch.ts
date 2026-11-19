@@ -238,6 +238,11 @@ export class CodeSearchChunkSearch extends Disposable {
 			this._onDidChangeIndexState.fire();
 		}));
 
+		// Whether external ingest applies depends on which workspace folders are outside GitHub repos
+		this._register(this._workspaceService.onDidChangeWorkspaceFolders(() => {
+			void this.ensureExternalIngestInitialized().finally(() => this._onDidChangeIndexState.fire());
+		}));
+
 		if (this.isCodeSearchEnabled()) {
 			this.initialize();
 		}
@@ -487,6 +492,10 @@ export class CodeSearchChunkSearch extends Disposable {
 					return Result.error<AvailableFailureMetadata>({ unavailableReason: 'Diff not available', repoStatuses });
 				}
 				case 'tooLarge': {
+					// The remote index can still answer; searchWorkspace warns that local changes aren't included
+					if (indexedRepos.length) {
+						return Result.ok({ indexedRepos, notYetIndexedRepos, repoStatuses });
+					}
 					return Result.error<AvailableFailureMetadata>({ unavailableReason: 'Diff too large', repoStatuses });
 				}
 			}

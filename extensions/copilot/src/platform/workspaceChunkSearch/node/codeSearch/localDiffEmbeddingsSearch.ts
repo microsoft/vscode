@@ -110,6 +110,12 @@ export class LocalDiffEmbeddingsSearch {
 		// Reuse embeddings for chunks that did not change since the last computation
 		const previousChunks = new Map(cached?.chunks.flatMap(x => x.chunkHash ? [[x.chunkHash, x] as const] : []));
 		const chunks = await this._chunkingEndpointClient.computeChunksAndEmbeddings(authToken, this._embeddingType, file, batchInfo, EmbeddingsComputeQos.Batch, previousChunks, telemetryInfo.callTracker.add('LocalDiffEmbeddingsSearch::getChunksAndEmbeddings'), token);
+
+		// The file index replaces a file's representation when it changes, and a replaced one reads as empty
+		if (this._workspaceFileIndex.get(file.uri) !== file) {
+			return undefined;
+		}
+
 		if (chunks) {
 			this._cache.set(file.uri, { contentVersionId, chunks });
 		}
