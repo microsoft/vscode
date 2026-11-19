@@ -10,11 +10,11 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { IChannel, IChannelServer, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
-import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
+import { IHeaders, IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
-import { ExtensionGalleryAuthenticationError, requestWithExtensionGalleryAuthorization } from '../../common/extensionGalleryManifestService.js';
+import { ExtensionGalleryAuthenticationError, getExtensionGalleryAuthenticationError, requestWithExtensionGalleryAuthorization } from '../../common/extensionGalleryManifestService.js';
 import { ExtensionGalleryAuthorizationChannel, ExtensionGalleryManifestIPCService } from '../../common/extensionGalleryManifestServiceIpc.js';
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
@@ -26,10 +26,11 @@ suite('Extension gallery authorization', () => {
 	const url = 'https://marketplace.example.com/extensionquery';
 	const manifest: IExtensionGalleryManifest = { version: '1', resources: [], capabilities: { extensionQuery: {} } };
 
-	function fixture(statuses: number[], responseUrl: string | undefined = url) {
+	function fixture(statuses: number[], responseUrl: string | undefined = url, responseHeaders: IHeaders = {}) {
 		let accessToken: string | undefined = 'resource-1';
 		const requests: IRequestOptions[] = [];
-		const refreshes: { target: string; token: string }[] = [];
+		const refreshes: { target: string; token: string; wwwAuthenticate?: string }[] = [];
+		const rejections: { target: string; token: string; wwwAuthenticate?: string }[] = [];
 		let refresh = async () => {
 			accessToken = 'resource-2';
 			return true;
@@ -38,8 +39,13 @@ suite('Extension gallery authorization', () => {
 			override async getAccessToken(target: string) {
 				return new URL(target).origin === new URL(url).origin ? accessToken : undefined;
 			}
-			override async refreshAccessToken(target: string, token: string) {
-				refreshes.push({ target, token });
+			override async refreshAccessToken(target: string, token: string, wwwAuthenticate?: string, canRefresh = true) {
+				if (!canRefresh) {
+					rejections.push({ target, token, wwwAuthenticate });
+					accessToken = undefined;
+					return false;
+				}
+				refreshes.push({ target, token, ...(wwwAuthenticate !== undefined ? { wwwAuthenticate } : {}) });
 				return refresh();
 			}
 		}();
@@ -49,13 +55,42 @@ suite('Extension gallery authorization', () => {
 				return {
 					url: responseUrl,
 					requestHasAuthorization: !!options.headers?.Authorization,
-					res: { statusCode: statuses[Math.min(requests.length - 1, statuses.length - 1)], headers: {} },
+					res: { statusCode: statuses[Math.min(requests.length - 1, statuses.length - 1)], headers: responseHeaders },
 					stream: bufferToStream(VSBuffer.fromString('{}')),
 				};
 			}
 		}();
-		return { service, requestService, requests, refreshes, setToken: (token: string | undefined) => accessToken = token, setRefresh: (fn: () => Promise<boolean>) => refresh = fn };
+		return { service, requestService, requests, refreshes, rejections, setToken: (token: string | undefined) => accessToken = token, setRefresh: (fn: () => Promise<boolean>) => refresh = fn };
 	}
+
+	test('interprets only a single well-formed Bearer challenge and ignores ambiguous instructions', () => {
+		const cases: [string | undefined, string | undefined][] = [
+			[undefined, undefined],
+			['Bearer realm="marketplace", scope="read", resource_metadata="https://marketplace.example.com/metadata"', undefined],
+			['Bearer error="invalid_token", error_description="expired, sign in"', 'invalid_token'],
+			['bEaReR ERROR=invalid_token', 'invalid_token'],
+			['Bearer realm = "marketplace", error = "invalid_token"', 'invalid_token'],
+			['Bearer error="insufficient_claims", claims="eyJhY2Nlc3NfdG9rZW4iOnt9fQ=="', 'insufficient_claims'],
+			['Basic error="invalid_token"', undefined],
+			['Bearer error="invalid_token', undefined],
+			['Bearer error="invalid_token", error="other"', undefined],
+			['Bearer error="invalid_token", ERROR="other"', undefined],
+			['Bearer error="invalid_token",', undefined],
+			['Bearer error="invalid_token" garbage', undefined],
+			['Bearer error="invalid_token"\r\nInjected: true', undefined],
+			['Basic realm="other", Bearer error="invalid_token"', undefined],
+			['Bearer error="invalid_token", Bearer error="other"', undefined],
+		];
+		assert.deepStrictEqual(cases.map(([header]) => getExtensionGalleryAuthenticationError(header)), cases.map(([, expected]) => expected));
+	});
+
+	test('forwards repeated case-insensitive challenge headers only after transport proof', async () => {
+		const headers = { 'WWW-Authenticate': ['Bearer realm="marketplace"', 'Bearer error="invalid_token"'] };
+		const f = fixture([401, 200], url, headers);
+		const result = await requestWithExtensionGalleryAuthorization(f.requestService, f.service, { url, callSite: 'test' }, CancellationToken.None, true);
+		result.stream.destroy();
+		assert.deepStrictEqual(f.refreshes, [{ target: url, token: 'resource-1', wwwAuthenticate: headers['WWW-Authenticate'].join(', ') }]);
+	});
 
 	test('replays a read-only query once with the replacement token', async () => {
 		const f = fixture([401, 200]);
@@ -75,10 +110,42 @@ suite('Extension gallery authorization', () => {
 	});
 
 	test('persistent unauthorized responses do not loop or become empty success', async () => {
-		const f = fixture([401, 401]);
+		const challenge = 'Bearer error="invalid_token"';
+		const f = fixture([401, 401], url, { 'www-authenticate': challenge });
 		await assert.rejects(requestWithExtensionGalleryAuthorization(f.requestService, f.service, { url, callSite: 'test' }, CancellationToken.None, true), ExtensionGalleryAuthenticationError);
-		assert.deepStrictEqual({ requests: f.requests.length, refreshes: f.refreshes.length }, { requests: 2, refreshes: 1 });
+		assert.deepStrictEqual({ requests: f.requests.length, refreshes: f.refreshes.length, rejections: f.rejections }, {
+			requests: 2, refreshes: 1, rejections: [{ target: url, token: 'resource-2', wwwAuthenticate: challenge }],
+		});
 	});
+
+	test('a scope failure after the single replay is surfaced without another refresh', async () => {
+		const f = fixture([401, 403], url, { 'www-authenticate': 'Bearer error="insufficient_scope", scope="read"' });
+		const result = await requestWithExtensionGalleryAuthorization(f.requestService, f.service, { url, callSite: 'test' }, CancellationToken.None, true);
+		result.stream.destroy();
+		assert.deepStrictEqual({ status: result.res.statusCode, requests: f.requests.length, refreshes: f.refreshes.length }, {
+			status: 403, requests: 2, refreshes: 1,
+		});
+	});
+
+	for (const responseKind of ['foreign origin', 'stripped authorization'] as const) {
+		test(`does not trust a replay challenge from ${responseKind}`, async () => {
+			const f = fixture([401, 401], url, { 'www-authenticate': 'Bearer error="invalid_token"' });
+			const requestService = new class extends mock<IRequestService>() {
+				override async request(options: IRequestOptions): Promise<IRequestContext> {
+					const context = await f.requestService.request(options);
+					return f.requests.length === 1 ? context : {
+						...context,
+						url: responseKind === 'foreign origin' ? 'https://cdn.example.com/asset' : url,
+						requestHasAuthorization: responseKind !== 'stripped authorization',
+					};
+				}
+			}();
+			await assert.rejects(requestWithExtensionGalleryAuthorization(requestService, f.service, { url, callSite: 'test' }, CancellationToken.None, true), ExtensionGalleryAuthenticationError);
+			assert.deepStrictEqual({ requests: f.requests.length, refreshes: f.refreshes.length, rejections: f.rejections }, {
+				requests: 2, refreshes: 1, rejections: [],
+			});
+		});
+	}
 
 	test('statistics writes renew for future requests but are not replayed', async () => {
 		const f = fixture([401, 200]);
@@ -88,7 +155,7 @@ suite('Extension gallery authorization', () => {
 
 	for (const scenario of ['anonymous', 'foreign target', 'foreign redirect', 'unknown response URL', 'stripped authorization', 'forbidden'] as const) {
 		test(`does not renew for ${scenario}`, async () => {
-			const f = fixture([scenario === 'forbidden' ? 403 : 401], scenario === 'foreign redirect' ? 'https://cdn.example.com/asset' : url);
+			const f = fixture([scenario === 'forbidden' ? 403 : 401], scenario === 'foreign redirect' ? 'https://cdn.example.com/asset' : url, { 'www-authenticate': 'Bearer error="invalid_token"' });
 			if (scenario === 'anonymous') {
 				f.setToken(undefined);
 			}
@@ -190,5 +257,16 @@ suite('Extension gallery authorization', () => {
 		r.disconnect();
 		const disconnected = await r.service.refreshAccessToken(url, 'resource-1');
 		assert.deepStrictEqual({ renewed, foreign, disconnected, owners: r.routed }, { renewed: true, foreign: false, disconnected: false, owners: ['window-2'] });
+	});
+
+	test('replicas forward the challenge to the snapshot owner and validate its IPC type', async () => {
+		const f = fixture([200]);
+		const r = replica(f.service);
+		await r.publish(manifest, 'resource-1');
+		const challenge = 'Bearer error="invalid_token"';
+		await r.service.refreshAccessToken(url, 'resource-1', challenge);
+		const channel = new ExtensionGalleryAuthorizationChannel(f.service);
+		await assert.rejects(channel.call('replica', 'refreshAccessToken', { targetUrl: url, accessToken: 'resource-1', wwwAuthenticate: ['invalid'] }), /Invalid marketplace authorization request/);
+		assert.deepStrictEqual(f.refreshes, [{ target: url, token: 'resource-1', wwwAuthenticate: challenge }]);
 	});
 });

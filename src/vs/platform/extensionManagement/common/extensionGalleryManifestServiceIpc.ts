@@ -22,11 +22,13 @@ export class ExtensionGalleryAuthorizationChannel implements IServerChannel<unkn
 		return Event.None;
 	}
 
-	async call<T>(_context: unknown, command: string, args?: { targetUrl?: unknown; accessToken?: unknown }): Promise<T> {
-		if (command !== 'refreshAccessToken' || typeof args?.targetUrl !== 'string' || typeof args.accessToken !== 'string') {
+	async call<T>(_context: unknown, command: string, args?: { targetUrl?: unknown; accessToken?: unknown; wwwAuthenticate?: unknown; canRefresh?: unknown }): Promise<T> {
+		if (command !== 'refreshAccessToken' || typeof args?.targetUrl !== 'string' || typeof args.accessToken !== 'string'
+			|| (args.wwwAuthenticate !== undefined && typeof args.wwwAuthenticate !== 'string')
+			|| (args.canRefresh !== undefined && typeof args.canRefresh !== 'boolean')) {
 			throw new Error('Invalid marketplace authorization request');
 		}
-		return await this.service.refreshAccessToken(args.targetUrl, args.accessToken) as T;
+		return await this.service.refreshAccessToken(args.targetUrl, args.accessToken, args.wwwAuthenticate, args.canRefresh) as T;
 	}
 }
 
@@ -90,7 +92,7 @@ export class ExtensionGalleryManifestIPCService<TContext> extends ExtensionGalle
 		this.barrier.open();
 	}
 
-	override async refreshAccessToken(targetUrl: string, rejectedAccessToken: string): Promise<boolean> {
+	override async refreshAccessToken(targetUrl: string, rejectedAccessToken: string, wwwAuthenticate?: string, canRefresh = true): Promise<boolean> {
 		if (!await this.getAccessToken(targetUrl)) {
 			return false;
 		}
@@ -100,7 +102,7 @@ export class ExtensionGalleryManifestIPCService<TContext> extends ExtensionGalle
 			return false;
 		}
 		try {
-			return await channel.call<boolean>('refreshAccessToken', { targetUrl, accessToken: rejectedAccessToken });
+			return await channel.call<boolean>('refreshAccessToken', { targetUrl, accessToken: rejectedAccessToken, wwwAuthenticate, canRefresh });
 		} catch (error) {
 			this.logService.error('[Marketplace] Unable to refresh marketplace authorization', error);
 			return false;

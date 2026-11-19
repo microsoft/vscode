@@ -13,7 +13,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
+import { ExtensionGalleryManifestService, getExtensionGalleryAuthenticationError, getExtensionGalleryAuthenticationHeader } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { ExtensionGalleryAuthorizationChannel } from '../../../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
 import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -63,7 +63,7 @@ function isExtensionGalleryManifestResponse(candidate: unknown): candidate is Ex
 const REJECTION_REFRESH_COOLDOWN = 60 * 1000;
 
 class MarketplaceAuthRequiredError extends Error {
-	constructor(readonly statusCode: number, readonly authenticated = false) {
+	constructor(readonly statusCode: number, readonly authenticated = false, readonly wwwAuthenticate?: string) {
 		super('Marketplace requires authentication.');
 	}
 }
@@ -88,6 +88,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	private accountResolutionGeneration = 0;
 	private authorizationAccountId: string | undefined;
 	private previousAuthorization: { readonly accessToken: string; readonly accountId: string; readonly serviceIndexUrl: string } | undefined;
+	private invalidAuthorization: { readonly accessToken: string; readonly accountId: string; readonly serviceIndexUrl: string } | undefined;
 
 	private _onDidChangeExtensionGalleryManifest = this._register(new Emitter<IExtensionGalleryManifest | null>());
 	override readonly onDidChangeExtensionGalleryManifest = this._onDidChangeExtensionGalleryManifest.event;
@@ -208,6 +209,16 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				return;
 			}
 			const accountStatus = this.galleryAccountService.accountStatus;
+			if (this.invalidAuthorization && (accountStatus === ExtensionGalleryAccountStatus.SignedOut
+				|| (account?.accountId && this.invalidAuthorization.accountId !== account.accountId)
+				|| this.invalidAuthorization.serviceIndexUrl !== configuredServiceUrl)) {
+				this.invalidAuthorization = undefined;
+			}
+			if (this.invalidAuthorization && (!account?.accessToken || account.accessToken === this.invalidAuthorization.accessToken)) {
+				this.logService.debug('[Marketplace] The provider still returns the rejected credential; sign-in is required');
+				this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+				return;
+			}
 			if (accountStatus === ExtensionGalleryAccountStatus.Unknown
 				&& this.currentStatus === ExtensionGalleryManifestStatus.Available) {
 				return;
@@ -244,8 +255,11 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 							return;
 						}
 						if (error instanceof MarketplaceAuthRequiredError) {
+							if (error.authenticated && getExtensionGalleryAuthenticationError(error.wwwAuthenticate) === 'invalid_token' && account?.accessToken && account.accountId) {
+								this.invalidAuthorization = { accessToken: account.accessToken, accountId: account.accountId, serviceIndexUrl: configuredServiceUrl };
+							}
 							if (error.statusCode === 401 && error.authenticated && !forceRefresh && account?.accessToken && account.accountId && this.galleryAccountService.canRefreshAccessToken) {
-								await this.refreshAuthorization(configuredServiceUrl);
+								await this.refreshAuthorization(configuredServiceUrl, account, error.wwwAuthenticate);
 								return;
 							}
 							this.logService.debug('[Marketplace] Marketplace still requires authentication for the resolved account');
@@ -290,6 +304,9 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		this.logService.debug(`[Marketplace] Updating manifest ${manifest ? 'available' : 'unavailable'}`);
 		const nextAccessToken = manifest ? accessToken : undefined;
 		const nextServiceIndexUrl = manifest ? serviceIndexUrl : undefined;
+		if (nextAccessToken && this.invalidAuthorization?.accessToken !== nextAccessToken) {
+			this.invalidAuthorization = undefined;
+		}
 		const authorizationChanged = this.extensionGalleryAccessToken !== nextAccessToken || this.extensionGalleryServiceIndexUrl !== nextServiceIndexUrl;
 		if (this.authorizationAccountId !== accountId || this.extensionGalleryServiceIndexUrl !== nextServiceIndexUrl || !nextAccessToken) {
 			this.previousAuthorization = undefined;
@@ -339,11 +356,11 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		return super.getAccessToken(targetUrl);
 	}
 
-	override async refreshAccessToken(targetUrl: string, rejectedAccessToken: string): Promise<boolean> {
+	override async refreshAccessToken(targetUrl: string, rejectedAccessToken: string, wwwAuthenticate?: string, canRefresh = true): Promise<boolean> {
 		const accountId = this.authorizationAccountId;
 		const serviceIndexUrl = this.extensionGalleryServiceIndexUrl;
 		const currentToken = await super.getAccessToken(targetUrl);
-		if (!currentToken || !accountId || accountId !== this.authorizationAccountId
+		if (!currentToken || !accountId || !serviceIndexUrl || accountId !== this.authorizationAccountId
 			|| serviceIndexUrl !== this.extensionGalleryServiceIndexUrl || !this.galleryAccountService.canRefreshAccessToken) {
 			return false;
 		}
@@ -352,8 +369,18 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				&& this.previousAuthorization.accountId === this.authorizationAccountId
 				&& this.previousAuthorization.serviceIndexUrl === this.extensionGalleryServiceIndexUrl;
 		}
-		if (!this.authorizationRefresh && this.rejectedTokenRefresh
-			&& (this.rejectedTokenRefresh.accessToken === rejectedAccessToken || performance.now() < this.rejectedTokenRefresh.nextRefreshAfter)) {
+		const invalidToken = getExtensionGalleryAuthenticationError(wwwAuthenticate) === 'invalid_token';
+		if (invalidToken) {
+			this.invalidAuthorization = { accessToken: rejectedAccessToken, accountId, serviceIndexUrl };
+		}
+		if (!canRefresh || (!this.authorizationRefresh && this.rejectedTokenRefresh
+			&& (this.rejectedTokenRefresh.accessToken === rejectedAccessToken || performance.now() < this.rejectedTokenRefresh.nextRefreshAfter))) {
+			if (!canRefresh || invalidToken) {
+				this.invalidAuthorization = { accessToken: rejectedAccessToken, accountId, serviceIndexUrl };
+				this.resolutionTokenSource.value?.cancel();
+				this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+				await this.channelUpdate;
+			}
 			return false;
 		}
 		// Hold the budget through snapshot publication, then start the cooldown on completion.
@@ -362,9 +389,15 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			this.rejectedTokenRefresh = attempt;
 		}
 		try {
-			await this.refreshAuthorization();
+			await this.refreshAuthorization(serviceIndexUrl, { accessToken: rejectedAccessToken, accountId }, wwwAuthenticate);
 			await this.channelUpdate;
 			const nextToken = await super.getAccessToken(targetUrl);
+			if (nextToken === this.invalidAuthorization?.accessToken && this.authorizationAccountId === accountId
+				&& this.extensionGalleryServiceIndexUrl === serviceIndexUrl) {
+				this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+				await this.channelUpdate;
+				return false;
+			}
 			return !!nextToken && nextToken !== rejectedAccessToken && this.authorizationAccountId === accountId
 				&& this.extensionGalleryServiceIndexUrl === serviceIndexUrl;
 		} finally {
@@ -374,8 +407,19 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 	}
 
-	private async refreshAuthorization(serviceIndexUrl = this.extensionGalleryServiceIndexUrl): Promise<void> {
+	private async refreshAuthorization(serviceIndexUrl = this.extensionGalleryServiceIndexUrl, rejectedAccount?: IExtensionGalleryAccount, wwwAuthenticate?: string): Promise<void> {
 		if (this._store.isDisposed || !serviceIndexUrl) {
+			return;
+		}
+		const error = getExtensionGalleryAuthenticationError(wwwAuthenticate);
+		if ((error === 'invalid_token' || error === 'insufficient_claims') && rejectedAccount?.accessToken && rejectedAccount.accountId) {
+			this.invalidAuthorization = { accessToken: rejectedAccount.accessToken, accountId: rejectedAccount.accountId, serviceIndexUrl };
+		}
+		// Claims challenges need an account-bound silent and interactive flow; do not manufacture claims.
+		if (error === 'insufficient_claims') {
+			this.logService.debug('[Marketplace] Claims challenge requires sign-in; automatic claims recovery is not supported');
+			this.resolutionTokenSource.value?.cancel();
+			this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 			return;
 		}
 		if (!this.authorizationRefresh) {
@@ -403,6 +447,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		this.setAuthorization(undefined, undefined);
 		this.previousAuthorization = undefined;
 		this.rejectedTokenRefresh = undefined;
+		this.invalidAuthorization = undefined;
 		super.dispose();
 	}
 
@@ -452,7 +497,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			}
 			if (statusCode === 401) {
 				const authenticated = !!accessToken && context.requestHasAuthorization === true && !!context.url && new URL(context.url).origin === new URL(url).origin;
-				throw new MarketplaceAuthRequiredError(statusCode, authenticated);
+				throw new MarketplaceAuthRequiredError(statusCode, authenticated, authenticated ? getExtensionGalleryAuthenticationHeader(context.res.headers) : undefined);
 			}
 
 			const extensionGalleryManifest = await asJson<unknown>(context);

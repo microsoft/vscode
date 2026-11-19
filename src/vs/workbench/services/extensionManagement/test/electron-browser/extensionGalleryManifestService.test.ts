@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { useFakeTimers } from 'sinon';
 import { bufferToStream, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount, IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -20,6 +21,7 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryServiceUrlConfigKey, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryAuthorizationChannel, ExtensionGalleryManifestIPCService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
+import { ExtensionGalleryAuthenticationError, requestWithExtensionGalleryAuthorization } from '../../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
@@ -1919,12 +1921,155 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		});
 		requestHandler = options => options.url?.includes('/.well-known/oauth-protected-resource')
 			? mockResponse(200, PROTECTED_RESOURCE_METADATA)
-			: mockResponse(403, { message: 'access denied' });
+			: mockResponse(403, { message: 'access denied' }, { 'www-authenticate': 'Bearer error="insufficient_scope", scope="read"' });
 		const service = createService();
 		const manifest = await service.getExtensionGalleryManifest();
 
 		assert.deepStrictEqual({ resourceRequests, manifest, status: service.extensionGalleryManifestStatus, token: await service.getAccessToken(MARKETPLACE_URL) }, {
 			resourceRequests: 1, manifest: null, status: ExtensionGalleryManifestStatus.AccessDenied, token: undefined,
+		});
+	});
+
+	for (const source of ['index', 'gallery'] as const) {
+		for (const recovery of ['cached token', 'replacement token', 'rejected replacement', 'transient index'] as const) {
+			test(`${source} invalid_token resolves silently once with a ${recovery}`, async () => {
+				const clock = fakeClock();
+				configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+				microsoftSessions = [createMicrosoftSession('signin-token')];
+				let resourceRequests = 0;
+				stubResourceScopedAuthentication(options => {
+					resourceRequests++;
+					return { ...createMicrosoftSession(resourceRequests > 1 && recovery !== 'cached token' ? 'resource-2' : 'resource-1', options.account?.id), expiresAfter: 60_000 };
+				});
+				const challenge = 'Bearer realm="marketplace", scope="read", resource_metadata="https://marketplace.example.com/metadata", error="invalid_token"';
+				let rejecting = false;
+				let indexRequests = 0;
+				let galleryRequests = 0;
+				requestHandler = options => {
+					if (options.url === MARKETPLACE_URL) {
+						indexRequests++;
+						if (rejecting && source === 'index' && (resourceRequests === 1 || recovery === 'rejected replacement')) {
+							return mockResponse(401, {}, { 'www-authenticate': challenge });
+						}
+						if (rejecting && recovery === 'transient index') {
+							return mockResponse(503, {});
+						}
+					}
+					return gatedMarketplace(resourceRequests > 1 && recovery !== 'cached token' ? 'resource-2' : 'resource-1', PROTECTED_RESOURCE_METADATA)(options);
+				};
+				const service = createService();
+				if (source === 'index') {
+					rejecting = true;
+					await service.getExtensionGalleryManifest();
+				} else {
+					await service.getExtensionGalleryManifest();
+					rejecting = true;
+					const remote = new ExtensionGalleryAuthorizationChannel(service);
+					const client = new class extends mock<IExtensionGalleryManifestService>() {
+						override getAccessToken(targetUrl: string) { return service.getAccessToken(targetUrl); }
+						override refreshAccessToken(targetUrl: string, accessToken: string, wwwAuthenticate?: string, canRefresh = true) {
+							return remote.call<boolean>('remote', 'refreshAccessToken', { targetUrl, accessToken, wwwAuthenticate, canRefresh });
+						}
+					}();
+					const galleryUrl = `${MARKETPLACE_URL}/extensionquery`;
+					const gallery = new class extends mock<IRequestService>() {
+						override async request(options: IRequestOptions): Promise<IRequestContext> {
+							galleryRequests++;
+							return {
+								...mockResponse(options.headers?.Authorization === 'Bearer resource-2' && recovery !== 'rejected replacement' ? 200 : 401, {}, { 'www-authenticate': challenge }),
+								url: galleryUrl, requestHasAuthorization: !!options.headers?.Authorization,
+							};
+						}
+					}();
+					const request = requestWithExtensionGalleryAuthorization(gallery, client, { url: galleryUrl, callSite: 'test' }, CancellationToken.None, true);
+					if (recovery === 'cached token' || recovery === 'rejected replacement') {
+						await assert.rejects(request, ExtensionGalleryAuthenticationError);
+					} else {
+						(await request).stream.destroy();
+					}
+				}
+				const recovered = recovery !== 'cached token' && recovery !== 'rejected replacement' && !(source === 'index' && recovery === 'transient index');
+				assert.deepStrictEqual({
+					resourceRequests, indexRequests, galleryRequests,
+					status: service.extensionGalleryManifestStatus,
+					token: await service.getAccessToken(MARKETPLACE_URL),
+				}, {
+					resourceRequests: 2, indexRequests: recovery === 'cached token' ? 1 : 2,
+					galleryRequests: source === 'index' ? 0 : recovery === 'cached token' ? 1 : 2,
+					status: recovered ? ExtensionGalleryManifestStatus.Available : recovery === 'transient index' ? ExtensionGalleryManifestStatus.AccessDenied : ExtensionGalleryManifestStatus.RequiresSignIn,
+					token: recovered ? 'resource-2' : undefined,
+				});
+				if (recovery === 'cached token') {
+					await clock.tickAsync(45_000);
+					assert.deepStrictEqual({
+						status: service.extensionGalleryManifestStatus, token: await service.getAccessToken(MARKETPLACE_URL),
+						indexRequests, published: authorizationUpdates.map(update => update.accessToken),
+					}, {
+						status: ExtensionGalleryManifestStatus.RequiresSignIn, token: undefined, indexRequests: 1,
+						published: source === 'index' ? [undefined] : ['resource-1', undefined],
+					});
+					microsoftSessions = [createMicrosoftSession('other-signin-token', 'ms-account-2')];
+					onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
+					await clock.tickAsync(0);
+					assert.deepStrictEqual({ status: service.extensionGalleryManifestStatus, token: await service.getAccessToken(MARKETPLACE_URL) }, {
+						status: ExtensionGalleryManifestStatus.Available, token: 'resource-1',
+					});
+				}
+			});
+		}
+	}
+
+	for (const challenge of ['Bearer realm="marketplace"', 'Bearer error="invalid_token', 'Basic realm="other", Bearer error="invalid_token"']) {
+		test(`preserves legacy recovery for an absent or unusable error: ${challenge}`, async () => {
+			fakeClock();
+			configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+			microsoftSessions = [createMicrosoftSession('signin-token')];
+			let resourceRequests = 0;
+			stubResourceScopedAuthentication(() => {
+				resourceRequests++;
+				return { ...createMicrosoftSession('resource-token'), expiresAfter: 60_000 };
+			});
+			requestHandler = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
+			const service = createService();
+			await service.getExtensionGalleryManifest();
+			const renewed = await service.refreshAccessToken(MARKETPLACE_URL, 'resource-token', challenge);
+			assert.deepStrictEqual({ renewed, resourceRequests, status: service.extensionGalleryManifestStatus, token: await service.getAccessToken(MARKETPLACE_URL) }, {
+				renewed: false, resourceRequests: 2, status: ExtensionGalleryManifestStatus.Available, token: 'resource-token',
+			});
+		});
+	}
+
+	test('a future claims challenge fails closed without a provider cache-bypass contract', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		stubResourceScopedAuthentication(() => ({ ...createMicrosoftSession('resource-1'), expiresAfter: 60_000 }));
+		requestHandler = gatedMarketplace('resource-1', PROTECTED_RESOURCE_METADATA);
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		const renewed = await service.refreshAccessToken(MARKETPLACE_URL, 'resource-1', 'Bearer error="insufficient_claims", claims="eyJhY2Nlc3NfdG9rZW4iOnt9fQ=="');
+		await clock.tickAsync(45_000);
+		assert.deepStrictEqual({ renewed, status: service.extensionGalleryManifestStatus, token: await service.getAccessToken(MARKETPLACE_URL) }, {
+			renewed: false, status: ExtensionGalleryManifestStatus.RequiresSignIn, token: undefined,
+		});
+	});
+
+	test('invalid_token during the rejection cooldown retracts without another silent resolution', async () => {
+		fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		let resourceRequests = 0;
+		stubResourceScopedAuthentication(() => {
+			resourceRequests++;
+			return { ...createMicrosoftSession('resource-token'), expiresAfter: 60_000 };
+		});
+		requestHandler = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		await service.refreshAccessToken(MARKETPLACE_URL, 'resource-token');
+		const renewed = await service.refreshAccessToken(MARKETPLACE_URL, 'resource-token', 'Bearer error="invalid_token"');
+		assert.deepStrictEqual({ renewed, resourceRequests, status: service.extensionGalleryManifestStatus, token: await service.getAccessToken(MARKETPLACE_URL) }, {
+			renewed: false, resourceRequests: 2, status: ExtensionGalleryManifestStatus.RequiresSignIn, token: undefined,
 		});
 	});
 
@@ -1940,7 +2085,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			});
 			const marketplace = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
 			requestHandler = options => options.url === MARKETPLACE_URL ? {
-				...mockResponse(401, {}),
+				...mockResponse(401, {}, { 'www-authenticate': 'Bearer error="invalid_token"' }),
 				url: responseKind === 'foreign origin' ? 'https://cdn.example.com/asset' : responseKind === 'unknown transport' ? undefined : MARKETPLACE_URL,
 				requestHasAuthorization: responseKind === 'foreign origin',
 			} : marketplace(options);
