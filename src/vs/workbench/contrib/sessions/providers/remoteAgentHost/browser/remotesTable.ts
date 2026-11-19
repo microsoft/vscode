@@ -784,9 +784,9 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							? share.unavailableReason === 'host'
 								? localize('remotes.sharedByRemote', "Shared by Remote Computer")
 								: localize('remotes.sharedByAnotherAccount', "Shared by Another Account")
-						: share
-							? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing as GitHub Environment")
-							: localize('remotes.shareAsGitHubEnvironment', "Share as GitHub Environment");
+							: share
+								? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing as GitHub Environment")
+								: localize('remotes.shareAsGitHubEnvironment', "Share as GitHub Environment");
 					template.gitHubEnvironment.tooltip = getGitHubEnvironmentLabel(entry.remote) ?? '';
 					template.gitHubEnvironment.enabled = showGitHubEnvironment && !entry.busy && share?.state !== 'connecting' && share?.state !== 'unavailable';
 					template.gitHubEnvironment.class = ThemeIcon.asClassName(share?.state === 'connecting' ? connectionProgressIcon : Codicon.github);
