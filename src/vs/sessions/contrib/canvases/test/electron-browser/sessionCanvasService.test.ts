@@ -34,7 +34,9 @@ import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../../workbench/services/sessions/common/session.js';
 import { IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
-import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
+import { ISessionCanvasRegistryService, WindowCanvasesAvailableContext } from '../../common/sessionCanvas.js';
+import { SessionActiveChatResourceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
 import { CanvasInput, canPresentCanvasInGroup, ICanvasContext, ICanvasModelResolution } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
@@ -935,7 +937,7 @@ suite('SessionCanvasService', () => {
 			{ resource: URI.parse('agent-host-canvas:/logs-numbered'), instanceId: undefined, title: 'Logs', source: URI.parse('https://example.test/logs-numbered') },
 			{ resource: URI.parse('agent-host-canvas:/logs-semantic'), instanceId: '1', title: 'Logs', source: URI.parse('https://example.test/logs-semantic') },
 		];
-		const { canvasService, canvases: canvasStates, contextService, opened } = createHarness(true, canvases);
+		const { canvasService, canvases: canvasStates, chat, contextService, opened } = createHarness(true, canvases);
 		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService, contextService));
 		const getItems = () => MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas)
 			.filter(isIMenuItem)
@@ -954,7 +956,11 @@ suite('SessionCanvasService', () => {
 			.filter(item => item.submenu === AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas);
 		const getActivityBarSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionActivityBar)
 			.filter(isISubmenuItem)
-			.filter(item => item.submenu === AgentsWindowMenus.SessionActivityBarCanvas);
+			.filter(item => item.submenu === AgentsWindowMenus.SessionActivityBarCanvas)
+			// Only the entry of the Session Activity Bar beside the chat, in the main window.
+			.filter(item => item.when?.evaluate({
+				getValue: <T extends ContextKeyValue>(key: string) => (key === SessionActiveChatResourceContext.key ? chat.resource.toString() : key !== IsAuxiliaryWindowContext.key && key !== WindowCanvasesAvailableContext.key) as T,
+			}) ?? true);
 		const items = getItems();
 		const submenus = getSubmenus();
 		const activityBarSubmenus = getActivityBarSubmenus();
@@ -1643,7 +1649,7 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
-	test('the canvases of the chat a chat window shows, and of the main window\'s chat, stay presentable while another window has focus', () => {
+	test('the canvases of the chat a chat window shows, and of the main window\'s chat, stay presentable and tracked while another window has focus', () => {
 		const createSession = (name: string) => {
 			const chat = upcastPartial<IChat>({ resource: URI.parse(`agent-host-chat:/${name}/main`), canvases: constObservable([]) });
 			return upcastPartial<ITestSessionWithChat>({
@@ -1684,12 +1690,16 @@ suite('SessionCanvasService', () => {
 			mainWindow: { visible: contextService.isOwnerVisible(ownerOf(mainWindowSession)), context: !!contextService.getContext(ownerOf(mainWindowSession)) },
 			other: { visible: contextService.isOwnerVisible(ownerOf(otherSession)), context: !!contextService.getContext(ownerOf(otherSession)) },
 		});
-		const chatWindowFocused = presentable();
+		const contexts = () => contextService.contexts.get().map(context => ({ chat: context.owner.chat.toString(), background: context.background }));
+		const chatWindowFocused = { ...presentable(), contexts: contexts() };
 		focusedSession.set(otherSession, undefined);
-		const otherWindowFocused = presentable();
+		const otherWindowFocused = { ...presentable(), contexts: contexts() };
 
 		const expected = { chatWindow: { visible: true, context: true }, mainWindow: { visible: true, context: true }, other: { visible: false, context: false } };
-		assert.deepStrictEqual({ chatWindowFocused, otherWindowFocused }, { chatWindowFocused: expected, otherWindowFocused: expected });
+		assert.deepStrictEqual({ chatWindowFocused, otherWindowFocused }, {
+			chatWindowFocused: { ...expected, contexts: [{ chat: 'agent-host-chat:/chatWindow/main', background: false }, { chat: 'agent-host-chat:/main/main', background: true }] },
+			otherWindowFocused: { ...expected, contexts: [{ chat: 'agent-host-chat:/other/main', background: false }, { chat: 'agent-host-chat:/main/main', background: true }] },
+		});
 	});
 	suite('chat window chats', () => {
 		const createFixture = (focusedInWindow: boolean) => {
