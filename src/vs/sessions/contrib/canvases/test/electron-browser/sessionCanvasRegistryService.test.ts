@@ -208,17 +208,17 @@ suite('SessionCanvasRegistryService', () => {
 		assert.deepStrictEqual(entries, []);
 	});
 
-	test('activity bar shows the canvases of the chat it is beside, in the main window and in chat windows', async () => {
+	test('activity bar shows the canvases of the chat it is beside, and the available canvas types only beside the focused chat, across a focus switch', async () => {
 		const harness = createHarness([{
 			canvasId: 'plan', extensionId: 'user:plan', extensionSource: 'user',
 			displayName: 'Plan', description: 'A plan canvas.', requiresInput: false,
 		}]);
 		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 1);
 		const windowChat = URI.parse('agent-host-chat:/other/window');
+		const emptyWindowChat = URI.parse('agent-host-chat:/session/empty');
 		const canvas = (name: string, chat: string): ISessionCanvas => ({
 			resource: URI.parse(`agent-host-canvas:/${chat}/${name}`), instanceId: name, title: name, source: URI.parse(`https://example.com/${name}`),
 		});
-		harness.canvases.set([canvas('Plan', 'main')], undefined);
 		const contextService = upcastPartial<ICanvasContextService>({
 			contexts: derived(reader => [...harness.contextService.contexts.read(reader), {
 				owner: { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/other'), chat: windowChat },
@@ -227,17 +227,32 @@ suite('SessionCanvasRegistryService', () => {
 		});
 		store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, contextService));
 		const chatWindow = { [IsAuxiliaryWindowContext.key]: true, [LayoutModeContext.key]: 'chatOnly' };
-
-		assert.deepStrictEqual({
+		const snapshot = () => ({
 			mainWindow: readActivityBarCanvas(),
 			chatWindow: readActivityBarCanvas({ ...chatWindow, [SessionActiveChatResourceContext.key]: windowChat.toString() }),
-			chatWindowWithoutCanvases: readActivityBarCanvas({ ...chatWindow, [SessionActiveChatResourceContext.key]: 'agent-host-chat:/other/empty' }),
+			emptyChatWindow: readActivityBarCanvas({ ...chatWindow, [SessionActiveChatResourceContext.key]: emptyWindowChat.toString() }),
 			floatingEditorWindow: readActivityBarCanvas({ [IsAuxiliaryWindowContext.key]: true, [SessionActiveChatResourceContext.key]: windowChat.toString() }),
+		});
+		const mainWindowFocused = snapshot();
+		harness.canvases.set([canvas('Plan', 'main')], undefined);
+		const mainWindowWithCanvas = snapshot();
+		harness.activeChat.set(upcastPartial<IChat>({ resource: emptyWindowChat, canvases: observableValue<readonly ISessionCanvas[] | undefined>('emptyCanvases', []) }), undefined);
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 1);
+		const emptyChatWindowFocused = snapshot();
+		const available = MenuRegistry.getMenuItems(AgentsWindowMenus.SessionActivityBarCanvas).filter(isIMenuItem).find(item => item.group === SessionCanvasMenuGroup.Available);
+		await CommandsRegistry.getCommand(available!.command.id)?.handler(upcastPartial<ServicesAccessor>({}));
+
+		const availableAndDiscover = [{ submenu: ['Plan', 'Create a Canvas...', 'Browse Canvases'] }];
+		assert.deepStrictEqual({
+			mainWindowFocused,
+			mainWindowWithCanvas,
+			emptyChatWindowFocused,
+			openedIn: harness.opened.map(entry => entry.chat.toString()),
 		}, {
-			mainWindow: [{ command: 'Plan' }],
-			chatWindow: [{ submenu: ['Notes', 'Board'] }],
-			chatWindowWithoutCanvases: [{ submenu: ['Plan', 'Create a Canvas...', 'Browse Canvases'] }],
-			floatingEditorWindow: [],
+			mainWindowFocused: { mainWindow: availableAndDiscover, chatWindow: [{ submenu: ['Notes', 'Board'] }], emptyChatWindow: [], floatingEditorWindow: [] },
+			mainWindowWithCanvas: { mainWindow: [{ command: 'Plan' }], chatWindow: [{ submenu: ['Notes', 'Board'] }], emptyChatWindow: [], floatingEditorWindow: [] },
+			emptyChatWindowFocused: { mainWindow: [], chatWindow: [{ submenu: ['Notes', 'Board'] }], emptyChatWindow: availableAndDiscover, floatingEditorWindow: [] },
+			openedIn: [emptyWindowChat.toString()],
 		});
 	});
 
@@ -329,6 +344,9 @@ suite('SessionCanvasRegistryService', () => {
 						}
 						if (key === SessionActiveChatCanvasReferenceKeysContext.key) {
 							return activeChatCanvasReferences as T;
+						}
+						if (key === SessionActiveChatResourceContext.key) {
+							return firstReference.chat.toString() as T;
 						}
 						if (key === IsAuxiliaryWindowContext.key || key === WindowCanvasesAvailableContext.key) {
 							return false as T;

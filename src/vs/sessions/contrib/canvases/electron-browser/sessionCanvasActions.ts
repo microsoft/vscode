@@ -216,8 +216,9 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 			? canvases.filter(({ reference, canvas }) => isCanvasOwner(reference, owner) && canvas.source !== undefined && canvasService.isOwnerPresentable(reference, reader))
 			: [];
 		const targetLabels = getCanvasInstanceLabels(targets.map(target => target.canvas));
-		// Beside a chat without canvases of its own, the Session Activity Bar offers the same entries as Add Tab.
-		const withoutCanvasesWhen = ContextKeyExpr.and(activityBarCanvasWhen, ...getCanvasChats(canvases).map(chat => ContextKeyExpr.notEquals(SessionActiveChatResourceContext.key, chat.toString())))!;
+		// Beside the focused chat while it has no canvases of its own, the Session Activity Bar offers the same entries as Add
+		// Tab: they list the canvas types of that chat and open them in it.
+		const withoutCanvasesWhen = owner && !getCanvasChats(canvases).some(chat => isEqual(chat, owner.chat)) ? activityBarChatIs(owner.chat) : undefined;
 		const activeKeys = new Set<string>();
 		for (let index = 0; index < definitions.length; index++) {
 			const canvas = definitions[index];
@@ -265,10 +266,12 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 				registrations.deleteAndDispose(key);
 			}
 		}
-		submenuRegistration.update(activeKeys.size > 0 ? `addTab:${withoutCanvasesWhen.serialize()}` : undefined, () => combinedDisposable(
+		submenuRegistration.update(activeKeys.size > 0 ? `addTab:${withoutCanvasesWhen?.serialize()}` : undefined, () => combinedDisposable(
 			appendCanvasSubmenu(AgentsWindowMenus.SessionsEditorTabsBarAddTab, reopenCanvasWhen),
 			appendCanvasSubmenu(AgentsWindowMenus.SessionsEmptyEditorGroupAddTab, reopenCanvasWhen),
-			appendCanvasSubmenu(Menus.SessionActivityBar, withoutCanvasesWhen, SessionActivityBarGroup.SidePanel, AgentsWindowMenus.SessionActivityBarCanvas, SessionCanvasActivityBarToggledContext),
+			withoutCanvasesWhen
+				? appendCanvasSubmenu(Menus.SessionActivityBar, withoutCanvasesWhen, SessionActivityBarGroup.SidePanel, AgentsWindowMenus.SessionActivityBarCanvas, SessionCanvasActivityBarToggledContext)
+				: Disposable.None,
 		));
 	}));
 	return store;

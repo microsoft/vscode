@@ -1649,7 +1649,7 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
-	test('the canvases of the chat a chat window shows, and of the main window\'s chat, stay presentable while another window has focus', () => {
+	test('the canvases of the chat a chat window shows, and of the main window\'s chat, stay presentable and tracked while another window has focus', () => {
 		const createSession = (name: string) => {
 			const chat = upcastPartial<IChat>({ resource: URI.parse(`agent-host-chat:/${name}/main`), canvases: constObservable([]) });
 			return upcastPartial<ITestSessionWithChat>({
@@ -1690,12 +1690,16 @@ suite('SessionCanvasService', () => {
 			mainWindow: { visible: contextService.isOwnerVisible(ownerOf(mainWindowSession)), context: !!contextService.getContext(ownerOf(mainWindowSession)) },
 			other: { visible: contextService.isOwnerVisible(ownerOf(otherSession)), context: !!contextService.getContext(ownerOf(otherSession)) },
 		});
-		const chatWindowFocused = presentable();
+		const contexts = () => contextService.contexts.get().map(context => ({ chat: context.owner.chat.toString(), background: context.background }));
+		const chatWindowFocused = { ...presentable(), contexts: contexts() };
 		focusedSession.set(otherSession, undefined);
-		const otherWindowFocused = presentable();
+		const otherWindowFocused = { ...presentable(), contexts: contexts() };
 
 		const expected = { chatWindow: { visible: true, context: true }, mainWindow: { visible: true, context: true }, other: { visible: false, context: false } };
-		assert.deepStrictEqual({ chatWindowFocused, otherWindowFocused }, { chatWindowFocused: expected, otherWindowFocused: expected });
+		assert.deepStrictEqual({ chatWindowFocused, otherWindowFocused }, {
+			chatWindowFocused: { ...expected, contexts: [{ chat: 'agent-host-chat:/chatWindow/main', background: false }, { chat: 'agent-host-chat:/main/main', background: true }] },
+			otherWindowFocused: { ...expected, contexts: [{ chat: 'agent-host-chat:/other/main', background: false }, { chat: 'agent-host-chat:/main/main', background: true }] },
+		});
 	});
 	suite('chat window chats', () => {
 		const createFixture = (focusedInWindow: boolean) => {
