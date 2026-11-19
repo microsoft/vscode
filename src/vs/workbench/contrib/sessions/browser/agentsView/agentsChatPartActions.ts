@@ -28,11 +28,11 @@ import { registerSessionsListActions } from '../views/sessionsListActions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 
 /** Closes the chat of a header of the chat part (see `registerAgentsChatPartActions`). */
-export const AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID = 'workbench.action.agentsView.closeChat';
+export { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID };
 
 /** Closes all the chats of the chat part, which closes it (see `registerAgentsChatPartActions`). */
 export const AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID = 'workbench.action.agentsView.closeAllChats';
@@ -100,8 +100,8 @@ export function registerAgentsChatPartActions(): IDisposable {
 				},
 				menu: [
 					{ id: Menus.SessionHeaderContext, group: 'secondary/0_pane', order: 10, when: inChatPart },
-					// Last in its header's toolbar, right before More Actions, as the editor area closes an editor; where it shows tabs,
-					// each tab has its own close, so it stays in More Actions there
+					// Last in its header's toolbar, after More Actions, as a session header closes its chat; where it shows tabs, each
+					// tab has its own close, so it stays in More Actions there
 					{ id: Menus.SessionBarToolbar, group: 'navigation', order: 1000, when: ContextKeyExpr.and(inChatPart, ContextKeyExpr.notEquals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple)) },
 					{ id: Menus.SessionBarToolbar, group: 'secondary/0_pane', order: 10, when: ContextKeyExpr.and(inChatPart, ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple)) },
 				],
