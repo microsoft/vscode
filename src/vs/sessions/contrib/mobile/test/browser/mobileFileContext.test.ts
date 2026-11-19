@@ -195,6 +195,31 @@ suite('MobileFileContext', () => {
 		assert.deepStrictEqual({ attachments: await result, warnings: fixture.warnings.length, focused: fixture.state.focused }, { attachments: [], warnings: 1, focused: 1 });
 	});
 
+	for (const capability of ['supportsFileAttachments', 'supportsImageAttachments'] as const) {
+		test(`skips an earlier selection when ${capability} is disabled during the next read`, async () => {
+			const text = new File(['content'], 'notes.txt');
+			const photo = new File([Uint8Array.from(png)], 'photo.png');
+			const [first, second] = capability === 'supportsFileAttachments' ? [text, photo] : [photo, text];
+			const fixture = createFixture([first, second]);
+			const contents = await second.arrayBuffer();
+			sinon.stub(second, 'arrayBuffer').callsFake(async () => {
+				fixture.capabilities[capability] = false;
+				return contents;
+			});
+
+			const attachments = await fixture.picker.asAttachment(fixture.widget);
+			assert.deepStrictEqual({
+				attached: attachments?.map(entry => entry.name),
+				warnings: fixture.warnings,
+				errors: fixture.errors,
+			}, {
+				attached: [second.name],
+				warnings: [`Could not attach ${first.name}. Choose a text file or a PNG, JPEG, GIF, or WebP image supported by this chat.`],
+				errors: [],
+			});
+		});
+	}
+
 	test('unsupported, oversized, and unreadable files do not discard valid selections', async () => {
 		const oversized = new File(['large'], 'large.txt');
 		sinon.stub(oversized, 'size').get(() => 30 * ByteSize.MB + 1);

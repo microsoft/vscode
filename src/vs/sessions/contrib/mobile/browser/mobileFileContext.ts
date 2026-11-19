@@ -58,6 +58,13 @@ export class MobileFileContextValuePick implements IChatContextValueItem {
 				return undefined;
 			}
 
+			const checkAttachmentSupport = (name: string, isImage: boolean): boolean => {
+				if (isImage ? widget.attachmentCapabilities.supportsImageAttachments : widget.attachmentCapabilities.supportsFileAttachments) {
+					return true;
+				}
+				this.warnUnsupported(name);
+				return false;
+			};
 			const attachments: IChatRequestVariableEntry[] = [];
 			for (const file of Array.from(files)) {
 				try {
@@ -72,8 +79,7 @@ export class MobileFileContextValuePick implements IChatContextValueItem {
 						this.warnUnsupported(file.name);
 						continue;
 					}
-					if (isImage ? !widget.attachmentCapabilities.supportsImageAttachments : !widget.attachmentCapabilities.supportsFileAttachments) {
-						this.warnUnsupported(file.name);
+					if (!checkAttachmentSupport(file.name, isImage)) {
 						continue;
 					}
 					if (!isImage && ((mimeType?.startsWith('image/') && mimeType !== 'image/svg+xml') || mimeType?.startsWith('audio/') || mimeType?.startsWith('video/') || mimeType === 'application/pdf')) {
@@ -107,10 +113,6 @@ export class MobileFileContextValuePick implements IChatContextValueItem {
 							},
 						})];
 					}
-					if (isImage ? !widget.attachmentCapabilities.supportsImageAttachments : !widget.attachmentCapabilities.supportsFileAttachments) {
-						this.warnUnsupported(file.name);
-						continue;
-					}
 					if (!resolved.length) {
 						this.notificationService.warn(localize('mobileFileAttachments.unresolved', "Could not attach {0}.", file.name));
 						continue;
@@ -120,7 +122,8 @@ export class MobileFileContextValuePick implements IChatContextValueItem {
 					this.notificationService.error(localize('mobileFileAttachments.failed', "Could not attach {0}: {1}", file.name, toErrorMessage(error)));
 				}
 			}
-			return attachments;
+			// A later file read can change which earlier selections this chat accepts.
+			return attachments.filter(entry => checkAttachmentSupport(entry.name, entry.kind === 'image'));
 		} catch (error) {
 			this.notificationService.error(localize('mobileFileAttachments.dialogFailed', "Could not open the file picker: {0}", toErrorMessage(error)));
 			return undefined;
