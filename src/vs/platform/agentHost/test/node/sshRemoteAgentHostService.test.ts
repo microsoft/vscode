@@ -1929,8 +1929,8 @@ class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 	agentSock: string | undefined = undefined;
 	keyFiles: Map<string, Buffer> = new Map();
 
-	async testBuildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
-		return this._buildAuthAttempts(config);
+	async testBuildAuthAttempts(config: ISSHAgentHostConfig, resolved?: ISSHResolvedConfig): Promise<SSHAuthAttempt[]> {
+		return this._buildAuthAttempts(config, resolved);
 	}
 
 	protected override _isAgentAvailable(): string | undefined {
@@ -2284,6 +2284,37 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
+	});
+
+	test('Agent honors PubkeyAuthentication and PreferredAuthentications from SSH config', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		const encrypted = openSSHPrivateKeyWithCipher('aes256-ctr');
+		service.keyFiles.set('~/.ssh/id_ed25519', encrypted);
+		const build = (sshGOutput: string) => service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }), parseSSHGOutput(sshGOutput));
+
+		assert.deepStrictEqual({
+			pubkeyDisabled: await build('pubkeyauthentication false\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+			passwordOnly: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,password'),
+			interactiveFirst: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,publickey'),
+			defaults: await build('pubkeyauthentication true\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+		}, {
+			pubkeyDisabled: [
+				{ type: 'keyboard-interactive', username: 'testuser' },
+			],
+			passwordOnly: [
+				{ type: 'keyboard-interactive', username: 'testuser' },
+			],
+			interactiveFirst: [
+				{ type: 'keyboard-interactive', username: 'testuser' },
+				{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+				{ type: 'publickey', username: 'testuser', key: encrypted, keyPath: '~/.ssh/id_ed25519', encrypted: true },
+			],
+			defaults: [
+				{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+				{ type: 'publickey', username: 'testuser', key: encrypted, keyPath: '~/.ssh/id_ed25519', encrypted: true },
+				{ type: 'keyboard-interactive', username: 'testuser' },
+			],
+		});
 	});
 
 	test('Agent + IdentityAgent uses configured agent endpoint before default keys', async () => {

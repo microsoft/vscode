@@ -186,6 +186,18 @@ function describeAuthAttempt(attempt: SSHAuthAttempt): string {
 }
 
 /**
+ * Keeps only the attempts that OpenSSH would try under `PubkeyAuthentication` and `PreferredAuthentications`, in the
+ * preferred order. `ssh -G` reports the default preference order when none is configured, which keeps the build order.
+ */
+function applySSHAuthenticationPreferences(attempts: readonly SSHAuthAttempt[], resolved: ISSHResolvedConfig | undefined): SSHAuthAttempt[] {
+	const preferred = resolved?.preferredAuthentications;
+	const methodOf = (attempt: SSHAuthAttempt) => attempt.type === 'agent' ? 'publickey' : attempt.type;
+	return attempts
+		.filter(attempt => !(resolved?.pubkeyAuthentication === false && methodOf(attempt) === 'publickey') && (!preferred || preferred.includes(methodOf(attempt))))
+		.sort((a, b) => preferred ? preferred.indexOf(methodOf(a)) - preferred.indexOf(methodOf(b)) : 0);
+}
+
+/**
  * Callback invoked when the SSH server requests keyboard-interactive
  * authentication. The handler must eventually call `finish` with the
  * user's responses (or an empty array to fail this attempt).
@@ -1516,7 +1528,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			keepaliveInterval: 15_000,
 		};
 
-		const attempts: SSHAuthAttempt[] = [{ type: 'none', username: config.username }, ...await this._buildAuthAttempts(config)];
+		const attempts: SSHAuthAttempt[] = [{ type: 'none', username: config.username }, ...await this._buildAuthAttempts(config, resolved)];
 		this._logService.info(`${LOG_PREFIX} Built ${attempts.length} auth attempt(s): ${attempts.map(a => describeAuthAttempt(a)).join(', ')}`);
 		// Track requestIds we created during this connect so we can fire
 		// onDidCancelKeyboardInteractive for any still-pending prompts when
@@ -1822,9 +1834,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * file), then any non-default explicit `IdentityFile`, then each readable
 	 * default identity in turn. A host that accepts `~/.ssh/id_rsa` still
 	 * works even if the agent doesn't have it loaded — without needing an
-	 * explicit `IdentityFile` entry in `~/.ssh/config`.
+	 * explicit `IdentityFile` entry in `~/.ssh/config`. Like OpenSSH, `Agent`
+	 * mode honors the resolved `PubkeyAuthentication` and
+	 * `PreferredAuthentications` settings.
 	 */
-	protected async _buildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
+	protected async _buildAuthAttempts(config: ISSHAgentHostConfig, resolved?: ISSHResolvedConfig): Promise<SSHAuthAttempt[]> {
 		const attempts: SSHAuthAttempt[] = [];
 		const username = config.username;
 
@@ -1882,7 +1896,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 		}
 
-		return attempts;
+		return config.authMethod === SSHAuthMethod.Agent ? applySSHAuthenticationPreferences(attempts, resolved) : attempts;
 	}
 
 	private static readonly _defaultKeyPaths = [
