@@ -10,7 +10,10 @@ import { IMenuService, isIMenuItem, MenuRegistry, SubmenuItemAction } from '../.
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { Event as BaseEvent } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -24,7 +27,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationMutationGuard, IAutomationService, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, IAutomationService, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -40,6 +43,15 @@ import { SessionStatus } from '../../../../../workbench/services/sessions/common
 suite('Automations modal table', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	class TestAutomationsModalWidget extends AutomationsModalWidget {
+		localizeEnabledLabels(): void {
+			for (let index = 0; index < this.table.length; index++) {
+				const row = this.table.row(index);
+				Object.assign(row, { enabled: row.automation.enabled ? 'Aktiviert' : 'Deaktiviert' });
+			}
+		}
+	}
+
 	function setup(applyCommand = false, initialAutomations?: readonly IAutomationDescriptor[]) {
 		const container = dom.append(dom.getActiveDocument().body, dom.$('div'));
 		container.style.width = '1100px';
@@ -49,6 +61,7 @@ suite('Automations modal table', () => {
 		const historyServices = setupModalHistoryServices(services, store);
 		const updates: { id: string; patch: IUpdateAutomationOptions; expected: IAutomationDescriptor }[] = [];
 		const automations = new class extends TableAutomationService {
+			override readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
 			conflict = false;
 			override async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, guard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
 				guard?.();
@@ -111,7 +124,7 @@ suite('Automations modal table', () => {
 		services.stub(IMenuService, menuService);
 		let agentDrafts = 0;
 		const openedRuns: string[] = [];
-		const widget = store.add(services.createInstance(AutomationsModalWidget, container, async () => { agentDrafts++; }, async resource => { openedRuns.push(resource.toString()); }));
+		const widget = store.add(services.createInstance(TestAutomationsModalWidget, container, async () => { agentDrafts++; }, async resource => { openedRuns.push(resource.toString()); }));
 		widget.layout();
 		const click = (label: string) => {
 			const button = [...container.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === label);
@@ -320,6 +333,78 @@ suite('Automations modal table', () => {
 			runningShown,
 			completedShown: container.querySelectorAll('.monaco-list-row')[1].textContent?.includes('Completed'),
 		}, { requests: [{ id: 'bravo', prompt: 'Latest prompt' }], runningShown: true, completedShown: true });
+	});
+
+	test('last-run text preserves provider status and newer local progress for every surface', () => {
+		const { container, automations, widget, historyServices } = setup(false, [tableAutomation('alpha', 'Alpha')]);
+		const session = createTestSession('Alpha run', { status: SessionStatus.Completed }).session;
+		historyServices.sessions.sessions = [session];
+		const run = {
+			id: 'run', automationId: 'alpha', sessionResource: session.resource,
+			externalResource: URI.parse('https://github.com/owner/repo/tasks/run'),
+			status: 'failed' as const, trigger: 'manual' as const, startedAt: '2026-02-01T10:00:00Z',
+		};
+		const snapshots: boolean[][] = [];
+		const capture = (label: string) => {
+			const row = container.querySelector<HTMLElement>('.automations-modal-table .monaco-list-row')!;
+			row.click();
+			snapshots.push([
+				row.textContent!.includes(label), row.getAttribute('aria-label')!.includes(label),
+				container.querySelector('.automations-modal-detail-content')!.textContent!.includes(label),
+				widget.getAccessibilityContent().includes(`Last run: ${label}`),
+			]);
+		};
+		automations.runs.set([{ ...run, statusDescription: 'Cancelled' }], undefined);
+		capture('Cancelled');
+		automations.runs.set([{ ...run, status: 'running', needsInput: true, statusDescription: 'Needs input on GitHub' }], undefined);
+		capture('Needs input on GitHub');
+		automations.runs.set([{ ...run, status: 'completed' }], undefined);
+		const needsInput = observableValue<{ title: string } | undefined>('needsInput', { title: 'Approval' });
+		historyServices.chatModels.set([upcastPartial<IChatModel>({
+			sessionResource: session.resource, requestInProgress: constObservable(false), requestNeedsInput: needsInput,
+			lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({ timestamp: Date.now() })),
+			onDidChange: BaseEvent.None, getRequests: () => [],
+		})], undefined);
+		capture('Needs input');
+		needsInput.set(undefined, undefined);
+		capture('Completed');
+		assert.deepStrictEqual(snapshots, Array.from({ length: 4 }, () => [true, true, true, true]));
+	});
+
+	test('missing last-run history is unknown until settled without disabling mutations', () => {
+		const { container, automations, widget } = setup(false, [tableAutomation('alpha', 'Alpha')]);
+		automations.runs.set([], undefined);
+		const snapshots = (['loading', 'error', 'unavailable', 'ready'] as const).map(state => {
+			automations.historyState.set(state, undefined);
+			const row = container.querySelector<HTMLElement>('.automations-modal-table .monaco-list-row')!;
+			row.click();
+			return {
+				lastRun: row.querySelectorAll('.automations-modal-cell')[3].textContent,
+				never: widget.getAccessibilityContent().includes('Last run: Never'),
+				canChange: row.querySelector('[role="checkbox"]')!.getAttribute('aria-disabled') !== 'true',
+			};
+		});
+		assert.deepStrictEqual(snapshots, [
+			{ lastRun: 'Unknown', never: false, canChange: true },
+			{ lastRun: 'Unknown', never: false, canChange: true },
+			{ lastRun: 'Unknown', never: false, canChange: true },
+			{ lastRun: 'Never', never: true, canChange: true },
+		]);
+	});
+
+	test('enabled ordering uses state rather than translated labels', () => {
+		const { container, widget, names } = setup();
+		widget.localizeEnabledLabels();
+		const sort = container.querySelector<HTMLSelectElement>('select[aria-label="Sort automations"]')!;
+		sort.selectedIndex = [...sort.options].findIndex(option => option.text === 'Enabled First');
+		sort.dispatchEvent(new Event('change', { bubbles: true }));
+		const enabledFirst = names();
+		sort.selectedIndex = [...sort.options].findIndex(option => option.text === 'Disabled First');
+		sort.dispatchEvent(new Event('change', { bubbles: true }));
+		assert.deepStrictEqual({ enabledFirst, disabledFirst: names() }, {
+			enabledFirst: ['Bravo daily', 'Alpha manual', 'Charlie shared'],
+			disabledFirst: ['Charlie shared', 'Alpha manual', 'Bravo daily'],
+		});
 	});
 
 	test('stale Edit and Run menus recheck provider capabilities before acting', async () => {

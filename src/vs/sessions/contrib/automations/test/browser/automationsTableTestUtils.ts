@@ -56,8 +56,9 @@ export function setupModalHistoryServices(instantiationService: TestInstantiatio
 		readonly activeSession = constObservable<ISession | undefined>(undefined);
 		override async openSession(): Promise<void> { }
 	}());
+	const chatModels = observableValue<Iterable<IChatModel>>('chatModels', []);
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
-		override readonly chatModels = constObservable<Iterable<IChatModel>>([]);
+		override readonly chatModels = chatModels;
 	}());
 	instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 		override readonly extUri = new ExtUri(() => false);
@@ -78,7 +79,7 @@ export function setupModalHistoryServices(instantiationService: TestInstantiatio
 	}());
 	instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 	instantiationService.stub(createDecorator<object>('agentSessions'), { model: { observeSession: () => constObservable(undefined) } });
-	return { sessions, sessionsChanged };
+	return { sessions, sessionsChanged, chatModels };
 }
 
 export function tableAutomation(id: string, name: string, overrides: Partial<IAutomationDescriptor> = {}): IAutomationDescriptor {

@@ -39,12 +39,14 @@ import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } fr
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { automationTriggerSummary } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { formatSchedule, getAutomationsViewContent, getAutomationRemoteStatusPresentation, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, getVisibleAutomations } from '../../sessions/browser/views/automationCataloguePresentation.js';
+import { formatAutomationRunStatus, formatSchedule, getAutomationsViewContent, getAutomationRemoteStatusPresentation, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, getVisibleAutomations } from '../../sessions/browser/views/automationCataloguePresentation.js';
+import { automationRunWithLocalProgress } from '../../sessions/browser/views/automationRunProgress.js';
 import { AutomationCommands } from './automationCommands.js';
 import { AutomationModalRowCanDeleteContext, AutomationModalRowCanRunContext, AutomationModalRowCanUpdateContext, AutomationModalRowEnabledContext, AutomationsModalContext, AutomationsModalHasOthersContext, createAutomationsModalActionViewItem, IAutomationsModalActionContext } from './automationsModalActions.js';
 import { AutomationCategory, AutomationCellRenderer, AutomationColumn, AutomationRow, automationTableColumns, automationTableSortOptions } from './automationsTableRenderers.js';
@@ -94,6 +96,7 @@ export class AutomationsModalWidget extends Disposable {
 		@IMissionControlEnvironmentService missionControlEnvironmentService: IMissionControlEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 		this.domNode = dom.append(container, dom.$('.automations-modal-widget'));
@@ -270,7 +273,9 @@ export class AutomationsModalWidget extends Disposable {
 				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
 			);
 			const providers = [...automationService.availableProviders.read(reader), ...automationService.unavailableProviders.read(reader)];
-			automationService.catalogueState.read(reader);
+			const catalogueState = automationService.catalogueState.read(reader);
+			const historyState = automationService.historyState?.read(reader) ?? catalogueState;
+			const chatModels = [...chatService.chatModels.read(reader)];
 			const latestRuns = new Map<string, IAutomationRun>();
 			for (const run of runs) {
 				const previous = latestRuns.get(run.automationId);
@@ -282,14 +287,15 @@ export class AutomationsModalWidget extends Disposable {
 				const provider = providers.find(provider => provider.id === automation.target.providerId);
 				const last = latestRuns.get(automation.id);
 				const time = last?.startedAt ?? automation.lastRunAt ?? '';
-				const label = last ? last.status === 'completed' ? localize('automations.modal.completed', "Completed") : last.status === 'failed' ? localize('automations.modal.failed', "Failed") : last.status === 'running' ? localize('automations.modal.running', "Running") : localize('automations.modal.pending', "Pending") : '';
+				const label = last ? formatAutomationRunStatus(automationRunWithLocalProgress(last, chatModels, reader)) : '';
 				return {
 					automation,
 					category: automation.ownership === 'repository' ? 'repository' : automationService.getProviderConfiguration?.(automation.target.providerId) ? 'cloud' : 'personal',
 					name: automation.name,
 					schedule: automationTriggerSummary(automation.cloudTrigger?.triggers ?? {}, true) ?? formatSchedule(automation.schedule),
 					target: automation.targetDisplay?.label ?? provider?.label ?? (automation.target.kind === 'workspace' ? basename(automation.target.folderUri) : localize('automations.modal.chat', "Chat")),
-					lastRun: time ? localize('automations.modal.runAt', "{0} {1}", label, new Date(time).toLocaleString()).trim() : localize('automations.modal.never', "Never"),
+					lastRun: time ? localize('automations.modal.runAt', "{0} {1}", label, new Date(time).toLocaleString()).trim()
+						: historyState === 'ready' ? localize('automations.modal.never', "Never") : localize('automations.modal.unknownRun', "Unknown"),
 					lastRunTime: time,
 					enabled: automation.enabled ? localize('automations.modal.enabled', "Enabled") : localize('automations.modal.disabled', "Disabled"),
 					canUpdate: automationService.canUpdateAutomation(automation.id),
@@ -368,7 +374,8 @@ export class AutomationsModalWidget extends Disposable {
 		this.rows.sort((first, second) => {
 			const a = this.sort === 'lastRun' ? first.lastRunTime : first[this.sort];
 			const b = this.sort === 'lastRun' ? second.lastRunTime : second[this.sort];
-			return (this.descending ? -1 : 1) * (a.localeCompare(b) || first.automation.id.localeCompare(second.automation.id));
+			const order = this.sort === 'enabled' ? Number(first.automation.enabled) - Number(second.automation.enabled) : a.localeCompare(b);
+			return (this.descending ? -1 : 1) * (order || first.automation.id.localeCompare(second.automation.id));
 		});
 		this.table.splice(0, this.table.length, this.rows);
 		const focus = this.rows.findIndex(row => row.automation.id === focusedId);

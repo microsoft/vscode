@@ -80,7 +80,6 @@ import { AUTOMATIONS_MODAL_SETTING } from '../../../automations/browser/automati
 import '../../../../../workbench/contrib/sessions/browser/media/disclosure.css';
 import '../media/automationsCards.css';
 import './automationsAccessibility.js';
-import '../../../automations/browser/automationsEditor.js';
 
 
 import { AutomationHeaderButtonActionViewItem, AutomationHeaderSplitButtonActionViewItem } from '../../../automations/browser/automationActionViewItems.js';
