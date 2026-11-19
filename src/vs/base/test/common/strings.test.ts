@@ -195,6 +195,11 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('            a', 10, '…'), 'a');
 		assert.strictEqual(strings.lcut(' bbbb       a', 10, '…'), 'bbbb       a');
 		assert.strictEqual(strings.lcut('............a', 10, '…'), '............a');
+
+		// Non-ASCII word boundaries (#349121)
+		assert.strictEqual(strings.lcut('héllo wörld ünï', 7, '…'), '…wörld ünï');
+		assert.strictEqual(strings.lcut('привет мир тест', 6, '…'), '…мир тест');
+		assert.strictEqual(strings.lcut('he\u0301llo wo\u0308rld', 6, '…'), '…wo\u0308rld');
 	});
 
 	test('rcut', () => {
@@ -229,6 +234,11 @@ suite('Strings', () => {
 		assert.strictEqual(strings.rcut('a            ', 10, '…'), 'a');
 		assert.strictEqual(strings.rcut('a       bbbb ', 10, '…'), 'a       bbbb');
 		assert.strictEqual(strings.rcut('a............', 10, '…'), 'a............');
+
+		// Non-ASCII word boundaries (#349121)
+		assert.strictEqual(strings.rcut('héllo wörld ünï', 7, '…'), 'héllo…');
+		assert.strictEqual(strings.rcut('привет мир тест', 8, '…'), 'привет…');
+		assert.strictEqual(strings.rcut('he\u0301llo wo\u0308rld', 8, '…'), 'he\u0301llo…');
 	});
 
 	test('escape', () => {
