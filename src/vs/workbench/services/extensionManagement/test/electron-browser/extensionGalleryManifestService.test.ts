@@ -1434,6 +1434,116 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		});
 	});
 
+	/**
+	 * Signs in `ms-account-1` with an hourly-renewed resource token per account, and lets the test
+	 * decide how the service index answers once the first catalog was accepted.
+	 */
+	function renewingMarketplace(indexFailure: () => (() => IRequestContext) | undefined) {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		let resourceRequests = 0;
+		let resourceToken = '';
+		stubResourceScopedAuthentication(options => {
+			resourceToken = `resource-${++resourceRequests}`;
+			return { ...createMicrosoftSession(resourceToken, options.account?.id), expiresAfter: 60_000 };
+		});
+		let indexRequests = 0;
+		requestHandler = options => {
+			const failure = options.url === MARKETPLACE_URL ? indexFailure() : undefined;
+			if (options.url === MARKETPLACE_URL) {
+				indexRequests++;
+			}
+			return failure ? failure() : gatedMarketplace(resourceToken, PROTECTED_RESOURCE_METADATA)(options);
+		};
+		return { indexRequests: () => indexRequests };
+	}
+
+	for (const [failure, respond] of [
+		['503', () => mockResponse(503, { message: 'unavailable' })],
+		['network error', () => { throw new Error('ECONNRESET'); }],
+	] as const) {
+		test(`a transient service-index ${failure} during renewal keeps the catalog and publishes the renewed token`, async () => {
+			const clock = fakeClock();
+			let failing = false;
+			const marketplace = renewingMarketplace(() => failing ? respond : undefined);
+			const service = createService();
+			const manifest = await service.getExtensionGalleryManifest();
+			let manifestChanges = 0;
+			disposableStore.add(service.onDidChangeExtensionGalleryManifest(() => manifestChanges++));
+			failing = true;
+			await clock.tickAsync(45_000);
+			const duringFailure = {
+				status: service.extensionGalleryManifestStatus,
+				sameManifest: await service.getExtensionGalleryManifest() === manifest,
+				token: await service.getAccessToken(MARKETPLACE_URL),
+				indexRequests: marketplace.indexRequests(),
+			};
+			failing = false;
+			await clock.tickAsync(45_000);
+
+			assert.deepStrictEqual({
+				duringFailure, manifestChanges,
+				status: service.extensionGalleryManifestStatus,
+				token: await service.getAccessToken(MARKETPLACE_URL),
+				indexRequests: marketplace.indexRequests(),
+				published: authorizationUpdates.map(update => update.accessToken),
+			}, {
+				duringFailure: { status: ExtensionGalleryManifestStatus.Available, sameManifest: true, token: 'resource-2', indexRequests: 2 },
+				manifestChanges: 0,
+				status: ExtensionGalleryManifestStatus.Available,
+				token: 'resource-3',
+				indexRequests: 3,
+				published: ['resource-1', 'resource-2', 'resource-3'],
+			});
+		});
+	}
+
+	test('a transient service-index failure after an account switch retracts the previous catalog', async () => {
+		const clock = fakeClock();
+		let failing = false;
+		renewingMarketplace(() => failing ? () => mockResponse(503, { message: 'unavailable' }) : undefined);
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		failing = true;
+		microsoftSessions = [createMicrosoftSession('other-signin-token', 'ms-account-2')];
+		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
+		await clock.tickAsync(0);
+
+		assert.deepStrictEqual({
+			status: service.extensionGalleryManifestStatus,
+			manifest: await service.getExtensionGalleryManifest(),
+			token: await service.getAccessToken(MARKETPLACE_URL),
+			published: authorizationUpdates.map(update => update.accessToken),
+		}, {
+			status: ExtensionGalleryManifestStatus.AccessDenied,
+			manifest: null,
+			token: undefined,
+			published: ['resource-1', undefined],
+		});
+	});
+
+	test('a definitive service-index rejection during renewal retracts the catalog', async () => {
+		const clock = fakeClock();
+		let rejecting = false;
+		renewingMarketplace(() => rejecting ? () => mockResponse(403, { message: 'forbidden' }) : undefined);
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		rejecting = true;
+		await clock.tickAsync(45_000);
+
+		assert.deepStrictEqual({
+			status: service.extensionGalleryManifestStatus,
+			manifest: await service.getExtensionGalleryManifest(),
+			token: await service.getAccessToken(MARKETPLACE_URL),
+			published: authorizationUpdates.map(update => update.accessToken),
+		}, {
+			status: ExtensionGalleryManifestStatus.AccessDenied,
+			manifest: null,
+			token: undefined,
+			published: ['resource-1', undefined],
+		});
+	});
+
 	test('OS resume renews after wall-clock expiry without advancing the timer', async () => {
 		const clock = fakeClock();
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');

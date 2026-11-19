@@ -28,7 +28,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
-import { ExtensionGalleryAccountStatus, IExtensionGalleryAccountService } from '../common/extensionGalleryAccount.js';
+import { ExtensionGalleryAccountStatus, IExtensionGalleryAccount, IExtensionGalleryAccountService } from '../common/extensionGalleryAccount.js';
 
 type ExtensionGalleryManifestResponse = Omit<IExtensionGalleryManifest, 'version' | 'capabilities'> & {
 	readonly version?: string;
@@ -65,6 +65,13 @@ const REJECTION_REFRESH_COOLDOWN = 60 * 1000;
 class MarketplaceAuthRequiredError extends Error {
 	constructor(readonly statusCode: number, readonly authenticated = false) {
 		super('Marketplace requires authentication.');
+	}
+}
+
+/** The service index could not be reached or answered with a retryable status. */
+class MarketplaceIndexTransientError extends Error {
+	constructor(message: string, options?: { cause?: unknown }) {
+		super(message, options);
 	}
 }
 
@@ -245,6 +252,12 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 							this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 							return;
 						}
+						if (error instanceof MarketplaceIndexTransientError && this.canRetainManifest(configuredServiceUrl, account)) {
+							// The next scheduled renewal or a 401 recovery fetches the service index again.
+							this.logService.warn('[Marketplace] Service index temporarily unavailable; keeping the accepted manifest with the renewed token', error);
+							this.update(this.extensionGalleryManifest, undefined, account?.accessToken, configuredServiceUrl, account?.accountId);
+							return;
+						}
 						this.logService.error('[Marketplace] Error fetching manifest from custom marketplace', error);
 						this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 					}
@@ -257,6 +270,20 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			this.logService.error('[Marketplace] Error handling marketplace account access', error);
 			this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 		}
+	}
+
+	/**
+	 * A transient index failure may only keep a manifest that was accepted for the same account and
+	 * marketplace, and only with a renewed token that has not already been rejected.
+	 */
+	private canRetainManifest(serviceIndexUrl: string, account: IExtensionGalleryAccount | undefined): boolean {
+		return !!this.extensionGalleryManifest
+			&& !!this.extensionGalleryAccessToken
+			&& !!account?.accessToken && !!account.accountId
+			&& this.authorizationAccountId === account.accountId
+			&& this.extensionGalleryServiceIndexUrl === serviceIndexUrl
+			&& this.rejectedTokenRefresh?.accessToken !== account.accessToken
+			&& this.previousAuthorization?.accessToken !== account.accessToken;
 	}
 
 	private update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus, accessToken?: string, serviceIndexUrl?: string, accountId?: string): void {
@@ -406,15 +433,23 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		};
 
 		try {
-			const context = await this.requestService.request({
-				type: 'GET',
-				url,
-				headers,
-				callSite: 'extensionGalleryManifestService.fetchManifest'
-			}, token);
+			let context;
+			try {
+				context = await this.requestService.request({
+					type: 'GET',
+					url,
+					headers,
+					callSite: 'extensionGalleryManifestService.fetchManifest'
+				}, token);
+			} catch (error) {
+				throw new MarketplaceIndexTransientError('Unable to reach the marketplace service index.', { cause: error });
+			}
 
 			// A 401 requests authentication; a 403 denies access even if a bearer was sent.
 			const statusCode = context.res.statusCode;
+			if (statusCode === undefined || statusCode === 408 || statusCode === 429 || statusCode >= 500) {
+				throw new MarketplaceIndexTransientError(`Marketplace service index responded with ${statusCode ?? 'no status'}.`);
+			}
 			if (statusCode === 401) {
 				const authenticated = !!accessToken && context.requestHasAuthorization === true && !!context.url && new URL(context.url).origin === new URL(url).origin;
 				throw new MarketplaceAuthRequiredError(statusCode, authenticated);
