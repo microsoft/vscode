@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { expect, test } from 'vitest';
-import type { AuthenticationSession } from 'vscode';
+import type { AuthenticationSession, FileStat } from 'vscode';
 import { TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -14,6 +14,8 @@ import { IAuthenticationService } from '../../../authentication/common/authentic
 import { FileChunkWithEmbedding } from '../../../chunking/common/chunk';
 import { ChunkableContent, IChunkingEndpointClient } from '../../../chunking/common/chunkingEndpointClient';
 import { EmbeddingType } from '../../../embeddings/common/embeddingsComputer';
+import { IFileSystemService } from '../../../filesystem/common/fileSystemService';
+import { FileType } from '../../../filesystem/common/fileTypes';
 import { ILogService } from '../../../log/common/logService';
 import { LocalDiffEmbeddingsSearch } from '../../node/codeSearch/localDiffEmbeddingsSearch';
 import { FileRepresentation, IWorkspaceFileIndex } from '../../node/workspaceFileIndex';
@@ -35,6 +37,7 @@ test('ranks changed files, only recomputes files whose content changed, and skip
 		new TestFile(URI.file('/workspace/b.ts'), 0.9),
 	];
 	const excluded = new Set<string>();
+	const mtimes = new Map<string, number>();
 	const computed: string[] = [];
 	const search = new LocalDiffEmbeddingsSearch(
 		embeddingType,
@@ -52,6 +55,11 @@ test('ranks changed files, only recomputes files whose content changed, and skip
 					embedding: { type: embeddingType, value: [file.score, 0] },
 					chunkHash: undefined,
 				}];
+			}
+		}(),
+		new class extends mock<IFileSystemService>() {
+			override async stat(uri: URI): Promise<FileStat> {
+				return { type: FileType.File, ctime: 0, size: 1, mtime: mtimes.get(uri.path) ?? 0 };
 			}
 		}(),
 		new class extends mock<ILogService>() { override debug() { } }(),
@@ -81,16 +89,20 @@ test('ranks changed files, only recomputes files whose content changed, and skip
 	const unchanged = await doSearch();
 	edit(0);
 	const afterEdit = await doSearch();
+	// A disk change the file index missed, e.g. under files.watcherExclude
+	mtimes.set('/workspace/b.ts', 1);
+	const afterMissedDiskChange = await doSearch();
 	excluded.add('/workspace/b.ts');
 	edit(1);
 	const afterExclusion = await doSearch();
 
-	expect({ first, unchanged, afterEdit, afterExclusion, computed: computed.sort() }).toEqual({
+	expect({ first, unchanged, afterEdit, afterMissedDiskChange, afterExclusion, computed: computed.sort() }).toEqual({
 		first: ['/workspace/b.ts', '/workspace/a.ts'],
 		unchanged: ['/workspace/b.ts', '/workspace/a.ts'],
 		afterEdit: ['/workspace/b.ts', '/workspace/a.ts'],
+		afterMissedDiskChange: ['/workspace/b.ts', '/workspace/a.ts'],
 		afterExclusion: ['/workspace/a.ts'],
-		computed: ['/workspace/a.ts', '/workspace/a.ts', '/workspace/b.ts'],
+		computed: ['/workspace/a.ts', '/workspace/a.ts', '/workspace/b.ts', '/workspace/b.ts'],
 	});
 
 	files.forEach(f => f.dispose());

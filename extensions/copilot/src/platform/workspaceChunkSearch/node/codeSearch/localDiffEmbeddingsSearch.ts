@@ -14,6 +14,7 @@ import { IAuthenticationService } from '../../../authentication/common/authentic
 import { FileChunkAndScore, FileChunkWithEmbedding } from '../../../chunking/common/chunk';
 import { ComputeBatchInfo, EmbeddingsComputeQos, IChunkingEndpointClient } from '../../../chunking/common/chunkingEndpointClient';
 import { EmbeddingType, rankEmbeddings } from '../../../embeddings/common/embeddingsComputer';
+import { IFileSystemService } from '../../../filesystem/common/fileSystemService';
 import { ILogService } from '../../../log/common/logService';
 import { WorkspaceChunkQueryWithEmbeddings, WorkspaceChunkSearchOptions } from '../../common/workspaceChunkSearch';
 import { FileRepresentation, IWorkspaceFileIndex } from '../workspaceFileIndex';
@@ -22,8 +23,7 @@ import { FileRepresentation, IWorkspaceFileIndex } from '../workspaceFileIndex';
  * Searches files that differ from what the remote code search index has indexed.
  *
  * Chunks and embeddings come from the Copilot chunks endpoint and are ranked locally. They are cached in memory
- * per file representation. The file index replaces a file's representation whenever the file changes, so repeated
- * searches only recompute files that changed again.
+ * per file representation and on-disk version, so repeated searches only recompute files that changed again.
  */
 export class LocalDiffEmbeddingsSearch {
 
@@ -34,12 +34,13 @@ export class LocalDiffEmbeddingsSearch {
 
 	private static readonly maxParallelFileOps = 50;
 
-	private readonly _cache = new ResourceMap<{ readonly file: FileRepresentation; readonly chunks: readonly FileChunkWithEmbedding[] }>();
+	private readonly _cache = new ResourceMap<{ readonly file: FileRepresentation; readonly diskVersion: string | undefined; readonly chunks: readonly FileChunkWithEmbedding[] }>();
 
 	constructor(
 		private readonly _embeddingType: EmbeddingType,
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IChunkingEndpointClient private readonly _chunkingEndpointClient: IChunkingEndpointClient,
+		@IFileSystemService private readonly _fileSystemService: IFileSystemService,
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceFileIndex private readonly _workspaceFileIndex: IWorkspaceFileIndex,
 	) { }
@@ -102,8 +103,11 @@ export class LocalDiffEmbeddingsSearch {
 	}
 
 	private async getChunksAndEmbeddings(authToken: string, file: FileRepresentation, batchInfo: ComputeBatchInfo, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<readonly FileChunkWithEmbedding[] | undefined> {
+		// The file index replaces a file's representation when it sees a change, but it can miss disk changes
+		// (for example under `files.watcherExclude`), so also compare the file's size and mtime
+		const diskVersion = await this.getDiskVersion(file.uri);
 		const cached = this._cache.get(file.uri);
-		if (cached?.file === file) {
+		if (cached?.file === file && cached.diskVersion === diskVersion) {
 			return cached.chunks;
 		}
 
@@ -117,8 +121,17 @@ export class LocalDiffEmbeddingsSearch {
 		}
 
 		if (chunks) {
-			this._cache.set(file.uri, { file, chunks });
+			this._cache.set(file.uri, { file, diskVersion, chunks });
 		}
 		return chunks;
+	}
+
+	private async getDiskVersion(uri: URI): Promise<string | undefined> {
+		try {
+			const stat = await this._fileSystemService.stat(uri);
+			return `${stat.size}-${stat.mtime}`;
+		} catch {
+			return undefined;
+		}
 	}
 }

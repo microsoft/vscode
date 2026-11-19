@@ -64,7 +64,7 @@ class TestRepoTracker extends Disposable {
 	readonly changes = this._register(new Emitter<TrackedRepoState>());
 	readonly onDidAddOrUpdateRepo = this.changes.event;
 	readonly onDidRemoveRepo = Event.None;
-	private readonly repos: TrackedRepoState[] = [];
+	readonly repos: TrackedRepoState[] = [];
 	async initialize(): Promise<void> { }
 	getAllTrackedRepos(): readonly TrackedRepoState[] { return this.repos; }
 	add(repo: TrackedRepoState): void {
@@ -79,7 +79,7 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 		vi.restoreAllMocks();
 	});
 
-	async function create(options: { readonly extraFolders?: readonly URI[]; readonly externalIngestPolicy?: boolean } = {}) {
+	async function create(options: { readonly extraFolders?: readonly URI[]; readonly externalIngestPolicy?: boolean; readonly trackedBeforeConstruction?: boolean } = {}) {
 		const authentication = new TestAuthenticationService();
 		disposables.add(authentication.changes);
 		disposables.add(authentication.adoChanges);
@@ -108,6 +108,15 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 		), true));
 		vi.spyOn(instantiation, 'createInstance').mockReturnValueOnce(tracker);
 		const root = URI.parse('file:///workspace');
+		const trackedRepo: TrackedRepoState = {
+			status: TrackedRepoStatus.Resolved,
+			repo: { rootUri: root },
+			resolvedRemoteInfo: { repoId: new GithubRepoId('owner', 'repo'), fetchUrl: undefined },
+		};
+		if (options.trackedBeforeConstruction) {
+			// Like Remote Repositories roots, which the tracker resolves before anyone subscribes to it
+			tracker.repos.push(trackedRepo);
+		}
 		const search = disposables.add(new CodeSearchChunkSearch(
 			EmbeddingType.text3small_512,
 			instantiation,
@@ -124,11 +133,9 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 			new class extends mock<IWorkspaceFileIndex>() { }(),
 			disposables.add(new NullWorkspaceService([root, ...options.extraFolders ?? []])),
 		));
-		tracker.add({
-			status: TrackedRepoStatus.Resolved,
-			repo: { rootUri: root },
-			resolvedRemoteInfo: { repoId: new GithubRepoId('owner', 'repo'), fetchUrl: undefined },
-		});
+		if (!options.trackedBeforeConstruction) {
+			tracker.add(trackedRepo);
+		}
 		await vi.waitFor(() => expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.Ready]));
 		expect(remote.getRemoteIndexState).toHaveBeenCalledTimes(1);
 		return { authentication, remote, search };
@@ -184,6 +191,11 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 			enablement: search.getRemoteIndexState(false).externalIngestEnablement,
 			offer: await search.shouldOfferToEnableExternalIngest(),
 		}).toEqual(expected);
+	});
+
+	test('repos the tracker resolved before code search subscribed are still opened', async () => {
+		// create() waits for the repo to reach Ready, which fails if it was never opened
+		await create({ trackedBeforeConstruction: true });
 	});
 });
 

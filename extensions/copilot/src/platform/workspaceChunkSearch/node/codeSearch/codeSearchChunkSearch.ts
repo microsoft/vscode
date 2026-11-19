@@ -273,6 +273,13 @@ export class CodeSearchChunkSearch extends Disposable {
 						return;
 					}
 
+					// Some repos resolve while the tracker is constructed, before we subscribe to its events
+					await Promise.all(this._repoTracker.getAllTrackedRepos().map(info => {
+						if (info.status === TrackedRepoStatus.Resolved && info.resolvedRemoteInfo) {
+							return this.openGitRepo(info.repo, info.resolvedRemoteInfo);
+						}
+					}));
+
 					// And make sure they have done their initial checks.
 					// After this the repos may still be left polling github but we've done at least one check
 					await Promise.all(Array.from(this._codeSearchRepos.values(), info => info.repo.initialize()));
