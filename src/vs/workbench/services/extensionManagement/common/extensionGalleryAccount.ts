@@ -35,7 +35,7 @@ export interface IExtensionGalleryAccountProvider {
 	readonly onDidChangeAccount: Event<void>;
 
 	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
-	getAccount(serviceIndexUrl: string, forceRefresh?: boolean): Promise<IExtensionGalleryAccount | undefined>;
+	getAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined>;
 
 	/** Interactive. The provider owns account selection and how the session is obtained. */
 	signIn(): Promise<void>;
@@ -53,7 +53,10 @@ export interface IExtensionGalleryAccountService {
 	readonly canRefreshAccessToken: boolean;
 	readonly isRefreshDue: boolean;
 
-	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
+	/**
+	 * Never prompts. Check {@link accountStatus} for whether the account may actually be used.
+	 * @param forceRefresh Ask the provider again instead of joining a request that may predate a rejection.
+	 */
 	getAccount(serviceIndexUrl: string, forceRefresh?: boolean): Promise<IExtensionGalleryAccount | undefined>;
 
 	/** Interactive sign-in for whichever provider the deployment configured. */

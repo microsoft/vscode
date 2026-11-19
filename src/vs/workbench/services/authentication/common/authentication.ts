@@ -363,8 +363,6 @@ export interface IAuthenticationExtensionsService {
  * Options passed to the authentication provider when asking for sessions.
  */
 export interface IAuthenticationProviderSessionOptions {
-	/** Workbench-only silent renewal after a resource server rejects a cached token. */
-	_workbenchForceRefresh?: boolean;
 	/**
 	 * Whether the provider must avoid user interaction while resolving existing sessions.
 	 */
@@ -413,7 +411,8 @@ export const WORKBENCH_ONLY_SESSION_OPTION_PREFIX = '_workbench';
 
 /** Returns a copy of `options` without the keys reserved for the workbench. */
 export function withoutWorkbenchOnlySessionOptions<T extends object>(options: T): T {
-	// Workbench-only optional fields are removed before an extension request reaches the provider.
+	// Reserved keys are never declared on `T` (they only exist through its index signature), so
+	// every property `T` does declare survives and the result is still a `T`.
 	return filter(options, key => !key.startsWith(WORKBENCH_ONLY_SESSION_OPTION_PREFIX)) as T;
 }
 
