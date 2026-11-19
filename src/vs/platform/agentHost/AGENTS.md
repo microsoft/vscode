@@ -83,6 +83,18 @@ The forwarder publishes every standard runtime row as `copilotSdk/<kind>`, but u
 
 ---
 
+### Copilot steering and interaction correlation
+
+Copilot enriches `agentHost.turnCompleted` with `sdkSessionId`, `interactionIds` (a JSON array capped at 64 distinct IDs), `interactionIdsTruncated`, and known `originalTurnId` / `steeredFromTurn`. Input/turn-start boundaries and exactly correlated responses populate the snapshot. No separate interaction-mapping event is emitted. Associations are many-to-many; never select an arbitrary first interaction or duplicate usage across its turns.
+
+`agentHost.turnSteered` records the host-promoted successor and `steeredFromTurn` when its SDK user-message echo arrives, independently of eventual completion. `runtimeDelivery` distinguishes `steering`, `idle`, `queued` and unavailable evidence. `attributionStatus=confirmed` requires steering delivery and a shared observed predecessor interaction; repeated confirmed steering retains the original turn. Explicit idle/queued delivery is `newRequest` and starts its own origin, even when AH promoted it as steering. A changed interaction with steering delivery is `interactionMismatch`; absent evidence is `unknown`. Neither inherits an earlier original turn. Host presentation and execution routing are unchanged.
+
+Known lineage also enriches exactly correlated `copilotSdk/response.success` / `response.error` rows and `agentHost.modelCallTurnCorrelated`, including late mappings. Join the latter by SDK session and model-call ID, rejecting conflicts. This avoids another asynchronous mapping event or extending the forwarding timeout. Raw runtime lineage fields cannot override host attribution. Standard/restricted channel controls remain unchanged.
+
+Analytical snapshots have bounded session-local history and are cleared on disposal, not persisted. Active routing sets still expire with their execution turn. Completion snapshots contain only evidence available at emission; later responses/bridges may add information. Child origins remain absent unless established independently. Missing echoes/completions, cache eviction, cancellation and telemetry loss can leave gaps; do not treat fallback ownership or missing usage as complete attribution.
+
+An original steering turn is not necessarily human-initiated. This does not establish cross-chat originating triggers for side-chat replies, reused workers, automation chains or notifications. Compaction retains attempt-based ownership and Fusion retains workflow-based routing. Full descendant usage and root-position coverage still require validated runtime inheritance and downstream joins; tool/edit attribution and restart reconstruction are separate concerns.
+
 ## 2. Ownership and Layering
 
 ```mermaid

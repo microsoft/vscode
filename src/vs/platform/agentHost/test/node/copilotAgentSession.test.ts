@@ -18525,6 +18525,35 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(turnStarted.queuedMessageId, 'steer-1');
 		});
 
+		test('records the original turn across repeated steering without extending execution routing lifetime', async () => {
+			const telemetryService = new TestDataTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('original');
+			mockSession.fire('user.message', { content: 'start', interactionId: 'interaction' } as SessionEventPayload<'user.message'>['data']);
+			const originalTurn = session['_currentTurn'].value!;
+			await session.sendSteering({ id: 'steer-1', message: { text: 'first steering', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', { content: 'first steering', interactionId: 'interaction', delivery: 'steering' } as SessionEventPayload<'user.message'>['data']);
+			const first = session.currentTurnId;
+			await session.sendSteering({ id: 'steer-2', message: { text: 'second steering', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', { content: 'second steering', interactionId: 'interaction', delivery: 'steering' } as SessionEventPayload<'user.message'>['data']);
+			const second = session.currentTurnId;
+			session.resetTurnState('independent');
+			mockSession.fire('user.message', { content: 'new request', interactionId: 'new-interaction' } as SessionEventPayload<'user.message'>['data']);
+			assert.deepStrictEqual({
+				oldRoutingReleased: originalTurn.interactionIds.size === 0,
+				edges: telemetryService.events.filter(event => event.name === 'agentHost.turnSteered').map(event => ({
+					turn: event.data.turnId, previous: event.data.steeredFromTurn, original: event.data.originalTurnId,
+				})),
+				associations: ['original', first!, second!, 'independent'].map(turn => ({
+					turn, original: session.turnInteractionCorrelation.get(turn)?.originalTurnId,
+				})),
+			}, {
+				oldRoutingReleased: true,
+				edges: [{ turn: first, previous: 'original', original: 'original' }, { turn: second, previous: first, original: 'original' }],
+				associations: [{ turn: 'original', original: 'original' }, { turn: first, original: 'original' }, { turn: second, original: 'original' }, { turn: 'independent', original: 'independent' }],
+			});
+		});
+
 		test('promotes scaffolded steering with attachments to its own turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
@@ -18701,6 +18730,44 @@ Use the attached image as context.
 				readyAfterEcho: true,
 			});
 		});
+
+		for (const sameInteraction of [true, false]) {
+			test(`records idle-before-echo steering lineage only with matching interaction evidence (${sameInteraction})`, async () => {
+				const telemetryService = new TestDataTelemetryService();
+				const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+				session.resetTurnState('original');
+				mockSession.fire('user.message', { content: 'start', interactionId: 'original-interaction' } as SessionEventPayload<'user.message'>['data']);
+				const sendGate = new DeferredPromise<string>();
+				mockSession.send = async () => sendGate.p;
+				const sending = session.sendSteering({ id: 'steer', message: { text: 'steer', origin: { kind: MessageKind.User } } });
+				await timeout(0);
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				const successor = session.currentTurnId;
+				mockSession.fire('assistant.turn_start', {
+					turnId: 'steering-sdk-turn',
+					interactionId: sameInteraction ? 'original-interaction' : 'new-interaction',
+				} as SessionEventPayload<'assistant.turn_start'>['data']);
+				const interimOrigin = session.turnInteractionCorrelation.get(successor!)?.originalTurnId;
+				sendGate.complete('steering-message');
+				await sending;
+				mockSession.fire('user.message', {
+					content: 'steer', messageId: 'steering-message',
+					delivery: sameInteraction ? 'steering' : 'idle',
+					interactionId: sameInteraction ? 'original-interaction' : 'new-interaction',
+				} as SessionEventPayload<'user.message'>['data']);
+				assert.deepStrictEqual({
+					interimOrigin,
+					edges: telemetryService.events.filter(event => event.name === 'agentHost.turnSteered').map(event => ({
+						turn: event.data.turnId, previous: event.data.steeredFromTurn, original: event.data.originalTurnId,
+					})),
+					original: session.turnInteractionCorrelation.get(successor!)?.originalTurnId,
+				}, {
+					interimOrigin: undefined,
+					edges: [{ turn: successor, previous: 'original', original: sameInteraction ? 'original' : successor }],
+					original: sameInteraction ? 'original' : successor,
+				});
+			});
+		}
 
 		for (const ending of ['idle', 'abort'] as const) {
 			test(`clears promoted steering readiness on ${ending}`, async () => {
