@@ -91,11 +91,11 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { IChatGoalSummaryService } from '../chatGoalSummaryService.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
-import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
+import { IHandOff, PromptHeader, PromptHeaderAttributes, VSCodeAgentAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
 import { captureForkPromptSourceInput, IForkPromptSourceInput } from '../actions/chatForkActions.js';
-import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatAgentEmptyChatMessage, IChatBackgroundActivityPillSections, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatRespondent, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatBackgroundActivityPillSections, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatRespondent, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
@@ -508,8 +508,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	readonly inputVisible: IObservable<boolean> = this._inputVisibleObs;
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
-	/** The selected agent's `empty-chat-message`, shown as an agent message in the empty chat instead of any welcome. */
-	private _agentEmptyChatMessage: IChatAgentEmptyChatMessage | undefined;
+	/** The selected custom agent's `empty-chat-message`, shown as the welcome while the chat is empty. */
+	private _agentEmptyChatMessage: { readonly agentName: string; readonly markdown: IMarkdownString } | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
 	private _isRenderingWelcome = false;
@@ -1737,13 +1737,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const numItems = this.viewModel?.getItems().length ?? 0;
-			if (!numItems && this._agentEmptyChatMessage) {
-				if (this._agentEmptyChatMessage.element.parentElement !== this.welcomeMessageContainer) {
-					this.welcomePart.clear();
-					dom.clearNode(this.welcomeMessageContainer);
-					dom.append(this.welcomeMessageContainer, this._agentEmptyChatMessage.element);
-				}
-			} else if (!numItems) {
+			if (!numItems) {
 				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 				let additionalMessage: string | IMarkdownString | undefined;
 				if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.completed) {
@@ -1764,7 +1758,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						welcomeContent,
 						{
 							location: this.location,
-							isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent
+							isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent,
+							// An agent's message offers its first (command) link as a button.
+							firstLinkToButton: !!this._agentEmptyChatMessage,
 						}
 					);
 					dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
@@ -1779,6 +1775,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private renderGettingStartedTipIfNeeded(): void {
 		this._gettingStartedTip.value?.update();
+	}
+
+	/** Reads `vscode: empty-chat-message` from the selected custom agent's file. Agent files are trusted, so its command links run. */
+	private async _updateAgentEmptyChatMessage(): Promise<void> {
+		const mode = this.input.currentModeObs.get();
+		const uri = mode.isBuiltin ? undefined : mode.uri?.get();
+		const header = uri && (await this.promptsService.parseNew(uri, CancellationToken.None).catch(() => undefined))?.header;
+		if (this._store.isDisposed || this.input.currentModeObs.get() !== mode) {
+			return;
+		}
+		const options = header?.getAttribute(PromptHeaderAttributes.vscode)?.value;
+		const value = options?.type === 'map' ? options.properties.find(property => property.key.value === VSCodeAgentAttributes.emptyChatMessage)?.value : undefined;
+		const text = value?.type === 'scalar' && value.value.trim() ? value.value : undefined;
+		if (text === this._agentEmptyChatMessage?.markdown.value) {
+			return;
+		}
+		this._agentEmptyChatMessage = text ? { agentName: mode.name.get(), markdown: new MarkdownString(text, { isTrusted: true, supportThemeIcons: true }) } : undefined;
+		this.renderWelcomeViewContentIfNeeded();
 	}
 
 	updateGettingStartedTip(): void {
@@ -1860,6 +1874,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
+		if (this._agentEmptyChatMessage) {
+			return { title: this._agentEmptyChatMessage.agentName, message: this._agentEmptyChatMessage.markdown, icon: Codicon.chatSparkle };
+		}
 		if (this.isLockedToCodingAgent && !this._lockedAgent?.agentHostProviderId) {
 			// Check for provider-specific customizations from chat sessions service
 			const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
@@ -3167,12 +3184,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.refreshParsedInput();
 			this.renderFollowups();
 			this.renderChatSuggestNextWidget();
+			void this._updateAgentEmptyChatMessage();
 		}));
 		// Also when the selected agent's file changes its `argument-hint` in place.
 		store.add(autorun(reader => {
 			input.currentModeObs.read(reader).argumentHint?.read(reader);
 			this._applyInputPlaceholder();
 		}));
+		void this._updateAgentEmptyChatMessage();
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
 		const hasByokModelsContextKeys = new Set([ChatEntitlementContextKeys.hasByokModels.key]);
 		store.add(this.contextKeyService.onDidChangeContext(e => {
@@ -3644,24 +3663,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _updateInputPlaceholder(placeholder: string | undefined): void {
 		const base = this.viewOptions.inputPlaceholder ?? placeholder;
 		this.inputEditor?.updateOptions({ placeholder: base && getSandboxPlaceholder(base, this.input.sandboxToggleChecked.get()) });
-	}
-
-	get agentEmptyChatMessage(): IChatAgentEmptyChatMessage | undefined {
-		return this._agentEmptyChatMessage;
-	}
-
-	setAgentEmptyChatMessage(message: IChatAgentEmptyChatMessage | undefined): void {
-		if (this._agentEmptyChatMessage === message) {
-			return;
-		}
-		this._agentEmptyChatMessage?.element.remove();
-		this._agentEmptyChatMessage = message;
-		this.welcomeMessageContainer?.classList.toggle('chat-agent-empty-chat-message', !!message);
-		if (!message) {
-			// Force the default welcome to render again.
-			this.welcomePart.clear();
-		}
-		this.renderWelcomeViewContentIfNeeded();
 	}
 
 	setInput(value = ''): void {

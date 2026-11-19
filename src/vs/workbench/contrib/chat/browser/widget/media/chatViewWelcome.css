@@ -37,13 +37,6 @@
 	position: relative; /* Allow absolute positioning of prompts */
 }
 
-/* A custom agent's first message reads like a response at the top of the chat */
-.interactive-session .chat-welcome-view-container.chat-agent-empty-chat-message {
-	align-items: stretch;
-	justify-content: flex-start;
-	overflow: auto;
-}
-
 /* Container for ChatViewPane welcome view */
 .pane-body > .chat-view-welcome {
 	flex-direction: column;

@@ -6,7 +6,6 @@
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { IAction } from '../../../../base/common/actions.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { isMobile, isWeb } from '../../../../base/common/platform.js';
@@ -525,15 +524,6 @@ export interface IChatScrollAnchor {
 
 export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;
 
-/** A custom agent's message in the empty chat (`empty-chat-message` in its agent file); not part of the transcript. */
-export interface IChatAgentEmptyChatMessage {
-	readonly element: HTMLElement;
-	/** The message as plain text, for the accessible view. */
-	readonly accessibleText: string;
-	/** The message's buttons, offered as accessible view actions. */
-	readonly actions: readonly IAction[];
-}
-
 export interface IChatWidget {
 	/** Whether cancellable transcript preparation is blocking new submissions. */
 	readonly isTranscriptProgressActive?: boolean;
@@ -585,10 +575,6 @@ export interface IChatWidget {
 	getFocus(): ChatTreeItem | undefined;
 	setInput(query?: string): void;
 	getInput(): string;
-	/** Shows the selected agent's message in the empty chat, instead of any welcome. */
-	setAgentEmptyChatMessage?(message: IChatAgentEmptyChatMessage | undefined): void;
-	/** The message {@link setAgentEmptyChatMessage} shows, while the chat is empty. */
-	readonly agentEmptyChatMessage?: IChatAgentEmptyChatMessage;
 	refreshParsedInput(): void;
 	/** Floats persistent input content and reserves matching space below the transcript. */
 	setPersistentContentHeight(height: number | undefined): void;

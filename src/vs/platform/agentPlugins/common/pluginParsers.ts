@@ -109,6 +109,7 @@ export interface IAgentPluginResource extends INamedPluginResource {
 	readonly reasoningEffort?: string;
 	readonly modelPolicy?: 'preferred' | 'required';
 	readonly argumentHint?: string;
+	readonly assistedApprovalInstructions?: string;
 	readonly tools?: readonly string[];
 	readonly disableModelInvocation?: boolean;
 	readonly disableUserInvocation?: boolean;
@@ -391,7 +392,7 @@ function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomizat
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
 		...(resource.model ? { model: resource.model } : {}),
-		...(resource.models || resource.reasoningEffort || resource.modelPolicy || resource.argumentHint ? { _meta: toAgentCustomizationMeta({ 'vscode.models': resource.models, 'vscode.reasoningEffort': resource.reasoningEffort, 'vscode.modelPolicy': resource.modelPolicy, 'vscode.argumentHint': resource.argumentHint }) } : {}),
+		...(resource.models || resource.reasoningEffort || resource.modelPolicy || resource.argumentHint || resource.assistedApprovalInstructions ? { _meta: toAgentCustomizationMeta({ 'vscode.models': resource.models, 'vscode.reasoningEffort': resource.reasoningEffort, 'vscode.modelPolicy': resource.modelPolicy, 'vscode.argumentHint': resource.argumentHint, 'vscode.assistedApprovalInstructions': resource.assistedApprovalInstructions }) } : {}),
 		...(resource.tools?.length ? { tools: [...resource.tools] } : {}),
 		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
 		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
@@ -1268,6 +1269,7 @@ export async function readAgentComponents(
 				...(parsed.reasoningEffort ? { reasoningEffort: parsed.reasoningEffort } : {}),
 				...(parsed.modelPolicy ? { modelPolicy: parsed.modelPolicy } : {}),
 				...(parsed.argumentHint ? { argumentHint: parsed.argumentHint } : {}),
+				...(parsed.assistedApprovalInstructions ? { assistedApprovalInstructions: parsed.assistedApprovalInstructions } : {}),
 				...(parsed.tools?.length ? { tools: parsed.tools } : {}),
 				...(parsed.disableModelInvocation ? { disableModelInvocation: true } : {}),
 				...(parsed.userInvocable === false ? { disableUserInvocation: true } : {}),
@@ -1299,11 +1301,6 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
 		const description = frontmatter?.getStringValue('description')?.trim();
 		const argumentHint = frontmatter?.getStringValue('argument-hint')?.trim() || undefined;
-		// Guidance for the Assisted permissions reviewer while this agent is selected (added to the user's own).
-		// VS Code-only keys live under `vscode:`, so other harnesses can ignore them as one unknown key.
-		const vscodeHeader = frontmatter?.header?.type === 'map' ? frontmatter.header.properties.find(p => p.key.value === 'vscode')?.value : undefined;
-		const assistedApprovalNode = vscodeHeader?.type === 'map' ? vscodeHeader.properties.find(p => p.key.value === 'assisted-approval-instructions')?.value : undefined;
-		const assistedApprovalInstructions = assistedApprovalNode?.type === 'scalar' ? assistedApprovalNode.value.trim() || undefined : undefined;
 		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
 		const models = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).filter(Boolean);
 		const model = models?.[0];
@@ -1313,7 +1310,11 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
 		const infer = frontmatter?.getBooleanValue('infer');
 		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
-		return { name, description, ...(argumentHint ? { argumentHint } : {}), ...(assistedApprovalInstructions ? { assistedApprovalInstructions } : {}), userInvocable, model, ...(models && models.length > 1 ? { models } : {}), ...(reasoningEffort ? { reasoningEffort } : {}), ...(modelPolicy ? { modelPolicy } : {}), tools, disableModelInvocation };
+		// VS Code-only options live under `vscode:`.
+		const vscodeOptions = frontmatter?.header?.type === 'map' ? frontmatter.header.properties.find(p => p.key.value === 'vscode')?.value : undefined;
+		const instructionsNode = vscodeOptions?.type === 'map' ? vscodeOptions.properties.find(p => p.key.value === 'assisted-approval-instructions')?.value : undefined;
+		const assistedApprovalInstructions = instructionsNode?.type === 'scalar' ? instructionsNode.value.trim() || undefined : undefined;
+		return { name, description, ...(argumentHint ? { argumentHint } : {}), userInvocable, model, ...(models && models.length > 1 ? { models } : {}), ...(reasoningEffort ? { reasoningEffort } : {}), ...(modelPolicy ? { modelPolicy } : {}), ...(assistedApprovalInstructions ? { assistedApprovalInstructions } : {}), tools, disableModelInvocation };
 	} catch {
 		return { name: nameFromFile };
 	}
