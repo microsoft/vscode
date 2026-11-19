@@ -1077,7 +1077,7 @@ export interface IAgentChatContext {
 	 * reason when the send used it, or with the bounded reason it was discarded
 	 * and the send launched one instead.
 	 */
-	readonly reportPrewarmedSession?: (discardReason?: string) => void;
+	readonly reportPrewarmedSession?: (discardReason?: string, claim?: IAgentPrewarmClaim) => void;
 	/**
 	 * Records, before progress can complete the addressed turn, that its send
 	 * materialized a deferred provider session without a pre-warmed one to
@@ -1488,6 +1488,16 @@ export interface IAgentWarmChatSelection {
 	readonly model: ModelSelection | undefined;
 	/** The custom agent to warm with; `undefined` is the default agent. */
 	readonly agent: AgentSelection | undefined;
+}
+
+/** How a send found the pre-warmed provider session it used, for turn telemetry ({@link IAgentChatContext.reportPrewarmedSession}). */
+export interface IAgentPrewarmClaim {
+	/** When the used launch became ready, as `Date.now()` in the reporting process. */
+	readonly readyAt: number;
+	/** The draft's warm launches so far, including the used one; more than one means it was warmed again. */
+	readonly launchCount: number;
+	/** Whether the launch's background warm-up, such as MCP startup and tool initialization, had finished. */
+	readonly warmUpComplete: boolean;
 }
 
 /**
