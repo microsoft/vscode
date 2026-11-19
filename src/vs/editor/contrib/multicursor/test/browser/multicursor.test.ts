@@ -181,6 +181,63 @@ suite('Multicursor selection', () => {
 		});
 	});
 
+	test('toggling regex find mode mid-session re-reads the search text as literal', () => {
+		withTestCodeEditor([
+			'foo',
+			'fooo',
+			'xxx',
+			'fo+'
+		], { serviceCollection: serviceCollection, hasTextFocus: false }, (editor) => {
+
+			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
+			const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+			const addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+
+			editor.setSelection(new Selection(1, 1, 1, 1));
+			findController.getState().change({ searchString: 'fo+', isRegex: true, isRevealed: true }, false);
+
+			addSelectionToNextFindMatch.run(null!, editor);
+
+			findController.getState().change({ isRegex: false }, false);
+
+			addSelectionToNextFindMatch.run(null!, editor);
+
+			const lastSelection = editor.getSelections()!.map(fromRange).at(-1);
+			assert.deepStrictEqual(lastSelection, [4, 1, 4, 4]);
+
+			multiCursorSelectController.dispose();
+			findController.dispose();
+		});
+	});
+
+	test('issue #107090: regex matching an empty string does not get stuck adding the same selection', () => {
+		withTestCodeEditor([
+			'abc',
+		], { serviceCollection: serviceCollection, hasTextFocus: false }, (editor) => {
+
+			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
+			const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+			const addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+
+			editor.setSelection(new Selection(1, 1, 1, 1));
+			findController.getState().change({ searchString: 'x*', isRegex: true, isRevealed: true }, false);
+
+			addSelectionToNextFindMatch.run(null!, editor);
+			addSelectionToNextFindMatch.run(null!, editor);
+			addSelectionToNextFindMatch.run(null!, editor);
+
+			// Each call should land on a new, distinct empty match further along the line.
+			// If matching an empty string got the search stuck at the same position, repeated
+			// calls would keep re-adding (and Monaco would collapse) the same selection.
+			assert.strictEqual(editor.getSelections()!.length, 4);
+			const columns = editor.getSelections()!.map(s => s.startColumn);
+			assert.strictEqual(new Set(columns).size, columns.length, `expected distinct columns, got ${JSON.stringify(columns)}`);
+
+			multiCursorSelectController.dispose();
+			findController.dispose();
+		});
+	});
+
 	test('AddSelectionToNextFindMatchAction can work with multiline', () => {
 		withTestCodeEditor([
 			'',
