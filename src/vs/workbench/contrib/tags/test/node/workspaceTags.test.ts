@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as crypto from 'crypto';
+import { extUri, extUriIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from '../../common/workspaceTags.js';
@@ -255,7 +256,7 @@ client.workspace = true
 			[member.path, memberContents]
 		]);
 		const foldersRead: string[] = [];
-		const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(member, memberContents, [member], async folder => {
+		const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(member, memberContents, [member], extUri, async folder => {
 			foldersRead.push(folder.path);
 			return manifestContents.get(folder.path);
 		}, new Map<string, ReadonlyMap<string, string> | undefined>());
@@ -285,8 +286,8 @@ client.workspace = true
 			reads.push(folder.path);
 			return files.get(folder.path);
 		};
-		const dependencies = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], readManifest, new Map());
-		const missing = await getCargoWorkspaceDependenciesForFolder(member, contents.replace('../other', '../missing'), [root], readManifest, new Map());
+		const dependencies = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map());
+		const missing = await getCargoWorkspaceDependenciesForFolder(member, contents.replace('../other', '../missing'), [root], extUri, readManifest, new Map());
 		assert.deepStrictEqual([
 			getCargoDependencyNames(contents, dependencies),
 			missing,
@@ -312,7 +313,7 @@ client.workspace = true
 		const readManifest = async (folder: URI) => folder.path === workspace.path ? '[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }' : undefined;
 		for (const form of forms) {
 			const contents = form + dependency;
-			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], readManifest, new Map());
+			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map());
 			results.push(getCargoDependencyNames(contents, resolved));
 		}
 		assert.deepStrictEqual(results, [['reqwest'], ['reqwest'], ['reqwest']]);
@@ -330,12 +331,47 @@ client.workspace = true
 		const results: string[][] = [];
 		for (const path of paths) {
 			const contents = `[package]\nworkspace = "${path}"\n[dependencies]\nclient.workspace = true`;
-			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], readManifest, new Map());
+			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUri, readManifest, new Map());
 			results.push(getCargoDependencyNames(contents, resolved));
 		}
 		assert.deepStrictEqual([results, reads], [
 			[[], [], [], [], ['reqwest'], ['reqwest'], ['reqwest']],
 			[member.path, URI.joinPath(member, 'nested').path, root.path]
+		]);
+	});
+
+	test('Cargo workspace resolution honors provider path casing and cache identity', async () => {
+		const member = URI.parse('test://host/Repo/member');
+		const reads: string[] = [];
+		const readManifest = async (folder: URI) => {
+			reads.push(folder.path);
+			return '[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }';
+		};
+		const cache = new Map<string, ReadonlyMap<string, string> | undefined>();
+		const contents = '[package]\nworkspace = "../../repo"\n[dependencies]\nclient.workspace = true';
+		const insensitive = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUriIgnorePathCase, readManifest, cache);
+		const cached = await getCargoWorkspaceDependenciesForFolder(member, contents.replace('../../repo', '..'), [member], extUriIgnorePathCase, readManifest, cache);
+		const sensitive = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUri, readManifest, new Map());
+		const outside = await getCargoWorkspaceDependenciesForFolder(member, contents.replace('../../repo', '../../repo-other'), [member], extUriIgnorePathCase, readManifest, cache);
+		const otherAuthority = await getCargoWorkspaceDependenciesForFolder(member.with({ authority: 'other' }), contents, [member], extUriIgnorePathCase, readManifest, cache);
+		const windowsMember = URI.parse('file:///c:/Repo/member');
+		const windows = await getCargoWorkspaceDependenciesForFolder(windowsMember, contents, [windowsMember], extUriIgnorePathCase, readManifest, new Map());
+		assert.deepStrictEqual([
+			getCargoDependencyNames(contents, insensitive),
+			getCargoDependencyNames(contents, cached),
+			sensitive,
+			outside,
+			otherAuthority,
+			getCargoDependencyNames(contents, windows),
+			reads
+		], [
+			['reqwest'],
+			['reqwest'],
+			undefined,
+			undefined,
+			undefined,
+			['reqwest'],
+			['/repo', '/c:/repo']
 		]);
 	});
 
@@ -352,7 +388,7 @@ other.package = '''serde_json'''
 ` : undefined;
 		for (const path of paths) {
 			const contents = `[package]\nworkspace = ${path}\n[dependencies]\nclient.workspace = true\nother.workspace = true\n[dev-dependencies.direct]\npackage = """\r\nany\\\r\n  how"""`;
-			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], readManifest, new Map());
+			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map());
 			results.push(getCargoDependencyNames(contents, resolved));
 		}
 		assert.deepStrictEqual(results, Array.from({ length: paths.length }, () => ['reqwest', 'serde_json', 'anyhow']));

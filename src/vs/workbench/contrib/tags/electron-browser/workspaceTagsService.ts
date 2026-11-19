@@ -9,8 +9,8 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { ITextFileService, ITextFileContent } from '../../../services/textfile/common/textfiles.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { getComparisonKey } from '../../../../base/common/resources.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTagsService, Tags } from '../common/workspaceTags.js';
 import { getHashedRemotesFromConfig } from './workspaceTags.js';
 import { splitLines } from '../../../../base/common/strings.js';
@@ -531,7 +531,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) { }
 
 	async getTags(): Promise<Tags> {
@@ -1714,10 +1715,11 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			});
 
 			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises, ...goModPromises, ...cargoTomlPromises]).then(async () => {
-				const cargoContentsByFolder = new Map(cargoManifests.map(manifest => [getComparisonKey(manifest.folder), manifest.contents]));
+				const extUri = this.uriIdentityService.extUri;
+				const cargoContentsByFolder = new Map(cargoManifests.map(manifest => [extUri.getComparisonKey(manifest.folder), manifest.contents]));
 				const cargoWorkspaceCache = new Map<string, ReadonlyMap<string, string> | undefined>();
 				const readCargoManifest = async (folder: URI): Promise<string | undefined> => {
-					const contents = cargoContentsByFolder.get(getComparisonKey(folder));
+					const contents = cargoContentsByFolder.get(extUri.getComparisonKey(folder));
 					if (contents !== undefined) {
 						return contents;
 					}
@@ -1729,7 +1731,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				};
 				for (const manifest of cargoManifests) {
 					try {
-						const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(manifest.folder, manifest.contents, folders, readCargoManifest, cargoWorkspaceCache);
+						const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(manifest.folder, manifest.contents, folders, extUri, readCargoManifest, cargoWorkspaceCache);
 						for (const dependency of getCargoDependencyNames(manifest.contents, workspaceDependencies)) {
 							if (RustCratesToLookFor.includes(dependency)) {
 								tags['workspace.cargo.' + dependency] = true;

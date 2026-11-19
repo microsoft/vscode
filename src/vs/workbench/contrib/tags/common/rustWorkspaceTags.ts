@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, getComparisonKey, isEqual, isEqualOrParent, resolvePath } from '../../../../base/common/resources.js';
+import { IExtUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const RustCratesToLookFor = [
@@ -90,6 +90,7 @@ export async function getCargoWorkspaceDependenciesForFolder(
 	folder: URI,
 	contents: string,
 	workspaceFolders: readonly URI[],
+	extUri: IExtUri,
 	readManifestContents: (folder: URI) => Promise<string | undefined>,
 	cache: Map<string, ReadonlyMap<string, string> | undefined>
 ): Promise<ReadonlyMap<string, string> | undefined> {
@@ -101,12 +102,12 @@ export async function getCargoWorkspaceDependenciesForFolder(
 	if (manifest.hasWorkspacePath && manifest.workspacePath === undefined) {
 		return undefined;
 	}
-	let currentFolder = manifest.workspacePath === undefined ? folder : resolvePath(folder, manifest.workspacePath);
+	let currentFolder = manifest.workspacePath === undefined ? folder : extUri.resolvePath(folder, manifest.workspacePath);
 	while (true) {
-		if (!workspaceFolders.some(workspaceFolder => isEqualOrParent(currentFolder, workspaceFolder) || isEqualOrParent(workspaceFolder, currentFolder))) {
+		if (!workspaceFolders.some(workspaceFolder => extUri.isEqualOrParent(currentFolder, workspaceFolder) || extUri.isEqualOrParent(workspaceFolder, currentFolder))) {
 			return undefined;
 		}
-		const key = getComparisonKey(currentFolder);
+		const key = extUri.getComparisonKey(currentFolder);
 		let dependencies = cache.get(key);
 		if (!cache.has(key)) {
 			let contents: string | undefined;
@@ -125,8 +126,8 @@ export async function getCargoWorkspaceDependenciesForFolder(
 		if (manifest.hasWorkspacePath) {
 			return undefined;
 		}
-		const parent = dirname(currentFolder);
-		if (isEqual(currentFolder, parent)) {
+		const parent = extUri.dirname(currentFolder);
+		if (extUri.isEqual(currentFolder, parent)) {
 			return undefined;
 		}
 		currentFolder = parent;
