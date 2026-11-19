@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFileService, IFileStatResult, IFileStat } from '../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, IFileStatResult, IFileStat, toFileOperationResult } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ITextFileService, ITextFileContent } from '../../../services/textfile/common/textfiles.js';
@@ -532,7 +533,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
 	async getTags(): Promise<Tags> {
@@ -1717,31 +1719,56 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises, ...goModPromises, ...cargoTomlPromises]).then(async () => {
 				const extUri = this.uriIdentityService.extUri;
 				const cargoContentsByFolder = new Map(cargoManifests.map(manifest => [extUri.getComparisonKey(manifest.folder), manifest.contents]));
-				const cargoWorkspaceCache = new Map<string, ReadonlyMap<string, string> | undefined>();
+				const cargoWorkspaceCache = new Map<string, Promise<string | undefined>>();
+				const cargoDirectoriesCache = new Map<string, Promise<readonly URI[]>>();
 				const readCargoManifest = async (folder: URI): Promise<string | undefined> => {
 					const contents = cargoContentsByFolder.get(extUri.getComparisonKey(folder));
 					if (contents !== undefined) {
 						return contents;
 					}
 					const manifest = URI.joinPath(folder, 'Cargo.toml');
-					if (await this.fileService.exists(manifest)) {
+					try {
 						return (await this.textFileService.read(manifest, { acceptTextOnly: true })).value;
+					} catch (error) {
+						if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+							return undefined;
+						}
+						throw error;
 					}
-					return undefined;
+				};
+				const readCargoDirectories = (folder: URI): Promise<readonly URI[]> => {
+					const key = extUri.getComparisonKey(folder);
+					let result = cargoDirectoriesCache.get(key);
+					if (!result) {
+						result = (async () => {
+							try {
+								const stat = await this.fileService.resolve(folder);
+								return stat.isSymbolicLink ? [] : (stat.children ?? []).filter(child => child.isDirectory && !child.isSymbolicLink).map(child => child.resource);
+							} catch (error) {
+								if (error instanceof Error && (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND || toFileOperationResult(error) === FileOperationResult.FILE_NOT_DIRECTORY)) {
+									return [];
+								}
+								throw error;
+							}
+						})();
+						cargoDirectoriesCache.set(key, result);
+					}
+					return result;
 				};
 				for (const manifest of cargoManifests) {
+					let workspaceDependencies: ReadonlyMap<string, string> | undefined;
 					try {
-						const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(manifest.folder, manifest.contents, folders, extUri, readCargoManifest, cargoWorkspaceCache);
-						for (const dependency of getCargoDependencyNames(manifest.contents, workspaceDependencies)) {
-							if (RustCratesToLookFor.includes(dependency)) {
-								tags['workspace.cargo.' + dependency] = true;
-							}
-							if (!tags['workspace.cargo.any-azure'] && isAzureCargoDependency(dependency)) {
-								tags['workspace.cargo.any-azure'] = true;
-							}
+						workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(manifest.folder, manifest.contents, folders, extUri, readCargoManifest, cargoWorkspaceCache, readCargoDirectories);
+					} catch (error) {
+						this.logService.trace('Unable to resolve Cargo workspace dependencies', error);
+					}
+					for (const dependency of getCargoDependencyNames(manifest.contents, workspaceDependencies)) {
+						if (RustCratesToLookFor.includes(dependency)) {
+							tags['workspace.cargo.' + dependency] = true;
 						}
-					} catch (e) {
-						// Ignore errors when resolving file or parsing file contents
+						if (!tags['workspace.cargo.any-azure'] && isAzureCargoDependency(dependency)) {
+							tags['workspace.cargo.any-azure'] = true;
+						}
 					}
 				}
 				return tags;

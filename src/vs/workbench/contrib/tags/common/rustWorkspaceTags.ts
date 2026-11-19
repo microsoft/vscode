@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { match as matchGlob } from '../../../../base/common/glob.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { IExtUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -61,8 +64,23 @@ export const RustCratesToLookFor = [
 
 interface CargoDependency {
 	packageName?: string;
+	path?: string;
 	workspace?: boolean;
 }
+
+interface CargoManifest {
+	sections: Map<string, CargoDependency>[];
+	workspaceDependencies: Map<string, CargoDependency>;
+	workspaceMembers: string[];
+	workspaceExcludes: string[];
+	invalidWorkspaceMembersOrExcludes: boolean;
+	hasWorkspace: boolean;
+	hasWorkspacePath: boolean;
+	workspacePath?: string;
+}
+
+const maxWorkspaceMemberManifests = 256;
+const maxWorkspaceMemberDirectories = 256;
 
 export function isAzureCargoDependency(name: string): boolean {
 	return name.startsWith('azure_') || name.startsWith('azure-');
@@ -73,12 +91,16 @@ export function getCargoDependencyNames(contents: string, inheritedWorkspaceDepe
 }
 
 export function getCargoWorkspaceDependencies(contents: string): ReadonlyMap<string, string> | undefined {
-	const { hasWorkspace, workspaceDependencies } = parseCargoDependencies(contents);
-	if (!hasWorkspace) {
+	const manifest = parseCargoDependencies(contents);
+	if (!manifest.hasWorkspace) {
 		return undefined;
 	}
+	return getWorkspaceDependencyNames(manifest);
+}
+
+function getWorkspaceDependencyNames(manifest: CargoManifest): ReadonlyMap<string, string> {
 	const dependencies = new Map<string, string>();
-	for (const [alias, dependency] of workspaceDependencies) {
+	for (const [alias, dependency] of manifest.workspaceDependencies) {
 		if (!dependency.workspace) {
 			dependencies.set(alias, dependency.packageName ?? alias);
 		}
@@ -92,39 +114,72 @@ export async function getCargoWorkspaceDependenciesForFolder(
 	workspaceFolders: readonly URI[],
 	extUri: IExtUri,
 	readManifestContents: (folder: URI) => Promise<string | undefined>,
-	cache: Map<string, ReadonlyMap<string, string> | undefined>
+	cache: Map<string, Promise<string | undefined>>,
+	readDirectories?: (folder: URI) => Promise<readonly URI[]>
 ): Promise<ReadonlyMap<string, string> | undefined> {
 	const manifest = parseCargoDependencies(contents);
 	if (!manifest.sections.some(section => [...section].some(([alias, dependency]) => dependency.workspace && !manifest.workspaceDependencies.has(alias)))) {
 		return undefined;
 	}
 
+	const readManifest = (candidate: URI): Promise<string | undefined> => {
+		const key = extUri.getComparisonKey(candidate);
+		let result = cache.get(key);
+		if (!result) {
+			result = readManifestContents(candidate);
+			cache.set(key, result);
+		}
+		return result;
+	};
+	const workspace = await findCargoWorkspaceForFolder(folder, manifest, workspaceFolders, extUri, readManifest);
+	if (workspace && await isCargoWorkspaceMember(workspace.folder, workspace.manifest, folder, workspaceFolders, extUri, readManifest, readDirectories)) {
+		return getWorkspaceDependencyNames(workspace.manifest);
+	}
+	return undefined;
+}
+
+async function findCargoWorkspaceForFolder(
+	folder: URI,
+	manifest: CargoManifest,
+	workspaceFolders: readonly URI[],
+	extUri: IExtUri,
+	readManifest: (folder: URI) => Promise<string | undefined>
+): Promise<{ folder: URI; manifest: CargoManifest } | undefined> {
 	if (manifest.hasWorkspacePath && manifest.workspacePath === undefined) {
 		return undefined;
 	}
 	let currentFolder = manifest.workspacePath === undefined ? folder : extUri.resolvePath(folder, manifest.workspacePath);
+	let hasWorkspacePointer = manifest.hasWorkspacePath;
+	const visited = new Set<string>();
 	while (true) {
-		if (!workspaceFolders.some(workspaceFolder => extUri.isEqualOrParent(currentFolder, workspaceFolder) || extUri.isEqualOrParent(workspaceFolder, currentFolder))) {
+		if (!isAllowedCargoManifestFolder(currentFolder, workspaceFolders, extUri)) {
 			return undefined;
 		}
 		const key = extUri.getComparisonKey(currentFolder);
-		let dependencies = cache.get(key);
-		if (!cache.has(key)) {
-			let contents: string | undefined;
-			try {
-				contents = await readManifestContents(currentFolder);
-			} catch {
-				cache.set(key, undefined);
+		if (visited.has(key)) {
+			return undefined;
+		}
+		visited.add(key);
+		const currentContents = await readManifest(currentFolder);
+		const currentManifest = currentContents === undefined ? undefined : parseCargoDependencies(currentContents);
+		if (currentManifest?.hasWorkspace) {
+			if (currentManifest.invalidWorkspaceMembersOrExcludes) {
+				throw new Error('Invalid Cargo workspace members or exclusions');
+			}
+			if (!isExcludedCargoMember(currentFolder, folder, currentManifest, extUri)) {
+				return { folder: currentFolder, manifest: currentManifest };
+			}
+		}
+		if (hasWorkspacePointer) {
+			return undefined;
+		}
+		if (currentManifest?.hasWorkspacePath) {
+			if (currentManifest.workspacePath === undefined) {
 				return undefined;
 			}
-			dependencies = contents === undefined ? undefined : getCargoWorkspaceDependencies(contents);
-			cache.set(key, dependencies);
-		}
-		if (dependencies) {
-			return dependencies;
-		}
-		if (manifest.hasWorkspacePath) {
-			return undefined;
+			currentFolder = extUri.resolvePath(currentFolder, currentManifest.workspacePath);
+			hasWorkspacePointer = true;
+			continue;
 		}
 		const parent = extUri.dirname(currentFolder);
 		if (extUri.isEqual(currentFolder, parent)) {
@@ -134,15 +189,266 @@ export async function getCargoWorkspaceDependenciesForFolder(
 	}
 }
 
+function isAllowedCargoManifestFolder(folder: URI, workspaceFolders: readonly URI[], extUri: IExtUri): boolean {
+	return workspaceFolders.some(workspaceFolder => extUri.isEqualOrParent(folder, workspaceFolder) || extUri.isEqualOrParent(workspaceFolder, folder));
+}
+
+function isCargoMemberPattern(pattern: string): boolean {
+	return pattern.includes('*') || pattern.includes('?') || pattern.includes('[');
+}
+
+function escapeCargoMemberPattern(pattern: string): string {
+	let escaped = '';
+	let bracketLength = -1;
+	for (const character of pattern) {
+		if (bracketLength >= 0) {
+			if (character === ']' && bracketLength > 0) {
+				bracketLength = -1;
+			} else {
+				bracketLength++;
+			}
+			escaped += character;
+		} else if (character === '[') {
+			bracketLength = 0;
+			escaped += character;
+		} else if (character === '{' || character === '}') {
+			escaped += `[${character}]`;
+		} else {
+			escaped += character;
+		}
+	}
+	return escaped;
+}
+
+function normalizeCargoPattern(pattern: string, root: URI): string {
+	return root.scheme === Schemas.file && !isWindows ? pattern : pattern.replace(/\\/g, '/');
+}
+
+function cargoGlobHasParentAfterWildcard(pattern: string, root: URI): boolean {
+	let hasWildcard = false;
+	for (const segment of normalizeCargoPattern(pattern, root).split('/')) {
+		if (segment === '..' && hasWildcard) {
+			return true;
+		}
+		hasWildcard ||= isCargoMemberPattern(segment);
+	}
+	return false;
+}
+
+function cargoLeadingParentSegments(path: string): number {
+	let count = 0;
+	for (const segment of path.split('/')) {
+		if (segment !== '..') {
+			break;
+		}
+		count++;
+	}
+	return count;
+}
+
+function matchesCargoMember(root: URI, folder: URI, pattern: string, extUri: IExtUri): boolean {
+	const member = extUri.resolvePath(root, pattern);
+	if (!isCargoMemberPattern(pattern)) {
+		return extUri.isEqual(folder, member);
+	}
+	if (cargoGlobHasParentAfterWildcard(pattern, root) || root.scheme !== folder.scheme || !extUri.isEqualAuthority(root.authority, folder.authority)) {
+		return false;
+	}
+	const memberPath = extUri.relativePath(root, member);
+	const folderPath = extUri.relativePath(root, folder);
+	return memberPath !== undefined && folderPath !== undefined && cargoLeadingParentSegments(memberPath) === cargoLeadingParentSegments(folderPath) && matchGlob(escapeCargoMemberPattern(memberPath), folderPath, { ignoreCase: extUri.ignorePathCasing(folder) });
+}
+
+function isExcludedCargoMember(root: URI, folder: URI, manifest: CargoManifest, extUri: IExtUri): boolean {
+	const excluded = manifest.workspaceExcludes.some(exclude => extUri.isEqualOrParent(folder, extUri.resolvePath(root, exclude)));
+	const explicitMember = manifest.workspaceMembers.some(member => !isCargoMemberPattern(member) && extUri.isEqualOrParent(folder, extUri.resolvePath(root, member)));
+	return excluded && !explicitMember;
+}
+
+async function isCargoWorkspaceMember(
+	root: URI,
+	workspace: CargoManifest,
+	folder: URI,
+	workspaceFolders: readonly URI[],
+	extUri: IExtUri,
+	readManifest: (folder: URI) => Promise<string | undefined>,
+	readDirectories: ((folder: URI) => Promise<readonly URI[]>) | undefined
+): Promise<boolean> {
+	if (extUri.isEqual(root, folder) || workspace.workspaceMembers.some(member => matchesCargoMember(root, folder, member, extUri))) {
+		return true;
+	}
+
+	const candidates = [root];
+	for (const member of workspace.workspaceMembers) {
+		if (!isCargoMemberPattern(member)) {
+			candidates.push(extUri.resolvePath(root, member));
+		}
+	}
+	for (const workspaceFolder of workspaceFolders) {
+		let candidate = workspaceFolder;
+		while (extUri.isEqualOrParent(candidate, root)) {
+			if (workspace.workspaceMembers.some(member => matchesCargoMember(root, candidate, member, extUri))) {
+				candidates.push(candidate);
+			}
+			if (extUri.isEqual(candidate, root)) {
+				break;
+			}
+			candidate = extUri.dirname(candidate);
+		}
+	}
+
+	const visited = new Set<string>();
+	const manifestReads = new Set([extUri.getComparisonKey(root)]);
+	const readMemberManifest = (candidate: URI): Promise<string | undefined> => {
+		const key = extUri.getComparisonKey(candidate);
+		if (!manifestReads.has(key)) {
+			if (manifestReads.size >= maxWorkspaceMemberManifests) {
+				throw new Error('Cargo workspace membership search exceeded the manifest limit');
+			}
+			manifestReads.add(key);
+		}
+		return readManifest(candidate);
+	};
+	const pathDependencies: URI[] = [];
+	let index = 0;
+	let patterns: AsyncGenerator<URI, void, void> | undefined;
+	while (true) {
+		if (!pathDependencies.length && index === candidates.length) {
+			if (!readDirectories) {
+				return false;
+			}
+			patterns ??= expandCargoMemberPatterns(root, workspace.workspaceMembers, workspaceFolders, extUri, readDirectories);
+			const next = await patterns.next();
+			if (next.done) {
+				return false;
+			}
+			candidates.push(next.value);
+			continue;
+		}
+		const candidate = pathDependencies.pop() ?? candidates[index++];
+		const key = extUri.getComparisonKey(candidate);
+		if (visited.has(key) || !isAllowedCargoManifestFolder(candidate, workspaceFolders, extUri) || isExcludedCargoMember(root, candidate, workspace, extUri)) {
+			continue;
+		}
+		if (extUri.isEqual(candidate, folder)) {
+			return true;
+		}
+		visited.add(key);
+		const candidateContents = extUri.isEqual(candidate, root) ? undefined : await readMemberManifest(candidate);
+		const candidateManifest = extUri.isEqual(candidate, root) ? workspace : candidateContents === undefined ? undefined : parseCargoDependencies(candidateContents);
+		if (!candidateManifest || (candidateManifest !== workspace && candidateManifest.hasWorkspace)) {
+			continue;
+		}
+		if (candidateManifest.hasWorkspacePath && (candidateManifest.workspacePath === undefined || !extUri.isEqual(extUri.resolvePath(candidate, candidateManifest.workspacePath), root))) {
+			continue;
+		}
+		if (!extUri.isEqualOrParent(candidate, root) && !candidateManifest.hasWorkspacePath) {
+			const candidateWorkspace = await findCargoWorkspaceForFolder(candidate, candidateManifest, workspaceFolders, extUri, readMemberManifest);
+			if (!candidateWorkspace || !extUri.isEqual(candidateWorkspace.folder, root)) {
+				continue;
+			}
+		}
+		for (const section of candidateManifest.sections) {
+			for (const [alias, dependency] of section) {
+				const inherited = dependency.workspace ? workspace.workspaceDependencies.get(alias) : undefined;
+				const path = inherited?.path ?? (!dependency.workspace ? dependency.path : undefined);
+				if (path !== undefined) {
+					const dependencyFolder = extUri.resolvePath(inherited ? root : candidate, path);
+					if (isAllowedCargoManifestFolder(dependencyFolder, workspaceFolders, extUri)) {
+						pathDependencies.push(dependencyFolder);
+					}
+				}
+			}
+		}
+	}
+}
+
+async function* expandCargoMemberPatterns(
+	root: URI,
+	members: readonly string[],
+	workspaceFolders: readonly URI[],
+	extUri: IExtUri,
+	readDirectories: (folder: URI) => Promise<readonly URI[]>
+): AsyncGenerator<URI, void, void> {
+	const directoryCache = new Map<string, Promise<readonly URI[]>>();
+	for (const member of members) {
+		if (!isCargoMemberPattern(member)) {
+			continue;
+		}
+		let base = root;
+		let pattern: string | undefined;
+		if (cargoGlobHasParentAfterWildcard(member, root)) {
+			pattern = normalizeCargoPattern(member, root);
+			const absolutePrefix = /^(?:[A-Za-z]:\/|\/)/.exec(pattern)?.[0];
+			if (absolutePrefix) {
+				base = extUri.resolvePath(root, absolutePrefix);
+				pattern = pattern.slice(absolutePrefix.length);
+			}
+		} else {
+			pattern = extUri.relativePath(root, extUri.resolvePath(root, member));
+		}
+		if (pattern === undefined) {
+			continue;
+		}
+		const segments = pattern.split('/');
+		const pending = [{ folder: base, index: 0 }];
+		const visited = new Set<string>();
+		for (let index = 0; index < pending.length; index++) {
+			const current = pending[index];
+			const key = `${extUri.getComparisonKey(current.folder)}:${current.index}`;
+			if (visited.has(key)) {
+				continue;
+			}
+			visited.add(key);
+			if (current.index === segments.length) {
+				yield current.folder;
+				continue;
+			}
+			const segment = segments[current.index];
+			if (!isCargoMemberPattern(segment)) {
+				pending.push({ folder: extUri.resolvePath(current.folder, segment), index: current.index + 1 });
+				continue;
+			}
+			if (segment === '**') {
+				pending.push({ folder: current.folder, index: current.index + 1 });
+			}
+			if (!workspaceFolders.some(workspaceFolder => extUri.isEqualOrParent(current.folder, workspaceFolder))) {
+				continue;
+			}
+			const directoryKey = extUri.getComparisonKey(current.folder);
+			let children = directoryCache.get(directoryKey);
+			if (!children) {
+				if (directoryCache.size >= maxWorkspaceMemberDirectories) {
+					throw new Error('Cargo workspace membership search exceeded the directory limit');
+				}
+				children = readDirectories(current.folder);
+				directoryCache.set(directoryKey, children);
+			}
+			for (const child of await children) {
+				if (!extUri.isEqual(extUri.dirname(child), current.folder)) {
+					continue;
+				}
+				if (segment === '**') {
+					pending.push({ folder: child, index: current.index });
+				} else if (matchGlob(escapeCargoMemberPattern(segment), extUri.basename(child), { ignoreCase: extUri.ignorePathCasing(child) })) {
+					pending.push({ folder: child, index: current.index + 1 });
+				}
+			}
+		}
+	}
+}
+
 function getCargoDependencyNamesFromManifest(contents: string, inheritedWorkspaceDependencies?: ReadonlyMap<string, string>): string[] {
 	const { sections, workspaceDependencies } = parseCargoDependencies(contents);
 	const names = new Set<string>();
-	for (const section of sections) {
+	for (const section of [...sections, workspaceDependencies]) {
 		for (const [alias, dependency] of section) {
 			const workspaceDependency = workspaceDependencies.get(alias);
 			let name: string | undefined;
 			if (dependency.workspace) {
-				name = workspaceDependency ? workspaceDependency.packageName ?? alias : inheritedWorkspaceDependencies?.get(alias);
+				if (section !== workspaceDependencies) {
+					name = workspaceDependency && !workspaceDependency.workspace ? workspaceDependency.packageName ?? alias : inheritedWorkspaceDependencies?.get(alias);
+				}
 			} else {
 				name = dependency.packageName ?? alias;
 			}
@@ -154,9 +460,12 @@ function getCargoDependencyNamesFromManifest(contents: string, inheritedWorkspac
 	return [...names];
 }
 
-function parseCargoDependencies(contents: string): { sections: Map<string, CargoDependency>[]; workspaceDependencies: Map<string, CargoDependency>; hasWorkspace: boolean; hasWorkspacePath: boolean; workspacePath?: string } {
+function parseCargoDependencies(contents: string): CargoManifest {
 	const workspaceDependencies = new Map<string, CargoDependency>();
 	const sections = new Map<string, Map<string, CargoDependency>>();
+	let workspaceMembers: string[] = [];
+	let workspaceExcludes: string[] = [];
+	let invalidWorkspaceMembersOrExcludes = false;
 	let tablePath: string[] | undefined = [];
 	let pendingValue: { path: string[]; value: string; depth: number } | undefined;
 	let hasWorkspace = false;
@@ -176,9 +485,21 @@ function parseCargoDependencies(contents: string): { sections: Map<string, Cargo
 	};
 
 	const applyDependencyAssignment = (path: string[], value: string): void => {
+		hasWorkspace ||= path[0] === 'workspace' && path.length > 1;
 		if (path.length === 2 && path[0] === 'package' && path[1] === 'workspace') {
 			hasWorkspacePath = true;
 			workspacePath = parseTomlString(value);
+			return;
+		}
+		if (path.length === 2 && path[0] === 'workspace' && (path[1] === 'members' || path[1] === 'exclude')) {
+			const entries = parseTomlStringArray(value);
+			if (!entries) {
+				invalidWorkspaceMembersOrExcludes = true;
+			} else if (path[1] === 'members') {
+				workspaceMembers = entries;
+			} else {
+				workspaceExcludes = entries;
+			}
 			return;
 		}
 		if (((path.length === 1 && (path[0] === 'workspace' || path[0] === 'package')) || (path[0] === 'target' && path.length <= 2)) && value.startsWith('{')) {
@@ -268,7 +589,7 @@ function parseCargoDependencies(contents: string): { sections: Map<string, Cargo
 		}
 	}
 
-	return { sections: [...sections.values(), workspaceDependencies], workspaceDependencies, hasWorkspace, hasWorkspacePath, workspacePath };
+	return { sections: [...sections.values()], workspaceDependencies, workspaceMembers, workspaceExcludes, invalidWorkspaceMembersOrExcludes, hasWorkspace, hasWorkspacePath, workspacePath };
 }
 
 interface DependencySection {
@@ -279,7 +600,7 @@ interface DependencySection {
 function getDependencyLocation(path: string[]): { section: DependencySection; alias?: string; property?: string } | undefined {
 	const dependencySections = ['dependencies', 'dev-dependencies', 'build-dependencies', 'dev_dependencies', 'build_dependencies'];
 	let sectionLength: number;
-	if (path[0] === 'workspace' && dependencySections.includes(path[1])) {
+	if (path[0] === 'workspace' && path[1] === 'dependencies') {
 		sectionLength = 2;
 	} else if (path[0] === 'target' && path.length >= 3 && dependencySections.includes(path[2])) {
 		sectionLength = 3;
@@ -396,9 +717,19 @@ function findUnquotedCharacter(value: string, expectedCharacter: string): number
 function setDependencyProperty(dependency: CargoDependency, property: string, value: string): void {
 	if (property === 'package') {
 		dependency.packageName = parseTomlString(value);
+	} else if (property === 'path') {
+		dependency.path = parseTomlString(value);
 	} else if (property === 'workspace') {
 		dependency.workspace = value.trim() === 'true';
 	}
+}
+
+function parseTomlStringArray(value: string): string[] | undefined {
+	if (!value.startsWith('[') || !value.endsWith(']')) {
+		return undefined;
+	}
+	const entries = parseInlineTable(`{${value.slice(1, -1)}}`).map(parseTomlString);
+	return entries.every(entry => entry !== undefined) ? entries : undefined;
 }
 
 function parseInlineDependency(value: string): CargoDependency {

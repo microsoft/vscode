@@ -300,10 +300,35 @@ unknown.workspace = true
 		]);
 	});
 
+	test('Cargo only inherits from workspace dependencies', () => {
+		const workspace = `
+[workspace.dependencies]
+shared = { package = "serde", version = "1" }
+invalid.workspace = true
+[workspace.dev-dependencies]
+client = { package = "reqwest", version = "1" }
+[workspace.build_dependencies]
+generator = { package = "bindgen", version = "1" }
+`;
+		const member = '[dependencies]\nclient.workspace = true\ngenerator.workspace = true\ninvalid.workspace = true\nshared.workspace = true';
+		const dependencies = getCargoWorkspaceDependencies(workspace);
+		assert.deepStrictEqual([
+			getCargoDependencyNames(workspace),
+			[...(dependencies ?? [])],
+			getCargoDependencyNames(member, dependencies)
+		], [
+			['serde'],
+			[['shared', 'serde']],
+			['serde']
+		]);
+	});
+
 	test('Cargo member finds workspace dependencies in an ancestor manifest', async () => {
-		const root = URI.file('C:\\cargo-workspace');
+		const root = URI.parse('test:/cargo-workspace');
 		const member = URI.joinPath(root, 'crates', 'member');
 		const workspaceContents = `
+[workspace]
+members = ["crates/member"]
 [workspace.dependencies]
 client = { package = "reqwest", version = "0.12" }
 `;
@@ -319,7 +344,7 @@ client.workspace = true
 		const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(member, memberContents, [member], extUri, async folder => {
 			foldersRead.push(folder.path);
 			return manifestContents.get(folder.path);
-		}, new Map<string, ReadonlyMap<string, string> | undefined>());
+		}, new Map());
 		assert.ok(workspaceDependencies);
 		assert.deepStrictEqual([
 			[...workspaceDependencies],
@@ -332,6 +357,288 @@ client.workspace = true
 		]);
 	});
 
+	test('Cargo caches manifest read failures without searching a different ancestor', async () => {
+		const root = URI.parse('test:/repo');
+		const nested = URI.joinPath(root, 'nested');
+		const members = [URI.joinPath(nested, 'first'), URI.joinPath(nested, 'second')];
+		const contents = '[dependencies]\nclient.workspace = true\ntokio = "1"';
+		const reads: string[] = [];
+		const readManifest = async (folder: URI): Promise<string | undefined> => {
+			reads.push(folder.path);
+			if (extUri.isEqual(folder, nested)) {
+				throw new Error('inaccessible manifest');
+			}
+			return extUri.isEqual(folder, root) ? '[workspace]\nmembers = ["nested/*"]\n[workspace.dependencies]\nclient.package = "reqwest"' : contents;
+		};
+		const cache = new Map<string, Promise<string | undefined>>();
+		const errors: string[] = [];
+		for (const member of members) {
+			try {
+				await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, cache);
+			} catch (error) {
+				if (!(error instanceof Error)) {
+					throw error;
+				}
+				errors.push(error.message);
+			}
+		}
+		assert.deepStrictEqual([errors, reads, getCargoDependencyNames(contents)], [
+			['inaccessible manifest', 'inaccessible manifest'],
+			[members[0].path, nested.path, members[1].path],
+			['tokio']
+		]);
+	});
+
+	test('Cargo workspace membership honors member patterns and exclusions', async () => {
+		const root = URI.parse('test:/repo');
+		const workspace = `
+[workspace]
+members = [
+	"crates/explicit",
+	"crates/prefix*",
+	"crates/special",
+	"nested/include",
+]
+exclude = ["crates/prefix-hidden", "crates/special", "nested"]
+[workspace.dependencies]
+client = { package = "reqwest", version = "1" }
+`;
+		const contents = '[dependencies]\nclient.workspace = true';
+		const paths = ['crates/explicit', 'crates/prefix-one', 'crates/prefix-hidden', 'crates/special', 'crates/unlisted', 'nested/include', 'nested/other'];
+		const results: string[][] = [];
+		const reads: string[][] = [];
+		for (const path of paths) {
+			const member = URI.joinPath(root, path);
+			const foldersRead: string[] = [];
+			const dependencies = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUri, async folder => {
+				foldersRead.push(folder.path);
+				return extUri.isEqual(folder, root) ? workspace : extUri.isEqual(folder, member) ? contents : undefined;
+			}, new Map());
+			results.push(getCargoDependencyNames(contents, dependencies));
+			reads.push(foldersRead);
+		}
+		assert.deepStrictEqual([
+			results,
+			reads.every((foldersRead, index) => foldersRead.every(path => extUri.isEqualOrParent(URI.joinPath(root, paths[index]), root.with({ path }))))
+		], [
+			[['reqwest'], ['reqwest'], [], ['reqwest'], [], ['reqwest'], []],
+			true
+		]);
+	});
+
+	test('Cargo excludes continue ancestor discovery but not an explicit workspace pointer', async () => {
+		const root = URI.parse('test:/repo');
+		const nested = URI.joinPath(root, 'nested');
+		const member = URI.joinPath(nested, 'member');
+		const contents = '[dependencies]\nclient.workspace = true';
+		const files = new Map([
+			[root.path, '[workspace]\nmembers = ["nested/member"]\n[workspace.dependencies]\nclient.package = "reqwest"'],
+			[nested.path, '[workspace]\nexclude = ["member"]\n[workspace.dependencies]\nclient.package = "tokio"'],
+			[member.path, contents]
+		]);
+		const readManifest = async (folder: URI) => files.get(folder.path);
+		const found = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map());
+		const explicitContents = `[package]\nworkspace = ".."\n${contents}`;
+		const excluded = await getCargoWorkspaceDependenciesForFolder(member, explicitContents, [root], extUri, readManifest, new Map());
+		assert.deepStrictEqual([getCargoDependencyNames(contents, found), excluded], [['reqwest'], undefined]);
+	});
+
+	test('Cargo workspace member arrays support dotted and inline TOML forms', async () => {
+		const root = URI.parse('test:/repo');
+		const member = URI.joinPath(root, 'crates', 'one');
+		const contents = '[dependencies]\nclient.workspace = true';
+		const workspaces = [
+			'[workspace]\nmembers = ["crates/*"]\nexclude = ["crates/two"]\n[workspace.dependencies]\nclient.package = "reqwest"',
+			'workspace.members = ["crates/*"]\nworkspace.exclude = ["crates/two"]\nworkspace.dependencies.client.package = "reqwest"',
+			'workspace = { members = ["crates/*"], exclude = ["crates/two"], dependencies = { client.package = "reqwest" } }'
+		];
+		const results: string[][] = [];
+		for (const workspace of workspaces) {
+			const dependencies = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUri, async folder =>
+				extUri.isEqual(folder, root) ? workspace : extUri.isEqual(folder, member) ? contents : undefined, new Map());
+			results.push(getCargoDependencyNames(contents, dependencies));
+		}
+		assert.deepStrictEqual(results, [['reqwest'], ['reqwest'], ['reqwest']]);
+	});
+
+	test('Cargo workspace membership follows local and inherited path dependencies', async () => {
+		const root = URI.parse('test:/repo');
+		const first = URI.joinPath(root, 'crates', 'first');
+		const intermediate = URI.joinPath(root, 'libs', 'intermediate');
+		const member = URI.joinPath(root, 'libs', 'member');
+		const contents = '[dependencies]\nclient.workspace = true';
+		const files = new Map([
+			[root.path, '[workspace]\nmembers = ["crates/first"]\n[workspace.dependencies]\nclient.package = "reqwest"'],
+			[first.path, '[dependencies]\nnext = { path = "../../libs/intermediate" }'],
+			[intermediate.path, '[build-dependencies]\nleaf.path = "../member"'],
+			[member.path, contents]
+		]);
+		const reads: string[] = [];
+		const readManifest = async (folder: URI) => {
+			reads.push(folder.path);
+			return files.get(folder.path);
+		};
+		const direct = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map());
+		files.set(root.path, '[package]\nname = "root"\nversion = "1.0.0"\n[workspace]\n[workspace.dependencies]\nchild.path = "libs/member"\nclient.package = "reqwest"\n[dependencies]\nchild.workspace = true');
+		const inherited = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map());
+		assert.deepStrictEqual([
+			getCargoDependencyNames(contents, direct),
+			getCargoDependencyNames(contents, inherited),
+			reads.slice(0, 5)
+		], [
+			['reqwest'],
+			['reqwest'],
+			[member.path, URI.joinPath(root, 'libs').path, root.path, first.path, intermediate.path]
+		]);
+	});
+
+	test('Cargo follows external path dependencies that belong to the same workspace', async () => {
+		const outer = URI.parse('test:/repo');
+		const root = URI.joinPath(outer, 'workspace');
+		const entry = URI.joinPath(root, 'entry');
+		const group = URI.joinPath(outer, 'group');
+		const external = URI.joinPath(group, 'external');
+		const member = URI.joinPath(outer, 'member');
+		const contents = '[package]\nworkspace = "../workspace"\n[dependencies]\nclient.workspace = true';
+		const files = new Map([
+			[root.path, '[workspace]\nmembers = ["entry"]\n[workspace.dependencies]\nclient.package = "reqwest"'],
+			[entry.path, '[dependencies]\nexternal.path = "../../group/external"'],
+			[external.path, '[package]\nworkspace = "../../workspace"\n[dependencies]\nmember.path = "../../member"'],
+			[member.path, contents]
+		]);
+		const readManifest = async (folder: URI) => files.get(folder.path);
+		const included = await getCargoWorkspaceDependenciesForFolder(member, contents, [outer], extUri, readManifest, new Map());
+		files.set(external.path, '[dependencies]\nmember.path = "../../member"');
+		files.set(group.path, '[package]\nworkspace = "../workspace"');
+		const inheritedRoot = await getCargoWorkspaceDependenciesForFolder(member, contents, [outer], extUri, readManifest, new Map());
+		files.set(group.path, '[package]\nworkspace = "../other"');
+		const otherWorkspace = await getCargoWorkspaceDependenciesForFolder(member, contents, [outer], extUri, readManifest, new Map());
+		assert.deepStrictEqual([getCargoDependencyNames(contents, included), getCargoDependencyNames(contents, inheritedRoot), otherWorkspace], [['reqwest'], ['reqwest'], undefined]);
+	});
+
+	test('Cargo discovers path dependencies from glob members within opened folders', async () => {
+		const root = URI.parse('test:/repo/[project]');
+		const apps = URI.joinPath(root, 'apps');
+		const team = URI.joinPath(apps, 'team');
+		const app = URI.joinPath(team, 'service-one');
+		const member = URI.joinPath(root, 'libs', 'shared');
+		const contents = '[dependencies]\nclient.workspace = true';
+		const workspace = '[workspace]\nmembers = ["apps/**/service-*"]\n[workspace.dependencies]\nclient.package = "reqwest"';
+		const files = new Map([
+			[root.path, workspace],
+			[app.path, '[dependencies]\nchild.path = "../../../libs/shared"'],
+			[member.path, contents]
+		]);
+		const directories = new Map([
+			[apps.path, [team]],
+			[team.path, [app]]
+		]);
+		const directoriesRead: string[] = [];
+		const readManifest = async (folder: URI) => files.get(folder.path);
+		const readDirectories = async (folder: URI) => {
+			directoriesRead.push(folder.path);
+			return directories.get(folder.path) ?? [];
+		};
+		const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map(), readDirectories);
+		const restricted = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUri, readManifest, new Map(), readDirectories);
+		const direct = await getCargoWorkspaceDependenciesForFolder(app, contents, [app], extUri, async folder =>
+			extUri.isEqual(folder, app) ? contents : files.get(folder.path), new Map(), readDirectories);
+		assert.deepStrictEqual([
+			getCargoDependencyNames(contents, resolved),
+			restricted,
+			getCargoDependencyNames(contents, direct),
+			directoriesRead
+		], [
+			['reqwest'],
+			undefined,
+			['reqwest'],
+			[apps.path, team.path, app.path]
+		]);
+	});
+
+	test('Cargo glob patterns treat braces as literal characters', async () => {
+		const root = URI.parse('test:/repo');
+		const literal = URI.joinPath(root, 'apps', 'service-{a,b}x');
+		const expanded = URI.joinPath(root, 'apps', 'service-ax');
+		const contents = '[dependencies]\nclient.workspace = true';
+		const workspace = '[workspace]\nmembers = ["apps/service-{a,b}*"]\n[workspace.dependencies]\nclient.package = "reqwest"';
+		const readManifest = async (folder: URI) => extUri.isEqual(folder, root) ? workspace : contents;
+		const included = await getCargoWorkspaceDependenciesForFolder(literal, contents, [literal], extUri, readManifest, new Map());
+		const notIncluded = await getCargoWorkspaceDependenciesForFolder(expanded, contents, [expanded], extUri, readManifest, new Map());
+		assert.deepStrictEqual([getCargoDependencyNames(contents, included), notIncluded], [['reqwest'], undefined]);
+	});
+
+	test('Cargo glob membership does not escape its specified parent directory', async () => {
+		const outer = URI.parse('test:/repo');
+		const root = URI.joinPath(outer, 'workspace');
+		const outside = URI.joinPath(outer, 'member');
+		const explicitlyIncluded = URI.joinPath(outer, 'members', 'member');
+		const outsideContents = '[package]\nworkspace = "../workspace"\n[dependencies]\nclient.workspace = true';
+		const includedContents = '[package]\nworkspace = "../../workspace"\n[dependencies]\nclient.workspace = true';
+		const dependency = '[workspace.dependencies]\nclient.package = "reqwest"';
+		const notIncluded = await getCargoWorkspaceDependenciesForFolder(outside, outsideContents, [outer], extUri, async folder =>
+			extUri.isEqual(folder, root) ? `[workspace]\nmembers = ["**"]\n${dependency}` : undefined, new Map());
+		const included = await getCargoWorkspaceDependenciesForFolder(explicitlyIncluded, includedContents, [outer], extUri, async folder =>
+			extUri.isEqual(folder, root) ? `[workspace]\nmembers = ["../members/*"]\n${dependency}` : undefined, new Map());
+		assert.deepStrictEqual([notIncluded, getCargoDependencyNames(includedContents, included)], [undefined, ['reqwest']]);
+	});
+
+	test('Cargo expands parent paths after a glob instead of normalizing away the match', async () => {
+		const root = URI.parse('test:/repo');
+		const apps = URI.joinPath(root, 'apps');
+		const member = URI.joinPath(root, 'src');
+		const contents = '[dependencies]\nclient.workspace = true';
+		const workspace = '[workspace]\nmembers = ["apps/*/../../src"]\n[workspace.dependencies]\nclient.package = "reqwest"';
+		const readManifest = async (folder: URI) => extUri.isEqual(folder, root) ? workspace : extUri.isEqual(folder, member) ? contents : undefined;
+		const included = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map(), async folder =>
+			extUri.isEqual(folder, apps) ? [URI.joinPath(apps, 'one')] : []);
+		const noMatch = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map(), async () => []);
+		assert.deepStrictEqual([getCargoDependencyNames(contents, included), noMatch], [['reqwest'], undefined]);
+	});
+
+	test('Cargo workspace membership search is bounded', async () => {
+		const root = URI.parse('test:/repo');
+		const member = URI.joinPath(root, 'unlisted');
+		const contents = '[dependencies]\nclient.workspace = true';
+		const members = Array.from({ length: 260 }, (_, index) => `"member${index}"`).join(', ');
+		const workspace = `[workspace]\nmembers = [${members}]\n[workspace.dependencies]\nclient.package = "reqwest"`;
+		let reads = 0;
+		const readManifest = async (folder: URI) => {
+			reads++;
+			return extUri.isEqual(folder, root) ? workspace : extUri.isEqual(folder, member) ? contents : undefined;
+		};
+		await assert.rejects(getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map()), /membership search exceeded the manifest limit/);
+		assert.strictEqual(reads, 257);
+	});
+
+	test('Cargo follows known path dependencies before scanning unrelated members', async () => {
+		const root = URI.parse('test:/repo');
+		const member = URI.joinPath(root, 'member');
+		const contents = '[dependencies]\nclient.workspace = true';
+		const members = Array.from({ length: 260 }, (_, index) => `"other${index}"`).join(', ');
+		const workspace = `[package]\nname = "root"\nversion = "1.0.0"\n[workspace]\nmembers = [${members}]\n[workspace.dependencies]\nclient.package = "reqwest"\n[dependencies]\nmember.path = "member"`;
+		const reads: string[] = [];
+		const dependencies = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, async folder => {
+			reads.push(folder.path);
+			return extUri.isEqual(folder, root) ? workspace : extUri.isEqual(folder, member) ? contents : undefined;
+		}, new Map());
+		assert.deepStrictEqual([getCargoDependencyNames(contents, dependencies), reads], [['reqwest'], [member.path, root.path]]);
+	});
+
+	test('Cargo workspace glob expansion is bounded', async () => {
+		const root = URI.parse('test:/repo');
+		const member = URI.joinPath(root, 'unlisted');
+		const contents = '[dependencies]\nclient.workspace = true';
+		const workspace = '[workspace]\nmembers = ["tree/**/source"]\n[workspace.dependencies]\nclient.package = "reqwest"';
+		let directoriesRead = 0;
+		await assert.rejects(getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, async folder =>
+			extUri.isEqual(folder, root) ? workspace : extUri.isEqual(folder, member) ? contents : undefined, new Map(), async folder => {
+				directoriesRead++;
+				return [URI.joinPath(folder, 'nested')];
+			}), /membership search exceeded the directory limit/);
+		assert.strictEqual(directoriesRead, 256);
+	});
+
 	test('Cargo explicit workspace overrides ancestor discovery', async () => {
 		const root = URI.parse('test:/repo');
 		const member = URI.joinPath(root, 'member');
@@ -339,7 +646,7 @@ client.workspace = true
 		const contents = '[package]\nworkspace = "../other"\n[dependencies]\nclient.workspace = true';
 		const files = new Map([
 			[root.path, '[workspace.dependencies]\nclient = { package = "tokio", version = "1" }'],
-			[workspace.path, 'workspace = { dependencies = { client = { package = "reqwest", version = "1" } } }']
+			[workspace.path, 'workspace = { members = ["../member"], dependencies = { client = { package = "reqwest", version = "1" } } }']
 		]);
 		const reads: string[] = [];
 		const readManifest = async (folder: URI) => {
@@ -370,7 +677,7 @@ client.workspace = true
 			'package = { workspace = "../other" }'
 		];
 		const results: string[][] = [];
-		const readManifest = async (folder: URI) => folder.path === workspace.path ? '[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }' : undefined;
+		const readManifest = async (folder: URI) => folder.path === workspace.path ? '[workspace]\nmembers = ["../member"]\n[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }' : undefined;
 		for (const form of forms) {
 			const contents = form + dependency;
 			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], extUri, readManifest, new Map());
@@ -385,7 +692,8 @@ client.workspace = true
 		const reads: string[] = [];
 		const readManifest = async (folder: URI) => {
 			reads.push(folder.path);
-			return '[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }';
+			const memberPath = extUri.relativePath(folder, member) || '.';
+			return `[workspace]\nmembers = [${JSON.stringify(memberPath)}]\n[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }`;
 		};
 		const paths = ['../other', '../../outside', '/net/share', '/repo/member-other', '.', 'nested', '..'];
 		const results: string[][] = [];
@@ -405,9 +713,9 @@ client.workspace = true
 		const reads: string[] = [];
 		const readManifest = async (folder: URI) => {
 			reads.push(folder.path);
-			return '[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }';
+			return '[workspace]\nmembers = ["member"]\n[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }';
 		};
-		const cache = new Map<string, ReadonlyMap<string, string> | undefined>();
+		const cache = new Map<string, Promise<string | undefined>>();
 		const contents = '[package]\nworkspace = "../../repo"\n[dependencies]\nclient.workspace = true';
 		const insensitive = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUriIgnorePathCase, readManifest, cache);
 		const cached = await getCargoWorkspaceDependenciesForFolder(member, contents.replace('../../repo', '..'), [member], extUriIgnorePathCase, readManifest, cache);
@@ -437,7 +745,7 @@ client.workspace = true
 		const reads: string[] = [];
 		const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUriIgnorePathCase, async folder => {
 			reads.push(folder.path);
-			return '[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }';
+			return '[workspace]\nmembers = ["member"]\n[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }';
 		}, new Map());
 		assert.deepStrictEqual([getCargoDependencyNames(contents, resolved), reads], [['reqwest'], ['/C:/repo']]);
 	});
@@ -449,6 +757,8 @@ client.workspace = true
 		const paths = ['"""../other"""', '\'\'\'../other\'\'\'', '"""\n../oth\\\n  er"""', '"""../\\u006fther"""'];
 		const results: string[][] = [];
 		const readManifest = async (folder: URI) => folder.path === workspace.path ? String.raw`
+[workspace]
+members = ["../member"]
 [workspace.dependencies]
 client = { package = """req\u0077est""", version = "1" }
 other.package = '''serde_json'''
