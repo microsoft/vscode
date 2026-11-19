@@ -354,6 +354,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return 'notReady';
 	}
 
+	/** Start in the environment of a provider's sessions. Views without an Environment picker return notReady. */
+	selectEnvironment(_providerId: string): WorkspaceSelectionResult {
+		return 'notReady';
+	}
+
 	/**
 	 * Whether the view shows only its chat input, without the conversation. In that mode the view shows the
 	 * chat's progress and its approvals above the input, and shows the conversation again when the chat needs

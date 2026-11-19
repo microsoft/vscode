@@ -84,8 +84,6 @@ export class TelemetryUserConfigImpl implements ITelemetryUserConfig {
 
 export type TelemetryProperties = { [key: string]: string };
 
-export type AdditionalTelemetryProperties = { [key: string]: string };
-
 /**
  * Creates a getter that returns the tracking ID from the token store.
  * The cache is:

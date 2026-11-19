@@ -5,6 +5,7 @@
 
 import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
 import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage, type IAgentChatUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
+import { readAgentModelCallDiagnostics } from '../../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -24,7 +25,7 @@ import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../../.
 import { getShellAuthenticationTitle, readShellAuthentication, type IShellAuthenticationPrompt } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import { isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, readToolCallResponseMarkdown, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { getCompletionDescription, readCompletionAttachmentMeta, restoreLegacySkillAttachment } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
@@ -53,7 +54,7 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agentS
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
-import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatSingleSelectAnswer, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMarkdownContent, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatSingleSelectAnswer, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -129,6 +130,15 @@ function shouldHideAutomaticTitleRename(toolCall: ToolCallState): boolean {
 	return isAutomaticTitleRename(toolCall)
 		&& toolCall.status !== ToolCallStatus.Cancelled
 		&& (toolCall.status !== ToolCallStatus.Completed || toolCall.success);
+}
+
+/**
+ * Response text that a completed tool call reports, shown in the response in place of the call. A subagent's
+ * call keeps its row in the parent's response, which doesn't show the subagent's text.
+ */
+export function toolCallToResponseMarkdown(toolCall: ToolCallState, subAgentInvocationId: string | undefined): IChatMarkdownContent | undefined {
+	const markdown = subAgentInvocationId === undefined ? readToolCallResponseMarkdown(toolCall) : undefined;
+	return markdown ? { kind: 'markdownContent', content: new MarkdownString(markdown) } : undefined;
 }
 
 export interface IAgentHostToolInvocationOptions {
@@ -1061,6 +1071,7 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayN
 	}
 	const metadata = readUsageInfoMeta(usage);
 	const turnTokenTotals = metadata.turnTokenTotals;
+	const latestModelCall = metadata.latestModelCall ?? readTimedModelCall(usage);
 	return {
 		kind: 'usage',
 		promptTokens: usage?.inputTokens ?? 0,
@@ -1073,9 +1084,17 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayN
 			...total,
 			model: modelDisplayNameResolver?.(total.model) ?? total.model,
 		})),
-		...(metadata.latestModelCall ? { latestModelCall: metadata.latestModelCall } : {}),
+		...(latestModelCall ? { latestModelCall } : {}),
 		...(contextUsage ? { contextUsage: { currentTokens: contextUsage.currentTokens, tokenLimit: contextUsage.tokenLimit } } : {}),
 	};
+}
+
+/** The duration and output of the model call a VS Code host's report describes, which can be a subagent's. */
+function readTimedModelCall(usage: UsageInfo | undefined): IChatUsage['latestModelCall'] {
+	const modelCall = usage && readAgentModelCallDiagnostics(usage);
+	return modelCall?.durationMs !== undefined && modelCall.outputTokens !== undefined
+		? { duration: modelCall.durationMs, outputTokens: modelCall.outputTokens }
+		: undefined;
 }
 
 function getSessionCopilotCredits(usage: UsageInfo | undefined): number | undefined {
@@ -1435,6 +1454,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					}
 					parts.push(serialized);
 					parts.push(...fileEditParts);
+					const responseMarkdown = toolCallToResponseMarkdown(tc, undefined);
+					if (responseMarkdown) {
+						parts.push(responseMarkdown);
+					}
 					break;
 				}
 				case ResponsePartKind.Reasoning:
@@ -1907,6 +1930,10 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 						parts.push(invocation);
 					} else {
 						parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority, resourceUris));
+					}
+					const responseMarkdown = toolCallToResponseMarkdown(tc, undefined);
+					if (responseMarkdown) {
+						parts.push(responseMarkdown);
 					}
 				} else if (tc.status === ToolCallStatus.Streaming && !isOtherClientToolCall) {
 					parts.push(toolCallStateToStreamingInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority));
@@ -2526,7 +2553,10 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			pastTenseMsg = ref;
 		}
 	}
-	const resultDetails = (!toolSpecificData || toolSpecificData.kind === 'generatedImage' || toolSpecificData.kind === 'input' && (toolSpecificData.mcpAppData || toolSpecificData.imageGeneration))
+	// Raw input and output would repeat the response text shown in place of the call.
+	const responseMarkdown = toolCallToResponseMarkdown(tc, subAgentInvocationId);
+	const resultDetails = !responseMarkdown
+		&& (!toolSpecificData || toolSpecificData.kind === 'generatedImage' || toolSpecificData.kind === 'input' && (toolSpecificData.mcpAppData || toolSpecificData.imageGeneration))
 		&& (tc.status !== ToolCallStatus.Completed || getToolFileEdits(tc).length === 0)
 		? getToolInputOutputDetails(tc, !isSuccess, getToolErrorString(tc), !!(toolSpecificData?.kind === 'input' && toolSpecificData.mcpAppData), connectionAuthority)
 		: undefined;
@@ -2542,7 +2572,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
-		presentation: shouldHideAutomaticTitleRename(tc)
+		presentation: shouldHideAutomaticTitleRename(tc) || responseMarkdown
 			? ToolInvocationPresentation.Hidden
 			: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
 		subAgentInvocationId: subAgentInvocationId,
@@ -3530,18 +3560,24 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	if (fileEdits.length > 0 && !isFailure) {
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
+	// Likewise when the call's response text is shown in its place.
+	const hasResponseMarkdown = !!toolCallToResponseMarkdown(tc, invocation.subAgentInvocationId);
+	if (hasResponseMarkdown) {
+		invocation.presentation = ToolInvocationPresentation.Hidden;
+	}
 
 	const hasMcpAppData = invocation.toolSpecificData?.kind === 'input' && !!invocation.toolSpecificData.mcpAppData;
 	// The generic raw input/output details (the expandable JSON blob) are
 	// suppressed for tool kinds that render their own bespoke UI — the subagent
 	// card and the `sessionCreated` linked session title — so we don't duplicate
-	// the result underneath them. Search results and separately-rendered file
-	// edits are likewise excluded.
+	// the result underneath them. Search results, separately-rendered file
+	// edits and response text shown in place of the call are likewise excluded.
 	const resultDetails = !isTerminal
 		&& invocation.toolSpecificData?.kind !== 'subagent'
 		&& invocation.toolSpecificData?.kind !== 'sessionCreated'
 		&& getToolKind(tc) !== 'search'
 		&& fileEdits.length === 0
+		&& !hasResponseMarkdown
 		? getToolInputOutputDetails(tc, isFailure, errorString, hasMcpAppData, connectionAuthority)
 		: undefined;
 	const result: IToolResult | undefined = isFailure || resultDetails

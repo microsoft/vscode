@@ -166,6 +166,8 @@ interface IPendingWorktreePlacement {
 	readonly sessionId: string | undefined;
 	/** The draft shown as it was requested, which never takes it. */
 	readonly previousSessionId: string | undefined;
+	/** Whether it was reported that the draft cannot work in a new worktree. */
+	readonly unavailableReported?: boolean;
 }
 
 /**
@@ -1815,7 +1817,8 @@ export class NewChatWidget extends Disposable {
 	 * choice, as soon as its agent's configuration of it is known; it cannot be sent before. Another draft, such as the one
 	 * shown while the creation runs, takes nothing. A new draft of the same folder that replaces the installed one, such as
 	 * of an agent that connected since, takes it instead; any other draft cancels it. An agent that cannot work in a new
-	 * worktree is reported, and the draft stays in its folder.
+	 * worktree, such as of a folder that is no Git repository, is reported once, and the draft is not sent in its folder:
+	 * it waits for a new worktree, until the user picks a workspace.
 	 */
 	private _applyRequestedWorktreePlacement(): void {
 		let placement = this._pendingWorktreePlacement.get();
@@ -1834,9 +1837,9 @@ export class NewChatWidget extends Disposable {
 		if (this._newWorktree?.isAvailable()) {
 			this._pendingWorktreePlacement.set(undefined, undefined);
 			this._newWorktree.setSelected(true);
-		} else if (!this._newWorktree || this._newWorktree.isResolved()) {
-			this._pendingWorktreePlacement.set(undefined, undefined);
-			this._warnNewWorktreeUnavailable();
+		} else if ((!this._newWorktree || this._newWorktree.isResolved()) && !placement.unavailableReported) {
+			this._pendingWorktreePlacement.set({ ...placement, unavailableReported: true }, undefined);
+			this.notificationService.warn(localize('newChatWidget.requestedWorktreeUnavailable', "This new chat cannot work in a new worktree of this folder, so it cannot be sent. Pick another workspace to send it."));
 		}
 	}
 
@@ -2719,9 +2722,11 @@ export class NewChatWidget extends Disposable {
 		if (!folderUri || !workspace) {
 			this._changingEnvironment = true;
 			try {
+				// Without a workspace to offer, such as an extension's host of jobs, working without one is the choice.
+				const onlyNoWorkspace = environment.kind === 'remote' && !this._workspacePicker.offersWorkspaces(environment);
 				if ((environment.kind === 'local' || environment.kind === 'remote' || this._workspaceOptOutTarget.get())
-					&& (session?.isQuickChat?.get() || this._workspaceOptOutEnabled.get())) {
-					this._workspacePicker.selectNoWorkspace(false);
+					&& (session?.isQuickChat?.get() || this._workspaceOptOutEnabled.get() || onlyNoWorkspace)) {
+					this._workspacePicker.selectNoWorkspace(false, !onlyNoWorkspace);
 					await this._onWorkspaceSelected(undefined);
 				} else {
 					this._workspacePicker.clearSelection();
@@ -3643,17 +3648,32 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
+	/** The environment that runs a provider's sessions, also before the Environment picker lists it. */
+	private _getProviderEnvironment(providerId: string): ISessionCreationEnvironment | undefined {
+		const environment = this._environments.get().find(environment => environment.kind !== 'container' && environment.providerIds.includes(providerId));
+		if (environment) {
+			return environment;
+		}
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		return provider && getRemoteSessionCreationEnvironment(provider);
+	}
+
+	/** Starts in the environment of a provider's sessions, as choosing it in the Environment picker does. */
+	selectEnvironment(providerId: string): WorkspaceSelectionResult {
+		const environment = this._environment.get() && this._getProviderEnvironment(providerId);
+		if (!environment) {
+			return 'notReady';
+		}
+		this._selectEnvironment(environment).catch(onUnexpectedError);
+		return 'applied';
+	}
+
 	private _reconcileWorkspaceEnvironment(options: ISelectWorkspaceOptions): void {
 		const providerId = options.providerId;
 		if (!providerId || !this._environment.get()) {
 			return;
 		}
-		const environments = this._environments.get();
-		let environment = environments.find(environment => environment.kind !== 'container' && environment.providerIds.includes(providerId));
-		if (!environment) {
-			const provider = this.sessionsProvidersService.getProvider(providerId);
-			environment = provider && getRemoteSessionCreationEnvironment(provider);
-		}
+		const environment = this._getProviderEnvironment(providerId);
 		if (environment) {
 			this._pickedEnvironment.set(options.preferDevContainer
 				? { ...environment, id: `container:${environment.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote }

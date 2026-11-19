@@ -34220,6 +34220,27 @@ Use the attached image as context.
 			assert.deepStrictEqual(tools.map(t => t.defer), tools.map(() => 'never'));
 		});
 
+		test('sends a server tool\'s deferred-only schema only while the tool is deferred', async () => {
+			const inputSchema = { type: 'object' as const, properties: { model: { type: 'string', description: 'Model.' } } };
+			const deferredInputSchema = { type: 'object' as const, properties: { model: { type: 'string', description: 'Model. Available models: a, b.' } } };
+			const serverToolHost = new FakeServerToolHost([
+				{ name: 'deferred', description: 'Deferred', inputSchema, deferredInputSchema },
+				{ name: 'eager', description: 'Eager', inputSchema, deferredInputSchema, deferLoading: false },
+			]);
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
+			const describe = (toolSearchActive: boolean) => runtime.createServerSdkTools(toolSearchActive).map(({ name, parameters, defer }) => ({ name, parameters, defer }));
+			assert.deepStrictEqual({ toolSearch: describe(true), noToolSearch: describe(false) }, {
+				toolSearch: [
+					{ name: 'deferred', parameters: deferredInputSchema, defer: 'auto' },
+					{ name: 'eager', parameters: inputSchema, defer: 'never' },
+				],
+				noToolSearch: [
+					{ name: 'deferred', parameters: inputSchema, defer: 'never' },
+					{ name: 'eager', parameters: inputSchema, defer: 'never' },
+				],
+			});
+		});
+
 		for (const resume of [false, true]) {
 			test(`host create_session shadows an incompatible client tool on ${resume ? 'resume' : 'create'}`, async () => {
 				const definition: IAgentServerToolDefinition = {

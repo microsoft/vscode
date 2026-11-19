@@ -243,6 +243,19 @@ function getClientToolSdkPolicy(tool: ToolDefinition | undefined): IClientToolSd
 		: DEFAULT_CLIENT_TOOL_SDK_POLICY;
 }
 
+/**
+ * How a server tool loads: deferred behind tool search unless it sets `deferLoading: false` or tool search is off, and
+ * then advertised with its deferred-only schema.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getServerSdkToolLoading(def: IAgentServerToolDefinition, toolSearchActive: boolean): Pick<Tool<any>, 'parameters' | 'defer'> {
+	const deferred = def.deferLoading !== false && toolSearchActive;
+	return {
+		parameters: (deferred ? def.deferredInputSchema : undefined) ?? def.inputSchema ?? { type: 'object', properties: {} },
+		defer: deferred ? 'auto' : 'never',
+	};
+}
+
 interface CopilotExitPlanModeResponse extends ExitPlanModeResult {
 	readonly autoApproveEdits?: ExitPlanModeCompletedData['autoApproveEdits'];
 }
@@ -1733,14 +1746,32 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Starts the session's MCP servers ahead of the first message. Creating an
-	 * SDK session leaves MCP lazy until the first message or the first
+	 * Does a pre-warmed session's first-turn preparation ahead of the first message.
+	 *
+	 * Creating an SDK session leaves MCP lazy until the first message or the first
 	 * `session.mcp.list`, while `rpc.mcp.listConfigured` deliberately does not
-	 * start anything; listing is therefore what brings a pre-warmed session's
-	 * servers, and any sign-in they require, up before the user sends.
+	 * start anything; listing is therefore what brings the servers, and any
+	 * sign-in they require, up before the user sends. Tools are initialized after
+	 * listing so the runtime's cached tool catalog, including memory preparation,
+	 * already holds the MCP tools; the first turn reuses it unless the session's
+	 * configuration changes before the send. The catalog is built only after the
+	 * launch's Connector reconciliation, which would otherwise replace its MCP
+	 * servers and tools, and not once `token` is cancelled (the session was
+	 * claimed or discarded) or a turn has started. Resolves whether the tools
+	 * were initialized.
 	 */
-	async startMcpServers(): Promise<void> {
-		await this._wrapper.session.rpc.mcp.list();
+	async warmUp(token: CancellationToken): Promise<boolean> {
+		const wrapper = this._wrapper;
+		await Promise.all([
+			wrapper.session.rpc.mcp.list(),
+			// Cancellation retains the pending request, as in Connector refreshes.
+			this._launchConnectorReconcile ? raceCancellation(this._launchConnectorReconcile, token) : undefined,
+		]);
+		if (token.isCancellationRequested || this.isDisposed || this._wrapper !== wrapper || this.hasActiveTurn) {
+			return false;
+		}
+		await wrapper.session.rpc.tools.initializeAndValidate();
+		return true;
 	}
 
 	/**
@@ -5013,8 +5044,7 @@ export class CopilotAgentSession extends Disposable {
 		return this._getServerToolDefinitions().map(def => ({
 			name: def.name,
 			description: def.description ?? '',
-			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
-			defer: def.deferLoading !== false && toolSearchActive ? 'auto' as const : 'never' as const,
+			...getServerSdkToolLoading(def, toolSearchActive),
 			handler: async (args: Record<string, unknown>, invocation: ToolInvocation): Promise<ToolResultObject> => {
 				try {
 					// Native SDK workers inherit tools but invocation payloads omit their agent identity.

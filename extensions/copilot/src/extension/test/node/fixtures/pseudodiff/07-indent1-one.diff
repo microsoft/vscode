@@ -1,9 +1,0 @@
- def install(
-     shell: Optional[str] = None
- ) -> Tuple[str, Path]:
-     if shell in {"powershell", None}:
-         installed_path = install_powershell()
--        return shell, installed_path
-+        return shell or "powershell", installed_path
-     else:
-         raise RuntimeError('Error!')

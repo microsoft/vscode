@@ -11113,6 +11113,7 @@ export class SessionsFlatList extends Disposable {
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private readonly _delegate: SessionsTreeDelegate;
+	private readonly renderedSessions = new Map<ISession, HTMLElement>();
 	private _sessions: readonly ISession[] = [];
 
 	constructor(
@@ -11156,7 +11157,17 @@ export class SessionsFlatList extends Disposable {
 		const reportExternalApplicationBadgeModeExperimentTrigger = () => logDefaultSettingExperimentTrigger(configurationService, telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING);
 		const reportExternalApplicationBadgeShowFromExperimentTrigger = () => logDefaultSettingExperimentTrigger(configurationService, telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING);
 
-		const sessionRenderer = new SessionItemRenderer(
+		const renderedSessions = this.renderedSessions;
+		const sessionRenderer = new class extends SessionItemRenderer {
+			override renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, index: number, template: ISessionItemTemplate): void {
+				super.renderElement(node, index, template);
+				const session = node.element;
+				if (isSessionItem(session)) {
+					renderedSessions.set(session, template.container);
+					template.elementDisposables.add(toDisposable(() => renderedSessions.delete(session)));
+				}
+			}
+		}(
 			{
 				grouping: () => SessionsGrouping.Date,
 				isPinned: s => this._sessionsListModelService.isSessionPinned(s),
@@ -11336,15 +11347,27 @@ export class SessionsFlatList extends Disposable {
 		this.tree.domFocus();
 	}
 
-	focusSession(session: ISession): void {
+	focusSession(session: ISession, revealInParent = false): void {
 		if (!this.tree.hasElement(session)) {
 			return;
 		}
 		this.tree.setFocus([session]);
 		this.tree.domFocus();
+		if (revealInParent) {
+			this.tree.reveal(session);
+			this.renderedSessions.get(session)?.scrollIntoView({ block: 'nearest' });
+		}
 	}
 
 	getFocusedSession(): ISession | undefined {
+		const activeElement = DOM.getActiveElement();
+		if (activeElement) {
+			for (const [session, element] of this.renderedSessions) {
+				if (element.contains(activeElement)) {
+					return session;
+				}
+			}
+		}
 		const focused = this.tree.getFocus()[0];
 		return focused && isSessionItem(focused) ? focused : undefined;
 	}
