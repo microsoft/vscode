@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'fs';
 import { rm } from 'fs/promises';
 import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
@@ -2040,7 +2040,8 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			});
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), worktree, { force: true }); } catch { /* best-effort cleanup */ }
-			rmSync(linkedParent, { force: true });
+			// `rmSync` treats a Windows junction as a directory; `rmdirSync` removes the junction without following it.
+			try { (isWindows ? rmdirSync : unlinkSync)(linkedParent); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(parent);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/symlinked-parent-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
