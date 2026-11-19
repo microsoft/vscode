@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import '../../browser/widget/media/chat.css';
+import '../../../../browser/media/style.css';
 import { restore, stub } from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -51,6 +53,7 @@ import { NullOpenerService } from '../../../../../platform/opener/test/common/nu
 import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ManagedSettingValue } from '../../../../../base/common/policy.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 	stops = 0;
@@ -167,13 +170,13 @@ suite('RemoteConnectionsActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => restore());
 
-	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean; managementAction?: Action; compactMenu?: boolean } = { quality: 'insider' }) {
+	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean; managementAction?: Action; environmentName?: string; compactMenu?: boolean } = { quality: 'insider' }) {
 		const instantiation = store.add(new TestInstantiationService());
 		const availability = observableValue('availability', true);
 		instantiation.stub(IMissionControlAvailabilityService, { available: availability });
 		const openSettings = stub().resolves(undefined);
 		instantiation.stub(IPreferencesService, { openSettings });
-		const configuration = new TestRemoteConnectionsConfigurationService({ [AgentHostRemoteConnectionsSettingId]: backend, [GitHubEnvironmentsEnabledSettingId]: true, [RemoteConnectionsCompactMenuSettingId]: options.compactMenu ?? false });
+		const configuration = new TestRemoteConnectionsConfigurationService({ [AgentHostRemoteConnectionsSettingId]: backend, [GitHubEnvironmentsEnabledSettingId]: true, [RemoteConnectionsCompactMenuSettingId]: options.compactMenu ?? true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const update = stub(configuration, 'updateValue').callThrough();
 		const remoteTunnel = store.add(new TestRemoteTunnelService());
@@ -211,7 +214,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const quickInput = new TestQuickInputService();
 		instantiation.stub(IQuickInputService, quickInput);
 		instantiation.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
-			override async getMissionControlEnvironmentName() { return 'Test Machine (VS Code Insiders)'; }
+			override async getMissionControlEnvironmentName() { return options.environmentName ?? 'Test Machine (VS Code Insiders)'; }
 		}());
 		instantiation.stub(IProductService, new class extends mock<IProductService>() {
 			override readonly quality = options.quality;
@@ -258,7 +261,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		store.add(toDisposable(() => container.remove()));
 		const actionBar = store.add(new ActionBar(container, { actionViewItemProvider: candidate => candidate === action ? viewItem : undefined }));
 		if (options.precedingAction) {
-			actionBar.push(store.add(new Action('test.preceding', 'Preceding Action')));
+			actionBar.push(store.add(new Action('test.preceding', 'Preceding Action', ThemeIcon.asClassName(Codicon.commentDiscussion))), { icon: true, label: false });
 		}
 		actionBar.push(action);
 		const primary = container.querySelector<HTMLElement>('.tunnel-host-toggle');
@@ -276,22 +279,24 @@ suite('RemoteConnectionsActionViewItem', () => {
 		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings, managedSettings, opened, fireManagedSettingsChange: () => managedSettingsChange.fire(), isMenuOpen: () => !!hideMenu, selectMethodEvents, experimentTriggers };
 	}
 
-	test('shows explanatory second lines and marks GitHub Environments as preview', () => {
+	test('shows single-line choices and marks GitHub Environments as preview', () => {
 		const { openMenu, menuItems } = fixture();
 		openMenu();
 		assert.deepStrictEqual(menuItems(), [
-			{ label: 'Off', detail: 'Sharing through this app is off. Agent tasks keep running on this computer.', badge: undefined, role: 'menuitemcheckbox' },
-			{ label: 'GitHub Environments', detail: 'Connect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.', badge: 'Preview', role: 'menuitemcheckbox' },
-			{ label: 'Dev Tunnels', detail: 'Connect from VS Code or the browser-based Agents window.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'Off', detail: undefined, badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'GitHub Environment', detail: undefined, badge: 'Preview', role: 'menuitemcheckbox' },
+			{ label: 'Dev Tunnel', detail: undefined, badge: undefined, role: 'menuitemcheckbox' },
+			{ label: '', detail: undefined, badge: undefined, role: 'separator' },
+			{ label: 'Change Sharing Name...', detail: undefined, badge: undefined, role: 'menuitem' },
 		]);
 	});
 
-	test('connection methods do not add extra hovers', () => {
+	test('connection explanations are available through managed hovers and accessible descriptions', () => {
 		const { openMenu } = fixture();
-		assert.deepStrictEqual(openMenu().map(action => ({ id: action.id, hover: action.hover })), [
-			{ id: 'remoteConnections.off', hover: undefined },
-			{ id: 'remoteConnections.githubEnvironment', hover: undefined },
-			{ id: 'remoteConnections.devTunnel', hover: undefined },
+		assert.deepStrictEqual(openMenu().filter(action => action.checked !== undefined).map(action => ({ id: action.id, description: action.ariaDescription, hoverMatches: action.hover?.content === action.ariaDescription })), [
+			{ id: 'remoteConnections.off', description: 'Sharing through this app is off. Agent tasks keep running on this computer.', hoverMatches: true },
+			{ id: 'remoteConnections.githubEnvironment', description: 'Connect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.', hoverMatches: true },
+			{ id: 'remoteConnections.devTunnel', description: 'Connect from VS Code or the browser-based Agents window.', hoverMatches: true },
 		]);
 	});
 
@@ -308,10 +313,10 @@ suite('RemoteConnectionsActionViewItem', () => {
 			sharing: sharing.calls,
 			message: notificationError.firstCall?.args[0],
 		}, {
-			actions: ['remoteConnections.off', 'remoteConnections.devTunnel'],
+			actions: ['remoteConnections.off', 'remoteConnections.devTunnel', 'remoteConnections.rename'],
 			updates: [[GitHubEnvironmentsEnabledSettingId, false]],
 			sharing: [],
-			message: new Error('GitHub Environments are disabled by your settings or your organization.'),
+			message: new Error('Sharing through GitHub Environments is disabled by your settings or your organization.'),
 		});
 	});
 
@@ -320,7 +325,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		await configuration.updateValue(GitHubEnvironmentsEnabledSettingId, false);
 		stub(configuration, 'inspect').callThrough().withArgs(GitHubEnvironmentsEnabledSettingId).returns({ value: false, policyValue: false });
 		const action = openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!;
-		assert.deepStrictEqual({ enabled: action.enabled, detail: action.detail, icon: action.labelIcon }, {
+		assert.deepStrictEqual({ enabled: action.enabled, detail: action.ariaDescription, icon: action.labelIcon }, {
 			enabled: false,
 			detail: 'Disabled by your organization. Contact your administrator to enable GitHub Environments.',
 			icon: Codicon.briefcase,
@@ -366,7 +371,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		}, {
 			tabFocus: true, shiftTabFocus: true, describedBy: true,
 			header: 'Will be shared as: test-tunnel',
-			explanation: 'GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
+			explanation: 'Sharing through GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
 			opened: [[{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }]],
 			sharing: [],
 		});
@@ -387,7 +392,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			openSettings: openSettings.callCount,
 			sharing: sharing.calls,
 		}, {
-			footer: 'GitHub Environments is disabled by your organization. Contact Admin',
+			footer: 'Sharing through GitHub Environments is disabled by your organization. Contact Admin',
 			action: { id: 'remoteConnections.organizationSupport', tooltip: 'Opens your organization\'s help page (example.com)' },
 			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }],
 			openSettings: 0,
@@ -413,33 +418,35 @@ suite('RemoteConnectionsActionViewItem', () => {
 		assert.deepStrictEqual({
 			enabledSetting: configuration.getValue(GitHubEnvironmentsEnabledSettingId),
 			actions: openMenu().map(action => action.id),
-		}, { enabledSetting: true, actions: ['remoteConnections.off', 'remoteConnections.devTunnel'] });
+		}, { enabledSetting: true, actions: ['remoteConnections.off', 'remoteConnections.devTunnel', 'remoteConnections.rename'] });
 	});
 
-	test('shows distinct method icons, including for Off', () => {
+	test('keeps ordinary menu choices free of decorative method icons', () => {
 		const { openMenu } = fixture();
 		assert.deepStrictEqual(openMenu().map(action => ({ id: action.id, icon: action.labelIcon?.id })), [
-			{ id: 'remoteConnections.off', icon: 'circle-slash' },
-			{ id: 'remoteConnections.githubEnvironment', icon: 'github' },
-			{ id: 'remoteConnections.devTunnel', icon: 'radio-tower' },
+			{ id: 'remoteConnections.off', icon: undefined },
+			{ id: 'remoteConnections.githubEnvironment', icon: undefined },
+			{ id: 'remoteConnections.devTunnel', icon: undefined },
+			{ id: 'remoteConnections.rename', icon: undefined },
 		]);
 	});
 
 	test('offers a separate management entry after the connection methods when provided', async () => {
 		const manage = stub().resolves(undefined);
 		const managementAction = store.add(new Action('test.manage', 'Manage Remote Environments...', undefined, true, manage));
+		managementAction.tooltip = 'Connect to and manage remote environments';
 		const { openMenu, menuItems, sharing, executeCommand } = fixture('devTunnel', { quality: 'insider', managementAction });
 		const actions = openMenu();
 		await actions.find(action => action.id === 'test.manage')!.run();
 		assert.deepStrictEqual({
 			items: menuItems().map(item => item.label),
-			management: actions.filter(action => action.id === 'test.manage').map(action => ({ category: action.category?.label, icon: action.labelIcon?.id, checked: action.checked })),
+			management: actions.filter(action => action.id === 'test.manage').map(action => ({ category: action.category?.label, icon: action.labelIcon?.id, checked: action.checked, tooltip: action.tooltip, hover: action.hover?.content })),
 			managed: manage.callCount,
 			sharing: sharing.calls,
 			commands: executeCommand.callCount,
 		}, {
-			items: ['Off', 'GitHub Environments', 'Dev Tunnels', '', 'Manage Remote Environments...'],
-			management: [{ category: 'management', icon: Codicon.settingsGear.id, checked: undefined }],
+			items: ['Off', 'GitHub Environment', 'Dev Tunnel', '', 'Manage Remote Environments...'],
+			management: [{ category: 'management', icon: undefined, checked: undefined, tooltip: managementAction.tooltip, hover: managementAction.tooltip }],
 			managed: 1,
 			sharing: [],
 			commands: 0,
@@ -461,23 +468,33 @@ suite('RemoteConnectionsActionViewItem', () => {
 	}
 
 	test('the compact menu shows single-line choices with explanations on hover and as accessible descriptions when it next opens', async () => {
-		const { configuration, openMenu, closeMenu, menuItems, listOptions } = fixture();
+		const { configuration, openMenu, closeMenu, menuItems, listOptions } = fixture('devTunnel', { compactMenu: false });
 		openMenu();
-		const control = { labels: menuItems().map(item => item.label), wrap: listOptions()?.wrapDetails };
+		const control = { labels: menuItems().map(item => item.label), details: menuItems().slice(0, 3).map(item => item.detail), wrap: listOptions()?.wrapDetails };
 		closeMenu();
 		await configuration.updateValue(RemoteConnectionsCompactMenuSettingId, true);
 		const actions = openMenu();
 		assert.deepStrictEqual({
 			control,
 			items: menuItems(),
-			methods: actions.map(action => ({ id: action.id, icon: action.labelIcon?.id, description: action.ariaDescription, hoverMatches: action.hover?.content === action.ariaDescription })),
+			methods: actions.filter(action => action.checked !== undefined).map(action => ({ id: action.id, icon: action.labelIcon?.id, description: action.ariaDescription, hoverMatches: action.hover?.content === action.ariaDescription })),
 			wrap: listOptions()?.wrapDetails,
 		}, {
-			control: { labels: ['Off', 'GitHub Environments', 'Dev Tunnels'], wrap: true },
+			control: {
+				labels: ['Off', 'GitHub Environments', 'Dev Tunnels', '', 'Change Sharing Name...'],
+				details: [
+					'Sharing through this app is off. Agent tasks keep running on this computer.',
+					'Connect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.',
+					'Connect from VS Code or the browser-based Agents window.',
+				],
+				wrap: true,
+			},
 			items: [
 				{ label: 'Off', detail: undefined, badge: undefined, role: 'menuitemcheckbox' },
 				{ label: 'GitHub Environment', detail: undefined, badge: 'Preview', role: 'menuitemcheckbox' },
 				{ label: 'Dev Tunnel', detail: undefined, badge: undefined, role: 'menuitemcheckbox' },
+				{ label: '', detail: undefined, badge: undefined, role: 'separator' },
+				{ label: 'Change Sharing Name...', detail: undefined, badge: undefined, role: 'menuitem' },
 			],
 			methods: [
 				{ id: 'remoteConnections.off', icon: undefined, description: 'Sharing through this app is off. Agent tasks keep running on this computer.', hoverMatches: true },
@@ -499,6 +516,43 @@ suite('RemoteConnectionsActionViewItem', () => {
 			description: 'Disabled by your organization. Contact your administrator to enable GitHub Environments.',
 			hover: 'Disabled by your organization. Contact your administrator to enable GitHub Environments.',
 			icon: Codicon.briefcase,
+		});
+	});
+
+	test('the editor menu follows the shared compact setting without management or rename entries', async () => {
+		const { configuration, openMenu, closeMenu, menuItems, listOptions } = fixture('devTunnel', { isChatInput: true, compactMenu: false });
+		openMenu();
+		const expanded = { labels: menuItems().map(item => item.label), details: menuItems().every(item => !!item.detail), wrap: listOptions()?.wrapDetails };
+		closeMenu();
+		await configuration.updateValue(RemoteConnectionsCompactMenuSettingId, true);
+		const actions = openMenu();
+		assert.deepStrictEqual({
+			expanded,
+			labels: menuItems().map(item => item.label),
+			details: menuItems().map(item => item.detail),
+			explanations: actions.every(action => !!action.ariaDescription && action.hover?.content === action.ariaDescription),
+			wrap: listOptions()?.wrapDetails,
+		}, {
+			expanded: { labels: ['Off', 'GitHub Environments', 'Dev Tunnels'], details: true, wrap: true },
+			labels: ['Off', 'GitHub Environment', 'Dev Tunnel'], details: [undefined, undefined, undefined], explanations: true, wrap: false,
+		});
+	});
+
+	test('the editor antenna uses the same standard icon action as its toolbar siblings', () => {
+		const { container, primary } = fixture('devTunnel', { isChatInput: true, precedingAction: true });
+		container.classList.add('monaco-workbench', 'interactive-session');
+		const toolbar = container.firstElementChild!;
+		const secondary = dom.append(container, dom.$('.chat-secondary-toolbar'));
+		dom.append(secondary, dom.$('.chat-secondary-input-toolbar')).appendChild(toolbar);
+		container.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const sibling = toolbar.querySelector<HTMLElement>('.action-label.codicon-comment-discussion')!;
+		const read = (element: HTMLElement) => {
+			const bounds = element.getBoundingClientRect();
+			const style = dom.getWindow(element).getComputedStyle(element);
+			return { width: bounds.width, height: bounds.height, padding: style.padding, radius: style.borderRadius, fontSize: style.fontSize };
+		};
+		assert.deepStrictEqual({ antenna: read(primary), standardGlyph: primary.classList.contains('codicon-radio-tower'), nestedGlyph: !!primary.querySelector('.codicon') }, {
+			antenna: read(sibling), standardGlyph: true, nestedGlyph: false,
 		});
 	});
 
@@ -585,15 +639,15 @@ suite('RemoteConnectionsActionViewItem', () => {
 			const { openMenu, update, run, sharing } = fixture(backend);
 			const actions = openMenu();
 			assert.deepStrictEqual({
-				methods: actions.map(action => ({ label: action.label, checked: action.checked })),
+				methods: actions.filter(action => action.checked !== undefined).map(action => ({ label: action.label, checked: action.checked })),
 				updates: update.callCount,
 				toggles: run.callCount,
 				sharing: sharing.calls,
 			}, {
 				methods: [
 					{ label: 'Off', checked: true },
-					{ label: 'GitHub Environments', checked: false },
-					{ label: 'Dev Tunnels', checked: false },
+					{ label: 'GitHub Environment', checked: false },
+					{ label: 'Dev Tunnel', checked: false },
 				],
 				updates: 0,
 				toggles: 0,
@@ -619,7 +673,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			await openMenu().find(action => action.id === (backend === 'devTunnel' ? 'remoteConnections.devTunnel' : 'remoteConnections.githubEnvironment'))!.run();
 			closeMenu();
 			assert.deepStrictEqual({
-				checked: openMenu().map(action => action.checked),
+				checked: openMenu().filter(action => action.checked !== undefined).map(action => action.checked),
 				updates: update.callCount,
 				toggles: run.callCount,
 				sharing: sharing.state.get(),
@@ -640,15 +694,15 @@ suite('RemoteConnectionsActionViewItem', () => {
 				} else {
 					sharing.state.set(state, undefined);
 				}
-				const initialChecked = openMenu().map(action => action.checked);
+				const initialChecked = openMenu().filter(action => action.checked !== undefined).map(action => action.checked);
 				await openMenu().find(action => action.id === 'remoteConnections.off')!.run();
 				closeMenu();
-				const disabled = { checked: openMenu().map(action => action.checked), sharing: sharing.state.get(), tunnel: remoteTunnel.status.type };
+				const disabled = { checked: openMenu().filter(action => action.checked !== undefined).map(action => action.checked), sharing: sharing.state.get(), tunnel: remoteTunnel.status.type };
 				closeMenu();
 				await run();
 				assert.deepStrictEqual({
 					initialChecked, disabled,
-					restored: openMenu().map(action => action.checked),
+					restored: openMenu().filter(action => action.checked !== undefined).map(action => action.checked),
 					preference: configuration.getValue(AgentHostRemoteConnectionsSettingId),
 					updates: update.callCount,
 				}, {
@@ -667,7 +721,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		remoteTunnel.fireStatus({ type: 'connected', info: { tunnelName: 'tunnel', isAttached: false }, serviceInstallFailed: false });
 		await openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!.run();
 		closeMenu();
-		const methods = openMenu().map(action => ({ label: action.label, checked: action.checked }));
+		const methods = openMenu().filter(action => action.checked !== undefined).map(action => ({ label: action.label, checked: action.checked }));
 		assert.deepStrictEqual({
 			updates: update.args,
 			configuredMethod: configuration.getValue(AgentHostRemoteConnectionsSettingId),
@@ -678,7 +732,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		}, {
 			updates: [[AgentHostRemoteConnectionsSettingId, 'githubEnvironment', ConfigurationTarget.USER]],
 			configuredMethod: 'githubEnvironment',
-			methods: [{ label: 'Off', checked: false }, { label: 'GitHub Environments', checked: true }, { label: 'Dev Tunnels', checked: false }],
+			methods: [{ label: 'Off', checked: false }, { label: 'GitHub Environment', checked: true }, { label: 'Dev Tunnel', checked: false }],
 			state: 'disconnected',
 			sharing: [false, true],
 			toggles: 1,
@@ -709,13 +763,13 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const devTunnel = select('devTunnel');
 		await timeout(0);
 		const selections = [devTunnel, select('githubEnvironment')];
-		const pending = openMenu().map(action => action.checked);
+		const pending = openMenu().filter(action => action.checked !== undefined).map(action => action.checked);
 		closeMenu();
 		await saved.complete();
 		await Promise.all(selections);
 		assert.deepStrictEqual({
 			pending,
-			checked: openMenu().map(action => action.checked),
+			checked: openMenu().filter(action => action.checked !== undefined).map(action => action.checked),
 			preference: configuration.getValue(AgentHostRemoteConnectionsSettingId),
 			sharing: sharing.state.get(),
 			tunnel: remoteTunnel.status.type,
@@ -753,10 +807,10 @@ suite('RemoteConnectionsActionViewItem', () => {
 		await timeout(0);
 		selections.push(editor.selectMethod('off'));
 		await timeout(0);
-		const pendingOff = openMenu().map(action => action.checked);
+		const pendingOff = openMenu().filter(action => action.checked !== undefined).map(action => action.checked);
 		closeMenu();
 		selections.push(select('githubEnvironment'));
-		const pending = { checked: openMenu().map(action => action.checked), editor: editor.pendingMethod };
+		const pending = { checked: openMenu().filter(action => action.checked !== undefined).map(action => action.checked), editor: editor.pendingMethod };
 		closeMenu();
 		await started.complete();
 		await Promise.all(selections);
@@ -764,7 +818,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			pendingOff,
 			pending,
 			final: {
-				checked: openMenu().map(action => action.checked),
+				checked: openMenu().filter(action => action.checked !== undefined).map(action => action.checked),
 				editor: editor.pendingMethod,
 				preference: configuration.getValue(AgentHostRemoteConnectionsSettingId),
 				sharing: sharing.state.get(),
@@ -784,20 +838,38 @@ suite('RemoteConnectionsActionViewItem', () => {
 		});
 	});
 
+	test('starting sharing does not save fallback names or rename the environment', async () => {
+		const { instantiation, run, sharing, configuration, update } = fixture();
+		const state = store.add(instantiation.createInstance(RemoteConnectionsState));
+		const editor = store.add(instantiation.createInstance(RemoteConnectionsSharing, state, () => run(), 'remotesEditor'));
+		const names = stub(sharing, 'setEnvironmentName').callThrough();
+		await editor.selectMethod('githubEnvironment');
+		await editor.selectMethod('off');
+		await editor.selectMethod('devTunnel');
+		assert.deepStrictEqual({
+			names: names.args,
+			hostNameOverride: configuration.getValue(CONFIGURATION_KEY_HOST_NAME),
+			updatedKeys: update.args.map(args => args[0]),
+		}, {
+			names: [], hostNameOverride: undefined,
+			updatedKeys: [AgentHostRemoteConnectionsSettingId, AgentHostRemoteConnectionsSettingId],
+		});
+	});
+
 	test('reflects changes made directly to the setting in the toggle and method menu', async () => {
 		const { configuration, primary, openMenu, closeMenu, sharing, run } = fixture();
 		openMenu();
 		closeMenu();
 		await configuration.updateValue(AgentHostRemoteConnectionsSettingId, 'githubEnvironment');
 		assert.deepStrictEqual({
-			methods: openMenu().map(action => ({ label: action.label, checked: action.checked })),
+			methods: openMenu().filter(action => action.checked !== undefined).map(action => ({ label: action.label, checked: action.checked })),
 			label: primary.getAttribute('aria-label'),
 			pressed: primary.getAttribute('aria-pressed'),
 			sharing: sharing.calls,
 			toggles: run.callCount,
 		}, {
-			methods: [{ label: 'Off', checked: true }, { label: 'GitHub Environments', checked: false }, { label: 'Dev Tunnels', checked: false }],
-			label: 'Remote Connections: Off',
+			methods: [{ label: 'Off', checked: true }, { label: 'GitHub Environment', checked: false }, { label: 'Dev Tunnel', checked: false }],
+			label: 'Remote connections: Off',
 			pressed: null,
 			sharing: [false],
 			toggles: 0,
@@ -813,7 +885,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		closeMenu();
 		assert.deepStrictEqual({
 			errors: notify.args,
-			checked: openMenu().map(action => action.checked),
+			checked: openMenu().filter(action => action.checked !== undefined).map(action => action.checked),
 		}, { errors: [[error]], checked: [true, false, false] });
 	});
 
@@ -830,7 +902,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const notify = stub(notifications, 'error');
 		await openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!.run();
 		closeMenu();
-		assert.deepStrictEqual({ errors: notify.args, checked: openMenu().map(action => action.checked), events: selectMethodEvents() }, {
+		assert.deepStrictEqual({ errors: notify.args, checked: openMenu().filter(action => action.checked !== undefined).map(action => action.checked), events: selectMethodEvents() }, {
 			errors: [['Failed to enable GitHub environment sharing: Unable to enable sharing']], checked: [true, false, false],
 			events: [{ source: 'titleBar', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled', failureReason: 'unknown', errorCategory: 'unknown' }],
 		});
@@ -877,7 +949,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		await openMenu().find(action => action.id === 'remoteConnections.devTunnel')!.run();
 		closeMenu();
 		assert.deepStrictEqual({
-			checked: openMenu().map(action => action.checked),
+			checked: openMenu().filter(action => action.checked !== undefined).map(action => action.checked),
 			preference: configuration.getValue(AgentHostRemoteConnectionsSettingId),
 		}, { checked: [true, false, false], preference: 'devTunnel' });
 	});
@@ -969,14 +1041,14 @@ suite('RemoteConnectionsActionViewItem', () => {
 			focused: [true, true, true],
 			expanded: 'true',
 			collapsed: 'false',
-			label: 'Remote Connections: Off',
-			menuItems: 3,
+			label: 'Remote connections: Off',
+			menuItems: 4,
 			toggles: 0,
 		});
 	});
 
-	test('uses a narrow wrapping picker and the host-owned environment name in its header', async () => {
-		const { sharing, openMenu, closeMenu, listOptions } = fixture('githubEnvironment');
+	test('matches the origin main banner sizing, host-owned name, and registration state', async () => {
+		const { sharing, openMenu, closeMenu, listOptions } = fixture('githubEnvironment', { quality: 'insider', compactMenu: false });
 		await timeout(0);
 		openMenu();
 		const disabled = listOptions();
@@ -990,102 +1062,130 @@ suite('RemoteConnectionsActionViewItem', () => {
 			icon: disabled?.headerIcon?.id,
 			footer: disabled?.footerText,
 			disabled: disabled?.headerText,
+			enabledIcon: listOptions()?.headerIcon?.id,
 			enabled: listOptions()?.headerText,
 		}, {
 			minWidth: 300, maxWidth: 320, wrap: true,
 			icon: Codicon.deviceDesktop.id,
 			footer: undefined,
 			disabled: 'Will be shared as: Test Machine (VS Code Insiders)',
+			enabledIcon: Codicon.deviceDesktop.id,
 			enabled: 'Registered as GitHub environment: Test Machine (VS Code Insiders)',
 		});
 	});
 
-	test('the header name opens a prefilled environment rename input and updates the displayed name', async () => {
+	test('matches the origin main banner while loading, Off, and connecting', async () => {
+		const { sharing, openMenu, closeMenu, listOptions } = fixture('githubEnvironment');
+		const headers: Array<{ text: string | undefined; name: string | undefined; enabled: boolean | undefined }> = [];
+		const captureHeader = () => {
+			openMenu();
+			const { headerText, headerAction } = listOptions()!;
+			headers.push({ text: headerText, name: headerAction?.label, enabled: headerAction?.enabled });
+			closeMenu();
+		};
+		captureHeader();
+		await timeout(0);
+		captureHeader();
+		sharing.state.set('connecting', undefined);
+		captureHeader();
+		assert.deepStrictEqual(headers, [
+			{ text: 'Loading remote name...', name: undefined, enabled: undefined },
+			{ text: 'Will be shared as: Test Machine (VS Code Insiders)', name: 'Test Machine (VS Code Insiders)', enabled: true },
+			{ text: 'Connecting as: Test Machine (VS Code Insiders)', name: 'Test Machine (VS Code Insiders)', enabled: false },
+		]);
+	});
+
+	test('matches the origin main fallback when name loading finishes without a name', async () => {
+		const { openMenu, listOptions } = fixture('githubEnvironment', { environmentName: '' });
+		await timeout(0);
+		openMenu();
+		assert.deepStrictEqual({
+			text: listOptions()?.headerText,
+			action: listOptions()?.headerAction,
+		}, { text: 'Remote name unavailable.', action: undefined });
+	});
+
+	test('the header name renames the environment and updates its registration info', async () => {
 		const { quickInput, sharing, openMenu, closeMenu, listOptions } = fixture('githubEnvironment');
 		await timeout(0);
-		quickInput.result = '  Renamed workstation  ';
+		sharing.state.set('enabled', undefined);
+		quickInput.result = 'Renamed workstation';
 		openMenu();
-		const rename = listOptions()?.headerAction;
-		await rename?.run();
+		await listOptions()?.headerAction?.run();
 		closeMenu();
 		openMenu();
 		assert.deepStrictEqual({
-			title: quickInput.options?.title,
 			value: quickInput.options?.value,
-			empty: await quickInput.options?.validateInput?.('   '),
-			control: await quickInput.options?.validateInput?.('bad\nname'),
-			valid: await quickInput.options?.validateInput?.('Workstation'),
-			name: sharing.environmentName.get(),
 			header: listOptions()?.headerText,
+			link: listOptions()?.headerAction?.label,
 			state: sharing.state.get(),
 		}, {
-			title: 'Rename Remote Environment', value: 'Test Machine (VS Code Insiders)',
-			empty: 'Enter an environment name without control characters.',
-			control: 'Enter an environment name without control characters.',
-			valid: undefined,
-			name: 'Renamed workstation',
-			header: 'Will be shared as: Renamed workstation',
-			state: 'disabled',
+			value: 'Test Machine (VS Code Insiders)',
+			header: 'Registered as GitHub environment: Renamed workstation',
+			link: 'Renamed workstation',
+			state: 'enabled',
 		});
 	});
 
-	test('canceling rename leaves the environment unchanged', async () => {
-		const { sharing, openMenu, listOptions } = fixture('githubEnvironment');
-		await timeout(0);
-		const rename = stub(sharing, 'setEnvironmentName');
-		openMenu();
-		await listOptions()?.headerAction?.run();
-		assert.strictEqual(rename.callCount, 0);
-	});
-
-	test('the Dev Tunnel name link uses the existing validated tunnel rename input', async () => {
-		const { quickInput, configuration, openMenu, listOptions } = fixture();
-		await timeout(0);
-		quickInput.result = 'renamed-tunnel';
-		openMenu();
-		await listOptions()?.headerAction?.run();
-		assert.deepStrictEqual({ title: quickInput.options?.title, name: configuration.getValue(CONFIGURATION_KEY_HOST_NAME) }, {
-			title: 'Rename Tunnel', name: 'renamed-tunnel',
-		});
-	});
-
-	test('reports a failed environment rename', async () => {
-		const { quickInput, sharing, notifications, openMenu, listOptions } = fixture('githubEnvironment');
-		await timeout(0);
-		const error = new Error('Unable to rename environment');
-		stub(sharing, 'setEnvironmentName').rejects(error);
-		const notify = stub(notifications, 'error');
-		quickInput.result = 'New name';
-		openMenu();
-		await listOptions()?.headerAction?.run();
-		assert.deepStrictEqual(notify.args, [[error]]);
-	});
-
-	test('uses the connected tunnel name instead of a stale intended name in the header', async () => {
+	test('the header uses the connected Dev Tunnel name instead of the intended name', async () => {
 		const { remoteTunnel, openMenu, listOptions } = fixture();
 		await timeout(0);
 		remoteTunnel.fireStatus({ type: 'connected', info: { tunnelName: 'assigned-tunnel', isAttached: true }, serviceInstallFailed: false });
 		openMenu();
-		assert.strictEqual(listOptions()?.headerText, 'Shared as Dev Tunnel: assigned-tunnel');
-	});
-
-	test('refreshes the intended tunnel name after a rename while sharing is off', async () => {
-		const { remoteTunnel, configuration, openMenu, closeMenu, listOptions } = fixture();
-		await timeout(0);
-		openMenu();
-		const before = listOptions()?.headerText;
-		closeMenu();
-		remoteTunnel.name = 'renamed-tunnel';
-		await configuration.updateValue(CONFIGURATION_KEY_HOST_NAME, 'renamed-tunnel');
-		await timeout(0);
-		openMenu();
-		assert.deepStrictEqual({ before, after: listOptions()?.headerText }, {
-			before: 'Will be shared as: test-tunnel',
-			after: 'Will be shared as: renamed-tunnel',
+		assert.deepStrictEqual({
+			header: listOptions()?.headerText,
+			link: listOptions()?.headerAction?.label,
+		}, {
+			header: 'Shared as Dev Tunnel: assigned-tunnel',
+			link: 'assigned-tunnel',
 		});
 	});
 
-	test('reloads names once per change without accumulating subscriptions after tunnel renames', async () => {
+	test('a stale header link cannot rename a different sharing method', async () => {
+		const { quickInput, configuration, sharing, openMenu, listOptions } = fixture('githubEnvironment');
+		await timeout(0);
+		sharing.state.set('enabled', undefined);
+		openMenu();
+		const rename = listOptions()?.headerAction;
+		await configuration.updateValue(AgentHostRemoteConnectionsSettingId, 'devTunnel');
+		await rename?.run();
+		assert.deepStrictEqual({ prompt: quickInput.options, name: sharing.environmentName.get() }, {
+			prompt: undefined, name: undefined,
+		});
+	});
+
+	test('preserves a plain rename action when the management page is unavailable', async () => {
+		const { quickInput, sharing, openMenu } = fixture('githubEnvironment');
+		await timeout(0);
+		quickInput.result = '  Renamed workstation  ';
+		await openMenu().find(action => action.id === 'remoteConnections.rename')!.run();
+		assert.deepStrictEqual({
+			title: quickInput.options?.title,
+			value: quickInput.options?.value,
+			empty: await quickInput.options?.validateInput?.('  '),
+			invalid: await quickInput.options?.validateInput?.('bad\nname'),
+			name: sharing.environmentName.get(),
+			sharing: sharing.state.get(),
+		}, {
+			title: 'Change Sharing Name', value: 'Test Machine (VS Code Insiders)',
+			empty: 'Enter a sharing name.',
+			invalid: 'Enter a sharing name without control characters.',
+			name: 'Renamed workstation', sharing: 'disabled',
+		});
+	});
+
+	test('a stale rename action cannot rename a different sharing method', async () => {
+		const { quickInput, configuration, sharing, openMenu } = fixture('githubEnvironment');
+		await timeout(0);
+		const rename = openMenu().find(action => action.id === 'remoteConnections.rename')!;
+		await configuration.updateValue(AgentHostRemoteConnectionsSettingId, 'devTunnel');
+		await rename.run();
+		assert.deepStrictEqual({ prompt: quickInput.options, name: sharing.environmentName.get() }, {
+			prompt: undefined, name: undefined,
+		});
+	});
+
+	test('reloads only the changed method name without accumulating subscriptions after tunnel renames', async () => {
 		const { remoteTunnel, configuration, sharing, viewItem } = fixture('githubEnvironment');
 		await timeout(0);
 		const loadName = stub(remoteTunnel, 'getTunnelName').callThrough();
@@ -1108,10 +1208,10 @@ suite('RemoteConnectionsActionViewItem', () => {
 			afterEnvironmentChange,
 			afterDisposal: loadName.callCount,
 		}, {
-			initialEnvironmentChange: 1,
-			afterTunnelRenames: 3,
-			afterEnvironmentChange: 4,
-			afterDisposal: 4,
+			initialEnvironmentChange: 0,
+			afterTunnelRenames: 2,
+			afterEnvironmentChange: 2,
+			afterDisposal: 2,
 		});
 	});
 
@@ -1131,9 +1231,9 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 	test('GitHub sharing hover keeps the description concise', () => {
 		const viewItem = Object.assign(Object.create(ToggleRemoteConnectionsActionViewItem.prototype), {
 			_usesMissionControl: () => true,
-			getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
+			getAriaLabel: () => 'Share this computer as a GitHub Environment',
 		}) as { _getHoverContent(): string };
-		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nConnect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.');
+		assert.strictEqual(viewItem._getHoverContent(), 'Share this computer as a GitHub Environment\n\nConnect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {
@@ -1291,6 +1391,13 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 		]);
 	});
 
+	test('propagates preview and service-choice cancellation from the tunnel command', async () => {
+		const remoteTunnelService = store.add(new TestRemoteTunnelService());
+		const commandService = new TestCommandService();
+		stub(commandService, 'executeCommand').resolves('canceled');
+		assert.strictEqual(await toggle(remoteTunnelService, commandService), 'canceled');
+	});
+
 	test('passes the Agents tunnel start constraints only when requested', async () => {
 		const remoteTunnelService = new TestRemoteTunnelService();
 		const commandService = new TestCommandService();
@@ -1323,24 +1430,47 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 				}
 				const notificationService = new TestNotificationService();
 				const notify = stub(notificationService, 'error').callThrough();
+				const prompt = stub(notificationService, 'prompt').callThrough();
 				const logService = store.add(new NullLogService());
 				const log = stub(logService, 'error');
 				const result = await toggle(remoteTunnel, commands, undefined, backend, sharing, notificationService, logService);
 				assert.deepStrictEqual({
 					result,
 					notifications: notify.args,
+					retries: prompt.args.map(([, message, choices]) => ({ message, labels: choices.map(choice => choice.label) })),
 					logs: log.args,
 					commands: commands.commands,
 				}, {
 					result: operation === 'cancel sign-in' ? 'canceled' : { failureReason: operation === 'stop tunnel' ? 'stopDevTunnel' : 'unknown', errorCategory: 'unknown' },
-					notifications: operation === 'cancel sign-in' ? [] : [[operation === 'disable'
-						? 'Failed to disable GitHub environment sharing: fetch failed'
-						: 'Failed to enable GitHub environment sharing: fetch failed']],
+					notifications: operation === 'cancel sign-in' || operation === 'disable' ? [] : [['Failed to enable GitHub environment sharing: fetch failed']],
+					retries: operation === 'disable' ? [{ message: 'Failed to disable GitHub environment sharing: fetch failed', labels: ['Retry Stop Sharing'] }] : [],
 					logs: operation === 'cancel sign-in' ? [] : [['Failed to toggle GitHub environment sharing', error]],
 					commands: [],
 				});
 			});
 		}
+
+		test(`retries failed ${backend} registration removal without restarting sharing`, async () => {
+			const remoteTunnel = store.add(new TestRemoteTunnelService());
+			const commands = new TestCommandService();
+			const sharing = new TestMissionControlSharingService();
+			sharing.state.set('enabled', undefined);
+			const update = stub(sharing, 'setEnabled').callsFake(async enabled => {
+				sharing.calls.push(enabled);
+				sharing.state.set('disabled', undefined);
+				if (update.callCount === 1) {
+					throw new Error('Registration deletion failed');
+				}
+			});
+			const notifications = new TestNotificationService();
+			const prompt = stub(notifications, 'prompt').callThrough();
+			const result = await toggle(remoteTunnel, commands, undefined, backend, sharing, notifications);
+			await prompt.firstCall.args[2][0].run();
+			assert.deepStrictEqual({
+				result, calls: sharing.calls, state: sharing.state.get(),
+				tunnelStops: remoteTunnel.stops, commands: commands.commands,
+			}, { result: { failureReason: 'unknown', errorCategory: 'unknown' }, calls: [false, false], state: 'disabled', tunnelStops: 0, commands: [] });
+		});
 
 		test(`routes ${backend} enable, disable and cancellation without Dev Tunnel commands`, async () => {
 			const remoteTunnel = store.add(new TestRemoteTunnelService());
@@ -1377,10 +1507,10 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 				};
 			});
 			assert.deepStrictEqual(snapshots, [
-				{ label: 'Allow Remote Connections via GitHub environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
-				{ label: 'Registering GitHub environment...', pressed: 'false', sharing: false, connecting: true, inlineText: '' },
-				{ label: 'Remote Connections via GitHub environment are enabled', pressed: 'true', sharing: true, connecting: false, inlineText: '' },
-				{ label: 'Allow Remote Connections via GitHub environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
+				{ label: 'Share this computer as a GitHub Environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
+				{ label: 'Registering this computer as a GitHub Environment...', pressed: 'false', sharing: false, connecting: true, inlineText: '' },
+				{ label: 'This computer is shared as a GitHub Environment', pressed: 'true', sharing: true, connecting: false, inlineText: '' },
+				{ label: 'Share this computer as a GitHub Environment', pressed: 'false', sharing: false, connecting: false, inlineText: '' },
 			]);
 		});
 

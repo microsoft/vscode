@@ -264,13 +264,8 @@ function getWorkspacePickerItemAriaLabel(item: IActionListItem<IWorkspacePickerI
 }
 
 function getRemoteHostStatusDescription(provider: IAgentHostSessionsProvider, status: RemoteAgentHostConnectionStatus): string {
-	if (provider.hostDescription) {
-		const availability = provider.hostDescription.get();
-		if (status.kind === 'disconnected') {
-			return availability;
-		}
-		const connection = status.kind === 'connected' ? localize('workspacePicker.statusConnected', "Connected") : getStatusLabel(status);
-		return localize('workspacePicker.hostDescription', "{0} · {1}", availability, connection);
+	if (status.kind === 'disconnected' && provider.hostDescription) {
+		return provider.hostDescription.get();
 	}
 	const statusLabel = getStatusLabel(status);
 	const activeSessionCount = provider.getSessions()
@@ -2197,8 +2192,7 @@ export class WorkspacePicker extends Disposable {
 				extended.icon = RemoteAgentHostConnectionStatus.isIncompatible(status)
 					? Codicon.warning
 					: Codicon.remote;
-				const lastConnectionError = this.remoteAgentHostService.connections.find(connection => connection.address === provider.remoteAddress)?.lastConnectionError;
-				extended.hoverContent = getStatusHover(status, provider.remoteAddress, lastConnectionError);
+				extended.hoverContent = getStatusHover(status, provider.remoteAddress);
 				if (provider.remoteAddress && provider.canRemove !== false) {
 					extended.onRemove = async () => {
 						await removeRemoteHost(provider, this.remoteAgentHostService, this.configurationService);

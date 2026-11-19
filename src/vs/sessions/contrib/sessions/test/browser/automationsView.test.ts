@@ -3354,7 +3354,7 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			ownershipHeading: 'automations-ownership-heading agent-sessions-interactive agent-sessions-interactive-list',
 			card: 'automations-card agent-sessions-interactive agent-sessions-interactive-list agent-sessions-interactive-bordered',
-			templateSummary: 'automations-template-section-summary agent-sessions-interactive agent-sessions-interactive-list sessions-disclosure',
+			templateSummary: 'automations-template-section-summary sessions-section-summary agent-sessions-interactive agent-sessions-interactive-list sessions-disclosure',
 			templateCard: 'automations-template-card agent-sessions-interactive agent-sessions-interactive-list agent-sessions-interactive-bordered',
 		});
 	});

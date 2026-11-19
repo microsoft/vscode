@@ -1137,13 +1137,13 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private renderTemplateSection(options: IAutomationTemplateSectionOptions): IRenderedAutomationTemplateSection {
-		const section = DOM.append(this.templatesContainer, $<HTMLDetailsElement>(`details.automations-template-section.${options.className}`));
+		const section = DOM.append(this.templatesContainer, $<HTMLDetailsElement>(`details.automations-template-section.sessions-section.${options.className}`));
 		section.open = options.expanded;
-		const summary = DOM.append(section, $('summary.automations-template-section-summary.agent-sessions-interactive.agent-sessions-interactive-list.sessions-disclosure'));
-		const chevron = DOM.append(summary, $('span.automations-template-section-chevron'));
+		const summary = DOM.append(section, $('summary.automations-template-section-summary.sessions-section-summary.agent-sessions-interactive.agent-sessions-interactive-list.sessions-disclosure'));
+		const chevron = DOM.append(summary, $('span.automations-template-section-chevron.sessions-section-chevron'));
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
 		chevron.setAttribute('aria-hidden', 'true');
-		const title = DOM.append(summary, $('span.automations-template-section-title'));
+		const title = DOM.append(summary, $('span.automations-template-section-title.sessions-section-title'));
 		title.id = `${options.className}-${this.templateAriaId}`;
 		title.setAttribute('role', 'heading');
 		title.setAttribute('aria-level', '3');

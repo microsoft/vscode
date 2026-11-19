@@ -28,10 +28,15 @@ suite('Radio', () => {
 			--vscode-spacing-sizeNone: 0px;
 			--vscode-spacing-size20: 2px;
 			--vscode-spacing-size60: 6px;
+			--vscode-spacing-size120: 12px;
+			--vscode-spacing-size160: 16px;
 			--vscode-spacing-size240: 24px;
+			--vscode-spacing-size360: 36px;
 			--vscode-strokeThickness: 1px;
 			--vscode-cornerRadius-small: 4px;
 			--vscode-cornerRadius-medium: 6px;
+			--vscode-cornerRadius-circle: 9999px;
+			--vscode-fontSize-body1: 13px;
 			--vscode-fontSize-label2: 11px;
 			--vscode-fontWeight-regular: 400;
 			--vscode-fontWeight-semiBold: 600;
@@ -56,6 +61,67 @@ suite('Radio', () => {
 		}, {
 			initial: [{ checked: 'false', tabIndex: 0, focused: true }, { checked: 'false', tabIndex: -1, focused: false }],
 			selected: [0], checked: ['true', 'false'],
+		});
+	});
+
+	for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+		test(`cards keep separate borders and show the selection accent without focus in ${theme}`, () => {
+			const radio = createRadio({ className: 'cards', items: [{ text: 'One' }, { text: 'Two' }] });
+			radio.domNode.parentElement!.classList.add(theme);
+			radio.domNode.style.width = '600px';
+			radio.domNode.style.setProperty('--vscode-radio-inactiveBorder', '#777777');
+			radio.domNode.style.setProperty('--vscode-radio-activeBorder', '#888888');
+			radio.domNode.style.setProperty('--vscode-radio-activeForeground', '#222222');
+			radio.domNode.style.setProperty('--vscode-radio-inactiveForeground', '#444444');
+			radio.domNode.style.setProperty('--vscode-list-focusOutline', '#006bbd');
+			const read = () => radio.optionElements.map(element => {
+				const style = getWindow(element).getComputedStyle(element);
+				const indicator = getWindow(element).getComputedStyle(element, '::after');
+				return {
+					checked: element.getAttribute('aria-checked'),
+					borders: [style.borderLeftWidth, style.borderRightWidth],
+					borderColor: style.borderColor,
+					radius: style.borderRadius,
+					dot: { visibility: indicator.visibility, color: indicator.backgroundColor },
+				};
+			});
+			const initial = read();
+			radio.setActiveItem(1);
+			const switched = read();
+			const [first, second] = radio.optionElements;
+			const sideBySide = first.offsetTop === second.offsetTop && first.offsetLeft < second.offsetLeft;
+			radio.domNode.style.width = '200px';
+			const option = (checked: boolean) => ({
+				checked: String(checked), borders: ['1px', '1px'], borderColor: checked ? 'rgb(0, 107, 189)' : 'rgb(119, 119, 119)', radius: '4px',
+				dot: { visibility: checked ? 'visible' : 'hidden', color: checked ? 'rgb(34, 34, 34)' : 'rgb(68, 68, 68)' },
+			});
+			assert.deepStrictEqual({ initial, switched, sideBySide, stacked: first.offsetTop < second.offsetTop }, {
+				initial: [option(true), option(false)], switched: [option(false), option(true)], sideBySide: true, stacked: true,
+			});
+		});
+	}
+
+	test('card arrows select and update the indicator while skipping disabled options', () => {
+		const radio = createRadio({ className: 'cards', items: [{ text: 'One' }, { text: 'Two', disabled: true }, { text: 'Three' }] });
+		const selected: number[] = [];
+		disposables.add(radio.onDidSelect(index => selected.push(index)));
+		radio.focusActiveItem();
+		radio.optionElements[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		assert.deepStrictEqual({
+			selected,
+			options: radio.optionElements.map(element => ({
+				checked: element.getAttribute('aria-checked'),
+				tabIndex: element.tabIndex,
+				focused: element === mainWindow.document.activeElement,
+				dot: getWindow(element).getComputedStyle(element, '::after').visibility,
+			})),
+		}, {
+			selected: [2],
+			options: [
+				{ checked: 'false', tabIndex: -1, focused: false, dot: 'hidden' },
+				{ checked: 'false', tabIndex: -1, focused: false, dot: 'hidden' },
+				{ checked: 'true', tabIndex: 0, focused: true, dot: 'visible' },
+			],
 		});
 	});
 

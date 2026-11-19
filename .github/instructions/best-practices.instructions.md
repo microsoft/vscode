@@ -7,6 +7,7 @@ applyTo: src/vs/**
 
 ## Shared UI Boundaries
 
+- Start with established Automations, Customizations, Settings, and workbench patterns. Reuse the component and its rendered interaction, including hit area, hover, focus, and selected-state indicators; changing markup alone does not remove a bespoke treatment. Introduce bespoke UI only for a concrete product gap that existing patterns cannot address. Preserve accessible state indicators and verify their contrast before removing or replacing them.
 - Reuse shared controls through existing extension points. Keep feature-specific UI customization in the feature or composed widget, preserving existing consumers' defaults.
 - Before expanding a shared API, explain the general need, why existing options aren't enough, and how affected consumers will be tested.
 - A requested feature or UI outcome doesn't by itself justify broader API changes. If a local refinement requires shared navigation, accessibility, or lifecycle exceptions, reconsider the composition.

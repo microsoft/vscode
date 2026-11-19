@@ -417,8 +417,7 @@ suite('Sessions - Titlebar Part', () => {
 		split.label = 'Sync Changes';
 		const secondary = buttonBar.addButton({ secondary: true });
 		secondary.element.classList.add('monaco-text-button', 'codicon');
-		const remote = append(append(actions, $('li.action-item')), $('a.action-label.codicon.tunnel-host-toggle'));
-		append(append(remote, $('span.tunnel-host-icon')), $('span.codicon'));
+		const remote = append(append(actions, $('li.action-item')), $('a.action-label.codicon.codicon-radio-tower.tunnel-host-toggle'));
 		const layout = append(append(actions, $('li.action-item')), $('a.action-label.codicon'));
 		const account = append(actions, $('li.action-item.sessions-account-titlebar-widget'));
 		const avatar = append(account, $('img.sessions-account-titlebar-widget-avatar.visible'));
@@ -450,8 +449,7 @@ suite('Sessions - Titlebar Part', () => {
 		shared.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		const sharedActions = append(append(shared, $('.monaco-action-bar')), $('li.action-item'));
 		const sharedAction = append(sharedActions, $('a.action-label.codicon'));
-		const sharedRemote = append(sharedActions, $('a.action-label.codicon.tunnel-host-toggle'));
-		sharedRemote.style.setProperty('--vscode-cornerRadius-small', '4px');
+		const sharedRemote = append(sharedActions, $('a.action-label.codicon.codicon-radio-tower.tunnel-host-toggle'));
 
 		assert.deepStrictEqual({ states, shared: read(sharedAction), sharedRemoteHeight: sharedRemote.getBoundingClientRect().height }, {
 			states: Array.from({ length: 12 }, () => ({
@@ -463,7 +461,7 @@ suite('Sessions - Titlebar Part', () => {
 				splitIconAlignment: 'center',
 			})),
 			shared: { height: 22, radius: '6px' },
-			sharedRemoteHeight: 16,
+			sharedRemoteHeight: 22,
 		});
 	});
 

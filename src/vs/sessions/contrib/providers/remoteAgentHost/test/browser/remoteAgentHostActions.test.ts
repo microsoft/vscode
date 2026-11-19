@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type SSHAgentHostConnectionRequest } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -24,8 +24,9 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { connectWithProgress } from '../../browser/remoteAgentHostActions.js';
+import { connectWithProgress, parseSSHHostInput } from '../../browser/remoteAgentHostActions.js';
 import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
+import { getCopyableRemoteAddress } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { INotificationTelemetrySource } from '../../../../../../platform/notification/common/notificationTelemetry.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NotificationService } from '../../../../../../workbench/services/notification/common/notificationService.js';
@@ -246,6 +247,29 @@ suite('Remote Agent Host actions', () => {
 			});
 		});
 	}
+
+	test('copied SSH addresses round-trip through Connect via SSH without changing the endpoint', () => {
+		const connections = [
+			{ hostName: '2001:db8::1', user: 'alice', port: 22 },
+			{ hostName: '2001:db8::1', user: undefined, port: undefined },
+			{ hostName: '2001:db8::1', user: 'alice', port: 2222 },
+			{ hostName: 'host.example.com', user: 'alice', port: 22 },
+			{ hostName: '192.0.2.1', user: undefined, port: undefined },
+		];
+		assert.deepStrictEqual(connections.map(connection => {
+			const address = getCopyableRemoteAddress({
+				name: 'SSH',
+				connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:4321', ...connection },
+			});
+			return address === undefined ? undefined : parseSSHHostInput(address);
+		}), [
+			{ host: '2001:db8::1', username: 'alice', port: 22 },
+			{ host: '2001:db8::1', username: undefined, port: 22 },
+			{ host: '2001:db8::1', username: 'alice', port: 2222 },
+			{ host: 'host.example.com', username: 'alice', port: undefined },
+			{ host: '192.0.2.1', username: undefined, port: undefined },
+		]);
+	});
 
 	test('configured SSH selection does not turn preflight settings into explicit connection overrides', async () => {
 		const instantiation = store.add(new TestInstantiationService());

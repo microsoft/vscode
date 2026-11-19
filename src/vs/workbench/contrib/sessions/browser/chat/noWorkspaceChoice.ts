@@ -19,7 +19,7 @@ export interface INoWorkspaceChoicePresentation {
 /** The label of a provider's quick chat in New Session's workspace picker. */
 export function getQuickChatProviderLabel(provider: Pick<ISessionsProvider, 'id' | 'label'>): string {
 	return provider.id === LOCAL_AGENT_HOST_PROVIDER_ID
-		? localize('newSessionWorkspacePicker.localQuickChat', "This Computer")
+		? localize('newSessionWorkspacePicker.localQuickChat', "This computer")
 		: provider.label;
 }
 

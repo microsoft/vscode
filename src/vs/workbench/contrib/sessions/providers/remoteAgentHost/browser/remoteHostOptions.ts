@@ -11,11 +11,11 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import Severity from '../../../../../../base/common/severity.js';
-import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
-import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { promptRemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -71,9 +71,9 @@ export async function disconnectSSHEntry(
 export async function confirmTunnelDeletion(dialogService: IDialogService, name: string): Promise<boolean> {
 	const { confirmed } = await dialogService.confirm({
 		type: 'warning',
-		message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", name),
-		detail: localize('tunnelDeleteDetail', "This deletes the tunnel registration and disconnects its clients. Files on the remote machine will not be deleted. The tunnel may be recreated if a machine starts hosting it again."),
-		primaryButton: localize('tunnelDeleteButton', "&&Delete"),
+		message: localize('tunnelDeleteConfirmation', "Remove Dev Tunnel '{0}'?", name),
+		detail: localize('tunnelForgetDetail', "This removes the tunnel registration and disconnects all its clients. The remote computer and its files stay available. The tunnel returns when sharing restarts on that computer."),
+		primaryButton: localize('tunnelDeleteButton', "&&Remove"),
 	});
 	return confirmed;
 }
@@ -88,8 +88,8 @@ export async function renameRemoteHost(
 		throw new Error(localize('workspacePicker.remoteUnavailable', "This remote is no longer available."));
 	}
 	const name = await quickInputService.input({
-		title: localize('workspacePicker.renameRemoteTitle', "Rename Remote Agent Host"),
-		prompt: localize('workspacePicker.renameRemotePrompt', "Enter a display name for this remote agent host in this client. Leave empty to use the default name."),
+		title: localize('workspacePicker.renameRemoteTitle', "Rename remote environment"),
+		prompt: localize('workspacePicker.renameRemotePrompt', "Enter a display name for this environment in this profile. Leave it empty to use the default name."),
 		value: provider.label,
 		valueSelection: [0, provider.label.length],
 		ignoreFocusLost: true,
@@ -275,55 +275,30 @@ export function watchForIncompatibleNotifications(
 	});
 }
 
-export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string {
-	switch (status.kind) {
-		case 'connected':
-			return localize('workspacePicker.statusOnline', "Online");
-		case 'connecting':
-			return localize('workspacePicker.statusConnecting', "Connecting");
-		case 'reconnecting':
-			return localize('workspacePicker.statusReconnecting', "Reconnecting");
-		case 'disconnected':
-			return localize('workspacePicker.statusOffline', "Offline");
-		case 'incompatible':
-			return localize('workspacePicker.statusIncompatible', "Incompatible");
-	}
-}
+export { getAgentHostConnectionStatusLabel as getStatusLabel } from '../../../common/agentHostSessionsProvider.js';
 
-export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string, lastConnectionError?: string): string {
-	if ((status.kind === 'connecting' || status.kind === 'reconnecting') && lastConnectionError) {
-		return address
-			? localize('workspacePicker.hoverRetryingAfterErrorAddr', "Retrying connection. Last error: {0}\n\nAddress: {1}", lastConnectionError, address)
-			: localize('workspacePicker.hoverRetryingAfterError', "Retrying connection. Last error: {0}", lastConnectionError);
-	}
+export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string): string {
 	switch (status.kind) {
 		case 'connected':
 			return address
-				? localize('workspacePicker.hoverConnectedAddr', "Remote agent host is connected and ready.\n\nAddress: {0}", address)
-				: localize('workspacePicker.hoverConnected', "Remote agent host is connected and ready.");
+				? localize('workspacePicker.hoverConnectedAddr', "Connected to the host and ready to start or continue agent sessions.\n\nAddress: {0}", address)
+				: localize('workspacePicker.hoverConnected', "Connected to the host and ready to start or continue agent sessions.");
 		case 'connecting':
 			return address
-				? localize('workspacePicker.hoverConnectingAddr', "Attempting to connect to remote agent host...\n\nAddress: {0}", address)
-				: localize('workspacePicker.hoverConnecting', "Attempting to connect to remote agent host...");
+				? localize('workspacePicker.hoverConnectingAddr', "Connecting to the remote agent host...\n\nAddress: {0}", address)
+				: localize('workspacePicker.hoverConnecting', "Connecting to the remote agent host...");
 		case 'reconnecting':
 			return address
-				? localize('workspacePicker.hoverReconnectingAddr', "The remote agent host connection dropped and is being restored automatically.\n\nAddress: {0}", address)
-				: localize('workspacePicker.hoverReconnecting', "The remote agent host connection dropped and is being restored automatically.");
+				? localize('workspacePicker.hoverReconnectingAddr', "Reconnecting to the remote agent host automatically.\n\nAddress: {0}", address)
+				: localize('workspacePicker.hoverReconnecting', "Reconnecting to the remote agent host automatically.");
 		case 'disconnected':
-			if (lastConnectionError) {
-				return address
-					? localize('workspacePicker.hoverDisconnectedErrorAddr', "Remote agent host is disconnected: {0}\n\nAddress: {1}", lastConnectionError, address)
-					: lastConnectionError;
-			}
 			return address
-				? localize('workspacePicker.hoverDisconnectedAddr', "Remote agent host is disconnected.\n\nAddress: {0}", address)
-				: localize('workspacePicker.hoverDisconnected', "Remote agent host is disconnected.");
-		case 'incompatible': {
-			const offered = status.supportedByClient.join(', ');
+				? localize('workspacePicker.hoverDisconnectedAddr', "This window is disconnected. Sessions may continue running on the remote computer.\n\nAddress: {0}", address)
+				: localize('workspacePicker.hoverDisconnected', "This window is disconnected. Sessions may continue running on the remote computer.");
+		case 'incompatible':
 			return address
-				? localize('workspacePicker.hoverIncompatibleAddr', "Cannot connect to remote agent host: {0}\n\nThis client speaks protocol version {1}.\n\nAddress: {2}", status.message, offered, address)
-				: localize('workspacePicker.hoverIncompatible', "Cannot connect to remote agent host: {0}\n\nThis client speaks protocol version {1}.", status.message, offered);
-		}
+				? localize('workspacePicker.hoverUpdateRequiredAddr', "Open Remote Environments to troubleshoot the connection and check for updates.\n\nAddress: {0}", address)
+				: localize('workspacePicker.hoverUpdateRequired', "Open Remote Environments to troubleshoot the connection and check for updates.");
 	}
 }
 
@@ -374,11 +349,39 @@ export function usesSSHConfigFile(preferenceKey: string, isWebPlatform: boolean 
 	return preferenceKey.startsWith(SSH_ADDRESS_PREFIX);
 }
 
+/**
+ * The address a user can paste to connect to this host again, or `undefined`
+ * when the host has no such address.
+ *
+ * SSH hosts copy their `~/.ssh/config` alias or `[user@]host[:port]`, which
+ * the Connect via SSH picker accepts. Manually added WebSocket
+ * hosts copy the address entered in Add Remote Agent Host. Tunnels, WSL
+ * distributions, and GitHub Environments are discovered through the signed-in
+ * account or this computer, so their internal identifiers are not offered.
+ */
+export function getCopyableRemoteAddress(entry: IRemoteAgentHostEntry | undefined): string | undefined {
+	const connection = entry?.connection;
+	switch (connection?.type) {
+		case RemoteAgentHostEntryType.SSH: {
+			const port = connection.port ?? 22;
+			const includePort = port !== 22 || connection.hostName.includes(':');
+			return connection.sshConfigHost
+				?? `${connection.user ? `${connection.user}@` : ''}${connection.hostName}${includePort ? `:${port}` : ''}`;
+		}
+		case RemoteAgentHostEntryType.WebSocket:
+			return connection.address;
+		default:
+			return undefined;
+	}
+}
+
 export type RemoteOptionPickItem = IQuickPickItem & { id: string };
 
 export interface IBuildRemoteHostOptionItemsOptions {
-	/** The host's live connection address, used for Copy Address etc. */
+	/** The host's live connection address. */
 	readonly address: string;
+	/** A pasteable connection address (see {@link getCopyableRemoteAddress}); Copy Address is offered only when set. */
+	readonly copyableAddress?: string;
 	/**
 	 * The host's stable preference key (see
 	 * {@link supportsRemoteAgentHostLocationPreference}), when it differs
@@ -401,26 +404,30 @@ export interface IBuildRemoteHostOptionItemsOptions {
  */
 export function buildRemoteHostOptionItems(options: IBuildRemoteHostOptionItemsOptions): RemoteOptionPickItem[] {
 	const items: RemoteOptionPickItem[] = [];
-	if (options.upgradeMethod) {
-		items.push({ label: '$(cloud-download) ' + localize('workspacePicker.updateServer', "Update Server"), id: 'upgrade' });
-	}
 	if (!options.isConnected) {
 		items.push({ label: '$(debug-restart) ' + localize('workspacePicker.reconnect', "Reconnect"), id: 'reconnect' });
 	} else if (options.disconnectLabel) {
 		items.push({ label: '$(debug-disconnect) ' + options.disconnectLabel, id: 'disconnect' });
 	}
-	items.push({ label: '$(edit) ' + localize('workspacePicker.renameRemote', "Rename..."), id: 'rename' });
-	if (options.canRemove !== false) {
-		items.push({ label: '$(trash) ' + (options.removeLabel ?? localize('workspacePicker.removeRemote', "Remove Remote")), id: 'remove' });
+	if (options.copyableAddress) {
+		const copyLabel = (options.preferenceKey ?? options.address).startsWith('ssh:')
+			? localize('workspacePicker.copySSHAddress', "Copy SSH Address") : localize('workspacePicker.copyAddress', "Copy Connection Address");
+		items.push({ label: '$(copy) ' + copyLabel, id: 'copy' });
 	}
-	items.push({ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' });
+	items.push({ label: '$(edit) ' + localize('workspacePicker.renameRemote', "Rename..."), id: 'rename' });
 	// An SSH host aliased in `~/.ssh/config` is authored there, not in
 	// settings, so point at the file that actually defines it.
 	items.push(usesSSHConfigFile(options.preferenceKey ?? options.address, options.isWebPlatform ?? isWeb)
 		? { label: '$(settings-gear) ' + localize('workspacePicker.openSSHConfig', "Open SSH Configuration"), id: 'sshConfig' }
 		: { label: '$(settings-gear) ' + localize('workspacePicker.openSettings', "Open Settings"), id: 'settings' });
 	if (supportsRemoteAgentHostLocationPreference(options.preferenceKey ?? options.address, options.isWebPlatform ?? isWeb)) {
-		items.push({ label: '$(server-process) ' + localize('workspacePicker.changeLocationPreference', "Change Preferred Agent Location"), id: 'locationPreference' });
+		items.push({ label: '$(server-process) ' + localize('workspacePicker.changeLocationPreference', "Choose How Agents Run..."), id: 'locationPreference' });
+	}
+	if (options.upgradeMethod) {
+		items.push({ label: '$(cloud-download) ' + localize('workspacePicker.updateServer', "Update Server"), id: 'upgrade' });
+	}
+	if (options.canRemove !== false) {
+		items.push({ label: '$(trash) ' + (options.removeLabel ?? localize('workspacePicker.removeRemote', "Remove Remote")), id: 'remove' });
 	}
 	return items;
 }
@@ -471,14 +478,11 @@ export async function changeRemoteAgentHostLocationPreference(options: IChangeRe
 	if (!preference) {
 		return;
 	}
-	options.locationPreferenceService.setPreference(options.preferenceKey, preference);
-
-	const provider = options.provider;
-	if (!provider) {
+	if (!options.provider) {
+		await applyRemoteAgentHostLocationPreference(options, preference);
 		options.notificationService.warn(localize('workspacePicker.locationPreferenceSavedNoProvider', "Preference saved for {0}, but no active connection was found. This takes effect the next time it connects.", options.hostLabel));
 		return;
 	}
-
 	await options.progressService.withProgress(
 		{
 			location: ProgressLocation.Notification,
@@ -487,13 +491,30 @@ export async function changeRemoteAgentHostLocationPreference(options: IChangeRe
 		},
 		async () => {
 			try {
-				await reconnectRemoteHost(provider, options.remoteAgentHostService);
+				await applyRemoteAgentHostLocationPreference(options, preference);
 				options.notificationService.info(localize('workspacePicker.locationPreferenceUpdated', "Preference updated for {0}.", options.hostLabel));
 			} catch (err) {
 				options.notificationService.error(localize('workspacePicker.locationPreferenceReconnectFailed', "Preference saved for {0}, but reconnection failed: {1}", options.hostLabel, err instanceof Error ? err.message : String(err)));
 			}
 		},
 	);
+}
+
+/** Applies an explicitly chosen preference without opening a second dialog. */
+export async function applyRemoteAgentHostLocationPreference(
+	options: Pick<IChangeRemoteAgentHostLocationPreferenceOptions, 'preferenceKey' | 'provider' | 'locationPreferenceService' | 'remoteAgentHostService' | 'hostLabel'>,
+	preference: RemoteAgentHostLocationPreference,
+): Promise<'saved' | 'reconnected'> {
+	options.locationPreferenceService.setPreference(options.preferenceKey, preference);
+	if (!options.provider) {
+		return 'saved';
+	}
+	await reconnectRemoteHost(options.provider, options.remoteAgentHostService);
+	if (!options.provider.remoteAddress) {
+		throw new Error(localize('workspacePicker.remoteUnavailable', "This remote is no longer available."));
+	}
+	await options.remoteAgentHostService.waitForConnection(options.provider.remoteAddress);
+	return 'reconnected';
 }
 
 /** Show the per-remote management options quickpick for the given provider. */
@@ -532,7 +553,11 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	// separate stable identity (tunnels, WSL, cloud sandbox).
 	const preferenceKey = provider.remoteLocationPreferenceKey ?? address;
 
-	const items = buildRemoteHostOptionItems({ address, preferenceKey, isConnected, upgradeMethod, canRemove: provider.canRemove, removeLabel: provider.removeLabel, disconnectLabel: provider.disconnectLabel });
+	// SSH entries are keyed by their stable preference key, not the forwarded live address.
+	const copyableAddress = getCopyableRemoteAddress(remoteAgentHostService.getEntryByAddress(preferenceKey) ?? remoteAgentHostService.getEntryByAddress(address))
+		?? (preferenceKey.startsWith(SSH_ADDRESS_PREFIX) ? preferenceKey.slice(SSH_ADDRESS_PREFIX.length) : undefined);
+
+	const items = buildRemoteHostOptionItems({ address, copyableAddress, preferenceKey, isConnected, upgradeMethod, canRemove: provider.canRemove, removeLabel: provider.removeLabel, disconnectLabel: provider.disconnectLabel });
 
 	const result = await new Promise<RemoteOptionPickItem | undefined>((resolve) => {
 		const store = new DisposableStore();
@@ -605,7 +630,9 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 			break;
 		}
 		case 'copy':
-			await clipboardService.writeText(address);
+			if (copyableAddress) {
+				await clipboardService.writeText(copyableAddress);
+			}
 			break;
 		case 'settings':
 			await preferencesService.openSettings({ query: 'chat.remoteAgentHosts' });

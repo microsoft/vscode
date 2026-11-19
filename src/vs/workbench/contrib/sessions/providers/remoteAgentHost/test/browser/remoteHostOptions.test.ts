@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -25,7 +26,9 @@ import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessions
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import {
 	buildRemoteHostOptionItems,
+	applyRemoteAgentHostLocationPreference,
 	changeRemoteAgentHostLocationPreference,
+	getCopyableRemoteAddress,
 	getStatusHover,
 	getStatusLabel,
 	hasUpgradeReconnectStarted,
@@ -38,25 +41,27 @@ import {
 suite('remoteHostOptions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('disconnected hovers retain the connection error with an optional address', () => {
+	test('connection hovers distinguish this window from sessions running remotely', () => {
 		const status = RemoteAgentHostConnectionStatus.disconnected;
 		assert.deepStrictEqual({
-			error: getStatusHover(status, undefined, 'Connection refused'),
-			withAddress: getStatusHover(status, 'ssh:host', 'Connection refused'),
+			label: getStatusLabel(status),
+			connected: getStatusLabel(RemoteAgentHostConnectionStatus.connected),
+			withAddress: getStatusHover(status, 'ssh:host'),
 			plain: getStatusHover(RemoteAgentHostConnectionStatus.disconnected),
 		}, {
-			error: 'Connection refused', withAddress: 'Remote agent host is disconnected: Connection refused\n\nAddress: ssh:host',
-			plain: 'Remote agent host is disconnected.',
+			label: 'Disconnected',
+			connected: 'Connected', withAddress: 'This window is disconnected. Sessions may continue running on the remote computer.\n\nAddress: ssh:host',
+			plain: 'This window is disconnected. Sessions may continue running on the remote computer.',
 		});
 	});
 
-	test('automatic retry hovers retain the last error without changing the status label', () => {
+	test('connection progress hovers describe the operation rather than diagnostics', () => {
 		assert.deepStrictEqual([
 			RemoteAgentHostConnectionStatus.connecting,
 			RemoteAgentHostConnectionStatus.reconnecting,
-		].map(status => ({ label: getStatusLabel(status), hover: getStatusHover(status, undefined, 'Connection refused'), withAddress: getStatusHover(status, 'ssh:host', 'Connection refused') })), [
-			{ label: 'Connecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
-			{ label: 'Reconnecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
+		].map(status => ({ label: getStatusLabel(status), hover: getStatusHover(status), withAddress: getStatusHover(status, 'ssh:host') })), [
+			{ label: 'Connecting', hover: 'Connecting to the remote agent host...', withAddress: 'Connecting to the remote agent host...\n\nAddress: ssh:host' },
+			{ label: 'Reconnecting', hover: 'Reconnecting to the remote agent host automatically.', withAddress: 'Reconnecting to the remote agent host automatically.\n\nAddress: ssh:host' },
 		]);
 	});
 
@@ -68,16 +73,43 @@ suite('remoteHostOptions', () => {
 			connected: [
 				{ id: 'disconnect', label: '$(debug-disconnect) Disconnect' },
 				{ id: 'rename', label: '$(edit) Rename...' },
-				{ id: 'copy', label: '$(copy) Copy Address' },
 				{ id: 'settings', label: '$(settings-gear) Open Settings' },
 			],
 			disconnected: [
 				{ id: 'reconnect', label: '$(debug-restart) Reconnect' },
 				{ id: 'rename', label: '$(edit) Rename...' },
-				{ id: 'copy', label: '$(copy) Copy Address' },
 				{ id: 'settings', label: '$(settings-gear) Open Settings' },
 			],
 		});
+	});
+
+	test('Copy Address is offered only with a pasteable SSH or WebSocket address', () => {
+		const ssh = (connection: Partial<IRemoteAgentHostSSHConnection>): IRemoteAgentHostEntry => ({ name: 'SSH', connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:4321', hostName: 'host.example.com', ...connection } });
+		const entries: (IRemoteAgentHostEntry | undefined)[] = [
+			ssh({ sshConfigHost: 'build' }),
+			ssh({ user: 'user', port: 2222 }),
+			ssh({ user: 'user', port: 22 }),
+			ssh({}),
+			{ name: 'WebSocket', connection: { type: RemoteAgentHostEntryType.WebSocket, address: '10.0.0.5:8089' } },
+			{ name: 'WSL', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } },
+			{ name: 'Tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'laptop', clusterId: 'usw2' } },
+			undefined,
+		];
+		assert.deepStrictEqual(entries.map(entry => {
+			const address = getCopyableRemoteAddress(entry);
+			const preferenceKey = entry?.connection.type === RemoteAgentHostEntryType.SSH ? 'ssh:build' : undefined;
+			const copy = buildRemoteHostOptionItems({ address: 'localhost:4321', preferenceKey, copyableAddress: address, isConnected: true, canRemove: false, disconnectLabel: 'Disconnect' }).find(item => item.id === 'copy')?.label;
+			return { address, copy };
+		}), [
+			{ address: 'build', copy: '$(copy) Copy SSH Address' },
+			{ address: 'user@host.example.com:2222', copy: '$(copy) Copy SSH Address' },
+			{ address: 'user@host.example.com', copy: '$(copy) Copy SSH Address' },
+			{ address: 'host.example.com', copy: '$(copy) Copy SSH Address' },
+			{ address: '10.0.0.5:8089', copy: '$(copy) Copy Connection Address' },
+			{ address: undefined, copy: undefined },
+			{ address: undefined, copy: undefined },
+			{ address: undefined, copy: undefined },
+		]);
 	});
 
 	test('externally owned inventory cannot be removed or disconnected through the removal fallback', async () => {
@@ -117,7 +149,7 @@ suite('remoteHostOptions', () => {
 		// statuses so the workspace picker can visually call it out.
 		assert.notStrictEqual(incompatibleLabel, getStatusLabel(RemoteAgentHostConnectionStatus.disconnected));
 	});
-	test('getStatusHover surfaces the host-supplied message for incompatible status', () => {
+	test('incompatible picker hovers point to troubleshooting rather than exposing protocol diagnostics', () => {
 		const status = RemoteAgentHostConnectionStatus.incompatible(
 			'Client offered protocol versions [0.1.0], but this server only supports 0.2.0.',
 			['0.1.0'],
@@ -125,16 +157,16 @@ suite('remoteHostOptions', () => {
 		);
 
 		const hover = getStatusHover(status, 'host.example:1234');
-		assert.ok(hover.includes('0.1.0'), 'hover should mention the offered version');
-		assert.ok(hover.includes('only supports 0.2.0'), 'hover should include the host-supplied message');
-		assert.ok(hover.includes('host.example:1234'), 'hover should include the address when provided');
+		assert.deepStrictEqual({ label: getStatusLabel(status), hover }, {
+			label: 'Update required',
+			hover: 'Open Remote Environments to troubleshoot the connection and check for updates.\n\nAddress: host.example:1234',
+		});
 	});
 
 	test('getStatusHover omits the address line when address is undefined', () => {
 		const status = RemoteAgentHostConnectionStatus.incompatible('Some reason', ['0.1.0']);
 		const hover = getStatusHover(status);
-		assert.ok(hover.includes('Some reason'));
-		assert.ok(!hover.includes('Address'), 'hover should not include an address line when none is given');
+		assert.strictEqual(hover, 'Open Remote Environments to troubleshoot the connection and check for updates.');
 	});
 
 	test('upgrade reconnect status ignores a passive disconnect', () => {
@@ -170,6 +202,16 @@ suite('remoteHostOptions', () => {
 	});
 
 	suite('buildRemoteHostOptionItems', () => {
+		test('keeps state and copy actions first and removal last', () => {
+			const items = buildRemoteHostOptionItems({
+				address: 'tunnel:my-host', isConnected: true, disconnectLabel: 'Disconnect',
+				copyableAddress: 'host:1234', upgradeMethod: 'cli', isWebPlatform: false,
+			});
+			assert.deepStrictEqual(items.map(item => item.id), [
+				'disconnect', 'copy', 'rename', 'settings', 'locationPreference', 'upgrade', 'remove',
+			]);
+		});
+
 		test('offers Rename for connected and disconnected hosts on desktop and web', () => {
 			for (const isWebPlatform of [false, true]) {
 				for (const isConnected of [false, true]) {
@@ -208,7 +250,6 @@ suite('remoteHostOptions', () => {
 			assert.ok(!items.some(item => item.id === 'locationPreference'));
 			// The other actions are unaffected by platform.
 			assert.ok(items.some(item => item.id === 'remove'));
-			assert.ok(items.some(item => item.id === 'copy'));
 			assert.ok(items.some(item => item.id === 'settings'));
 		});
 
@@ -219,7 +260,6 @@ suite('remoteHostOptions', () => {
 			assert.ok(items.some(item => item.id === 'locationPreference'));
 			// Always-present items remain regardless of preference support.
 			assert.ok(items.some(item => item.id === 'remove'));
-			assert.ok(items.some(item => item.id === 'copy'));
 			// An aliased SSH host is authored in ~/.ssh/config, not settings.
 			assert.ok(items.some(item => item.id === 'sshConfig'));
 		});
@@ -270,6 +310,7 @@ suite('remoteHostOptions', () => {
 				},
 			});
 			instantiationService.stub(IRemoteAgentHostService, {
+				getEntryByAddress: () => undefined,
 				setDisplayName: (address, name) => {
 					if (fail) {
 						throw new Error('Storage unavailable');
@@ -397,6 +438,7 @@ suite('remoteHostOptions', () => {
 			const reconnectCalls: string[] = [];
 			const service: Partial<IRemoteAgentHostService> = {
 				reconnect: (address: string) => { reconnectCalls.push(address); },
+				waitForConnection: async address => ({ address, name: address, status: RemoteAgentHostConnectionStatus.connected }),
 			};
 			return { service: service as IRemoteAgentHostService, reconnectCalls };
 		}
@@ -567,6 +609,54 @@ suite('remoteHostOptions', () => {
 			assert.strictEqual(errorMessages.length, 1);
 			assert.ok(errorMessages[0].includes('my-host-alias'));
 			assert.ok(errorMessages[0].includes('boom'));
+		});
+
+		test('a resolved connect callback cannot report success when the authoritative connection failed', async () => {
+			const { service: locationPreferenceService, getStored } = createLocationPreferenceService();
+			const { service: notificationService, infoMessages, errorMessages } = createNotificationService();
+			const { service: progressService } = createProgressService();
+			const remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
+				override async waitForConnection(): Promise<IRemoteAgentHostConnectionInfo> { throw new Error('Authentication denied'); }
+			}();
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override readonly remoteAddress = 'ssh:build';
+				override async connect() { }
+			}();
+			await changeRemoteAgentHostLocationPreference({
+				preferenceKey: 'ssh:build', hostLabel: 'Build', productName: 'Code - OSS', provider,
+				dialogService: acceptDialogService('dedicated'), locationPreferenceService,
+				notificationService, remoteAgentHostService, progressService,
+			});
+			assert.deepStrictEqual({ preference: getStored(), infoMessages, errorMessages }, {
+				preference: 'dedicated', infoMessages: [],
+				errorMessages: ['Preference saved for Build, but reconnection failed: Authentication denied'],
+			});
+		});
+
+		test('waits for the authoritative connection before reporting a saved choice as reconnected', async () => {
+			const { service: locationPreferenceService, getStored } = createLocationPreferenceService();
+			const connected = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+			const waiting = new DeferredPromise<void>();
+			const remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
+				override waitForConnection(address: string) {
+					void waiting.complete();
+					assert.strictEqual(address, 'ssh:build');
+					return connected.p;
+				}
+			}();
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override readonly remoteAddress = 'ssh:build';
+				override async connect() { }
+			}();
+			let result: 'saved' | 'reconnected' | undefined;
+			const applying = applyRemoteAgentHostLocationPreference({
+				preferenceKey: 'ssh:build', hostLabel: 'Build', provider, locationPreferenceService, remoteAgentHostService,
+			}, 'editor').then(value => { result = value; });
+			await waiting.p;
+			const pending = { preference: getStored(), result };
+			await connected.complete({ address: 'ssh:build', name: 'Build', status: RemoteAgentHostConnectionStatus.connected });
+			await applying;
+			assert.deepStrictEqual({ pending, result }, { pending: { preference: 'editor', result: undefined }, result: 'reconnected' });
 		});
 
 		test('no-provider fallback: persists the preference, shows a warning, and never reconnects', async () => {

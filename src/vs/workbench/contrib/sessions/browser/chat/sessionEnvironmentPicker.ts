@@ -17,7 +17,7 @@ import { IMenuService, MenuItemAction } from '../../../../../platform/actions/co
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IExtensionRemoteAgentHostsService, toExtensionRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type RemoteAgentHostConnection } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type RemoteAgentHostConnection } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -51,24 +51,31 @@ export interface ISessionCreationEnvironment {
 	readonly icon: ThemeIcon;
 	readonly providerIds: readonly string[];
 	readonly description?: string;
+	readonly hover?: string;
 }
 
 export function getSessionCreationEnvironments(providers: readonly ISessionsProvider[]): ISessionCreationEnvironment[] {
 	// Container-backed providers are offered as the Dev Container option of their source environment, not as separate environments.
 	const visible = providers.filter(provider => provider.supportsWorkspaceSelection !== false
-		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false && !provider.devContainerSourceWorkspace));
+		&& (!isAgentHostProvider(provider) || isAgentHostEnvironmentAvailable(provider) && provider.isVisibleInEnvironmentPicker?.get() !== false && !provider.devContainerSourceWorkspace));
 	const local = visible.filter(provider => provider.environment.id === 'local');
 	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider) && provider.sessionTypes.length > 0);
 	const environments: ISessionCreationEnvironment[] = [];
 	if (local.length) {
-		environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });
+		environments.push({
+			id: 'local', kind: 'local', label: localize('environmentPicker.local', "This computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id),
+			hover: localize('environmentPicker.localHover', "Run this session directly on this computer"),
+		});
 	}
 	if (cloud.length) {
-		environments.push({ id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id) });
+		environments.push({
+			id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id),
+			hover: localize('environmentPicker.cloudHover', "Run this session in a cloud environment, not on this computer"),
+		});
 	}
 	for (const provider of visible) {
 		const environment = getRemoteSessionCreationEnvironment(provider);
-		if (environment) {
+		if (environment && isRemoteSessionCreationEnvironment(provider) && RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.get())) {
 			environments.push(environment);
 		}
 	}
@@ -313,9 +320,9 @@ export class SessionEnvironmentPicker extends Disposable {
 	private getEnvironmentHover(environment: ISessionCreationEnvironment, escape: (text: string) => string): string {
 		switch (environment.kind) {
 			case 'local':
-				return localize('environmentPicker.localHover', "Run this session directly on this computer");
+				return environment.hover ?? localize('environmentPicker.localHover', "Run this session directly on this computer");
 			case 'cloud':
-				return localize('environmentPicker.cloudHover', "Run this session in the cloud on GitHub");
+				return environment.hover ?? localize('environmentPicker.cloudHover', "Run this session in a cloud environment, not on this computer");
 			case 'container':
 				return localize('environmentPicker.containerHover', "Run this session in a dev container for the selected folder");
 			case 'remote': {
@@ -331,7 +338,7 @@ export class SessionEnvironmentPicker extends Disposable {
 					case RemoteAgentHostEntryType.SSH:
 						return localize('environmentPicker.sshHover', "Run this session on {0} over SSH", label);
 					case RemoteAgentHostEntryType.Tunnel:
-						return localize('environmentPicker.tunnelHover', "Run this session on {0} through a dev tunnel", label);
+						return localize('environmentPicker.tunnelHover', "Run this session on {0} through a Dev Tunnel", label);
 					case RemoteAgentHostEntryType.WSL:
 						return localize('environmentPicker.wslHover', "Run this session on {0} in WSL", label);
 					case RemoteAgentHostEntryType.Extension:

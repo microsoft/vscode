@@ -9,7 +9,7 @@ import { $, addDisposableListener, append, EventType } from '../../../../../base
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { DeferredPromise, raceCancellationError, retry, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, errorHandler, isCancellationError } from '../../../../../base/common/errors.js';
 import { createErrorWithActions, isErrorWithActions } from '../../../../../base/common/errorMessage.js';
@@ -54,6 +54,7 @@ import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/c
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IProgressOptions } from '../../../../../platform/progress/common/progress.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { IUsersClient, User } from '../../../../../platform/github/common/core/users.js';
@@ -1387,6 +1388,8 @@ suite('NewChatWidget', () => {
 				return value;
 			};
 			const harness = {
+				_environmentSelectionVersion: 0,
+				_connectEnvironment: async () => true,
 				_savedDraftComposer: undefined as { cancelRecovery(): void } | undefined,
 				_savedDraftTargetUnavailable: observableValue('unavailable', false),
 				_environment: derived(reader => picked.read(reader) ?? local),
@@ -1436,6 +1439,17 @@ suite('NewChatWidget', () => {
 			await select(cloud);
 			assert.deepStrictEqual({ firstAction: calls[0], unavailable: harness._savedDraftTargetUnavailable.get(), environment: harness._pickedEnvironment.get()?.id }, {
 				firstAction: 'cancelRecovery', unavailable: false, environment: 'cloud',
+			});
+		});
+
+		test('a failed environment connection preserves saved draft recovery and its unavailable target', async () => {
+			const { harness, calls, select } = createHarness(true);
+			harness._connectEnvironment = async () => false;
+			harness._savedDraftComposer = { cancelRecovery: () => { calls.push('cancelRecovery'); } };
+			harness._savedDraftTargetUnavailable.set(true, undefined);
+			await select(cloud);
+			assert.deepStrictEqual({ calls, unavailable: harness._savedDraftTargetUnavailable.get(), environment: harness._pickedEnvironment.get() }, {
+				calls: [], unavailable: true, environment: undefined,
 			});
 		});
 
@@ -1512,13 +1526,16 @@ suite('NewChatWidget', () => {
 
 		test('does not announce or open the workspace picker for a superseded destination after late draft creation', async () => {
 			const pending = new DeferredPromise<void>();
+			const creating = new DeferredPromise<void>();
 			let selections = 0;
 			const { harness, calls, select } = createHarness(true, async () => {
 				if (++selections === 1) {
+					await creating.complete();
 					await pending.p;
 				}
 			});
 			const first = select(cloud);
+			await creating.p;
 			await select(local);
 			await pending.complete();
 			await first;
@@ -1562,7 +1579,19 @@ suite('NewChatWidget', () => {
 			};
 			const targetHarness = { sessionsManagementService: management };
 			const handleClear = Reflect.get(NewChatWidget.prototype, '_onWorkspaceSelected') as (this: NewChatWidget, folderUri: URI | undefined) => Promise<void>;
+			const failedTunnel = {
+				id: tunnel.id,
+				connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
+				connect: async () => { throw new Error('tunnel relay connect timed out after 30000ms'); },
+			};
+			const remoteProviders = [remote, jobs].map(environment => ({
+				id: environment.id,
+				connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
+			}));
 			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_store: disposables,
+				_environmentSelectionVersion: 0,
+				_environmentSelection: disposables.add(new MutableDisposable<IDisposable>()),
 				_environment: picked,
 				_environments: constObservable([local, cloud, container, remote, tunnel, jobs]),
 				_environmentWorkspaces: new Map<string, URI>(),
@@ -1595,12 +1624,9 @@ suite('NewChatWidget', () => {
 				},
 				sessionsManagementService: management,
 				sessionsProvidersService: {
-					getProvider: (id: string) => id === tunnel.id ? {
-						id,
-						connectionStatus: constObservable({ kind: 'disconnected' }),
-						connect: async () => { throw new Error('tunnel relay connect timed out after 30000ms'); },
-					} : undefined,
+					getProvider: (id: string) => id === tunnel.id ? failedTunnel : remoteProviders.find(provider => provider.id === id),
 				},
+				progressService: { withProgress: async (_options: IProgressOptions, task: () => Promise<void>) => task() },
 				_paneSession: session,
 				sessionsService: {
 					activeSession: session,
@@ -1619,7 +1645,7 @@ suite('NewChatWidget', () => {
 				},
 				accessibilityService: { status: (message: string) => announcements.push(message) },
 				logService: { error: (_message: string, error: Error) => errors.push(error.message), trace: (message: string) => traces.push(message) },
-				notificationService: { error: () => { } },
+				notificationService: { error: () => { }, notify: () => { } },
 			});
 			const select = Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (this: NewChatWidget, environment: ISessionCreationEnvironment) => Promise<void>;
 			const restore = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: NewChatWidget) => Promise<void>;
@@ -1667,13 +1693,13 @@ suite('NewChatWidget', () => {
 			});
 		}
 
-		test('recovers This Computer after selecting a failed tunnel without keeping the SSH draft', async () => {
+		test('preserves the SSH draft after a failed tunnel connection and can then select This Computer', async () => {
 			const state = createFolderlessHarness();
 			await state.select(state.tunnel);
 			const afterFailure = state.session.get()?.providerId;
 			await state.select(local);
 			assert.deepStrictEqual({ afterFailure, providerId: state.session.get()?.providerId, errors: state.errors }, {
-				afterFailure: undefined, providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				afterFailure: state.remote.id, providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 				errors: ['tunnel relay connect timed out after 30000ms'],
 			});
 		});
@@ -2955,7 +2981,7 @@ suite('NewChatWidget', () => {
 			}
 			: {
 				ids: ['newSessionWorkspacePicker.quickChat', 'newSessionWorkspacePicker.quickChat'],
-				labels: ['This Computer', 'Test Remote'],
+				labels: ['This computer', 'Test Remote'],
 				icons: [Codicon.vm.id, Codicon.remote.id],
 				selections: [{ providerId: 'agenthost-remote-test' }],
 			});
@@ -3126,10 +3152,10 @@ suite('NewChatWidget', () => {
 		visibility.set(false, undefined);
 		states.push(snapshot());
 
-		const offline = { hosts: ['This Computer', 'Test Remote'], selectedLabel: 'Chat [Old Environment]', isSelected: true };
+		const offline = { hosts: ['This computer', 'Test Remote'], selectedLabel: 'Chat [Old Environment]', isSelected: true };
 		assert.deepStrictEqual(states, isWeb
 			? Array.from({ length: 3 }, () => ({ hosts: undefined, selectedLabel: undefined, isSelected: undefined }))
-			: [offline, { ...offline, hosts: ['This Computer', 'Test Remote', 'Old Environment'] }, offline]);
+			: [offline, { ...offline, hosts: ['This computer', 'Test Remote', 'Old Environment'] }, offline]);
 	});
 
 	for (const hasLocalProvider of [false, true]) {
@@ -3255,7 +3281,7 @@ suite('NewChatWidget', () => {
 		});
 		await option?.submenuActions?.[1].run();
 
-		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['This Computer', 'Test Remote']);
+		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['This computer', 'Test Remote']);
 	});
 
 	test('workspace-less chats do not inherit the previous picker workspace', () => {
@@ -5665,11 +5691,10 @@ suite('NewChatWidget', () => {
 					assert.deepStrictEqual({ notAsking, asking, inPicker, anotherDraft, noProvider }, { notAsking: undefined, asking: 'checkbox', inPicker: 'picker', anotherDraft: undefined, noProvider: undefined });
 				});
 
-				test('ends the question about its draft unanswered only through the control its callout shows on: as that composer shows another draft, or as the control goes with no other control of the draft to show on; other controls do not end it', async () => {
-					const mark = Reflect.get(NewChatWidget.prototype, '_markWorktreeSendChoiceTarget') as (this: object, element: HTMLElement) => IDisposable;
-					const other = URI.parse('agent-host-copilotcli:/untitled-other');
-					const results: Record<string, unknown> = {};
-					for (const how of ['retargetAnchor', 'disposeAnchorAlone', 'disposeAnchorWithOther', 'replaceAnchor', 'retargetOther', 'disposeOther', 'retargetAuxiliary', 'disposeAuxiliary'] as const) {
+				for (const how of ['retargetAnchor', 'disposeAnchorAlone', 'disposeAnchorWithOther', 'replaceAnchor', 'retargetOther', 'disposeOther', 'retargetAuxiliary', 'disposeAuxiliary'] as const) {
+					test(`ends the question about its draft unanswered only through the control its callout shows on (${how})`, async () => {
+						const mark = Reflect.get(NewChatWidget.prototype, '_markWorktreeSendChoiceTarget') as (this: object, element: HTMLElement) => IDisposable;
+						const other = URI.parse('agent-host-copilotcli:/untitled-other');
 						const store = disposables.add(new DisposableStore());
 						// The onboarding service and its spotlight callout, as the workbench has them
 						const configuration = new TestConfigurationService();
@@ -5691,7 +5716,7 @@ suite('NewChatWidget', () => {
 						// Composers of the draft, each with its New Worktree control, one below the other
 						const controls: { readonly name: string; readonly element: HTMLElement; readonly composer: { readonly session: ISettableObservable<ISession | undefined>; control: HTMLElement | undefined }; marker: IDisposable }[] = [];
 						const addControl = (name: string, top: number, composer = { session: observableValue<ISession | undefined>('session', upcastPartial<ISession>({ resource: draft })), control: undefined as HTMLElement | undefined }, document = mainWindow.document) => {
-							const element = append(document.body, document.createElement('div'));
+							const element = append(document.body, $('div'));
 							element.textContent = name;
 							Object.assign(element.style, { position: 'absolute', left: '100px', top: `${top}px`, width: '120px', height: '20px' });
 							store.add(toDisposable(() => element.remove()));
@@ -5708,10 +5733,14 @@ suite('NewChatWidget', () => {
 						};
 						const first = addControl('first', 200);
 						// Or, as in an auxiliary window, a composer of the draft in another document, which the callout never shows on
-						const auxiliary = how.endsWith('Auxiliary') ? append(mainWindow.document.body, $('iframe')) as HTMLIFrameElement : undefined;
+						const auxiliary = how.endsWith('Auxiliary') ? $('iframe') as HTMLIFrameElement : undefined;
 						if (auxiliary) {
+							const loaded = Event.toPromise(Event.fromDOMEventEmitter(auxiliary, 'load'), store);
+							append(mainWindow.document.body, auxiliary);
 							Object.assign(auxiliary.style, { position: 'absolute', left: '400px', top: '0px', width: '300px', height: '800px' });
 							store.add(toDisposable(() => auxiliary.remove()));
+							await loaded;
+							Object.assign(auxiliary.contentWindow!, { vscodeWindowId: 2 });
 						}
 						const second = how === 'disposeAnchorAlone' || how === 'replaceAnchor' ? undefined : addControl('second', auxiliary ? 600 : 300, undefined, auxiliary?.contentDocument ?? undefined);
 						const callout = () => mainWindow.document.querySelector<HTMLElement>('.spotlight-callout');
@@ -5726,10 +5755,17 @@ suite('NewChatWidget', () => {
 							return controls.find(control => control.element.isConnected && control.element.ownerDocument === mainWindow.document && (({ top, bottom }) => y >= top && y <= bottom)(control.element.getBoundingClientRect()))?.name;
 						};
 
+						const shown = Event.toPromise(provider.onDidShowSendChoice, store);
 						const asking = provider.requestSendChoice(draft);
-						await retry(async () => assert.ok(anchor()), 20, 50);
+						await Promise.race([shown, asking]);
+						assert.ok(anchor());
 						const before = anchor();
 						const target = (how === 'retargetOther' || how === 'disposeOther' || how.endsWith('Auxiliary')) && second ? second : first;
+						const expected = how === 'replaceAnchor' ? 'replacement' : how === 'disposeAnchorWithOther' ? 'second' : undefined;
+						const shownAgain = expected ? Event.toPromise(provider.onDidShowSendChoice, store) : undefined;
+						const hole = mainWindow.document.querySelector<HTMLElement>('.spotlight-hole')!;
+						// Exercise the transition even when the host prefers reduced motion.
+						hole.style.transition = 'top 0.2s ease';
 						if (how.startsWith('retarget')) {
 							// Its composer shows another draft, as the user picks another workspace
 							target.composer.session.set(upcastPartial<ISession>({ resource: other }), undefined);
@@ -5741,32 +5777,34 @@ suite('NewChatWidget', () => {
 							target.marker.dispose();
 							target.element.remove();
 						}
-						await timeout(0);
-						const expected = how === 'replaceAnchor' ? 'replacement' : how === 'disposeAnchorWithOther' ? 'second' : undefined;
-						if (expected) {
+						if (how === 'retargetAnchor' || how === 'disposeAnchorAlone') {
+							await asking;
+						} else if (expected) {
 							// The callout shows again on it, once it finds its control gone
-							await retry(async () => assert.strictEqual(anchor(), expected), 20, 50);
+							await Promise.race([shownAgain!, asking]);
+							await Promise.all(hole.getAnimations().map(animation => animation.finished));
+							assert.strictEqual(anchor(), expected);
 						}
 						const live = { asking: extUri.isEqual(provider.pendingSendChoice.get(), draft), anchor: anchor() };
 						// A callout that still shows is answered
 						Array.from(callout()?.querySelectorAll<HTMLElement>('.monaco-button') ?? []).find(button => button.textContent === 'Use New Worktree')?.click();
-						results[how] = { before, live, answer: await asking, callout: !!callout() };
+						const result = { before, live, answer: await asking, callout: !!callout() };
 						store.dispose();
-					}
 
-					const ended = { before: 'first', live: { asking: false, anchor: undefined }, answer: undefined, callout: false };
-					const keptOn = (anchor: string) => ({ before: 'first', live: { asking: true, anchor }, answer: 'worktree', callout: false });
-					assert.deepStrictEqual(results, {
-						retargetAnchor: ended,
-						disposeAnchorAlone: ended,
-						disposeAnchorWithOther: keptOn('second'),
-						replaceAnchor: keptOn('replacement'),
-						retargetOther: keptOn('first'),
-						disposeOther: keptOn('first'),
-						retargetAuxiliary: keptOn('first'),
-						disposeAuxiliary: keptOn('first'),
+						const ended = { before: 'first', live: { asking: false, anchor: undefined }, answer: undefined, callout: false };
+						const keptOn = (anchor: string) => ({ before: 'first', live: { asking: true, anchor }, answer: 'worktree', callout: false });
+						assert.deepStrictEqual(result, {
+							retargetAnchor: ended,
+							disposeAnchorAlone: ended,
+							disposeAnchorWithOther: keptOn('second'),
+							replaceAnchor: keptOn('replacement'),
+							retargetOther: keptOn('first'),
+							disposeOther: keptOn('first'),
+							retargetAuxiliary: keptOn('first'),
+							disposeAuxiliary: keptOn('first'),
+						}[how]);
 					});
-				});
+				}
 
 				test('the callout shows on the control of its draft that is visible in the window of the workbench, also where a control in an auxiliary window or a hidden one registered first', async () => {
 					const mark = Reflect.get(NewChatWidget.prototype, '_markWorktreeSendChoiceTarget') as (this: object, element: HTMLElement) => IDisposable;
@@ -5791,7 +5829,7 @@ suite('NewChatWidget', () => {
 						const instantiationService = targetInstantiationService(store);
 						const session = observableValue<ISession | undefined>('session', upcastPartial<ISession>({ resource: draft }));
 						const addControl = (document: Document, style: Partial<CSSStyleDeclaration>) => {
-							const element = append(document.body, document.createElement('div'));
+							const element = append(document.body, $('div'));
 							Object.assign(element.style, { position: 'absolute', left: '100px', width: '120px', height: '20px', ...style });
 							store.add(toDisposable(() => element.remove()));
 							store.add(mark.call({ worktreeSendChoiceService, instantiationService, _session: session, _getWorktreeSendChoiceControl: () => element }, element));
@@ -5800,9 +5838,12 @@ suite('NewChatWidget', () => {
 
 						// First, a control of the draft that the callout cannot show on: in an auxiliary window, or hidden
 						if (first === 'auxiliary') {
-							const auxiliary = append(mainWindow.document.body, $('iframe')) as HTMLIFrameElement;
+							const auxiliary = $('iframe') as HTMLIFrameElement;
+							const loaded = Event.toPromise(Event.fromDOMEventEmitter(auxiliary, 'load'), store);
+							append(mainWindow.document.body, auxiliary);
 							Object.assign(auxiliary.style, { position: 'absolute', left: '400px', top: '0px', width: '300px', height: '400px' });
 							store.add(toDisposable(() => auxiliary.remove()));
+							await loaded;
 							// As the workbench's auxiliary windows are
 							Object.assign(auxiliary.contentWindow!, { vscodeWindowId: 2 });
 							addControl(auxiliary.contentDocument!, { top: '100px' });
@@ -5821,14 +5862,10 @@ suite('NewChatWidget', () => {
 							return y >= top && y <= bottom;
 						};
 
+						const didShow = Event.toPromise(provider.onDidShowSendChoice, store);
 						const asking = provider.requestSendChoice(draft);
-						let anchored = false;
-						try {
-							await retry(async () => assert.ok(onShown()), 20, 50);
-							anchored = true;
-						} catch {
-							// It never showed on the visible control of the workbench's window
-						}
+						await Promise.race([didShow, asking]);
+						const anchored = onShown();
 						Array.from(callout()?.querySelectorAll<HTMLElement>('.monaco-button') ?? []).find(button => button.textContent === 'Use New Worktree')?.click();
 						if (!anchored) {
 							provider.cancelSendChoice(draft);

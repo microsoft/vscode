@@ -914,7 +914,7 @@ export interface IAgentHostManagementService {
 	/** Replaces parent-owned execution credentials through trusted local IPC; an empty list revokes them without client fallback. */
 	setHostExecutionCredentials(credentials: readonly AuthenticateParams[]): Promise<void>;
 	/** Opt-in Mission Control ingress; failures are explicit data so structured causes survive trusted local IPC. */
-	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void | { readonly error: IConnectionDiagnosticError }>;
+	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string, deleteRegistration?: boolean): Promise<void | { readonly error: IConnectionDiagnosticError }>;
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;
 	getMissionControlEnvironmentId(): Promise<string | undefined>;
 	getMissionControlEnvironmentName(): Promise<string | undefined>;
@@ -1663,7 +1663,7 @@ export interface IAgentHostService extends IAgentConnection {
 	/** Available only through local native management IPC; does not create a chat or enable sandboxing. */
 	manageHostSandboxCertificate?(provider: AgentProvider, operation: AgentSandboxCertificateOperation): Promise<void>;
 	/** Available only through the local native Agent Host management connection. */
-	configureMissionControl?(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
+	configureMissionControl?(options: IMissionControlOptions | undefined, withdrawingAccountId?: string, deleteRegistration?: boolean): Promise<void>;
 	sealMissionControlCredential?(request: IMissionControlCredentialSealingRequest): Promise<string>;
 	getMissionControlEnvironmentId?(): Promise<string | undefined>;
 	getMissionControlEnvironmentName?(): Promise<string | undefined>;
