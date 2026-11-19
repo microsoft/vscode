@@ -24,6 +24,7 @@ import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isWeb, regionalLocale } from '../../../../../../base/common/platform.js';
+import { isLinuxWebKit } from '../../../../../../base/test/browser/linuxWebKit.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -14981,7 +14982,8 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	suite('generated image preview loading', () => {
+	// WebKit on Linux (Playwright's port) can't decode the embedded image, unlike Chromium and WebKit on macOS
+	(isLinuxWebKit ? suite.skip : suite)('generated image preview loading', () => {
 		const imageData = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=';
 
 		function createImageTool(toolId: string, requestId: string) {
@@ -16134,7 +16136,8 @@ suite('ChatListRenderer', () => {
 		}
 
 		for (const complete of [false, true]) {
-			test(`coalesces working progress updates from a burst of tool activity (complete=${complete})`, async () => {
+			// In WebKit on Linux (Playwright's port), the burst can take two frames to coalesce, unlike Chromium and WebKit on macOS
+			(isLinuxWebKit && !complete ? test.skip : test)(`coalesces working progress updates from a burst of tool activity (complete=${complete})`, async () => {
 				let progressLookups = 0;
 				const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
 				const chatWidgetService = new class extends MockChatWidgetService {
