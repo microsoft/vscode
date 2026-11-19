@@ -5,9 +5,9 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, runOnChange, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, runOnChange, waitForState } from '../../../../../base/common/observable.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
@@ -37,7 +37,11 @@ import { IEditorWindowChatPartService } from '../agentsView/agentsChatPartContri
 import { IEditorWindowPresentedChat, IEditorWindowPresenterOpenOptions, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { shouldRevealSessionEditor } from '../../../chat/browser/agentSessions/agentSessionsOpener.js';
 import { INewSessionTarget } from '../parts/chatView.js';
-import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { EditorsOrder } from '../../../../common/editor.js';
+import { ChatEditorInput } from '../../../chat/browser/widgetHosts/editor/chatEditorInput.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ShownChatReadMarker } from '../shownChatReadMarker.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
@@ -78,11 +82,11 @@ const CHAT_VIEW_ANCHOR_PRIORITY = 1;
 /** Shows the chats of sessions as editors in the editor area, while the setting is `editorArea`; an open one is revealed. */
 class EditorAreaSessionsPresenter implements IEditorWindowSessionsPresenter {
 
-	readonly activeChat: IObservable<IEditorWindowPresentedChat | undefined> = constObservable(undefined);
-
 	constructor(
+		readonly activeChat: IObservable<IEditorWindowPresentedChat | undefined>,
 		private readonly _chatWidgetService: IChatWidgetService,
 		private readonly _chatViewHostService: IChatViewHostService,
+		private readonly _editorService: IEditorService,
 	) { }
 
 	async openChat(session: ISession, chatResource: URI | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
@@ -95,10 +99,12 @@ class EditorAreaSessionsPresenter implements IEditorWindowSessionsPresenter {
 		await this._chatViewHostService.newChat(aimed, { ownChat: true, preserveFocus: options?.preserveFocus });
 	}
 
-	async closeChat(): Promise<void> { }
+	async closeChat(chatResource: URI): Promise<void> {
+		await this._editorService.closeEditors(this._editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor instanceof ChatEditorInput && isEqual(editor.sessionResource, chatResource)));
+	}
 
-	isShowing(): boolean {
-		return false;
+	isShowing(chatResource: URI): boolean {
+		return this._editorService.getEditors(EditorsOrder.SEQUENTIAL).some(({ editor }) => editor instanceof ChatEditorInput && isEqual(editor.sessionResource, chatResource));
 	}
 
 	focus(): void {
@@ -129,6 +135,8 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IEditorWindowShownChatService private readonly _shownChatService: IEditorWindowShownChatService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IEditorWindowSessionsPresenterService presenterService: IEditorWindowSessionsPresenterService,
 	) {
 		super();
@@ -146,10 +154,40 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		// As configured: its setting, with the sessions side by side (not the width-based layout)
 		const configured = derived(this, reader => openChatIn.read(reader) === ChatViewSessionsOpenChatIn.ChatArea && orientation.read(reader) !== 'stacked');
 		const enabled = derived(this, reader => configured.read(reader) && chatAvailable.read(reader));
+		// The chat of the active chat editor, with its session
+		const activeEditor = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorService.activeEditor);
+		const sessionsChanged = observableSignalFromEvent(this, this._sessionsManagementService.onDidChangeSession);
+		const editorChat = derived(this, reader => {
+			const editor = activeEditor.read(reader);
+			const resource = editor instanceof ChatEditorInput ? editor.sessionResource : undefined;
+			sessionsChanged.read(reader);
+			return resource && this._sessionsManagementService.getSessionForChatResource(resource);
+		});
 		this._register(autorun(reader => {
 			// Not over the presenter of the chat part, which the Agents viewlet enables: its chats open there
 			if (openChatIn.read(reader) === ChatViewSessionsOpenChatIn.EditorArea && chatAvailable.read(reader) && !this._chatPartService.enabled.read(reader)) {
-				reader.store.add(presenterService.registerPresenter(new EditorAreaSessionsPresenter(this._chatWidgetService, this._chatViewHostService)));
+				reader.store.add(presenterService.registerPresenter(new EditorAreaSessionsPresenter(editorChat, this._chatWidgetService, this._chatViewHostService, this._editorService)));
+				// The window shows the chat of the active chat editor, in place of the chat of the Chat view while there is one
+				const shown = derived(this, reader => {
+					const chat = editorChat.read(reader);
+					if (chat) {
+						return chat;
+					}
+					const shownSession = this._chatViewHostService.shownSession.read(reader);
+					sessionsChanged.read(reader);
+					return shownSession && this._sessionsManagementService.getSessionForChatResource(shownSession.resource);
+				});
+				reader.store.add(this._shownChatService.bind(shown, { override: true, priority: 1 }));
+				// A chat that shows in an editor is read, as one that shows in the Chat view is
+				const readMarker = new ShownChatReadMarker(this._sessionsManagementService, extUri);
+				reader.store.add(autorun(reader => {
+					const chat = editorChat.read(reader);
+					if (chat) {
+						readMarker.update(chat.session, chat.chat, reader);
+					} else {
+						readMarker.reset();
+					}
+				}));
 			}
 		}));
 		this._register(this._chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled }));

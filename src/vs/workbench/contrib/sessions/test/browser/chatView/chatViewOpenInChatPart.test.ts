@@ -32,6 +32,7 @@ import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPa
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
+import { ChatEditorInput } from '../../../../chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ChangesMultiDiffSourceResolver } from '../../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -42,7 +43,7 @@ import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys
 import { isUntitledChatSession, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { IChatRequestVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { IEditorWindowShownChat, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
+import { IEditorWindowShownChat, IEditorWindowShownChatBindOptions, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatConfiguration, ChatViewSessionsOpenChatIn, getDefaultNewChatSessionTypeAndReason } from '../../../../chat/common/constants.js';
 import { NewChatAction } from '../../../../chat/browser/actions/chatNewActions.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../chat/common/chatSessionsService.js';
@@ -139,7 +140,25 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		instantiationService.stub(IEditorWindowSessionsPresenterService, upcastPartial<IEditorWindowSessionsPresenterService>({
 			registerPresenter: presenter => { presenters.push(presenter); return toDisposable(() => presenters.splice(presenters.indexOf(presenter), 1)); },
 		}));
+		// The chat editors that are open, the active one last, with the chat they show
+		const chatEditors: { editor: ChatEditorInput }[] = [];
+		const closedEditors: string[] = [];
+		const activeEditorChanged = store.add(new Emitter<void>());
+		const chatOfResource = (resource: URI) => upcastPartial<IEditorWindowShownChat>({ session: upcastPartial<ISession>({ mainChat: constObservable(upcastPartial<IChat>({ resource })), loading: constObservable(true) }), chat: upcastPartial<IChat>({ resource, isRead: constObservable(true) }) });
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+			onDidActiveEditorChange: activeEditorChanged.event,
+			get activeEditor() { return chatEditors.at(-1)?.editor; },
+			getEditors: () => chatEditors.map(({ editor }) => ({ editor, groupId: 1 })),
+			closeEditors: async editors => { closedEditors.push(...editors.map(({ editor }) => (editor as ChatEditorInput).sessionResource!.path)); },
+		}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSession: Event.None,
+			getSessionForChatResource: chatOfResource,
+			markRead: async () => true,
+		}));
+		const bindings: { shown: IObservable<IEditorWindowShownChat | undefined>; options: IEditorWindowShownChatBindOptions | undefined }[] = [];
 		instantiationService.stub(IEditorWindowShownChatService, upcastPartial<IEditorWindowShownChatService>({
+			bind: (shown, bindOptions) => { bindings.push({ shown, options: bindOptions }); return toDisposable(() => bindings.splice(bindings.findIndex(binding => binding.shown === shown), 1)); },
 			shown: derived(reader => {
 				const resource = shown.part.read(reader);
 				return resource && upcastPartial<IEditorWindowShownChat>({ session: upcastPartial<ISession>({ status: constObservable(isUntitledChatSession(resource) ? SessionStatus.Untitled : SessionStatus.Completed) }), chat: upcastPartial<IChat>({ resource }) });
@@ -220,7 +239,15 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			// The handover runs once the hosts changed
 			await timeout(0);
 		};
-		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer, presenters, editorOpens };
+		const activateChatEditor = (resource: URI | undefined) => {
+			if (!resource) {
+				chatEditors.length = 0;
+			} else {
+				chatEditors.push({ editor: Object.assign(Object.create(ChatEditorInput.prototype) as ChatEditorInput, { _sessionResource: resource }) });
+			}
+			activeEditorChanged.fire();
+		};
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer, presenters, editorOpens, bindings, closedEditors, activateChatEditor };
 	}
 
 	test('editorArea opens the chats of sessions as editors, revealing one that is open, and does not use the chat part', async () => {
@@ -242,6 +269,30 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			editorArea: { presenters: 1, chatPartOn: false, opens: ['/session-1 active true', '/session-1 side false'] },
 			chatArea: { presenters: 0, chatPartOn: true, opens: [] },
 			chatPanel: { presenters: 0, chatPartOn: false, opens: [] },
+		});
+	});
+
+	test('editorArea shows the chat of the active chat editor as the window chat, and closes the editors of a chat', () => {
+		const first = URI.parse('agent-host-copilot:/session-1');
+		const second = URI.parse('agent-host-copilot:/session-2');
+		const fixture = setup({ chatOpenIn: 'editorArea', chatViewShows: URI.parse('agent-host-copilot:/in-chat-view') });
+		const shown = () => fixture.bindings.at(-1)?.shown.get()?.chat.resource.path;
+		const states = [shown()];
+		fixture.activateChatEditor(first);
+		states.push(shown());
+		fixture.activateChatEditor(undefined);
+		states.push(shown());
+		fixture.activateChatEditor(first);
+		fixture.activateChatEditor(second);
+		states.push(shown());
+		return fixture.presenters[0].closeChat(first).then(() => {
+			assert.deepStrictEqual({ states, options: fixture.bindings.map(binding => binding.options), isShowingFirst: fixture.presenters[0].isShowing(first), isShowingSecond: fixture.presenters[0].isShowing(second), closed: fixture.closedEditors }, {
+				states: ['/in-chat-view', '/session-1', '/in-chat-view', '/session-2'],
+				options: [{ override: true, priority: 1 }],
+				isShowingFirst: true,
+				isShowingSecond: true,
+				closed: ['/session-1'],
+			});
 		});
 	});
 
