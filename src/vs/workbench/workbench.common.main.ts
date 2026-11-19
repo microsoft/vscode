@@ -242,7 +242,7 @@ import './contrib/mcp/browser/mcp.contribution.js';
 import './contrib/mcp/browser/mcp.view.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/sessions/browser/editorWindow/editorWindowSessions.contribution.js';
-import './contrib/sessionChanges/browser/changesPicker.contribution.js';
+import './contrib/sessionChanges/browser/sessionChanges.contribution.js';
 import './contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanup.contribution.js';
 import './contrib/sessions/browser/chatView/chatViewOpenInChatPart.contribution.js';
 import './contrib/sessions/providers/agentsView/browser/agentsViewProviders.contribution.js';

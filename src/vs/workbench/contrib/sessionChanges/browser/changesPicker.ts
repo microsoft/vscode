@@ -7,13 +7,13 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
 import { Menus } from '../../sessions/browser/menus.js';
 import { getActiveSessionChanges, IChangesEditorScope, IChangesViewService } from '../../sessions/common/changesViewService.js';
-import { ChangesPickerActionItem, ChangesPickerSummary, createChangesPickerLabelObservable, createChangesSessionScope, IChangesPickerLabel, VERSIONS_PICKER_ACTION_ID, VersionsPickerAction } from './changesView.js';
+import { ChangesPickerActionItem, ChangesPickerSummary, createChangesPickerLabelObservable, createChangesSessionScope, IChangesPickerLabel, VERSIONS_PICKER_ACTION_ID } from './changesView.js';
 
 /** The summary and label of the active session's changes, which the pickers of the main window share. */
 class ActiveChangesPickerState extends Disposable {
@@ -63,7 +63,7 @@ class ChangesPickerActionItemFactory {
  * Renders the Changes editor's changeset picker in the editor header menu, which the editor part around the Changes editor
  * draws, as in the Agents window, or the Changes editor itself, as in an editor window.
  */
-class ChangesPickerActionViewItemContribution extends Disposable implements IWorkbenchContribution {
+export class ChangesPickerActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.changesEditorHeaderPicker';
 
@@ -89,6 +89,3 @@ class ChangesPickerActionViewItemContribution extends Disposable implements IWor
 		onDidRegister.fire();
 	}
 }
-
-registerWorkbenchContribution2(ChangesPickerActionViewItemContribution.ID, ChangesPickerActionViewItemContribution, WorkbenchPhase.BlockRestore);
-registerAction2(VersionsPickerAction);

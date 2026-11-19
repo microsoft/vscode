@@ -58,7 +58,8 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IMatchEditorOptions, IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
 import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
-import '../../../../../workbench/contrib/sessionChanges/browser/changesPicker.contribution.js';
+// The changeset picker, as the Agents window registers it; the editor window registers the same
+import '../../browser/changesView.contribution.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 suite('SessionChangesEditor empty state layout', () => {

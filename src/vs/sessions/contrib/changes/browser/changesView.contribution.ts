@@ -10,9 +10,9 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { MenuItemAction, registerAction2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { CHANGES_HEADER_ACTIONS_ID, ChangesActionsBarActionViewItem, SetChangesListViewModeAction, SetChangesTreeViewModeAction, ChangesDiffStatsAction, RevealCIChecksAction } from '../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import { CHANGES_HEADER_ACTIONS_ID, ChangesActionsBarActionViewItem, SetChangesListViewModeAction, SetChangesTreeViewModeAction, VersionsPickerAction, ChangesDiffStatsAction, RevealCIChecksAction } from '../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 // The changeset picker of the Changes editor's header, which the editor window registers too
-import '../../../../workbench/contrib/sessionChanges/browser/changesPicker.contribution.js';
+import { ChangesPickerActionViewItemContribution } from '../../../../workbench/contrib/sessionChanges/browser/changesPicker.js';
 import { localize2 } from '../../../../nls.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
@@ -43,6 +43,8 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 }
 
 registerWorkbenchContribution2(ChangesActionViewItemsContribution.ID, ChangesActionViewItemsContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChangesPickerActionViewItemContribution.ID, ChangesPickerActionViewItemContribution, WorkbenchPhase.BlockRestore);
+registerAction2(VersionsPickerAction);
 registerAction2(SetChangesListViewModeAction);
 registerAction2(SetChangesTreeViewModeAction);
 registerAction2(ChangesDiffStatsAction);
