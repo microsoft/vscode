@@ -576,6 +576,19 @@ export class AgentHostStateManager extends Disposable {
 		return this._sessionsWithActiveTurn.size > 0;
 	}
 
+	/** True while a live chat is working, excluding chats blocked on user input. */
+	get hasRunningChats(): boolean {
+		for (const chats of this._sessionsWithActiveTurn.values()) {
+			for (const chat of chats) {
+				const state = this.getChatState(chat);
+				if (state && (chatSummaryFromState(state).status & SessionStatus.InputNeeded) === SessionStatus.InProgress) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	/** The number of chats that currently have an active turn. */
 	get activeTurnCount(): number {
 		let count = 0;

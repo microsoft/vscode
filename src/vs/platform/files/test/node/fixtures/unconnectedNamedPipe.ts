@@ -22,7 +22,11 @@ try {
 		switch (method) {
 			case 'open': {
 				const handle = await provider.open(resource, { create: false });
-				await provider.close(handle);
+				try {
+					await provider.read(handle, 0, new Uint8Array(1), 0, 1);
+				} finally {
+					await provider.close(handle);
+				}
 				break;
 			}
 			case 'readFile':
@@ -31,8 +35,11 @@ try {
 			case 'readFileStream':
 				await consumeStream(provider.readFileStream(resource, {}, CancellationToken.None), () => undefined);
 				break;
+			case 'writeFile':
+				await provider.writeFile(resource, new TextEncoder().encode('A=1'), { create: false, overwrite: true, unlock: false, atomic: false });
+				break;
 			default:
-				assert.fail(`Unexpected read method: ${method}`);
+				assert.fail(`Unexpected method: ${method}`);
 		}
 	}, error => error instanceof Error && toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.Unavailable);
 } finally {

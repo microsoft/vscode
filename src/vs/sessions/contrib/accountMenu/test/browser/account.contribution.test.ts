@@ -4,28 +4,257 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, append } from '../../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Action } from '../../../../../base/common/actions.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IMenu, IMenuService, isIMenuItem, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatPetAccessoryId, ChatPetAccessoryIds, ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { ChatPetAppearanceTarget, ChatPetVariant, IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatPetCustomizationTab } from '../../../../../workbench/contrib/chat/browser/chatPetAchievementsEditorInput.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { ICodexAccountService } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
+import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { getChatGPTRateLimitResetHover, shouldShowAccountPanelSummary } from '../../browser/account.contribution.js';
+import { getChatGPTRateLimitResetHover, shouldShowAccountPanelSummary, TitleBarAccountWidget } from '../../browser/account.contribution.js';
 import { getSessionsChatPetAchievementBadges, SessionsChatPetAchievementBadges } from '../../browser/chatPetAchievementBadges.js';
 
 suite('Sessions - Account Menu', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const [key, keyCode, signedIn, screenReader, disabledSignIn] of [
+		['Enter', 13, false, false, false], [' ', 32, false, true, false],
+		['Enter', 13, true, false, false], [' ', 32, true, true, false],
+		['Enter', 13, false, false, true],
+	] as const) {
+		test(`focuses the profile panel actions with ${key === ' ' ? 'Space' : key} (signed in: ${signedIn}, screen reader: ${screenReader}, sign-in disabled: ${disabledSignIn})`, async () => {
+			const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+			container.style.setProperty('--vscode-focusBorder', '#007acc');
+			container.style.setProperty('--vscode-strokeThickness', '1px');
+			store.add(toDisposable(() => container.remove()));
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IContextKeyService, { contextMatchesRules: () => !disabledSignIn });
+			const executedCommands: string[] = [];
+			instantiationService.stub(ICommandService, {
+				executeCommand: async (id: string) => { executedCommands.push(id); },
+			});
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration('workbench.hover.delay', 10);
+			store.add(configurationService.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IContextMenuService, { onDidShowContextMenu: Event.None });
+			instantiationService.stub(IKeybindingService, new MockKeybindingService());
+			instantiationService.stub(ILayoutService, {
+				activeContainer: container,
+				mainContainer: container,
+				getContainer: () => container,
+				onDidLayoutContainer: Event.None,
+			});
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isScreenReaderOptimized(): boolean { return screenReader; }
+			}());
+			instantiationService.stub(IMarkdownRendererService, {});
+			const hoverService = store.add(instantiationService.createInstance(HoverService));
+			const actionHovers: string[] = [];
+			hoverService.showDelayedHover = options => {
+				if (typeof options.content === 'string') {
+					actionHovers.push(options.content);
+				}
+				return undefined;
+			};
+			instantiationService.stub(IHoverService, hoverService);
+			instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override async getDefaultAccount() { return null; }
+			}());
+			instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+				override readonly onDidChangeSessions = Event.None;
+				override async getSessions() {
+					return signedIn ? [{
+						id: 'test-session',
+						accessToken: 'test-token',
+						account: { id: 'test-account', label: 'Test Account' },
+						scopes: [],
+					}] : [];
+				}
+			}());
+			instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
+				override readonly entitlement = ChatEntitlement.Unknown;
+				override readonly sentiment = { hidden: true };
+				override readonly quotas = {};
+				override readonly onDidChangeEntitlement = Event.None;
+				override readonly onDidChangeSentiment = Event.None;
+				override readonly onDidChangeQuotaExceeded = Event.None;
+				override readonly onDidChangeQuotaRemaining = Event.None;
+			}());
+			instantiationService.stub(ICodexAccountService, new class extends mock<ICodexAccountService>() {
+				override readonly account = { status: 'signedOut' as const };
+				override readonly onDidChangeAccount = Event.None;
+			}());
+			const menuActions = [signedIn ? 'Settings' : 'First Action', 'Second Action'].map((title, index) => instantiationService.createInstance(
+				MenuItemAction, { id: signedIn && index === 0 ? 'workbench.action.openSettings' : `test.action${index}`, title }, undefined, undefined, undefined, undefined,
+			));
+			if (!signedIn) {
+				const signIn = MenuRegistry.getMenuItems(AgentsWindowMenus.AccountMenu)
+					.filter(isIMenuItem)
+					.find(item => item.command.id === 'workbench.action.agenticSignIn');
+				assert.ok(signIn);
+				const command = disabledSignIn ? { ...signIn.command, precondition: ContextKeyExpr.false() } : signIn.command;
+				menuActions.unshift(instantiationService.createInstance(MenuItemAction, command, undefined, undefined, undefined, undefined));
+			}
+			instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+				override createMenu() {
+					return new class extends mock<IMenu>() {
+						override getActions(): [string, MenuItemAction[]][] { return [['test', menuActions]]; }
+						override dispose() { }
+					}();
+				}
+			}());
+			const action = store.add(new Action('sessions.action.titleBarAccountWidget', 'Agents Account and Status'));
+			const actionBar = store.add(new ActionBar(container, {
+				actionViewItemProvider: (action, options) => instantiationService.createInstance(TitleBarAccountWidget, action, options),
+			}));
+			actionBar.push(action);
+			await timeout(0);
+			const button = container.querySelector<HTMLElement>('.sessions-account-titlebar-widget');
+			assert.ok(button);
+			actionBar.focus(0);
+			const focusedActions: (string | null | undefined)[] = [];
+			for (let i = 0; i < 2; i++) {
+				const didRun = Event.toPromise(actionBar.onDidRun);
+				for (const type of ['keydown', 'keyup']) {
+					button.dispatchEvent(new KeyboardEvent(type, { key, keyCode, bubbles: true }));
+				}
+				const result = await didRun;
+				assert.ifError(result.error);
+				const firstAction = mainWindow.document.activeElement;
+				assert.ok(firstAction instanceof HTMLElement);
+				const panelHover = firstAction.closest<HTMLElement>('.sessions-account-titlebar-panel-hover');
+				assert.ok(panelHover);
+				const beforePanel = panelHover.previousElementSibling;
+				const afterPanel = panelHover.nextElementSibling;
+				assert.ok(beforePanel instanceof HTMLElement);
+				assert.ok(afterPanel instanceof HTMLElement);
+				beforePanel.dispatchEvent(new FocusEvent('focus'));
+				assert.ok(panelHover.contains(mainWindow.document.activeElement));
+				afterPanel.dispatchEvent(new FocusEvent('focus'));
+				assert.strictEqual(mainWindow.document.activeElement, panelHover);
+				firstAction.classList.add('focus-visible', 'synthetic-focus');
+				firstAction.focus();
+				firstAction.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+				if (signedIn) {
+					assert.strictEqual(actionHovers.at(-1), 'Manage Copilot Models');
+				}
+				const outline = mainWindow.getComputedStyle(firstAction);
+				assert.deepStrictEqual([outline.outlineStyle, outline.outlineWidth], ['solid', '1px']);
+				focusedActions.push(firstAction.getAttribute('aria-label'));
+				if (!signedIn && !disabledSignIn) {
+					firstAction.classList.remove('focus-visible', 'synthetic-focus');
+					const otherAction = container.querySelector<HTMLElement>('.sessions-account-titlebar-panel-actions .action-label');
+					assert.ok(otherAction);
+					otherAction.focus();
+					otherAction.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+					focusedActions.push(otherAction.getAttribute('aria-label'));
+				}
+				mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', {
+					key: signedIn ? 'ArrowRight' : 'ArrowDown', keyCode: signedIn ? 39 : 40, bubbles: true,
+				}));
+				focusedActions.push(mainWindow.document.activeElement?.getAttribute('aria-label'));
+				if (signedIn) {
+					const focusedAction = mainWindow.document.activeElement;
+					assert.ok(focusedAction instanceof HTMLElement);
+					focusedAction.classList.add('focus-visible');
+					focusedAction.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+					assert.strictEqual(actionHovers.at(-1), 'Settings');
+				}
+				mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+				assert.deepStrictEqual({
+					open: button.classList.contains('menu-visible'),
+					focused: mainWindow.document.activeElement === button,
+				}, { open: false, focused: true });
+			}
+			if (!signedIn && !disabledSignIn) {
+				const didRun = Event.toPromise(actionBar.onDidRun);
+				for (const type of ['keydown', 'keyup']) {
+					button.dispatchEvent(new KeyboardEvent(type, { key, keyCode, bubbles: true }));
+				}
+				await didRun;
+				const signIn = mainWindow.document.activeElement;
+				for (const type of ['keydown', 'keyup']) {
+					signIn?.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true }));
+				}
+				await timeout(0);
+			}
+			const clickButton = () => {
+				for (const type of ['mousedown', 'mouseup', 'click']) {
+					button.dispatchEvent(new MouseEvent(type, { button: 0, bubbles: true, cancelable: true }));
+				}
+			};
+			clickButton();
+			assert.deepStrictEqual({
+				focusedActions,
+				pointerOpened: button.classList.contains('menu-visible'),
+				pointerFocus: mainWindow.document.activeElement?.classList.contains('monaco-hover'),
+				executedCommands,
+			}, {
+				focusedActions: signedIn
+					? ['Manage Copilot Models', 'Settings', 'Manage Copilot Models', 'Settings']
+					: disabledSignIn
+						? ['First Action', 'Second Action', 'First Action', 'Second Action']
+						: ['Sign in with GitHub', 'First Action', 'Second Action', 'Sign in with GitHub', 'First Action', 'Second Action'],
+				pointerOpened: true,
+				pointerFocus: true,
+				executedCommands: signedIn || disabledSignIn ? [] : ['workbench.action.agenticSignIn'],
+			});
+			clickButton();
+			assert.strictEqual(button.classList.contains('menu-visible'), false);
+			clickButton();
+			const pointerPanelAction = container.querySelector<HTMLElement>('.sessions-account-titlebar-panel .action-label');
+			assert.ok(pointerPanelAction);
+			pointerPanelAction.focus();
+			pointerPanelAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+			assert.deepStrictEqual({
+				open: button.classList.contains('menu-visible'),
+				focused: mainWindow.document.activeElement === button,
+			}, { open: false, focused: true });
+			clickButton();
+			const outside = append(container, $('button', undefined, 'Outside'));
+			outside.focus();
+			outside.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
+			await timeout(550);
+			assert.deepStrictEqual({
+				open: button.classList.contains('menu-visible'),
+				focused: mainWindow.document.activeElement === outside,
+			}, { open: false, focused: true });
+		});
+	}
 
 	test('labels the signed-out Copilot account action', () => {
 		const signIn = MenuRegistry.getMenuItems(AgentsWindowMenus.AccountMenu)

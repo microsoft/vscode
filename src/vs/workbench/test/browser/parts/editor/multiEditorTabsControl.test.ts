@@ -755,7 +755,10 @@ suite('MultiEditorTabsControl', () => {
 					const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
 					const addWidth = container.querySelector<HTMLElement>('.tabs-bar-add-tab')?.offsetWidth ?? 0;
 					const terminal = Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).at(-1)!;
-					const gutter = Number.parseFloat(mainWindow.getComputedStyle(terminal).marginInlineEnd) - (hasAdd ? 0 : toolbar.offsetWidth);
+					// Following the last tab, the Add Tab control and the toolbar add to the margin of the last tab around a second gutter
+					const margin = Number.parseFloat(mainWindow.getComputedStyle(terminal).marginInlineEnd);
+					const follows = tabs.closest<HTMLElement>('.tabs-and-actions-container')!.classList.contains('add-tab-follows-last-tab');
+					const gutter = follows ? (margin - addWidth - toolbar.offsetWidth) / 2 : margin - (hasAdd ? 0 : toolbar.offsetWidth);
 					const threshold = (hasAdd ? Math.max(80, toolbar.offsetWidth + addWidth) : 80 + toolbar.offsetWidth) + gutter;
 					for (const delta of [-2, 2, -2, 2]) {
 						await layoutConnectedGroup(group, threshold + delta);
@@ -4925,6 +4928,39 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
+	test('dragging a tab after the last tab shows the drop indicator on the last tab, with and without the add tab button', async () => {
+		const group = connectedGroup();
+		const dropTargetsAfterLastTab = async (withAddTab: boolean) => {
+			control.dispose();
+			reset(container);
+			control = createControl(withAddTab ? { tabsBarAddTab: MenuId.for('test.addTab.dropTarget') } : undefined);
+			await layoutConnectedGroup(group, 2000);
+			const tabsContainer = container.querySelector<HTMLElement>('.tabs-container')!;
+			const tabs = [...tabsContainer.querySelectorAll<HTMLElement>(':scope > .tab')];
+			const dropTargets = () => [...tabsContainer.children].filter(child => child.classList.contains('drop-target-left')).map(child => child.classList.contains('tab')
+				? `tab ${tabs.indexOf(child as HTMLElement)}${mainWindow.getComputedStyle(child, '::after').display === 'none' ? ' (hidden)' : ''}`
+				: child.className);
+			const dragOver = (target: HTMLElement) => {
+				target.dispatchEvent(new DragEvent(EventType.DRAG_ENTER, { dataTransfer: new DataTransfer(), bubbles: true }));
+				const result = dropTargets();
+				target.dispatchEvent(new DragEvent(EventType.DRAG_LEAVE, { dataTransfer: new DataTransfer(), bubbles: true }));
+				return result;
+			};
+			tabs[0].dispatchEvent(new DragEvent(EventType.DRAG_START, { dataTransfer: new DataTransfer(), bubbles: true }));
+			const result = {
+				emptySpace: dragOver(tabsContainer),
+				addTabButton: withAddTab ? dragOver(container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!) : undefined,
+			};
+			tabs[0].dispatchEvent(new DragEvent(EventType.DRAG_END, { dataTransfer: new DataTransfer(), bubbles: true }));
+			return result;
+		};
+
+		assert.deepStrictEqual({ without: await dropTargetsAfterLastTab(false), with: await dropTargetsAfterLastTab(true) }, {
+			without: { emptySpace: [`tab ${model.count - 1}`], addTabButton: undefined },
+			with: { emptySpace: [`tab ${model.count - 1}`], addTabButton: [`tab ${model.count - 1}`] },
+		});
+	});
+
 	test('the new tab button lists the entry picked last above its entries, as its default entry that a second press picks', async () => {
 		const executed: string[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
@@ -4951,9 +4987,9 @@ suite('MultiEditorTabsControl', () => {
 		}());
 
 		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true }));
-		const press = (button: EditorAddTabControl) => {
+		const press = (button: EditorAddTabControl, clientX?: number) => {
 			const bounds = button.element.getBoundingClientRect();
-			button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 }));
+			button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, clientX: clientX ?? bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 }));
 		};
 		const open = (button: EditorAddTabControl) => {
 			press(button);
@@ -4975,6 +5011,14 @@ suite('MultiEditorTabsControl', () => {
 		press(button);
 		await timeout(0);
 		const menuOpen = !!shownMenu;
+		// Also on the part of the visible button outside the control, as with the negative margin of the Connected tab style
+		const label = button.element.querySelector<HTMLElement>('.action-label')!;
+		label.style.marginInlineStart = '-5px';
+		const labelLeft = label.getBoundingClientRect().left;
+		press(button);
+		press(button, labelLeft + 1);
+		await timeout(0);
+		const menuOpenAfterEdgePress = !!shownMenu;
 
 		assert.deepStrictEqual({
 			initially,
@@ -4982,12 +5026,16 @@ suite('MultiEditorTabsControl', () => {
 			inAnotherButton: open(createButton()),
 			executed,
 			menuOpen,
+			pressedOutsideControl: labelLeft + 1 < button.element.getBoundingClientRect().left,
+			menuOpenAfterEdgePress,
 		}, {
 			initially: ['test.newTabButton.first', 'test.newTabButton.second'],
 			afterPickingSecond: ['test.newTabButton.second', 'test.newTabButton.first'],
 			inAnotherButton: ['test.newTabButton.second', 'test.newTabButton.first'],
-			executed: ['test.newTabButton.second', 'test.newTabButton.second'],
+			executed: ['test.newTabButton.second', 'test.newTabButton.second', 'test.newTabButton.second'],
 			menuOpen: false,
+			pressedOutsideControl: true,
+			menuOpenAfterEdgePress: false,
 		});
 	});
 

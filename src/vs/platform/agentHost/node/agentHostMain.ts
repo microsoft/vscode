@@ -58,6 +58,9 @@ import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { createAgentHostRuntime, type IAgentHostRuntime } from './agentHostBootstrap.js';
+import { AgentHostKeepAwake } from './agentHostKeepAwake.js';
+import { AgentHostPowerSaveBlocker } from './agentHostPowerSaveBlocker.js';
+import { toAgentHostPowerSaveBlockerMessage } from '../common/agentHostPowerSaveBlocker.js';
 import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
@@ -195,6 +198,13 @@ async function startAgentHost(): Promise<void> {
 		disposables.add(runtime);
 		agentService = runtime.agentService;
 		instantiationService = runtime.instantiationService;
+		const acquirePowerSaveBlocker = diagnosticsParentPort
+			? (allowOnBattery: boolean) => {
+				diagnosticsParentPort.postMessage(toAgentHostPowerSaveBlockerMessage({ kind: 'acquire', allowOnBattery }));
+				return toDisposable(() => diagnosticsParentPort.postMessage(toAgentHostPowerSaveBlockerMessage({ kind: 'release' })));
+			}
+			: (allowOnBattery: boolean) => new AgentHostPowerSaveBlocker(allowOnBattery, logService);
+		disposables.add(instantiationService.createInstance(AgentHostKeepAwake, acquirePowerSaveBlocker));
 		const runtimeServices = instantiationService.invokeFunction(accessor => ({
 			configurationService: accessor.get(IAgentConfigurationService),
 			fileService: accessor.get(IFileService),

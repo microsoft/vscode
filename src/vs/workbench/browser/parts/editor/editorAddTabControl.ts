@@ -146,6 +146,20 @@ export class EditorAddTabControl extends Disposable {
 	}
 
 	/**
+	 * Whether the mouse event is over the button. Its visible button can extend beyond the control element, such as with
+	 * a negative margin in the Connected tab style.
+	 */
+	private _isOverButton(e: MouseEvent): boolean {
+		// The label is rendered by the toolbar
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
+		const label = this.element.querySelector<HTMLElement>('.action-label');
+		return [this.element, label].some(element => {
+			const bounds = element?.getBoundingClientRect();
+			return !!bounds && e.clientX >= bounds.left && e.clientX < bounds.right && e.clientY >= bounds.top && e.clientY < bounds.bottom;
+		});
+	}
+
+	/**
 	 * While the menu is open, pressing the button picks the default entry rather than only closing the menu. The menu
 	 * blocks the mouse in the rest of the window, so the press is recognized by its position before the block sees it.
 	 */
@@ -153,9 +167,7 @@ export class EditorAddTabControl extends Disposable {
 		const whileMenuVisible = this._register(new MutableDisposable());
 		this._register(dropdown.onDidChangeVisibility(visible => {
 			whileMenuVisible.value = visible ? addDisposableListener(getWindow(this.element), EventType.MOUSE_DOWN, e => {
-				const bounds = this.element.getBoundingClientRect();
-				const onButton = e.clientX >= bounds.left && e.clientX < bounds.right && e.clientY >= bounds.top && e.clientY < bounds.bottom;
-				const entry = onButton && e.button === 0 ? getDefaultEntry() : undefined;
+				const entry = this._isOverButton(e) && e.button === 0 ? getDefaultEntry() : undefined;
 				if (!entry) {
 					return;
 				}
@@ -183,8 +195,14 @@ export class EditorAddTabControl extends Disposable {
 			}
 			const store = whileMenuVisible.value = new DisposableStore();
 			let menuElement: HTMLElement | null = null;
+			let mouseBlock: HTMLElement | null = null;
 			let items: HTMLElement[] = [];
 			const highlightDefault = (onButton: boolean) => {
+				// The menu blocks the mouse in the rest of the window with an arrow cursor; over the button, which a press
+				// still picks the default entry with, show that it can be clicked
+				if (mouseBlock) {
+					mouseBlock.style.cursor = onButton ? 'pointer' : 'initial';
+				}
 				const first = items[0];
 				const focused = items.find(item => item.classList.contains('focused'));
 				if (onButton && first && focused !== first) {
@@ -205,6 +223,8 @@ export class EditorAddTabControl extends Disposable {
 				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				menuElement = targetWindow.document.querySelector<HTMLElement>(`.context-view.${addTabMenuClassName} .monaco-menu`);
 				// eslint-disable-next-line eslint-js/no-restricted-syntax
+				mouseBlock = targetWindow.document.querySelector<HTMLElement>(`.context-view.${addTabMenuClassName} > .context-view-block`);
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				items = menuElement ? [...menuElement.querySelectorAll<HTMLElement>('.action-item')].filter(item => item.firstElementChild?.classList.contains('action-menu-item')) : [];
 				const description = getFirstEntryDescription();
 				const firstLabel = [...items[0]?.firstElementChild?.children ?? []].find(child => child.classList.contains('action-label'));
@@ -219,8 +239,7 @@ export class EditorAddTabControl extends Disposable {
 			if (highlightDefaultEntry) {
 				store.add(addDisposableListener(targetWindow, EventType.MOUSE_MOVE, e => {
 					if (menuElement && !isAncestor(e.target as Node, menuElement)) {
-						const bounds = this.element.getBoundingClientRect();
-						highlightDefault(e.clientX >= bounds.left && e.clientX < bounds.right && e.clientY >= bounds.top && e.clientY < bounds.bottom);
+						highlightDefault(this._isOverButton(e));
 					}
 				}, true));
 			}
