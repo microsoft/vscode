@@ -55,6 +55,22 @@ suite('Telemetry - WorkspaceTagsService', () => {
 		});
 	});
 
+	for (const [dependency, family] of [
+		['@azure/arm-containerservice', '@azure/arm'],
+		['@azure/cognitiveservices-computervision', '@azure/cognitiveservices'],
+		['@azure/communication-email', '@azure/communication'],
+		['@azure/functions', '@azure/functions'],
+		['@azure/monitor-opentelemetry', '@azure/monitor'],
+		['@azure/provisioning-storage', '@azure/provisioning']
+	]) {
+		test(`uses ${family} family tag for ${dependency}`, async () => {
+			assert.deepStrictEqual(await npmTags([dependency]), {
+				'workspace.npm.@azure': true,
+				[`workspace.npm.${family}`]: true
+			});
+		});
+	}
+
 	test('records exact Azure SDK tags without family fallbacks', async () => {
 		assert.deepStrictEqual(await npmTags([
 			'@azure/ai-content-safety',
