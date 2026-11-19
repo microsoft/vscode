@@ -466,7 +466,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true, reopenAction: true, reopenProgress: true, preservedDraft: true, silentRefresh: true, refreshAction: true });
 	});
 
-	test('documents layout density and the empty editor Add Tab list only on desktop', () => {
+	test('documents desktop controls only on desktop and explains phone customization limits', () => {
 		const densityHelp = [false, true].map(phone => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService();
@@ -485,12 +485,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 				density: content.includes('Choose Default or Compact from View > Appearance > Layout Density'),
 				addTabList: content.includes('When the side panel\'s editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions'),
 				addTabSubmenu: content.includes('press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list'),
+				customizations: content.includes('Activate Customizations with Enter or Space to open its editor'),
+				sessionMenu: content.includes('choose Open Customizations'),
+				migrations: content.includes('Use Tab to reach Review Migrations'),
+				phoneCustomizations: content.includes('Use a desktop window to manage customizations'),
 			};
 		});
 
 		assert.deepStrictEqual(densityHelp, [
-			{ density: true, addTabList: true, addTabSubmenu: true },
-			{ density: false, addTabList: false, addTabSubmenu: false },
+			{ density: true, addTabList: true, addTabSubmenu: true, customizations: true, sessionMenu: true, migrations: true, phoneCustomizations: false },
+			{ density: false, addTabList: false, addTabSubmenu: false, customizations: false, sessionMenu: false, migrations: false, phoneCustomizations: true },
 		]);
 	});
 

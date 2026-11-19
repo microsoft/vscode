@@ -132,7 +132,7 @@ export const AGENTS_WINDOW_REGISTRATIONS: readonly string[] = [
 	'menu NewSessions.SessionControlMenu command sessions.sandbox.approvalPicker group navigation order 1 when chatIsEnabled && isNewChatSession && sessionProviderId == \'cloud-sandbox-creation\' || chatIsEnabled && isNewChatSession && sessionProviderId == \'default-copilot\'',
 	'menu SessionGroupToolbar command sessionsView.deleteEmptyGroup group navigation order 2 when sessionGroup.isEmpty && !sessionGroup.isComparison',
 	'menu SessionGroupToolbar command sessionsView.newSessionInGroup group navigation order 1 when !sessionGroup.isComparison',
-	'menu SessionItemContextMenu command sessionsViewPane.openCustomizations group navigation order 6 when chatIsEnabled',
+	'menu SessionItemContextMenu command sessionsViewPane.openCustomizations group navigation order 6 when chatIsEnabled && !sessionsIsPhoneLayout',
 	'menu SessionItemContextMenu command sessionsViewPane.pinSession group 2_organize order 1 when !sessionIsArchived && !sessionItem.isPinned',
 	'menu SessionItemContextMenu command sessionsViewPane.unpinSession group 2_organize order 1 when sessionItem.isPinned && !sessionIsArchived',
 	'menu SessionItemContextMenu command sessionsViewPane.inboxResume group 1_state order 1 when chatIsEnabled && !sessionIsArchived && !sessionItem.isPinned && sessionsViewPane.grouping == \'inbox\' && sessionItem.inboxState != \'\'',

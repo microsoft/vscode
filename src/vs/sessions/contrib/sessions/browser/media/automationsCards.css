@@ -755,6 +755,11 @@
 	margin-bottom: 16px;
 }
 
+.automations-history-show-more {
+	width: fit-content;
+	margin: 0 auto;
+}
+
 .automations-history-group-header {
 	font-size: 12px;
 	font-weight: 600;
