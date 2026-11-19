@@ -11,15 +11,21 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { agentMergeEnabledNotice, defaultAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { createSessionComparisonJudgePrompt } from '../../../../../platform/agentHost/common/sessionComparisonPrompts.js';
 import { buildAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
+import { buildExternalOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { themeColorFromId } from '../../../../../platform/theme/common/themeService.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../../workbench/browser/chatPills.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { ForkConversationActionId } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { RestoreCheckpointActionId } from '../../../../../workbench/contrib/chat/browser/chatEditing/chatEditingActions.js';
 import { systemNotificationToChatPart } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -28,7 +34,7 @@ import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/c
 import { ChatPetWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatProgressAnimation } from '../../../../../workbench/contrib/chat/common/constants.js';
-import type { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { isSessionLinkVariableEntry, type IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import type { IChatWidgetFixtureHandle, IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { FixtureMotionAccessibilityService } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { assertChatPetInScreenshot, configureChatPetFixtureFileRoot, FixtureChatPetService } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
@@ -37,6 +43,11 @@ import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGro
 import { activeSessionViewBackground } from '../../../../../workbench/contrib/sessions/common/theme.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
 import { getSessionChatItemHorizontalPadding } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
+import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { SessionLinkAttachmentWidget } from '../../browser/sessionLinkAttachmentWidget.js';
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/mobile/mobileChatShell.css';
@@ -447,6 +458,55 @@ async function renderRequestLinkKeyboardFocus(context: ComponentFixtureContext):
 	}
 }
 
+/** Registers the session link pill, as `SessionLinkAttachmentWidgetContribution` does. */
+class FixtureSessionLinkWidgetRegistry extends ChatAttachmentWidgetRegistry {
+	constructor(@IInstantiationService instantiationService: IInstantiationService) {
+		super();
+		this.registerFactory('sessionLink', (attachment, options, container) => {
+			if (!isSessionLinkVariableEntry(attachment)) {
+				throw new Error('Expected a session link attachment');
+			}
+			return instantiationService.createInstance(SessionLinkAttachmentWidget, attachment, options, container);
+		});
+	}
+}
+
+async function renderRequestSessionLink(context: ComponentFixtureContext): Promise<void> {
+	const backendSession = URI.parse('copilotcli:/0f6c3a9e-2b41-4d7a-9c55-1e8f4b7d2a60');
+	const session = upcastPartial<ISession>({
+		resource: URI.parse('agent-host-copilotcli:/0f6c3a9e-2b41-4d7a-9c55-1e8f4b7d2a60'),
+		title: constObservable('Fix flaky terminal tests'),
+		status: constObservable(SessionStatus.Completed),
+		isRead: constObservable(true),
+		mainChat: constObservable(upcastPartial<IChat>({ isRead: constObservable(true) })),
+		isArchived: constObservable(false),
+		completedStateIcon: constObservable(undefined),
+		chats: constObservable<readonly IChat[]>([]),
+	});
+	await renderChatView(context, false, {
+		height: 220,
+		listHeight: 200,
+		inputVisible: false,
+		inlineAttachments: true,
+		messages: [{
+			user: `Continue the work from ${buildExternalOpenSessionLinkUri('vscode-insiders', backendSession)} and update the tests.`,
+			assistant: [{ kind: 'markdown', text: 'I will pick up where that session left off.' }],
+		}],
+		additionalServices: reg => {
+			reg.define(IChatAttachmentWidgetRegistry, FixtureSessionLinkWidgetRegistry);
+			reg.defineInstance(IProductService, upcastPartial<IProductService>({ urlProtocol: 'vscode-insiders', quality: 'insider' }));
+			reg.definePartialInstance(ISessionsManagementService, { getSessions: () => [session], onDidChangeSessions: Event.None });
+			reg.definePartialInstance(ISessionsProvidersService, { onDidChangeProviders: Event.None, getProvider: () => undefined });
+			reg.definePartialInstance(ISessionsListModelService, {
+				getStatusIcon: () => ({ ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') }),
+			});
+		},
+	});
+	if (!context.container.querySelector('.interactive-request .chat-session-link-attachment')) {
+		throw new Error('Expected the sent session link to render as a pill');
+	}
+}
+
 async function renderRequestAttachmentBackground(context: ComponentFixtureContext): Promise<void> {
 	const attachment: IChatRequestVariableEntry = {
 		kind: 'generic',
@@ -662,6 +722,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['A plain Markdown link in the Agents chat user request has exactly one solid, unclipped keyboard focus indicator in the themed focus color.'],
 		render: renderRequestLinkKeyboardFocus,
+	}),
+	RequestSessionLink: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A session link in a sent user request renders as an inline pill with the session title and status icon, not as a long raw URL.'],
+		render: renderRequestSessionLink,
 	}),
 	StickyBackgroundContinuity: defineComponentFixture({
 		labels: { kind: 'screenshot' },

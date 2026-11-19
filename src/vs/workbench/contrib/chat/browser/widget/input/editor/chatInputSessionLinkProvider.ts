@@ -19,7 +19,7 @@ import { AGENT_HOST_SESSION_LINK_SCHEME, parseExternalOpenSessionLinkUri, parseO
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
-import { getMarkdownCodeAndLinkRanges } from '../../../../common/attachments/chatInlineAttachments.js';
+import { getMarkdownCodeRanges } from '../../../../common/attachments/chatInlineAttachments.js';
 import { IChatRequestSessionLinkVariableEntry, IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { chatInputSchemes } from '../../../../common/constants.js';
 import { ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest, IParsedChatRequestPart } from '../../../../common/requestParser/chatParserTypes.js';
@@ -106,12 +106,12 @@ export function recoverSessionLinkMentions(message: IParsedChatRequest, variable
 	}
 
 	const positions = new PositionOffsetTransformer(message.text);
-	const excludedRanges = getMarkdownCodeAndLinkRanges(message.text);
+	const codeRanges = getMarkdownCodeRanges(message.text);
 	const matches = links.map(({ range, link }) => ({
 		range,
 		link,
 		offset: new OffsetRange(positions.getOffset(range.getStartPosition()), positions.getOffset(range.getEndPosition())),
-	})).filter(match => !excludedRanges.some(range => range.intersects(match.offset)));
+	})).filter(match => isPlainMarkdownLink(message.text, match.offset) && !codeRanges.some(range => range.intersects(match.offset)));
 	const parts: IParsedChatRequestPart[] = [];
 	const added: IChatRequestSessionLinkVariableEntry[] = [];
 	const usedIds = new Set(variables.map(variable => variable.id));
@@ -143,6 +143,20 @@ export function recoverSessionLinkMentions(message: IParsedChatRequest, variable
 		}
 	}
 	return added.length ? { message: { text: message.text, parts }, variables: [...variables, ...added] } : { message, variables };
+}
+
+/**
+ * Whether the link at `range` is plain text in Markdown, rather than part of
+ * authored Markdown or HTML, such as `[text](link)`, `<link>`, `href="link"` or a
+ * link reference definition, which must keep rendering as written.
+ */
+function isPlainMarkdownLink(text: string, range: OffsetRange): boolean {
+	const lineStart = text.lastIndexOf('\n', range.start - 1) + 1;
+	const before = text.slice(lineStart, range.start);
+	const after = text.charAt(range.endExclusive);
+	return /(?:^|\s|[^\]]\()$/.test(before)
+		&& !/^ {0,3}(?:>\s*)*\[[^\]]+\]:\s*$/.test(before)
+		&& /^[\s).,;:!?]?$/.test(after);
 }
 
 export class ChatInputSessionLinkProvider extends Disposable implements LinkProvider {
