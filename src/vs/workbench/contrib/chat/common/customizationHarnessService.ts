@@ -305,7 +305,7 @@ export interface ICustomizationItem {
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
 	readonly statusMessage?: string;
-	/** Whether this customization is currently enabled. */
+	/** Whether this customization is active, independent of whether its enablement can be changed. */
 	readonly enabled?: boolean;
 	/** Host-published reason for a disabled customization. */
 	readonly disabledReason?: CustomizationDisabledReason;

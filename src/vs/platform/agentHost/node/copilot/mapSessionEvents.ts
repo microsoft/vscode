@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, Attachment, BinaryAssetData, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent, ToolExecutionCompleteContentResource, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, Attachment, BinaryAssetData, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent, ToolExecutionCompleteContentResource, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData, ToolExecutionCompleteResult } from '@microsoft/copilot-sdk';
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { basename } from '../../../../base/common/path.js';
 import { basename as resourceBasename } from '../../../../base/common/resources.js';
@@ -274,7 +274,7 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 
 /**
  * Reads the MCP App tool-result `_meta` the runtime carries as `mcpResultMeta`.
- * TODO: Read the field directly once the pinned `@github/copilot-sdk` declares it.
+ * TODO: Read the field directly once the pinned `@microsoft/copilot-sdk` declares it.
  */
 export function getSdkMcpResultMeta(result: ToolExecutionCompleteResult | undefined): Record<string, unknown> | undefined {
 	return (result as (ToolExecutionCompleteResult & { readonly mcpResultMeta?: Record<string, unknown> }) | undefined)?.mcpResultMeta;
@@ -603,7 +603,7 @@ export async function mapSessionEvents(
 			if (!e.agentId) {
 				const info = toolInfoByCallId.get(e.data.toolCallId);
 				// A Fusion phase's call is a root call, reviewed once the phase commits.
-				const isRootCall = !resolveParentToolCallId(e.agentId, e.data.parentToolCallId) && (!info?.parentToolCallId || !!e.data.fusion);
+				const isRootCall = !resolveParentToolCallId(e.agentId, readStringProperty(e.data, 'parentToolCallId')) && (!info?.parentToolCallId || !!e.data.fusion);
 				const isTaskComplete = info ? isTaskCompleteTool(info.toolName) : taskCompleteRequestCallIds.has(e.data.toolCallId);
 				// Only a successful call is reviewed.
 				if (isRootCall && isTaskComplete && e.data.success) {
@@ -620,7 +620,7 @@ export async function mapSessionEvents(
 		}
 		if (e.type === 'tool.execution_start') {
 			const d = e.data;
-			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
+			const parentToolCallId = resolveParentToolCallId(e.agentId, readStringProperty(d, 'parentToolCallId')) ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
 			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, pathMapper, workingDirectory, d, resolveAgentName, resolveAgentChat, toolTitlesByCallId.get(d.toolCallId), toolIntentionsByCallId.get(d.toolCallId));
 			if (!info) {
 				continue;
@@ -960,7 +960,7 @@ export async function mapSessionEvents(
 				const reasoningText = d.reasoningText;
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
 				const isPhaseWork = hasToolRequests || fusionToolRoundMessages.has(e);
-				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? (isPhaseWork ? resolveFusionPhaseToolCallId(e.agentId, d.fusion) : undefined);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, readStringProperty(d, 'parentToolCallId')) ?? (isPhaseWork ? resolveFusionPhaseToolCallId(e.agentId, d.fusion) : undefined);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
@@ -1077,7 +1077,7 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'tool.execution_start': {
-				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, e.data.fusion);
+				const parentToolCallId = resolveParentToolCallId(e.agentId, readStringProperty(e.data, 'parentToolCallId')) ?? resolveFusionPhaseToolCallId(e.agentId, e.data.fusion);
 				if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
 					parentTurnState = TurnState.Cancelled;
 					touch(parentBuilder);
@@ -1092,7 +1092,7 @@ export async function mapSessionEvents(
 					continue;
 				}
 				toolInfoByCallId.delete(d.toolCallId);
-				const subagentParentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				const subagentParentToolCallId = resolveParentToolCallId(e.agentId, readStringProperty(d, 'parentToolCallId'));
 				const parentToolCallId = subagentParentToolCallId ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {

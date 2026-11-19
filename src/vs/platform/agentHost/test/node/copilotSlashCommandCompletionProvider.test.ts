@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -1281,6 +1282,20 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			);
 			const items = await run(provider, '/');
 			assert.deepStrictEqual(runtimeOnly(items), []);
+		});
+
+		test('excludes runtime skills that match a published plugin skill without waiting for the session to resolve them', async () => {
+			const resolving = new DeferredPromise<readonly Customization[]>();
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => [{ name: 'my-plugin:my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				getSessionCustomizations: () => resolving.p,
+			});
+
+			const items = await raceTimeout(provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1 }, { chat: undefined, customizations: [plugin('my-plugin', [skill('my-skill')])] }, CancellationToken.None), 1000);
+			resolving.complete([]);
+
+			assert.deepStrictEqual(items && runtimeOnly(items), []);
 		});
 
 		test('excludes runtime skills that match a known plugin skill with the same name (no prefix)', async () => {

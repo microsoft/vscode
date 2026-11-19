@@ -13,7 +13,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { autorun, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { localize } from '../../../../../nls.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -36,6 +36,9 @@ import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js
 import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { ChatLiveResponseStats } from '../../../chat/browser/widget/chatLiveResponseStats.js';
+import { ChatResponseStats } from '../../../chat/common/constants.js';
 
 export function getSessionChatAncestors(session: ISession, chat: IChat | undefined, reader: IReader): readonly string[] {
 	const ancestors: string[] = [];
@@ -97,7 +100,7 @@ export class SessionHeaderBar extends Disposable {
 	private _renameInput: HTMLInputElement | undefined;
 	private _session: ISession | undefined;
 	private _isDetached = false;
-	private _activeChatObservable: IObservable<IChat | undefined> | undefined;
+	private readonly _activeChatObservable = observableValue<IObservable<IChat | undefined> | undefined>(this, undefined);
 	private _actionsTargetChat = false;
 	private _showParentContext = false;
 	private _activateChatGroup: (() => void) | undefined;
@@ -158,6 +161,7 @@ export class SessionHeaderBar extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
 		@ISessionHost private readonly _sessionHost: ISessionHost,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 
@@ -178,8 +182,12 @@ export class SessionHeaderBar extends Disposable {
 		const titleRow = $('.chat-composite-bar-title-row');
 		main.appendChild(titleRow);
 
+		// The title shares its baseline with what follows it.
+		const titleLine = $('.chat-composite-bar-title-line');
+		titleRow.appendChild(titleLine);
+
 		this._titleEl = $('.chat-composite-bar-session-title');
-		titleRow.appendChild(this._titleEl);
+		titleLine.appendChild(this._titleEl);
 
 		this._titleTextEl = $('span.chat-composite-bar-session-title-text');
 		this._titleEl.appendChild(this._titleTextEl);
@@ -199,6 +207,15 @@ export class SessionHeaderBar extends Disposable {
 			EventHelper.stop(e, true);
 			this._closeSession();
 		}));
+
+		// The running response's stats of the chat, right after its title.
+		const lastResponse = derived(this, reader => {
+			const resource = this._activeChatObservable.read(reader)?.read(reader)?.resource;
+			const chatModel = resource && [...chatService.chatModels.read(reader)].find(model => isEqual(model.sessionResource, resource));
+			return chatModel?.lastRequestObs.read(reader)?.response;
+		});
+		const liveResponseStats = this._register(instantiationService.createInstance(ChatLiveResponseStats, ChatResponseStats.Title, lastResponse));
+		titleLine.appendChild(liveResponseStats.element);
 
 		const titleActions = $('.chat-composite-bar-title-actions');
 		titleRow.appendChild(titleActions);
@@ -353,7 +370,7 @@ export class SessionHeaderBar extends Disposable {
 		if (this._session === session
 			&& this._isDraft === isDraft
 			&& this._isDetached === isDetached
-			&& this._activeChatObservable === activeChat
+			&& this._activeChatObservable.get() === activeChat
 			&& this._actionsTargetChat === actionsTargetChat
 			&& this._showParentContext === showParentContext
 			&& this._activateChatGroup === activateChatGroup
@@ -364,7 +381,7 @@ export class SessionHeaderBar extends Disposable {
 		this._cancelTitleEditing();
 		this._session = session;
 		this._isDetached = isDetached;
-		this._activeChatObservable = activeChat;
+		this._activeChatObservable.set(activeChat, undefined);
 		this._actionsTargetChat = actionsTargetChat;
 		this._showParentContext = showParentContext;
 		this._activateChatGroup = activateChatGroup;

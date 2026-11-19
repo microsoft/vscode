@@ -36,12 +36,13 @@ import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
+import { getManageRemoteEnvironmentsDescription, OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../common/chatConstants.js';
+import { LocalDevContainerEnvironmentHost } from '../../common/devContainerAgentHostService.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -275,7 +276,7 @@ export class SessionEnvironmentPicker extends Disposable {
 		if (remotesEnabled && environmentPickerEnabled) {
 			logSettingExperimentTrigger(this.telemetryService, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 			if (showManage) {
-				const manageHover = localize('environmentPicker.manageHover', "Add, connect, and manage remote environments");
+				const manageHover = getManageRemoteEnvironmentsDescription();
 				items.push(
 					{ kind: ActionListItemKind.Separator, label: '' },
 					{
@@ -320,6 +321,9 @@ export class SessionEnvironmentPicker extends Disposable {
 			case 'remote': {
 				const label = escape(environment.label);
 				const connection = this.getConnection(environment);
+				if (connection === 'devContainer') {
+					return localize('environmentPicker.devContainerHover', "Run this session in a dev container on {0}", escape(this.getDevContainerHostLabel(environment) ?? ''));
+				}
 				if (connection === 'githubEnvironment') {
 					return localize('environmentPicker.githubEnvironmentHover', "Run this session on {0}, shared through GitHub Environments", label);
 				}
@@ -341,7 +345,7 @@ export class SessionEnvironmentPicker extends Disposable {
 
 	private isManagedInRemotes(environment: ISessionCreationEnvironment): boolean {
 		const connection = this.getConnection(environment);
-		if (connection === 'githubEnvironment') {
+		if (connection === 'githubEnvironment' || connection === 'devContainer') {
 			return true;
 		}
 		switch (connection?.type) {
@@ -356,11 +360,28 @@ export class SessionEnvironmentPicker extends Disposable {
 		}
 	}
 
-	/** The connection behind a remote environment, or `'githubEnvironment'` for a host shared through GitHub Environments. */
-	private getConnection(environment: ISessionCreationEnvironment): 'githubEnvironment' | RemoteAgentHostConnection | undefined {
+	private getDevContainerHostLabel(environment: ISessionCreationEnvironment): string | undefined {
+		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
+		const host = provider && isAgentHostProvider(provider) ? provider.devContainerEnvironmentHost : undefined;
+		if (host === LocalDevContainerEnvironmentHost) {
+			return localize('environmentPicker.devContainerThisComputer', "this computer");
+		}
+		return host && (this.remoteAgentHostService.getDisplayNameOverride(host)
+			?? this.remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === host)?.name
+			?? host);
+	}
+
+	/**
+	 * The connection behind a remote environment, `'githubEnvironment'` for a host shared through GitHub Environments,
+	 * or `'devContainer'` for a Dev Container environment.
+	 */
+	private getConnection(environment: ISessionCreationEnvironment): 'githubEnvironment' | 'devContainer' | RemoteAgentHostConnection | undefined {
 		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
 		if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
 			return undefined;
+		}
+		if (provider.devContainerEnvironmentHost) {
+			return 'devContainer';
 		}
 		if (this.environmentService.enabled && this.environmentService.accountKey
 			&& this.environmentService.hosts.get().some(host => host.kind === 'user-local' && cloudSandboxAddress(host.id) === provider.remoteAddress)) {

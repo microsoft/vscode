@@ -10,6 +10,7 @@ import { type IAgentHostChatContribution, type IAgentHostChatContributionContext
 import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { isAhpChatChannel } from '../../../common/state/sessionState.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
 /**
  * Owns chat draft persistence in both directions. Restore runs eagerly at
@@ -31,12 +32,15 @@ export class ChatDraftContribution extends Disposable implements IAgentHostChatC
 		protected readonly _context: IAgentHostChatContributionContext,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 	}
 
 	onDidApplyClientAction(observed: IAppliedClientAction): void {
-		if (observed.action.type !== ActionType.ChatDraftChanged || !isAhpChatChannel(observed.channel)) {
+		if (observed.action.type !== ActionType.ChatDraftChanged || !isAhpChatChannel(observed.channel)
+			// A session before its first message has no database and is never restored, so its draft stays in memory.
+			|| this._stateManager.isIdleProvisionalSession(observed.session)) {
 			return;
 		}
 

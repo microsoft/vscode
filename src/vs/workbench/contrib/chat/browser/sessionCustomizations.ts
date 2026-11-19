@@ -12,7 +12,11 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { observableContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { getChatPillLocationHover, type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
+import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
 import { ISessionChatCustomization, SessionCustomizationKind } from '../../../common/sessionChatCustomizations.js';
 
@@ -113,10 +117,16 @@ export class SessionCustomizations extends Disposable {
 		customizations: IObservable<readonly ISessionChatCustomization[]>,
 		sessionFolders: IObservable<readonly ICustomizationFolder[]>,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
+		const phoneLayout = observableContextKey<boolean>(IsPhoneLayoutContext.key, contextKeyService);
 		this.sections = derivedOpts({ owner: this, equalsFn: sectionsEqual }, reader => {
+			if (phoneLayout.read(reader)) {
+				return [];
+			}
 			return buildSessionCustomizationSections(customizations.read(reader), sessionFolders.read(reader), customization => this._reveal(customization));
 		});
 	}
@@ -125,7 +135,7 @@ export class SessionCustomizations extends Disposable {
 		void this._commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
 			section: customizationSections.get(customization.kind),
 			revealUri: customization.uri,
-		});
+		}).catch(error => this._notificationService.error(error));
 	}
 }
 

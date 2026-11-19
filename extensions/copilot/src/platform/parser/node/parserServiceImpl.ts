@@ -60,14 +60,6 @@ export class ParserServiceImpl implements IParserService {
 			getParseErrorCount: () => parserProxy._getParseErrorCount(wasmLanguage, source),
 		};
 	}
-
-	getSemanticChunkTree(wasmLanguage: WASMLanguage, source: string) {
-		return this._parser.proxy._getSemanticChunkTree(wasmLanguage, source);
-	}
-
-	getSemanticChunkNames(language: WASMLanguage, source: string) {
-		return this._parser.proxy._getSemanticChunkNames(language, source);
-	}
 }
 
 type Proxied<ProxyType> = {

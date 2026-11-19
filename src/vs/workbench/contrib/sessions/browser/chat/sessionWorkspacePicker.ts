@@ -311,8 +311,10 @@ export class WorkspacePicker extends Disposable {
 	readonly onDidRemoveAttachedContext: Event<string> = this._onDidRemoveAttachedContext.event;
 
 	private _selectedFolderUri: URI | undefined;
-	/** Whether No Workspace is selected, with {@link IWorkspacePickerOptions.ownNoWorkspaceSelection}. */
+	/** Whether No Workspace is selected, with {@link IWorkspacePickerOptions.ownNoWorkspaceSelection} or {@link _noWorkspaceUnpersisted}. */
 	private _noWorkspaceSelected = false;
+	/** Whether No Workspace is selected without remembering it in the recent workspaces, such as an environment's only choice. */
+	private _noWorkspaceUnpersisted = false;
 	private _selectedResolved: IResolvedFolderWorkspace | undefined;
 	private _selectedDevContainerFolderUri: URI | undefined;
 	private _preselectionSource = NewSessionWorkspacePreselectionSource.None;
@@ -1405,6 +1407,7 @@ export class WorkspacePicker extends Disposable {
 		this._selectedFolderUri = undefined;
 		this._selectedResolved = undefined;
 		this._noWorkspaceSelected = false;
+		this._noWorkspaceUnpersisted = false;
 		this._preselectionSource = NewSessionWorkspacePreselectionSource.None;
 		this._selectionOrigin = WorkspaceSelectionOrigin.None;
 		if (this._shouldPersistSelection()) {
@@ -1416,7 +1419,9 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	isNoWorkspaceSelected(): boolean {
-		return !!this.options.getNoWorkspaceOption && (this.options.ownNoWorkspaceSelection ? this._noWorkspaceSelected : this.recentWorkspacesService.isNoWorkspaceChecked());
+		return !!this.options.getNoWorkspaceOption && (this.options.ownNoWorkspaceSelection || this._noWorkspaceUnpersisted
+			? this._noWorkspaceSelected
+			: this.recentWorkspacesService.isNoWorkspaceChecked());
 	}
 
 	/**
@@ -1435,6 +1440,7 @@ export class WorkspacePicker extends Disposable {
 		this._connectionStatusWatch.clear();
 		this._applySelection(undefined);
 		this._noWorkspaceSelected = true;
+		this._noWorkspaceUnpersisted = !persist;
 		if (persist) {
 			this.recentWorkspacesService.checkNoWorkspace();
 		}
@@ -1492,6 +1498,7 @@ export class WorkspacePicker extends Disposable {
 		this._selectedFolderUri = folderUri;
 		this._selectedResolved = resolved;
 		this._noWorkspaceSelected = false;
+		this._noWorkspaceUnpersisted = false;
 		this._watchSelectedGitHubInfo();
 		this._preselectionSource = source;
 		this._selectionOrigin = origin;
@@ -1518,6 +1525,7 @@ export class WorkspacePicker extends Disposable {
 		this._selectedFolderUri = resolved?.workspace.folders[0]?.root;
 		if (resolved) {
 			this._noWorkspaceSelected = false;
+			this._noWorkspaceUnpersisted = false;
 		}
 		this._watchSelectedGitHubInfo();
 		this._preselectionSource = resolved ? source : NewSessionWorkspacePreselectionSource.None;
@@ -1706,8 +1714,18 @@ export class WorkspacePicker extends Disposable {
 	 * currently active tab when tabs are shown.
 	 */
 	protected _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
-		const environment = this._getEnvironment();
-		// Local-capable providers can contribute repository sources that resolve through the selected environment.
+		return this._getBrowseActions(this._getEnvironment()).filter(a =>
+			(!this._isTabFiltered() || this._isGroupInActiveTab(a.group))
+			&& (this._directPickerAttachesContext === undefined || Boolean(a.attachesContext) === this._directPickerAttachesContext)
+		);
+	}
+
+	/**
+	 * The browse actions for an environment: its providers', and the repository sources of local-capable providers,
+	 * which resolve through it. On a remote host a repository is a folder, one it has or a clone, so a host that
+	 * neither offers folders nor clones, such as an extension's host of jobs, gets none.
+	 */
+	private _getBrowseActions(environment: ISessionCreationEnvironment | undefined): ISessionWorkspaceBrowseAction[] {
 		const providers = this.sessionsProvidersService.getProviders().filter(provider => this._isWorkspaceProviderVisible(provider.id)
 			&& (!environment || environment.providerIds.includes(provider.id) || provider.supportsLocalWorkspaces));
 		const all = providers.flatMap(p => p.browseActions);
@@ -1716,10 +1734,18 @@ export class WorkspacePicker extends Disposable {
 		if (hasLocalSupport) {
 			all.unshift(this._localBrowseAction);
 		}
-		return all.filter(a =>
-			(!this._isTabFiltered() || this._isGroupInActiveTab(a.group))
-			&& (this._directPickerAttachesContext === undefined || Boolean(a.attachesContext) === this._directPickerAttachesContext)
-		);
+		const isEnvironmentAction = (action: ISessionWorkspaceBrowseAction) => !!environment?.providerIds.includes(action.providerId);
+		if (environment?.kind !== 'remote'
+			|| all.some(action => action.group === SESSION_WORKSPACE_GROUP_REMOTE && isEnvironmentAction(action))
+			|| providers.some(provider => environment.providerIds.includes(provider.id) && provider.cloneRepository && provider.canCloneRepository !== false)) {
+			return all;
+		}
+		return all.filter(action => isEnvironmentAction(action) || action.group !== SESSION_WORKSPACE_GROUP_GITHUB || action.attachesContext === true);
+	}
+
+	/** Whether an environment offers a workspace to work in, so that working without one is not the only choice. */
+	offersWorkspaces(environment: ISessionCreationEnvironment): boolean {
+		return this._getBrowseActions(environment).some(action => action.attachesContext !== true);
 	}
 
 	private _isWorkspaceProviderVisible(providerId: string): boolean {

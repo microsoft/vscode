@@ -42,7 +42,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatRequestSubmittedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -3949,6 +3949,46 @@ suite('SessionsManagementService', () => {
 			activeSession: undefined,
 		});
 	});
+
+	for (const end of ['archiving', 'removing'] as const) {
+		for (const focusInSession of [false, true]) {
+			test(`${end} the active session ${focusInSession ? 'moves focus out of its view into the new session' : 'leaves focus outside the grid, such as in the sessions list'}`, async () => {
+				const isArchived = observableValue('isArchived', false);
+				const session = stubSession({ sessionId: 'active', providerId: 'test', isArchived });
+				const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(true) });
+				const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+				const provider = new class extends TestSessionsProvider {
+					override readonly onDidChangeSessions = onDidChangeSessions.event;
+					override readonly supportsQuickChats = true;
+					override createQuickChat(): ISession { return draft; }
+				}(session);
+				const { view, sessionsPartService } = createSessionsManagementService(session, disposables, provider);
+				await view.openSession(session.resource);
+				sessionsPartService.focusedSessionView = focusInSession ? new class extends mock<SessionView>() { }() : undefined;
+				const focusTarget = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
+				disposables.add(toDisposable(() => focusTarget.remove()));
+				focusTarget.focus();
+				sessionsPartService.focusedSessions.length = 0;
+
+				if (end === 'archiving') {
+					isArchived.set(true, undefined);
+				} else {
+					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+				}
+				await timeout(0);
+				// As the new-session composer does once it shows: it creates its draft on its own
+				view.openQuickChat(undefined, true);
+
+				assert.deepStrictEqual({
+					active: activeSessionOf(view)?.sessionId,
+					focused: sessionsPartService.focusedSessions,
+				}, {
+					active: 'draft',
+					focused: focusInSession ? [undefined, 'draft'] : [],
+				});
+			});
+		}
+	}
 
 	test('automatic no-fallback removal stays inert during pending explicit navigation', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });
@@ -11217,6 +11257,43 @@ suite('SessionsManagementService', () => {
 			tracking.dispose();
 
 			assert.deepStrictEqual({ ends, notifications }, { ends: ['a1-prepared started=false error=a1-prepared failed'], notifications: [] });
+		});
+
+		test('reports once that a slot\'s request was sent, the first time its provider forwards a response for it, in the session it was sent in, and forwards each response to the caller\'s own callback', async () => {
+			const response = upcastPartial<IChatResponseModel>({});
+			const provider = disposables.add(new class extends PreparingProvider {
+				override async sendRequest(sessionId: string, _chatResource?: URI, options?: ISendRequestOptions): Promise<ISession> {
+					options?.onDidCreateResponse?.(undefined, 'queued');
+					options?.onDidCreateResponse?.(response, 'sent');
+					options?.onDidCreateResponse?.(response, 'sent');
+					return super.sendRequest(sessionId);
+				}
+			}([draft('a1'), draft('b1')]));
+			const { service } = createSessionsManagementService(listed, disposables, provider);
+			const slot = disposables.add(service.createNewSessionSlot());
+			const log: string[] = [];
+			disposables.add(service.onDidDispatchNewSessionRequest(event => log.push(`sent ${event.session.sessionId} ${event.owner === slot ? 'slot' : 'other'}`)));
+			disposables.add(service.onDidEndNewSessionRequest(event => log.push(`end ${event.session.sessionId}`)));
+			const ownResponses: string[] = [];
+			const options: Parameters<ISessionsManagementService['sendNewChatRequest']>[1] = { query: 'background', background: true, onDidCreateResponse: (sent, kind) => ownResponses.push(`${kind} ${!!sent}`) };
+			const sentWithOwnOptions: boolean[] = [];
+			disposables.add(service.onDidSendRequest(event => sentWithOwnOptions.push(event.options === options)));
+
+			const ended = Event.toPromise(Event.filter(service.onDidEndNewSessionRequest, event => event.owner === slot));
+			await service.sendNewChatRequest(slot.createNewSession(folder), options);
+			await ended;
+			await service.sendNewChatRequest(slot.createNewSession(folder), { query: 'foreground' });
+			const unowned = draft('unowned');
+			provider.created.push(unowned);
+			const unownedSent = Event.toPromise(Event.filter(service.onDidSendRequest, event => event.session.sessionId === 'unowned-prepared'));
+			await service.sendNewChatRequest(unowned, { query: 'unowned', background: true });
+			await unownedSent;
+
+			assert.deepStrictEqual({ log, ownResponses, sentWithOwnOptions }, {
+				log: ['sent a1-prepared slot', 'end a1-prepared', 'sent b1-prepared slot', 'end b1-prepared'],
+				ownResponses: ['queued false', 'sent true', 'sent true'],
+				sentWithOwnOptions: [true, false, false],
+			});
 		});
 
 		test('openNewSession creates the draft of the given slot without navigating or changing the main composer\'s draft', async () => {
