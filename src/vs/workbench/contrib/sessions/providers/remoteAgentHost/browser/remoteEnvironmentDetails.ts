@@ -27,57 +27,13 @@ import { RemoteAgentHostLocationPreference } from '../../../../../../platform/ag
 import { orderRemoteAgentHostLocationOptions } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
-import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { ICustomizationRemote, IRemotesModel, RemoteKind } from './remotesModel.js';
+import { ICustomizationRemote, IRemotesModel } from './remotesModel.js';
 import { getConnectionLabel, getRemoteMetadataLabel, getRemoteTypeLabel, remoteAgentRunBehaviorDescription, renderConnectionStatus } from './remotesTable.js';
 
-export type RemoteEnvironmentDetailsMode = 'runBehavior' | 'troubleshoot';
-
-const remoteConnectionHelp: Partial<Record<RemoteKind, { readonly label: string; readonly href: string }>> = {
-	ssh: {
-		label: localize('remotes.connectionHelp.ssh', "SSH connection guide"),
-		href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-ssh',
-	},
-	wsl: {
-		label: localize('remotes.connectionHelp.wsl', "WSL troubleshooting"),
-		href: 'https://learn.microsoft.com/en-us/windows/wsl/troubleshooting',
-	},
-	tunnel: {
-		label: localize('remotes.connectionHelp.tunnel', "Dev Tunnel connection guide"),
-		href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-dev-tunnel',
-	},
-	environment: {
-		label: localize('remotes.connectionHelp.environment', "GitHub environment troubleshooting"),
-		href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_troubleshoot-github-environments',
-	},
-};
-
-function getSSHRecovery(error: string | undefined, unreachable: boolean): string | undefined {
-	if (!unreachable && error && /All configured authentication methods failed|SSH authentication failed|Permission denied \((?:publickey|password|keyboard-interactive)/i.test(error)) {
-		return localize('remotes.sshCheckAuthentication', "SSH sign-in was rejected. Check the user name and credentials used to connect. If you use an SSH key, its public key must be authorized for that user on the remote computer.");
-	}
-	if (unreachable && error && /ECONNREFUSED/i.test(error)) {
-		return localize('remotes.sshRefused', "The SSH endpoint refused the connection. Check the host and port in your SSH configuration, and check that an SSH server is listening on the remote computer.");
-	}
-	if (unreachable && error && /ENOTFOUND|EAI_AGAIN/i.test(error)) {
-		return localize('remotes.sshNameResolution', "The SSH host name couldn't be resolved. Check HostName in your SSH configuration and this computer's network or DNS connection.");
-	}
-	if (unreachable && error && /ETIMEDOUT|EHOSTUNREACH|ENETUNREACH/i.test(error)) {
-		return localize('remotes.sshNetwork', "The SSH endpoint couldn't be reached from this network. Check the host, port, and any network or VPN connection required to reach it.");
-	}
-	if (!unreachable && error && /host key.*(?:changed|mismatch|rejected)|host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(error)) {
-		return localize('remotes.sshHostKey', "SSH host key verification stopped the connection. Verify the remote computer's host key with its administrator before changing your known-hosts entry.");
-	}
-	return undefined;
-}
-
+/** A focused page in Remote Environments for choosing how agents run on an environment. */
 export class RemoteEnvironmentDetails extends Disposable {
 	readonly domNode = dom.$('.remotes-environment-details');
 	private readonly body: HTMLElement;
@@ -97,29 +53,15 @@ export class RemoteEnvironmentDetails extends Disposable {
 	private selectedPreference: RemoteAgentHostLocationPreference | undefined;
 	private readonly currentChoices: { value: RemoteAgentHostLocationPreference; element: HTMLElement; label: string; detail: string; option: HTMLElement }[] = [];
 	private saveButton: Button | undefined;
-	private recoveryButton: Button | undefined;
-	private disconnectButton: Button | undefined;
-	private reportLink: Link | undefined;
-	private reportLinkElement: HTMLAnchorElement | undefined;
-	private readonly reportFeedback = dom.$('p.remotes-details-feedback.remotes-report-feedback', { id: generateUuid(), role: 'status', 'aria-atomic': 'true' });
-	private copyReport: Button | undefined;
 	private taskError: string | undefined;
-	private connectionProgress: string | undefined;
 	private remote: ICustomizationRemote;
 
 	constructor(
 		remote: ICustomizationRemote,
-		readonly mode: RemoteEnvironmentDetailsMode,
 		private readonly model: IRemotesModel,
 		private readonly close: () => void,
 		private readonly onDidChangeBusy: (busy: boolean) => void,
-		private readonly newSession: () => Promise<void>,
-		private readonly configureSSH: () => Promise<void>,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConnectionDiagnosticsService private readonly diagnosticsService: IConnectionDiagnosticsService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
@@ -135,7 +77,7 @@ export class RemoteEnvironmentDetails extends Disposable {
 		this.backToolbar.setActions([this.backAction]);
 		const heading = dom.append(navigation, dom.$('.remotes-task-heading'));
 		this.title = dom.append(heading, dom.$('h2.remotes-task-title', { id: generateUuid() },
-			mode === 'runBehavior' ? localize('remotes.runBehavior', "Agent run behavior") : localize('remotes.troubleshoot', "Troubleshoot connection")));
+			localize('remotes.runBehavior', "Agent run behavior")));
 		this.owner = dom.$('dd.remotes-details-owner', { id: generateUuid() }, remote.name);
 		this.identityDetail = dom.$('dl.remotes-task-identity-detail');
 		this.updateIdentity();
@@ -146,11 +88,7 @@ export class RemoteEnvironmentDetails extends Disposable {
 		dom.append(this.domNode, this.scrollable.getDomNode());
 		this.feedback = dom.$('p.remotes-details-feedback', { id: generateUuid(), role: 'status', 'aria-atomic': 'true' });
 		this.footer = dom.$('.remotes-details-actions.remotes-details-footer');
-		if (mode === 'runBehavior') {
-			this.renderRunBehavior();
-		} else {
-			this.renderTroubleshooting();
-		}
+		this.renderRunBehavior();
 		const observer = this._register(new dom.DisposableResizeObserver('RemoteEnvironmentDetails', () => this.scrollable.scanDomNode(), dom.getWindow(this.domNode)));
 		this._register(observer.observe(this.domNode));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
@@ -263,8 +201,8 @@ export class RemoteEnvironmentDetails extends Disposable {
 		connection.classList.add('remotes-recovery-status');
 		const indicator = dom.append(connection, dom.$('span.remotes-connection-indicator', { 'aria-hidden': 'true' }));
 		const remote = this.taskError ? { ...this.remote, lastConnectionError: this.taskError } : this.remote;
-		renderConnectionStatus(indicator, remote, this.connectionProgress ? true : undefined);
-		dom.append(connection, dom.$('span', undefined, this.connectionProgress ?? getConnectionLabel(remote)));
+		renderConnectionStatus(indicator, remote);
+		dom.append(connection, dom.$('span', undefined, getConnectionLabel(remote)));
 		field(localize('remotes.connectionType', "Connection type"), getRemoteTypeLabel(this.remote.kind));
 		const system = getRemoteMetadataLabel(this.remote, 'system');
 		if (system) {
@@ -275,15 +213,6 @@ export class RemoteEnvironmentDetails extends Disposable {
 		} else if (this.remote.detail && this.remote.kind === 'wsl') {
 			field(localize('remotes.distribution', "Distribution"), this.remote.detail);
 		}
-		if (this.mode === 'troubleshoot') {
-			const metadata = this.remote.metadata;
-			if (metadata?.lastOnlineAt !== undefined) {
-				field(localize('remotes.lastOnline', "Last seen online"), new Date(metadata.lastOnlineAt).toLocaleString());
-			}
-			if (metadata?.lastConnectedAt !== undefined) {
-				field(localize('remotes.lastConnectedFromDevice', "Last connected from this computer"), new Date(metadata.lastConnectedAt).toLocaleString());
-			}
-		}
 	}
 
 	update(remote: ICustomizationRemote): void {
@@ -291,30 +220,11 @@ export class RemoteEnvironmentDetails extends Disposable {
 		this.remote = remote;
 		if (RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus) && !RemoteAgentHostConnectionStatus.isConnected(previous.connectionStatus)) {
 			this.taskError = undefined;
-			if (this.mode === 'troubleshoot') {
-				this.feedback.textContent = '';
-			}
 		}
 		this.updateIdentity();
 		this.updateCurrentChoice();
 		this.updateSaveButton();
-		if (this.mode === 'troubleshoot' && (remote.connectionStatus.kind !== previous.connectionStatus.kind
-			|| remote.lastConnectionError !== previous.lastConnectionError || remote.unavailableReason !== previous.unavailableReason
-			|| remote.availability !== previous.availability && (remote.availability === 'offline' || previous.availability === 'offline')
-			|| RemoteAgentHostConnectionStatus.isIncompatible(remote.connectionStatus) && RemoteAgentHostConnectionStatus.isIncompatible(previous.connectionStatus)
-			&& remote.connectionStatus.vscodeUpgradeMethod !== previous.connectionStatus.vscodeUpgradeMethod)) {
-			if (!this.busy) {
-				this.feedback.textContent = '';
-				this.renderTroubleshooting();
-			}
-		}
 		this.scrollable.scanDomNode();
-	}
-
-	showConnectionFailure(error: unknown): void {
-		this.taskError = toErrorMessage(error);
-		this.feedback.textContent = localize('remotes.connectionFailureDetail', "Connection failed: {0}", sanitizeConnectionDiagnosticText(this.taskError));
-		this.renderTroubleshooting();
 	}
 
 	private updateCurrentChoice(): void {
@@ -326,241 +236,49 @@ export class RemoteEnvironmentDetails extends Disposable {
 		}
 	}
 
-	private renderTroubleshooting(): void {
-		this.controls.clear();
-		this.buttons.length = 0;
-		this.recoveryButton = undefined;
-		this.disconnectButton = undefined;
-		dom.clearNode(this.body);
-		dom.clearNode(this.footer);
-		const remote = this.remote;
-		const incompatible = RemoteAgentHostConnectionStatus.isIncompatible(remote.connectionStatus);
-		const offline = remote.availability === 'offline' && !remote.startsOnConnect;
-		const connected = RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus);
-		const pending = RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus) || RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus);
-		const failed = !!(remote.lastConnectionError || this.taskError);
-		if (!connected && !pending && failed && !this.feedback.textContent) {
-			this.feedback.textContent = localize('remotes.connectionFailureDetail', "Connection failed: {0}", sanitizeConnectionDiagnosticText(this.taskError ?? remote.lastConnectionError!));
-		}
-		const connectLabel = failed ? localize('remotes.retryConnection', "Retry Connection") : localize('remotes.connect', "Connect");
-		const diagnosis = !connected && !pending && !incompatible && remote.kind === 'ssh'
-			? getSSHRecovery(this.taskError ?? remote.lastConnectionError, offline) : undefined;
-		this.updateIdentity();
-		this.body.appendChild(this.identityDetail);
-		let guidance: string | undefined;
-		if (!connected && !pending) {
-			if (incompatible) {
-				guidance = remote.connectionStatus.vscodeUpgradeMethod
-					? localize('remotes.recoveryUpdateServer', "Select Update Server to update the remote server and reconnect.")
-					: undefined;
-			} else if (diagnosis) {
-				guidance = diagnosis;
-			} else if (remote.kind === 'wsl') {
-				guidance = remote.startsOnConnect
-					? localize('remotes.recoveryWSLConnect', "Select {0} to start this WSL distribution.", connectLabel)
-					: offline
-						? localize('remotes.recoveryWSLInstalled', "In PowerShell on this computer, run wsl --list --verbose and check that this distribution is installed.")
-						: undefined;
-			}
-			if (!guidance && !incompatible && !failed && remote.availability !== 'online') {
-				guidance = remote.unavailableReason;
-			}
-		}
-		if (guidance) {
-			dom.append(this.body, dom.$('p.remotes-recovery-guidance', undefined, guidance));
-		}
-		const recovery = dom.append(this.body, dom.$('section.remotes-recovery-next'));
-		const actions = this.footer;
-		if (connected) {
-			this.recoveryButton = this.button(actions, localize('remotes.newSession', "New Session"), () => void this.newSession(), false);
-			this.disconnectButton = this.button(actions, localize('remotes.disconnectAction', "Disconnect"), () => void this.run(async () => {
-				await this.model.setConnected(remote.id, false);
-			}, 'disconnect'));
-			this.disconnectButton.setTitle(localize('remotes.disconnectDetail', "Disconnect from {0}. Sessions may continue running on the remote computer.", remote.name));
-			this.disconnectButton.element.setAttribute('aria-describedby', this.feedback.id);
-		} else if (incompatible && remote.connectionStatus.vscodeUpgradeMethod) {
-			this.recoveryButton = this.button(actions, localize('remotes.updateRemote', "Update Server"), () => void this.run(async () => {
-				await this.model.updateServer(remote.id);
-				this.taskError = undefined;
-			}, 'update'), false);
-		} else if (!connected && !pending && !incompatible && !offline) {
-			this.recoveryButton = this.button(actions, connectLabel, () => void this.run(async () => {
-				await this.model.setConnected(remote.id, true);
-				this.taskError = undefined;
-			}, 'connect'), false);
-		}
-		if (!connected) {
-			this.recoveryButton?.element.setAttribute('aria-describedby', this.feedback.id);
-		}
-		if (remote.kind === 'ssh' && failed && !connected && !pending) {
-			this.button(actions, localize('remotes.openSSHConfiguration', "Open SSH Configuration"), () => void this.configureSSH());
-		}
-		recovery.append(this.footer, this.feedback);
-		if (!connected && !pending) {
-			const help = (incompatible ? undefined : remoteConnectionHelp[remote.kind]) ?? {
-				label: localize('remotes.connectionHelp.incompatible', "Remote agent connection troubleshooting"),
-				href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_troubleshoot-remote-sessions',
-			};
-			const documentation = dom.append(recovery, dom.$('p.remotes-recovery-links'));
-			this.controls.add(this.instantiationService.createInstance(Link, documentation, help, { hoverDelegate: this.hoverDelegate }));
-		}
-		const supportTitleId = generateUuid();
-		const support = dom.append(this.body, dom.$('section.remotes-recovery-support', { 'aria-labelledby': supportTitleId }));
-		dom.append(support, dom.$('h3.remotes-recovery-heading', { id: supportTitleId }, localize('remotes.collectDiagnostics', "Collect diagnostics")));
-		const report = dom.append(support, dom.$('div.remotes-recovery-report'));
-		dom.append(report, dom.$('p', undefined, connected
-			? localize('remotes.reportPurposeConnected', "Collect a diagnostic report to investigate session problems. It may include names, addresses, and local logs for all environments. Review and remove sensitive details before sharing.")
-			: localize('remotes.reportPurpose', "Collect a diagnostic report to troubleshoot the connection. It may include names, addresses, and local logs for all environments. Review and remove sensitive details before sharing.")));
-		const reportActions = dom.append(report, dom.$('.remotes-details-actions'));
-		this.copyReport = this.button(reportActions, localize('remotes.copyReport', "Copy Report"), () => void this.run(async () => {
-			const contents = await this.getDiagnosticContents();
-			if (contents !== undefined) {
-				await this.clipboardService.writeText(contents);
-				if (!this._store.isDisposed) {
-					this.reportFeedback.textContent = '';
-					status(localize('remotes.reportCopied', "Report copied."));
-				}
-			}
-		}, 'diagnostics'));
-		this.copyReport.element.classList.add('remotes-copy-report');
-		this.copyReport.element.setAttribute('aria-describedby', this.reportFeedback.id);
-		report.appendChild(this.reportFeedback);
-		const reportLink = dom.append(report, dom.$('p.remotes-recovery-links'));
-		this.reportLink = this.controls.add(this.instantiationService.createInstance(Link, reportLink, {
-			label: localize('remotes.openReport', "Open Diagnostic Report"), href: '#',
-			title: localize('remotes.openReportTooltip', "Open diagnostic report in the editor"),
-		}, { opener: () => void this.run(() => this.exportDiagnostics(), 'diagnostics'), hoverDelegate: this.hoverDelegate }));
-		this.reportLinkElement = reportLink.firstElementChild as HTMLAnchorElement;
-		this.reportLinkElement.setAttribute('aria-describedby', this.reportFeedback.id);
-		this.scrollable.scanDomNode();
-	}
-
-	private async getDiagnosticContents(): Promise<string | undefined> {
-		const snapshot = await this.diagnosticsService.getSnapshot();
-		if (this._store.isDisposed) {
-			return;
-		}
-		const error = this.taskError ?? this.remote.lastConnectionError;
-		return error
-			? localize('remotes.reportWithError', "{0}\n\nLatest error for {1}:\n{2}", snapshot.text, sanitizeConnectionDiagnosticText(this.remote.name), sanitizeConnectionDiagnosticText(error))
-			: snapshot.text;
-	}
-
-	private async exportDiagnostics(): Promise<void> {
-		const contents = await this.getDiagnosticContents();
-		if (contents === undefined) {
-			return;
-		}
-		await this.commandService.executeCommand('workbench.action.closeModalEditor');
-		await this.editorService.openEditor({ contents, languageId: 'plaintext', options: { pinned: true } });
-	}
-
-	private async run(task: () => Promise<void>, operation?: 'connect' | 'disconnect' | 'update' | 'diagnostics'): Promise<void> {
+	private async run(task: () => Promise<void>): Promise<void> {
 		if (this.busy) {
 			return;
 		}
 		this.busy = true;
-		const previousRemote = this.remote;
-		const previousError = this.taskError ?? this.remote.lastConnectionError;
-		const diagnostics = operation === 'diagnostics';
-		const feedback = diagnostics ? this.reportFeedback : this.feedback;
-		const focusCopy = diagnostics && dom.getActiveElement() === this.copyReport?.element;
-		const focusReport = diagnostics && dom.getActiveElement() === this.reportLinkElement;
-		const focusDisconnect = dom.getActiveElement() === this.disconnectButton?.element;
 		this.domNode.setAttribute('aria-busy', 'true');
 		this.radio?.setEnabled(false);
 		this.backAction.enabled = false;
 		const enabled = new Map(this.buttons.map(button => [button, button.enabled]));
 		this.buttons.forEach(button => button.enabled = false);
-		if (this.reportLink) {
-			this.reportLink.enabled = false;
-		}
-		const working = operation === 'connect' ? localize('remotes.detailsConnecting', "Connecting...")
-			: operation === 'disconnect' ? localize('remotes.detailsDisconnecting', "Disconnecting...")
-				: operation === 'update' ? localize('remotes.detailsUpdating', "Updating server...")
-					: diagnostics ? localize('remotes.detailsCollecting', "Collecting diagnostic report...")
-						: localize('remotes.detailsWorking', "Working...");
-		if (this.mode === 'troubleshoot') {
-			if (!diagnostics) {
-				this.connectionProgress = working;
-				this.updateIdentity();
-			}
-			status(working);
-		} else {
-			status(working);
-		}
+		status(localize('remotes.detailsWorking', "Working..."));
 		this.onDidChangeBusy(true);
 		try {
 			await task();
 			if (!this._store.isDisposed) {
-				feedback.textContent = '';
-			}
-			if (!this._store.isDisposed && this.mode === 'troubleshoot' && !diagnostics) {
-				status(getConnectionLabel(this.remote));
+				this.feedback.textContent = '';
 			}
 		} catch (error) {
 			if (this._store.isDisposed && !isCancellationError(error)) {
 				this.notificationService.error(error);
 			}
 			if (!this._store.isDisposed) {
-				if (!isCancellationError(error)) {
-					if (!diagnostics) {
-						this.taskError = toErrorMessage(error);
-					}
-					this.logService.error('[Remote Environments]', error);
-				}
 				if (isCancellationError(error)) {
 					status(localize('remotes.detailsCancelled', "Cancelled."));
-				} else if (diagnostics) {
-					feedback.textContent = localize('remotes.reportFailed', "Couldn't open or copy the diagnostic report. Try again.");
-				} else if (operation === 'connect') {
-					feedback.textContent = localize('remotes.connectionFailureDetail', "Connection failed: {0}", sanitizeConnectionDiagnosticText(this.taskError!));
-					status(localize('remotes.connectionFailed', "Connection failed"));
-				} else if (operation === 'disconnect') {
-					feedback.textContent = localize('remotes.disconnectFailed', "Couldn't disconnect. Try again, or open the diagnostic report for details.");
-				} else if (operation === 'update') {
-					feedback.textContent = localize('remotes.updateFailed', "Couldn't update the server. Try again, or open the diagnostic report for details.");
-				} else if (this.mode === 'runBehavior' && this.selectedPreference !== undefined && this.model.getPreferredAgentLocation(this.remote.id) === this.selectedPreference) {
-					feedback.textContent = localize('remotes.runBehaviorFailed', "Your choice was saved, but reconnection failed. Go back and select Troubleshoot Connection.");
 				} else {
-					feedback.textContent = localize('remotes.runBehaviorSaveFailed', "Couldn't save your choice. Try again.");
+					this.taskError = toErrorMessage(error);
+					this.logService.error('[Remote Environments]', error);
+					this.feedback.textContent = this.selectedPreference !== undefined && this.model.getPreferredAgentLocation(this.remote.id) === this.selectedPreference
+						? localize('remotes.runBehaviorReconnectFailed', "Your choice was saved, but reconnection failed: {0}", sanitizeConnectionDiagnosticText(this.taskError))
+						: localize('remotes.runBehaviorSaveFailed', "Couldn't save your choice. Try again.");
 				}
 			}
 		} finally {
 			this.busy = false;
-			this.connectionProgress = undefined;
 			this.onDidChangeBusy(false);
 			if (!this._store.isDisposed) {
 				this.backAction.enabled = true;
 				this.domNode.setAttribute('aria-busy', 'false');
 				this.radio?.setEnabled(true);
 				this.buttons.forEach(button => button.enabled = enabled.get(button) ?? true);
-				if (this.mode === 'runBehavior') {
-					this.updateCurrentChoice();
-					this.updateSaveButton();
-				} else if (previousRemote.connectionStatus === this.remote.connectionStatus
-					&& previousRemote.availability === this.remote.availability
-					&& previousRemote.unavailableReason === this.remote.unavailableReason
-					&& previousRemote.startsOnConnect === this.remote.startsOnConnect
-					&& previousError === (this.taskError ?? this.remote.lastConnectionError)) {
-					this.updateIdentity();
-					if (this.reportLink) {
-						this.reportLink.enabled = true;
-					}
-				} else {
-					this.renderTroubleshooting();
-					if (focusCopy) {
-						this.copyReport?.focus();
-					} else if (focusReport) {
-						this.reportLinkElement?.focus();
-					} else if (focusDisconnect && this.disconnectButton) {
-						this.disconnectButton.focus();
-					} else if (!diagnostics && this.recoveryButton) {
-						this.recoveryButton.focus();
-					} else {
-						this.backToolbar.focus();
-					}
-				}
+				this.updateIdentity();
+				this.updateCurrentChoice();
+				this.updateSaveButton();
 				this.scrollable.scanDomNode();
 			}
 		}
@@ -579,9 +297,6 @@ export class RemoteEnvironmentDetails extends Disposable {
 	}
 
 	getAccessibilityContent(): string {
-		if (this.mode !== 'runBehavior') {
-			return this.domNode.textContent ?? '';
-		}
 		const current = this.model.getPreferredAgentLocation(this.remote.id);
 		const noChoice = localize('remotes.noRunChoice', "None");
 		return [

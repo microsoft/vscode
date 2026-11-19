@@ -51,7 +51,7 @@ const extensionRemotes: ICustomizationRemote[] = [
 	{ id: '127.0.0.1:8446', kind: 'extension', name: 'Nightly job runs', detail: '127.0.0.1:8446', canRemove: false, contributedBy: { extensionId: 'publisher.jobs', displayName: 'Job Runner' }, hidden: true, availability: 'unknown', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string; readonly runBehavior?: boolean; readonly troubleshoot?: ICustomizationRemote; readonly expandedKind?: RemoteKind; readonly grouping?: 'none' | 'type' | 'status'; readonly query?: string; readonly kinds?: readonly RemoteKind[]; readonly extensions?: boolean } = {}): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string; readonly runBehavior?: boolean; readonly expandedKind?: RemoteKind; readonly grouping?: 'none' | 'type' | 'status'; readonly query?: string; readonly kinds?: readonly RemoteKind[]; readonly extensions?: boolean } = {}): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = `${options.height ?? 640}px`;
 	container.classList.add('remotes-editor');
@@ -96,7 +96,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			await pendingSignIn?.p;
 			this.tunnelAuthenticationRequired.set(undefined, undefined);
 		}
-		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, options.troubleshoot ? [options.troubleshoot] : empty ? [] : [...remotes, ...options.extensions ? extensionRemotes : []].filter(remote => !options.kinds || options.kinds.includes(remote.kind)).map(remote =>
+		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : [...remotes, ...options.extensions ? extensionRemotes : []].filter(remote => !options.kinds || options.kinds.includes(remote.kind)).map(remote =>
 			remote.id === 'ssh:build' && options.connectionError
 				? {
 					...remote, lastConnectionError: options.connectionError,
@@ -170,16 +170,10 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			} : remote), undefined);
 		}
 	}());
-	if (options.troubleshoot) {
-		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, options.troubleshoot, 'troubleshoot', model, () => { }, () => { }, async () => { }, async () => { }));
-		content.appendChild(details.domNode);
-		details.layout();
-		return;
-	}
 	if (options.runBehavior) {
 		const remote = model.remotes.get()[0];
 		model.preferences.set(remote.id, 'dedicated');
-		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, remote, 'runBehavior', model, () => { }, () => { }, async () => { }, async () => { }));
+		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, remote, model, () => { }, () => { }));
 		content.appendChild(details.domNode);
 		details.domNode.querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
 		details.layout();
@@ -220,24 +214,6 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
-	ConnectionReady: defineComponentFixture({
-		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => render(context, 900, OS, false, [], false, undefined, false, {
-			troubleshoot: { ...remotes[2], name: 'UX-Ubuntu-Dev', detail: 'UX-Ubuntu-Dev', connectionStatus: RemoteAgentHostConnectionStatus.connected, metadata: { operatingSystem: OperatingSystem.Linux, observedAt: 0 } },
-		}),
-	}),
-	ConnectionPending: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: context => render(context, 900, OS, false, [], false, undefined, false, { troubleshoot: remotes[4] }),
-	}),
-	ConnectionOffline: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: context => render(context, 900, OS, false, [], true, undefined, false, { troubleshoot: remotes[7] }),
-	}),
-	ConnectionUpdate: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: context => render(context, 900, OS, false, [], false, undefined, false, { troubleshoot: remotes[5] }),
-	}),
 	InlineActions: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: async context => {
@@ -255,14 +231,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED build.example.com:22', retrying: true }),
 	}),
-	Recovery: defineComponentFixture({
-		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: async context => {
-			await render(context, 900, OS, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED build.example.com:22' });
-			context.container.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connect-action')!.click();
-			await waitForFixtureCondition(() => context.container.querySelector('.remotes-task-title')?.textContent === 'Troubleshoot connection', 'Recovery should be open before capture');
-		},
-	}),
 	RunBehaviorDraft: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => render(context, 900, OS, false, [], false, undefined, false, { runBehavior: true }),
@@ -270,14 +238,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	RunBehaviorDraftNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => render(context, 360, OS, false, [], false, undefined, false, { runBehavior: true }),
-	}),
-	RecoveryNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: async context => {
-			await render(context, 360, OS, false, [], false, undefined, false, { height: 500, connectionError: 'connect ECONNREFUSED build.example.com:22' });
-			context.container.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connect-action')!.click();
-			await waitForFixtureCondition(() => context.container.querySelector('.remotes-task-title')?.textContent === 'Troubleshoot connection', 'Recovery should be open before capture');
-		},
 	}),
 	ShortEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },

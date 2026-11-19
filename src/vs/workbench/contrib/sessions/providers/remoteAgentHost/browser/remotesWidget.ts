@@ -49,8 +49,8 @@ import { ISessionsProvidersService } from '../../../browser/sessionsProvidersSer
 import { INewSessionComposerService } from '../../../browser/newSessionComposerService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
-import { getGitHubEnvironmentLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
-import { RemoteEnvironmentDetails, RemoteEnvironmentDetailsMode } from './remoteEnvironmentDetails.js';
+import { getConnectionProblem, getGitHubEnvironmentLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
+import { RemoteEnvironmentDetails } from './remoteEnvironmentDetails.js';
 import './media/remotesWidget.css';
 import '../../../browser/media/disclosure.css';
 
@@ -121,7 +121,6 @@ export class RemotesWidget extends Disposable {
 	private readonly pendingActions = new Set<string>();
 	private readonly pendingConnections = new Map<string, boolean>();
 	private readonly collapsedGroups = new Set<string>();
-	private readonly expandedGroups = new Set<string>();
 	private groupBy: 'none' | 'status' | 'type' = 'none';
 	private kinds: readonly RemoteKind[];
 	private displayedRemotes: readonly ICustomizationRemote[] = [];
@@ -219,7 +218,6 @@ export class RemotesWidget extends Disposable {
 				item.action.checked = item.grouping === 'none';
 			}
 			this.collapsedGroups.clear();
-			this.expandedGroups.clear();
 			this.updateSortHeaders();
 			this.setSearchQuery('');
 			this.updateViewOrder();
@@ -306,7 +304,7 @@ export class RemotesWidget extends Disposable {
 				if (row.entry.type === 'empty') {
 					nameRenderer.renderElement(row, 0, emptyTemplate);
 					this.domNode.appendChild(emptyRowMeasure);
-					const height = emptyRowMeasure.offsetHeight + 24;
+					const height = emptyRowMeasure.offsetHeight;
 					emptyRowMeasure.remove();
 					return height;
 				}
@@ -470,9 +468,7 @@ export class RemotesWidget extends Disposable {
 			} else if (action === 'copyAddress') {
 				void this.copyAddress(entry.remote.id);
 			} else if (action === 'locationPreference' && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh')) {
-				this.openDetails(entry.remote, 'runBehavior');
-			} else if (action === 'troubleshoot') {
-				this.openDetails(entry.remote, 'troubleshoot');
+				this.openDetails(entry.remote);
 			} else if (action === 'githubEnvironment' && entry.remote.gitHubEnvironment?.state !== 'unavailable' && (entry.remote.canShareAsGitHubEnvironment || entry.remote.gitHubEnvironment)) {
 				void this.manageRemote(entry.remote, 'githubEnvironment');
 			} else if (action === 'showExtension' && entry.remote.contributedBy) {
@@ -487,16 +483,16 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private openDetails(remote: ICustomizationRemote, mode: RemoteEnvironmentDetailsMode): void {
+	private openDetails(remote: ICustomizationRemote): void {
 		if (this.details.value?.isBusy || this.pendingActions.has(remote.id)) {
 			return;
 		}
-		if (this.detailsRemoteId === remote.id && this.details.value?.mode === mode) {
+		if (this.detailsRemoteId === remote.id && this.details.value) {
 			this.closeDetails();
 			return;
 		}
 		this.detailsRemoteId = remote.id;
-		this.details.value = this.instantiationService.createInstance(RemoteEnvironmentDetails, remote, mode, this.model, () => this.closeDetails(), busy => {
+		this.details.value = this.instantiationService.createInstance(RemoteEnvironmentDetails, remote, this.model, () => this.closeDetails(), busy => {
 			if (busy) {
 				this.pendingActions.add(remote.id);
 			} else {
@@ -505,7 +501,7 @@ export class RemotesWidget extends Disposable {
 			if (!this._store.isDisposed) {
 				this.render();
 			}
-		}, () => this.newSession(remote.id), () => this.openConfiguration('ssh'));
+		});
 		this.detailsContainer.appendChild(this.details.value.domNode);
 		this.overview.hidden = true;
 		this.detailsContainer.hidden = false;
@@ -592,10 +588,8 @@ export class RemotesWidget extends Disposable {
 		const entry = this.rows.find(row => row.id === id)?.entry;
 		if (entry?.type === 'group' && entry.collapsed) {
 			this.collapsedGroups.delete(id);
-			this.expandedGroups.add(id);
 		} else {
 			this.collapsedGroups.add(id);
-			this.expandedGroups.delete(id);
 		}
 		this.render();
 		const index = this.rows.findIndex(row => row.id === id);
@@ -844,7 +838,8 @@ export class RemotesWidget extends Disposable {
 				continue;
 			}
 			const id = `remote-group-${kind}`;
-			const collapsed = this.collapsedGroups.has(id) || !setup && !groupRemotes.length && !this.expandedGroups.has(id);
+			// Empty types stay expanded because their rows explain how to set up that type.
+			const collapsed = this.collapsedGroups.has(id);
 			entries.push({
 				type: 'group', id, kind, label: remoteKindLabels[kind],
 				count: groupRemotes.length, collapsed, refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
@@ -1099,19 +1094,9 @@ export class RemotesWidget extends Disposable {
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				const remote = this.model.remotes.get().find(remote => remote.id === id);
-				if (connected && remote && !this._store.isDisposed) {
-					if (!this.details.value) {
-						this.openDetails(remote, 'troubleshoot');
-					}
-					const details = this.details.value;
-					if (this.detailsRemoteId === id && details?.mode === 'troubleshoot' && !details.isBusy) {
-						details.showConnectionFailure(error);
-					} else {
-						this.notificationService.error(localize('remotes.connectionFailureFor', "Connection to {0} failed: {1}", remote.name, toErrorMessage(error)));
-					}
-				} else {
-					this.notificationService.error(error);
-				}
+				this.notificationService.error(connected && remote
+					? localize('remotes.connectionFailureFor', "Connection to {0} failed: {1}", remote.name, toErrorMessage(error))
+					: error);
 			}
 		} finally {
 			this.pendingConnections.delete(id);
@@ -1154,6 +1139,10 @@ export class RemotesWidget extends Disposable {
 		const sentences = [
 			availability ? localize('remotes.accessibleRow', "{0}. Status: {1}.", name, availability) : localize('remotes.accessibleRowWithoutStatus', "{0}.", name),
 		];
+		const problem = this.pendingConnections.has(remote.id) ? undefined : getConnectionProblem(remote);
+		if (problem) {
+			sentences.push(problem);
+		}
 		const metadata = (['activity', 'system'] as const).map(column => {
 			return getRemoteMetadataDetails(remote, column);
 		}).filter(Boolean);

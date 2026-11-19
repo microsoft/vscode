@@ -101,8 +101,7 @@
 }
 
 .remotes-sharing-question,
-.remotes-run-question,
-.remotes-recovery-heading {
+.remotes-run-question {
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
@@ -542,8 +541,9 @@
 
 .remotes-widget .remotes-empty-row .remotes-name-content {
 	box-sizing: border-box;
-	padding-block: var(--vscode-spacing-size120);
-	gap: var(--vscode-spacing-size80);
+	/* The group heading above already separates the setup text; the bottom padding separates the next group. */
+	padding-block: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size40);
 }
 
 .remotes-widget .remotes-empty-row :is(.remotes-empty-label, .remotes-empty-description, .remotes-empty-actions) {
@@ -766,10 +766,6 @@
 	display: none;
 }
 
-.remotes-recovery-heading {
-	margin: 0 0 var(--vscode-spacing-size80);
-}
-
 .remotes-recovery-status {
 	display: flex;
 	align-items: center;
@@ -785,30 +781,6 @@
 	font-weight: var(--vscode-fontWeight-regular);
 	line-height: 1.5;
 	overflow-wrap: anywhere;
-}
-
-.remotes-recovery-next {
-	margin-top: var(--vscode-spacing-size240);
-}
-
-.remotes-recovery-next > .remotes-details-footer {
-	padding-top: 0;
-}
-
-.remotes-recovery-steps {
-	max-width: 80ch;
-	padding-inline-start: var(--vscode-spacing-size200);
-	line-height: 1.5;
-}
-
-.remotes-recovery-steps > li + li {
-	margin-top: var(--vscode-spacing-size80);
-}
-
-.remotes-recovery-support {
-	margin-top: var(--vscode-spacing-size240);
-	padding-top: var(--vscode-spacing-size200);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
 }
 
 .remotes-widget .remotes-github-environment {

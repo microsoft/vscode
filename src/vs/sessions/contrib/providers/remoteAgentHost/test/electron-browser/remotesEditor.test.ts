@@ -190,7 +190,7 @@ suite('RemotesEditor', () => {
 		});
 	});
 
-	test('accessibility help describes focused settings and recovery rather than removed type groups', async () => {
+	test('accessibility help describes focused settings and connection failures rather than removed type groups', async () => {
 		const { editor, instantiation, input } = createEditor();
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
 		const isVisibleEditor = (pane: RemotesEditor): pane is RemotesEditor & IVisibleEditorPane => pane.input !== undefined;
@@ -202,9 +202,9 @@ suite('RemotesEditor', () => {
 			runBehavior: content.includes('Configure Agent Run Behavior'),
 			runBehaviorExplained: ['tasks you want to leave running', 'when available', 'If a Dev Tunnel is shared', 'Existing sessions are not moved'].every(explanation => content.includes(explanation)),
 			removalActions: ['Remove Environment', 'Forget SSH Connection', 'Delete Dev Tunnel'].every(label => content.includes(label)),
-			diagnostics: content.includes('Open Diagnostic Report'),
+			connectionFailures: ['a notification shows the error', 'Connect action shows a warning', 'select Connect to try again'].every(explanation => content.includes(explanation)),
 			oldGroupSettings: content.includes('The Dev Tunnels group has an Open Dev Tunnels Settings action.'),
-		}, { runBehavior: true, runBehaviorExplained: true, removalActions: true, diagnostics: true, oldGroupSettings: false });
+		}, { runBehavior: true, runBehaviorExplained: true, removalActions: true, connectionFailures: true, oldGroupSettings: false });
 	});
 
 	test('offers the open command in the Command Palette and Sessions overflow only with management, Environment picker, AI and remote gates', () => {
@@ -997,12 +997,12 @@ suite('RemotesEditor', () => {
 		const overflow = container.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .codicon-toolbar-more')!;
 		overflow.focus();
 		overflow.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
-		await menuActions().find(action => action.id === 'remotes.troubleshoot')!.run();
+		await menuActions().find(action => action.id === 'remotes.locationPreference')!.run();
 		editor.focus();
 		const details = {
 			localHidden: container.querySelector<HTMLElement>('.remotes-editor-this-computer')!.hidden,
 			focus: dom.getActiveElement() === container.querySelector('.remotes-task-back .action-label'),
-			accessible: editor.getAccessibilityContent().includes('Troubleshoot connection'),
+			accessible: editor.getAccessibilityContent().includes('Agent run behavior'),
 		};
 		editor.closeEnvironmentDetails();
 		assert.deepStrictEqual({
