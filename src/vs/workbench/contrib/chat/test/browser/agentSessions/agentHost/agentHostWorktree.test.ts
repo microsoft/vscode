@@ -9,8 +9,9 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { isWindows } from '../../../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, originalFSPath } from '../../../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -51,11 +52,12 @@ suite('AgentHostWorktree', () => {
 	const created = URI.file('/work/vscode.worktrees/created');
 
 	/** The feature in a window whose folder is at `at`, recording the moves it asks for, the chats it opens and its experiment triggers. */
-	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>>; readonly realPaths?: Record<string, string>; readonly realPathError?: Error; readonly folderForms?: Record<string, string> }) {
+	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>>; readonly realPaths?: Record<string, string>; readonly realPathError?: Error; readonly folderForms?: Record<string, string>; readonly root?: URI }) {
 		const worktrees = options.worktrees ?? [worktree, created];
 		const marks: string[] = [];
 		const terminal = upcastPartial<ITerminalInstance>({
-			initialCwd: options.terminalCwd?.fsPath,
+			// As the terminal reports it, with its drive letter in the case it has
+			initialCwd: options.terminalCwd && originalFSPath(options.terminalCwd),
 			statusList: upcastPartial<ITerminalInstance['statusList']>({ add: () => { marks.push('marked'); }, remove: () => { marks.push('unmarked'); } }),
 		});
 		const shownSession = observableValue<IChatViewHostShownSession | undefined>('shownSession', undefined);
@@ -64,7 +66,8 @@ suite('AgentHostWorktree', () => {
 		const onDidChangeLocation = store.add(new Emitter<IFolderLocationChangeEvent>());
 		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const onDidCommitSession = store.add(new Emitter<IChatSessionCommitEvent>());
-		const workspace = { at: options.at ?? primary };
+		const root = options.root ?? primary;
+		const workspace = { at: options.at ?? root };
 		const moves: string[] = [];
 		/** The moves the workspace made: of those it was asked for, each that was still the latest once `options.setting` let it complete. */
 		const applied: string[] = [];
@@ -121,18 +124,20 @@ suite('AgentHostWorktree', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-			getWorkspace: () => upcastPartial<IWorkspace>({ uri: primary, folders: [folder()] }),
+			getWorkspace: () => upcastPartial<IWorkspace>({ uri: root, folders: [folder()] }),
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 			onDidChangeWorkbenchState: Event.None,
 		}));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
 			canSetLocation: () => options.canSetLocation ?? true,
 			onDidChangeLocation: onDidChangeLocation.event,
-			getLocation: () => workspace.at.path === primary.path ? undefined : upcastPartial<IResolvedFolderLocation>({ providerId: 'agentHost.sessionWorktrees' }),
+			getLocation: () => extUriBiasedIgnorePathCase.isEqual(workspace.at, root) ? undefined : upcastPartial<IResolvedFolderLocation>({ providerId: 'agentHost.sessionWorktrees' }),
 			resolveLocation: async (_primary: URI, location: URI) => {
 				await options.resolving;
 				await options.resolvingFor?.[location.path];
-				return worktrees.some(known => known.path === location.path) ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined;
+				// As the location service does, in the form the provider knows it, compared as the file system does
+				const known = worktrees.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, location));
+				return known ? upcastPartial<IResolvedFolderLocation>({ uri: known }) : undefined;
 			},
 			registerProvider: () => { providers.push('registered'); return toDisposable(() => providers.push('unregistered')); },
 		}));
@@ -629,6 +634,40 @@ suite('AgentHostWorktree', () => {
 		await settle();
 
 		assert.deepStrictEqual(feature.applied, ['/work/vscode.worktrees/feature', '/work/vscode.worktrees/created']);
+	});
+
+	test('on Windows, follows a chat in a worktree by its drive letter in either case, stops at a drive or share root for a folder elsewhere, and marks a terminal of the worktree', async () => {
+		// Local folders on Windows drives, as their URI paths are on every OS; the drive letter differs in case where Windows
+		// treats both as the same folder
+		const drive = (letter: string, path: string) => URI.from({ scheme: 'file', path: `/${letter}:${path}` });
+		const otherCase = isWindows ? 'C' : 'c';
+		const root = drive('c', '/work/vscode');
+		const feature = drive('c', '/work/vscode.worktrees/feature');
+		const follow = async (workingDirectory: URI) => {
+			const window = createWorktree({ enabled: true, root, worktrees: [feature] });
+			// As the session reports it, with its drive letter in the case it has, which `fsPath` would lowercase
+			window.workingDirectories.set(agentSession('w').toString(), originalFSPath(workingDirectory));
+			window.show(agentSession('w'));
+			await settle();
+			return window.moves;
+		};
+		const terminal = createWorktree({ enabled: true, root, at: feature, worktrees: [feature], terminalCwd: drive(otherCase, '/work/vscode.worktrees/feature/src') });
+		terminal.userMovesTo(root);
+
+		assert.deepStrictEqual({
+			worktree: await follow(drive(otherCase, '/work/vscode.worktrees/feature/src')),
+			otherDrive: await follow(drive('d', '/elsewhere/project')),
+			share: await follow(URI.from({ scheme: 'file', authority: 'server', path: '/share/project' })),
+			terminal: terminal.marks.at(-1),
+			// The product gets the other case: the window's folder and its worktree are `c:`
+			fedDrive: /^\/?([a-z]:)/i.exec(originalFSPath(drive(otherCase, '/work')))?.[1],
+		}, {
+			worktree: ['/c:/work/vscode.worktrees/feature'],
+			otherDrive: [],
+			share: [],
+			terminal: 'marked',
+			fedDrive: `${otherCase}:`,
+		});
 	});
 
 	test('marks a terminal that started in a worktree inside the folder once the folder returns to its own location', async () => {

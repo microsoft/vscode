@@ -81,6 +81,7 @@ import { getSessionApplication } from '../../../../../workbench/services/session
 import { ExternalSessionApplicationBadgeMode, SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
+import { AutomationHistoryActionsContribution } from '../../../automations/browser/automationRunHistory.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
 import { AutomationsCardsWidget, AutomationsCustomViewContribution, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { AUTOMATIONS_TOUR_ID, createAutomationsTour } from '../../../onboardingTours/browser/tours/automationsTour.js';
@@ -927,6 +928,7 @@ suite('AutomationsCardsWidget', () => {
 			override hideCustomView() { }
 		}());
 		disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
+		disposables.add(instantiationService.createInstance(AutomationHistoryActionsContribution));
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
@@ -2731,10 +2733,12 @@ suite('AutomationsCardsWidget', () => {
 		const focusedRow = widget.element.querySelector<HTMLElement>('.monaco-list-row.focused')!;
 		const rowBounds = focusedRow.getBoundingClientRect();
 		const viewport = scroller.getBoundingClientRect();
+		// Scroll offsets snap to device pixels, so a revealed row can sit a fraction of a pixel past the edge on HiDPI screens.
+		const slack = 1 / getWindow(scroller).devicePixelRatio;
 		assert.deepStrictEqual({
 			title: focusedRow.querySelector('.monaco-highlighted-label')?.textContent,
 			scrolledUp: scroller.scrollTop < before,
-			visible: rowBounds.top >= viewport.top && rowBounds.bottom <= viewport.bottom,
+			visible: rowBounds.top >= viewport.top - slack && rowBounds.bottom <= viewport.bottom + slack,
 		}, { title: 'History 10', scrolledUp: true, visible: true });
 	});
 
