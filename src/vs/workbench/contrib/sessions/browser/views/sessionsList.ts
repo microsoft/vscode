@@ -23,7 +23,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { createCommandUri, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
@@ -70,6 +70,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { getRepositoryRootFromWorktree } from '../../../../../platform/agentHost/common/worktreePaths.js';
+import { isSideChat, ISideChatPlacementService } from '../sideChatPlacement.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
@@ -122,15 +123,15 @@ import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/commo
 import { clearChatReferenceDragData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionChatReferenceDragData, onDidEndSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
 import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListSessionDrop } from './sessionsListChatMove.js';
-import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { NotificationText } from '../../../../../platform/notification/common/notificationMessage.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { InboxAutoAdvanceSpotlight } from './inboxAutoAdvanceSpotlight.js';
+import { ONBOARDING_ENABLED_CONFIG } from '../../../onboarding/common/onboardingScenarioService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { createSessionSummaryHover, getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
-import { getScheduledRequestsCardKey, renderScheduledRequestsCard } from './sessionScheduledRequestsCard.js';
+import { ScheduledRequestsIndicatorRenderer } from './sessionScheduledRequestsCard.js';
 import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../chat/common/automations/automationsEnabled.js';
@@ -183,7 +184,7 @@ function setSessionGroupDepth(container: HTMLElement, depth: number): void {
 }
 
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
-/** The session context menu group that changes where a session is listed: Pin, then the group membership actions. */
+/** The session context menu group that changes where a session is listed: Pin, the group membership actions, then Move to Session.... */
 export const SessionItemOrganizeMenuGroup = '2_organize';
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
@@ -365,8 +366,8 @@ function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
 }
 
 /** The done chats of a session that is not done, which the Done section lists as rows of their own. */
-function getSessionDoneListChats(session: ISession, reader?: IReader): readonly IChat[] {
-	return session.isArchived.read(reader) ? [] : getSessionListChats(session, reader, true).filter(chat => chat.isArchived.read(reader));
+function getSessionDoneListChats(session: ISession, hideSideChats: boolean, reader?: IReader): readonly IChat[] {
+	return session.isArchived.read(reader) ? [] : getSessionListChats(session, reader, true, hideSideChats).filter(chat => chat.isArchived.read(reader));
 }
 
 function getChatTitle(chat: IChat, reader?: IReader): string {
@@ -381,19 +382,25 @@ export function formatSessionListTime(date: Date): string {
 	return seconds < 60 ? localize('secondsDuration', "now") : fromNow(date, true);
 }
 
-export function getSessionListChats(session: ISession, reader?: IReader, showArchived = false): readonly IChat[] {
+/**
+ * The chats a session lists below its row: its peer chats, not its main chat, subagents or hidden chats, archived chats
+ * only with `showArchived`, and its side chats only without `hideSideChats`, as while side chats show in the side pane
+ * ({@link ISideChatPlacementService.inSidePane}).
+ */
+export function getSessionListChats(session: ISession, reader?: IReader, showArchived = false, hideSideChats = false): readonly IChat[] {
 	const mainChat = session.mainChat.read(reader);
 	return session.chats.read(reader).filter(chat =>
 		!isEqual(chat.resource, mainChat.resource) &&
 		chat.origin?.kind !== ChatOriginKind.Tool &&
+		!(hideSideChats && isSideChat(chat)) &&
 		(!chat.isArchived.read(reader) || showArchived) &&
 		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
 	);
 }
 
 /** Whether a session is archived or lists archived chats, both of which the archived filter hides. */
-function hasArchivedListContent(session: ISession): boolean {
-	return session.isArchived.get() || getSessionListChats(session, undefined, true).some(chat => chat.isArchived.get());
+function hasArchivedListContent(session: ISession, hideSideChats: boolean): boolean {
+	return session.isArchived.get() || getSessionListChats(session, undefined, true, hideSideChats).some(chat => chat.isArchived.get());
 }
 
 /** Whether the chat is the open chat of the active session. */
@@ -941,6 +948,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 interface ISessionChatItemTemplate {
 	readonly container: HTMLElement;
+	scheduledIndicator?: HTMLElement;
 	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleContainer: HTMLElement;
@@ -1046,6 +1054,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		/** While searching, the field a standalone chat matched in that neither its row, through `shownTexts`, nor its section headers show. */
 		private readonly getSearchHint: (item: ISessionChatItem, shownTexts: readonly string[]) => ISessionSearchHint | undefined = () => undefined,
 		private readonly getComparisonAttemptLabel: (session: ISession, chat: IChat) => string | undefined = () => undefined,
+		private readonly scheduledIndicatorRenderer?: ScheduledRequestsIndicatorRenderer,
+		private readonly focusChat: (item: ISessionChatItem) => void = () => undefined,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
@@ -1106,6 +1116,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 
 		template.elementDisposables.clear();
+		this.scheduledIndicatorRenderer?.render(() => element.chat.resource, template, () => this.focusChat(element));
 		template.titleToolbar.context = element;
 		setSessionGroupDepth(template.container, this.getGroupDepth(element));
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
@@ -1654,7 +1665,7 @@ const SESSION_EXTERNAL_APPLICATION_BADGE_HOVERED_CLASS = 'external-application-b
 
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
-	scheduledIndicator?: { readonly resource: URI; readonly element: HTMLElement };
+	scheduledIndicator?: HTMLElement;
 	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleRow: HTMLElement;
@@ -1729,8 +1740,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 	readonly rowClassName = 'session-list-inset-row';
 
-	/** The scheduled-messages card each row template shows from its clock. */
-	private readonly scheduledCards = new WeakMap<ISessionItemTemplate, { readonly key: string; readonly element: HTMLElement; readonly store: DisposableStore }>();
+	readonly scheduledIndicatorRenderer: ScheduledRequestsIndicatorRenderer;
 
 	private static readonly _APPROVAL_ROW_LINE_HEIGHT = 18;
 	private static readonly _APPROVAL_ROW_OVERHEAD = 14;
@@ -1780,7 +1790,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			/** While searching, the field a session matched in that neither its row, through `shownTexts`, nor its section headers show. */
 			getSearchHint?: (session: ISession, shownTexts: readonly string[]) => ISessionSearchHint | undefined;
 			scheduledSessionResources?: IObservable<ReadonlySet<string>>;
-			/** Each session's scheduled messages, by session resource, for the card its clock shows. */
+			/** Scheduled messages keyed by their exact chat resource. */
 			scheduledRequests?: IObservable<ReadonlyMap<string, readonly IChatScheduledRequest[]>>;
 			focusSession?: (session: ISession) => void;
 		},
@@ -1799,8 +1809,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
-		private readonly notificationService: INotificationService,
+		notificationService: INotificationService,
 	) {
+		this.scheduledIndicatorRenderer = new ScheduledRequestsIndicatorRenderer(hoverService, notificationService, options.scheduledRequests);
 	}
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
@@ -1939,104 +1950,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		return false;
 	}
 
-	private renderScheduledIndicatorHover(element: ISession, indicator: HTMLElement, template: ISessionItemTemplate): void {
-		const store = template.elementDisposables;
-		const scheduledRequests = this.options.scheduledRequests;
-		const getRequests = () => scheduledRequests?.get().get(getComparisonKey(element.resource)) ?? [];
-		const run = async (requestId: string, actionId: string) => {
-			this.hoverService.hideHover(true);
-			try {
-				const request = getRequests().find(request => request.id === requestId);
-				const action = request?.actions.find(action => action.id === actionId)
-					?? (request?.editAction?.id === actionId ? request.editAction : undefined);
-				if (!action?.enabled) {
-					throw new Error(localize('scheduledSessionActionUnavailable', "This scheduled message has changed. Open its session to manage it."));
-				}
-				await action.run();
-			} catch (error) {
-				this.notificationService.error(error);
-			}
-		};
-		const hoverOptions = (): IDelayedHoverOptions => {
-			const requests = getRequests();
-			if (!requests.length) {
-				return { content: localize('scheduledSessionIndicator', "Has scheduled messages"), appearance: { showPointer: true } };
-			}
-			// Keep open-card actions alive when the list re-renders the same row.
-			const key = getScheduledRequestsCardKey(requests);
-			let card = this.scheduledCards.get(template);
-			if (card?.key !== key) {
-				if (!card) {
-					template.disposables.add(toDisposable(() => this.scheduledCards.get(template)?.store.dispose()));
-				}
-				card?.store.dispose();
-				const cardStore = new DisposableStore();
-				card = { key, store: cardStore, element: renderScheduledRequestsCard(requests, cardStore, run) };
-				this.scheduledCards.set(template, card);
-			}
-			return {
-				content: card.element,
-				additionalClasses: ['session-scheduled-card-hover'],
-				position: { hoverPosition: HoverPosition.RIGHT },
-				persistence: { hideOnHover: false },
-				appearance: { showPointer: true },
-			};
-		};
-		store.add(this.hoverService.setupDelayedHover(indicator, hoverOptions));
-		if (!scheduledRequests) {
-			return;
-		}
-		indicator.classList.add('actionable');
-		indicator.tabIndex = 0;
-		indicator.removeAttribute('aria-hidden');
-		indicator.setAttribute('role', 'button');
-		indicator.setAttribute('aria-label', localize('showScheduledMessages', "Show Scheduled Messages"));
-		const showHover = () => {
-			this.hoverService.hideHover(true);
-			indicator.focus();
-			this.hoverService.showInstantHover({
-				...hoverOptions(), target: indicator, trapFocus: true, persistence: { hideOnHover: false, sticky: true },
-			}, true);
-		};
-		store.add(Gesture.ignoreTarget(indicator));
-		for (const type of [DOM.EventType.MOUSE_OVER, DOM.EventType.POINTER_DOWN, DOM.EventType.MOUSE_DOWN, DOM.EventType.POINTER_UP, DOM.EventType.MOUSE_UP, DOM.EventType.DBLCLICK]) {
-			store.add(DOM.addDisposableListener(indicator, type, e => e.stopPropagation()));
-		}
-		store.add(DOM.addDisposableListener(indicator, DOM.EventType.CLICK, e => {
-			DOM.EventHelper.stop(e, true);
-			showHover();
-		}));
-		store.add(DOM.addStandardDisposableListener(indicator, DOM.EventType.KEY_DOWN, e => {
-			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-				e.preventDefault();
-				e.stopPropagation();
-				showHover();
-			}
-		}));
-	}
-
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
 		const scheduledSessionResources = this.options.scheduledSessionResources;
-		if (scheduledSessionResources) {
-			let scheduledIndicator = template.scheduledIndicator;
-			if (!scheduledIndicator || !isEqual(scheduledIndicator.resource, element.resource)) {
-				scheduledIndicator?.element.remove();
-				const indicator = DOM.$(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' });
-				template.compactHoverDescription.after(indicator);
-				template.scheduledIndicator = scheduledIndicator = { resource: element.resource, element: indicator };
-			}
-			const indicator = scheduledIndicator.element;
-			template.elementDisposables.add(autorun(reader => {
-				const visible = scheduledSessionResources.read(reader).has(element.resource.toString());
-				const hadFocus = DOM.isAncestorOfActiveElement(indicator);
-				indicator.classList.toggle('visible', visible);
-				if (!visible && hadFocus) {
-					this.options.focusSession?.(element);
-				}
-			}));
-			this.renderScheduledIndicatorHover(element, indicator, template);
-		}
+		this.scheduledIndicatorRenderer.render(reader => element.mainChat.read(reader).resource, template, () => this.options.focusSession?.(element),
+			scheduledSessionResources ? reader => scheduledSessionResources.read(reader).has(element.resource.toString()) : undefined);
 		setSessionGroupDepth(template.container, this.options.getGroupDepth?.(element) ?? 0);
 		template.container.closest('.monaco-list-row')?.classList.remove(SESSION_EXTERNAL_APPLICATION_BADGE_HOVERED_CLASS);
 		template.renderedSession.set(element, undefined);
@@ -3707,6 +3625,7 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 
 interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPresentationOptions {
 	readonly scheduledSessionResources?: IObservable<ReadonlySet<string>>;
+	readonly scheduledRequests?: IObservable<ReadonlyMap<string, readonly IChatScheduledRequest[]>>;
 	readonly grouping: () => SessionsGrouping;
 	readonly isWorkspaceScoped?: () => boolean;
 	readonly isPinned: (session: ISession) => boolean;
@@ -3781,6 +3700,9 @@ class SessionsAccessibilityProvider {
 				const harnessLabel = this.options?.getChatHarnessLabel?.(element.session, element.chat, reader);
 				if (harnessLabel) {
 					label = localize('sessionChatItemHarnessAria', "{0}, uses harness {1}", label, harnessLabel);
+				}
+				if (this.options?.scheduledRequests?.read(reader).get(getComparisonKey(element.chat.resource))?.length) {
+					label = localize('scheduledSessionAria', "{0}, has scheduled messages", label);
 				}
 				const isArchived = element.chat.isArchived.read(reader);
 				const readLabel = !isArchived && !element.chat.isRead.read(reader)
@@ -3900,7 +3822,9 @@ class SessionsAccessibilityProvider {
 				label = updatedAt ? localize('sessionItemAria', "{0}, updated {1}", title, fromNow(updatedAt, true)) : title;
 			}
 			const collapsed = this.options?.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true;
-			if (this.options?.scheduledSessionResources?.read(reader).has(element.resource.toString())) {
+			if (this.options?.scheduledRequests
+				? this.options.scheduledRequests.read(reader).get(getComparisonKey(mainChat.resource))?.length
+				: this.options?.scheduledSessionResources?.read(reader).has(element.resource.toString())) {
 				label = localize('scheduledSessionAria', "{0}, has scheduled messages", label);
 			}
 			const status = getSessionRowStatus(
@@ -4837,6 +4761,14 @@ function resettableValue<T>(read: () => T, write: (value: T) => void, defaultVal
 	};
 }
 
+/** The session row the user is on in a focused list, with the session rows it shows, so that it can keep their place. */
+interface IKeyboardPosition {
+	/** The id of the focused session row. */
+	readonly id: string;
+	/** The session rows the list shows, in display order, each with the id of the top-level row it is under. */
+	readonly rows: ReadonlyMap<string, { readonly session: ISession; readonly topLevelRowId: string }>;
+}
+
 export class SessionsList extends Disposable implements ISessionsList {
 	private readonly archiveDemand = this._register(new MutableDisposable());
 
@@ -4880,6 +4812,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly pendingListUpdate = this._register(new MutableDisposable());
 	private refreshPending = false;
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
+	/** Whether side chats show in the side pane, which the list then does not list below their sessions. */
+	private readonly _hideSideChats: IObservable<boolean>;
 	private readonly inboxObserver = this._register(new MutableDisposable());
 	/** Inbox placements computed by {@link inboxObserver}, reused while building the tree. */
 	private inboxPlacements: ReadonlyMap<string, IInboxPlacement> | undefined;
@@ -5097,8 +5031,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ILogService private readonly logService: ILogService,
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
 		@IChatService chatService: IChatService,
+		@ISideChatPlacementService sideChatPlacementService: ISideChatPlacementService,
 	) {
 		super();
+		this._hideSideChats = sideChatPlacementService.inSidePane;
 		const mainWindowHost = getMainWindowHost(sessionHostService);
 		this._mainWindowShown = derived(this, reader => shownChatOf(mainWindowHost, reader));
 		this.groupAppearancePicker = this._register(instantiationService.createInstance(SessionGroupAppearancePicker));
@@ -5171,6 +5107,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.scheduleListUpdate();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ONBOARDING_ENABLED_CONFIG) && this.configurationService.getValue<boolean>(ONBOARDING_ENABLED_CONFIG) === false) {
+				this.inboxAutoAdvanceSpotlight.clear();
+			}
 			if (e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING) || e.affectsConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) || e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
 				this.update();
 			}
@@ -5305,6 +5244,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 			item => getSessionAgentMergeConfigurationObservable(item.session, sessionsProvidersService, this.configurationService, item.chat),
 			getSearchHint,
 			(session, chat) => this.getComparisonAttemptLabel(session, chat),
+			sessionRenderer.scheduledIndicatorRenderer,
+			item => {
+				const tree = this.getTree(item);
+				if (tree.hasElement(item)) {
+					tree.setFocus([item]);
+				}
+				tree.domFocus();
+			},
 		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
@@ -5464,6 +5411,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus, {
 					scheduledSessionResources: this.options.scheduledSessionResources,
+					scheduledRequests: this.options.scheduledRequests,
 					widgetAriaLabel: label,
 					getTriageDescription: (session, reader) => this.getInboxDescription(session, reader),
 					grouping: this.options.grouping,
@@ -6062,7 +6010,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		let initialized = false;
 		this.sessionChatsObserver.value = autorun(reader => {
 			for (const session of this.sessions) {
-				getSessionListChats(session, reader, !this._excludeArchived);
+				getSessionListChats(session, reader, !this._excludeArchived, this._hideSideChats.read(reader));
 				session.isExternal?.read(reader);
 				session.application.read(reader);
 				session.workspace.read(reader);
@@ -6094,13 +6042,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.refreshSessions();
 		}
 		this.renderValidUntil = this.getRenderValidUntil();
+		this.updateInboxDemand();
 		const activeSession = this._mainWindowShown.get()?.session;
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const grouping = this.options.grouping();
 		const inbox = grouping === SessionsGrouping.Inbox;
 		const nextNestedSessionResources = new Set(
 			this.sessions
-				.filter(session => getSessionListChats(session).length > 0)
+				.filter(session => getSessionListChats(session, undefined, false, this._hideSideChats.get()).length > 0)
 				.map(session => session.resource.toString())
 		);
 
@@ -6123,7 +6072,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(session => this.options.scheduledSessionResources?.get().has(session.resource.toString()));
 		}
 		// The default only changes what the list shows for archived content that the other filters keep.
-		if (this._excludeArchivedIsDefault && filtered.some(session => hasArchivedListContent(session))) {
+		if (this._excludeArchivedIsDefault && filtered.some(session => hasArchivedListContent(session, this._hideSideChats.get()))) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
 		}
 		if (this._excludeArchived) {
@@ -6154,7 +6103,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 
 		const sorting = this.options.sorting();
-		this.updateInboxDemand();
 		this.inboxObserver.clear();
 		this.inboxPlacements = undefined;
 		if (inbox && this.visible) {
@@ -6233,7 +6181,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// When done items are shown, the done chats of a session that is not done
 		// are listed in the Done section as rows of their own instead of under
 		// their session's row.
-		const standaloneDoneChats = this._excludeArchived ? [] : filtered.flatMap(session => getSessionDoneListChats(session).map(chat => ({ session, chat })));
+		const standaloneDoneChats = this._excludeArchived ? [] : filtered.flatMap(session => getSessionDoneListChats(session, this._hideSideChats.get()).map(chat => ({ session, chat })));
 		if ((standaloneDoneChats.length > 0 || !this._excludeArchived && this._sessionsManagementService.archivedSessionItems.get().available) && !sections.some(s => s.id === 'archived')) {
 			sections.push({ id: 'archived', label: archivedSectionLabel, sessions: [] });
 		}
@@ -6855,7 +6803,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				nextNestedSessionResources.add(session.resource.toString());
 			}
 		}
+		const keyboardPosition = this.captureKeyboardPosition();
 		this.tree.setChildren(null, attachedChildren);
+		this.restoreKeyboardPosition(keyboardPosition);
 		this.hadInboxSessions = hasInboxSessions;
 		if (inboxLayoutChanged) {
 			for (const session of this.sessions) {
@@ -6944,7 +6894,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * that is not done are listed in the Done section instead.
 	 */
 	private getRenderedSessionListChats(session: ISession): readonly IChat[] {
-		return getSessionListChats(session, undefined, !this._excludeArchived && session.isArchived.get());
+		return getSessionListChats(session, undefined, !this._excludeArchived && session.isArchived.get(), this._hideSideChats.get());
 	}
 
 	private attachComparisonsToOriginatingSessions(children: IObjectTreeElement<SessionListItem>[], inbox: boolean, renderSection: (section: ISessionSection) => IObjectTreeElement<SessionListItem>): IObjectTreeElement<SessionListItem>[] {
@@ -7186,7 +7136,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (!chatRow) {
 			const tree = this.getTree(session);
 			if (tree.hasElement(session)) {
-				tree.setFocus([session]);
+				if (!this.keepsKeyboardPosition(tree)) {
+					tree.setFocus([session]);
+				}
 				tree.setSelection([session]);
 			}
 			return;
@@ -7203,8 +7155,88 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 		this.revealActiveItem(chatItem);
-		tree.setFocus([chatItem]);
+		if (!this.keepsKeyboardPosition(tree)) {
+			tree.setFocus([chatItem]);
+		}
 		tree.setSelection([chatItem]);
+	}
+
+	/**
+	 * Whether the list keeps the row the user is on as it follows the active session: while it has focus, the active
+	 * session's row only becomes the selected one, such as when another session opens after the user archived one from the list.
+	 */
+	private keepsKeyboardPosition(tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>): boolean {
+		return DOM.isAncestorOfActiveElement(this.listContainer) && tree.getFocus().length > 0;
+	}
+
+	/** The session rows the list shows, in display order, each with the id of the top-level row it is under: a section's own id. */
+	private getVisibleSessionRows(): Map<string, { readonly session: ISession; readonly topLevelRowId: string }> {
+		const rows = new Map<string, { readonly session: ISession; readonly topLevelRowId: string }>();
+		const collect = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>, topLevelRowId: string): void => {
+			if (!node.visible) {
+				return;
+			}
+			if (node.element && isSessionItem(node.element)) {
+				rows.set(getSessionListItemId(node.element), { session: node.element, topLevelRowId });
+			}
+			if (node.collapsed) {
+				return;
+			}
+			for (const child of node.children) {
+				collect(child, topLevelRowId);
+			}
+		};
+		for (const child of this.getRootNode().children) {
+			if (child.element) {
+				collect(child, isSessionSection(child.element) ? child.element.id : getSessionListItemId(child.element));
+			}
+		}
+		return rows;
+	}
+
+	/** The session row the user is on while the list has focus, with the session rows around it. */
+	private captureKeyboardPosition(): IKeyboardPosition | undefined {
+		if (!DOM.isAncestorOfActiveElement(this.listContainer)) {
+			return undefined;
+		}
+		const focused = this.tree.getFocus()[0];
+		if (!focused || !isSessionItem(focused)) {
+			return undefined;
+		}
+		const rows = this.getVisibleSessionRows();
+		const id = getSessionListItemId(focused);
+		return rows.has(id) ? { id, rows } : undefined;
+	}
+
+	/**
+	 * Keeps the user's place in the list when the session row they are on leaves it, such as when that session is
+	 * archived or deleted: the session row that followed it gets focus, or the one before it when it was the last.
+	 */
+	private restoreKeyboardPosition(position: IKeyboardPosition | undefined): void {
+		if (!position || !DOM.isAncestorOfActiveElement(this.listContainer)) {
+			return;
+		}
+		const rows = this.getVisibleSessionRows();
+		// A row leaves when it is no longer shown, or moves into the archived section
+		const hasLeft = (id: string): boolean => {
+			const row = rows.get(id);
+			return !row || (row.topLevelRowId === 'archived' && position.rows.get(id)?.topLevelRowId !== 'archived');
+		};
+		if (!hasLeft(position.id)) {
+			return;
+		}
+		const ids = [...position.rows.keys()];
+		const index = ids.indexOf(position.id);
+		const next = [...ids.slice(index + 1), ...ids.slice(0, index).reverse()].find(id => !hasLeft(id));
+		const session = next && rows.get(next)?.session;
+		if (!session) {
+			return;
+		}
+		const tree = this.getTree(session);
+		tree.setFocus([session]);
+		if (tree.getRelativeTop(session) === null) {
+			tree.reveal(session);
+		}
 	}
 
 	private revealActiveItem(element: SessionListItem): void {
@@ -7311,7 +7343,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 						}
 					}
 					this.revealActiveItem(session);
-					tree.setFocus([session]);
+					if (!this.keepsKeyboardPosition(tree)) {
+						tree.setFocus([session]);
+					}
 					tree.setSelection([session]);
 					return true;
 				}
@@ -7394,7 +7428,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	clearFocus(): void {
 		for (const tree of this.trees) {
-			tree.setFocus([]);
+			if (!this.keepsKeyboardPosition(tree)) {
+				tree.setFocus([]);
+			}
 			tree.setSelection([]);
 		}
 	}
@@ -7467,7 +7503,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		} else {
 			this.inboxObserver.clear();
 			this.inboxPlacements = undefined;
-			this.inboxAutoAdvanceSpotlight.clear();
 		}
 	}
 
@@ -7476,6 +7511,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.inboxDemand.value ??= this.sessionAttentionService.acquireSessionAttention();
 		} else {
 			this.inboxDemand.clear();
+			this.inboxAutoAdvanceSpotlight.clear();
 		}
 	}
 
@@ -8184,7 +8220,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingOpenRequest !== request) {
 			return false;
 		}
-		const sessionRowRepresentsSession = getSessionListChats(session).length === 0 || this.collapsedSessionIds.get().has(session.sessionId);
+		const sessionRowRepresentsSession = getSessionListChats(session, undefined, false, this._hideSideChats.get()).length === 0 || this.collapsedSessionIds.get().has(session.sessionId);
 		if (!request.chat && sessionRowRepresentsSession && this._mainWindowShown.get()?.session.sessionId !== session.sessionId) {
 			this.markRead(session);
 		}
@@ -9086,7 +9122,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemHasUnreadNestedSessionsContext.key, selectedSessions.some(session =>
 				!session.isArchived.get()
 				&& session.capabilities.get().supportsIndependentChatReadState === true
-				&& getSessionListChats(session).some(chat => !chat.isRead.get()))],
+				&& getSessionListChats(session, undefined, false, this._hideSideChats.get()).some(chat => !chat.isRead.get()))],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
 			[SessionIsReadContext.key, element.mainChat.get().isRead.get()],
 			[SessionItemInGroupContext.key, inGroup],
@@ -9598,7 +9634,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (next) {
 				void this.beginOpenRequest(next, undefined, false, false, () => {
 					if (!this._store.isDisposed && this.visible && this.isInboxLayout() && isEqual(this._mainWindowShown.get()?.session.resource, next.resource)) {
-						this.explainInboxAutoAdvance(inboxSessions[index], true);
+						void this.explainInboxAutoAdvance(inboxSessions[index], true);
 					}
 				}).catch(onUnexpectedError);
 			} else {
@@ -9608,7 +9644,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.tree.setFocus([inbox]);
 					this.tree.reveal(inbox);
 					this.tree.domFocus();
-					this.explainInboxAutoAdvance(inboxSessions[index], false);
+					void this.explainInboxAutoAdvance(inboxSessions[index], false);
 				}
 			}
 		});
@@ -9619,33 +9655,30 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return mode === 'on' || mode === 'auto' && !this.accessibilityService.isScreenReaderOptimized();
 	}
 
-	private explainInboxAutoAdvance(session: ISession, hasNext: boolean): void {
-		if (this.chatEntitlementService.sentiment.hidden || this.storageService.getBoolean(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, StorageScope.PROFILE, false)) {
+	private async explainInboxAutoAdvance(session: ISession, hasNext: boolean): Promise<void> {
+		if (!this.visible || !this.isInboxLayout() || this.inboxAutoAdvanceSpotlight.value
+			|| this.chatEntitlementService.sentiment.hidden
+			|| this.configurationService.getValue<boolean>(ONBOARDING_ENABLED_CONFIG) === false
+			|| this.storageService.getBoolean(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, StorageScope.PROFILE, false)) {
 			return;
 		}
-		const settingsLink = NotificationText.link(localize('inboxAutoAdvance.settings', "Settings"), createCommandUri('workbench.action.openSettings', `@id:${SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING}`).toString());
-		this.notificationService.prompt(Severity.Info, NotificationText.format(
-			hasNext
-				? localize('inboxAutoAdvance.next', "Your session continues in Working while the agent processes your reply. Inbox opened the next session. You can turn off automatic navigation in {0}.")
-				: localize('inboxAutoAdvance.empty', "Your session continues in Working while the agent processes your reply. No Inbox sessions remain, so focus moved to the Inbox heading. You can turn off automatic navigation in {0}."),
-			settingsLink,
-		), [{
-			label: localize('inboxAutoAdvance.showSession', "Show Session"),
-			run: async () => {
-				if (this._store.isDisposed || this.chatEntitlementService.sentiment.hidden) {
-					return;
-				}
-				const spotlight = this.instantiationService.createInstance(InboxAutoAdvanceSpotlight, () => this.revealSessionForOnboarding(session), () => this.openSession(session));
-				this.inboxAutoAdvanceSpotlight.value = spotlight;
-				try {
-					await spotlight.show();
-				} catch (error) {
-					this.logService.error(error);
-					this.notificationService.error(error);
-				}
-			},
-		}], { sticky: true });
-		this.storageService.store(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		const spotlight = this.instantiationService.createInstance(InboxAutoAdvanceSpotlight,
+			() => this.revealSessionForOnboarding(session),
+			() => this.openSession(session),
+			hasNext,
+			() => this.storageService.store(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, true, StorageScope.PROFILE, StorageTarget.USER),
+		);
+		this.inboxAutoAdvanceSpotlight.value = spotlight;
+		try {
+			await spotlight.show();
+		} catch (error) {
+			this.logService.error(error);
+			this.notificationService.error(error);
+		} finally {
+			if (this.inboxAutoAdvanceSpotlight.value === spotlight) {
+				this.inboxAutoAdvanceSpotlight.clear();
+			}
+		}
 	}
 
 	private getInboxStateContext(session: ISession, reader?: IReader): string {
@@ -11142,6 +11175,7 @@ export class SessionsFlatList extends Disposable {
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private readonly _delegate: SessionsTreeDelegate;
+	private readonly renderedSessions = new Map<ISession, HTMLElement>();
 	private _sessions: readonly ISession[] = [];
 
 	constructor(
@@ -11185,7 +11219,17 @@ export class SessionsFlatList extends Disposable {
 		const reportExternalApplicationBadgeModeExperimentTrigger = () => logDefaultSettingExperimentTrigger(configurationService, telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING);
 		const reportExternalApplicationBadgeShowFromExperimentTrigger = () => logDefaultSettingExperimentTrigger(configurationService, telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING);
 
-		const sessionRenderer = new SessionItemRenderer(
+		const renderedSessions = this.renderedSessions;
+		const sessionRenderer = new class extends SessionItemRenderer {
+			override renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, index: number, template: ISessionItemTemplate): void {
+				super.renderElement(node, index, template);
+				const session = node.element;
+				if (isSessionItem(session)) {
+					renderedSessions.set(session, template.container);
+					template.elementDisposables.add(toDisposable(() => renderedSessions.delete(session)));
+				}
+			}
+		}(
 			{
 				grouping: () => SessionsGrouping.Date,
 				isPinned: s => this._sessionsListModelService.isSessionPinned(s),
@@ -11365,15 +11409,27 @@ export class SessionsFlatList extends Disposable {
 		this.tree.domFocus();
 	}
 
-	focusSession(session: ISession): void {
+	focusSession(session: ISession, revealInParent = false): void {
 		if (!this.tree.hasElement(session)) {
 			return;
 		}
 		this.tree.setFocus([session]);
 		this.tree.domFocus();
+		if (revealInParent) {
+			this.tree.reveal(session);
+			this.renderedSessions.get(session)?.scrollIntoView({ block: 'nearest' });
+		}
 	}
 
 	getFocusedSession(): ISession | undefined {
+		const activeElement = DOM.getActiveElement();
+		if (activeElement) {
+			for (const [session, element] of this.renderedSessions) {
+				if (element.contains(activeElement)) {
+					return session;
+				}
+			}
+		}
 		const focused = this.tree.getFocus()[0];
 		return focused && isSessionItem(focused) ? focused : undefined;
 	}

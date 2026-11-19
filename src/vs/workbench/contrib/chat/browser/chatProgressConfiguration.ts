@@ -5,9 +5,10 @@
 
 import { localize } from '../../../../nls.js';
 import { IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, ConfigurationMigration, Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity } from '../common/constants.js';
+import { ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity, ChatResponseStats, ChatResponseStatsTokens } from '../common/constants.js';
 
 const legacyPersistentProgressSetting = 'chat.experimental.persistentProgress';
 const legacyPersistentProgressVerbositySetting = 'chat.experimental.persistentProgressVerbosity';
@@ -55,6 +56,40 @@ export const chatProgressConfigurationProperties = {
 		markdownDescription: localize('chat.experimental.persistentProgressVerbosity', "Control tool call details when {0} is enabled. Compact is the default and collapses tool groups in place when thinking or response text resumes, or the response finishes. When Agent Host activity data is available, headers summarize up to three activity groups, prioritizing edits and commands, without language model requests. Remaining activity is counted as other steps. Failed, skipped, denied, and unfinished tool invocations remain explicit, including in the other-steps count. Completed shell invocations count as commands without tracking later background process status. Groups with no recognized activity or outcome use a step count. Expand a summary to inspect all its tool calls. Conversation collapses reasoning and tool calls between response text into one section that starts collapsed, names the current tool call, or the heading of the current reasoning summary (Thinking, followed by the first line of the reasoning on a single row, when the reasoning has no heading), while it runs. Once it finishes, its header shows what its tool calls did, such as how many commands ran and which files were read or edited, followed by the time its reasoning and tool calls took when all of it was recorded. A section without tool calls shows how long it thought instead. A finished section never uses a reasoning heading or a generated summary as its header. Inside a section with tool calls, each reasoning run is a collapsible row naming how long it thought. Has no effect when persistent progress is Off. Changes apply immediately.", `\`#${ChatConfiguration.PersistentProgress}#\``),
 		tags: ['experimental'],
 		experiment: { mode: 'auto', name: `config.${legacyPersistentProgressVerbositySetting}` },
+	},
+	[ChatConfiguration.ResponseStats]: {
+		type: 'string',
+		default: product.quality === 'insider' ? ChatResponseStats.ProgressWithMessage : ChatResponseStats.Off,
+		enum: Object.values(ChatResponseStats),
+		enumItemLabels: [
+			localize('chat.responseStats.off.label', "Off"),
+			localize('chat.responseStats.title.label', "Title"),
+			localize('chat.responseStats.progress.label', "Progress"),
+			localize('chat.responseStats.progressWithMessage.label', "Progress with Message"),
+		],
+		enumDescriptions: [
+			localize('chat.responseStats.off', "Do not show them."),
+			localize('chat.responseStats.title', "Show them right after the chat's title: in the title of the Chat view, and in a chat's header in the Agents window."),
+			localize('chat.responseStats.progress', "Show them in the working progress indicator at the bottom of the response, in place of its rotating phrase. A label that names a state, such as a pending confirmation or running subagents, follows them."),
+			localize('chat.responseStats.progressWithMessage', "Show them in the working progress indicator at the bottom of the response, after its message. The message is the rotating phrase, which then changes every 20 seconds instead of with each new step, or a label that names a state, such as a pending confirmation or running subagents."),
+		],
+		markdownDescription: localize('chat.responseStats', "Control whether and where chat shows how long the agent has been working and its output tokens while a response is in progress. The tokens show as a speed or as a count, following {1}. Unless Off, the footer of a finished response also shows its working time. The time excludes waiting for your confirmation. Progress and Progress with Message show nothing while {0} is Off. While they show in the working progress indicator, its text does not shimmer.", `\`#${ChatConfiguration.PersistentProgress}#\``, `\`#${ChatConfiguration.ResponseStatsTokens}#\``),
+		tags: ['experimental'],
+	},
+	[ChatConfiguration.ResponseStatsTokens]: {
+		type: 'string',
+		default: product.quality === 'insider' ? ChatResponseStatsTokens.Count : ChatResponseStatsTokens.Speed,
+		enum: Object.values(ChatResponseStatsTokens),
+		enumItemLabels: [
+			localize('chat.responseStatsTokens.speed.label', "Speed"),
+			localize('chat.responseStatsTokens.count.label', "Count"),
+		],
+		enumDescriptions: [
+			localize('chat.responseStatsTokens.speed', "Show the output speed in tokens per second (tk/s): the output tokens of the latest model call divided by its duration. It appears only when the agent reports model call timing."),
+			localize('chat.responseStatsTokens.count', "Show the output tokens of the response so far, which grow as each model call finishes. They include the output of subagents when the agent reports it. From 1,000 tokens the count is abbreviated, such as 1.1k or 1.234m."),
+		],
+		markdownDescription: localize('chat.responseStatsTokens', "Control how the stats that {0} shows while a response is in progress report its output tokens.", `\`#${ChatConfiguration.ResponseStats}#\``),
+		tags: ['experimental'],
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
 

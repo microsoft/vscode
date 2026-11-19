@@ -641,6 +641,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		if (item.kind === AgentPluginItemKind.Marketplace) {
 			this.appendPluginVersionFact(item);
 			this.appendFact(this.factsEl, localize('pluginDetailMarketplace', "Marketplace"), this.renderMarketplaceLink(item.marketplace, getMarketplaceUri(item)));
+			this.appendPluginRepositoryFact(item);
 			return;
 		}
 
@@ -668,7 +669,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 	}
 
-	private appendPluginRepositoryFact(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {
+	private appendPluginRepositoryFact(item: IAgentPluginItem): void {
 		this.pluginRepositoryRowEl = DOM.append(this.factsEl, $('.embedded-detail-fact-row'));
 		DOM.append(this.pluginRepositoryRowEl, $('.embedded-detail-fact-label')).textContent = localize('pluginDetailRepository', "Repository");
 		this.pluginRepositoryValueEl = DOM.append(this.pluginRepositoryRowEl, $('.embedded-detail-fact-value.has-actions'));

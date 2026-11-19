@@ -14,18 +14,22 @@ import { IObservable, observableFromEvent, observableValue, runOnChange, waitFor
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { findDevContainerSample } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
+import { findDevContainerEnvironment } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { localize } from '../../../../../../nls.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { getEntryAddress, getEntryTypeConfig, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerAgentHostTarget } from '../../../common/devContainerAgentHostService.js';
+import { IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerAgentHostTarget, IDevContainerEnvironment } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { resolveRemoteAgentHostEntryAuthority } from '../../../browser/openInVSCodeUtils.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from './devContainerSource.js';
+import { DevContainerEnvironments } from './devContainerEnvironments.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
 const DEV_CONTAINER_AGENT_HOSTS_STORAGE_KEY = 'devContainerAgentHost.connections';
@@ -115,12 +119,15 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 	}
 
 	stageConnection(connector: IDevContainerAgentHostConnector, workspaceUri: URI, connection: IDevContainerAgentHostConnection, hostAuthority?: string, sandboxEnabled?: boolean): IRemoteAgentHostEntry {
+		const environment = findDevContainerEnvironment(workspaceUri);
 		const entry: IRemoteAgentHostEntry = {
 			name: connection.name,
 			connection: {
 				type: RemoteAgentHostEntryType.DevContainer,
 				address: connection.address,
-				...(connection.repository ? { repository: connection.repository } : { hostPath: connection.hostWorkspaceFolder ?? devContainerSourcePath(workspaceUri) }),
+				...(connection.repository ? { repository: connection.repository }
+					: environment ? { environmentId: environment.environmentId }
+						: { hostPath: connection.hostWorkspaceFolder ?? devContainerSourcePath(workspaceUri) }),
 				...(hostAuthority ? { hostAuthority } : {}),
 			},
 		};
@@ -214,6 +221,9 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	private readonly _onDidChangeAvailability = this._register(new Emitter<void>());
 	readonly onDidChangeAvailability = this._onDidChangeAvailability.event;
 	private _connector: IDevContainerAgentHostConnector | undefined;
+	private readonly _environments: DevContainerEnvironments;
+	readonly environments: IObservable<readonly IDevContainerEnvironment[]>;
+	readonly environmentHosts: IObservable<ReadonlySet<string>>;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -221,6 +231,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 		this._connectionFactory = this._register(new DevContainerConnectionFactory(this._instantiationService));
@@ -231,6 +243,16 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		this._restoreProviders();
 		this._initializeProviders();
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, DEV_CONTAINER_AGENT_HOSTS_STORAGE_KEY, this._store)(() => this._restoreProviders()));
+		this._environments = this._register(new DevContainerEnvironments({
+			currentConnector: () => this._connector,
+			waitForConnector: token => this._waitForConnector(token),
+			stageConnection: (connector, workspaceUri, connection, hostAuthority) => { this._connectionFactory.stageConnection(connector, workspaceUri, connection, hostAuthority); },
+			unstageConnection: address => this._connectionFactory.unstageConnection(address),
+			createProvider: config => this._createProvider(config),
+			getAddress: devContainerAddress,
+		}, this._remoteAgentHostService, this._sessionsProvidersService, this._storageService, configurationService, logService));
+		this.environments = this._environments.environments;
+		this.environmentHosts = this._environments.environmentHosts;
 	}
 
 	private _initializeProviders(): void {
@@ -249,12 +271,22 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		const sandboxSupportListener = connector.onDidChangeSandboxSupport?.(event => this._setSandboxSupported(event.workspaceUri, event.supported));
 		this._onDidRegisterConnector.fire(connector);
 		this._onDidChangeAvailability.fire();
+		this._environments.update();
 		return combinedDisposable(sandboxSupportListener ?? Disposable.None, toDisposable(() => {
 			if (this._connector === connector) {
 				this._connector = undefined;
 				this._onDidChangeAvailability.fire();
+				this._environments.update();
 			}
 		}));
+	}
+
+	createEnvironment(sourceAddress: string): Promise<IDevContainerEnvironment> {
+		return this._environments.create(sourceAddress);
+	}
+
+	deleteEnvironment(address: string): Promise<void> {
+		return this._environments.delete(address);
 	}
 
 	isAvailable(workspaceUri: URI): Promise<boolean> {

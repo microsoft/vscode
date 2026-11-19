@@ -66,7 +66,7 @@ import '../../browser/changesViewActions.js';
 import '../../../../browser/layoutActions.js';
 import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
 import '../../../codeReview/browser/codeReview.contributions.js';
-import '../../../../browser/layoutActions.js';
+import '../../../editor/browser/editor.contribution.js';
 
 // Awaited while this file loads so that the contribution's permanent registrations are in place before
 // any suite runs instead of being registered by this suite.
@@ -757,9 +757,9 @@ suite('Changes View Actions', () => {
 		const withFileList = render(true);
 		const filesViewAndPosition = getLabels(Menus.ChangesFilesViewAndPosition, withFileListContext!);
 		assert.deepStrictEqual({ withFileList, filesViewAndPosition, withoutFileList: render(false) }, {
-			withFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
-			filesViewAndPosition: [['1_view', ['View as List', 'View as Tree']], ['2_position', ['On the Left', 'On the Right']]],
-			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
+			withFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [] },
+			filesViewAndPosition: [['1_view', ['View as List', 'View as Tree']], ['2_position', ['Left', 'Right']]],
+			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [] },
 		});
 	});
 

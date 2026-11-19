@@ -699,7 +699,7 @@ export interface IFileSystemProvider {
 	renameFileAtomic?(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
 	copy?(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
 
-	readFile?(resource: URI): Promise<Uint8Array>;
+	readFile?(resource: URI, opts?: IFileAtomicReadOptions, token?: CancellationToken): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
 
 	readFileStream?(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
@@ -713,7 +713,12 @@ export interface IFileSystemProvider {
 }
 
 export interface IFileSystemProviderWithFileReadWriteCapability extends IFileSystemProvider {
-	readFile(resource: URI): Promise<Uint8Array>;
+
+	/**
+	 * @param opts are only passed when the provider has the `FileAtomicRead` capability.
+	 * @param token is cancelled when the contents are no longer needed.
+	 */
+	readFile(resource: URI, opts?: IFileAtomicReadOptions, token?: CancellationToken): Promise<Uint8Array>;
 	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
 }
 
@@ -778,7 +783,7 @@ export function hasFileReadStreamCapability(provider: IFileSystemProvider): prov
 }
 
 export interface IFileSystemProviderWithFileAtomicReadCapability extends IFileSystemProvider {
-	readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array>;
+	readFile(resource: URI, opts?: IFileAtomicReadOptions, token?: CancellationToken): Promise<Uint8Array>;
 	enforceAtomicReadFile?(resource: URI): boolean;
 }
 

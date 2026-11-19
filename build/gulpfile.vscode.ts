@@ -45,7 +45,7 @@ const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 const copilotRuntimeVersion = getCopilotRuntimeVersion(path.join(root, 'node_modules'));
 if (packageJson.copilotRuntimeVersion !== copilotRuntimeVersion) {
-	throw new Error(`package.json declares Copilot runtime ${packageJson.copilotRuntimeVersion}, but @github/copilot-sdk bundles ${copilotRuntimeVersion}.`);
+	throw new Error(`package.json declares Copilot runtime ${packageJson.copilotRuntimeVersion}, but @microsoft/copilot-sdk bundles ${copilotRuntimeVersion}.`);
 }
 
 function getLockedPackageVersion(packageName: string): string {
@@ -206,7 +206,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.version = version;
 				json.copilotVersions = {
 					runtime: copilotRuntimeVersion,
-					sdk: getLockedPackageVersion('@github/copilot-sdk'),
+					sdk: getLockedPackageVersion('@microsoft/copilot-sdk'),
 				};
 				// Stamp agentSdks from the per-platform results file produced
 				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
@@ -269,7 +269,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**/*.node',
 				'**/@vscode/ripgrep-universal/bin/**',
 				// The SDK runtime wrapper and native module must remain adjacent on disk.
-				'**/@github/copilot-sdk-{darwin,linux,linuxmusl,win32}-*/**',
+				'**/@microsoft/copilot-sdk-{darwin,linux,linuxmusl,win32}-*/**',
 				// The Dev Container CLI is spawned as an external Node process,
 				// so its bundled entrypoint must be available outside the ASAR.
 				'**/@devcontainers/cli/**',

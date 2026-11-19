@@ -9,7 +9,7 @@ import { AgentHostActiveAgentTitleGenerationSettingId, AgentHostDeferredTitleGen
 import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { migrateLegacyImageGenerationSetting } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { migrateLegacyTitleGenerationSettings } from '../../../../platform/agentHost/common/titleGenerationConfiguration.js';
-import { AgentHostCopilotM365EnabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
+import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING, AgentHostCopilotM365EnabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -119,6 +119,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
 			agentHost: { key: CopilotCliConfigKey.M365Enabled },
+		},
+		[AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentsWindowTitleBarIcons.enabled', "Controls whether the Open in Agents and Open in Editor title-bar buttons use the VS Code codicon designs instead of the branded icons."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.AgentsPickerInAttachContextMenu]: {
 			type: 'boolean',

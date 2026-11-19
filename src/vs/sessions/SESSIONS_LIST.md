@@ -182,6 +182,8 @@ Session facades may expose catalog-backed peer-chat identities, titles, interact
 
 A collapsed session row uses the provider's aggregate status without inspecting individual chat statuses. When expanded, the parent row represents the main chat and visible side chats, while peer rows represent their own chats.
 
+While side chats show in the main window's side pane (`ISideChatPlacementService.inSidePane`), the list does not list them below their sessions, as their own rows or in the Done section. The provider's aggregate status and read state of a collapsed session row still include them.
+
 ## Persistence
 
 List presentation state is profile-scoped user state, kept in the storage of the window's own profile: the editor window's Sessions view does not share it with the Agents window. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
