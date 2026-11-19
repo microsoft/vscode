@@ -195,6 +195,8 @@ export interface IChatUsage {
 		readonly reasoningTokens?: number;
 		readonly cacheWriteTokens?: number;
 		readonly duration?: number;
+		/** The call's own output, when it can differ from `completionTokens`: a subagent's call is reported on its parent turn. */
+		readonly outputTokens?: number;
 		readonly timeToFirstTokenMs?: number;
 		readonly providerCallId?: string;
 		readonly serviceRequestId?: string;

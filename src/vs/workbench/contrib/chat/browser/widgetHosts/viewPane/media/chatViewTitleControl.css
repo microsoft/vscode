@@ -28,6 +28,7 @@
 
 				.chat-view-title-label-container {
 					display: flex;
+					align-items: baseline;
 					gap: var(--vscode-spacing-size40);
 					min-width: 0;
 				}
@@ -53,6 +54,9 @@
 			font-size: var(--vscode-fontSize-label2);
 			font-weight: var(--vscode-fontWeight-semiBold);
 			line-height: 16px;
+			/* Aligned on the baseline, the title is only as tall as its line: keep room below it for descenders */
+			padding-bottom: var(--vscode-spacing-size40);
+			margin-bottom: calc(-1 * var(--vscode-spacing-size40));
 			display: block;
 			overflow: hidden;
 			white-space: nowrap;
@@ -64,6 +68,17 @@
 			margin-left: auto;
 			padding-left: 4px;
 			flex-shrink: 0;
+		}
+
+		/* The running response's stats follow the title, typeset and separated like the harness that leads it. */
+		.chat-live-response-stats {
+			font-size: var(--vscode-fontSize-label2);
+		}
+
+		.chat-live-response-stats::before {
+			content: '\00b7';
+			/* The title's label already ends with 3px of padding. */
+			margin-inline: calc(var(--vscode-spacing-size40) - 3px) var(--vscode-spacing-size40);
 		}
 	}
 

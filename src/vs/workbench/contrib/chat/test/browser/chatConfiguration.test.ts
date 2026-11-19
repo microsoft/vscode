@@ -277,7 +277,7 @@ suite('Chat configuration', () => {
 			labels: setting.enumItemLabels,
 			descriptions: setting.enumDescriptions.length,
 		}, {
-			settings: ['chat.progressBorder.enabled', 'chat.persistentProgress', 'chat.persistentProgressVerbosity'],
+			settings: ['chat.progressBorder.enabled', 'chat.persistentProgress', 'chat.persistentProgressVerbosity', 'chat.responseStats', 'chat.responseStatsTokens'],
 			type: 'string',
 			default: 'draw',
 			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],

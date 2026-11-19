@@ -5,6 +5,7 @@
 
 import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
 import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage, type IAgentChatUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
+import { readAgentModelCallDiagnostics } from '../../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -1070,6 +1071,7 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayN
 	}
 	const metadata = readUsageInfoMeta(usage);
 	const turnTokenTotals = metadata.turnTokenTotals;
+	const latestModelCall = metadata.latestModelCall ?? readTimedModelCall(usage);
 	return {
 		kind: 'usage',
 		promptTokens: usage?.inputTokens ?? 0,
@@ -1082,9 +1084,17 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayN
 			...total,
 			model: modelDisplayNameResolver?.(total.model) ?? total.model,
 		})),
-		...(metadata.latestModelCall ? { latestModelCall: metadata.latestModelCall } : {}),
+		...(latestModelCall ? { latestModelCall } : {}),
 		...(contextUsage ? { contextUsage: { currentTokens: contextUsage.currentTokens, tokenLimit: contextUsage.tokenLimit } } : {}),
 	};
+}
+
+/** The duration and output of the model call a VS Code host's report describes, which can be a subagent's. */
+function readTimedModelCall(usage: UsageInfo | undefined): IChatUsage['latestModelCall'] {
+	const modelCall = usage && readAgentModelCallDiagnostics(usage);
+	return modelCall?.durationMs !== undefined && modelCall.outputTokens !== undefined
+		? { duration: modelCall.durationMs, outputTokens: modelCall.outputTokens }
+		: undefined;
 }
 
 function getSessionCopilotCredits(usage: UsageInfo | undefined): number | undefined {
