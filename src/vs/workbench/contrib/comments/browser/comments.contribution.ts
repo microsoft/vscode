@@ -156,6 +156,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			default: 'inline',
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 			description: nls.localize('comments.thread.experimental.style', "Controls how comment threads are shown in the editor.")
 		}
 	}

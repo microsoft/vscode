@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { AutomationDisableConditionKind } from '../../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { AutomationDisableConditionKind, AutomationTargetKind } from '../../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { safeIntl } from '../../../../../../base/common/date.js';
@@ -1929,6 +1929,33 @@ suite('AgentHostAutomationStore', () => {
 				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
 				enabled: true,
 			},
+		});
+	});
+
+	test('maps the continue-session choice to the previous-session target, which turning it off replaces', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const supportedBefore = store.supportsContinueSession('local-agent-host');
+		const initializeResult = connection.initializeResult.get()!;
+		connection.initializeResult.set({ ...initializeResult, automations: { ...initializeResult.automations, targets: { previousSession: {} } } }, undefined);
+		const created = await store.createAutomation({
+			name: 'Daily status', prompt: 'What changed since yesterday?',
+			schedule: { interval: 'cron', cronExpression: '0 9 * * *', cronTimeZone: 'UTC', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			continueSession: true,
+		});
+		const renamed = await store.updateAutomation(created.id, { name: 'Renamed' });
+		const turnedOff = await store.updateAutomation(created.id, { continueSession: false });
+
+		assert.deepStrictEqual({
+			supported: [supportedBefore, store.supportsContinueSession('local-agent-host'), store.supportsContinueSession('other-host')],
+			continueSession: [created, renamed, turnedOff].map(automation => automation.continueSession),
+			targets: connection.dispatched.map(({ action }) => action.type === ActionType.AutomationCreateRequested ? action.definition.target : action.type === ActionType.AutomationUpdateRequested ? action.changes.target : undefined),
+		}, {
+			supported: [false, true, false],
+			continueSession: [true, true, undefined],
+			targets: [{ kind: AutomationTargetKind.PreviousSession }, { kind: AutomationTargetKind.PreviousSession }, { kind: AutomationTargetKind.NewSession }],
 		});
 	});
 

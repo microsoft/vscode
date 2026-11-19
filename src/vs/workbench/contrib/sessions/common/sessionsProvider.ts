@@ -583,6 +583,9 @@ export interface ISessionsProvider {
 	/** Clones or reuses a repository on this provider's host, returning its ready workspace. */
 	cloneRepository?(repository: URI, token: CancellationToken): Promise<ISessionWorkspace>;
 
+	/** Whether {@link cloneRepository} can clone on the host it is connected to now. Absent when it always can. */
+	readonly canCloneRepository?: boolean;
+
 	/** An alternate creation context for New Session gestures from an existing session. */
 	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
 

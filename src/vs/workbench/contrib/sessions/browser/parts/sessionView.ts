@@ -535,6 +535,11 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		return standaloneView ? standaloneView.selectNoWorkspace(options) : this._groupsView.selectNoWorkspace(options);
 	}
 
+	selectEnvironment(providerId: string): WorkspaceSelectionResult {
+		const standaloneView = this._visibleStandaloneView;
+		return standaloneView ? standaloneView.selectEnvironment(providerId) : this._groupsView.selectEnvironment(providerId);
+	}
+
 	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */
 	openChatToSide(resource: URI, referenceChatResource?: URI): Promise<void> {
 		return this._groupsView.openChatInNewGroup(resource, referenceChatResource);

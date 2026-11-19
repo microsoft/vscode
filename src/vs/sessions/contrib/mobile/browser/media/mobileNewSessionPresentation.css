@@ -61,6 +61,11 @@
 	display: none;
 }
 
+.mobile-new-session .session-workspace-picker-slot {
+	min-width: 0;
+	max-width: 100%;
+}
+
 .mobile-new-session .sessions-new-session-place-row {
 	flex-shrink: 0;
 	margin: 0;
