@@ -3248,7 +3248,8 @@ export class Repository {
 			if (/fetch/i.test(type)) {
 				remote.fetchUrl = url;
 			} else if (/push/i.test(type)) {
-				remote.pushUrl = url;
+				// A remote can have multiple push urls; keep the first one, which is the primary one
+				remote.pushUrl ??= url;
 			} else {
 				remote.fetchUrl = url;
 				remote.pushUrl = url;
