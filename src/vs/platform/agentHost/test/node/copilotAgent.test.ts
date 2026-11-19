@@ -22840,6 +22840,7 @@ suite('CopilotAgent', () => {
 				URI.joinPath(additionalWorkspace, '.github', 'instructions').toString(),
 				URI.joinPath(userHome, '.copilot', 'instructions').toString(),
 				URI.joinPath(workspace, '.github', 'hooks').toString(),
+				URI.joinPath(additionalWorkspace, '.github', 'hooks').toString(),
 				URI.joinPath(userHome, '.copilot', 'hooks').toString(),
 				buildCopilotBuiltinAgentsContainer().uri,
 				buildCopilotBuiltinSkillsContainer().uri,
