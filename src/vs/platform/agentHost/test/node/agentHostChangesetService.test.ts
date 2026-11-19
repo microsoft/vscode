@@ -143,6 +143,7 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 		this.provider = provider;
 		this.fileEditCoordinator = this._register(fileEditCoordinator);
 		settleServices.add(this);
+		this._register(toDisposable(() => settleServices.delete(this)));
 	}
 }
 
@@ -2160,6 +2161,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			beforeContent: encodeString('before\n'), afterContent: encodeString('after\n'), addedLines: 1, removedLines: 1
 		});
 		await updated.p;
+		await svc.whenSummaryPersisted();
 		assert.deepStrictEqual({ status: stateManager.getChangesetState(changeset)?.status, files: stateManager.getChangesetState(changeset)?.files.map(file => file.id) }, {
 			status: ChangesetStatus.Ready, files: ['file:///repo/file.ts'],
 		});
@@ -2226,6 +2228,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			stateManager.dispatchServerAction(chat, chatTurnComplete(turnId, 1));
 			await storeEdit('child-edit', '/repo/child.ts');
 			await waitForFiles(2);
+			await svc.whenSummaryPersisted();
 
 			const root = ['file:///repo/root.ts'];
 			const both = ['file:///repo/child.ts', ...root];
