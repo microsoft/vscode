@@ -186,15 +186,11 @@ function describeAuthAttempt(attempt: SSHAuthAttempt): string {
 }
 
 /**
- * Keeps only the attempts that OpenSSH would try under `PubkeyAuthentication` and `PreferredAuthentications`, in the
- * preferred order. `ssh -G` reports the default preference order when none is configured, which keeps the build order.
+ * Whether SSH config allows public key authentication: `PubkeyAuthentication` is not disabled and, when set,
+ * `PreferredAuthentications` lists `publickey`.
  */
-function applySSHAuthenticationPreferences(attempts: readonly SSHAuthAttempt[], resolved: ISSHResolvedConfig | undefined): SSHAuthAttempt[] {
-	const preferred = resolved?.preferredAuthentications;
-	const methodOf = (attempt: SSHAuthAttempt) => attempt.type === 'agent' ? 'publickey' : attempt.type;
-	return attempts
-		.filter(attempt => !(resolved?.pubkeyAuthentication === false && methodOf(attempt) === 'publickey') && (!preferred || preferred.includes(methodOf(attempt))))
-		.sort((a, b) => preferred ? preferred.indexOf(methodOf(a)) - preferred.indexOf(methodOf(b)) : 0);
+function allowsSSHPublicKeyAuthentication(resolved: ISSHResolvedConfig | undefined): boolean {
+	return resolved?.pubkeyAuthentication !== false && (!resolved?.preferredAuthentications || resolved.preferredAuthentications.includes('publickey'));
 }
 
 /**
@@ -1834,9 +1830,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * file), then any non-default explicit `IdentityFile`, then each readable
 	 * default identity in turn. A host that accepts `~/.ssh/id_rsa` still
 	 * works even if the agent doesn't have it loaded — without needing an
-	 * explicit `IdentityFile` entry in `~/.ssh/config`. Like OpenSSH, `Agent`
-	 * mode honors the resolved `PubkeyAuthentication` and
-	 * `PreferredAuthentications` settings.
+	 * explicit `IdentityFile` entry in `~/.ssh/config`. `Agent` mode skips the
+	 * agent and keys when the resolved SSH config disables public key
+	 * authentication.
 	 */
 	protected async _buildAuthAttempts(config: ISSHAgentHostConfig, resolved?: ISSHResolvedConfig): Promise<SSHAuthAttempt[]> {
 		const attempts: SSHAuthAttempt[] = [];
@@ -1844,27 +1840,30 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		switch (config.authMethod) {
 			case SSHAuthMethod.Agent: {
-				// Try the agent first: if it has any of the configured identities
-				// loaded, auth succeeds without ever touching on-disk keys. This
-				// matches OpenSSH's IdentityAgent semantics and avoids an
-				// unnecessary passphrase prompt when an encrypted key file is
-				// configured but the agent already holds its unlocked copy.
-				const agentSock = this._getAgentSocket(config);
-				if (agentSock) {
-					attempts.push({ type: 'agent', username, agent: agentSock });
-				}
-				const explicitKeyPath = config.privateKeyPath;
-				const explicitIsDefault = explicitKeyPath !== undefined && SSHRemoteAgentHostMainService._isDefaultKeyPath(explicitKeyPath);
-				if (explicitKeyPath && !explicitIsDefault) {
-					const explicit = await this._readKeyFileIfExists(explicitKeyPath);
-					if (explicit) {
-						attempts.push({ type: 'publickey', username, key: explicit, keyPath: explicitKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
+				// Like OpenSSH, offer no agent or key when SSH config disables public key authentication.
+				if (allowsSSHPublicKeyAuthentication(resolved)) {
+					// Try the agent first: if it has any of the configured identities
+					// loaded, auth succeeds without ever touching on-disk keys. This
+					// matches OpenSSH's IdentityAgent semantics and avoids an
+					// unnecessary passphrase prompt when an encrypted key file is
+					// configured but the agent already holds its unlocked copy.
+					const agentSock = this._getAgentSocket(config);
+					if (agentSock) {
+						attempts.push({ type: 'agent', username, agent: agentSock });
 					}
-				}
-				for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
-					const contents = await this._readKeyFileIfExists(keyPath);
-					if (contents) {
-						attempts.push({ type: 'publickey', username, key: contents, keyPath, ...(isEncryptedPrivateKey(contents) ? { encrypted: true } : undefined) });
+					const explicitKeyPath = config.privateKeyPath;
+					const explicitIsDefault = explicitKeyPath !== undefined && SSHRemoteAgentHostMainService._isDefaultKeyPath(explicitKeyPath);
+					if (explicitKeyPath && !explicitIsDefault) {
+						const explicit = await this._readKeyFileIfExists(explicitKeyPath);
+						if (explicit) {
+							attempts.push({ type: 'publickey', username, key: explicit, keyPath: explicitKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
+						}
+					}
+					for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
+						const contents = await this._readKeyFileIfExists(keyPath);
+						if (contents) {
+							attempts.push({ type: 'publickey', username, key: contents, keyPath, ...(isEncryptedPrivateKey(contents) ? { encrypted: true } : undefined) });
+						}
 					}
 				}
 				// Final fallback: keyboard-interactive (typically a password prompt).
@@ -1896,7 +1895,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 		}
 
-		return config.authMethod === SSHAuthMethod.Agent ? applySSHAuthenticationPreferences(attempts, resolved) : attempts;
+		return attempts;
 	}
 
 	private static readonly _defaultKeyPaths = [

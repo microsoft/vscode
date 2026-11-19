@@ -2286,34 +2286,30 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		]);
 	});
 
-	test('Agent honors PubkeyAuthentication and PreferredAuthentications from SSH config', async () => {
+	test('Agent skips the agent and keys when SSH config disables public key authentication', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		const encrypted = openSSHPrivateKeyWithCipher('aes256-ctr');
 		service.keyFiles.set('~/.ssh/id_ed25519', encrypted);
 		const build = (sshGOutput: string) => service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }), parseSSHGOutput(sshGOutput));
+		const interactiveOnly = [{ type: 'keyboard-interactive', username: 'testuser' }];
+		const all = [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: encrypted, keyPath: '~/.ssh/id_ed25519', encrypted: true },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		];
 
 		assert.deepStrictEqual({
 			pubkeyDisabled: await build('pubkeyauthentication false\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
-			passwordOnly: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,password'),
-			interactiveFirst: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,publickey'),
+			publickeyNotPreferred: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,password'),
+			passwordPreferred: await build('pubkeyauthentication true\npreferredauthentications password'),
+			publickeyPreferredLast: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,publickey'),
 			defaults: await build('pubkeyauthentication true\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
 		}, {
-			pubkeyDisabled: [
-				{ type: 'keyboard-interactive', username: 'testuser' },
-			],
-			passwordOnly: [
-				{ type: 'keyboard-interactive', username: 'testuser' },
-			],
-			interactiveFirst: [
-				{ type: 'keyboard-interactive', username: 'testuser' },
-				{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
-				{ type: 'publickey', username: 'testuser', key: encrypted, keyPath: '~/.ssh/id_ed25519', encrypted: true },
-			],
-			defaults: [
-				{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
-				{ type: 'publickey', username: 'testuser', key: encrypted, keyPath: '~/.ssh/id_ed25519', encrypted: true },
-				{ type: 'keyboard-interactive', username: 'testuser' },
-			],
+			pubkeyDisabled: interactiveOnly,
+			publickeyNotPreferred: interactiveOnly,
+			passwordPreferred: interactiveOnly,
+			publickeyPreferredLast: all,
+			defaults: all,
 		});
 	});
 
