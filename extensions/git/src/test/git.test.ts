@@ -667,6 +667,26 @@ suite('git', () => {
 				path.resolve('/worktrees/feature')
 			]);
 		});
+
+		test('only strips the trailing .git segment', function () {
+			const worktreeGitDirPath = path.resolve('/repo/.git/worktrees/feature');
+
+			assert.deepStrictEqual([
+				getWorktreePathFromGitdir(worktreeGitDirPath, '/repo/.git-worktrees/feature/.git'),
+				getWorktreePathFromGitdir(worktreeGitDirPath, '/home/user/.github/feature/.git'),
+				getWorktreePathFromGitdir(worktreeGitDirPath, '/srv/_git/feature/.git'),
+				getWorktreePathFromGitdir(worktreeGitDirPath, '/repo.git/feature/.git'),
+				getWorktreePathFromGitdir(worktreeGitDirPath, '/worktrees/feature/.git/'),
+				getWorktreePathFromGitdir(worktreeGitDirPath, '../../../../.github/feature/.git')
+			], [
+				'/repo/.git-worktrees/feature',
+				'/home/user/.github/feature',
+				'/srv/_git/feature',
+				'/repo.git/feature',
+				'/worktrees/feature',
+				path.resolve('/.github/feature')
+			]);
+		});
 	});
 
 	suite('parseCoAuthors', () => {
