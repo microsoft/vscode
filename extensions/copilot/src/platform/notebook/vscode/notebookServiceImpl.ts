@@ -13,7 +13,6 @@ import { IWorkspaceService } from '../../workspace/common/workspaceService';
 import { INotebookService, PipPackage, Variable, VariablesResult } from '../common/notebookService';
 import { NotebookExecutionServiceImpl } from './notebookExectionServiceImpl';
 
-export const NOTEBOOK_ALTERNATIVE_CONTENT_SCHEME = 'alternative-notebook-content';
 const NOTEBOOK_AGENT_USAGE_KEY = 'github.copilot.notebookAgentModeUsage';
 
 export interface ICellExecution {

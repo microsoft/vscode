@@ -64,13 +64,15 @@ for (const [position, title, menuTitle] of [
 			await configurationService.updateValue(SESSIONS_FLOATING_DETAILS_SETTING, false);
 		}
 	});
-	MenuRegistry.appendMenuItem(Menus.DetailsPosition, {
-		command: {
-			...assertReturnsDefined(MenuRegistry.getCommand(`workbench.action.agentSessions.detailsPosition.${position}`)),
-			title: menuTitle,
-		},
-		order: position === 'top' ? 1 : position === 'bottom' ? 2 : position === 'left' ? 3 : 4,
-	});
+	const positionCommand = {
+		...assertReturnsDefined(MenuRegistry.getCommand(`workbench.action.agentSessions.detailsPosition.${position}`)),
+		title: menuTitle,
+	};
+	const positionOrder = position === 'top' ? 1 : position === 'bottom' ? 2 : position === 'left' ? 3 : 4;
+	MenuRegistry.appendMenuItems([
+		{ id: Menus.DetailsPosition, item: { command: positionCommand, order: positionOrder } },
+		{ id: Menus.DetailsToggle, item: { command: positionCommand, group: '2_organize', order: positionOrder } },
+	]);
 }
 
 registerAction2(class extends Action2 {
@@ -91,13 +93,14 @@ registerAction2(class extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(Menus.DetailsPosition, {
-	command: {
-		...assertReturnsDefined(MenuRegistry.getCommand('workbench.action.agentSessions.toggleFloatingDetails')),
-		title: localize('detailsPositionFloating', "Floating"),
-	},
-	order: 5,
-});
+const floatingDetailsCommand = {
+	...assertReturnsDefined(MenuRegistry.getCommand('workbench.action.agentSessions.toggleFloatingDetails')),
+	title: localize('detailsPositionFloating', "Floating"),
+};
+MenuRegistry.appendMenuItems([
+	{ id: Menus.DetailsPosition, item: { command: floatingDetailsCommand, order: 5 } },
+	{ id: Menus.DetailsToggle, item: { command: floatingDetailsCommand, group: '2_organize', order: 5 } },
+]);
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarContext, {
 	title: localize('layoutDensity', "Layout Density"),

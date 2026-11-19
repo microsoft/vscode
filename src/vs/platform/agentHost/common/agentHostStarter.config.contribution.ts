@@ -60,6 +60,8 @@ import {
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostOverlapProviderPreparationConfigKey,
 	AgentHostPrewarmSessionsConfigKey,
+	AgentHostKeepAwakeConfigKey,
+	agentHostKeepAwakeConfiguration,
 	AgentHostSystemProxyEnabledConfigKey,
 	AgentHostWorkspaceSnapshotEnabledConfigKey,
 	AgentHostMcpSkillsEnabledConfigKey,
@@ -237,6 +239,13 @@ configurationRegistry.registerConfiguration({
 		},
 		...chatMoveConfigurationProperties,
 		...titleGenerationConfigurationProperties,
+		'sessions.keepAwakeWhileWorking': {
+			...agentHostKeepAwakeConfiguration,
+			tags: ['preview'],
+			scope: ConfigurationScope.MACHINE,
+			description: nls.localize('sessions.keepAwakeWhileWorking', "Controls when each connected Agent Host keeps its machine from idle-sleeping while a chat is working, where supported. The hold is released shortly after work ends and does not require an open window. The display can turn off and explicit sleep is not inhibited."),
+			agentHost: { key: AgentHostKeepAwakeConfigKey },
+		},
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',

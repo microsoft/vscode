@@ -61,7 +61,7 @@ suite('WorkspaceFolderLocationService', () => {
 		assert.deepStrictEqual({ labels: actual.map(l => l.label), reported }, { labels: ['A', 'B'], reported: ['fail'] });
 	});
 
-	test('getLocationGroups groups the locations by provider under its label, dedupes across providers and leaves out providers with none', async () => {
+	test('getLocationGroups groups the locations by provider, with its id, under its label, dedupes across providers and leaves out providers with none', async () => {
 		const service = disposables.add(createService());
 		disposables.add(service.registerProvider({ ...provider('x', [{ uri: a, label: 'A' }]), label: 'Worktrees' }));
 		disposables.add(service.registerProvider(provider('y', [{ uri: a, label: 'A' }, { uri: b, label: 'B' }])));
@@ -70,8 +70,8 @@ suite('WorkspaceFolderLocationService', () => {
 		const groups = await service.getLocationGroups(primary, CancellationToken.None);
 		const resolved = await service.resolveLocation(primary, a, CancellationToken.None);
 
-		assert.deepStrictEqual({ groups: groups.map(group => ({ label: group.label, locations: group.locations.map(l => l.label) })), resolvedGroup: resolved?.group }, {
-			groups: [{ label: 'Worktrees', locations: ['A'] }, { label: undefined, locations: ['B'] }],
+		assert.deepStrictEqual({ groups: groups.map(group => ({ providerId: group.providerId, label: group.label, locations: group.locations.map(l => l.label) })), resolvedGroup: resolved?.group }, {
+			groups: [{ providerId: 'x', label: 'Worktrees', locations: ['A'] }, { providerId: 'y', label: undefined, locations: ['B'] }],
 			resolvedGroup: 'Worktrees',
 		});
 	});

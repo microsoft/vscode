@@ -104,6 +104,8 @@ Dynamic feature registration belongs in a service-owned registry or the contribu
 | `IAgentHostChatContributions` | registered chat contribution instances and their scoped mementos |
 | entry point | transports, process listeners, providers, schedulers |
 
+Both entry points activate `AgentHostKeepAwake` after runtime creation. It observes host-owned running-chat state and root configuration; its OS helper and power-source polling share that entry-point lifetime, so inhibition does not depend on a window or transport connection. The test service graph does not start native power inhibitors.
+
 Never add a descriptor-created service to another `DisposableStore`. `AgentHostRuntime` tears phases down explicitly: contributions, composition, instantiation service, then foundation. Entry-point resources and logging are disposed outside the runtime.
 
 A descriptor that is never resolved is never constructed and therefore never disposed. `InstantiationService` disposes only instances it creates.

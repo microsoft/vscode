@@ -21,7 +21,6 @@ export type DocumentHistoryDifference = {
 
 export class WorkspaceDocumentEditHistory extends Disposable {
 	private readonly _documentState = new Map<DocumentId, DocumentEditHistory>();
-	private readonly _lastDocuments = new FifoSet<DocumentEditHistory>(50);
 	private _lastGitCheckout: Instant | undefined;
 
 	constructor(workspace: ObservableWorkspace, observableGit: ObservableGit, historyLength: number) {
@@ -45,16 +44,11 @@ export class WorkspaceDocumentEditHistory extends Disposable {
 			}, (data) => {
 				const isInCooldown = this._isAwaitingGitCheckoutCooldown();
 				for (const edit of data.value.changes) {
-					this._lastDocuments.push(state);
 					state.handleEdit(edit, isInCooldown);
 				}
 			}));
 
 			store.add(toDisposable(() => {
-				const state = this._documentState.get(doc.id);
-				if (state) {
-					this._lastDocuments.remove(state);
-				}
 				this._documentState.delete(doc.id);
 			}));
 		}, d => d.id).recomputeInitiallyAndOnChange(this._store);
@@ -89,14 +83,6 @@ export class WorkspaceDocumentEditHistory extends Disposable {
 
 	public resetEditHistory(): void {
 		this._documentState.forEach(d => d.resetEditHistory());
-	}
-
-	public getLastDocuments(): readonly DocumentEditHistory[] {
-		return this._lastDocuments.getItemsReversed();
-	}
-
-	public hasDocument(docId: DocumentId): boolean {
-		return this._documentState.has(docId);
 	}
 }
 
@@ -167,41 +153,5 @@ class DocumentEditHistory {
 	public resetEditHistory() {
 		this._base = this._current;
 		this._recentEdits = AnnotatedStringEdit.create([]);
-	}
-}
-
-class FifoSet<T> {
-	private _arr: T[] = [];
-
-	constructor(
-		public readonly maxSize: number
-	) {
-	}
-
-	push(e: T): void {
-		const existing = this._arr.indexOf(e);
-		if (existing !== -1) {
-			this._arr.splice(existing, 1);
-		} else if (this._arr.length >= this.maxSize) {
-			this._arr.shift();
-		}
-		this._arr.push(e);
-	}
-
-	remove(e: T): void {
-		const existing = this._arr.indexOf(e);
-		if (existing !== -1) {
-			this._arr.splice(existing, 1);
-		}
-	}
-
-	getItemsReversed(): readonly T[] {
-		const arr = [...this._arr];
-		arr.reverse();
-		return arr;
-	}
-
-	has(item: T): boolean {
-		return this._arr.indexOf(item) !== -1;
 	}
 }

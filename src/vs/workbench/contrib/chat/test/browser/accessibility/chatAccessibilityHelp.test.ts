@@ -42,8 +42,18 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual([help(false), help(true)].map(text => text.includes('Show Above Chat Input')), [false, true]);
 	});
 
+	test('documents side chats in the side panel only in the Agents window while side chats show there', () => {
+		const help = (type: 'agentView' | 'inlineChat', sessionsWindow: boolean, sideChatsInSidePane: boolean) => getAccessibilityHelpText(type, new MockKeybindingService(), true, sessionsWindow, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, sideChatsInSidePane);
+		assert.deepStrictEqual([
+			help('agentView', true, true),
+			help('agentView', true, false),
+			help('agentView', false, true),
+			help('inlineChat', true, true),
+		].map(text => text.includes('open as tabs of the side panel')), [true, false, false, false]);
+	});
+
 	test('documents the prompt timeline handle only while it is shown', () => {
-		const help = (promptTimelineGutterShown: boolean) => getAccessibilityHelpText('panelChat', new MockKeybindingService(), true, false, false, true, false, undefined, false, false, undefined, false, false, true, false, false, false, promptTimelineGutterShown);
+		const help = (promptTimelineGutterShown: boolean) => getAccessibilityHelpText('panelChat', new MockKeybindingService(), true, false, false, true, false, undefined, false, false, undefined, false, false, true, false, false, false, false, promptTimelineGutterShown);
 		assert.deepStrictEqual([help(false), help(true)].map(text => text.includes('A handle on the left edge of the transcript lists your prompts')), [false, true]);
 	});
 

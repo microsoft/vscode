@@ -144,10 +144,10 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 	async getLocationGroups(primary: URI, token: CancellationToken): Promise<IFolderLocationGroup[]> {
 		const results = await Promise.all([...this.providers].map(async ({ provider }) => {
 			try {
-				return { label: provider.label, locations: await provider.provideLocations(primary, token) };
+				return { providerId: provider.id, label: provider.label, locations: await provider.provideLocations(primary, token) };
 			} catch (error) {
 				onUnexpectedError(error);
-				return { label: provider.label, locations: [] };
+				return { providerId: provider.id, label: provider.label, locations: [] };
 			}
 		}));
 
@@ -162,7 +162,7 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 				return true;
 			});
 			if (locations.length) {
-				groups.push({ label: result.label, locations });
+				groups.push({ providerId: result.providerId, label: result.label, locations });
 			}
 		}
 		return groups;
