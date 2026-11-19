@@ -2144,6 +2144,7 @@ export interface IChatModel extends IDisposable {
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly loadOlderHistory?: () => Promise<void>;
 	readonly modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>;
 	/** Provider-reported active shells across all turns; undefined allows transcript-based detection. */
 	readonly backgroundShellCount?: IObservable<number | undefined>;
@@ -3044,6 +3045,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined>;
+	loadOlderHistory?: () => Promise<void>;
 	readonly modelConfigurationState: IObservable<IAgentModelConfigurationReport | undefined> | undefined;
 	readonly backgroundShellCount: IObservable<number | undefined> | undefined;
 	readonly canvasContext: IObservable<ICanvasContext | undefined> | undefined;
@@ -3662,8 +3664,10 @@ export class ChatModel extends Disposable implements IChatModel {
 			throw new BugIndicatingError('Invalid chat request insertion index');
 		}
 		const replacedRequest = insertion?.replace ? this._requests[index] : undefined;
-		const editedFileEvents = [...this.currentEditedFileEvents.values()];
-		this.currentEditedFileEvents.clear();
+		const editedFileEvents = insertion ? [] : [...this.currentEditedFileEvents.values()];
+		if (!insertion) {
+			this.currentEditedFileEvents.clear();
+		}
 		const requestTimestamp = timestamp === undefined
 			? Date.now()
 			: typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp > 0

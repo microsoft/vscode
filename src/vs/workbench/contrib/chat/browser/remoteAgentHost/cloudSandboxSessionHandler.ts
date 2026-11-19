@@ -59,6 +59,8 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 	}
 
 	get history() { return this._source.history; }
+	get ownsHistoryRequestIds() { return this._source.ownsHistoryRequestIds; }
+	readonly loadOlderHistory = async () => { await this._source.loadOlderHistory?.(); };
 	get title() { return this._source.title; }
 	get options() { return this._source.options; }
 	get transferredState() { return this._source.transferredState; }
@@ -185,6 +187,8 @@ class CloudSandboxChatSessionReference extends Disposable implements IChatSessio
 
 	get sessionResource() { return this._session.sessionResource; }
 	get history() { return this._session.history; }
+	get ownsHistoryRequestIds() { return this._session.ownsHistoryRequestIds; }
+	get loadOlderHistory() { return this._session.loadOlderHistory; }
 	get preserveHistoryItemIdentity() { return this._session.preserveHistoryItemIdentity; }
 	get title() { return this._session.title; }
 	get options() { return this._session.options; }

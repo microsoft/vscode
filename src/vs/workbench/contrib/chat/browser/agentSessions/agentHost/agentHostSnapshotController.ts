@@ -178,6 +178,16 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		});
 	}
 
+	/** Adds already-completed requests before the loaded window without changing the undo/redo boundary. */
+	prependRequestCheckpoints(ids: readonly string[]): void {
+		const existing = new Set(this._checkpoints.map(checkpoint => checkpoint.requestId));
+		const older = [...new Set(ids)].filter(id => !existing.has(id)).map(requestId => ({ requestId, edits: [], turnEditsResolved: false, seenToolCallIds: new Set<string>() }));
+		if (older.length) {
+			this._checkpoints.unshift(...older);
+			this._currentCheckpointIndex.set(this._currentCheckpointIndex.get() + older.length, undefined);
+		}
+	}
+
 	/**
 	 * Folds a completed tool call's file edits into the checkpoint for the
 	 * given request. Idempotent on `toolCallId`.
@@ -290,13 +300,16 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	 */
 	private async _navigateToCheckpointIndex(targetIdx: number): Promise<void> {
 		const currentIdx = this._currentCheckpointIndex.get();
+		// Older pages can arrive while the file operations are pending.
+		const boundary = this._checkpoints[Math.max(0, targetIdx)];
 		const crossed = this._checkpoints.slice(Math.min(currentIdx, targetIdx) + 1, Math.max(currentIdx, targetIdx) + 1);
+		const undo = targetIdx < currentIdx;
+		const reviewCheckpoints = undo ? this._checkpoints.slice(targetIdx + 1) : crossed;
 		// A failed fetch must leave every file and the checkpoint cursor at the original boundary.
 		await Promise.all(crossed.map(checkpoint => this._resolveCheckpointEdits(checkpoint)));
-		const undo = targetIdx < currentIdx;
 		const affectedResources = crossed.flatMap(checkpoint => checkpoint.edits.flatMap(edit => edit.originalResource ? [edit.resource, edit.originalResource] : [edit.resource]));
 		const updateReview = await this.checkpointReview.prepareRestore(
-			undo ? this._checkpoints.slice(targetIdx + 1) : crossed,
+			reviewCheckpoints,
 			undo,
 			affectedResources,
 		);
@@ -322,7 +335,8 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		}
 
 		transaction(tx => {
-			this._currentCheckpointIndex.set(targetIdx, tx);
+			const boundaryIndex = this._checkpoints.indexOf(boundary);
+			this._currentCheckpointIndex.set(targetIdx < 0 ? Math.max(-1, boundaryIndex - 1) : boundaryIndex, tx);
 			if (!undo || failures.length === 0) {
 				updateReview(tx);
 			}

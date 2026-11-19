@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -130,6 +130,36 @@ suite('AgentHostSnapshotController', () => {
 		assert.strictEqual(controller.canUndo.get(), false);
 		assert.strictEqual(controller.canRedo.get(), false);
 		assert.deepStrictEqual(controller.entries.get(), []);
+	});
+
+	test('paging in checkpoints preserves an undo branch and allows restoring a fetched request', async () => {
+		const controller = createController(store, new Map());
+		controller.ensureRequestCheckpoint('middle');
+		controller.ensureRequestCheckpoint('latest');
+		await controller.restoreSnapshot('latest', undefined);
+		controller.prependRequestCheckpoints(['oldest', 'earlier']);
+		controller.prependRequestCheckpoints(['oldest', 'earlier']);
+		const afterPaging = controller.requestDisablement.get().map(request => request.requestId);
+		await controller.restoreSnapshot('earlier', undefined);
+		assert.deepStrictEqual([afterPaging, controller.requestDisablement.get().map(request => request.requestId)], [
+			['latest'], ['earlier', 'middle', 'latest'],
+		]);
+	});
+
+	test('a page arriving during restore keeps the checkpoint on the same request', async () => {
+		const resolving = new DeferredPromise<void>();
+		const edits = new DeferredPromise<ISessionFileDiff[]>();
+		const controller = createController(store, new Map(), {
+			getChanges: () => undefined,
+			resolve: () => { resolving.complete(); return edits.p; },
+		});
+		controller.ensureRequestCheckpoint('first-visible');
+		const restore = controller.restoreSnapshot('first-visible', undefined);
+		await resolving.p;
+		controller.prependRequestCheckpoints(['hidden']);
+		await edits.complete([]);
+		await restore;
+		assert.deepStrictEqual(controller.requestDisablement.get(), [{ requestId: 'first-visible' }]);
 	});
 
 	test('addToolCallEdits records snapshot data, enables undo', () => {

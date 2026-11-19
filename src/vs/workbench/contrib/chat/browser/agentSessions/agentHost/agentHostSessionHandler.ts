@@ -771,6 +771,8 @@ function snapshotInvocationToAdopt(opts: IObserveTurnOptions, toolCallId: string
 
 const emptyCanvasReferences: readonly CanvasReference[] = [];
 
+type HistoryWindowChange = 'page' | 'window' | 'metadata';
+
 class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly progressObs = observableValue<IChatProgress[]>('agentHostProgress', []);
 	readonly isCompleteObs = observableValue<boolean>('agentHostComplete', true);
@@ -820,9 +822,53 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly onDidChangeHistory = this._onDidChangeHistory.event;
 	get history(): readonly IChatSessionHistoryItem[] { return this._history; }
 
-	updateHistory(history: readonly IChatSessionHistoryItem[]): void {
+	private _loadingOlderHistory: Promise<void> | undefined;
+	async loadOlderHistory(): Promise<void> {
+		const chat = this._chatState.get().get();
+		if (!this._fetchTurns || !chat || chat.turnsNextCursor === undefined || this._store.isDisposed) {
+			return;
+		}
+		this._loadingOlderHistory ??= this._fetchTurns(URI.parse(chat.resource), chat.turnsNextCursor)
+			.finally(() => this._loadingOlderHistory = undefined);
+		await this._loadingOlderHistory;
+	}
+
+	readonly ownsHistoryRequestIds = true;
+
+	reconcileHistory(chat: ChatState, project: (turns: readonly Turn[]) => IChatSessionHistoryItem[], reason: HistoryWindowChange): readonly Turn[] {
+		const previous = this._historyTurns;
+		const window = chat.turns;
+		if (previous === window && reason !== 'metadata') {
+			return [];
+		}
+		// Only the first turn of a partial window can vouch for a cached prefix before it.
+		const anchor = chat.turnsNextCursor !== undefined && window.length ? previous.findIndex(turn => turn.id === window[0].id) : -1;
+		const prefix = previous.slice(0, Math.max(0, anchor));
+		const windowIds = new Set(window.map(turn => turn.id));
+		const turns = prefix.length && !prefix.some(turn => windowIds.has(turn.id)) ? [...prefix, ...window] : window;
+		const added = turns.length - previous.length;
+		const activeId = chat.activeTurn?.id;
+		const activeIndex = activeId !== undefined ? this._history.findLastIndex(item => item.type === 'request' && item.id === activeId) : -1;
+		const active = activeIndex < 0 ? [] : this._history.slice(activeIndex, activeIndex + 2);
+		let history: readonly IChatSessionHistoryItem[];
+		const previousIds = reason === 'page' ? new Set(previous.map(turn => turn.id)) : undefined;
+		const older = previousIds ? window.filter(turn => !previousIds.has(turn.id)) : [];
+		// turnsToHistory emits a request/response pair per completed turn, followed separately by the restored active pair.
+		const completed = this._history.slice(0, previous.length * 2);
+		if (reason === 'page' && added > 0 && older.length === added && previous.every((turn, i) => equals(turn, turns[i + added]))) {
+			history = [...project(older), ...completed, ...active];
+		} else if (reason !== 'metadata' && added >= 0 && previous.every((turn, i) => equals(turn, turns[i]))) {
+			history = [...completed, ...project(turns.slice(previous.length)), ...active];
+		} else {
+			history = [...project(turns), ...active];
+		}
+		this._historyTurns = turns;
+		if (history.length === this._history.length && history.every((item, index) => item === this._history[index])) {
+			return older;
+		}
 		this._history = history;
 		this._onDidChangeHistory.fire(history);
+		return older;
 	}
 
 	readonly interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
@@ -841,6 +887,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	constructor(
 		readonly sessionResource: URI,
 		private _history: readonly IChatSessionHistoryItem[],
+		private _historyTurns: readonly Turn[],
 		readonly historyLoadError: IChatSession['historyLoadError'],
 		readonly title: string | undefined,
 		backendSession: URI,
@@ -850,6 +897,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		canvases: { readonly provider: AgentHostCanvasCollection; readonly available: IObservable<boolean> } | undefined,
 		private readonly _promptCacheNotification: AgentHostPromptCacheNotification | undefined,
 		refreshChat: (() => Promise<void>) | undefined,
+		private readonly _fetchTurns: IAgentConnection['fetchTurns'],
 		private readonly _forkSession: NonNullable<IChatSession['forkSession']>,
 		private readonly _renameSession: ((title: string, token: CancellationToken) => Promise<void>),
 		transferredState: IChatSession['transferredState'],
@@ -1848,6 +1896,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		this._logService.trace(`[AgentHost] provideChatSessionContent start: ${resolvedSession.toString()} (isNewSession=${isNewSession})`);
 		const history: IChatSessionHistoryItem[] = [];
+		let historyTurns: readonly Turn[] = [];
 		let historyLoadError: IChatSession['historyLoadError'];
 		let initialProgress: IChatProgress[] | undefined;
 		let initialResponsePartCount = 0;
@@ -1901,6 +1950,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._logService.trace(`[AgentHost] provideChatSessionContent: chat state hydrated for ${chatURI}`);
 					const sessionState = this._getSessionState(resolvedSession.toString(), chatURI);
 					if (sessionState) {
+						historyTurns = sessionState.turns;
 						chatTitle = this._getHostChatTitle(sessionResource, sessionState, chatURI);
 						const draft = sessionState.draft ?? emptyDraftFromLastTurn(sessionState);
 						draftInputState = this._draftToInputState(sessionResource, draft);
@@ -2046,6 +2096,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				AgentHostChatSession,
 				sessionResource,
 				history,
+				historyTurns,
 				historyLoadError,
 				chatTitle,
 				resolvedSession,
@@ -2060,6 +2111,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						return chat !== undefined ? this._config.connection.refreshSubscription!(URI.parse(chat)) : Promise.resolve();
 					}
 					: undefined,
+				this._config.connection.fetchTurns ? (chat, cursor) => this._config.connection.fetchTurns!(chat, cursor) : undefined,
 				(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken, options?: IChatSessionForkOptions) => {
 					if (!this._getSessionState(resolvedSession.toString())) {
 						throw new Error('Cannot fork session before the initial request');
@@ -3001,8 +3053,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		};
 		updateSubagentPresentation(currentState);
+		let applyingPage = false;
 		disposables.add(chatSub.onWillApplyAction(envelope => {
 			const action = envelope.action;
+			const before = chatSub.verifiedValue;
+			applyingPage = !envelope.rejectionReason && action.type === ActionType.ChatTurnsLoaded && !!before
+				&& (before.turnsNextCursor !== undefined || before.turns.length > 0);
 			if (!envelope.rejectionReason && action.type === ActionType.ChatTurnStarted && action.queuedMessageId) {
 				// Claim the submission before queue reconciliation treats its disappearance as cancellation.
 				this._chatService.consumePendingRequest(sessionResource, action.queuedMessageId, action.turnId);
@@ -3024,20 +3080,28 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			disposables.add(sessionSub.onDidChange(updateSessionCost));
 			updateSessionCost();
 		}).catch(error => this._logService.error('[AgentHost] Failed to observe chat billing', error));
-		let historyRefreshPending = false;
-		const refreshHistory = () => {
-			const state = this._getSessionState(sessionStr, chatURI);
-			const chatSession = this._activeSessions.get(sessionResource);
-			if (!historyRefreshPending || !state || state.activeTurn || !chatSession) {
+		let lastWindow: readonly Turn[] | undefined;
+		const reconcileHistory = (reason: HistoryWindowChange) => {
+			const chat = chatSub.verifiedValue;
+			if (!chat || (chat.turns === lastWindow && reason !== 'metadata')) {
 				return;
 			}
-			historyRefreshPending = false;
-			const lookup = this._createTurnModelLookup(sessionResource, lastTurnModelSelection(state)?.id);
+			const state = this._getSessionState(sessionStr, chatURI);
+			const chatSession = this._activeSessions.get(sessionResource);
+			if (!state || !chatSession) {
+				return;
+			}
+			lastWindow = chat.turns;
 			const allowTurnResume = !this._isChatReadOnly(sessionStr, chatURI);
-			chatSession.updateHistory(turnsToHistory(backendSession, state.turns, this._config.agentId, this._config.connectionAuthority,
-				lookup, this._chatErrorContext(sessionResource), this._config.connection.initializeResult.get()?.terminalCommandPrefix,
-				this._config.connection.resourceUris, turn => this._getTurnErrorDetails(sessionResource, turn, allowTurnResume),
-				readAgentContextUsage(state, state.turns.at(-1)?.usage), this._managedPluginRetryTarget(backendSession, chatURI)));
+			const older = chatSession.reconcileHistory(chat, turns => turnsToHistory(backendSession, turns, this._config.agentId, this._config.connectionAuthority,
+				this._createTurnModelLookup(sessionResource, lastTurnModelSelection(state)?.id), this._chatErrorContext(sessionResource),
+				this._config.connection.initializeResult.get()?.terminalCommandPrefix, this._config.connection.resourceUris,
+				turn => this._getTurnErrorDetails(sessionResource, turn, allowTurnResume),
+				turns.at(-1) === chat.turns.at(-1) ? readAgentContextUsage(state, chat.turns.at(-1)?.usage) : undefined,
+				this._managedPluginRetryTarget(backendSession, chatURI)), reason);
+			if (older.length) {
+				this._prependHistoryCheckpoints(sessionResource, older);
+			}
 		};
 		let previousContextUsage = currentState ? readAgentContextUsage(currentState, currentState.turns.at(-1)?.usage) : undefined;
 		disposables.add(sessionSub.onDidChange(() => {
@@ -3048,17 +3112,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const contextUsage = readAgentContextUsage(state, state.turns.at(-1)?.usage);
 			if (!equals(previousContextUsage, contextUsage)) {
 				previousContextUsage = contextUsage;
-				historyRefreshPending = true;
-				refreshHistory();
+				reconcileHistory('metadata');
 			}
 		}));
-		disposables.add(chatSub.onDidChange(refreshHistory));
-		disposables.add(chatSub.onDidApplyAction(envelope => {
-			if (envelope.action.type === ActionType.ChatTurnsLoaded) {
-				historyRefreshPending = true;
-				refreshHistory();
-			}
-		}));
+		// A snapshot can introduce both completed turns and an active turn. Publish history before the start below.
+		disposables.add(chatSub.onDidChange(() => reconcileHistory(applyingPage ? 'page' : 'window')));
+		disposables.add(chatSub.onDidApplyAction(() => applyingPage = false));
+		reconcileHistory('window');
 		// Conversation contents live on the chat, while its catalog title and
 		// other session-scoped fields live on the session. Re-evaluate on either.
 		const onChange = () => {
@@ -3885,9 +3945,35 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// Failed, unsent requests have no host turn and must not hide a truncation that still needs committing.
 			const seenAtIndex = protocolState.turns.findLastIndex(turn => previousRequestIds.has(turn.id));
 			if (seenAtIndex < protocolState.turns.length - 1) {
+				let keepTurnId = protocolState.turns[seenAtIndex]?.id;
+				if (seenAtIndex < 0) {
+					const controller = chatModel.editingSession;
+					const firstDisabled = controller instanceof AgentHostSnapshotController ? controller.requestDisablement.get()[0]?.requestId : undefined;
+					const boundary = protocolState.turns.findIndex(turn => turn.id === firstDisabled);
+					if (boundary > 0) {
+						keepTurnId = protocolState.turns[boundary - 1].id;
+					} else if (protocolState.turnsNextCursor !== undefined) {
+						// No predecessor in a partial view does not mean "erase the whole chat".
+						if (boundary !== 0 || !this._config.connection.fetchTurns) {
+							throw new Error(localize('agentHost.checkpointHistoryUnavailable', "The checkpoint boundary is not loaded. Load earlier messages before retrying."));
+						}
+						await this._config.connection.fetchTurns(URI.parse(chatURI), protocolState.turnsNextCursor);
+						if (this._isInvocationAbandoned(cancellationToken)) {
+							return;
+						}
+						const refreshed = chatSubscription.verifiedValue;
+						const index = refreshed?.turns.findIndex(turn => turn.id === firstDisabled) ?? -1;
+						if (!refreshed || index <= 0 || refreshed.turns.length !== index + protocolState.turns.length ||
+							!protocolState.turns.every((turn, i) => refreshed.turns[index + i].id === turn.id) ||
+							controller?.requestDisablement.get()[0]?.requestId !== firstDisabled) {
+							throw new Error(localize('agentHost.checkpointHistoryChanged', "The chat history changed before the checkpoint could be restored. Reopen the chat and try again."));
+						}
+						keepTurnId = refreshed.turns[index - 1].id;
+					}
+				}
 				const truncateAction: ChatTruncatedAction = {
 					type: ActionType.ChatTruncated,
-					...(seenAtIndex >= 0 ? { turnId: protocolState.turns[seenAtIndex].id } : {}),
+					...(keepTurnId !== undefined ? { turnId: keepTurnId } : {}),
 				};
 				this._steeringMessageHandoffs.get(turnChannel)?.clear();
 				const store = new DisposableStore();
@@ -6882,6 +6968,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 	}
 
+	private _prependHistoryCheckpoints(sessionResource: URI, turns: readonly Turn[]): void {
+		const pending = this._pendingHistoryTurns.get(sessionResource);
+		const history = pending ? [...turns, ...pending] : turns;
+		const controller = this._chatService.getSession(sessionResource)?.editingSession;
+		if (!(controller instanceof AgentHostSnapshotController)) {
+			this._pendingHistoryTurns.set(sessionResource, history);
+			return;
+		}
+		this._pendingHistoryTurns.delete(sessionResource);
+		controller.prependRequestCheckpoints(history.map(turn => turn.id));
+		for (const turn of history) {
+			for (const part of turn.responseParts) {
+				if (part.kind === ResponsePartKind.ToolCall) {
+					controller.addToolCallEdits(turn.id, part.toolCall);
+				}
+			}
+		}
+	}
+
 	/**
 	 * Ensures the chat model has a snapshot controller bound (creating one
 	 * via our registered editing-session provider if needed) and returns it.
@@ -6910,17 +7015,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// edits) so "Restore Checkpoint" on any historical request can
 		// find a boundary and mark subsequent requests as disabled via
 		// requestDisablement.
-		const pendingTurns = this._pendingHistoryTurns.get(sessionResource);
-		if (pendingTurns) {
-			this._pendingHistoryTurns.delete(sessionResource);
-			for (const turn of pendingTurns) {
-				editingSession.ensureRequestCheckpoint(turn.id);
-				for (const rp of turn.responseParts) {
-					if (rp.kind === ResponsePartKind.ToolCall) {
-						editingSession.addToolCallEdits(turn.id, rp.toolCall);
-					}
-				}
-			}
+		if (this._pendingHistoryTurns.has(sessionResource)) {
+			this._prependHistoryCheckpoints(sessionResource, []);
 		}
 
 		return editingSession;

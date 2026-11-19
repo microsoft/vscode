@@ -4586,6 +4586,8 @@ suite('ChatService', () => {
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
+			readonly loadOlderHistory?: IChatSession['loadOlderHistory'];
+			readonly ownsHistoryRequestIds?: boolean;
 			readonly history?: readonly IChatSessionHistoryItem[];
 			readonly preserveHistoryItemIdentity?: boolean;
 			readonly transferredState?: IChatSession['transferredState'];
@@ -4616,6 +4618,8 @@ suite('ChatService', () => {
 				canvasContext: opts.canvasContext,
 				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
 				onDidStartServerRequest: opts.onDidStartServerRequest,
+				loadOlderHistory: opts.loadOlderHistory,
+				ownsHistoryRequestIds: opts.ownsHistoryRequestIds,
 				// Like the agent host provider, update the history before announcing the change.
 				onDidChangeHistory: onDidChangeHistory && Event.map(onDidChangeHistory, next => history = next, testDisposables),
 				preserveHistoryItemIdentity: opts.preserveHistoryItemIdentity,
@@ -6011,6 +6015,83 @@ suite('ChatService', () => {
 				});
 			});
 		}
+
+		test('loads older history in front of a running request without replaying it as a new send', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const history: IChatSessionHistoryItem[] = [{ id: 'recent', type: 'request', prompt: 'Recent', participant: remoteScheme }];
+			const { resource } = setupRemoteProvider({
+				history, onDidChangeHistory: changes.event,
+				loadOlderHistory: async () => changes.fire([
+					{ id: 'first', type: 'request', prompt: 'First', participant: remoteScheme },
+					{ id: 'second', type: 'request', prompt: 'Second', participant: remoteScheme },
+					...history,
+				]),
+			});
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const view = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const recent = model.lastRequest;
+			const live = model.addRequest({ text: 'Live', parts: [] }, { variables: [] }, 0);
+			let sends = 0;
+			testDisposables.add(view.onDidChange(change => { if (change?.kind === 'addRequest') { sends++; } }));
+			await model.loadOlderHistory!();
+			assert.deepStrictEqual({
+				order: view.getItems().filter(isRequestVM).map(item => item.messageText), sends,
+				preserved: model.getRequests()[2] === recent && model.lastRequest === live,
+				active: model.hasActiveRequest.get(), complete: model.getRequests().map(r => r.response?.isIncomplete.get()),
+			}, { order: ['First', 'Second', 'Recent', 'Live'], sends: 0, preserved: true, active: true, complete: [false, false, false, true] });
+			model.cancelRequest(live);
+		});
+
+		test('authoritative history removes confirmed local turns even if snapshots coalesce while streaming', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first = { id: 'one', type: 'request', prompt: 'First', participant: remoteScheme } as const;
+			const { resource } = setupRemoteProvider({ history: [first], onDidChangeHistory: changes.event, ownsHistoryRequestIds: true });
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			const model = testDisposables.add(ref).object as ChatModel;
+			const local = model.addRequest({ parts: [], text: 'Local' }, { variables: [] }, 0);
+			const observed = { ...first, prompt: 'Local', id: local.id };
+			changes.fire([first, observed]);
+			changes.fire([first]);
+			local.response!.complete();
+			await timeout(0);
+			const afterCoalescing = model.getRequests().map(request => request.id);
+			const settled = model.addRequest({ parts: [], text: 'Settled' }, { variables: [] }, 0);
+			settled.response!.complete();
+			changes.fire([first, { ...first, prompt: 'Settled', id: settled.id }]);
+			const sameLocal = model.lastRequest === settled;
+			changes.fire([]);
+			changes.fire([{ ...first, id: 'replacement' }]);
+			assert.deepStrictEqual({ afterCoalescing, sameLocal, final: model.getRequests().map(request => request.id) }, {
+				afterCoalescing: ['one'], sameLocal: true, final: ['replacement'],
+			});
+		});
+
+		test('send-time history truncation preserves the optimistic request before host confirmation', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first = { id: 'keep', type: 'request', prompt: 'First', participant: remoteScheme } as const;
+			const { resource } = setupRemoteProvider({
+				history: [first, { ...first, id: 'discard' }], onDidChangeHistory: changes.event, ownsHistoryRequestIds: true,
+			});
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			const model = testDisposables.add(ref).object as ChatModel;
+			const sending = model.addRequest({ parts: [], text: 'New branch' }, { variables: [] }, 0);
+			const response = sending.response!;
+			changes.fire([first]);
+			const inFlight = model.lastRequest === sending && model.hasActiveRequest.get();
+			response.complete();
+			await timeout(0);
+			assert.deepStrictEqual({ inFlight, sameResponse: model.lastRequest?.response === response, ids: model.getRequests().map(r => r.id) }, {
+				inFlight: true, sameResponse: true, ids: ['keep', sending.id],
+			});
+		});
 
 		for (const [previousCount, nextCount] of [[2, 1], [1, 2]]) {
 			test(`passive history does not reuse ambiguous ID-less identities: ${previousCount} to ${nextCount}`, async () => {

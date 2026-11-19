@@ -3451,9 +3451,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
-				this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, false);
 				this._sessionIsEmptyContextKey.set(false);
-				this.chatSuggestNextWidget.hide();
+				if (e.index === undefined) {
+					this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, false);
+					this.chatSuggestNextWidget.hide();
+				}
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {
