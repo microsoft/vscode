@@ -89,7 +89,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ModelSelection, type ToolCallContributor, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type ChatToolCallReadyAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isHostNoticeTurn, isSubagentSession, lastAttributableTurnId, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
@@ -11602,12 +11602,14 @@ export class CopilotAgentSession extends Disposable {
 			const isSubagent = parentToolCallId !== undefined && !this._fusionPhases.has(parentToolCallId);
 			const turn = this._currentTurn.value;
 			const chatState = isSubagent && !turn ? this._stateManager.getChatState(this._chatChannelUri.toString()) : undefined;
+			const activeChatTurn = chatState?.activeTurn;
+			const hostEditTurnId = activeChatTurn && !isHostNoticeTurn(activeChatTurn) ? activeChatTurn.id : lastAttributableTurnId(chatState?.turns);
 			const telemetryContext = isSubagent
 				? this._subagents.getAccountContext(parentToolCallId)
 				: turn?.telemetryContext;
 			this._activeToolCalls.set(e.data.toolCallId, {
 				turnId: turn?.id ?? '',
-				subagentEditTurnId: isSubagent ? turn?.id ?? chatState?.activeTurn?.id ?? chatState?.turns.at(-1)?.id : undefined,
+				subagentEditTurnId: isSubagent ? turn?.id ?? hostEditTurnId : undefined,
 				copilotTrackingId: telemetryContext?.copilotTrackingId,
 				startedAt: e.timestamp,
 				toolName: e.data.toolName,

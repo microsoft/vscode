@@ -110,6 +110,11 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 		return this._diffComputationSequencer.queue(`${owner}\u0000${kind}`, async () => { });
 	}
 
+	/** Resolves once the turn computations scheduled so far have finished. */
+	async whenTurnComputed(owner: string, turnId: string): Promise<void> {
+		await this._diffComputationSequencer.peek(`${owner}\u0000turn\u0000${turnId}`);
+	}
+
 	/** Resolves once every summary write has committed centrally, before the session database mirror is flushed. */
 	async whenSummaryCommitted(): Promise<void> {
 		await Promise.all([...this._pendingSummaryWrites]);
@@ -2080,6 +2085,59 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		};
 		await svc.computeTurnChangeset(sessionStr, 'own-agent-turn', 'fileEditTracker');
 		assert.deepStrictEqual(calls, [`${buildDefaultChatUri(sessionStr)} own-agent-turn`]);
+	});
+
+	test('late snapshot writes during a turn computation queue only one follow-up', async () => {
+		const firstReadStarted = new DeferredPromise<void>();
+		const releaseFirstRead = new DeferredPromise<void>();
+		const readSizes: number[] = [];
+		const db = new class extends TestSessionDatabase {
+			override async getFileEditsByTurn(turnId: string) {
+				const edits = await super.getFileEditsByTurn(turnId);
+				readSizes.push(edits.length);
+				if (readSizes.length === 1) {
+					firstReadStarted.complete();
+					await releaseFirstRead.p;
+				}
+				return edits;
+			}
+		}();
+		const turnId = 'cancelled-turn';
+		const chat = buildDefaultChatUri(sessionStr);
+		const changeset = buildTurnChangesetUri(chat, turnId);
+		const workingDirectories = ['file:///repo'];
+		const { svc, stateManager } = build({
+			workingDirectories, git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE,
+			db, subscriptions: [changeset],
+		});
+		stateManager.dispatchServerAction(chat, chatTurnStarted(turnId, 'Edit files'));
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnCancelled, turnId, duration: 0 });
+
+		const storeEdit = (file: string) => svc.fileEditCoordinator.storeFileEdit(URI.parse(chat), db, {
+			turnId, toolCallId: 'native-edit', filePath: `/repo/${file}.ts`, kind: FileEditKind.Edit,
+			beforeContent: encodeString('before\n'), afterContent: encodeString('after\n'), addedLines: 1, removedLines: 1,
+		});
+		await storeEdit('first');
+		await firstReadStarted.p;
+		try {
+			await storeEdit('second');
+			await storeEdit('third');
+			await storeEdit('fourth');
+		} finally {
+			releaseFirstRead.complete();
+		}
+		await Promise.all([
+			svc.whenTurnComputed(chat, turnId),
+			svc.whenStaticComputed(sessionStr, 'session'),
+			svc.whenStaticComputed(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(workingDirectories)), 'branch'),
+		]);
+
+		const state = stateManager.getChangesetState(changeset);
+		assert.deepStrictEqual({ readSizes, status: state?.status, files: state?.files.map(file => file.id).sort() }, {
+			readSizes: [1, 4],
+			status: ChangesetStatus.Ready,
+			files: ['file:///repo/first.ts', 'file:///repo/fourth.ts', 'file:///repo/second.ts', 'file:///repo/third.ts'],
+		});
 	});
 
 	test('late snapshots refresh session changes without waiting for a native turn', async () => {

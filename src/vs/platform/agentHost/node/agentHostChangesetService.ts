@@ -182,6 +182,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	/** Per-`(session, turnId)` debounce timers for mid-turn per-turn changeset recomputation. */
 	private readonly _perTurnDebouncedDiffTimers = this._register(new DisposableMap<string>());
 	private readonly _perTurnDebouncedDiffTimerKeys = new Set<string>();
+	/** Latest queued background recompute per owner and turn, excluding the running job. */
+	private readonly _queuedTurnRecomputes = new Map<string, { last: Promise<ProtocolURI> | undefined }>();
 	private readonly _activeStaticComputes = new Set<ProtocolURI>();
 	private readonly _incrementalTrackerBaselines = new WeakSet<readonly ChangesetFile[]>();
 	private readonly _scheduledStaticRecomputes = new Map<string, {
@@ -701,7 +703,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	computeTurnChangeset(session: ProtocolURI, turnId: string, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
 		// Turn telemetry is emitted at the turn boundary (onTurnComplete); this subscribe-triggered recompute does not report.
-		return this._queueTurnChangeset(session, turnId, false, undefined, strategy);
+		return this._queueTurnChangeset(session, turnId, 'explicit', undefined, strategy);
 	}
 
 	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, provider: string | undefined, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
@@ -1764,6 +1766,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._perTurnDebouncedDiffTimerKeys.delete(key);
 			}
 		}
+		for (const key of this._queuedTurnRecomputes.keys()) {
+			if (key.startsWith(prefix)) {
+				this._queuedTurnRecomputes.delete(key);
+			}
+		}
 	}
 
 	ensureChatChangesSummary(chat: ProtocolURI): void {
@@ -1988,13 +1995,42 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * are logged inside `computeTurnChangeset` and do not fail the turn.
 	 */
 	private _scheduleTurnRecompute(session: ProtocolURI, turnId: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
-		void this._queueTurnChangeset(session, turnId, reportTelemetry, clientContext, 'fileEditTracker');
+		void this._queueTurnChangeset(session, turnId, reportTelemetry ? 'turnComplete' : 'background', clientContext, 'fileEditTracker');
 	}
 
-	private _queueTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
-		const provider = reportTelemetry ? this._getTelemetryProvider(session) : undefined;
-		this._markChangesetComputing(buildTurnChangesetUri(session, turnId));
-		return this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this._computeTurnChangeset(session, turnId, provider, clientContext, strategy));
+	private _queueTurnChangeset(session: ProtocolURI, turnId: string, source: 'explicit' | 'turnComplete' | 'background', clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
+		const key = `${session}\u0000turn\u0000${turnId}`;
+		const turnUri = buildTurnChangesetUri(session, turnId);
+		const provider = source === 'turnComplete' ? this._getTelemetryProvider(session) : undefined;
+		const compute = () => this._computeTurnChangeset(session, turnId, provider, clientContext, strategy);
+		if (source !== 'background') {
+			this._markChangesetComputing(turnUri);
+			return this._diffComputationSequencer.queue(key, compute);
+		}
+		if (this._store.isDisposed) {
+			return Promise.resolve(turnUri);
+		}
+
+		const pending = this._queuedTurnRecomputes.get(key) ?? { last: undefined };
+		// A queued background job reads the latest edits when it starts. Only
+		// join the tail so explicit and turn-complete jobs keep their ordering.
+		if (pending.last && pending.last === this._diffComputationSequencer.peek(key)) {
+			return pending.last;
+		}
+		this._queuedTurnRecomputes.set(key, pending);
+		const job: Promise<ProtocolURI> = this._diffComputationSequencer.queue(key, async () => {
+			if (this._queuedTurnRecomputes.get(key) !== pending) {
+				return turnUri; // The owner was removed.
+			}
+			// Once a job starts it may miss later writes, so allow a follow-up.
+			if (pending.last === job) {
+				this._queuedTurnRecomputes.delete(key);
+			}
+			return this._store.isDisposed ? turnUri : compute();
+		});
+		pending.last = job;
+		this._markChangesetComputing(turnUri);
+		return job;
 	}
 
 	private _scheduleUncommittedRecompute(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {

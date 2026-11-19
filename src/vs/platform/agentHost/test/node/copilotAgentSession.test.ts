@@ -50,6 +50,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { readCanvasIcon, toCanvasIconDataUri } from '../../common/meta/agentCanvasIconMeta.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import { withMessageRequestHiddenFromTranscript } from '../../common/meta/agentMessageMeta.js';
 import { readShellAuthentication } from '../../common/meta/agentShellAuthenticationMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
@@ -24254,6 +24255,7 @@ Use the attached image as context.
 			const firstEdit = URI.joinPath(workingDirectory, 'first.txt');
 			const activeEdit = URI.joinPath(workingDirectory, 'active.txt');
 			const idleEdit = URI.joinPath(workingDirectory, 'idle.txt');
+			const afterNoticeEdit = URI.joinPath(workingDirectory, 'after-notice.txt');
 			const worker = { agentId: 'worker' };
 			const nestedWorker = { agentId: 'nested-worker' };
 
@@ -24294,8 +24296,15 @@ Use the attached image as context.
 			const childCompletion = await reportActiveEdit();
 			mockSession.fire('session.idle', {});
 			await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete && signal.action.turnId === 'next-turn');
+			stateManager.dispatchServerAction(chat, {
+				...chatTurnStarted('host-notice', 'Agent Merge status update'),
+				message: withMessageRequestHiddenFromTranscript({ text: 'Agent Merge status update', origin: { kind: MessageKind.SystemNotification } }, true),
+			});
 			const reportIdleEdit = await captureEdit(idleEdit, 'idle-edit', nestedWorker);
+			stateManager.dispatchServerAction(chat, chatTurnComplete('host-notice', 0));
 			await reportIdleEdit();
+			const reportAfterNoticeEdit = await captureEdit(afterNoticeEdit, 'after-notice-edit', nestedWorker);
+			await reportAfterNoticeEdit();
 
 			const diffService = createZeroDiffComputeService();
 			const filesForTurn = async (turnId: string) => {
@@ -24305,13 +24314,15 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				rootFiles: await filesForTurn('root-turn'),
 				nextFiles: await filesForTurn('next-turn'),
+				noticeFiles: await filesForTurn('host-notice'),
 				childResultParent: childCompletion.kind === 'action' ? childCompletion.parentToolCallId : undefined,
 				committedEdits,
 			}, {
 				rootFiles: [firstEdit.toString()],
-				nextFiles: [activeEdit.toString(), idleEdit.toString()],
+				nextFiles: [activeEdit.toString(), afterNoticeEdit.toString(), idleEdit.toString()],
+				noticeFiles: [],
 				childResultParent: 'nested-task',
-				committedEdits: ['root-turn', 'next-turn', 'next-turn'].map(turnId => ({ chat: session.chatChannelUri, turnId })),
+				committedEdits: ['root-turn', 'next-turn', 'next-turn', 'next-turn'].map(turnId => ({ chat: session.chatChannelUri, turnId })),
 			});
 		});
 
