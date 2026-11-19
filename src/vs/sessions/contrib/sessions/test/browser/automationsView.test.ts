@@ -938,16 +938,26 @@ suite('AutomationsCardsWidget', () => {
 		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, missionControlEnvironmentService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories, disabledFilter, toggleDisabled };
 	}
 
-	test('pending scheduled chats move out of Automations only while Send Later is enabled', async () => {
-		const { widget, automationService, configurationService } = setup();
+	test('scheduled chats and their run history stay out of Automations while Send Later is enabled', async () => {
+		const { widget, automationService, configurationService, instantiationService } = setup();
 		const schedule: IAutomationSchedule = { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 		automationService.setAutomations([
 			automation({ id: 'scheduled', purpose: 'scheduledChat', schedule }),
+			automation({ id: 'dispatched', name: 'Dispatched scheduled chat', purpose: 'scheduledChat', schedule, oneTimeDispatchedAt: schedule.runAt }),
 			automation({ id: 'ordinary-once', schedule }),
 			automation({ id: 'recurring' }),
 		]);
+		automationService.setRuns([run({ automationId: 'dispatched' })]);
+		stubSessionsHostLayout(instantiationService);
+		const view = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view')!;
+		const provider = disposables.add(instantiationService.invokeFunction(accessor => view.getProvider(accessor))!);
 		const cardCount = () => widget.element.querySelectorAll('.automations-card-wrapper').length;
-		const before = cardCount();
+		const snapshot = () => ({
+			cards: cardCount(),
+			history: widget.element.querySelectorAll('.automations-history .session-item').length,
+			accessible: provider.provideContent().includes('Dispatched scheduled chat'),
+		});
+		const before = snapshot();
 		const setEnabled = async (value: boolean) => {
 			await configurationService.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, value);
 			configurationService.onDidChangeConfigurationEmitter.fire({
@@ -958,10 +968,12 @@ suite('AutomationsCardsWidget', () => {
 			});
 		};
 		await setEnabled(true);
-		const whileEnabled = cardCount();
+		const whileEnabled = snapshot();
 		await setEnabled(false);
-		assert.deepStrictEqual({ before, whileEnabled, after: cardCount(), storedDefinitions: automationService.automations.get().length }, {
-			before: 3, whileEnabled: 2, after: 3, storedDefinitions: 3,
+		assert.deepStrictEqual({ before, whileEnabled, after: snapshot(), storedDefinitions: automationService.automations.get().length }, {
+			before: { cards: 4, history: 1, accessible: true },
+			whileEnabled: { cards: 2, history: 0, accessible: false },
+			after: { cards: 4, history: 1, accessible: true }, storedDefinitions: 4,
 		});
 	});
 
@@ -6805,7 +6817,7 @@ suite('AutomationsCardsWidget', () => {
 				};
 			}), [
 				{ widget: sendLaterEnabled, help: sendLaterEnabled, view: sendLaterEnabled },
-				{ widget: false, help: false, view: false },
+				{ widget: sendLaterEnabled, help: sendLaterEnabled, view: sendLaterEnabled },
 				{ widget: false, help: false, view: false },
 				{ widget: sendLaterEnabled, help: sendLaterEnabled, view: sendLaterEnabled },
 				{ widget: true, help: true, view: true },
