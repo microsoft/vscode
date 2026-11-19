@@ -6,6 +6,22 @@
 	"content": {},
 	"guidance": [
 		{
+			"id": "designing-for-ai-guidance",
+			"heading": "Choose the guidance"
+		},
+		{
+			"id": "designing-for-ai-decisions",
+			"heading": "Follow the decision tree"
+		},
+		{
+			"id": "designing-for-ai-public-references",
+			"heading": "Find a reference by task"
+		},
+		{
+			"id": "designing-for-ai-adaptations",
+			"heading": "Document only local adaptations"
+		},
+		{
 			"id": "designing-for-ai-questions",
 			"heading": "Questions to explore"
 		},
