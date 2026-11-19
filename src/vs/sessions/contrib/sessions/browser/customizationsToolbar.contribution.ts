@@ -383,7 +383,8 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				});
 			}
 			async run(accessor: ServicesAccessor, context?: unknown): Promise<void> {
-				assertAICustomizationManagementSupported(accessor.get(IWorkbenchLayoutService));
+				const layoutService = accessor.get(IWorkbenchLayoutService);
+				assertAICustomizationManagementSupported(layoutService);
 				const hostService = accessor.get(IFocusedSessionHostService);
 				const editorService = accessor.get(IEditorService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
@@ -395,6 +396,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				const target = sessionsService.getSession(resource) ?? sessionsService.getSessionForChatResource(resource)?.session;
 				const ignored = getIgnoredCustomizationMigrationGroups(accessor.get(IStorageService), getChatSessionType(resource), hover.getProjectRoot(resource));
 				const hint = await accessor.get(ICustomizationMigrationService).computeMigrationHint(resource, CancellationToken.None, ignored);
+				assertAICustomizationManagementSupported(layoutService);
 				await openCustomizationOverviewPage(editorService, harnessService, hostService, workspaceService, { migration: !!hint }, target, explicitResource);
 			}
 		}));

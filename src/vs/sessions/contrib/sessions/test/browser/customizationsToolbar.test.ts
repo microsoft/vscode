@@ -59,6 +59,8 @@ import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../.
 import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCustomizationsTelemetry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
+import { ChatCustomizationsHover } from '../../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsHover.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/customizationsConstants.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -124,8 +126,21 @@ suite('Customizations toolbar', () => {
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID)!.handler(accessor));
 
 		const container = mainWindow.document.createElement('div');
-		container.classList.add('phone-layout');
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ mainContainer: container }));
+		const discovery = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		const resource = URI.parse('copilot:/session');
+		instantiationService.stubInstance(ChatCustomizationsHover, {
+			getExplicitSessionResource: () => undefined,
+			getSessionResource: () => resource,
+			getProjectRoot: () => undefined,
+		});
+		instantiationService.stub(ISessionsManagementService, { getSession: () => undefined, getSessionForChatResource: () => undefined });
+		instantiationService.stub(ICustomizationMigrationService, { computeMigrationHint: () => discovery.p });
+		const pending = assert.rejects(async () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.openCustomizationsAtLocation')!.handler(accessor)), /not available in the phone layout/);
+		container.classList.add('phone-layout');
+		await discovery.complete(undefined);
+		await pending;
+
 		const skills = CUSTOMIZATION_ITEMS.find(item => item.section === AICustomizationManagementSection.Skills)!;
 		for (const id of [OPEN_AI_CUSTOMIZATIONS_COMMAND_ID, 'sessions.openCustomizationsAtLocation', skills.id]) {
 			await assert.rejects(async () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor)), /not available in the phone layout/);
