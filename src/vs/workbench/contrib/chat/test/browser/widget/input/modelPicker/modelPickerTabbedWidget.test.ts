@@ -1615,6 +1615,19 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	for (const required of [false, true]) {
+		test(`agent ${required ? 'required' : 'preferred'} models ${required ? 'are all listed' : 'keep the shortlist'} when the picker opens`, () => {
+			const older = model('example-5.5');
+			const newer = model('example-5.6');
+			const { popup } = createPicker({
+				models: [older, newer],
+				selectedModelId: newer.identifier,
+				agentModelPreferences: { models: [older.metadata.id, newer.metadata.id], required },
+			});
+			assert.deepStrictEqual(listRows(popup), required ? ['example-5.6', 'example-5.5'] : ['example-5.6', 'Other Models']);
+		});
+	}
+
 	test('preferred models do not show a required-model explanation', () => {
 		const { popup } = createPicker({ agentModelPreferences: { models: ['First'], required: false } });
 		assert.strictEqual(popup.querySelector('.chat-model-picker-agent-notice'), null);
