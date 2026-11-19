@@ -97,6 +97,7 @@ steps:
       rootFolderOrFile: $(Build.ArtifactStagingDirectory)/cli-standalone
       includeRootFolder: false
       archiveType: zip
+      sevenZipCompression: ultra
       archiveFile: $(Build.ArtifactStagingDirectory)/out/cli/vscode_cli_win32_$(VSCODE_ARCH)_cli.zip
 
   - powershell: |

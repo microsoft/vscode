@@ -98,7 +98,11 @@ class PerChatMemory<T> {
 
 	delete(chat: URI): void {
 		const key = chat.toString();
-		this._storageService.store(this._key, JSON.stringify(this._read().filter(([candidate]) => candidate !== key)), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const entries = this._read();
+		const kept = entries.filter(([candidate]) => candidate !== key);
+		if (kept.length !== entries.length) {
+			this._storageService.store(this._key, JSON.stringify(kept), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 	}
 }
 
@@ -165,6 +169,71 @@ export class ChatWindowChatSizes {
 
 	set(chat: URI, sizes: ChatWindowPartSizes): void {
 		this._memory.set(chat, sizes);
+	}
+
+	delete(chat: URI): void {
+		this._memory.delete(chat);
+	}
+}
+
+/** A cell of an arranged chat window, or a row or column of them, as its part grid serializes it. */
+export type ChatWindowArrangementNode =
+	{ readonly type: 'leaf'; readonly data: { readonly id: string }; readonly size: number; readonly visible?: boolean } |
+	{ readonly type: 'branch'; readonly data: readonly ChatWindowArrangementNode[]; readonly size: number; readonly visible?: boolean };
+
+/**
+ * How the user arranged the chat and the main part of a chat window, such as the main part moved to the left of the chat:
+ * the cells of its part grid with their sizes, without its terminals and the parts it created, which show where they
+ * always do. It is the arrangement of {@link splitLayout}, which the chat and the main part hide in.
+ */
+export interface IChatWindowArrangement {
+	readonly version: 1;
+	readonly splitLayout: ChatWindowSplitLayout;
+	/** The orientation of the root, `0` for vertical and `1` for horizontal, as the part grid's. */
+	readonly orientation: 0 | 1;
+	readonly width: number;
+	readonly height: number;
+	readonly root: ChatWindowArrangementNode;
+}
+
+/** The deepest rows and columns of an arrangement read from storage: deeper ones are not one a window arranges. */
+const MAX_ARRANGEMENT_DEPTH = 16;
+
+function isArrangementNode(value: unknown, depth: number): value is ChatWindowArrangementNode {
+	const node = value as Partial<{ type: unknown; data: unknown; size: unknown; visible: unknown }> | undefined;
+	if (!node || typeof node !== 'object' || typeof node.size !== 'number' || !Number.isFinite(node.size) || node.size < 0 || (node.visible !== undefined && typeof node.visible !== 'boolean')) {
+		return false;
+	}
+	if (node.type === 'leaf') {
+		return typeof (node.data as { id?: unknown } | undefined)?.id === 'string';
+	}
+	return node.type === 'branch' && depth < MAX_ARRANGEMENT_DEPTH && Array.isArray(node.data) && node.data.length > 0 && node.data.every(child => isArrangementNode(child, depth + 1));
+}
+
+function isArrangement(value: unknown): value is IChatWindowArrangement {
+	const candidate = value as Partial<IChatWindowArrangement> | undefined;
+	return candidate?.version === 1 && isChatWindowSplitLayout(candidate.splitLayout) && (candidate.orientation === 0 || candidate.orientation === 1)
+		&& typeof candidate.width === 'number' && Number.isFinite(candidate.width) && candidate.width > 0 && typeof candidate.height === 'number' && Number.isFinite(candidate.height) && candidate.height > 0
+		&& candidate.root?.type === 'branch' && isArrangementNode(candidate.root, 0);
+}
+
+/** Remembers, per chat and in the workspace, how the user arranged the parts of its chat window, so that they show so again after a reload. */
+export class ChatWindowChatArrangements {
+
+	static readonly STORAGE_KEY = 'sessions.chatWindow.chatArrangements';
+
+	private readonly _memory: PerChatMemory<IChatWindowArrangement>;
+
+	constructor(storageService: IStorageService) {
+		this._memory = new PerChatMemory(storageService, ChatWindowChatArrangements.STORAGE_KEY, isArrangement);
+	}
+
+	get(chat: URI): IChatWindowArrangement | undefined {
+		return this._memory.get(chat);
+	}
+
+	set(chat: URI, arrangement: IChatWindowArrangement): void {
+		this._memory.set(chat, arrangement);
 	}
 
 	delete(chat: URI): void {

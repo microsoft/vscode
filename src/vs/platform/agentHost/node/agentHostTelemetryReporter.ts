@@ -8,7 +8,7 @@ import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../teleme
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentSession, type AgentSubagentKind, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary, type IAgentTelemetryContext } from '../common/agent.js';
+import { AgentSession, type AgentCanvasOpenFailure, type AgentSubagentKind, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary, type IAgentTelemetryContext, type IAgentTurnInteraction } from '../common/agent.js';
 import { isReasoningEffortLevel } from '../common/reasoningEffort.js';
 import { isAutoModeRoutingTier, normalizeAutoModeTier } from '../common/autoModeTiers.js';
 import { isCopilotHydraFusionModelId } from '../common/copilotCliConfig.js';
@@ -19,6 +19,8 @@ import { readLocalModelRowMeta } from '../common/meta/localModelStatus.js';
 import type { IAgentMetadataSource } from '../common/meta/metadata.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 import type { McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
+import type { SessionArtifactAddOutcome } from '../common/sessionArtifactCollection.js';
+import type { SessionArtifactType } from '../common/sessionArtifacts.js';
 import { MessageKind, type ErrorInfo, type Message, type SessionInputRequestKind, type ToolDefinition } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getAgentHostChatId, isSubagentSession, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
@@ -162,10 +164,11 @@ type CanvasOpenedClassification = IAgentHostEventClassification & {
 export interface ICanvasExtensionsReadyEvent {
 	schemaVersion: number;
 	launchKind: 'create' | 'resume';
-	outcome: 'alreadySettled' | 'settled' | 'timeout' | 'error' | 'cancelled';
+	outcome: 'alreadySettled' | 'settled' | 'consentPending' | 'timeout' | 'error' | 'cancelled';
 	durationMs: number;
 	extensionCount?: number;
 	failedExtensionCount?: number;
+	dormantExtensionCount?: number;
 }
 
 type CanvasExtensionsReadyClassification = {
@@ -173,10 +176,36 @@ type CanvasExtensionsReadyClassification = {
 	comment: 'Measures host canvas readiness, not runtime startup or model TTFT. Settled may include failed providers.';
 	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Canvas readiness event schema version.' };
 	launchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the session is being created or resumed.' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether extensions were already settled, settled during the wait, timed out, failed, or the operation was cancelled.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether extensions were already settled, settled during the wait, stopped waiting because an extension waits for consent to load, timed out, failed, or the operation was cancelled.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds for the host readiness operation, including extension listing, waiting, and canvas listing.' };
 	extensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };
 	failedExtensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };
+	dormantExtensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Extensions in the latest observed status snapshot that wait to start until their tools or canvases are first used, so readiness did not include their startup; omitted when no snapshot was obtained.' };
+};
+
+/** The bounded outcome of a canvas open the host asked the runtime for. */
+export type CanvasHostOpenOutcome = 'opened' | 'consentDenied' | AgentCanvasOpenFailure | 'timeout' | 'error' | 'cancelled';
+
+export interface ICanvasHostOpenEvent {
+	schemaVersion: number;
+	trigger: 'user' | 'restore';
+	extensionStatus: 'dormant' | 'running' | 'other' | 'unknown';
+	extensionSource: CanvasExtensionSource;
+	outcome: CanvasHostOpenOutcome;
+	askedForConsent: boolean;
+	durationMs: number;
+}
+
+type CanvasHostOpenClassification = {
+	owner: 'ulugbekna';
+	comment: 'Measures canvas opens the host asks the runtime for, including starting an extension that waits for first use. Excludes opens by the model and repeated reopens by the runtime itself.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Host canvas open event schema version.' };
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'user when a person opened the canvas from the UI; restore when the host reopened a restored canvas in the background.' };
+	extensionStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The status of the canvas extension just before the open: dormant when the open had to start it, running when it was already started, other when it was starting, failed, or disabled, or unknown when it could not be read in time.' };
+	extensionSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded extension provenance from the runtime extension list, or unknown when unavailable.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'opened; consentDenied when the user did not allow the extension to load; dismissed, reloaded, mismatchedDeclaration, startFailed, or unavailable when the runtime declined the open for that reason; timeout when the open did not finish before its client or the background reopen stopped waiting; error for other failures; cancelled when the session ended first.' };
+	askedForConsent: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the user was shown a request to allow the extension to load during the open, in a turn or by the client, so durationMs includes their response time.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the open request until it ended as its client saw it, including any permission mode sync, extension status read, extension startup, and consent prompt.' };
 };
 
 export type IAgentHostSubagentKindClassification = {
@@ -407,9 +436,18 @@ interface IAgentHostTurnAttributedReport {
 }
 
 export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext>, IAgentHostFusionTurnTelemetry {
+	sdkSessionId?: string;
+	originalTurnId?: string;
+	steeredFromTurn?: string;
+	interactionIds?: string;
+	interactionIdsTruncated?: boolean;
 	codexModelProvider?: CodexModelProvider;
 	usedPrewarmedSession?: boolean;
 	prewarmedSessionDiscardReason?: string;
+	prewarmReadyAfterTurnStartMs?: number;
+	prewarmReadyBeforeTurnStartMs?: number;
+	prewarmLaunchCount?: number;
+	prewarmWarmUpComplete?: boolean;
 	prewarmSkipReason?: AgentHostPrewarmSkipReason;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
@@ -466,9 +504,18 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 }
 
 export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & {
+	sdkSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Provider SDK session scope for the observed interactions.' };
+	originalTurnId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Known original execution in the steering chain; absent for unresolved or unavailable lineage.' };
+	steeredFromTurn?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Immediate host steering predecessor. Runtime agreement is reported separately by turnSteered.' };
+	interactionIds?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'JSON array of up to 64 distinct interaction IDs observed for this execution turn.' };
+	interactionIdsTruncated?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether more distinct interactions were observed than could be retained.' };
 	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
 	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the turn claimed a provider session that was started before the first message; absent when it did not.' };
 	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn discarded a provider session started before the first message and launched one instead, such as modelChanged or clientToolsChanged; absent when it did not.' };
+	prewarmReadyAfterTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds after the turn started that the session became ready (0 when it was ready before), which the send spent waiting for it; absent otherwise.' };
+	prewarmReadyBeforeTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds the session had been ready before the turn started (0 when it became ready during the turn); absent otherwise.' };
+	prewarmLaunchCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: the warm launches of the draft, including the used one; more than one means it was warmed again, for example after a model change; absent otherwise.' };
+	prewarmWarmUpComplete?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: whether its background warm-up (MCP startup and tool initialization) had finished; absent otherwise.' };
 	prewarmSkipReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn launched a deferred provider session without one started before the first message to claim or discard, such as disabled, expired or customizationsPending; absent otherwise.' };
 	hostRootTurnOrdinal?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'One-based root-turn ordinal over the agent host process lifetime, captured at turn start and excluding subagent turns.' };
 	hostProcessAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Agent host process age in milliseconds captured at root turn start, not completion.' };
@@ -536,6 +583,10 @@ export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry, IAg
 	failureStage: AgentHostTurnFailureStage;
 	usedPrewarmedSession?: boolean;
 	prewarmedSessionDiscardReason?: string;
+	prewarmReadyAfterTurnStartMs?: number;
+	prewarmReadyBeforeTurnStartMs?: number;
+	prewarmLaunchCount?: number;
+	prewarmWarmUpComplete?: boolean;
 	prewarmSkipReason?: AgentHostPrewarmSkipReason;
 	errorType: string;
 	errorName: string | undefined;
@@ -556,6 +607,10 @@ export type IAgentHostTurnFailedClassification = IAgentHostEventClassification &
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the failed turn claimed a provider session that was started before the first message; absent when it did not.' };
 	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the failed turn discarded a provider session started before the first message and launched one instead; absent when it did not.' };
+	prewarmReadyAfterTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds after the turn started that the session became ready (0 when it was ready before), which the send spent waiting for it; absent otherwise.' };
+	prewarmReadyBeforeTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds the session had been ready before the turn started (0 when it became ready during the turn); absent otherwise.' };
+	prewarmLaunchCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: the warm launches of the draft, including the used one; more than one means it was warmed again, for example after a model change; absent otherwise.' };
+	prewarmWarmUpComplete?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: whether its background warm-up (MCP startup and tool initialization) had finished; absent otherwise.' };
 	prewarmSkipReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the failed turn launched a deferred provider session without one started before the first message to claim or discard; absent otherwise.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
 	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception, when available.' };
@@ -577,6 +632,7 @@ export interface IAgentHostTurnFailure {
 }
 
 export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedReport, IAgentHostFusionTurnTelemetry {
+	turnInteraction?: IAgentTurnInteraction;
 	providerTelemetryContext?: IAgentProviderTurnTelemetryContext;
 	codexModelProvider?: CodexModelProvider;
 	hostRootTurnOrdinal?: number;
@@ -692,6 +748,11 @@ type RequestTokenUsageClassification = IAgentHostEventClassification & IAgentHos
  *    parent turn's.
  */
 export type AgentHostTurnHangReason = 'noProgress' | 'stalledAfterProgress' | 'waitingOnUser' | 'runningTool';
+
+/** Whether a hang reason is a legitimate wait rather than a real hang; see {@link AgentHostTurnHangReason}. */
+export function isExpectedTurnHang(reason: AgentHostTurnHangReason): boolean {
+	return reason === 'waitingOnUser' || reason === 'runningTool';
+}
 
 const turnActivityKindsByActionType = {
 	[ActionType.ChatTurnStarted]: 'chat.turnStarted',
@@ -869,6 +930,216 @@ export interface IAgentHostHungTurnCompletedReport extends IAgentHostTurnAttribu
 	totalTimeMs: number;
 	timeAfterHangMs: number;
 }
+
+/**
+ * Why a session summary was sent: `idle` when the session had no active turn
+ * for the idle timeout, `archived` when the session was, `deleted` when the
+ * session was deleted, cleaned up as an ephemeral session, or moved into
+ * another session, and `shutdown` when the agent host began a graceful
+ * shutdown.
+ */
+export type AgentHostSessionSummaryReason = 'idle' | 'archived' | 'deleted' | 'shutdown';
+
+/**
+ * Totals for one session's activity period, summed from the reports behind
+ * `agentHost.turnCompleted` and `agentHost.turnHung`. Token and AI credit
+ * totals are `undefined` when no turn in the period reported them, and lower
+ * bounds when only some did. `missingBilledNanoAiuTurnCount` counts the turns
+ * missing from the AI credit totals.
+ */
+export interface IAgentHostSessionSummaryTotals {
+	rootTurnCount: number;
+	userTurnCount: number;
+	subagentTurnCount: number;
+	failedTurnCount: number;
+	cancelledTurnCount: number;
+	usageLimitFailedTurnCount: number;
+	failedSubagentTurnCount: number;
+	unexpectedHangTurnCount: number;
+	recoveredHangTurnCount: number;
+	steeredTurnCount: number;
+	modelCallCount: number;
+	promptTokenCount: number | undefined;
+	promptCacheTokenCount: number | undefined;
+	completionTokenCount: number | undefined;
+	rootBilledNanoAiu: number | undefined;
+	subagentBilledNanoAiu: number | undefined;
+	totalBilledNanoAiu: number | undefined;
+	missingBilledNanoAiuTurnCount: number;
+	durationMs: number;
+	activeMs: number;
+}
+
+export interface IAgentHostSessionSummaryEvent extends IAgentHostEventTelemetry, IAgentHostSessionSummaryTotals, Partial<IAgentHostSessionArtifactCounts> {
+	schemaVersion: number;
+	provider: string;
+	agentSessionId: string;
+	summaryReason: AgentHostSessionSummaryReason;
+	summaryIndex: number;
+	createdInHostProcess: boolean;
+	multipleClientTypes: boolean;
+}
+
+export type IAgentHostSessionSummaryClassification = IAgentHostEventClassification & {
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Version of the session summary contract.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider of the first turn in the summarized period.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, the same value as agentSessionId on the other agentHost events.' };
+	summaryReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the summary was sent: idle (no active turn for the idle timeout), archived, deleted (also when the session was cleaned up as ephemeral or moved into another session), or shutdown (graceful agent host shutdown).' };
+	summaryIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Zero-based index of this summary among the summaries this agent host process sent for the session.' };
+	createdInHostProcess: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session was created in this agent host process rather than restored from an earlier one.' };
+	multipleClientTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether turns in the period came from more than one known client type; a subagent turn counts as the client of the turn that started it. The initiator fields describe the earliest-started root turn with a known client type, else the earliest-started such subagent turn.' };
+	rootTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Root turns that completed in the period, including failed and cancelled turns.' };
+	userTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Completed root turns that a user message started.' };
+	subagentTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Subagent turns that completed in the period.' };
+	failedTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root turns that ended with an error. Each also emitted agentHost.turnFailed.' };
+	cancelledTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root turns that were cancelled.' };
+	usageLimitFailedTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root turns in failedTurnCount that failed because a Copilot quota or rate limit was reached. Subtract it from failedTurnCount to count other failures.' };
+	failedSubagentTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Subagent turns that ended with an error.' };
+	unexpectedHangTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root and subagent turns that agentHost.turnHung reported with an unexpected reason (noProgress or stalledAfterProgress), counted once per turn.' };
+	recoveredHangTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Turns in unexpectedHangTurnCount that completed later in the same period.' };
+	steeredTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Completed root turns during which at least one steering message was submitted.' };
+	modelCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Completed upstream model responses across root and subagent turns. Each turn counts only its own responses, so nothing is counted twice.' };
+	promptTokenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Input tokens summed over root and subagent turns, each turn counting only its own calls; absent when no turn reported them.' };
+	promptCacheTokenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Input tokens read from cache, summed over root and subagent turns, each turn counting only its own calls; absent when no turn reported them.' };
+	completionTokenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Output tokens summed over root and subagent turns, each turn counting only its own calls; absent when no turn reported them.' };
+	rootBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'AI credits in nano-AIU billed directly to root turns, excluding their subagent calls; absent when no root turn reported it.' };
+	subagentBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'AI credits in nano-AIU billed directly to subagent turns; absent when no subagent turn reported it.' };
+	totalBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'rootBilledNanoAiu plus subagentBilledNanoAiu; absent when neither was reported, and a lower bound when missingBilledNanoAiuTurnCount is above zero.' };
+	missingBilledNanoAiuTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Completed root and subagent turns that made model calls but reported no AI credit usage, so they are missing from the AI credit totals.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the first observed turn start to the last observed turn end or hang report in the period.' };
+	activeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Sum of root turn durations in milliseconds. Concurrent root turns in different chats each count.' };
+	artifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Artifacts of every kind recorded across the session\'s chats when the summary was sent. This and the other artifact counts are absent when the session\'s state was no longer loaded, such as after deletion.' };
+	referenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'References of every kind recorded across the session\'s chats when the summary was sent.' };
+	pullRequestArtifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests recorded as artifacts when the summary was sent.' };
+	pullRequestReferenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests recorded as references when the summary was sent.' };
+	issueArtifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Issues recorded as artifacts when the summary was sent.' };
+	issueReferenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Issues recorded as references when the summary was sent.' };
+	ownPullRequestCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Distinct pull requests the host found for the session\'s own branches when the summary was sent, excluding ones a folder-isolated session started with. The baseline for whether the session\'s own pull requests were recorded.' };
+	ownPullRequestArtifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests in ownPullRequestCount recorded as an artifact.' };
+	ownPullRequestReferenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests in ownPullRequestCount recorded only as a reference. The remaining own pull requests were not recorded.' };
+	owner: 'Giuspepe';
+	comment: 'One summary per agent host session and activity period, summing the turn telemetry so per-session metrics need no event joins.';
+};
+
+export interface IAgentHostSessionSummaryReport {
+	readonly clientContext: IAgentHostClientTelemetryContext | undefined;
+	readonly telemetryContext: IAgentTelemetryContext | undefined;
+	readonly provider: string;
+	/** The root session the summary describes. */
+	readonly session: string;
+	readonly summaryReason: AgentHostSessionSummaryReason;
+	readonly summaryIndex: number;
+	readonly createdInHostProcess: boolean;
+	readonly multipleClientTypes: boolean;
+	readonly totals: IAgentHostSessionSummaryTotals;
+	/** Absent when the session's state is no longer loaded. */
+	readonly artifacts: IAgentHostSessionArtifactCounts | undefined;
+}
+
+/**
+ * What the session had recorded when its summary was sent, counted across its
+ * chats. The own pull request counts compare what was recorded with the pull
+ * requests the host found for the session's own branches.
+ */
+export interface IAgentHostSessionArtifactCounts {
+	artifactCount: number;
+	referenceCount: number;
+	pullRequestArtifactCount: number;
+	pullRequestReferenceCount: number;
+	issueArtifactCount: number;
+	issueReferenceCount: number;
+	ownPullRequestCount: number;
+	ownPullRequestArtifactCount: number;
+	ownPullRequestReferenceCount: number;
+}
+
+/** What recorded an artifact or reference: the agent's tool, or the Create Pull Request action. */
+export type AgentHostArtifactRecordingSource = 'agentTool' | 'createPullRequestAction';
+
+/** Who removed an artifact or reference: the agent's tool, or the user from the chat. */
+export type AgentHostArtifactRemovalInitiator = 'agentTool' | 'user';
+
+export interface IAgentHostArtifactRecordedReport extends IAgentHostTurnAttributedReport {
+	readonly provider: string | undefined;
+	/** The session that owns the chat the entry was recorded in. */
+	readonly session: string;
+	/** The chat the entry was recorded in. */
+	readonly chat: string;
+	readonly turnId: string | undefined;
+	readonly toolCallId: string | undefined;
+	readonly source: AgentHostArtifactRecordingSource;
+	readonly kind: SessionArtifactType;
+	/** The classification requested; an existing artifact is never downgraded to a reference. */
+	readonly isArtifact: boolean;
+	readonly outcome: SessionArtifactAddOutcome;
+	readonly isGitHub: boolean;
+	readonly batchSize: number;
+}
+
+type IAgentHostArtifactRecordedEvent = IAgentHostEventTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	turnId: string | undefined;
+	toolCallId: string | undefined;
+	source: AgentHostArtifactRecordingSource;
+	kind: SessionArtifactType;
+	category: 'artifact' | 'reference';
+	outcome: SessionArtifactAddOutcome;
+	isGitHub: boolean;
+	batchSize: number;
+};
+
+type IAgentHostArtifactRecordedClassification = IAgentHostEventClassification & {
+	owner: 'benibenj';
+	comment: 'One event per artifact or reference that an agent or the Create Pull Request action records on an agent host session, to measure what gets recorded and how it is classified.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider of the session, or unknown.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, the same value as agentSessionId on the other agentHost events.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The turn the agent recorded the entry in; absent for the Create Pull Request action.' };
+	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool call that recorded the entry, matching agentHost.toolInvoked; absent for the Create Pull Request action.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What recorded the entry: agentTool (add_artifact_or_reference) or createPullRequestAction.' };
+	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of the entry: pullRequest, issue, commit, website, file or resource.' };
+	category: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the entry was requested as an artifact or a reference. An existing artifact is never downgraded, so with outcome alreadyRecorded the stored entry can be an artifact.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What recording did: added a new entry, promoted an existing reference to an artifact, modeUpdated how the chat shows an existing entry, or alreadyRecorded.' };
+	isGitHub: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the entry is a pull request or issue on GitHub, which artifact integrations can act on.' };
+	batchSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries recorded by the same call.' };
+};
+
+export interface IAgentHostArtifactRemovedReport extends IAgentHostTurnAttributedReport {
+	readonly provider: string | undefined;
+	readonly session: string;
+	/** The chat the agent removed the entry from; absent when the user removed it. */
+	readonly chat: string | undefined;
+	readonly turnId: string | undefined;
+	readonly toolCallId: string | undefined;
+	readonly initiator: AgentHostArtifactRemovalInitiator;
+	readonly kind: SessionArtifactType;
+	readonly isArtifact: boolean;
+	readonly isGitHub: boolean;
+}
+
+type IAgentHostArtifactRemovedEvent = IAgentHostEventTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	turnId: string | undefined;
+	toolCallId: string | undefined;
+	initiator: AgentHostArtifactRemovalInitiator;
+	kind: SessionArtifactType;
+	category: 'artifact' | 'reference';
+	isGitHub: boolean;
+};
+
+type IAgentHostArtifactRemovedClassification = IAgentHostEventClassification & {
+	owner: 'benibenj';
+	comment: 'One event per artifact or reference removed from an agent host session, to measure how often recorded entries are removed again and by whom.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider of the session, or unknown.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, the same value as agentSessionId on the other agentHost events.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The turn the agent removed the entry in; absent when the user removed it.' };
+	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool call that removed the entry, matching agentHost.toolInvoked; absent when the user removed it.' };
+	initiator: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who removed the entry: agentTool (remove_artifact_or_reference) or user.' };
+	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of the removed entry: pullRequest, issue, commit, website, file or resource.' };
+	category: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the removed entry was an artifact or a reference.' };
+	isGitHub: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the removed entry is a pull request or issue on GitHub.' };
+};
 
 type IAgentHostLanguageModelToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostEventTelemetry & {
 	mcpSourceKind?: McpServerSource;
@@ -1300,11 +1571,15 @@ function toProviderStageMeasurements(durations: ReadonlyMap<AgentHostProviderSen
 }
 
 /** Projects whether a turn used a pre-warmed provider session, why it discarded one, or why it found none to claim, omitting each when absent. */
-function prewarmedSessionTelemetry(context: IAgentProviderTurnTelemetryContext | undefined): { usedPrewarmedSession?: boolean; prewarmedSessionDiscardReason?: string; prewarmSkipReason?: AgentHostPrewarmSkipReason } {
+function prewarmedSessionTelemetry(context: IAgentProviderTurnTelemetryContext | undefined): Pick<IAgentProviderTurnTelemetryContext, 'usedPrewarmedSession' | 'prewarmedSessionDiscardReason' | 'prewarmSkipReason' | 'prewarmReadyAfterTurnStartMs' | 'prewarmReadyBeforeTurnStartMs' | 'prewarmLaunchCount' | 'prewarmWarmUpComplete'> {
 	return {
 		...(context?.usedPrewarmedSession ? { usedPrewarmedSession: true } : {}),
 		...(context?.prewarmedSessionDiscardReason !== undefined ? { prewarmedSessionDiscardReason: context.prewarmedSessionDiscardReason } : {}),
 		...(context?.prewarmSkipReason !== undefined ? { prewarmSkipReason: context.prewarmSkipReason } : {}),
+		...(context?.prewarmReadyAfterTurnStartMs !== undefined ? { prewarmReadyAfterTurnStartMs: context.prewarmReadyAfterTurnStartMs } : {}),
+		...(context?.prewarmReadyBeforeTurnStartMs !== undefined ? { prewarmReadyBeforeTurnStartMs: context.prewarmReadyBeforeTurnStartMs } : {}),
+		...(context?.prewarmLaunchCount !== undefined ? { prewarmLaunchCount: context.prewarmLaunchCount } : {}),
+		...(context?.prewarmWarmUpComplete !== undefined ? { prewarmWarmUpComplete: context.prewarmWarmUpComplete } : {}),
 	};
 }
 
@@ -1385,6 +1660,10 @@ export class AgentHostTelemetryReporter {
 
 	canvasExtensionsReady(event: ICanvasExtensionsReadyEvent): void {
 		this._telemetryService.publicLog2<ICanvasExtensionsReadyEvent, CanvasExtensionsReadyClassification>('agentHost.canvasExtensionsReady', event);
+	}
+
+	canvasHostOpen(event: ICanvasHostOpenEvent): void {
+		this._telemetryService.publicLog2<ICanvasHostOpenEvent, CanvasHostOpenClassification>('agentHost.canvasHostOpen', event);
 	}
 
 	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, owner: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean, isSubagentChat: boolean): void {
@@ -1840,6 +2119,13 @@ export class AgentHostTelemetryReporter {
 			titleGenerationStrategy: report.titleGenerationStrategy,
 		});
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
+			...(report.turnInteraction ? {
+				sdkSessionId: report.turnInteraction.sdkSessionId,
+				originalTurnId: report.turnInteraction.originalTurnId,
+				steeredFromTurn: report.turnInteraction.steeredFromTurn,
+				interactionIds: JSON.stringify(report.turnInteraction.interactionIds),
+				interactionIdsTruncated: report.turnInteraction.interactionIdsTruncated,
+			} : {}),
 			...toInitiatorTelemetry(report.clientContext),
 			...toCopilotTelemetryData(report.telemetryContext),
 			...(report.provider === 'codex' ? getCodexAccountTelemetryData(report.providerTelemetryContext?.codex) : undefined),
@@ -1954,7 +2240,7 @@ export class AgentHostTelemetryReporter {
 			turnId: report.turnId,
 			messageOriginKind: report.messageOriginKind,
 			hangReason: report.hangReason,
-			isExpected: report.hangReason === 'waitingOnUser' || report.hangReason === 'runningTool',
+			isExpected: isExpectedTurnHang(report.hangReason),
 			hadAnyProgress: report.hadAnyProgress,
 			lastActivityKind: normalizeTurnActivityKind(report.lastActivityKind),
 			currentStage: report.currentStage,
@@ -1999,6 +2285,61 @@ export class AgentHostTelemetryReporter {
 			timeAfterHangMs: report.timeAfterHangMs,
 			...toFusionTurnTelemetry(report),
 		});
+	}
+
+	/** Reports one session's activity period. See {@link IAgentHostSessionSummaryTotals} for what each total sums. */
+	sessionSummary(report: IAgentHostSessionSummaryReport): void {
+		this._telemetryService.publicLog2<IAgentHostSessionSummaryEvent, IAgentHostSessionSummaryClassification>('agentHost.sessionSummary', {
+			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
+			schemaVersion: 1,
+			provider: report.provider,
+			agentSessionId: AgentSession.id(report.session),
+			summaryReason: report.summaryReason,
+			summaryIndex: report.summaryIndex,
+			createdInHostProcess: report.createdInHostProcess,
+			multipleClientTypes: report.multipleClientTypes,
+			...report.totals,
+			...report.artifacts,
+		});
+	}
+
+	/** Reports an artifact or reference that was recorded, promoted, or found already recorded. */
+	artifactRecorded(report: IAgentHostArtifactRecordedReport): void {
+		this._telemetryService.publicLog2<IAgentHostArtifactRecordedEvent, IAgentHostArtifactRecordedClassification>('agentHost.artifactRecorded', {
+			...toInitiatorTelemetry(report.clientContext),
+			...this._artifactCopilotTelemetry(report),
+			provider: report.provider ?? 'unknown',
+			agentSessionId: AgentSession.id(report.session),
+			turnId: report.turnId,
+			toolCallId: report.toolCallId,
+			source: report.source,
+			kind: report.kind,
+			category: report.isArtifact ? 'artifact' : 'reference',
+			outcome: report.outcome,
+			isGitHub: report.isGitHub,
+			batchSize: report.batchSize,
+		});
+	}
+
+	artifactRemoved(report: IAgentHostArtifactRemovedReport): void {
+		this._telemetryService.publicLog2<IAgentHostArtifactRemovedEvent, IAgentHostArtifactRemovedClassification>('agentHost.artifactRemoved', {
+			...toInitiatorTelemetry(report.clientContext),
+			...this._artifactCopilotTelemetry(report),
+			provider: report.provider ?? 'unknown',
+			agentSessionId: AgentSession.id(report.session),
+			turnId: report.turnId,
+			toolCallId: report.toolCallId,
+			initiator: report.initiator,
+			kind: report.kind,
+			category: report.isArtifact ? 'artifact' : 'reference',
+			isGitHub: report.isGitHub,
+		});
+	}
+
+	/** The account of the turn that changed the entry, else the provider's current account. */
+	private _artifactCopilotTelemetry(report: IAgentHostTurnAttributedReport & { readonly provider: string | undefined }): IAgentHostCopilotSkuTelemetry {
+		return toCopilotTelemetryData(report.telemetryContext) ?? (report.provider ? this._copilotTelemetryContext(report.provider) : {});
 	}
 
 	toolInvoked(report: IAgentHostToolInvokedReport): void {

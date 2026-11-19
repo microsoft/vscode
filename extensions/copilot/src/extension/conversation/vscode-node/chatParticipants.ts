@@ -34,25 +34,14 @@ import { getAdditionalWelcomeMessage } from './welcomeMessageProvider';
 export class ChatAgentService implements IChatAgentService {
 	declare readonly _serviceBrand: undefined;
 
-	private _lastChatAgents: ChatAgents | undefined; // will be cleared when disposed
-
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
-	public debugGetCurrentChatAgents(): ChatAgents | undefined {
-		return this._lastChatAgents;
-	}
 
 	register(): IDisposable {
 		const chatAgents = this.instantiationService.createInstance(ChatAgents);
 		chatAgents.register();
-		this._lastChatAgents = chatAgents;
-		return {
-			dispose: () => {
-				chatAgents.dispose();
-				this._lastChatAgents = undefined;
-			}
-		};
+		return chatAgents;
 	}
 }
 

@@ -31,7 +31,7 @@ export interface IRemoteEmptyEntry {
 	readonly id: string;
 	readonly label: string;
 	readonly description?: string;
-	readonly action?: { readonly label: string; readonly enabled: boolean };
+	readonly action?: { readonly id: Extract<RemoteRowAction, 'signIn' | 'createDevContainer'>; readonly label: string; readonly enabled: boolean };
 	readonly documentation?: { readonly label: string; readonly href: string };
 }
 
@@ -46,6 +46,8 @@ export type RemoteTableEntry =
 		readonly refreshing: boolean;
 		readonly warning?: string;
 		readonly documentation?: IRemoteEmptyEntry['documentation'];
+		/** Whether a remote of this group's kind can be created from its header. */
+		readonly canCreate?: boolean;
 	}
 	| {
 		readonly type: 'remote';
@@ -61,7 +63,7 @@ export interface IRemoteTableRow {
 }
 
 type RemoteColumn = 'gutter' | 'name' | 'connection' | 'actions';
-export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'rename' | 'copyAddress' | 'locationPreference' | 'updateServer' | 'delete' | 'signIn';
+export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'createDevContainer' | 'rename' | 'copyAddress' | 'locationPreference' | 'githubEnvironment' | 'showExtension' | 'updateServer' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
 	readonly container: HTMLElement;
@@ -69,16 +71,61 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
-		| { readonly column: 'connection'; readonly label: HTMLElement; readonly warning: HTMLElement }
+		| { readonly column: 'name'; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
+		| { readonly column: 'connection'; readonly state: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly warning: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
-		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
+		| { readonly column: 'actions'; readonly action: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
+const connectionProgressIcon = ThemeIcon.modify(Codicon.loading, 'spin');
+
+/** Actions that fit the fixed-width actions column, including the overflow menu when there are more. */
+const maxVisibleActions = 6;
+
+function getGitHubEnvironmentState(remote: ICustomizationRemote): { readonly label: string; readonly icon: ThemeIcon; readonly error: boolean } | undefined {
+	const share = remote.gitHubEnvironment;
+	switch (share?.state) {
+		case undefined: return undefined;
+		case 'connecting': return { label: localize('remotes.gitHubEnvironmentSharing', "Sharing {0} as a GitHub environment...", remote.name), icon: connectionProgressIcon, error: false };
+		case 'error': return { label: localize('remotes.gitHubEnvironmentError', "{0} could not be shared as a GitHub environment: {1}", remote.name, share.error ?? ''), icon: Codicon.warning, error: true };
+		case 'unavailable': return {
+			label: share.unavailableReason === 'host'
+				? localize('remotes.gitHubEnvironmentSharedByHost', "{0} is shared as a GitHub environment by the remote itself.", remote.name)
+				: localize('remotes.gitHubEnvironmentSharedByAccount', "{0} is shared as a GitHub environment by another GitHub account.", remote.name),
+			icon: Codicon.github,
+			error: false,
+		};
+		default: return { label: localize('remotes.gitHubEnvironmentShared', "{0} is shared as a GitHub environment for other apps signed in with your GitHub account.", remote.name), icon: Codicon.github, error: false };
+	}
+}
+
+/**
+ * Describes whether a remote is shared as a GitHub environment, for its row's accessible label.
+ */
+export function getGitHubEnvironmentLabel(remote: ICustomizationRemote): string | undefined {
+	return getGitHubEnvironmentState(remote)?.label;
+}
+
+function getConnectionState(remote: ICustomizationRemote, connecting?: boolean): { readonly label: string; readonly icon: ThemeIcon } {
+	if (connecting !== undefined) {
+		return {
+			label: connecting ? getAgentHostConnectionStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting"),
+			icon: connectionProgressIcon,
+		};
+	}
+	if (remote.kind === 'environment' && remote.unavailableReason && RemoteAgentHostConnectionStatus.isDisconnected(remote.connectionStatus)) {
+		return { label: localize('remotes.hostOffline', "Host offline"), icon: Codicon.circleSlash };
+	}
+	const label = getAgentHostConnectionStatusLabel(remote.connectionStatus);
+	switch (remote.connectionStatus.kind) {
+		case 'connected': return { label, icon: Codicon.plug };
+		case 'connecting': return { label, icon: connectionProgressIcon };
+		default: return { label, icon: Codicon.debugDisconnect };
+	}
+}
+
 export function getConnectionLabel(remote: ICustomizationRemote, connecting?: boolean): string {
-	return connecting === undefined ? remote.kind === 'environment' && remote.unavailableReason && RemoteAgentHostConnectionStatus.isDisconnected(remote.connectionStatus)
-		? localize('remotes.offline', "Offline") : getAgentHostConnectionStatusLabel(remote.connectionStatus)
-		: connecting ? getAgentHostConnectionStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting");
+	return getConnectionState(remote, connecting).label;
 }
 
 export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, RemoteCellTemplate> {
@@ -112,6 +159,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				template = {
 					...base, column: this.column,
 					label: dom.append(nameRow, dom.$('.remotes-name')),
+					detail: dom.append(nameRow, dom.$('.remotes-name-detail')),
+					gitHubEnvironment: dom.append(nameRow, dom.$('.remotes-github-environment')),
 					count: dom.append(nameRow, dom.$('.remotes-group-count')),
 					progress: dom.append(nameRow, dom.$('.remotes-group-progress', { 'aria-hidden': 'true' })),
 					warning: dom.append(nameRow, dom.$('.remotes-refresh-warning')),
@@ -122,10 +171,12 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				break;
 			}
 			case 'connection': {
-				const label = dom.append(container, dom.$('.remotes-connection-state'));
+				const state = dom.append(container, dom.$('.remotes-connection-state'));
+				const icon = dom.append(state, dom.$('span.remotes-connection-icon', { 'aria-hidden': 'true' }));
+				const label = dom.append(state, dom.$('span.remotes-connection-text'));
 				const warning = dom.append(container, dom.$('.remotes-connection-warning'));
 				dom.append(warning, renderIcon(Codicon.warning)).setAttribute('aria-hidden', 'true');
-				template = { ...base, column: this.column, label, warning };
+				template = { ...base, column: this.column, state, icon, label, warning };
 				break;
 			}
 			default: {
@@ -168,12 +219,27 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							this.onAction(template.row.entry, 'locationPreference');
 						}
 					}));
+					const gitHubEnvironment = disposables.add(new Action('remotes.githubEnvironment', '', ThemeIcon.asClassName(Codicon.github), true, async () => {
+						if (template.row?.entry.type === 'remote') {
+							this.onAction(template.row.entry, 'githubEnvironment');
+						}
+					}));
+					const showExtension = disposables.add(new Action('remotes.showExtension', '', ThemeIcon.asClassName(Codicon.extensions), true, async () => {
+						if (template.row?.entry.type === 'remote') {
+							this.onAction(template.row.entry, 'showExtension');
+						}
+					}));
 					const updateServer = disposables.add(new Action('remotes.updateServer', '', ThemeIcon.asClassName(Codicon.cloudDownload), true, async () => {
 						if (template.row?.entry.type === 'remote') {
 							this.onAction(template.row.entry, 'updateServer');
 						}
 					}));
-					template = { ...base, column: this.column, action, rename, copyAddress, locationPreference, updateServer, delete: deleteAction, documentation, toolbar, actionLayout: '' };
+					const createDevContainer = disposables.add(new Action('remotes.createDevContainer', '', ThemeIcon.asClassName(Codicon.add), true, async () => {
+						if (template.row?.entry.type === 'remote' || template.row?.entry.type === 'group') {
+							this.onAction(template.row.entry, 'createDevContainer');
+						}
+					}));
+					template = { ...base, column: this.column, action, createDevContainer, rename, copyAddress, locationPreference, gitHubEnvironment, showExtension, updateServer, delete: deleteAction, documentation, toolbar, actionLayout: '' };
 				}
 				disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
 				break;
@@ -217,6 +283,17 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				listRow.setAttribute('aria-busy', String(entry.type === 'group' ? entry.refreshing : entry.type === 'remote' ? entry.busy : signingIn));
 				template.label.textContent = entry.type === 'remote' ? entry.remote.name : entry.label;
 				template.label.classList.toggle('remotes-empty-label', entry.type === 'empty');
+				dom.clearNode(template.gitHubEnvironment);
+				const gitHubEnvironment = entry.type === 'remote' ? getGitHubEnvironmentState(entry.remote) : undefined;
+				template.gitHubEnvironment.hidden = !gitHubEnvironment;
+				template.gitHubEnvironment.classList.toggle('remotes-github-environment-error', !!gitHubEnvironment?.error);
+				if (gitHubEnvironment) {
+					// The row's accessible label already includes this state.
+					dom.append(template.gitHubEnvironment, renderIcon(gitHubEnvironment.icon)).setAttribute('aria-hidden', 'true');
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.gitHubEnvironment, {
+						content: gitHubEnvironment.label, style: HoverStyle.Pointer,
+					}, { groupId: this.hoverGroupId }));
+				}
 				template.count.textContent = entry.type === 'group' ? String(entry.count) : '';
 				template.count.hidden = entry.type !== 'group';
 				template.progress.hidden = entry.type !== 'group' || !entry.refreshing;
@@ -233,7 +310,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						template.actionLink = template.disposables.add(new Link(template.actionContainer, { label: entry.action.label, href: '#' }, {
 							opener: () => {
 								if (template.row?.entry.type === 'empty' && template.row.entry.action?.enabled) {
-									this.onAction(template.row.entry, 'signIn');
+									this.onAction(template.row.entry, template.row.entry.action.id);
 								}
 							},
 						}, this.hoverService, this.openerService));
@@ -250,6 +327,16 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.label, {
 					content: template.label.textContent, style: HoverStyle.Mouse,
 				}, { groupId: this.hoverGroupId }));
+				// Users remove an extension's remote through its extension, so the row names it.
+				const contributedBy = entry.type === 'remote' ? entry.remote.contributedBy : undefined;
+				template.detail.textContent = contributedBy ? localize('remotes.contributedByDetail', "Registered by the {0} extension", contributedBy.displayName)
+					: entry.type === 'remote' ? entry.remote.description ?? '' : '';
+				template.detail.hidden = !template.detail.textContent;
+				if (template.detail.textContent) {
+					template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.detail, {
+						content: template.detail.textContent, style: HoverStyle.Mouse,
+					}, { groupId: this.hoverGroupId }));
+				}
 				template.description.textContent = entry.type === 'empty' ? entry.description ?? '' : '';
 				template.description.hidden = !template.description.textContent;
 				if (template.description.textContent) {
@@ -269,7 +356,10 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				break;
 			}
 			case 'connection': {
-				template.label.textContent = entry.type === 'remote' ? getConnectionLabel(entry.remote, entry.connecting) : '';
+				const state = entry.type === 'remote' ? getConnectionState(entry.remote, entry.connecting) : undefined;
+				template.label.textContent = state?.label ?? '';
+				template.icon.className = state ? `remotes-connection-icon ${ThemeIcon.asClassName(state.icon)}` : 'remotes-connection-icon';
+				template.icon.hidden = !state;
 				const error = entry.type === 'remote' && entry.connecting === undefined
 					? entry.remote.lastConnectionError : undefined;
 				template.warning.hidden = !error;
@@ -279,7 +369,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					}, { groupId: this.hoverGroupId }));
 				}
 				if (entry.type === 'remote') {
-					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, {
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.state, {
 						content: entry.connecting === undefined ? error ?? entry.remote.unavailableReason ?? getStatusHover(entry.remote.connectionStatus) : template.label.textContent,
 						style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));
@@ -293,26 +383,48 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				template.container.classList.toggle('remotes-visibility-column', showVisibility);
 				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
 				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
+				const showGroupCreate = template.column === 'actions' && entry.type === 'group' && !!entry.canCreate;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
-				const showDelete = showConnection && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh') && !!entry.remote.canDelete);
+				const isDevContainer = showConnection && entry.remote.kind === 'devContainer';
+				const showConnect = showConnection && !entry.remote.connectsWithHost;
+				const showDelete = showConnection && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh' || entry.remote.kind === 'devContainer') && !!entry.remote.canDelete);
+				const showCreateDevContainer = showConnection && !!entry.remote.canCreateDevContainer;
 				const showLocationPreference = showConnection && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh');
+				const showGitHubEnvironment = showConnection && (entry.remote.kind === 'ssh' || entry.remote.kind === 'wsl' || entry.remote.kind === 'tunnel')
+					&& (!!entry.remote.canShareAsGitHubEnvironment || !!entry.remote.gitHubEnvironment);
+				const showExtension = showConnection && !!entry.remote.contributedBy;
 				const showUpdate = showConnection && RemoteAgentHostConnectionStatus.isIncompatible(entry.remote.connectionStatus) && !!entry.remote.connectionStatus.vscodeUpgradeMethod;
-				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}:${showDelete}:${showLocationPreference}:${showUpdate}`;
+				const actionLayout = `${showConfig}:${showDocumentation}:${showGroupCreate}:${showConnection}:${showConnect}:${isDevContainer}:${showCreateDevContainer}:${showDelete}:${showLocationPreference}:${showGitHubEnvironment}:${showExtension}:${showUpdate}`;
 				if (template.column === 'actions' && template.actionLayout !== actionLayout) {
 					template.actionLayout = actionLayout;
-					template.toolbar.setActions(showConnection ? [
-						template.action, template.rename, template.copyAddress,
+					// Dev Containers have no meaningful address to copy, and those on remote hosts connect with their host.
+					const actions = showConnection ? [
+						...(showConnect ? [template.action] : []),
+						...(showCreateDevContainer ? [template.createDevContainer] : []),
+						template.rename,
+						...(isDevContainer ? [] : [template.copyAddress]),
 						...(showLocationPreference ? [template.locationPreference] : []),
+						...(showGitHubEnvironment ? [template.gitHubEnvironment] : []),
+						...(showExtension ? [template.showExtension] : []),
 						...(showDelete ? [template.delete] : []),
 						...(showUpdate ? [template.updateServer] : []),
 					] : [
+						...(showGroupCreate ? [template.createDevContainer] : []),
 						...(showDocumentation ? [template.documentation] : []),
 						...(showConfig ? [template.action] : []),
-					]);
+					];
+					// The fixed-width column fits six actions, so a longer list keeps five and moves the rest into the overflow menu.
+					const overflow = actions.length > maxVisibleActions ? actions.splice(maxVisibleActions - 1) : [];
+					template.toolbar.setActions(actions, overflow);
 				}
-				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showVisibility && !showConfig && !showDocumentation && !showConnection);
+				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showVisibility && !showConfig && !showDocumentation && !showGroupCreate && !showConnection);
 				if (template.column === 'actions' && entry.type === 'group' && entry.documentation) {
 					template.documentation.label = entry.documentation.label;
+				}
+				if (showGroupCreate) {
+					// Stays enabled while a Dev Container starts, so more can be created in parallel.
+					template.createDevContainer.label = localize('remotes.createDevContainerInGroup', "Create Dev Container");
+					template.createDevContainer.enabled = true;
 				}
 				template.action.enabled = true;
 				template.action.tooltip = '';
@@ -343,11 +455,22 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						? localize('remotes.connectUnavailable', "Connect to {0}: {1}", entry.remote.name, entry.remote.unavailableReason) : template.action.label;
 					template.rename.label = localize('remotes.rename', "Rename {0}...", entry.remote.name);
 					template.rename.enabled = !entry.busy;
+					template.createDevContainer.label = localize('remotes.createDevContainer', "Create Dev Container on {0}", entry.remote.name);
+					template.createDevContainer.enabled = showCreateDevContainer && !entry.busy;
 					template.copyAddress.label = localize('remotes.copyAddress', "Copy Address of {0}", entry.remote.name);
 					template.locationPreference.label = localize('remotes.locationPreference', "Change Preferred Agent Location for {0}", entry.remote.name);
 					template.locationPreference.enabled = !entry.busy
 						&& !RemoteAgentHostConnectionStatus.isConnecting(entry.remote.connectionStatus)
 						&& !RemoteAgentHostConnectionStatus.isReconnecting(entry.remote.connectionStatus);
+					const share = entry.remote.gitHubEnvironment;
+					template.gitHubEnvironment.label = share?.state === 'connecting' || share?.state === 'unavailable'
+						? getGitHubEnvironmentLabel(entry.remote) ?? ''
+						: share
+							? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing {0} as GitHub Environment", entry.remote.name)
+							: localize('remotes.shareAsGitHubEnvironment', "Share {0} as GitHub Environment", entry.remote.name);
+					template.gitHubEnvironment.enabled = showGitHubEnvironment && !entry.busy && share?.state !== 'connecting' && share?.state !== 'unavailable';
+					template.gitHubEnvironment.class = ThemeIcon.asClassName(share?.state === 'connecting' ? connectionProgressIcon : Codicon.github);
+					template.showExtension.label = entry.remote.contributedBy ? localize('remotes.showExtension', "Show {0} Extension", entry.remote.contributedBy.displayName) : '';
 					template.delete.label = localize('remotes.delete', "Delete {0}", entry.remote.name);
 					template.delete.enabled = showDelete && !entry.busy;
 					template.updateServer.label = localize('remotes.updateServer', "Update Server for {0}", entry.remote.name);

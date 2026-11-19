@@ -290,12 +290,94 @@
 	overflow: hidden;
 }
 
+.scm-view .scm-structural-change > .scm-structural-change-icon {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size160);
+	margin-right: var(--vscode-spacing-size60);
+}
+
+.scm-view .scm-structural-change > .name {
+	min-width: 0;
+}
+
+.scm-view .scm-structural-change > .scm-structural-change-metadata {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size60);
+	margin-left: var(--vscode-spacing-size60);
+}
+
+.scm-view .scm-structural-change-annotation {
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+	opacity: 0.7;
+}
+
+.scm-view .scm-structural-change-status.added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.scm-view .scm-structural-change-status.deleted {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.scm-view .scm-structural-change-status.modified,
+.scm-view .scm-structural-change-status.renamed {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+/* Like the file badges in iconlabel.css, status letters are dimmed and use the selection foreground in a focused list. */
+.scm-view .scm-structural-change-status {
+	opacity: 0.75;
+}
+
+.scm-view .monaco-list:focus .monaco-list-row.selected .scm-structural-change-status {
+	color: inherit;
+}
+
+/*
+ * Center the final status letter and count digit on the trailing control column.
+ * See https://github.com/microsoft/vscode/issues/346073
+ */
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after,
-.scm-view .monaco-list-row .history-item-change > .label-container > .monaco-icon-label::after {
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label > .monaco-decoration-badge-content,
+.scm-view .monaco-list-row .history-item-change > .label-container > .monaco-icon-label::after,
+.scm-view .scm-structural-change-status,
+.scm-view .monaco-list-row .resource-group > .count {
 	margin-right: 3px;
 }
 
-.scm-view .monaco-list-row .resource > .name > .monaco-icon-label.monaco-decoration-text-badge::after {
+.scm-view .monaco-list-row .resource-group > .count > .monaco-count-badge {
+	position: relative;
+	isolation: isolate;
+	min-width: 0;
+	padding-inline: calc((var(--vscode-spacing-size160) - 1ch) / 2);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Keep the minimum badge circular without shifting its centered text. */
+.scm-view .monaco-list-row .resource-group > .count > .monaco-count-badge::before {
+	content: '';
+	position: absolute;
+	z-index: -1;
+	top: 0;
+	left: 50%;
+	transform: translateX(-50%);
+	height: 100%;
+	min-width: 100%;
+	aspect-ratio: 1;
+	border-radius: inherit;
+	background-color: var(--vscode-badge-background);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label.monaco-decoration-text-badge::after,
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label > .monaco-decoration-badge-content,
+.scm-view .scm-structural-change-status {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -304,6 +386,7 @@
 	min-width: var(--vscode-spacing-size160);
 	height: var(--vscode-spacing-size160);
 	margin-block: auto;
+	white-space: nowrap;
 	font-size: var(--vscode-fontSize-label2);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
@@ -653,10 +736,17 @@
 	margin: 4px 0;
 }
 
-.monaco-hover.history-item-hover .history-item-hover-container div:nth-of-type(3):nth-last-of-type(2) > p {
+.monaco-hover.history-item-hover .history-item-hover-container > .history-item-hover-references > p {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 4px;
+}
+
+.monaco-hover.history-item-hover .history-item-hover-container > .history-item-hover-references > p > span {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-hover.history-item-hover .history-item-hover-container span:not(.codicon) {

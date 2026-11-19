@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, JsonValue, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import type { Attachment, JsonValue, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteResult } from '@microsoft/copilot-sdk';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -404,6 +404,9 @@ function toSdkAttachment(attachment: MessageAttachment): Attachment | undefined 
 		case MessageAttachmentKind.EmbeddedResource:
 			return { type: 'blob', data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label };
 		case MessageAttachmentKind.Resource: {
+			if (attachment.displayKind === 'skill') {
+				return undefined;
+			}
 			const uri = URI.parse(attachment.uri);
 			if (uri.scheme !== Schemas.file) {
 				return { type: 'blob', data: encodeBase64(VSBuffer.fromString(attachment.uri)), mimeType: 'text/plain', displayName: attachment.label };

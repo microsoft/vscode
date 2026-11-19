@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { autorun, constObservable, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableFromEvent, runOnChange } from '../../../../../../base/common/observable.js';
 import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -33,7 +33,7 @@ import { IAgentHostActiveClientService } from '../../../../chat/browser/agentSes
 import { IAgentHostMcpAppToolsService } from '../../../../chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { buildLocalSessionStateUri, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../chat/browser/copilotCliEventsUri.js';
-import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, canOpenLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
@@ -51,6 +51,7 @@ import { IGitHubService } from '../../../browser/github/githubService.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
 import { DevContainerAgentHostSessionsProvider } from './devContainerAgentHostSessionsProvider.js';
 import { ReconnectableAgentHostAutomationStore } from './reconnectableAgentHostAutomationStore.js';
+import { IChatViewSessionsListService } from '../../../../chat/common/chatViewSessionsListService.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
@@ -83,8 +84,8 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	readonly supportsLocalWorkspaces = true;
 	readonly supportsQuickChats = true;
 
-	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
-	private readonly _isSessionsWindow: boolean;
+	/** Whether it surfaces every agent, as the Agents window does, rather than only the agents editor windows show. */
+	private readonly _surfacesAllAgents: IObservable<boolean>;
 	override get order(): number {
 		return -1;
 	}
@@ -116,11 +117,6 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		if (this._reportAdoptableRowOpen(resource, reason, this._telemetryService)) {
 			return undefined;
 		}
-		// Frozen at startup: enabling the setting only takes effect after a restart,
-		// so a live toggle never probes a host whose gate is still off.
-		if (!isLegacyMigrationEnabledAtStartup(this._configurationService)) {
-			return undefined;
-		}
 		const twin = migratedCopilotCliResource(resource);
 		const rawId = getCopilotCliSessionRawId(twin);
 		// An un-adopted legacy chat still carries the adoptable marker and must take
@@ -134,7 +130,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		// Startup restore reopens persisted slots against a cold host, where the
 		// first catalog pass is far slower than an interactive open.
 		const timeoutMs = reason === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_TIMEOUT_MS;
-		const adopted = await adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, this._telemetryService, reason ?? 'open', timeoutMs);
+		const adopted = await adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._telemetryService, reason ?? 'open', timeoutMs);
 		if (sessionKey && !this._sessionCache.has(sessionKey)) {
 			await this._refreshSessions();
 		}
@@ -158,11 +154,12 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		// keeps the original `undefined` behavior while the extension-host provider
 		// is still registered; once retired, seed and redirect to the twin so it still resolves.
 		const isStillAdoptable = sessionKey ? readSessionEhcliAdoptable(this._getSessionMetadataByKey(sessionKey)) : adoptable;
-		const legacyProviderRegistered = this._chatSessionsService.getChatSessionContribution?.(resource.scheme) !== undefined;
+		const needsTwinSeed = !!(twin && rawId && sessionKey && !this._sessionCache.has(sessionKey));
+		const legacyProviderRegistered = (isStillAdoptable || needsTwinSeed) && await canOpenLegacyCopilotCliResource(this._chatSessionsService, resource);
 		if (isStillAdoptable && legacyProviderRegistered) {
 			return undefined;
 		}
-		if (twin && rawId && sessionKey && !this._sessionCache.has(sessionKey)) {
+		if (needsTwinSeed && rawId) {
 			if (legacyProviderRegistered) {
 				return undefined;
 			}
@@ -205,10 +202,13 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionHostService, focusedSessionHostService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 		this.initializeDevContainerSupport(devContainerAgentHostService, sessionsProvidersService, workspaceTrustRequestService);
 		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
+			supportsOneTimeAutomation: true,
+			supportsExistingChatAutomation: true,
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
@@ -218,12 +218,14 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 				const identity = this._connectionsService.resolveSessionResourceIdentity(resource);
 				return identity?.backendSessionIsAdvertised && identity.connectionAuthority === AMBIENT_AGENT_HOST_AUTHORITY ? identity.backendSession : undefined;
 			},
+			resolveBackendChat: resource => this.getBackendChatResource(resource),
+			conversationFromHost: (session, chat) => this.getAutomationConversation(session, chat),
 			onDidChangeSessionResolution: this._connectionsService.onDidChangeSessionResolution,
 			providerForResourceScheme: scheme => scheme.startsWith(LOCAL_RESOURCE_SCHEME_PREFIX) ? scheme.slice(LOCAL_RESOURCE_SCHEME_PREFIX.length) : undefined,
 		}));
 		this.automations = automations;
 
-		this._isSessionsWindow = environmentService.isSessionsWindow;
+		this._surfacesAllAgents = chatViewSessionsListService.surfacesAllLocalAgentHostAgents;
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 
@@ -322,18 +324,24 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 			if (e.affectsConfiguration('git.branchProtection')) {
 				this._refreshSessionWorkspaces();
 			}
-			if (affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
-				this._onSessionPolicyChanged();
-				this._syncRootState(this._agentHostService.rootState.value);
-				// Saved history and pending-session visibility may also change.
-				// Fire an empty-payload change so the
-				// open list re-queries and re-filters. The payload is deliberately
-				// empty: these sessions are hidden, not removed, and signalling
-				// them as `removed` would be misread as a remote deletion (e.g. by
-				// the sessions telemetry contribution).
-				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+			if (affectsAgentHostProviderPreference(e, this._surfacesAllAgents.get())) {
+				this._onProviderPreferenceChanged();
 			}
 		}));
+		// The agents a window surfaces change too as it starts or stops showing the sessions of the Agents window
+		this._register(runOnChange(this._surfacesAllAgents, () => this._onProviderPreferenceChanged()));
+	}
+
+	private _onProviderPreferenceChanged(): void {
+		this._onSessionPolicyChanged();
+		this._syncRootState(this._agentHostService.rootState.value);
+		// Saved history and pending-session visibility may also change.
+		// Fire an empty-payload change so the
+		// open list re-queries and re-filters. The payload is deliberately
+		// empty: these sessions are hidden, not removed, and signalling
+		// them as `removed` would be misread as a remote deletion (e.g. by
+		// the sessions telemetry contribution).
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
 	}
 
 	protected override supportsDevContainerWorkspace(workspaceUri: URI): boolean {
@@ -363,11 +371,11 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	protected get authenticationPending(): IObservable<boolean> { return this._agentHostService.authenticationPending; }
 
 	protected override _shouldAdvertiseAgent(provider: string): boolean {
-		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
+		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._surfacesAllAgents.get());
 	}
 
 	protected override _shouldShowSavedSession(provider: string): boolean {
-		return this._shouldAdvertiseAgent(provider) || getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._isSessionsWindow).includes(provider);
+		return this._shouldAdvertiseAgent(provider) || getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._surfacesAllAgents.get()).includes(provider);
 	}
 
 	protected override _isAgentDisabledByPolicy(provider: string): boolean {

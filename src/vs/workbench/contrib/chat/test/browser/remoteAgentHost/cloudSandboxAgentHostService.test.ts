@@ -20,6 +20,8 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { WebPubSubRelayTransport, type IWebPubSubRelayTransportOptions } from '../../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { IActiveSubscriptionInfo } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import {
@@ -82,6 +84,7 @@ class TestCloudSandboxAgentHostService extends CloudSandboxAgentHostService {
 type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<CloudSandboxConnectResult>);
 
 const connectionDetails = {
+	suspendCount: 0, suspendedMs: 0,
 	environmentOperation: 'resume', provisioningMs: 0, readinessMs: 0,
 	taskCreationPath: 'unknown', reservationWaitMs: 0,
 	preparationMs: 0, connectionMs: 0,
@@ -302,6 +305,9 @@ suite('CloudSandboxAgentHostService', () => {
 			override readonly onDidConnectionDiagnostic = Event.None;
 			override readonly onDidAction = Event.None;
 			override getConnectionDiagnosticState() { return {}; }
+			override getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+				return [{ resource: URI.parse('other-host:/session'), kind: StateComponents.Session, status: 'snapshot', refCount: 1, holders: [] }];
+			}
 		}());
 		const spy = sinon.spy(fixture.instantiationService, 'createInstance');
 		const created = await fixture.getFactory().createConnection(fixture.entries()[0], { userInitiated: true });
@@ -310,15 +316,24 @@ suite('CloudSandboxAgentHostService', () => {
 		const options = spy.getCalls().find(call => call.args[0] === AgentHostProtocolClient)?.args[3] as IAgentHostProtocolClientOptions;
 		assert.ok(options.prepareReconnect);
 		await options.prepareReconnect();
+		const makeTransport = spy.getCalls().find(call => call.args[0] === AgentHostProtocolClient)?.args[2] as () => IProtocolTransport;
+		store.add(makeTransport());
+		const transportOptions = spy.getCalls().find(call => call.args[0] === WebPubSubRelayTransport)?.args[1] as IWebPubSubRelayTransportOptions;
+		fixture.setState('reconnecting');
+		transportOptions.onHandshakeProgress?.('reconnect', 'waiting');
+		transportOptions.onHandshakeProgress?.('reconnect', 'responseReceived');
+		fixture.setState('connected');
 		created.transportDisposable.dispose();
 		fixture.service.dispose();
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(entry => [entry.method, entry.request.environmentId, entry.request.sessionId, entry.request.environmentKind]),
 			lifecycle: fixture.lifecycleEvents,
 			userLocalOutcome: fixture.events.filter(event => event.eventName === 'userLocalRelayConnectionOutcome').map(event => event.data?.outcome),
+			recoveryHandshake: fixture.events.find(event => event.data?.operation === 'recover')?.data?.lastHandshakeState,
+			sessionRecovery: fixture.events.find(event => event.data?.operation === 'recover')?.data?.sessionRecoveryOutcome,
 		}, {
 			requests: [['connect', environmentId, sessionId, 'user-local'], ['reconnect', environmentId, sessionId, 'user-local']],
-			lifecycle: [], userLocalOutcome: ['success'],
+			lifecycle: [], userLocalOutcome: ['success', 'success'], recoveryHandshake: 'responseReceived', sessionRecovery: 'restored',
 		});
 	}));
 
@@ -345,6 +360,12 @@ suite('CloudSandboxAgentHostService', () => {
 		assert.ok(options.resolveInitialAuthentication && options.sealAuthenticationToken);
 		const identity = await options.resolveInitialAuthentication();
 		assert.ok(identity);
+		const unavailable = new Error('network unavailable');
+		fixture.setIdentityResult(async () => { throw unavailable; });
+		await assert.rejects(options.resolveInitialAuthentication(), error => error === unavailable);
+		fixture.setIdentityResult(async () => { throw new CloudSandboxRequestError(401, 'sign in required'); });
+		await assert.rejects(options.resolveInitialAuthentication(), InitialAuthenticationError);
+		fixture.setIdentityResult(async () => ({ token: 'identity-only-token' }));
 		const token = await options.sealAuthenticationToken({ ...identity, key, challenge: 'a'.repeat(32) });
 		fixture.setEnvironmentKeys([key]);
 		await assert.rejects(options.sealAuthenticationToken({ ...identity, key: { ...key, public_key: 'substituted' } }), /does not match/);
@@ -355,7 +376,10 @@ suite('CloudSandboxAgentHostService', () => {
 		}, {
 			identity: { resource: 'https://api.github.com', token: 'identity-only-token' },
 			renewed: { resource: 'https://api.github.com', token: 'identity-only-token' },
-			sealed: true, identityRequests: [{ account: 'account-a', forceRefresh: false }, { account: 'account-a', forceRefresh: true }],
+			sealed: true, identityRequests: [
+				{ account: 'account-a', forceRefresh: false }, { account: 'account-a', forceRefresh: false },
+				{ account: 'account-a', forceRefresh: false }, { account: 'account-a', forceRefresh: true },
+			],
 			controlPlaneRequests: 1, environmentReads: 1,
 		});
 	});

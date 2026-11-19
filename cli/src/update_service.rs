@@ -85,7 +85,7 @@ impl UpdateService {
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
 		let download_url = format!(
 			"{}/api/versions/{}/{}/{}",
-			&update_endpoint,
+			update_endpoint,
 			version,
 			download_segment,
 			quality_download_segment(quality),
@@ -122,7 +122,7 @@ impl UpdateService {
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
 		let download_url = format!(
 			"{}/api/latest/{}/{}",
-			&update_endpoint,
+			update_endpoint,
 			download_segment,
 			quality_download_segment(quality),
 		);
@@ -155,7 +155,7 @@ impl UpdateService {
 
 		let download_url = format!(
 			"{}/commit:{}/{}/{}",
-			&update_endpoint,
+			update_endpoint,
 			release.commit,
 			download_segment,
 			quality_download_segment(release.quality),
@@ -178,6 +178,52 @@ pub fn unzip_downloaded_release<T>(
 where
 	T: ReportCopyProgress,
 {
+	let mut reporter = OwnedCopyProgress(Some(reporter));
+	unzip_downloaded_release_core(compressed_file, target_dir, &mut reporter)
+}
+
+trait CopyProgressOwner {
+	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64);
+	fn finish(&mut self);
+}
+
+struct OwnedCopyProgress<T>(Option<T>);
+
+impl<T: ReportCopyProgress> CopyProgressOwner for OwnedCopyProgress<T> {
+	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64) {
+		self.0
+			.as_mut()
+			.expect("copy progress already dropped")
+			.report_progress(bytes_so_far, total_bytes);
+	}
+
+	fn finish(&mut self) {
+		drop(self.0.take());
+	}
+}
+
+struct BorrowedCopyProgress<'a>(&'a mut dyn CopyProgressOwner);
+
+impl ReportCopyProgress for BorrowedCopyProgress<'_> {
+	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64) {
+		self.0.report_progress(bytes_so_far, total_bytes);
+	}
+}
+
+impl Drop for BorrowedCopyProgress<'_> {
+	fn drop(&mut self) {
+		// Preserve the original reporter parameter's drop point, including early errors.
+		self.0.finish();
+	}
+}
+
+#[inline(never)]
+fn unzip_downloaded_release_core(
+	compressed_file: &Path,
+	target_dir: &Path,
+	reporter: &mut dyn CopyProgressOwner,
+) -> Result<(), WrappedError> {
+	let reporter = BorrowedCopyProgress(reporter);
 	match has_gzip_header(compressed_file) {
 		Ok((f, true)) => tar::decompress_tarball(f, target_dir, reporter),
 		Ok((f, false)) => zipper::unzip_file(f, target_dir, reporter),
@@ -330,5 +376,95 @@ impl fmt::Display for Platform {
 			Platform::WindowsX86 => "WindowsX86",
 			Platform::WindowsARM64 => "WindowsARM64",
 		})
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::cell::RefCell;
+
+	#[derive(Debug, PartialEq, Eq)]
+	enum Event {
+		Progress(u64, u64),
+		FileDropped,
+		ReporterDropped,
+	}
+
+	struct FileMarker<'a>(&'a RefCell<Vec<Event>>);
+
+	impl Drop for FileMarker<'_> {
+		fn drop(&mut self) {
+			self.0.borrow_mut().push(Event::FileDropped);
+		}
+	}
+
+	struct Reporter<'a>(&'a RefCell<Vec<Event>>);
+
+	impl ReportCopyProgress for Reporter<'_> {
+		fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64) {
+			self.0
+				.borrow_mut()
+				.push(Event::Progress(bytes_so_far, total_bytes));
+		}
+	}
+
+	impl Drop for Reporter<'_> {
+		fn drop(&mut self) {
+			self.0.borrow_mut().push(Event::ReporterDropped);
+		}
+	}
+
+	fn extract_fixture<T: ReportCopyProgress>(
+		file: FileMarker<'_>,
+		mut reporter: T,
+		archive_created: bool,
+		should_panic: bool,
+	) -> Result<(), ()> {
+		if archive_created {
+			let _archive = file;
+			reporter.report_progress(1, 2);
+			assert!(!should_panic, "fixture panic");
+			Ok(())
+		} else {
+			reporter.report_progress(1, 2);
+			assert!(!should_panic, "fixture panic");
+			Err(())
+		}
+	}
+
+	#[test]
+	fn erased_progress_preserves_callbacks_and_drop_order() {
+		for archive_created in [false, true] {
+			for should_panic in [false, true] {
+				let expected = RefCell::new(Vec::new());
+				let expected_result =
+					std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+						extract_fixture(
+							FileMarker(&expected),
+							Reporter(&expected),
+							archive_created,
+							should_panic,
+						)
+					}))
+					.map_err(|_| ());
+				let actual = RefCell::new(Vec::new());
+				let actual_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+					let mut owner = OwnedCopyProgress(Some(Reporter(&actual)));
+					extract_fixture(
+						FileMarker(&actual),
+						BorrowedCopyProgress(&mut owner),
+						archive_created,
+						should_panic,
+					)
+				}))
+				.map_err(|_| ());
+				assert_eq!(
+					(actual_result, actual.into_inner()),
+					(expected_result, expected.into_inner()),
+					"archive={archive_created}, panic={should_panic}"
+				);
+			}
+		}
 	}
 }

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IME } from '../../../../base/common/ime.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
@@ -21,7 +22,39 @@ import { TestNotificationService } from '../../../../platform/notification/test/
 
 suite('CodeEditorWidget', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('issue #347431: native edit context releases focus when another editor is focused while IME is disabled', function () {
+		// Needs real focus/blur events, which don't fire while the document is unfocused
+		if (typeof (globalThis as { EditContext?: unknown }).EditContext !== 'function' || !document.hasFocus()) {
+			this.skip();
+		}
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const containerA = document.createElement('div');
+		const containerB = document.createElement('div');
+		container.append(containerA, containerB);
+
+		const instantiationService = createCodeEditorServices(disposables);
+		const editorA = disposables.add(instantiationService.createInstance(CodeEditorWidget, containerA, { editContext: true }, { contributions: [] }));
+		const editorB = disposables.add(instantiationService.createInstance(CodeEditorWidget, containerB, { editContext: true }, { contributions: [] }));
+		editorA.setModel(disposables.add(createTextModel('first')));
+		editorB.setModel(disposables.add(createTextModel('second')));
+
+		try {
+			editorA.focus();
+			IME.disable();
+			editorB.focus();
+			assert.deepStrictEqual([editorA.hasTextFocus(), editorB.hasTextFocus()], [false, true]);
+
+			IME.enable();
+			assert.strictEqual(document.activeElement, containerB.querySelector('.native-edit-context'));
+		} finally {
+			IME.enable();
+		}
+	});
 
 	test('preserves the documentation link when the cursor limit is reached', () => {
 		const prompts: Parameters<INotificationService['prompt']>[] = [];

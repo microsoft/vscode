@@ -184,7 +184,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 	private readonly _sessionFolderMissing = observableValue<boolean>(this, false);
 	/** Checks whether the preselected session folder still exists; settles once it is known or can't be told. */
 	private _folderCheck: Promise<void> | undefined;
-	/** Settles once a {@link refresh} has re-read its folder (or was superseded), which restores the kept worktree choice. */
+	/** Settles once a {@link refresh} has re-read its folder (or was superseded), validating the kept worktree choice. */
 	private _refreshResolution: Promise<void> | undefined;
 	private readonly _branches = observableValue<readonly string[] | 'loading' | 'error'>(this, []);
 	private readonly _resolve = this._register(new MutableDisposable<DisposableStore>());
@@ -226,11 +226,16 @@ export class NestedChatWorkspaceControls extends Disposable {
 		return support && folder ? toNestedChatWorkspace(support, folder, this._worktree.get(), this._folderInfo.get(), this._branch.get()) : undefined;
 	}
 
-	/** {@link getWorkspace} once a pending check of the session folder is done, so a chat never starts in a missing folder. */
+	/** {@link getWorkspace} once the latest checks of the session folder and refreshed capabilities are done. */
 	async resolveWorkspace(): Promise<INestedChatWorkspace | undefined> {
-		// Until a refresh re-reads its folder, the kept worktree choice reads as "no worktree".
-		await Promise.all([this._folderCheck, this._refreshResolution]);
-		return this.getWorkspace();
+		while (true) {
+			const folderCheck = this._folderCheck;
+			const refreshResolution = this._refreshResolution;
+			await Promise.all([folderCheck, refreshResolution]);
+			if (folderCheck === this._folderCheck && refreshResolution === this._refreshResolution) {
+				return this.getWorkspace();
+			}
+		}
 	}
 
 	/** Back to the session's default, e.g. after the chat was sent. */
@@ -252,17 +257,19 @@ export class NestedChatWorkspaceControls extends Disposable {
 			this.reset();
 			return;
 		}
-		this._select(folder, { worktree: this._worktree.get(), branch: this._branch.get() });
+		this._select(folder, true);
 	}
 
-	private _select(choice: NestedChatFolderChoice | undefined, keep?: { readonly worktree: boolean; readonly branch: string | undefined }): void {
+	private _select(choice: NestedChatFolderChoice | undefined, keepSelection = false): void {
 		const store = new DisposableStore();
 		this._resolve.value = store;
 		transaction(tx => {
 			this._folder.set(choice, tx);
-			this._worktree.set(false, tx);
-			this._branch.set(undefined, tx);
-			this._folderInfo.set(undefined, tx);
+			if (!keepSelection) {
+				this._worktree.set(false, tx);
+				this._branch.set(undefined, tx);
+				this._folderInfo.set(undefined, tx);
+			}
 			this._branches.set([], tx);
 		});
 		// "No workspace" and folders without Git have no worktree: only folders are resolved.
@@ -294,15 +301,16 @@ export class NestedChatWorkspaceControls extends Disposable {
 			}
 			transaction(tx => {
 				this._folderInfo.set(info, tx);
-				this._worktree.set(!!keep?.worktree && info.supportsWorktree, tx);
-				this._branch.set(keep?.worktree && info.supportsWorktree ? keep.branch ?? info.defaultBranch : info.defaultBranch, tx);
+				this._worktree.set(keepSelection && this._worktree.get() && info.supportsWorktree, tx);
+				this._branch.set(this._worktree.get() ? this._branch.get() ?? info.defaultBranch : info.defaultBranch, tx);
 			});
 		}, error => {
 			if (!cts.token.isCancellationRequested) {
+				this._folderInfo.set(undefined, undefined);
 				onUnexpectedError(error);
 			}
 		});
-		if (keep) {
+		if (keepSelection) {
 			// Settle when superseded too, as a cancelled resolution may never answer.
 			const refreshResolution = raceCancellation(resolution, cts.token).then(() => undefined);
 			this._refreshResolution = refreshResolution;

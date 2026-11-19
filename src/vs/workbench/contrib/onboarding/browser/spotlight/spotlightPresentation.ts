@@ -7,7 +7,10 @@ import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IOnboardingPresentation, IOnboardingRunContext } from '../../common/onboardingPresentation.js';
@@ -15,7 +18,7 @@ import { IOnboardingRunResult, IOnboardingScenario, OnboardingDismissReason, Onb
 import { IOnboardingSequenceStep, IOnboardingSequenceStepContext, IOnboardingSequenceStepPresentation, IOnboardingSequenceStepResult } from '../../common/onboardingSequence.js';
 import { IOnboardingTarget, hasOnboardingTargetSelection, onDidSelectOnboardingTarget, resolveOnboardingTarget } from './onboardingTarget.js';
 import { ISpotlightContent, SpotlightOverlay } from './spotlightOverlay.js';
-import { ISpotlightPayload, ISpotlightStep, SpotlightMissingTargetBehavior, SPOTLIGHT_PRESENTATION_KIND } from './spotlightTypes.js';
+import { ISpotlightPayload, ISpotlightStep, SpotlightMissingTargetBehavior, SPOTLIGHT_BACKDROP_CONFIG, SPOTLIGHT_CLOSE_BUTTON_CONFIG, SPOTLIGHT_PRESENTATION_KIND } from './spotlightTypes.js';
 
 /** How long to wait for a step's target element to appear before skipping it. */
 const TARGET_RESOLVE_TIMEOUT = 2000;
@@ -36,9 +39,10 @@ type StepEnd =
 
 /**
  * Renders {@link ISpotlightPayload} scenarios: it dims the window (including the
- * native window controls), walks the steps, and shows an anchored callout for
- * each. Implements the engine's {@link IOnboardingPresentation} contract so the
- * scenario engine can drive it without knowing anything about spotlights.
+ * native window controls) unless {@link SPOTLIGHT_BACKDROP_CONFIG} is disabled,
+ * walks the steps, and shows an anchored callout for each. Implements the
+ * engine's {@link IOnboardingPresentation} contract so the scenario engine can
+ * drive it without knowing anything about spotlights.
  */
 export class SpotlightPresentation extends Disposable implements IOnboardingPresentation, IOnboardingSequenceStepPresentation {
 
@@ -49,6 +53,8 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IHostService private readonly hostService: IHostService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -84,11 +90,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		}
 		const store = new DisposableStore();
 		try {
-			const container = this.layoutService.getContainer(context.targetWindow);
-			const overlay = store.add(new SpotlightOverlay(container));
-			this.hostService.setWindowDimmed(context.targetWindow, true);
-			store.add(toDisposable(() => this.hostService.setWindowDimmed(context.targetWindow, false)));
-			store.add(this.layoutService.onDidLayoutContainer(() => overlay.scheduleLayout()));
+			const overlay = this._createOverlay(context.targetWindow, store);
 			const end = await this._runStep(
 				overlay,
 				context,
@@ -163,15 +165,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 				return { outcome: OnboardingOutcome.Completed, shown: false, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 0, stepCount };
 			}
 
-			const container = this.layoutService.getContainer(context.targetWindow);
-			const overlay = store.add(new SpotlightOverlay(container));
-			this.hostService.setWindowDimmed(context.targetWindow, true);
-			store.add(toDisposable(() => this.hostService.setWindowDimmed(context.targetWindow, false)));
-
-			// Keep the callout glued to the target as the workbench re-layouts.
-			// Schedule the measurement so it runs after the layout event's DOM work
-			// has settled, including position-only shifts that ResizeObserver misses.
-			store.add(this.layoutService.onDidLayoutContainer(() => overlay.scheduleLayout()));
+			const overlay = this._createOverlay(context.targetWindow, store);
 
 			let index = 0;
 			let direction: 1 | -1 = 1;
@@ -259,6 +253,23 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			closeOpenedTarget();
 			store.dispose();
 		}
+	}
+
+	private _createOverlay(targetWindow: Window, store: DisposableStore): SpotlightOverlay {
+		const overlay = store.add(new SpotlightOverlay(this.layoutService.getContainer(targetWindow)));
+		const backdrop = this.configurationService.getValue<boolean>(SPOTLIGHT_BACKDROP_CONFIG) !== false;
+		overlay.setBackdropVisible(backdrop);
+		overlay.setTitleCloseButton(this.configurationService.getValue<boolean>(SPOTLIGHT_CLOSE_BUTTON_CONFIG) === true);
+		if (backdrop) {
+			this.hostService.setWindowDimmed(targetWindow, true);
+			store.add(toDisposable(() => this.hostService.setWindowDimmed(targetWindow, false)));
+		}
+
+		// Keep the callout glued to the target as the workbench re-layouts.
+		// Schedule the measurement so it runs after the layout event's DOM work
+		// has settled, including position-only shifts that ResizeObserver misses.
+		store.add(this.layoutService.onDidLayoutContainer(() => overlay.scheduleLayout()));
+		return overlay;
 	}
 
 	private async _resolveTarget(targetWindow: Window, targetId: string, targetScope: string | undefined, cancellationToken: CancellationToken, behavior?: SpotlightMissingTargetBehavior): Promise<IOnboardingTarget | undefined> {
@@ -402,6 +413,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			canGoBack,
 			isLastStep,
 			showEndTour: !!step.primaryAction || step.endTourLabel !== undefined,
+			focusEndTour: step.focusEndTour,
 		};
 
 		const openTarget = step.openTarget === 'ifUnselected' ? !hasSelection : step.openTarget;
@@ -418,6 +430,12 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			}));
 		}
 
+		// Every experiment arm shows this step, and only an assigned default changes how its callout ends the tour:
+		// a value the user, workspace, policy or memory sets wins over it.
+		const closeButtonSetting = this.configurationService.inspect<boolean>(SPOTLIGHT_CLOSE_BUTTON_CONFIG);
+		if (!isConfigured(closeButtonSetting) && closeButtonSetting.policyValue === undefined && closeButtonSetting.memoryValue === undefined) {
+			logSettingExperimentTrigger(this.telemetryService, SPOTLIGHT_CLOSE_BUTTON_CONFIG);
+		}
 		overlay.show(target.element, content, {
 			placement: step.placement,
 			allowTargetInteraction: step.allowTargetInteraction,

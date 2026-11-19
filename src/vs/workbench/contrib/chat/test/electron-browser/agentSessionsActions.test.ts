@@ -40,6 +40,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
 import { OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { readonly commandId: string; readonly args: readonly unknown[] }[] = [];
@@ -141,7 +142,7 @@ suite('Agents window launch enablement', () => {
 			instantiationService.stub(IExtensionService, new NullExtensionService());
 			instantiationService.stub(ILogService, disposables.add(new NullLogService()));
 			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-				getWorkspace: () => ({ id: 'empty', folders: [] }),
+				getWorkspace: () => (testIWorkspace({ id: 'empty', folders: [] })),
 			}));
 			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
 			const calls: IOpenAgentsWindowOptions[] = [];
@@ -184,7 +185,7 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 			const folders = ['/first', '/second'].map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
 			const calls: IOpenAgentsWindowOptions[] = [];
 			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-				getWorkspace: () => ({ id: 'multi-root', folders }),
+				getWorkspace: () => (testIWorkspace({ id: 'multi-root', folders })),
 				getWorkspaceFolder: uri => folders.find(folder => extUri.isEqualOrParent(uri, folder.uri)) ?? null,
 			}));
 			instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
@@ -208,7 +209,7 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 		let workspaceFolderUri = URI.file('/workspace');
 		const calls: IOpenAgentsWindowOptions[] = [];
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-			getWorkspace: () => ({
+			getWorkspace: () => (testIWorkspace({
 				id: 'workspace',
 				folders: [{
 					uri: workspaceFolderUri,
@@ -216,7 +217,7 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 					index: 0,
 					toResource: relativePath => URI.joinPath(workspaceFolderUri, relativePath),
 				}],
-			}),
+			})),
 		}));
 		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
 			openAgentsWindow: async options => { calls.push(options ?? {}); },
@@ -259,7 +260,7 @@ suite('OpenChatSessionInAgentsWindowAction', () => {
 			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
 			instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
 			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-				getWorkspace: () => ({ id: 'workspace', folders: folders.map((uri, index) => new WorkspaceFolder({ uri, name: uri.path, index })) }),
+				getWorkspace: () => (testIWorkspace({ id: 'workspace', folders: folders.map((uri, index) => new WorkspaceFolder({ uri, name: uri.path, index })) })),
 			}));
 			instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
 				openAgentsWindow: async options => { calls.push({ folder: URI.revive(options?.folderUri)?.toString(), reveal: options?.reveal === 'new' ? 'new' : URI.revive(options?.reveal)?.toString(), revealRemoteAuthority: options?.revealRemoteAuthority }); },
@@ -297,7 +298,7 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 			const folders = scenario.folders.map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
 			const calls: IOpenAgentsWindowOptions[] = [];
 			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-				getWorkspace: () => ({ id: 'workspace', folders }),
+				getWorkspace: () => (testIWorkspace({ id: 'workspace', folders })),
 				getWorkspaceFolder: resource => folders.find(folder => extUri.isEqualOrParent(resource, folder.uri)) ?? null,
 			}));
 			instantiationService.stub(IEditorService, upcastPartial<IEditorService>({

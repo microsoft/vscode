@@ -12,6 +12,8 @@ import { readAgentModelPricingMeta as readVSCodeModelPricing, type IAgentModelPr
 export { createAgentModelPricingMeta, createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling } from './vscode/agentModelPricing.js';
 export type { IAgentModelPricingMeta, ICAPIModelBilling } from './vscode/agentModelPricing.js';
 export { isAgentModelFusion, readAgentModelFusionInlineChatTier, withAgentModelFusionMeta } from './vscode/agentModelFusionMeta.js';
+export { isAgentModelExperimental, withAgentModelExperimentalMeta } from './vscode/agentModelExperimentalMeta.js';
+export { readAgentModelRouterRoutesMeta, readAgentModelRouterSwitchingMeta, withAgentModelRouterRoutesMeta, withAgentModelRouterSwitchingMeta, type IAgentModelRouterRoute } from './vscode/agentModelRouterMeta.js';
 export { collectAutoTierPromotions, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, type IAgentModelAutoTier, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta, type IAutoTierBillingPromo } from './vscode/agentModelAutoTiersMeta.js';
 
 const pricingKeys = ['multiplierNumeric', 'inputCost', 'cacheCost', 'cacheWriteCost', 'outputCost', 'longContextInputCost', 'longContextCacheCost', 'longContextCacheWriteCost', 'longContextOutputCost', 'discountPercent', 'priceCategory', 'category', 'promo'] as const;

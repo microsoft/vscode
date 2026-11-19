@@ -68,6 +68,12 @@ export interface ArtifactPartPresentation {
 	readonly detailsId: string;
 }
 
+/** The presentation of the artifact as a whole. */
+export interface ArtifactMainPresentation extends ArtifactPartPresentation {
+	/** Labels the artifact where it shows as a pill of its own, rather than as a dropdown row, which shows the label. */
+	readonly pillLabel?: string;
+}
+
 export interface ArtifactSectionPresentation extends ArtifactPartPresentation {
 	readonly id: string;
 }
@@ -103,7 +109,7 @@ export interface ArtifactActionView extends ArtifactActionAvailability {
 
 export interface ArtifactContributionView {
 	readonly availability: ArtifactAvailability;
-	readonly main?: ArtifactPartPresentation;
+	readonly main?: ArtifactMainPresentation;
 	/**
 	 * Gives the artifact a pill of its own, shared with the other artifacts whose main integration assigns the same ID,
 	 * including those of other integrations. Without one, the artifact is listed in the pill for its kind, such as
@@ -218,7 +224,11 @@ export interface ArtifactAutomationDisablement {
 /** Who asked for a change: a person in the UI, or an agent through its tools, with the person's confirmation where required. */
 export type ArtifactActor =
 	| { readonly kind: 'user' }
-	| { readonly kind: 'agent'; readonly chat: string; readonly turnId?: string };
+	| {
+		readonly kind: 'agent'; readonly chat: string; readonly turnId?: string;
+		/** The tool call ran without the person confirming it, for example under automatic tool approval. */
+		readonly autoApproved?: boolean;
+	};
 
 export interface ArtifactAutomationConfiguration {
 	readonly revision: number;
@@ -241,6 +251,11 @@ export interface IArtifactBindingContext {
 	readonly artifact: ArtifactRecord;
 	readonly configuration: IObservable<ArtifactAutomationConfiguration>;
 	readonly state: IArtifactBindingStateStore;
+	/**
+	 * Posts plain text about a change of the bound resource as a system notice in the chat that recorded the artifact.
+	 * It is never sent to an agent. Absent when the runtime cannot post notices.
+	 */
+	postNotice?(content: string): Promise<void>;
 }
 
 export interface ArtifactResourceMatch {
@@ -259,7 +274,7 @@ export interface ArtifactAuthenticationRequest {
 
 /** Allows matching or resource creation to expose recovery without establishing an account binding. */
 export class ArtifactAuthenticationRequiredError extends Error {
-	constructor(message: string, readonly main: ArtifactPartPresentation) {
+	constructor(message: string, readonly main: ArtifactMainPresentation) {
 		super(message);
 		this.name = 'ArtifactAuthenticationRequiredError';
 	}
@@ -312,6 +327,8 @@ export interface ArtifactActionDescriptor {
 	readonly id: string;
 	readonly iconId: string;
 	readonly label: string;
+	/** Describes a prompt action while it runs in its chat, such as "Fixing CI". Defaults to {@link label}. */
+	readonly activityLabel?: string;
 	readonly kind: 'code' | 'prompt';
 	/** Change this when an existing action's effects or required permissions expand. */
 	readonly consentVersion?: string;
@@ -369,7 +386,7 @@ export interface ArtifactRequestPresentation {
 	readonly version: 1;
 	readonly integrationLabel: string;
 	readonly source: 'manual' | 'automation';
-	readonly action: { readonly label: string; readonly iconId: string };
+	readonly action: { readonly label: string; readonly iconId: string; readonly activityLabel?: string };
 	readonly artifact: {
 		readonly resource: string;
 		readonly label: string;
@@ -413,6 +430,8 @@ export interface ArtifactRun {
 	readonly source: 'manual' | 'automation';
 	/** Who asked for a manual run. */
 	readonly requestedBy?: ArtifactActor;
+	/** Whether a manual run was requested through a general action, recorded because the presentation may later change. */
+	readonly generalAction?: boolean;
 	readonly requestId: string;
 	readonly state: ArtifactRunState;
 	readonly createdAt: number;

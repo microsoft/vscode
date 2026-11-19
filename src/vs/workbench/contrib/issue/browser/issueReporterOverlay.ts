@@ -7,16 +7,19 @@ import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/key
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { OS } from '../../../../base/common/platform.js';
 import './media/issueReporterOverlay.css';
-import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, append, disposableWindowInterval, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Action, Separator } from '../../../../base/common/actions.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -35,14 +38,15 @@ import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import product from '../../../../platform/product/common/product.js';
-import { IIssueReporterAttachmentUpload, IIssueReporterFileAttachment, IIssueReporterScreenshot, IssueReporterAttachment, IssueReporterData, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
+import { IIssueReporterAttachmentUpload, IIssueReporterFileAttachment, IIssueReporterScreenshot, IssueReporterAttachment, IssueReporterData, IssueReporterExtensionData, IssueReporterLayout, IssueSource, IssueType } from '../common/issue.js';
 import { resolveIssueReporterTarget } from '../common/issueReporterTarget.js';
 import { renderIssueReporterRepositoryPicker } from './issueReporterRepositoryPicker.js';
 import { IssueReporterModel } from './issueReporterModel.js';
 import { IssueReporterEditorInput } from './issueReporterEditorInput.js';
-import { getIssueReporterScreenshotFile, MAX_ISSUE_ATTACHMENTS as MAX_ATTACHMENTS, validateIssueReporterMediaFile } from './issueReporterMedia.js';
+import { getIssueReporterScreenshotFile, MAX_ISSUE_ATTACHMENTS as MAX_ATTACHMENTS, readIssueReporterImage, validateIssueReporterMediaFile } from './issueReporterMedia.js';
 import { RecordingState } from './recordingService.js';
-import { IAnnotationEditorState, ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
+import { IAnnotationEditorState } from '../../screenshotTool/browser/screenshotAnnotation.js';
+import { IScreenshotToolEdit, IScreenshotToolService, ScreenshotToolSurface } from '../../screenshotTool/browser/screenshotTool.js';
 
 export interface IScreenshot extends IIssueReporterScreenshot {
 	readonly width: number;
@@ -56,9 +60,51 @@ export interface IIssueReporterAttachmentImport {
 	readonly file: File;
 }
 
+export interface IIssueReporterScreenshotRequest {
+	/** The attachment slot reserved for the screenshot. */
+	readonly id: string;
+	/** Whether the request follows a countdown, after which the whole window is captured. */
+	readonly delayed: boolean;
+}
+
+/** A request for a title generated from the report's description. */
+export interface IIssueReporterTitleRequest {
+	/** The description to generate a title from. */
+	readonly description: string;
+	/** Cancelled when the reporter stops waiting for the title, which must then not be set. */
+	readonly token: CancellationToken;
+}
+
 type PendingAttachment = { readonly id: string; readonly kind: 'pending'; readonly source: 'import' | 'screenshot' | 'recording' };
 
 type DiagnosticOption = 'includeSystemInfo' | 'includeProcessInfo' | 'includeWorkspaceInfo' | 'includeExtensions' | 'includeExperiments' | 'includeExtensionData';
+
+/** How long a preview waits for a generated title before it takes the description's first line. */
+const TITLE_GENERATION_TIMEOUT = 10_000;
+const MAX_FALLBACK_TITLE_LENGTH = 80;
+
+/** A title from the first line of the description, for when none can be generated. */
+function getFallbackIssueTitle(description: string): string {
+	const firstLine = description.split(/\r?\n/).map(line => line.trim()).find(line => line.length > 0) ?? '';
+	return firstLine.length > MAX_FALLBACK_TITLE_LENGTH ? `${firstLine.slice(0, MAX_FALLBACK_TITLE_LENGTH - 1).trimEnd()}…` : firstLine;
+}
+
+/** Whether a file is an image to edit like a screenshot. Imported images keep their whole image as their preview. */
+function isEditableImageFile(file: IIssueReporterFileAttachment): file is IIssueReporterFileAttachment & { readonly thumbnailDataUrl: string } {
+	return file.mimeType.toLowerCase().startsWith('image/') && !!file.thumbnailDataUrl;
+}
+
+type IssueReporterPreviewClickedEvent = {
+	layout: IssueReporterLayout;
+	automaticScreenshot: boolean;
+};
+
+type IssueReporterPreviewClickedClassification = {
+	owner: 'Giuspepe';
+	comment: 'Counts pointer and keyboard activations of Preview on GitHub in the new issue reporter, including validation failures. Does not indicate an issue was submitted and collects no report content.';
+	layout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The layout of the issue reporter: simple or detailed.' };
+	automaticScreenshot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the screenshot that the simple layout attaches when a report opens is still attached, edited or not.' };
+};
 
 export interface IIssueReporterDiagnosticsState {
 	readonly included: Partial<Record<DiagnosticOption, boolean>>;
@@ -73,8 +119,8 @@ export class IssueReporterOverlay {
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 	private readonly _onDidSubmit = new Emitter<{ title: string; body: string }>();
 	readonly onDidSubmit: Event<{ title: string; body: string }> = this._onDidSubmit.event;
-	private readonly _onDidRequestScreenshot = new Emitter<string>();
-	readonly onDidRequestScreenshot: Event<string> = this._onDidRequestScreenshot.event;
+	private readonly _onDidRequestScreenshot = new Emitter<IIssueReporterScreenshotRequest>();
+	readonly onDidRequestScreenshot: Event<IIssueReporterScreenshotRequest> = this._onDidRequestScreenshot.event;
 	private readonly _onDidRequestStartRecording = new Emitter<void>();
 	readonly onDidRequestStartRecording: Event<void> = this._onDidRequestStartRecording.event;
 	private readonly _onDidRequestStopRecording = new Emitter<void>();
@@ -110,6 +156,11 @@ export class IssueReporterOverlay {
 	private extensionDataRequest = 0;
 	private typeButtonGroup!: HTMLElement;
 	private typeError!: HTMLElement;
+	private classificationSection!: HTMLElement;
+	/** Set when a preview finds a problem with the target or category, which the simple layout then shows. */
+	private classificationNeedsAttention = false;
+	/** The category that opened the report, such as from Report Performance Issue, rather than the default. */
+	private readonly explicitIssueType: IssueType | undefined;
 	private descriptionContainer!: HTMLElement;
 	private descriptionPreview!: HTMLElement;
 	private descriptionWriteTab!: Button;
@@ -121,12 +172,14 @@ export class IssueReporterOverlay {
 	private titleInput!: InputBox;
 	private titleError!: HTMLElement;
 	private generateTitleBtn!: Button;
-	private readonly _onDidRequestGenerateTitle = new Emitter<string>();
-	readonly onDidRequestGenerateTitle: Event<string> = this._onDidRequestGenerateTitle.event;
+	private titleGeneration: { readonly title: DeferredPromise<string | undefined>; readonly cancellation: CancellationTokenSource } | undefined;
+	private generatingTitleForPreview = false;
+	private readonly _onDidRequestGenerateTitle = new Emitter<IIssueReporterTitleRequest>();
+	readonly onDidRequestGenerateTitle: Event<IIssueReporterTitleRequest> = this._onDidRequestGenerateTitle.event;
 
 	private screenshotContainer!: HTMLElement;
-	private screenshotAddCard: HTMLElement | undefined;
-	private addFilesButton!: Button;
+	private addFilesCard: HTMLElement | undefined;
+	private fileInput!: HTMLInputElement;
 	private attachmentStatus!: HTMLElement;
 	private attachmentErrorDetails!: HTMLDetailsElement;
 	private attachmentErrorDetailText!: HTMLElement;
@@ -142,6 +195,9 @@ export class IssueReporterOverlay {
 	private readonly attachments: (IssueReporterAttachment<IScreenshot> | PendingAttachment)[] = [];
 
 	private readonly attachmentCards = new Map<string, HTMLElement>();
+	/** Screenshot editors that are open over the panel, the topmost last. */
+	/** Attachments whose image is being opened or edited outside the panel, which another click does not open again. */
+	private readonly attachmentsBeingEdited = new Set<string>();
 	private readonly diagnosticsDisposables = this.disposables.add(new DisposableStore());
 	private readonly diagnosticControls = new Map<DiagnosticOption, { include: HTMLElement; details: HTMLElement }>();
 	private readonly descriptionGuidanceDisposables = new DisposableStore();
@@ -162,6 +218,10 @@ export class IssueReporterOverlay {
 
 	private get descriptionInput(): HTMLTextAreaElement {
 		return this.input.descriptionInput;
+	}
+
+	private get simpleLayout(): boolean {
+		return this.input.layout === 'simple';
 	}
 
 	constructor(
@@ -186,6 +246,7 @@ export class IssueReporterOverlay {
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
 		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
@@ -203,6 +264,8 @@ export class IssueReporterOverlay {
 			includeExtensionData: hasStandaloneExtensionData,
 		}));
 		this.selectedIssueType = data.issueType;
+		// The draft's category can be the default of an earlier form, from before the report moved to another pane.
+		this.explicitIssueType = input.initialIssueType;
 		this.selectedIssueSource = data.issueSource ?? (data.extensionId ? IssueSource.Extension : undefined);
 		this.model.update(this.getDiagnosticOptions());
 
@@ -222,20 +285,26 @@ export class IssueReporterOverlay {
 		this.setUpdateAvailable(this.showUpdateBanner);
 
 		this.formContent = append(this.wizardPanel, $('div.issue-reporter-form'));
+		this.formContent.classList.toggle('simple-layout', this.simpleLayout);
 		this.createReportFields(this.formContent);
-		this.createAttachmentsSection(this.formContent);
 
-		const diagnostics = append(this.formContent, $('section.wizard-diagnostics'));
-		append(diagnostics, $('h2.wizard-heading')).textContent = localize('optionalDiagnostics', "Diagnostics (optional)");
-		append(diagnostics, $('p.wizard-subtitle')).textContent = localize('diagnosticChoices', "Choose which diagnostic information to include. Expand a section to review its details.");
-		this.diagnosticsContainer = append(diagnostics, $('div.review-diagnostics'));
-		this.updateDiagnostics();
+		if (this.simpleLayout) {
+			this.createSimpleDiagnostics(this.formContent);
+			// The simple layout leaves out the target, but still says where the report goes.
+			append(this.formContent, $('div.wizard-simple-destination')).appendChild(this.targetStatus);
+		} else {
+			const diagnostics = append(this.formContent, $('section.wizard-diagnostics'));
+			append(diagnostics, $('h2.wizard-heading')).textContent = localize('optionalDiagnostics', "Diagnostics (optional)");
+			append(diagnostics, $('p.wizard-subtitle')).textContent = localize('diagnosticChoices', "Choose which diagnostic information to include. Expand a section to review its details.");
+			this.diagnosticsContainer = append(diagnostics, $('div.review-diagnostics'));
+			this.updateDiagnostics();
+		}
 
 		const actions = append(this.formContent, $('div.wizard-actions'));
 		this.previewButton = this.disposables.add(new Button(actions, { ...defaultButtonStyles, supportIcons: true }));
 		this.previewButton.element.classList.add('wizard-preview');
-		this.disposables.add(this.previewButton.onDidClick(() => this.submit()));
-		this.previewConsent = append(this.formContent, $('p.wizard-subtitle'));
+		this.disposables.add(this.previewButton.onDidClick(() => void this.submit()));
+		this.previewConsent = append(this.formContent, $('p.wizard-subtitle.wizard-preview-consent'));
 
 		this.registerAttachmentInput();
 		if (this.data.extensionId) {
@@ -248,28 +317,22 @@ export class IssueReporterOverlay {
 	private createAttachmentsSection(parent: HTMLElement): void {
 		const page = append(parent, $('section.wizard-attachments'));
 
-		const heading = append(page, $('h2.wizard-heading'));
-		heading.textContent = localize('attachmentsHeading', "Attachments");
-
-		const importHint = append(page, $('p.wizard-subtitle.wizard-attachment-hint'));
-		importHint.textContent = localize('attachmentImportHint', "Drop or paste up to {0} files. Images: 10 MB. Videos: 100 MB. Other files: 25 MB. Files stay local until you preview on GitHub.", MAX_ATTACHMENTS);
-		const fileInput = append(page, $<HTMLInputElement>('input'));
-		fileInput.type = 'file';
-		fileInput.multiple = true;
-		fileInput.hidden = true;
-		this.addFilesButton = this.disposables.add(new Button(page, { ...defaultButtonStyles, secondary: true }));
-		this.addFilesButton.label = localize('addFiles', "Add Files...");
-		this.disposables.add(this.addFilesButton.onDidClick(() => fileInput.click()));
-		this.disposables.add(addDisposableListener(fileInput, EventType.CHANGE, () => {
-			this.requestAddAttachments(Array.from(fileInput.files ?? []));
-			fileInput.value = '';
-		}));
+		// How to capture and edit screenshots follows the heading, before the attachments.
+		const header = append(page, $('div.wizard-attachments-header'));
+		const heading = append(header, $('h3.wizard-field-label.wizard-field-label-with-help'));
+		append(heading, $('span')).textContent = localize('attachmentsHeading', "Attachments");
+		// The limits of attachments are explained on demand, which keeps the form short.
+		const help = append(page, $('p.wizard-attachments-help'));
+		help.id = `issue-attachments-help-${generateUuid()}`;
+		help.hidden = true;
+		help.textContent = localize('attachmentImportHint', "Drop or paste up to {0} files. Images: 10 MB. Videos: 100 MB. Other files: 25 MB. Files stay local until you preview on GitHub.", MAX_ATTACHMENTS);
+		this.renderHelpIcon(heading, localize('attachmentsHelp', "Attachments Help"), help);
 
 		const captureShortcut = this.resolveKeybinding?.('workbench.action.issueReporter.captureScreenshot');
 		const recordShortcut = this.recordingSupported ? this.resolveKeybinding?.('workbench.action.issueReporter.toggleRecording') : undefined;
 		if (captureShortcut || recordShortcut) {
 			const targetDocument = getWindow(this.container).document;
-			const hint = append(page, $('p.wizard-subtitle.wizard-shortcut-hint'));
+			const hint = append(header, $('p.wizard-subtitle.wizard-shortcut-hint'));
 			const intro = localize('shortcutHintIntro', "Use the floating capture bar, or press");
 			hint.appendChild(targetDocument.createTextNode(`${intro} `));
 			if (captureShortcut) {
@@ -285,11 +348,25 @@ export class IssueReporterOverlay {
 			}
 			hint.appendChild(targetDocument.createTextNode('.'));
 		}
+		const editHint = append(header, $('p.wizard-subtitle'));
+		editHint.id = `issue-attachments-edit-hint-${generateUuid()}`;
+		editHint.textContent = localize('imageEditHint', "Click an image to edit it.");
 
 		this.screenshotContainer = append(page, $('div.wizard-screenshots'));
 		this.screenshotContainer.tabIndex = 0;
 		this.screenshotContainer.setAttribute('role', 'group');
 		this.screenshotContainer.setAttribute('aria-label', localize('attachmentArea', "Attachments. Paste or drop files here."));
+		this.screenshotContainer.setAttribute('aria-describedby', `${editHint.id} ${help.id}`);
+
+		this.fileInput = append(page, $<HTMLInputElement>('input'));
+		this.fileInput.type = 'file';
+		this.fileInput.multiple = true;
+		this.fileInput.hidden = true;
+		this.disposables.add(addDisposableListener(this.fileInput, EventType.CHANGE, () => {
+			this.requestAddAttachments(Array.from(this.fileInput.files ?? []));
+			this.fileInput.value = '';
+		}));
+
 		this.attachmentStatus = append(page, $('p.wizard-subtitle.wizard-attachment-status'));
 		this.attachmentStatus.setAttribute('role', 'status');
 		this.attachmentStatus.setAttribute('aria-live', 'polite');
@@ -317,6 +394,19 @@ export class IssueReporterOverlay {
 		this.updateScreenshotThumbnails();
 	}
 
+	/**
+	 * Adds a "?" to a heading that shows `help` on hover, or on Enter or Space. Screen readers read `help` as its description.
+	 */
+	private renderHelpIcon(heading: HTMLElement, label: string, help: HTMLElement): void {
+		const icon = append(heading, $('span.wizard-help-icon'));
+		icon.appendChild(renderIcon(Codicon.question));
+		icon.tabIndex = 0;
+		icon.setAttribute('role', 'button');
+		icon.setAttribute('aria-label', label);
+		icon.setAttribute('aria-describedby', help.id);
+		this.disposables.add(this.hoverService.setupDelayedHover(icon, { content: help.textContent ?? '', style: HoverStyle.Pointer }, { setupKeyboardEvents: true }));
+	}
+
 	private captureStripCaptureBtn: Button | undefined;
 	private captureStripDelayBtn: Button | undefined;
 	private captureStripRecordBtn: Button | undefined;
@@ -326,7 +416,7 @@ export class IssueReporterOverlay {
 		// Mount inside .monaco-workbench so VS Code's color theme CSS vars
 		// (--vscode-debugToolBar-background, etc.) cascade and the bar matches the
 		// active theme. body is outside that scope and the vars wouldn't resolve.
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const workbench = targetWindow.document.querySelector('.monaco-workbench') as HTMLElement | null;
 		const mountTarget = workbench ?? targetWindow.document.body;
 
@@ -548,6 +638,28 @@ export class IssueReporterOverlay {
 		const heading = append(page, $('h2.wizard-heading'));
 		heading.textContent = localize('describeHeading', "Describe your feedback");
 
+		// The simple layout is for people who know the guidance and want to report quickly.
+		if (!this.simpleLayout) {
+			this.createIssueGuidance(page);
+		}
+
+		this.selectDefaultIssueSource();
+
+		// Screenshots and the description matter most, so both layouts ask for them first.
+		this.createAttachmentsSection(page);
+		this.createDescriptionField(page);
+		this.createTitleField(page);
+		this.createClassificationFields(page);
+
+		this.updateIssueSourceFlags();
+		this.updateTargetStatus();
+
+		// Default the category to Bug, the most common one.
+		this.selectIssueType(this.selectedIssueType ?? IssueType.Bug);
+		this.updateClassificationVisibility();
+	}
+
+	private createIssueGuidance(page: HTMLElement): void {
 		// Issue guidance link — keep the same wording as the classic reporter.
 		if (this.markdownRendererService) {
 			const guidanceContainer = append(page, $('div.wizard-issue-guidance'));
@@ -567,9 +679,33 @@ export class IssueReporterOverlay {
 			guidanceContainer.appendChild(rendered.element);
 			this.disposables.add(rendered);
 		}
+	}
+
+	/**
+	 * Defaults the target to the most likely option when the reporter opens. In the Agents Window
+	 * that is Agents Window, otherwise VS Code, the most common target. Extension is preselected only
+	 * when an extension id was already provided. The user can always override it.
+	 */
+	private selectDefaultIssueSource(): void {
+		if (this.selectedIssueSource) {
+			return;
+		}
+		if (this.data.extensionId) {
+			this.selectedIssueSource = IssueSource.Extension;
+		} else if (this.data.isSessionsWindow) {
+			this.selectedIssueSource = IssueSource.AgentsWindow;
+		} else {
+			this.selectedIssueSource = IssueSource.VSCode;
+		}
+		this.updateIssueSourceFlags();
+	}
+
+	/** The target and category, which the simple layout leaves to their defaults. */
+	private createClassificationFields(page: HTMLElement): void {
+		this.classificationSection = append(page, $('div.wizard-classification'));
 
 		// Issue source selection + extension dropdown share a row when both are visible
-		const targetRow = append(page, $('div.wizard-target-row'));
+		const targetRow = append(this.classificationSection, $('div.wizard-target-row'));
 		const sourceField = append(targetRow, $('div.wizard-field.wizard-source-field'));
 		const sourceLabel = append(sourceField, $('label.wizard-field-label'));
 		sourceLabel.textContent = localize('target', "Target");
@@ -617,39 +753,14 @@ export class IssueReporterOverlay {
 		this.extensionStatus = append(this.extensionField, $('div.wizard-extension-status'));
 		this.updateExtensionOptions();
 		this.updateExtensionFieldVisibility();
-
-		// Default the target to the most likely option when the reporter opens.
-		// In the Agents Window we preselect Agents Window; otherwise default to
-		// VS Code (the most common target). Extension is preselected only when an
-		// extension id was already provided. The user can always override.
-		if (!this.selectedIssueSource) {
-			if (this.data.extensionId) {
-				this.selectedIssueSource = IssueSource.Extension;
-			} else if (this.data.isSessionsWindow) {
-				this.selectedIssueSource = IssueSource.AgentsWindow;
-			} else {
-				this.selectedIssueSource = IssueSource.VSCode;
-			}
-			this.updateIssueSourceFlags();
-		}
 		this.updateIssueSourceButtons();
 
 		// Category selection
-		const catLabel = append(page, $('label.wizard-field-label'));
+		const catLabel = append(this.classificationSection, $('label.wizard-field-label'));
 		catLabel.textContent = localize('feedbackCategory', "Category");
 		this.appendRequiredMarker(catLabel);
 
-		this.typeButtonGroup = append(page, $('div.wizard-type-buttons'));
-
-		const selectType = (type: IssueType) => {
-			this.selectedIssueType = type;
-			this.updateIssueTypeButtons();
-			this.setFieldError(this.typeButtonGroup, this.typeError, false);
-			this.updateDescriptionGuidance();
-			this.updateIssueSourceButtons();
-			this.updateDiagnostics();
-			this.updatePreviewButton();
-		};
+		this.typeButtonGroup = append(this.classificationSection, $('div.wizard-type-buttons'));
 
 		for (const { type, label, icon } of this.getAllIssueTypeOptions()) {
 			const btn = this.disposables.add(new Button(this.typeButtonGroup, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
@@ -658,34 +769,58 @@ export class IssueReporterOverlay {
 			btn.element.setAttribute('aria-pressed', 'false');
 			btn.label = `$(${icon.id}) ${label}`;
 			this.issueTypeButtons.push(btn);
-			this.disposables.add(btn.onDidClick(() => selectType(type)));
+			this.disposables.add(btn.onDidClick(() => this.selectIssueType(type)));
 		}
-		this.typeError = this.createFieldError(page, localize('categoryRequired', "Select a category to continue."));
+		this.typeError = this.createFieldError(this.classificationSection, localize('categoryRequired', "Select a category to continue."));
+	}
 
+	private selectIssueType(type: IssueType): void {
+		this.selectedIssueType = type;
+		this.updateIssueTypeButtons();
+		this.setFieldError(this.typeButtonGroup, this.typeError, false);
+		this.updateDescriptionGuidance();
+		this.updateIssueSourceButtons();
+		this.updateDiagnostics();
+		this.updatePreviewButton();
+	}
+
+	/**
+	 * The simple layout leaves out the target and category. It shows them when the target has no
+	 * default, for a report about an extension so the user can confirm the extension, and when a
+	 * preview finds a problem with them.
+	 */
+	private updateClassificationVisibility(): void {
+		if (!this.classificationSection) {
+			return;
+		}
+		const needsAttention = this.classificationNeedsAttention || this.selectedIssueSource === undefined || this.selectedIssueSource === IssueSource.Extension;
+		this.classificationSection.hidden = this.simpleLayout && !needsAttention;
+	}
+
+	private createTitleField(page: HTMLElement): void {
 		// Title field with AI generate button next to label
 		const titleGroup = append(page, $('div.wizard-field.wizard-title-field'));
 		const titleLabelRow = append(titleGroup, $('div.wizard-title-label-row'));
 		const titleLabel = append(titleLabelRow, $('label.wizard-field-label'));
-		titleLabel.textContent = localize('issueTitle', "Title");
-		this.appendRequiredMarker(titleLabel);
+		if (this.simpleLayout) {
+			titleLabel.textContent = localize('optionalIssueTitle', "Title (optional)");
+		} else {
+			titleLabel.textContent = localize('issueTitle', "Title");
+			this.appendRequiredMarker(titleLabel);
+		}
 
 		const aiBtn = this.disposables.add(new Button(titleLabelRow, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		aiBtn.label = `$(sparkle) ${localize('generateTitleBtn', "Generate from description")}`;
 		aiBtn.element.classList.add('wizard-ai-title-btn');
 		aiBtn.element.title = localize('generateTitle', "Generate title from description");
 		aiBtn.enabled = !!this.data.issueBody?.trim();
+		this.generateTitleBtn = aiBtn;
 		this.disposables.add(aiBtn.onDidClick(() => {
 			const desc = this.descriptionInput.value.trim();
 			if (desc && !aiBtn.element.classList.contains('loading')) {
-				// Lock width to prevent layout shift during loading
-				aiBtn.element.style.minWidth = `${aiBtn.element.offsetWidth}px`;
-				aiBtn.enabled = false;
-				aiBtn.label = `$(loading~spin) ${localize('generatingTitle', "Generating...")}`;
-				aiBtn.element.classList.add('loading');
-				this._onDidRequestGenerateTitle.fire(desc);
+				void this.requestGeneratedTitle(desc);
 			}
 		}));
-		this.generateTitleBtn = aiBtn;
 
 		this.titleInput = this.disposables.add(new InputBox(titleGroup, undefined, {
 			ariaLabel: localize('issueTitle', "Title"),
@@ -705,16 +840,17 @@ export class IssueReporterOverlay {
 			this.updatePreviewButton();
 		}));
 		this.titleError = this.createFieldError(titleGroup, localize('titleRequired', "Enter a title to continue."));
+	}
 
+	private createDescriptionField(page: HTMLElement): void {
 		const descriptionGroup = append(page, $('div.wizard-field'));
-		const descLabel = append(descriptionGroup, $<HTMLLabelElement>('label.wizard-field-label'));
+		// The Write and Preview tabs follow the label, which keeps the field short.
+		const labelRow = append(descriptionGroup, $('div.wizard-description-label-row'));
+		const descLabel = append(labelRow, $<HTMLLabelElement>('label.wizard-field-label'));
 		descLabel.textContent = localize('description', "Description");
 		this.appendRequiredMarker(descLabel);
 
-		this.descriptionGuidance = append(descriptionGroup, $('p.wizard-subtitle.wizard-description-guidance'));
-		this.updateDescriptionGuidance();
-
-		const tabs = append(descriptionGroup, $('div.wizard-description-tabs'));
+		const tabs = append(labelRow, $('div.wizard-description-tabs'));
 		tabs.setAttribute('role', 'tablist');
 		tabs.setAttribute('aria-label', localize('descriptionMode', "Description mode"));
 		this.descriptionWriteTab = this.disposables.add(new Button(tabs, { ...defaultButtonStyles, secondary: true }));
@@ -735,10 +871,10 @@ export class IssueReporterOverlay {
 				(preview ? this.descriptionPreviewTab : this.descriptionWriteTab).element.focus();
 			}
 		}));
+		this.descriptionGuidance = append(descriptionGroup, $('p.wizard-subtitle.wizard-description-guidance'));
 		this.descriptionContainer = append(descriptionGroup, $('div.wizard-description-editor'));
 		this.descriptionInput.classList.add('wizard-description-input');
 		this.descriptionInput.setAttribute('aria-label', localize('descriptionInputLabel', "Description, Markdown. Paste or drop files to attach them."));
-		this.descriptionInput.rows = 10;
 		this.descriptionInput.required = true;
 		this.restoreDescriptionInput();
 		const descriptionId = `issue-description-${generateUuid()}`;
@@ -785,18 +921,6 @@ export class IssueReporterOverlay {
 			}
 			this.requestAddAttachments(files);
 		}, true));
-
-		this.updateIssueSourceFlags();
-		this.updateTargetStatus();
-
-		// Default the category to Bug (most common). Must run after
-		// descriptionGuidance is initialized because selectType ->
-		// updateDescriptionGuidance touches it.
-		if (this.selectedIssueType === undefined) {
-			selectType(IssueType.Bug);
-		} else {
-			selectType(this.selectedIssueType);
-		}
 	}
 
 	private setDescriptionPreview(preview: boolean): void {
@@ -829,6 +953,8 @@ export class IssueReporterOverlay {
 
 	restoreDescriptionInput(): void {
 		this.input.attachDescriptionInput(this.descriptionContainer);
+		// Reporters share the description input, and each explains its own category in its placeholder.
+		this.updateDescriptionGuidance();
 		if (this.descriptionError) {
 			this.setFieldError(this.descriptionContainer, this.descriptionError, this.descriptionContainer.classList.contains('invalid-input'));
 		}
@@ -930,6 +1056,7 @@ export class IssueReporterOverlay {
 		}
 
 		this.updateExtensionFieldVisibility();
+		this.updateClassificationVisibility();
 	}
 
 	private setIssueSource(source: IssueSource | undefined): void {
@@ -996,6 +1123,10 @@ export class IssueReporterOverlay {
 	}
 
 	private updateTitlePlaceholder(): void {
+		if (this.simpleLayout) {
+			this.titleInput.setPlaceHolder(localize('simpleTitlePlaceholder', "Leave empty to generate a title from the description"));
+			return;
+		}
 		switch (this.selectedIssueSource) {
 			case IssueSource.Extension:
 				this.titleInput.setPlaceHolder(localize('extensionPlaceholder', "E.g. Missing alt text on extension readme image"));
@@ -1191,7 +1322,10 @@ export class IssueReporterOverlay {
 		return /^https?:\/\/github\.com\//i.test(url);
 	}
 
-	/** Update the guidance text above the description based on selected category */
+	/**
+	 * Explains what to describe for the selected category in the description's placeholder. Only the guide of a
+	 * performance issue shows above the description, since a placeholder cannot link to it.
+	 */
 	private updateDescriptionGuidance(): void {
 		const markdownHint = localize('markdownSupported', "Markdown formatting is supported.");
 		const perfWikiUrl = 'https://github.com/microsoft/vscode/wiki/Performance-Issues';
@@ -1199,37 +1333,39 @@ export class IssueReporterOverlay {
 		// Reset before updating
 		this.descriptionGuidanceDisposables.clear();
 		this.descriptionGuidance.textContent = '';
-		this.descriptionGuidance.classList.remove('wizard-description-guidance-with-link');
 
-		const appendText = (text: string) => {
-			const targetDocument = getWindow(this.container).document;
-			this.descriptionGuidance.appendChild(targetDocument.createTextNode(text));
-		};
-
-		switch (this.selectedIssueType) {
-			case IssueType.Bug:
-				appendText(`${localize('bugGuidance', "Describe what happened, the steps to reproduce, what you expected, and what you observed instead.")}\n${markdownHint}`);
-				break;
-			case IssueType.FeatureRequest:
-				appendText(`${localize('featureGuidance', "Describe the feature you'd like to see, what problem it would solve, and any alternatives you've considered.")}\n${markdownHint}`);
-				break;
-			case IssueType.PerformanceIssue: {
-				appendText(`${localize('perfGuidance', "Describe what is slow, when it happens, whether it's consistent or intermittent, and any patterns you've noticed.")} `);
-				const link = $('a.wizard-description-guidance-link') as HTMLAnchorElement;
-				link.href = perfWikiUrl;
-				link.textContent = localize('perfWikiLink', "See the performance issue reporting guide.");
-				this.descriptionGuidanceDisposables.add(addDisposableListener(link, EventType.CLICK, e => {
-					e.preventDefault();
-					this.openExternalLink?.(perfWikiUrl);
-				}));
-				this.descriptionGuidance.appendChild(link);
-				appendText(`\n${markdownHint}`);
-				this.descriptionGuidance.classList.add('wizard-description-guidance-with-link');
-				break;
+		let guidance: string;
+		if (this.simpleLayout) {
+			guidance = localize('simpleGuidance', "Describe what you saw. A sentence or two is enough.");
+		} else {
+			switch (this.selectedIssueType) {
+				case IssueType.Bug:
+					guidance = localize('bugGuidance', "Describe what happened, the steps to reproduce, what you expected, and what you observed instead.");
+					break;
+				case IssueType.FeatureRequest:
+					guidance = localize('featureGuidance', "Describe the feature you'd like to see, what problem it would solve, and any alternatives you've considered.");
+					break;
+				case IssueType.PerformanceIssue:
+					guidance = localize('perfGuidance', "Describe what is slow, when it happens, whether it's consistent or intermittent, and any patterns you've noticed.");
+					break;
+				default:
+					guidance = localize('defaultGuidanceWithoutCategory', "Describe your feedback in detail.");
+					break;
 			}
-			default:
-				appendText(`${localize('defaultGuidance', "Select a category above, then describe your feedback in detail.")}\n${markdownHint}`);
-				break;
+		}
+		this.descriptionInput.placeholder = `${guidance}\n${markdownHint}`;
+
+		const showGuide = !this.simpleLayout && this.selectedIssueType === IssueType.PerformanceIssue;
+		this.descriptionGuidance.hidden = !showGuide;
+		if (showGuide) {
+			const link = $('a.wizard-description-guidance-link') as HTMLAnchorElement;
+			link.href = perfWikiUrl;
+			link.textContent = localize('perfWikiLink', "See the performance issue reporting guide.");
+			this.descriptionGuidanceDisposables.add(addDisposableListener(link, EventType.CLICK, e => {
+				e.preventDefault();
+				this.openExternalLink?.(perfWikiUrl);
+			}));
+			this.descriptionGuidance.appendChild(link);
 		}
 	}
 
@@ -1262,7 +1398,7 @@ export class IssueReporterOverlay {
 	}
 
 	private canSubmit(): boolean {
-		return !this.hasPendingOperations()
+		return !this.hasPendingOperations() && !this.generatingTitleForPreview
 			&& (this.selectedIssueType !== IssueType.PerformanceIssue || this.performanceInfoLoaded && !this.performanceInfoRefreshing);
 	}
 
@@ -1275,15 +1411,20 @@ export class IssueReporterOverlay {
 		const external = resolveIssueReporterTarget(this.data, product)?.external;
 		this.previewButton.label = this.uploading ? localize('uploading', "Uploading...")
 			: waitingForData ? `$(loading~spin) ${localize('loadingDiagnostics', "Loading diagnostics...")}`
-				: external ? localize('openExternalIssueReporter', "Open External Issue Reporter")
-					: localize('previewOnGitHub', "Preview on GitHub");
-		this.previewConsent.textContent = external
-			? localize('externalReporterConsent', "Opens the extension's issue reporter without sending this report or its attachments.")
-			: localize('previewConsent', "Preview uploads attachments and opens your report on GitHub. You can review it there before submitting.");
+				: this.generatingTitleForPreview ? `$(loading~spin) ${localize('generatingPreviewTitle', "Generating title...")}`
+					: external ? localize('openExternalIssueReporter', "Open External Issue Reporter")
+						: localize('previewOnGitHub', "Preview on GitHub");
+		// The simple layout leaves out what a preview on GitHub does, but still says that an external reporter does not get this report.
+		const consent = external ? localize('externalReporterConsent', "Opens the extension's issue reporter without sending this report or its attachments.")
+			: this.simpleLayout ? ''
+				: localize('previewConsent', "Preview uploads attachments and opens your report on GitHub. You can review it there before submitting.");
+		this.previewConsent.textContent = consent;
+		this.previewConsent.hidden = !consent;
 		this.previewButton.enabled = this.canSubmit();
 		this.previewButton.element.title = this.previewButton.enabled ? this.previewButton.label
 			: waitingForData ? localize('waitingForDiagnostics', "Waiting for performance diagnostics to finish loading")
-				: localize('waitingForAttachments', "Wait for attachments and captures to finish.");
+				: this.generatingTitleForPreview ? localize('waitingForTitle', "Waiting for a title to be generated from the description")
+					: localize('waitingForAttachments', "Wait for attachments and captures to finish.");
 		if (this.closeButton) {
 			this.closeButton.element.style.display = this.previewOpened && this.previewedDraftKey === this.getDraftKey() && this.canSubmit() ? '' : 'none';
 		}
@@ -1530,6 +1671,37 @@ export class IssueReporterOverlay {
 		td.textContent = value;
 	}
 
+	/** In the simple layout, one choice includes or leaves out every kind of diagnostics. */
+	private createSimpleDiagnostics(parent: HTMLElement): void {
+		const options: DiagnosticOption[] = ['includeSystemInfo', 'includeExtensions', 'includeExperiments', 'includeExtensionData', 'includeProcessInfo', 'includeWorkspaceInfo'];
+		const section = append(parent, $('section.wizard-simple-diagnostics'));
+		const label = localize('includeDiagnostics', "Include diagnostics: system information, extensions, and A/B experiments");
+		const checkbox = this.disposables.add(new Checkbox(label, !options.some(option => this.diagnosticsState.included[option] === false), defaultCheckboxStyles));
+		checkbox.domNode.classList.add('wizard-simple-diagnostics-checkbox');
+		section.appendChild(checkbox.domNode);
+		const text = append(section, $('span.wizard-simple-diagnostics-label'));
+		text.textContent = label;
+		// The checkbox has the same label, so screen readers read it once.
+		text.setAttribute('aria-hidden', 'true');
+		const apply = () => {
+			for (const option of options) {
+				this.diagnosticsState.included[option] = checkbox.checked;
+			}
+			this.model.update(this.getDiagnosticOptions());
+			this.updatePreviewButton();
+		};
+		this.disposables.add(checkbox.onChange(() => apply()));
+		// Like a native label, the text focuses and toggles the checkbox.
+		this.disposables.add(addDisposableGenericMouseDownListener(text, (e: MouseEvent) => {
+			e.preventDefault();
+			checkbox.focus();
+		}));
+		this.disposables.add(addDisposableListener(text, EventType.CLICK, () => {
+			checkbox.checked = !checkbox.checked;
+			apply();
+		}));
+	}
+
 	/** Called by the form service to show upload progress */
 	setUploading(uploading: boolean): void {
 		if (this.disposed) {
@@ -1589,7 +1761,7 @@ export class IssueReporterOverlay {
 		if (state) {
 			card.classList.add(`upload-${state}`);
 		}
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const overlay = card.querySelector('.review-progress-overlay') as HTMLElement | null;
 		if (!overlay) {
 			return;
@@ -1609,43 +1781,32 @@ export class IssueReporterOverlay {
 		}
 	}
 
-	private submit(): void {
+	private async submit(): Promise<void> {
 		if (!this.canSubmit()) {
 			return;
 		}
-		if (!resolveIssueReporterTarget(this.data, product)?.external) {
-			this.telemetryService.publicLog2<{}, {
-				owner: 'Giuspepe';
-				comment: 'Counts pointer and keyboard activations of Preview on GitHub in the new issue reporter, including validation failures. Does not indicate an issue was submitted and collects no report content.';
-			}>('issueReporter.previewClicked');
+		const external = !!resolveIssueReporterTarget(this.data, product)?.external;
+		if (!external) {
+			const automaticScreenshot = this.input.automaticScreenshot;
+			this.telemetryService.publicLog2<IssueReporterPreviewClickedEvent, IssueReporterPreviewClickedClassification>('issueReporter.previewClicked', {
+				layout: this.input.layout,
+				automaticScreenshot: !!automaticScreenshot && this.attachments.some(attachment => attachment.id === automaticScreenshot.id),
+			});
 		}
 		this.didAttemptSubmit = true;
-		const hasIssueSource = this.selectedIssueSource !== undefined;
-		const hasExtension = this.selectedIssueSource !== IssueSource.Extension || !!this.selectedExtension && !!this.getSelectedExtensionIssueUrl();
-		const hasIssueType = this.getIssueTypeOptions().some(option => option.type === this.selectedIssueType);
-		const hasDescription = this.hasDescriptionContent();
-		const title = this.titleInput.value.trim();
-		this.setFieldError(this.sourceButtonGroup, this.sourceError, !hasIssueSource);
-		this.setFieldError(this.extensionField, this.extensionError, !hasExtension);
-		this.setFieldError(this.typeButtonGroup, this.typeError, !hasIssueType);
-		this.setFieldError(this.descriptionContainer, this.descriptionError, !hasDescription);
-		this.setFieldError(this.titleInput.element, this.titleError, !title);
-		if (!hasIssueSource || !hasExtension || !hasIssueType || !title || !hasDescription) {
-			if (!hasIssueSource) {
-				this.issueSourceButtons.find(button => !button.element.classList.contains('hidden'))?.element.focus();
-			} else if (!hasExtension) {
-				this.extensionSelect.focus();
-			} else if (!hasIssueType) {
-				this.issueTypeButtons[0]?.element.focus();
-			} else if (!title) {
-				this.titleInput.focus();
-			} else {
-				this.setDescriptionPreview(false);
-				this.descriptionInput.focus();
-			}
+		if (!this.validateReport()) {
 			return;
 		}
 
+		let title = this.titleInput.value.trim();
+		// The simple layout generates a missing title, except for an external reporter, which opens without it.
+		if (!title && !external) {
+			title = await this.generateTitleForPreview(this.descriptionInput.value.trim());
+			// The form can change while the title is generated, so it is checked again.
+			if (this.disposed || !this.canSubmit() || !this.validateReport()) {
+				return;
+			}
+		}
 		const description = this.descriptionInput.value.trim();
 		this.updateIssueSourceFlags();
 		this.model.update({ issueDescription: description, issueTitle: title, ...(this.selectedIssueType !== undefined ? { issueType: this.selectedIssueType } : {}) });
@@ -1653,6 +1814,84 @@ export class IssueReporterOverlay {
 		const body = this.buildIssueBody();
 		this.submittedDraftKey = this.getDraftKey();
 		this._onDidSubmit.fire({ title, body });
+	}
+
+	/** Returns whether the report has every field it needs, and otherwise marks the missing fields and focuses the first of them. */
+	private validateReport(): boolean {
+		const hasIssueSource = this.selectedIssueSource !== undefined;
+		const hasExtension = this.selectedIssueSource !== IssueSource.Extension || !!this.selectedExtension && !!this.getSelectedExtensionIssueUrl();
+		const hasIssueType = this.getIssueTypeOptions().some(option => option.type === this.selectedIssueType);
+		const hasDescription = this.hasDescriptionContent();
+		// The simple layout generates a missing title from the description.
+		const hasTitle = !!this.titleInput.value.trim() || this.simpleLayout;
+		this.setFieldError(this.sourceButtonGroup, this.sourceError, !hasIssueSource);
+		this.setFieldError(this.extensionField, this.extensionError, !hasExtension);
+		this.setFieldError(this.typeButtonGroup, this.typeError, !hasIssueType);
+		this.setFieldError(this.descriptionContainer, this.descriptionError, !hasDescription);
+		this.setFieldError(this.titleInput.element, this.titleError, !hasTitle);
+		if (!hasIssueSource || !hasExtension || !hasIssueType) {
+			this.classificationNeedsAttention = true;
+			this.updateClassificationVisibility();
+		}
+		if (hasIssueSource && hasExtension && hasIssueType && hasTitle && hasDescription) {
+			return true;
+		}
+		// Focus the first field to fix, in the order of the form.
+		if (!hasDescription) {
+			this.setDescriptionPreview(false);
+			this.descriptionInput.focus();
+		} else if (!hasTitle) {
+			this.titleInput.focus();
+		} else if (!hasIssueSource) {
+			this.issueSourceButtons.find(button => !button.element.classList.contains('hidden'))?.element.focus();
+		} else if (!hasExtension) {
+			this.extensionSelect.focus();
+		} else {
+			this.issueTypeButtons[0]?.element.focus();
+		}
+		return false;
+	}
+
+	/** Generates a title from the description, or takes its first line when none is generated in time. */
+	private async generateTitleForPreview(description: string): Promise<string> {
+		this.generatingTitleForPreview = true;
+		this.updatePreviewButton();
+		try {
+			// A title that comes too late is cancelled, so that it doesn't replace the previewed title and a title can be generated again.
+			const generated = await raceTimeout(this.requestGeneratedTitle(description), TITLE_GENERATION_TIMEOUT, () => this.cancelTitleGeneration());
+			const title = generated?.trim() || getFallbackIssueTitle(description);
+			if (!this.disposed) {
+				this.titleInput.value = title;
+			}
+			return title;
+		} finally {
+			this.generatingTitleForPreview = false;
+			if (!this.disposed) {
+				this.updatePreviewButton();
+			}
+		}
+	}
+
+	/** Asks for a title generated from the description, unless one is already being generated. */
+	private requestGeneratedTitle(description: string): Promise<string | undefined> {
+		let generation = this.titleGeneration;
+		if (!generation) {
+			generation = this.titleGeneration = { title: new DeferredPromise<string | undefined>(), cancellation: new CancellationTokenSource() };
+			const button = this.generateTitleBtn;
+			// Lock width to prevent layout shift during loading
+			button.element.style.minWidth = `${button.element.offsetWidth}px`;
+			button.enabled = false;
+			button.label = `$(loading~spin) ${localize('generatingTitle', "Generating...")}`;
+			button.element.classList.add('loading');
+			this._onDidRequestGenerateTitle.fire({ description, token: generation.cancellation.token });
+		}
+		return generation.title.p;
+	}
+
+	/** Stops waiting for a generated title, which must then not be set. */
+	private cancelTitleGeneration(): void {
+		this.titleGeneration?.cancellation.cancel();
+		this.resetGenerateButton();
 	}
 
 	show(): void {
@@ -1856,13 +2095,14 @@ export class IssueReporterOverlay {
 		if (this.uploading || this.screenshotCapturePending || this.delayedScreenshotPending) {
 			return;
 		}
+		const delayed = !!reservation;
 		reservation ??= this.reserveAttachment('screenshot');
 		if (!reservation || !this.attachments.includes(reservation)) {
 			return;
 		}
 		this.screenshotCapturePending = true;
 		this.updateAttachmentButtons();
-		this._onDidRequestScreenshot.fire(reservation.id);
+		this._onDidRequestScreenshot.fire({ id: reservation.id, delayed });
 	}
 
 	completeScreenshotCapture(id = this.getPendingAttachment('screenshot')?.id): void {
@@ -1900,15 +2140,14 @@ export class IssueReporterOverlay {
 		};
 	}
 
+	/** Attaches a screenshot, which its thumbnail opens for markup. */
 	addScreenshot(screenshot: IScreenshot, id = this.getPendingAttachment('screenshot')?.id): void {
 		const reservation = id ? this.attachments.find(item => item.id === id && item.kind === 'pending' && item.source === 'screenshot') : this.reserveAttachment('screenshot');
 		if (this.disposed || !reservation) {
 			return;
 		}
-		const attachment: IssueReporterAttachment<IScreenshot> = { id: reservation.id, kind: 'screenshot', screenshot };
-		this.attachments[this.attachments.indexOf(reservation)] = attachment;
+		this.attachments[this.attachments.indexOf(reservation)] = { id: reservation.id, kind: 'screenshot', screenshot };
 		this.attachmentsChanged();
-		this.openAnnotationEditor(attachment.id);
 	}
 
 	private updateAttachmentButtons(): void {
@@ -1936,10 +2175,7 @@ export class IssueReporterOverlay {
 				this.captureStripRecordBtn.enabled = true;
 			}
 		}
-		this.screenshotAddCard?.classList.toggle('disabled', screenshotDisabled);
-		this.screenshotAddCard?.setAttribute('aria-disabled', String(screenshotDisabled));
-
-		this.addFilesButton.enabled = !this.uploading && this.getOccupiedAttachmentSlots() < MAX_ATTACHMENTS;
+		this.updateAddFilesCard();
 		this.updatePreviewButton();
 		this.updateAttachmentImportStatus();
 	}
@@ -2002,14 +2238,16 @@ export class IssueReporterOverlay {
 	private updateScreenshotThumbnails(): void {
 		this.screenshotDisposables.clear();
 		this.screenshotContainer.textContent = '';
-		this.screenshotAddCard = undefined;
+		this.addFilesCard = undefined;
 		this.attachmentCards.clear();
 		let screenshotNumber = 0;
 		for (const attachment of this.getAttachments()) {
 			let card: HTMLElement;
 			let name: string;
 			if (attachment.kind === 'screenshot') {
-				screenshotNumber++;
+				if (!attachment.screenshot.name) {
+					screenshotNumber++;
+				}
 				const screenshot = getIssueReporterScreenshotFile(attachment.screenshot, screenshotNumber);
 				name = screenshot.name;
 				card = this.renderAttachmentCard(this.screenshotContainer, name, screenshot.dataUrl, false);
@@ -2018,9 +2256,13 @@ export class IssueReporterOverlay {
 				name = attachment.file.name;
 				card = this.renderAttachmentCard(this.screenshotContainer, name, attachment.file.thumbnailDataUrl, attachment.file.mimeType.startsWith('video/'), attachment.file.durationMs);
 				card.classList.add('wizard-file-card');
-				this.registerAttachmentAction(card, localize('openAttachment', "Open {0}", name), () => {
-					this._onDidRequestOpenFile.fire(attachment.file.filePath);
-				}, this.screenshotDisposables);
+				if (isEditableImageFile(attachment.file)) {
+					this.registerAttachmentAction(card, localize('editScreenshotLabel', "Edit {0}", name), () => this.openAnnotationEditor(attachment.id), this.screenshotDisposables);
+				} else {
+					this.registerAttachmentAction(card, localize('openAttachment', "Open {0}", name), () => {
+						this._onDidRequestOpenFile.fire(attachment.file.filePath);
+					}, this.screenshotDisposables);
+				}
 			}
 			this.attachmentCards.set(attachment.id, card);
 
@@ -2035,55 +2277,104 @@ export class IssueReporterOverlay {
 			this.renderAttachmentUploadState(attachment);
 		}
 
+		// Screenshots are captured with the floating capture bar or its shortcut, so the last card adds files.
 		if (this.getTotalAttachments() < MAX_ATTACHMENTS) {
-			const addDisabled = this.uploading || this.screenshotCapturePending || this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS;
 			const addCard = append(this.screenshotContainer, $('div.wizard-screenshot-card.wizard-screenshot-add'));
-			this.screenshotAddCard = addCard;
-			addCard.setAttribute('aria-disabled', String(addDisabled));
-			if (addDisabled) {
-				addCard.classList.add('disabled');
-				addCard.title = localize('maxAttachmentsReached', "Max attachments reached");
-			}
+			this.addFilesCard = addCard;
 			const plus = append(addCard, $('div.wizard-screenshot-plus'));
 			plus.appendChild(renderIcon(Codicon.add));
 			plus.setAttribute('aria-hidden', 'true');
-			append(addCard, $('span')).textContent = localize('screenshot', "Screenshot");
-			this.registerAttachmentAction(addCard, localize('captureScreenshot', "Capture Screenshot"), () => {
+			append(addCard, $('span')).textContent = localize('addFiles', "Add Files...");
+			this.updateAddFilesCard();
+			this.registerAttachmentAction(addCard, localize('addFilesLabel', "Add Files"), () => {
 				if (!addCard.classList.contains('disabled')) {
-					this.requestScreenshot();
+					this.fileInput.click();
 				}
 			}, this.screenshotDisposables);
 		}
 	}
 
+	private updateAddFilesCard(): void {
+		const disabled = this.uploading || this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS;
+		this.addFilesCard?.classList.toggle('disabled', disabled);
+		this.addFilesCard?.setAttribute('aria-disabled', String(disabled));
+	}
+
+	/** Opens the image of a screenshot, or of an image file, to edit it. */
 	private openAnnotationEditor(id: string): void {
 		const attachment = this.attachments.find(item => item.id === id);
-		if (attachment?.kind !== 'screenshot') {
+		if (!attachment || attachment.kind === 'pending' || this.attachmentsBeingEdited.has(id)) {
 			return;
 		}
+		if (attachment.kind === 'file') {
+			void this.openImageFileEditor(id, attachment.file);
+		} else {
+			void this.editScreenshot(id, attachment.screenshot);
+		}
+	}
 
-		// Per-editor lifecycle: each call creates a new editor that mounts an
-		// absolutely-positioned overlay on top of any previously-open editor and
-		// disposes itself on save/cancel. This gives us the stacking behavior the
-		// user expects when taking multiple screenshots in a row — the topmost
-		// editor handles save/cancel, then the previous one becomes visible
-		// again.
-		const screenshot = attachment.screenshot;
-		const editorDisposables = this.disposables.add(new DisposableStore());
-		const editor = editorDisposables.add(new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState));
+	/** Opens an image file to edit it like a screenshot. An image that cannot be decoded opens like other files. */
+	private async openImageFileEditor(id: string, file: IIssueReporterFileAttachment): Promise<void> {
+		if (!isEditableImageFile(file)) {
+			return;
+		}
+		this.attachmentsBeingEdited.add(id);
+		let size: { width: number; height: number } | undefined;
+		try {
+			size = await readIssueReporterImage(file.thumbnailDataUrl, CancellationToken.None);
+		} catch (error) {
+			this.logService.warn('[IssueReporter] Could not decode an image to edit it:', toErrorMessage(error));
+		} finally {
+			this.attachmentsBeingEdited.delete(id);
+		}
+		if (this.disposed || !this.attachments.some(item => item.id === id && item.kind === 'file' && item.file === file)) {
+			return;
+		}
+		if (size) {
+			void this.editScreenshot(id, { dataUrl: file.thumbnailDataUrl, width: size.width, height: size.height, name: file.name });
+		} else {
+			this._onDidRequestOpenFile.fire(file.filePath);
+		}
+	}
 
-		editorDisposables.add(editor.onDidSave(({ dataUrl, state }) => {
-			const index = this.attachments.findIndex(item => item.id === id);
-			if (index !== -1) {
-				this.attachments[index] = { id, kind: 'screenshot', screenshot: { ...screenshot, annotatedDataUrl: dataUrl, annotationState: state } };
-				this.attachmentsChanged();
-			}
-			this.disposables.delete(editorDisposables);
-		}));
+	/**
+	 * Marks up a screenshot in the Images Preview, which opens as a modal editor over the main window, so that it stays
+	 * large even when the reporter has a narrow window of its own.
+	 */
+	private async editScreenshot(id: string, screenshot: IScreenshot): Promise<void> {
+		this.attachmentsBeingEdited.add(id);
+		let edit: IScreenshotToolEdit | undefined;
+		try {
+			edit = await this.screenshotToolService.edit({
+				original: { dataUrl: screenshot.dataUrl, width: screenshot.width, height: screenshot.height },
+				annotationState: screenshot.annotationState,
+			}, ScreenshotToolSurface.IssueReporter, screenshot.name);
+		} finally {
+			this.attachmentsBeingEdited.delete(id);
+		}
+		if (!edit || this.disposed) {
+			return;
+		}
+		// The cards are replaced, so focus moves to the new card of the edited image when it was on the old one.
+		const activeElement = getWindow(this.screenshotContainer).document.activeElement;
+		const refocus = isHTMLElement(activeElement) && this.screenshotContainer.contains(activeElement);
+		if (this.applyImageEdit(id, screenshot, edit.annotated ? edit.image.dataUrl : undefined, edit.annotationState, edit.annotated) && refocus) {
+			this.attachmentCards.get(id)?.focus();
+		}
+	}
 
-		editorDisposables.add(editor.onDidCancel(() => {
-			this.disposables.delete(editorDisposables);
-		}));
+	/**
+	 * Replaces an attachment with its edited image. An image file stays as it is until it has annotations, and then
+	 * becomes a screenshot that keeps its name.
+	 */
+	private applyImageEdit(id: string, screenshot: IScreenshot, annotatedDataUrl: string | undefined, annotationState: IAnnotationEditorState | undefined, annotated: boolean): boolean {
+		const index = this.attachments.findIndex(item => item.id === id && item.kind !== 'pending');
+		if (index === -1 || (this.attachments[index].kind === 'file' && !annotated)) {
+			return false;
+		}
+		this.attachments[index] = { id, kind: 'screenshot', screenshot: { ...screenshot, annotatedDataUrl, annotationState } };
+		this.attachmentsChanged();
+		return true;
 	}
 
 	getAttachments(): readonly IssueReporterAttachment<IScreenshot>[] {
@@ -2163,13 +2454,17 @@ export class IssueReporterOverlay {
 
 	private generateIssueDetailsMd(): string {
 		const modelData = this.model.getData();
-		const rows: [string, string | undefined][] = [
-			['Issue Category', this.getIssueTypeTitle(this.selectedIssueType ?? IssueType.Bug)],
+		const rows: [string, string | undefined][] = [];
+		// A category the user was not asked for, and did not choose, would only be a guess.
+		if (!this.classificationSection.hidden || this.explicitIssueType !== undefined) {
+			rows.push(['Issue Category', this.getIssueTypeTitle(this.selectedIssueType ?? IssueType.Bug)]);
+		}
+		rows.push(
 			['Target', this.getIssueSourceLabel()],
 			['Repository', this.getIssueRepositoryLabel()],
 			['VS Code Version', modelData.versionInfo?.vscodeVersion ?? product.version],
 			['OS Version', modelData.versionInfo?.os ?? modelData.systemInfo?.os],
-		];
+		);
 
 		if (this.selectedIssueSource === IssueSource.Extension && this.selectedExtension) {
 			rows.push(
@@ -2342,7 +2637,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		// Mount inside .monaco-workbench so theme CSS vars cascade. Fall back to
 		// document.body when no workbench root is present (shouldn't happen in
 		// practice but keeps the bar visible regardless).
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const workbench = targetWindow.document.querySelector('.monaco-workbench') as HTMLElement | null;
 		const mountTarget = workbench ?? targetWindow.document.body;
 		if (this.floatingBar.parentElement !== mountTarget) {
@@ -2394,7 +2689,8 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	private hasUserInput(): boolean {
-		return this.input.hasContentChanges || this.getOccupiedAttachmentSlots() > 0;
+		// The simple layout's automatic screenshot is no user input until the user edits it.
+		return this.input.hasContentChanges || this.attachments.some(attachment => attachment !== this.input.automaticScreenshot);
 	}
 
 	markPreviewOpened(): void {
@@ -2424,21 +2720,26 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		if (title.trim()) {
 			this.setFieldError(this.titleInput.element, this.titleError, false);
 		}
-		this.resetGenerateButton();
+		this.resetGenerateButton(title);
 	}
 
-	resetGenerateButton(): void {
+	/** Ends a title generation, with the title when one was generated. */
+	resetGenerateButton(title?: string): void {
 		this.generateTitleBtn.label = `$(sparkle) ${localize('generateTitleBtn', "Generate from description")}`;
 		this.generateTitleBtn.element.classList.remove('loading');
 		this.generateTitleBtn.element.style.minWidth = '';
 		this.generateTitleBtn.enabled = this.hasDescriptionContent();
+		const generation = this.titleGeneration;
+		this.titleGeneration = undefined;
+		generation?.cancellation.dispose();
+		void generation?.title.complete(title);
 	}
 
 	/** Show a "Close" button next to the submit button after successful submission */
 	showCloseButton(): void {
 		// Add close button next to the existing preview button
 		const nav = this.previewButton.element.parentElement;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		if (nav && !nav.querySelector('.wizard-close-btn')) {
 			this.closeButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, secondary: true }));
 			this.closeButton.label = localize('closeTab', "Close");
@@ -2565,6 +2866,8 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 
 	dispose(): void {
 		this.disposed = true;
+		this.titleGeneration?.cancellation.dispose(true);
+		void this.titleGeneration?.title.complete(undefined);
 		this.input.saveDescriptionScrollPosition(this.descriptionContainer);
 		this.attachments.splice(0, this.attachments.length, ...this.getAttachments());
 		this.attachmentCards.clear();

@@ -35,10 +35,12 @@ import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
+import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
+import { reviveConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
-import type { AgentProvider, AgentSandboxCertificateOperation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationPreparation } from '../common/agent.js';
+import type { AgentCanvasOpenAnswer, AgentCanvasOpenResult, AgentProvider, AgentSandboxCertificateOperation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationPreparation } from '../common/agent.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -224,6 +226,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly onDidNotification = this._onDidNotification.event;
 	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
+	private readonly _onDidReceiveOtlpLogs = this._register(new Relay<OtlpExportLogsParams>());
+	readonly onDidReceiveOtlpLogs = this._onDidReceiveOtlpLogs.event;
 	private readonly _artifactIntegrationUpdates = this._register(new Relay<ArtifactIntegrationUpdate>());
 	private readonly _artifactIntegrationReset = this._register(new Relay<void>());
 	readonly artifactIntegrationTransport = {
@@ -298,6 +302,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._onDidAction.input = this._protocolClient.onDidAction;
 			this._onDidNotification.input = this._protocolClient.onDidNotification;
 			this._onMcpNotification.input = this._protocolClient.onMcpNotification;
+			this._onDidReceiveOtlpLogs.input = this._protocolClient.onDidReceiveOtlpLogs;
 			this._artifactIntegrationUpdates.input = this._protocolClient.artifactIntegrationTransport.onDidUpdate;
 			this._artifactIntegrationReset.input = this._protocolClient.artifactIntegrationTransport.onDidReset;
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
@@ -453,6 +458,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.getInflightSessionCreate(resource);
 	}
 
+	async subscribeStateless(resource: URI): Promise<void> {
+		await this._requireClient().subscribeStateless(resource);
+	}
+
+	unsubscribe(resource: URI): void {
+		this._protocolClient?.unsubscribe(resource);
+	}
+
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}
@@ -542,6 +555,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().stopBackgroundWork(chat, id);
 	}
 
+	answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
+		return this._requireClient().answerShellAuthentication(chat, requestId, answer);
+	}
+
 	readonly sandboxCertificateInstallationSupported = constObservable(true);
 	readonly sandboxCertificateRotationSupported = constObservable(true);
 	readonly sandboxCertificateRemovalSupported = constObservable(true);
@@ -623,8 +640,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listPluginInstallations(provider, session, chat);
 	}
 
-	setPluginEnabled(provider: string, plugin: string, enabled: boolean): Promise<void> {
-		return this._getManagementService().setPluginEnabled(provider, plugin, enabled);
+	setPluginEnabled(provider: string, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().setPluginEnabled(provider, plugin, enabled, scope, session, chat);
 	}
 
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
@@ -639,8 +656,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listSessionCanvases(session, chat);
 	}
 
-	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
-		return this._getManagementService().openSessionCanvas(session, request, chat);
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult> {
+		return this._getManagementService().openSessionCanvas(session, request, chat, answer);
 	}
 
 	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
@@ -655,15 +672,15 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().retryManagedPlugins(provider, session, chat);
 	}
 
-	listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
+	listPluginMarketplaces(provider: string, session?: URI, chat?: URI) {
 		return this._getManagementService().listPluginMarketplaces(provider, session, chat);
 	}
 
-	addPluginMarketplace(provider: string, session: URI, source: string, chat?: URI) {
+	addPluginMarketplace(provider: string, session: URI | undefined, source: string, chat?: URI) {
 		return this._getManagementService().addPluginMarketplace(provider, session, source, chat);
 	}
 
-	browsePluginMarketplace(provider: string, session: URI, name: string, chat?: URI) {
+	browsePluginMarketplace(provider: string, session: URI | undefined, name: string, chat?: URI) {
 		return this._getManagementService().browsePluginMarketplace(provider, session, name, chat);
 	}
 
@@ -802,6 +819,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().measureWorktreeDiskUsage(root, token, session);
 	}
 
+	prepareSessionWorktreeCleanup(session: URI): Promise<void> {
+		return this._requireClient().prepareSessionWorktreeCleanup(session);
+	}
+
 	sessionWorktreeCleanup(session: URI, retry: boolean, force?: boolean) {
 		return this._requireClient().sessionWorktreeCleanup(session, retry, force);
 	}
@@ -873,8 +894,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		);
 	}
 
-	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
-		return this._getManagementService().configureMissionControl(options, withdrawingAccountId);
+	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+		const result = await this._getManagementService().configureMissionControl(options, withdrawingAccountId);
+		if (result) {
+			throw reviveConnectionDiagnosticError(result.error);
+		}
 	}
 
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {

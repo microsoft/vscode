@@ -8,6 +8,8 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -18,11 +20,14 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../services/environment/electron-browser/environmentService.js';
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { reviveBrowserEditorViewState } from '../../common/browserEditorInput.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IBrowserViewNetworkResolver, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
@@ -42,6 +47,10 @@ suite('BrowserViewWorkbenchService', () => {
 			getNetworkStatus: ({ authority }) => ({ label: authority, connected: proxySupported[authority] !== undefined, proxySupported: proxySupported[authority] }),
 			onDidChangeNetworkStatus: Event.None,
 		};
+	}
+
+	function proxiesOf(config: IBrowserViewWindowConfiguration | undefined) {
+		return Object.fromEntries(Object.entries(config?.remoteNetworks ?? {}).map(([authority, network]) => [authority, network.proxy]));
 	}
 
 	function createService(remoteAuthority?: string, editorGroupsService?: IEditorGroupsService) {
@@ -418,7 +427,7 @@ suite('BrowserViewWorkbenchService', () => {
 		const local = store.add(service.getOrCreateLazy({ id: 'local', session: {} }));
 		const [remoteModel, , fallbackModel] = await Promise.all([remote.resolve(), workspaceless.resolve(), fallback.resolve(), local.resolve()]);
 		const automationHold = await service.acquireNetwork({ authority: 'legacy' });
-		const networkProxies = windowConfigurations.at(-1)?.networkProxies;
+		const networkProxies = proxiesOf(windowConfigurations.at(-1));
 		remote.dispose();
 		workspaceless.dispose();
 		automationHold.dispose();
@@ -627,6 +636,49 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	});
 
+	test('opens local files of a remote workspace in an isolated session on the local network', async () => {
+		const { service, events, creationOptions } = createService('ssh-remote+host');
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+
+		const local = store.add(service.getOrCreateLazy({ id: 'local', associatedResource: URI.file('/Users/me/index.html') }));
+		const remote = store.add(service.getOrCreateLazy({ id: 'remote', associatedResource: URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: '/home/index.html' }) }));
+		await local.resolve();
+		await remote.resolve();
+
+		assert.deepStrictEqual(creationOptions.map(options => options.session), [
+			{ scope: BrowserViewStorageScope.Ephemeral },
+			{ scope: BrowserViewStorageScope.Workspace, network: { authority: 'ssh-remote+host' } },
+		]);
+	});
+
+	test('opens local files through the open file action on the local network without an associated resource and restores their session', async () => {
+		const { service, events, creationOptions, instantiationService } = createService('ssh-remote+host');
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+		instantiationService.stub(IEditorService, 'openEditor', async (editor: IResourceEditorInput) => {
+			const id = BrowserViewUri.getId(editor.resource);
+			assert.ok(id);
+			const input = store.add(service.getOrCreateLazy({ id, ...reviveBrowserEditorViewState(editor.options?.viewState) }));
+			await input.resolve();
+			const restored = store.add(service.getOrCreateLazy({ ...input.serialize(), id: 'restored' }));
+			await restored.resolve();
+			return undefined;
+		});
+
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(BrowserViewCommandId.OpenFile)!.handler, URI.file('/Users/me/index.html'));
+
+		assert.deepStrictEqual(creationOptions.map(options => ({
+			session: options.session,
+			associatedResource: options.associatedResource,
+			initialUrl: options.initialUrl,
+		})), Array(2).fill({
+			session: { scope: BrowserViewStorageScope.Ephemeral },
+			associatedResource: undefined,
+			initialUrl: 'file:///Users/me/index.html',
+		}));
+	});
+
 	function proxy(port: number): ITunnelProxyInfo {
 		return { url: `https://127.0.0.1:${port}`, host: '127.0.0.1', port, credentials: { username: 'u', password: `p${port}` }, certFingerprint: `f${port}` };
 	}
@@ -689,7 +741,7 @@ suite('BrowserViewWorkbenchService', () => {
 				void acquired.complete(proxy(1));
 			}
 			await model;
-			results[phase] = { createdBeforeReplacement, networkProxies: windowConfigurations.at(-1)?.networkProxies };
+			results[phase] = { createdBeforeReplacement, networkProxies: proxiesOf(windowConfigurations.at(-1)) };
 		}
 
 		const expected = { createdBeforeReplacement: 0, networkProxies: { 'ssh-remote+host': proxy(2) } };
@@ -719,7 +771,7 @@ suite('BrowserViewWorkbenchService', () => {
 		store.add(service.registerNetworkProxyProvider({ acquire: async () => proxy(2), release: () => { } }));
 		await timeout(0);
 
-		assert.deepStrictEqual(windowConfigurations.at(-1)?.networkProxies, { 'ssh-remote+host': proxy(2) });
+		assert.deepStrictEqual(proxiesOf(windowConfigurations.at(-1)), { 'ssh-remote+host': proxy(2) });
 	});
 
 	test('releases a proxy whose last view closed while it was published', async () => {
@@ -738,9 +790,28 @@ suite('BrowserViewWorkbenchService', () => {
 		published.complete();
 		await assert.rejects(model);
 
-		assert.deepStrictEqual({ calls, networkProxies: windowConfigurations.at(-1)?.networkProxies }, {
+		assert.deepStrictEqual({ calls, networkProxies: proxiesOf(windowConfigurations.at(-1)) }, {
 			calls: ['acquire ssh-remote+host', 'release ssh-remote+host'],
 			networkProxies: {},
+		});
+	});
+
+	test('publishes the trusted roots of each remote with its network', async () => {
+		const { service, events, windowConfigurations, instantiationService } = createService('ssh-remote+host');
+		instantiationService.stub(IWorkspaceTrustManagementService, 'getTrustedUris', () => [
+			URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/repo' }),
+			URI.file('/local'),
+		]);
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		store.add(service.registerNetworkProxyProvider({ acquire: async () => proxy(1), release: () => { } }));
+		const input = store.add(service.getOrCreateLazy({ id: 'page', url: 'http://page/' }));
+		await input.resolve();
+
+		const { remoteNetworks, trustedLocalFileRoots, trustAllLocalFiles } = windowConfigurations.at(-1)!;
+		assert.deepStrictEqual({ remoteNetworks, trustedLocalFileRoots, trustAllLocalFiles }, {
+			remoteNetworks: { 'ssh-remote+host': { proxy: proxy(1), scheme: 'vscode-remote', trustedRoots: ['/repo'], trustAllFiles: true, caseSensitive: true } },
+			trustedLocalFileRoots: [URI.file('/home/test/.copilot').fsPath, instantiationService.get(IWorkspaceContextService).getWorkspace().folders[0].uri.fsPath, URI.file('/local').fsPath],
+			trustAllLocalFiles: true,
 		});
 	});
 });

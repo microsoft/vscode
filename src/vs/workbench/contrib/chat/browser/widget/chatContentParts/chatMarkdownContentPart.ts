@@ -72,6 +72,8 @@ import { EditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartDiffData, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
+import { ChatHtmlPreviewPart, isHtmlPreviewCodeBlock } from './chatHtmlPreviewPart.js';
+import { getNativeComponentsFenceInfo, IChatNativeComponentsPart, IChatNativeComponentsRenderer } from './chatNativeComponents.js';
 import { ChatProgressSubPart } from './chatProgressContentPart.js';
 import { IncrementalDOMMorpher } from './chatIncrementalRendering/chatIncrementalRendering.js';
 import { IChatOutputPartStateCache, IOutputPartState } from './chatOutputPartStateCache.js';
@@ -81,6 +83,9 @@ const $ = dom.$;
 
 export interface IChatMarkdownContentPartOptions {
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
+	readonly renderHtmlPreviews?: boolean;
+	/** Renders closed native components fences of responses as visuals. */
+	readonly nativeComponents?: IChatNativeComponentsRenderer;
 	readonly allowInlineDiffs?: boolean;
 	readonly horizontalPadding?: number;
 	readonly accessibilityOptions?: {
@@ -130,7 +135,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	private readonly _onDidChangeCodeblocks = this._register(new Emitter<void>());
 	readonly onDidChangeCodeblocks: Event<void> = this._onDidChangeCodeblocks.event;
 
-	private readonly allRefs: IDisposableReference<CodeBlockPart | ChatOutputCodeBlockPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
+	private readonly allRefs: IDisposableReference<CodeBlockPart | ChatOutputCodeBlockPart | ChatHtmlPreviewPart | IChatNativeComponentsPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
+	/** The native components parts of the current render, by reuse key. They are also in {@link allRefs}. */
+	private readonly nativeComponentsRefs = new Map<string, IDisposableReference<IChatNativeComponentsPart>>();
 
 	private readonly _codeblocks: IMarkdownPartCodeBlockInfo[] = [];
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -223,13 +230,23 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 			const previousRenderStore = renderStore.clearAndLeak();
 			const reusableOutputCodeBlockRefs = new Map<string, IDisposableReference<ChatOutputCodeBlockPart>>();
+			const reusableHtmlPreviewRefs = new Map<string, IDisposableReference<ChatHtmlPreviewPart>>();
 			for (const ref of this.allRefs) {
 				if (ref.object instanceof ChatOutputCodeBlockPart) {
 					const outputRef = ref as IDisposableReference<ChatOutputCodeBlockPart>;
 					previousRenderStore?.deleteAndLeak(outputRef);
 					reusableOutputCodeBlockRefs.set(outputRef.object.reuseKey, outputRef);
+				} else if (ref.object instanceof ChatHtmlPreviewPart) {
+					const previewRef = ref as IDisposableReference<ChatHtmlPreviewPart>;
+					previousRenderStore?.deleteAndLeak(previewRef);
+					reusableHtmlPreviewRefs.set(previewRef.object.reuseKey, previewRef);
 				}
 			}
+			const reusableNativeComponentsRefs = new Map(this.nativeComponentsRefs);
+			for (const ref of reusableNativeComponentsRefs.values()) {
+				previousRenderStore?.deleteAndLeak(ref);
+			}
+			this.nativeComponentsRefs.clear();
 			previousRenderStore?.dispose();
 
 			// Reset state for re-render
@@ -245,11 +262,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			// comes from the renderer: not for Markdown with raw HTML, nor trusted Markdown with raw spans.
 			const content = this.markdown.content;
 			const renderMath = enableMath && !content.supportHtml && !(content.isTrusted && /<span/i.test(content.value));
-			const markedExtensions = renderMath
+			const hasMath = renderMath && content.value.includes('$');
+			const markedExtensions = hasMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
 					throwOnError: false
 				})])
 				: [];
+			if (hasMath && markedExtensions.length === 0) {
+				MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
+					.then(() => {
+						if (!store.isDisposed) {
+							this.renderMarkdown();
+						}
+					})
+					.catch(e => console.error('Failed to load MarkedKatexSupport extension:', e));
+			}
 
 			// Enables github-flavored-markdown + line breaks with single newlines
 			// (which matches typical expectations but isn't "proper" in markdown)
@@ -349,6 +376,58 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					};
 
 					if (element.isCompleteAddedRequest || !codemapperUri || !isEdit) {
+						if (this.rendererOptions.renderHtmlPreviews && isResponseVM(element) && !hideToolbar
+							&& !codemapperUri && isHtmlPreviewCodeBlock(languageId, raw)) {
+							const reuseKey = CodeBlockPart.poolKey(element.id, globalIndex);
+							let ref = reusableHtmlPreviewRefs.get(reuseKey);
+							if (ref?.object.hasSameContent(codeBlockText)) {
+								reusableHtmlPreviewRefs.delete(reuseKey);
+							} else {
+								const preview = this.instantiationService.createInstance(ChatHtmlPreviewPart, codeBlockInfo, context, this.editorPool, () => this._onDidChangeHeight.fire());
+								ref = { object: preview, isStale: () => false, dispose: () => preview.dispose() };
+							}
+							this.allRefs.push(ref);
+							store.add(ref);
+							const preview = ref.object;
+							this._codeblocks.push({
+								...baseCodeBlockInfo,
+								codemapperUri: undefined,
+								isStreamingEdit: false,
+								get uri() { return preview.uri; },
+								get isFocused() { return preview.isFocused; },
+								focus() { preview.focus(); },
+								reveal() { return preview.reveal(); },
+							});
+							return preview.element;
+						}
+
+						const nativeComponents = isResponseVM(element) && !hideToolbar && !codemapperUri ? this.rendererOptions.nativeComponents : undefined;
+						const nativeComponentsFenceInfo = nativeComponents && getNativeComponentsFenceInfo(languageId, raw);
+						if (nativeComponents && nativeComponentsFenceInfo !== undefined) {
+							const reuseKey = CodeBlockPart.poolKey(element.id, globalIndex);
+							let ref = reusableNativeComponentsRefs.get(reuseKey);
+							if (ref?.object.hasSameContent(codeBlockText, nativeComponentsFenceInfo)) {
+								reusableNativeComponentsRefs.delete(reuseKey);
+							} else {
+								const part = nativeComponents.createPart(this.instantiationService, codeBlockInfo, nativeComponentsFenceInfo, context, this.editorPool, () => this._onDidChangeHeight.fire());
+								ref = { object: part, isStale: () => false, dispose: () => part.dispose() };
+							}
+							this.nativeComponentsRefs.set(reuseKey, ref);
+							this.allRefs.push(ref);
+							store.add(ref);
+							const part = ref.object;
+							this._codeblocks.push({
+								...baseCodeBlockInfo,
+								codemapperUri: undefined,
+								isStreamingEdit: false,
+								get uri() { return part.uri; },
+								get isFocused() { return part.isFocused; },
+								focus() { part.focus(); },
+								reveal() { return part.reveal(); },
+							});
+							return part.element;
+						}
+
 						if (hasChatOutputRenderer) {
 							const ref = this.renderChatOutputCodeBlock(languageId, codeBlockText, globalIndex, context, isCodeBlockComplete, reusableOutputCodeBlockRefs);
 							this._codeblocks.push({
@@ -447,7 +526,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			});
 
 			// Make katex blocks horizontally scrollable
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const katexBlock of this.domNode.querySelectorAll('.katex-display')) {
 				if (!dom.isHTMLElement(katexBlock)) {
 					continue;
@@ -466,6 +545,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 			store.add(wrapTablesWithScrollable(this.domNode, layoutParticipants));
 			dispose(reusableOutputCodeBlockRefs.values());
+			dispose(reusableHtmlPreviewRefs.values());
+			dispose(reusableNativeComponentsRefs.values());
 			this._onDidChangeCodeblocks.fire();
 		};
 
@@ -478,17 +559,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		// this is important when a markdown part first appears (e.g.
 		// after thinking content) and already contains visible content.
 		this._incrementalMorpher?.seed(markdown.content.value, /* animateInitial */ true);
-
-		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
-			// KaTeX not yet loaded - load it and re-render when ready
-			MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
-				.then(() => {
-					this.renderMarkdown();
-				})
-				.catch(e => {
-					console.error('Failed to load MarkedKatexSupport extension:', e);
-				});
-		}
 	}
 
 	override dispose(): void {
@@ -496,6 +566,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		dispose(this.allRefs);
 		this.allRefs.length = 0;
+		this.nativeComponentsRefs.clear();
 	}
 
 	/**
@@ -503,7 +574,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	 */
 	private hookUpImages(element: HTMLElement, fileImages: ResourceSet, sessionResource: URI, responseId: string): IDisposable {
 		const store = new DisposableStore();
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		for (const image of element.querySelectorAll('img')) {
 			const source = image.dataset.src;
 			const resource = source ? URI.parse(source) : undefined;
@@ -656,7 +727,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 
 		if (!this._incrementalMorpher) {
-			if (this.allRefs.some(ref => ref.object instanceof ChatOutputCodeBlockPart)
+			if ((this.nativeComponentsRefs.size > 0 || this.allRefs.some(ref => ref.object instanceof ChatOutputCodeBlockPart || ref.object instanceof ChatHtmlPreviewPart))
 				&& newMarkdown.content.value.startsWith(this.markdown.content.value)) {
 				const previousMarkdown = this.markdown;
 				this.markdown = newMarkdown;
@@ -695,7 +766,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.allRefs.forEach((ref, index) => {
 			if (ref.object instanceof CodeBlockPart) {
 				ref.object.layout(width);
-			} else if (ref.object instanceof ChatOutputCodeBlockPart) {
+			} else if (ref.object instanceof ChatOutputCodeBlockPart || ref.object instanceof ChatHtmlPreviewPart) {
 				ref.object.layout(width);
 			} else if (ref.object instanceof MarkdownDiffBlockPart) {
 				ref.object.layout(width);
@@ -707,15 +778,17 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			}
 		});
 
+		this.nativeComponentsRefs.forEach(ref => ref.object.layout(width));
 		this.mathLayoutParticipants.forEach(layout => layout());
 	}
 
 	onDidRemount(): void {
 		for (const ref of this.allRefs) {
-			if (ref.object instanceof CodeBlockPart || ref.object instanceof ChatOutputCodeBlockPart) {
+			if (ref.object instanceof CodeBlockPart || ref.object instanceof ChatOutputCodeBlockPart || ref.object instanceof ChatHtmlPreviewPart) {
 				ref.object.onDidRemount();
 			}
 		}
+		this.nativeComponentsRefs.forEach(ref => ref.object.onDidRemount());
 	}
 
 	addDisposable(disposable: IDisposable): void {

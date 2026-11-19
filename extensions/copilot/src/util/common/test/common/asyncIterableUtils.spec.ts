@@ -31,32 +31,6 @@ describe('AsyncIterableUtils', () => {
 		});
 	});
 
-	describe('mapWithReturn', () => {
-		it('should map items and return value', async () => {
-			const input = AsyncIterUtils.fromArrayWithReturn([1, 2, 3], 'done');
-			const mapped = AsyncIterUtils.mapWithReturn(
-				input,
-				x => x * 2,
-				ret => ret.toUpperCase()
-			);
-			const [items, returnValue] = await AsyncIterUtils.toArrayWithReturn(mapped);
-			expect(items).toEqual([2, 4, 6]);
-			expect(returnValue).toBe('DONE');
-		});
-
-		it('should handle empty iterable with return value', async () => {
-			const input = AsyncIterUtils.fromArrayWithReturn<number, string>([], 'empty');
-			const mapped = AsyncIterUtils.mapWithReturn(
-				input,
-				x => x * 2,
-				ret => ret.toUpperCase()
-			);
-			const [items, returnValue] = await AsyncIterUtils.toArrayWithReturn(mapped);
-			expect(items).toEqual([]);
-			expect(returnValue).toBe('EMPTY');
-		});
-	});
-
 	describe('filter', () => {
 		it('should filter items using the provided predicate', async () => {
 			const input = AsyncIterUtils.fromArray([1, 2, 3, 4, 5]);
@@ -107,29 +81,6 @@ describe('AsyncIterableUtils', () => {
 		});
 	});
 
-	describe('toArrayWithReturn', () => {
-		it('should collect items and capture return value', async () => {
-			const input = AsyncIterUtils.fromArrayWithReturn([1, 2, 3], 'finished');
-			const [items, returnValue] = await AsyncIterUtils.toArrayWithReturn(input);
-			expect(items).toEqual([1, 2, 3]);
-			expect(returnValue).toBe('finished');
-		});
-
-		it('should handle empty iterable with return value', async () => {
-			const input = AsyncIterUtils.fromArrayWithReturn<number, string>([], 'empty result');
-			const [items, returnValue] = await AsyncIterUtils.toArrayWithReturn(input);
-			expect(items).toEqual([]);
-			expect(returnValue).toBe('empty result');
-		});
-
-		it('should handle complex return types', async () => {
-			const returnObj = { status: 'complete', count: 3 };
-			const input = AsyncIterUtils.fromArrayWithReturn([1, 2, 3], returnObj);
-			const [items, returnValue] = await AsyncIterUtils.toArrayWithReturn(input);
-			expect(items).toEqual([1, 2, 3]);
-			expect(returnValue).toBe(returnObj);
-		});
-	});
 });
 
 describe('AsyncIterUtilsExt', () => {

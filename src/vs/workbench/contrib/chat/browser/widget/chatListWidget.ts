@@ -24,6 +24,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -44,10 +45,10 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
-import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions, IChatScrollAnchor } from '../chat.js';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions, IChatScrollAnchor, IChatWidget } from '../chat.js';
 import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
@@ -321,6 +322,9 @@ export interface IChatListWidgetOptions {
 	 */
 	readonly getEditingValue?: () => string | undefined;
 
+	/** The widget whose list this is, which shows the input requests, such as questions, of the chats it renders. */
+	readonly getWidget?: () => IChatWidget | undefined;
+
 	/** Scrollable space kept below the last item, for content floating over the list. */
 	readonly paddingBottom?: number;
 
@@ -428,6 +432,12 @@ export class ChatListWidget extends Disposable {
 	private _effectivePaddingBottom: number;
 	private _scrollHeightReservation: { response: IChatResponseViewModel; height: number } | undefined;
 	private readonly _pendingScrollHeightRelease = this._register(new MutableDisposable<IDisposable>());
+	/**
+	 * Positions the scroll-down button once before the next paint. While a response streams, the
+	 * button can be shown and hidden many times per frame as the content grows past the bottom and
+	 * is revealed again, and each positioning reads layout.
+	 */
+	private readonly _scrollDownButtonPositionScheduler: dom.AnimationFrameScheduler;
 
 	//#endregion
 
@@ -533,6 +543,7 @@ export class ChatListWidget extends Disposable {
 		this._effectivePaddingBottom = this._paddingBottom;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
+		this._scrollDownButtonPositionScheduler = this._register(new dom.AnimationFrameScheduler(this._container, () => this.updateScrollDownButtonPosition()));
 
 		// Toggle link-style for inline reference widgets based on configuration (single listener for all widgets)
 		const updateInlineReferencesStyle = () => {
@@ -585,6 +596,7 @@ export class ChatListWidget extends Disposable {
 			refreshStickyScroll: () => this._tree.refreshStickyScroll(),
 			stickyScrollTopPadding: CHAT_STICKY_SCROLL_TOP_PADDING,
 			getEditingValue: options.getEditingValue,
+			getWidget: options.getWidget,
 			preserveScrollPosition: target => this.preserveScrollPosition(target),
 			onDidFinishProgressCollapse: () => this.updateBottomPadding(),
 		};
@@ -770,7 +782,7 @@ export class ChatListWidget extends Disposable {
 
 		// Handle scroll events (fire public event and manage scroll-down button)
 		this._register(this._tree.onDidScroll((e) => {
-			this._renderer.updateStickyProgress();
+			this._renderer.scheduleStickyProgressUpdate();
 			this._onDidScroll.fire(e);
 			this.updateScrollDownButtonVisibility();
 		}));
@@ -817,6 +829,9 @@ export class ChatListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests)
 				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.RichLinks)
+				|| e.affectsConfiguration(ChatConfiguration.HtmlPreviewEnabled)
+				|| e.affectsConfiguration(ChatConfiguration.NativeComponentsEnabled)
+				|| e.affectsConfiguration(ChatAIDisabledSettingId)
 				|| e.affectsConfiguration(ChatConfiguration.ProgressBorder)
 				|| e.affectsConfiguration(ChatConfiguration.PersistentProgress)
 				|| e.affectsConfiguration(ChatConfiguration.PersistentProgressVerbosity)) {
@@ -861,7 +876,7 @@ export class ChatListWidget extends Disposable {
 		// Cloning a range never yields the anchors around it, so ask the selection what it
 		// touches: otherwise a selection inside a link looks clean while the browser still
 		// copies the enclosing anchor.
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const touched = Array.from(this._container.querySelectorAll('a, img'))
 			.filter(element => selection.containsNode(element, true));
 		if (!touched.length) {
@@ -908,7 +923,7 @@ export class ChatListWidget extends Disposable {
 		this._container.classList.toggle('chat-list-scrolled-to-bottom', isScrolledToBottom);
 		// Scrolling cannot move the progress row; layout and its resize observer reposition a shown button.
 		if (showButton !== wasShown) {
-			this.updateScrollDownButtonPosition();
+			this._scrollDownButtonPositionScheduler.schedule();
 		}
 	}
 
@@ -922,6 +937,7 @@ export class ChatListWidget extends Disposable {
 	 * input even while no progress is shown.
 	 */
 	private updateScrollDownButtonPosition(): void {
+		this._scrollDownButtonPositionScheduler.cancel();
 		const button = this._scrollDownButton.element;
 		const progress = this._workingProgressContainer;
 		let bottom = '';
@@ -947,6 +963,14 @@ export class ChatListWidget extends Disposable {
 		e.browserEvent.stopPropagation();
 
 		const selected = e.element;
+		if (isScheduledRequestVM(selected)) {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => [...selected.actions],
+				getActionsContext: () => this._renderer.getTemplateDataForRequestId(selected.id)?.scheduledRequestAnchor,
+			});
+			return;
+		}
 
 		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 		const linkTarget = targetContext.linkTarget;
@@ -1134,8 +1158,7 @@ export class ChatListWidget extends Disposable {
 
 	/** The diff identity of an element; when it changes, a refresh replaces and re-renders its row. */
 	private getDiffIdentity(element: ChatTreeItem, editing: IChatRequestViewModel | undefined, consecutiveRequestIds: ReadonlySet<string>): string {
-		// Pending types only have 'id', request/response have 'dataId'
-		const baseId = (isRequestVM(element) || isResponseVM(element)) ? element.dataId : element.id;
+		const baseId = (isRequestVM(element) || isResponseVM(element) || isScheduledRequestVM(element)) ? element.dataId : element.id;
 		const disablement = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeRemovedOnSend : undefined;
 		const isLastItem = element.id === this._lastItem?.id;
 		// Per-element editing state: only re-render items whose editing role changed

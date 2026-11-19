@@ -41,13 +41,14 @@ import { IAgentHostEnablementService } from '../../../../../../../platform/agent
 import { IChatModelReference, IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, SessionTypeSelectionReason } from '../../../../common/constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason } from '../../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { IChatModel, IInputModel } from '../../../../common/model/chatModel.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { ILocalChatAvailabilityService } from '../../../../common/localChatAvailability.js';
 
 suite('ChatEditorInput', () => {
 
@@ -168,7 +169,7 @@ suite('ChatEditorInput', () => {
 			const createInput = (sessionResource: URI) => disposables.add(new ChatEditorInput(sessionResource, {}, chatService,
 				upcastPartial<IDialogService>({}), configurationService, sessions, instantiationService, disposables.add(new TestStorageService()), new NullLogService(), new TestContextService(),
 				{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
-				upcastPartial<IAgentHostConnectionsService>({}), NullTelemetryService, upcastPartial<IProgressService>({}), new NullManagedSettingsService(), settledPolicyGate));
+				upcastPartial<IAgentHostConnectionsService>({}), NullTelemetryService, upcastPartial<IProgressService>({}), new NullManagedSettingsService(), settledPolicyGate, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) })));
 			const input = createInput(resource);
 			input.updateModel(oldModel);
 			const editor = disposables.add(instantiationService.createInstance(ChatEditor, upcastPartial<IEditorGroup>({ id: 1 })));
@@ -295,6 +296,7 @@ suite('ChatEditorInput', () => {
 						override getManagedSettings() { return rules === undefined ? {} : { [policyKey]: rules }; }
 					}(),
 					{ ...settledPolicyGate, whenInitialized: () => ready.p },
+					upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 				));
 				const pending = input.resolve();
 				const before = [...selected];
@@ -332,6 +334,7 @@ suite('ChatEditorInput', () => {
 					upcastPartial<IAgentHostConnectionsService>({}), NullTelemetryService, upcastPartial<IProgressService>({}),
 					new NullManagedSettingsService(),
 					{ ...settledPolicyGate, whenInitialized: () => { entered.complete(); return ready.p; } },
+					upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 				));
 				const pending = input.resolve(cancellation.token);
 				await entered.p;
@@ -362,6 +365,7 @@ suite('ChatEditorInput', () => {
 				upcastPartial<IAgentHostConnectionsService>({}), NullTelemetryService, upcastPartial<IProgressService>({}),
 				new NullManagedSettingsService(),
 				{ ...settledPolicyGate, whenInitialized: () => { throw new Error('Restoring history must not wait for policy'); } },
+				upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 			));
 			assert.strictEqual((await input.resolve())?.model, model);
 		});
@@ -396,7 +400,7 @@ suite('ChatEditorInput', () => {
 					},
 				}),
 				upcastPartial<IDialogService>({}),
-				new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }),
+				new TestConfigurationService(),
 				upcastPartial<IChatSessionsService>({}),
 				upcastPartial<IInstantiationService>({}),
 				upcastPartial<IStorageService>({}),
@@ -408,6 +412,7 @@ suite('ChatEditorInput', () => {
 				upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }),
 				new NullManagedSettingsService(),
 				settledPolicyGate,
+				upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 			));
 			assert.deepStrictEqual({ resolved: await input.resolve(), events }, {
 				resolved: null,
@@ -454,6 +459,7 @@ suite('ChatEditorInput', () => {
 			upcastPartial<IProgressService>({}),
 			new NullManagedSettingsService(),
 			settledPolicyGate,
+			upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 		));
 		input.updateModel(model);
 		return { input, prompt };
@@ -547,6 +553,7 @@ suite('ChatEditorInput', () => {
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 			new NullManagedSettingsService(),
 			settledPolicyGate,
+			upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 		));
 
 		const resolved = await input.resolve();
@@ -608,6 +615,7 @@ suite('ChatEditorInput', () => {
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 			new NullManagedSettingsService(),
 			settledPolicyGate,
+			upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 		));
 
 		const resolved = await input.resolve();
@@ -661,6 +669,7 @@ suite('ChatEditorInput', () => {
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 			new NullManagedSettingsService(),
 			settledPolicyGate,
+			upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 		));
 
 		const resolved = await input.resolve();
@@ -668,61 +677,69 @@ suite('ChatEditorInput', () => {
 		assert.deepStrictEqual({ model: resolved?.model, acquiredReason }, { model, acquiredReason: 'copilotPreference' });
 	});
 
-	test('unavailable Agent Host session falls back to Local with its selection reason', async () => {
-		const unavailableResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-unavailable' });
-		const localResource = LocalChatSessionUri.forSession('agent-host-unavailable-fallback');
-		const model = {
-			onDidDispose: Event.None,
-			onDidChange: Event.None,
-			sessionResource: localResource,
-		} as Partial<IChatModel> as IChatModel;
+	for (const localHidden of [false, true]) {
+		test(`unavailable Agent Host session ${localHidden ? 'reports an error instead of falling back to Local while Local chats are hidden' : 'falls back to Local with its selection reason'}`, async () => {
+			const unavailableResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-unavailable' });
+			const localResource = LocalChatSessionUri.forSession('agent-host-unavailable-fallback');
+			const model = {
+				onDidDispose: Event.None,
+				onDidChange: Event.None,
+				sessionResource: localResource,
+			} as Partial<IChatModel> as IChatModel;
 
-		let startCall: { location: ChatAgentLocation; options: IChatSessionStartOptions | undefined } | undefined;
-		const chatService = {
-			async acquireOrLoadSession() {
-				return undefined;
-			},
-			startNewLocalSession(location: ChatAgentLocation, options?: IChatSessionStartOptions) {
-				startCall = { location, options };
-				return { object: model, dispose: () => { } };
-			},
-		} as Partial<IChatService> as IChatService;
+			let startCall: { location: ChatAgentLocation; options: IChatSessionStartOptions | undefined } | undefined;
+			const chatService = {
+				async acquireOrLoadSession() {
+					return undefined;
+				},
+				startNewLocalSession(location: ChatAgentLocation, options?: IChatSessionStartOptions) {
+					startCall = { location, options };
+					return { object: model, dispose: () => { } };
+				},
+			} as Partial<IChatService> as IChatService;
 
-		const input = disposables.add(new ChatEditorInput(
-			unavailableResource,
-			{ sessionTypeSelectionReason: 'explicitOverride' },
-			chatService,
-			{} as IDialogService,
-			new TestConfigurationService(),
-			new MockChatSessionsService(),
-			{} as IInstantiationService,
-			{} as IStorageService,
-			new NullLogService(),
-			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
-			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
-			NullTelemetryService,
-			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
-			new NullManagedSettingsService(),
-			settledPolicyGate,
-		));
+			const input = disposables.add(new ChatEditorInput(
+				unavailableResource,
+				{ sessionTypeSelectionReason: 'explicitOverride' },
+				chatService,
+				{} as IDialogService,
+				new TestConfigurationService(),
+				new MockChatSessionsService(),
+				{} as IInstantiationService,
+				{} as IStorageService,
+				new NullLogService(),
+				new TestContextService(),
+				{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
+				{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
+				NullTelemetryService,
+				{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
+				new NullManagedSettingsService(),
+				settledPolicyGate,
+				upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(localHidden) }),
+			));
 
-		const resolved = await input.resolve();
+			if (localHidden) {
+				await assert.rejects(input.resolve(), /The chat could not start\. Try again or choose another available agent\./);
+				assert.strictEqual(startCall, undefined);
+				return;
+			}
+			const resolved = await input.resolve();
 
-		assert.deepStrictEqual({
-			model: resolved?.model,
-			sessionResource: input.sessionResource,
-			startLocation: startCall?.location,
-			debugOwner: startCall?.options?.debugOwner,
-			selectionReason: startCall?.options?.sessionTypeSelectionReason,
-		}, {
-			model,
-			sessionResource: localResource,
-			startLocation: ChatAgentLocation.Chat,
-			debugOwner: 'ChatEditorInput#resolveUntitledFallback',
-			selectionReason: 'agentHostUnavailable',
+			assert.deepStrictEqual({
+				model: resolved?.model,
+				sessionResource: input.sessionResource,
+				startLocation: startCall?.location,
+				debugOwner: startCall?.options?.debugOwner,
+				selectionReason: startCall?.options?.sessionTypeSelectionReason,
+			}, {
+				model,
+				sessionResource: localResource,
+				startLocation: ChatAgentLocation.Chat,
+				debugOwner: 'ChatEditorInput#resolveUntitledFallback',
+				selectionReason: 'agentHostUnavailable',
+			});
 		});
-	});
+	}
 
 	test('restored empty draft of a harness disabled by policy opens the default new chat', async () => {
 		const draftResource = URI.from({ scheme: SessionType.AgentHostClaude, path: '/untitled-disabled' });
@@ -770,6 +787,7 @@ suite('ChatEditorInput', () => {
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 			new NullManagedSettingsService(),
 			settledPolicyGate,
+			upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 		));
 
 		const resolved = await input.resolve();
@@ -826,6 +844,7 @@ suite('ChatEditorInput', () => {
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 			new NullManagedSettingsService(),
 			settledPolicyGate,
+			upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 		));
 
 		const resolved = await input.resolve();
@@ -866,6 +885,7 @@ suite('ChatEditorInput', () => {
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(IWorkspaceContextService, workspaceContextService);
 		instantiationService.set(IAgentHostEnablementService, agentHostEnablementService);
+		instantiationService.set(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 
 		const input = store.add(instantiationService.createInstance(
 			ChatEditorInput,
@@ -910,6 +930,7 @@ suite('ChatEditorInput', () => {
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
 		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
+		instantiationService.set(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 		return store.add(instantiationService.createInstance(ChatEditorInput, resource, {}));
 	}
 
@@ -942,6 +963,7 @@ suite('ChatEditorInput', () => {
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
 		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
+		instantiationService.set(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 
 		const resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session-1' });
 		const serializer = new ChatEditorInputSerializer();

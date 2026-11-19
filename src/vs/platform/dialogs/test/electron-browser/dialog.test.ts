@@ -29,7 +29,7 @@ suite('Dialog', () => {
 			copilotVersions: { runtime, sdk }
 		};
 		const { details, detailsToCopy } = createNativeAboutDialogDetails(productService, osProperties);
-		const selectCopilotVersionLines = (value: string) => value.split('\n').filter(line => line.startsWith('@github/copilot'));
+		const selectCopilotVersionLines = (value: string) => value.split('\n').filter(line => line.startsWith('@github/copilot:') || line.startsWith('@microsoft/copilot-sdk:'));
 
 		return {
 			details: selectCopilotVersionLines(details),
@@ -43,11 +43,11 @@ suite('Dialog', () => {
 			{
 				details: [
 					'@github/copilot: 1.0.84.70.gdb75d0d',
-					'@github/copilot-sdk: 0.1.23.45.gabcdef'
+					'@microsoft/copilot-sdk: 0.1.23.45.gabcdef'
 				],
 				detailsToCopy: [
 					'@github/copilot: 1.0.84.70.gdb75d0d',
-					'@github/copilot-sdk: 0.1.23.45.gabcdef'
+					'@microsoft/copilot-sdk: 0.1.23.45.gabcdef'
 				]
 			}
 		);
@@ -59,11 +59,11 @@ suite('Dialog', () => {
 			{
 				details: [
 					'@github/copilot: 1.0.85.r35379093703.g3514c9a',
-					'@github/copilot-sdk: 1.0.15.35393089353.gfc44743'
+					'@microsoft/copilot-sdk: 1.0.15.35393089353.gfc44743'
 				],
 				detailsToCopy: [
 					'@github/copilot: 1.0.85.r35379093703.g3514c9a',
-					'@github/copilot-sdk: 1.0.15.35393089353.gfc44743'
+					'@microsoft/copilot-sdk: 1.0.15.35393089353.gfc44743'
 				]
 			}
 		);
@@ -130,7 +130,7 @@ suite('Dialog', () => {
 		test(`formats Copilot unstable versions: ${name}`, () => {
 			const expected = [
 				`@github/copilot: ${expectedRuntime}`,
-				`@github/copilot-sdk: ${expectedSdk}`
+				`@microsoft/copilot-sdk: ${expectedSdk}`
 			];
 			assert.deepStrictEqual(getCopilotVersionLines(runtime, sdk), {
 				details: expected,
@@ -145,11 +145,11 @@ suite('Dialog', () => {
 			{
 				details: [
 					'@github/copilot: 1.0.84',
-					'@github/copilot-sdk: 0.1.23'
+					'@microsoft/copilot-sdk: 0.1.23'
 				],
 				detailsToCopy: [
 					'@github/copilot: 1.0.84',
-					'@github/copilot-sdk: 0.1.23'
+					'@microsoft/copilot-sdk: 0.1.23'
 				]
 			}
 		);

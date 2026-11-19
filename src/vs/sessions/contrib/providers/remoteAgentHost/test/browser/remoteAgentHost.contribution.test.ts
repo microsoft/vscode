@@ -8,14 +8,14 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { AgentHostAuthenticationRecovery, AgentHostAuthTokenCache } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type IAgentHostAdvertisedAuthenticationResolver, type IAgentHostAuthenticationSessionRemoval } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { type IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry, getEntryAddress, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { type IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry, type IRemoteAgentHostService, getEntryAddress, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -43,6 +43,7 @@ import { CloudSandboxAgentHostService } from '../../../../../../workbench/contri
 import { createCloudSandboxConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost.contribution.js';
+import { IExtensionRemoteAgentHostsService } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { MissionControlAgentHostContribution } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/missionControlAgentHostContribution.js';
 import { IEntryDrivenProviderOptions } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
 import '../../browser/remoteAgentHost.contribution.js';
@@ -78,6 +79,7 @@ function createAuthenticationInstantiationService(store: Pick<DisposableStore, '
 	service.stub(IConfigurationService, new TestConfigurationService());
 	service.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 		override readonly currentDefaultAccount = null;
+		override getDefaultAccountAuthenticationProvider() { return { id: 'test-provider', name: 'Test Provider', enterprise: false }; }
 	}());
 	return service;
 }
@@ -445,12 +447,7 @@ suite('RemoteAgentHost auth notifications', () => {
 			resource: 'https://api.example.com/session',
 			scopes: ['session:read'],
 			token: 'session-token',
-			_meta: {
-				'vscode.authentication.account': {
-					providerId: 'test-provider',
-					accountId: 'account-id',
-				},
-			},
+			accountId: '["test-provider","account-id",null]',
 		}]);
 	});
 
@@ -579,9 +576,11 @@ suite('RemoteAgentHost auth notifications', () => {
 interface IProviderOwnerHarness {
 	_configurationService: { getValue(key: string): boolean };
 	_remoteAgentHostService: { readonly configuredEntries: readonly IRemoteAgentHostEntry[] };
+	_extensionRemoteAgentHostsService: Pick<IExtensionRemoteAgentHostsService, 'hosts'>;
 	_entryType: RemoteAgentHostEntryType;
 	_providerStores: Map<string, undefined> & { deleteAndDispose(address: string): void };
 	_providerInstances: Map<string, { readonly label: string; readonly defaultLabel: string }>;
+	_providerEntryTypes: Map<string, RemoteAgentHostEntryType>;
 	_createProvider(address: string): void;
 	_getProviderOptions(entry: IRemoteAgentHostEntry): object;
 	_reconcileProviders(): void;
@@ -595,6 +594,12 @@ interface IMissionControlProviderOwnerHarness extends IProviderOwnerHarness {
 		getConnection(address: string): Pick<IAgentConnection, 'rootState'> | undefined;
 	};
 	_getProviderEntries(): readonly IRemoteAgentHostEntry[];
+}
+
+interface IExtensionProviderOwnerHarness {
+	_extensionRemoteAgentHostsService: Pick<IExtensionRemoteAgentHostsService, 'setDisconnected'>;
+	_remoteAgentHostService: Pick<IRemoteAgentHostService, 'removeRemoteAgentHost' | 'reconnect' | 'waitForConnection'>;
+	_getProviderOptions(entry: IRemoteAgentHostEntry): IEntryDrivenProviderOptions;
 }
 
 interface IRemoteAgentRegistrationHarness {
@@ -616,12 +621,14 @@ suite('Remote agent host provider ownership', () => {
 		const contribution = Object.create(prototype) as IProviderOwnerHarness;
 		contribution._configurationService = { getValue: () => true };
 		contribution._remoteAgentHostService = { configuredEntries: entries };
+		contribution._extensionRemoteAgentHostsService = { hosts: constObservable([]) };
 		contribution._entryType = entryType;
 		const providerStores = new Map<string, undefined>();
 		contribution._providerStores = Object.assign(providerStores, {
 			deleteAndDispose: (address: string) => { providerStores.delete(address); },
 		});
 		contribution._providerInstances = new Map();
+		contribution._providerEntryTypes = new Map();
 		return contribution;
 	}
 
@@ -665,6 +672,30 @@ suite('Remote agent host provider ownership', () => {
 			retained: options.retainSessionsOnDisconnect,
 			readOnlyOffline: options.readOnlyWhenDisconnected,
 		}, { entries: [entries[0]], connectable: true, canRemove: false, remove: undefined, retained: undefined, readOnlyOffline: true });
+	});
+
+	test('extension hosts cannot be removed, disconnecting one keeps it from being dialed again, and connecting it dials it as the user asked', async () => {
+		const address = '127.0.0.1:8445';
+		const events: string[] = [];
+		const owner = Object.create(WebSocketAgentHostContribution.prototype) as IExtensionProviderOwnerHarness;
+		owner._extensionRemoteAgentHostsService = { setDisconnected: (address, disconnected) => { events.push(`${disconnected ? 'disconnected' : 'connected'} ${address}`); } };
+		owner._remoteAgentHostService = {
+			removeRemoteAgentHost: async address => { events.push(`closed ${address}`); },
+			reconnect: (address, userInitiated) => { events.push(`dialed ${address}${userInitiated ? ' for the user' : ''}`); },
+			waitForConnection: async address => { events.push(`waited for ${address}`); return { address, name: 'Job Runner', status: RemoteAgentHostConnectionStatus.connected }; },
+		};
+		const options = owner._getProviderOptions({
+			name: 'Job Runner',
+			connection: { type: RemoteAgentHostEntryType.Extension, address, extensionId: 'publisher.jobs', extensionDisplayName: 'Job Runner' },
+		});
+		await options.disconnectOnDemand?.();
+		await options.connectOnDemand?.();
+
+		assert.deepStrictEqual({ canRemove: options.canRemove, remove: options.removeOnDemand, events }, {
+			canRemove: false,
+			remove: undefined,
+			events: [`disconnected ${address}`, `closed ${address}`, `connected ${address}`, `dialed ${address} for the user`, `waited for ${address}`],
+		});
 	});
 
 	test('gives WebSocket and SSH entries distinct owners while the shared contribution registers none', () => {

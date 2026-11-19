@@ -10,6 +10,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../browser/widget/input/chatInputNoticeWidget.js';
+import { registerTestIframe } from '../../../../../../../base/test/browser/testWindow.js';
 
 suite('ChatInputNoticeWidget', () => {
 
@@ -67,6 +68,7 @@ suite('ChatInputNoticeWidget', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		disposables.add(toDisposable(() => iframe.remove()));
+		disposables.add(registerTestIframe(iframe));
 
 		const auxiliaryDocument = iframe.contentDocument!;
 		const container = document.createElement('div');

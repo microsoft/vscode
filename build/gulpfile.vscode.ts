@@ -45,7 +45,7 @@ const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 const copilotRuntimeVersion = getCopilotRuntimeVersion(path.join(root, 'node_modules'));
 if (packageJson.copilotRuntimeVersion !== copilotRuntimeVersion) {
-	throw new Error(`package.json declares Copilot runtime ${packageJson.copilotRuntimeVersion}, but @github/copilot-sdk bundles ${copilotRuntimeVersion}.`);
+	throw new Error(`package.json declares Copilot runtime ${packageJson.copilotRuntimeVersion}, but @microsoft/copilot-sdk bundles ${copilotRuntimeVersion}.`);
 }
 
 function getLockedPackageVersion(packageName: string): string {
@@ -206,7 +206,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.version = version;
 				json.copilotVersions = {
 					runtime: copilotRuntimeVersion,
-					sdk: getLockedPackageVersion('@github/copilot-sdk'),
+					sdk: getLockedPackageVersion('@microsoft/copilot-sdk'),
 				};
 				// Stamp agentSdks from the per-platform results file produced
 				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
@@ -255,12 +255,13 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
 		ensureOSProxyResolverPlatformPackage(platform, arch);
 		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
+		// `cleanedDeps` has already dropped dot files; keep those of the platform packages, such as SDK plugin manifests.
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)
-			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
-			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
-			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
-			.pipe(filter(getFoundryLocalExcludeFilter()))
-			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
+			.pipe(filter(getCopilotExcludeFilter(platform, arch), { dot: true }))
+			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch), { dot: true }))
+			.pipe(filter(getRipgrepExcludeFilter(platform, arch), { dot: true }))
+			.pipe(filter(getFoundryLocalExcludeFilter(), { dot: true }))
+			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch), { dot: true }))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
@@ -268,7 +269,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**/*.node',
 				'**/@vscode/ripgrep-universal/bin/**',
 				// The SDK runtime wrapper and native module must remain adjacent on disk.
-				'**/@github/copilot-sdk-{darwin,linux,linuxmusl,win32}-*/**',
+				'**/@microsoft/copilot-sdk-{darwin,linux,linuxmusl,win32}-*/**',
 				// The Dev Container CLI is spawned as an external Node process,
 				// so its bundled entrypoint must be available outside the ASAR.
 				'**/@devcontainers/cli/**',

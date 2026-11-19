@@ -47,6 +47,7 @@ import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { buildModalNavigationForPagedList } from '../../extensions/browser/extensionsViewer.js';
+import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 
 export interface McpServerListViewOptions {
 	showMarketplaceWelcome?: boolean;
@@ -55,7 +56,6 @@ export interface McpServerListViewOptions {
 interface IQueryResult {
 	model: IPagedModel<IWorkbenchMcpServer>;
 	disposables: DisposableStore;
-	showWelcomeContent?: boolean;
 	readonly onDidChangeModel?: Event<IPagedModel<IWorkbenchMcpServer>>;
 }
 
@@ -79,6 +79,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 	private readonly modalNavigationDisposable = this._register(new MutableDisposable());
 	private input: IQueryResult | undefined;
 	private currentQuery = '@mcp';
+	private queryGeneration = 0;
 
 	constructor(
 		private readonly mpcViewOptions: McpServerListViewOptions,
@@ -95,14 +96,16 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
+		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
 	) {
 		super(options, keybindingService, contextMenuService, marketplaceConfigurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this._register(this.marketplaceConfigurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) && this.isBodyVisible()) {
-				void this.show(this.currentQuery);
+			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+				this.refreshCurrentQuery();
 			}
 		}));
+		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => this.refreshCurrentQuery()));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -214,61 +217,68 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 
 	async show(query: string): Promise<IPagedModel<IWorkbenchMcpServer>> {
 		this.currentQuery = query;
-		if (this.input) {
-			this.input.disposables.dispose();
-			this.input = undefined;
-		}
+		const queryGeneration = ++this.queryGeneration;
 
-		if (this.mpcViewOptions.showMarketplaceWelcome && this.marketplaceConfigurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true) {
-			this.input = { model: new PagedModel([]), disposables: new DisposableStore(), showWelcomeContent: true };
+		this.setInput({ model: new PagedModel([]), disposables: new DisposableStore() }, false);
+		const input = await this.query(query.trim());
+		if (queryGeneration !== this.queryGeneration) {
+			input.disposables.dispose();
+			return this.input?.model ?? new PagedModel([]);
+		}
+		this.setInput(input);
+		return input.model;
+	}
+
+	private refreshCurrentQuery(): void {
+		if (this.isBodyVisible()) {
+			void this.show(this.currentQuery);
 		} else {
-			this.input = await this.query(query.trim());
+			++this.queryGeneration;
+			this.setInput({ model: new PagedModel([]), disposables: new DisposableStore() }, false);
 		}
+	}
 
-		this.renderInput();
+	private setInput(input: IQueryResult, announce = true): void {
+		this.input?.disposables.dispose();
+		this.input = input;
+		this.renderInput(announce);
 
-		if (this.input.onDidChangeModel) {
-			this.input.disposables.add(this.input.onDidChangeModel(model => {
-				if (!this.input) {
+		if (input.onDidChangeModel) {
+			input.disposables.add(input.onDidChangeModel(model => {
+				if (this.input !== input) {
 					return;
 				}
-				this.input.model = model;
+				input.model = model;
 				this.renderInput();
 			}));
 		}
-
-		return this.input.model;
 	}
 
-	private renderInput() {
+	private renderInput(announce = true) {
 		if (!this.input) {
 			return;
 		}
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(this.input.model);
 		}
-		this.showWelcomeContent(!!this.input.showWelcomeContent);
-		if (!this.input.showWelcomeContent) {
-			this.updateBody();
-		}
+		this.showMarketplaceWelcome(this.mpcViewOptions.showMarketplaceWelcome === true && this.marketplaceConfigurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true);
+		this.updateBody(undefined, announce);
 	}
 
-	private showWelcomeContent(show: boolean): void {
+	private showMarketplaceWelcome(show: boolean): void {
 		this.welcomeContainer?.classList.toggle('hide', !show);
-		this.listContainer?.classList.toggle('hide', show);
-		this.bodyTemplate?.messageContainer.classList.toggle('hidden', show);
 	}
 
 	private createWelcomeContent(welcomeContainer: HTMLElement): void {
 		this._register(this.instantiationService.createInstance(CustomizationMarketplaceWelcome, welcomeContainer, {
-			title: localize('mcp.welcome.title', "Find MCP Servers in Customizations"),
-			description: new MarkdownString(localize('mcp.welcome.descriptionWithLink', "Browse and install [Model Context Protocol (MCP) servers](https://code.visualstudio.com/docs/agent-customization/mcp-servers) from the Customizations marketplace.")),
-			buttonLabel: localize('mcp.welcome.openCustomizationsButton', "Browse MCP Servers"),
+			title: localize('mcp.welcome.title', "MCP Servers have moved"),
+			description: new MarkdownString(localize('mcp.welcome.description', "Browse and manage MCP servers in Customizations")),
+			buttonLabel: localize('mcp.welcome.openCustomizationsButton', "Browse"),
 			section: AICustomizationManagementSection.McpServers,
 		}));
 	}
 
-	private updateBody(message?: Message): void {
+	private updateBody(message?: Message, announce = true): void {
 		if (this.bodyTemplate) {
 
 			const count = this.input?.model.length ?? 0;
@@ -283,7 +293,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 					this.bodyTemplate.messageSeverityIcon.className = '';
 					this.bodyTemplate.messageBox.textContent = localize('no extensions found', "No MCP Servers found.");
 				}
-				if (this.bodyTemplate.messageBox.textContent) {
+				if (announce && this.bodyTemplate.messageBox.textContent) {
 					alert(this.bodyTemplate.messageBox.textContent);
 				}
 			}
@@ -487,7 +497,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 			{
 				id: InstalledMcpServersViewId,
 				name: localize2('mcp-installed', "MCP Servers - Installed"),
-				ctorDescriptor: new SyncDescriptor(McpServersListView, [{}]),
+				ctorDescriptor: new SyncDescriptor(McpServersListView, [{ showMarketplaceWelcome: true }]),
 				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				weight: 40,
 				order: 4,

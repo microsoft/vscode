@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isWindows } from '../../../../base/common/platform.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
@@ -63,8 +65,10 @@ import {
 	IBrowserViewHost,
 	IBrowserViewAccessibilitySnapshot,
 	IBrowserViewNetwork,
+	IBrowserViewNetworkFileSystem,
 	IBrowserViewSessionOptions,
 	getBrowserViewSessionNetwork,
+	BROWSER_REMOTE_FILE_SCHEMES,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -84,14 +88,23 @@ export const enum BrowserViewSharingState {
 	Unavailable = 'unavailable',
 }
 
-/** Adds the default scheme used for browser navigation. */
-export function normalizeBrowserViewUrl(url: string): string {
+/**
+ * Normalizes a URL for browser navigation: adds the default scheme when missing, and for `file:` URLs
+ * decodes a percent-encoded Windows drive-letter colon (`file:///c%3A/x.html` becomes `file:///c:/x.html`)
+ * because external shells cannot resolve the encoded form. All other escapes are preserved. The drive-letter
+ * rewrite only applies on Windows, where `/c:/` is a drive; elsewhere it is an ordinary directory name.
+ */
+export function normalizeBrowserViewUrl(url: string, windows = isWindows): string {
 	// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
 	if (/^localhost(:|\/|$)/i.test(url)) {
 		url = 'http://' + url;
 	} else if (!URL.parse(url)?.protocol) {
 		// No scheme — default to http://; sites typically upgrade to https://.
 		url = 'http://' + url;
+	}
+
+	if (windows && /^file:/i.test(url)) {
+		url = url.replace(/^(file:\/\/[^/]*\/[a-zA-Z])%3A/i, '$1:');
 	}
 
 	return url;
@@ -217,6 +230,11 @@ export type IBrowserViewSessionRequest = IBrowserViewSessionOptions | {
 	readonly network?: IBrowserViewNetwork;
 };
 
+/** Local file resources in a remote context need an isolated session on the local network. */
+export function getLocalFileBrowserViewSession(resource: URI | undefined, network: IBrowserViewNetwork | undefined): IBrowserViewSessionOptions | undefined {
+	return resource?.scheme === Schemas.file && network ? { scope: BrowserViewStorageScope.Ephemeral } : undefined;
+}
+
 /** View state carried in editor options and saved with browser tabs. */
 export interface IBrowserEditorViewState {
 	readonly url?: string;
@@ -277,8 +295,14 @@ export interface IBrowserViewOpenHandler {
 	shouldOpenEditor(input: BrowserEditorInput, owner: IBrowserViewOwner, editorOptions: IBrowserViewEditorOpenOptions): boolean;
 }
 
+/** Resource schemes of HTML files that can be opened in the integrated browser. */
+export const BROWSER_FILE_SCHEMES: readonly string[] = [Schemas.file, ...BROWSER_REMOTE_FILE_SCHEMES];
+
 /** Whether browser views may use remote networks (see {@link IBrowserViewNetworkResolver}). */
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
+
+/** Whether the page is dimmed while something overlaps it (the screenshot swap happens regardless). */
+export const BrowserDimOverlaySettingId = 'workbench.browser.dimOnOverlay';
 
 /**
  * Resolves the opening network and optional workspace storage partition,
@@ -301,6 +325,15 @@ export interface IBrowserViewNetworkResolver {
 	 * Called synchronously alongside {@link resolveNetwork}.
 	 */
 	resolveStorageAffinity?(owner: IBrowserViewOwner): string | undefined;
+	/** Trusted folders on the file systems of the networks this resolver resolves views to, which tabs of any session may load files from. */
+	getTrustedFileRoots?(): readonly URI[];
+	/**
+	 * Whether the file system of a network distinguishes paths by case, or `undefined` if unknown.
+	 * Only asked for networks that are not the window's own remote.
+	 */
+	isPathCaseSensitive?(network: IBrowserViewNetwork): boolean | undefined;
+	/** Fires when what tabs may read from the networks' file systems may have changed: {@link getTrustedFileRoots} or {@link isPathCaseSensitive}. */
+	readonly onDidChangeFileAccess?: Event<void>;
 	/** The status of a network this resolver resolves views to. */
 	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus;
 	/** Fires when the status of any network may have changed. */
@@ -353,6 +386,12 @@ export interface IBrowserViewWorkbenchService {
 	 * An existing view's network is its model's {@link IBrowserViewModel.network}.
 	 */
 	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
+
+	/**
+	 * The file system behind a remote network: the scheme of the URIs that read it (`vscode-remote` for the window's own remote,
+	 * otherwise the agent host scheme), and whether it distinguishes paths by case (strict if unknown).
+	 */
+	getNetworkFileSystem(network: IBrowserViewNetwork): IBrowserViewNetworkFileSystem;
 
 	/**
 	 * Hold a network's proxy until the returned reference is disposed, so
@@ -771,11 +810,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}));
 
 		this._register(this.onDidNavigate(e => {
-			// Clear favicon on navigation to a different host
-			if (URL.parse(e.url)?.host !== URL.parse(this._url)?.host) {
-				this._favicon = undefined;
-			}
-
 			this._zoomHost = parseZoomHost(e.url);
 			this._url = e.url;
 			this._title = e.title;

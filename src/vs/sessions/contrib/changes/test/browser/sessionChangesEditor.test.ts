@@ -27,7 +27,7 @@ import { MultiDiffEditorFileList } from '../../../../../workbench/contrib/multiD
 import { FocusFileListAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { SessionChangesEditorFileListContext } from '../../../../../workbench/contrib/sessions/common/changes.js';
-import { isMultiDiffEditorFileListHost, multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListVisibleContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { isMultiDiffEditorFileListHost, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
@@ -285,7 +285,6 @@ suite('SessionChangesEditor changed files list', () => {
 			return {
 				available: hostContextKeyService.getContextKeyValue(MultiDiffEditorFileListAvailableContext.key),
 				shown: hostContextKeyService.getContextKeyValue(MultiDiffEditorFileListEnabledContext.key),
-				visible: hostContextKeyService.getContextKeyValue(MultiDiffEditorFileListVisibleContext.key),
 				focusFileListInCommandPalette: hostContextKeyService.contextMatchesRules(new FocusFileListAction().desc.precondition),
 				headerBorder: body.classList.contains('file-list-visible') ? `${headerBorder.top} ${headerBorder.height} ${headerBorder.backgroundColor}` : 'none',
 			};
@@ -304,18 +303,16 @@ suite('SessionChangesEditor changed files list', () => {
 		hostFileList.reset();
 		const offAgain = read();
 
-		const hiddenList = { available: true, shown: false, visible: false, focusFileListInCommandPalette: true, headerBorder: 'none' };
-		const noList = { available: false, shown: false, visible: false, focusFileListInCommandPalette: false, headerBorder: 'none' };
-		const list = { available: true, shown: true, visible: true, focusFileListInCommandPalette: true, headerBorder: '-1px 1px rgb(1, 2, 3)' };
-		assert.deepStrictEqual({ experimentalFileList: instantiationService.get(IConfigurationService).getValue(multiDiffEditorExperimentalFileListSetting) ?? false, off, focusedWhileOff, on, hidden, focused, offAgain, togglesFromHeader: editor.togglesFileListFromEditorHeader, host: isMultiDiffEditorFileListHost(editor) }, {
-			experimentalFileList: false,
+		const hiddenList = { available: true, shown: false, focusFileListInCommandPalette: true, headerBorder: 'none' };
+		const noList = { available: false, shown: false, focusFileListInCommandPalette: false, headerBorder: 'none' };
+		const list = { available: true, shown: true, focusFileListInCommandPalette: true, headerBorder: '-1px 1px rgb(1, 2, 3)' };
+		assert.deepStrictEqual({ off, focusedWhileOff, on, hidden, focused, offAgain, host: isMultiDiffEditorFileListHost(editor) }, {
 			off: noList,
 			focusedWhileOff: { ...noList, calls: [] },
 			on: list,
 			hidden: hiddenList,
 			focused: { ...list, calls: ['focus'] },
 			offAgain: noList,
-			togglesFromHeader: true,
 			host: true,
 		});
 	});

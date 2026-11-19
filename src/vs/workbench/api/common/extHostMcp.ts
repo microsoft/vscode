@@ -704,7 +704,13 @@ export class McpHTTPHandle extends Disposable {
 			if (event.type === 'message') {
 				this._proxy.$onDidReceiveMessage(this._id, event.data);
 			} else if (event.type === 'endpoint') {
-				postEndpoint.complete(new URL(event.data, this._launch.uri.toString(true)).toString());
+				try {
+					const endpoint = new URL(event.data, this._launch.uri.toString(true)).toString();
+					this._validateDestinationAndGetIsSameOrigin(endpoint);
+					postEndpoint.complete(endpoint);
+				} catch (error) {
+					postEndpoint.error(error);
+				}
 			}
 		});
 
@@ -890,16 +896,7 @@ export class McpHTTPHandle extends Disposable {
 	}
 
 	private async _fetch(url: string, init: MinimalRequestInit, options: { isAuthMetadata?: boolean; transportHeaders?: Readonly<Record<string, string>> } = {}): Promise<CommonResponse> {
-		const destination = new URL(url);
-		const configuredUrl = this._launch.uri.toString(true);
-		const isHttp = HTTP_PROTOCOLS.has(destination.protocol);
-		const isSameOrigin = isHttp
-			? destination.origin === new URL(configuredUrl).origin
-			: isSameSocketEndpoint(url, configuredUrl);
-		if (!isHttp && !isSameOrigin) {
-			throw new Error(localize('mcpUnsupportedDestination', "MCP server selected a non-http(s) destination ({0}), which is not allowed", destination.protocol));
-		}
-
+		const isSameOrigin = this._validateDestinationAndGetIsSameOrigin(url);
 		const transportHeaders = { ...options.transportHeaders, 'user-agent': `${product.nameLong}/${product.version}` };
 		init = { ...init, headers: { ...init.headers } };
 		for (const [name, value] of Object.entries(transportHeaders)) {
@@ -988,6 +985,20 @@ export class McpHTTPHandle extends Disposable {
 		}
 
 		return response;
+	}
+
+	private _validateDestinationAndGetIsSameOrigin(url: string): boolean {
+		const destination = new URL(url);
+		const configuredUrl = this._launch.uri.toString(true);
+		const isHttp = HTTP_PROTOCOLS.has(destination.protocol);
+		const isSameOrigin = isHttp
+			? destination.origin === new URL(configuredUrl).origin
+			: isSameSocketEndpoint(url, configuredUrl);
+		if (!isHttp && !isSameOrigin) {
+			throw new Error(localize('mcpUnsupportedDestination', "MCP server selected a non-http(s) destination ({0}), which is not allowed", destination.protocol));
+		}
+
+		return isSameOrigin;
 	}
 
 	private _stripCrossOriginHeaders(headers: Record<string, string>, transportHeaders: Readonly<Record<string, string>>): Record<string, string> {

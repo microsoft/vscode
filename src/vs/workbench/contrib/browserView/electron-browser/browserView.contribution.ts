@@ -14,9 +14,12 @@ import { BrowserViewUri } from '../../../../platform/browserView/common/browserV
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
+import { BROWSER_FILE_SCHEMES, BrowserRemoteProxyEnabledSettingId, IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -64,6 +67,8 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IBrowserViewWorkbenchService browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeBrowser}:/**`,
@@ -103,41 +108,48 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 			}
 		);
 
-		for (const extension of ['html', 'htm', 'mhtml', 'mht']) {
-			editorResolverService.registerEditor(
-				`${Schemas.file}:/**/*.${extension}`,
-				{
-					id: BrowserEditorInput.EDITOR_ID,
-					label: localize('browser.htmlEditorLabel', "Integrated Browser"),
-					priority: RegisteredEditorPriority.option
-				},
-				{
-					canSupportResource: resource => resource.scheme === Schemas.file,
-					singlePerResource: true
-				},
-				{
-					createEditorInput: ({ resource, options }) => {
-						logBrowserOpen(telemetryService, 'fileResource');
+		// Only the Agents window has a network resolver for agent hosts.
+		const fileSchemes = BROWSER_FILE_SCHEMES.filter(scheme => scheme !== AGENT_HOST_SCHEME || environmentService.isSessionsWindow);
+		for (const scheme of fileSchemes) {
+			for (const extension of ['html', 'htm', 'mhtml', 'mht']) {
+				editorResolverService.registerEditor(
+					`${scheme}:/**/*.${extension}`,
+					{
+						id: BrowserEditorInput.EDITOR_ID,
+						label: localize('browser.htmlEditorLabel', "Integrated Browser"),
+						priority: RegisteredEditorPriority.option
+					},
+					{
+						canSupportResource: resource => resource.scheme === scheme && (
+							scheme === Schemas.file ||
+							!!configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId)
+						),
+						singlePerResource: true
+					},
+					{
+						createEditorInput: ({ resource, options }) => {
+							logBrowserOpen(telemetryService, 'fileResource');
 
-						const viewState = reviveBrowserEditorViewState(options?.viewState);
-						const browserInput = browserViewWorkbenchService.getOrCreateLazy({
-							id: generateUuid(),
-							associatedResource: resource,
-							...viewState,
-							url: viewState.url ?? resource.toString()
-						});
-						void browserInput.resolve();
+							const viewState = reviveBrowserEditorViewState(options?.viewState);
+							const browserInput = browserViewWorkbenchService.getOrCreateLazy({
+								id: generateUuid(),
+								associatedResource: resource,
+								...viewState,
+								url: viewState.url ?? resource.toString()
+							});
+							void browserInput.resolve();
 
-						return {
-							editor: browserInput,
-							options: {
-								pinned: true,
-								...options
-							}
-						};
+							return {
+								editor: browserInput,
+								options: {
+									pinned: true,
+									...options
+								}
+							};
+						}
 					}
-				}
-			);
+				);
+			}
 		}
 	}
 }

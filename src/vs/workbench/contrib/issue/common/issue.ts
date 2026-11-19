@@ -3,8 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { UriComponents } from '../../../../base/common/uri.js';
+import { RepositoryRef } from '../../../../platform/github/common/client/types.js';
+import { CreateIssueRequest } from '../../../../platform/github/common/core/issues.js';
+import { GitHubAuthorizationContext } from '../../../../platform/github/common/githubTypes.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { AuthenticationSession } from '../../../services/authentication/common/authentication.js';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
 // should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
@@ -30,6 +35,14 @@ export enum IssueSource {
 	Marketplace = 'marketplace',
 	Unknown = 'unknown'
 }
+
+export const issueReporterLayoutSettingId = 'issueReporter.wizard.layout';
+
+/**
+ * How the new issue reporter asks for a report. Simple asks for screenshots and a description and
+ * leaves the rest to defaults. Detailed also asks for the target, category, title, and diagnostics.
+ */
+export type IssueReporterLayout = 'simple' | 'detailed';
 
 export interface IssueReporterStyles extends WindowStyles {
 	textLinkColor?: string;
@@ -90,6 +103,8 @@ export interface IssueReporterData extends WindowData {
 	isInstallationPure: boolean;
 	isSessionsWindow: boolean;
 	githubAccessToken: string;
+	/** The selected grant for classic issue creation, independent of token renewal. */
+	githubAuthorization?: GitHubAuthorizationContext;
 	/** Refreshes an automatically selected GitHub session before a new reporter preview. */
 	getGitHubAccessToken?: () => Promise<string>;
 	issueTitle?: string;
@@ -123,6 +138,8 @@ export interface IIssueReporterFileAttachment {
 export interface IIssueReporterScreenshot {
 	readonly dataUrl: string;
 	readonly annotatedDataUrl?: string;
+	/** The name of the image file that the screenshot was marked up from, which it keeps instead of a numbered name. */
+	readonly name?: string;
 }
 
 export interface IIssueReporterAttachmentUpload {
@@ -156,8 +173,9 @@ export interface IIssueFormService {
 	showClipboardDialog(): Promise<boolean>;
 	sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined>;
 	closeReporter(): Promise<void>;
-	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, signal?: AbortSignal): Promise<boolean>;
-	searchGitHubIssues(repo: string, title: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]>;
+	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, cancellationToken?: CancellationToken): Promise<boolean>;
+	searchGitHubIssues(repo: string, title: string, cancellationToken: CancellationToken): Promise<readonly ISimilarIssue[]>;
+	createGitHubIssue(providerId: string, session: AuthenticationSession, repository: RepositoryRef, request: CreateIssueRequest, cancellationToken: CancellationToken): Promise<string>;
 }
 
 export interface ISimilarIssue {

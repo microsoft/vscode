@@ -17,7 +17,7 @@ import { FetchOptions, IAbortController, IFetcherService, IHeaders, PaginationOp
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { createFakeResponse } from '../../../test/node/fetcher';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
-import { CopilotToken, createTestExtendedTokenInfo, isErrorEnvelope, isStandardErrorEnvelope, isTokenEnvelope, validateTokenEnvelope } from '../../common/copilotToken';
+import { CopilotToken, createTestExtendedTokenInfo, isErrorEnvelope, isStandardErrorEnvelope, validateTokenEnvelope } from '../../common/copilotToken';
 import { BaseCopilotTokenManager, CopilotTokenManagerFromGitHubToken } from '../../node/copilotTokenManager';
 
 // This is a fake version of CopilotTokenManagerFromGitHubToken.
@@ -265,53 +265,6 @@ describe('Copilot token unit tests', function () {
 });
 
 describe('Token envelope validators', function () {
-	it('isTokenEnvelope returns true for valid token', function () {
-		const validToken = {
-			token: 'test-token',
-			expires_at: 1234567890,
-			refresh_in: 300,
-			sku: 'free_limited_copilot',
-			individual: true,
-			blackbird_clientside_indexing: false,
-			code_quote_enabled: false,
-			code_review_enabled: false,
-			codesearch: false,
-			copilotignore_enabled: false,
-			public_suggestions: 'enabled',
-			telemetry: 'enabled',
-		};
-		expect(isTokenEnvelope(validToken)).toBe(true);
-	});
-
-	it('isTokenEnvelope returns true when limited_user_quotas and limited_user_reset_date are null', function () {
-		// Enterprise/paid users get null for these fields
-		const validToken = {
-			token: 'test-token',
-			expires_at: 1234567890,
-			refresh_in: 300,
-			sku: 'free_limited_copilot',
-			individual: true,
-			blackbird_clientside_indexing: false,
-			code_quote_enabled: false,
-			code_review_enabled: false,
-			codesearch: false,
-			copilotignore_enabled: false,
-			public_suggestions: 'enabled',
-			telemetry: 'enabled',
-			limited_user_quotas: null,
-			limited_user_reset_date: null,
-		};
-		expect(isTokenEnvelope(validToken)).toBe(true);
-	});
-
-	it('isTokenEnvelope returns false for missing required fields', function () {
-		expect(isTokenEnvelope({})).toBe(false);
-		expect(isTokenEnvelope({ token: 'test' })).toBe(false);
-		expect(isTokenEnvelope({ token: 'test', expires_at: 123 })).toBe(false);
-		expect(isTokenEnvelope(null)).toBe(false);
-		expect(isTokenEnvelope(undefined)).toBe(false);
-	});
-
 	it('isErrorEnvelope returns true for valid error envelope', function () {
 		const validError = {
 			can_signup_for_limited: false,
@@ -349,6 +302,27 @@ describe('Token envelope validators', function () {
 	});
 
 	describe('validateTokenEnvelope', function () {
+		it('returns valid when limited_user_quotas and limited_user_reset_date are null', function () {
+			// Enterprise/paid users get null for these fields
+			const validToken = {
+				token: 'test-token',
+				expires_at: 1234567890,
+				refresh_in: 300,
+				sku: 'free_limited_copilot',
+				individual: true,
+				blackbird_clientside_indexing: false,
+				code_quote_enabled: false,
+				code_review_enabled: false,
+				codesearch: false,
+				copilotignore_enabled: false,
+				public_suggestions: 'enabled',
+				telemetry: 'enabled',
+				limited_user_quotas: null,
+				limited_user_reset_date: null,
+			};
+			expect(validateTokenEnvelope(validToken).valid).toBe(true);
+		});
+
 		it('returns strict strategy for fully valid token envelope', function () {
 			const validToken = {
 				token: 'test-token',

@@ -14,7 +14,7 @@
 
 /* Apply optical centering to toolbar content, not the window-control hit targets. */
 .agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > .titlebar-center,
-.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > :is(.titlebar-left, .titlebar-right) > :is(.left-toolbar-container, .titlebar-actions-container) {
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > :is(.titlebar-left, .titlebar-right) > :is(.menubar, .left-toolbar-container, .titlebar-actions-container) {
 	box-sizing: border-box;
 	padding-top: var(--vscode-spacing-size20);
 }
@@ -119,16 +119,20 @@
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container {
+	padding-right: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right.has-window-controls > .titlebar-right-layout-container:not(.titlebar-last-actions) {
 	padding-right: var(--vscode-spacing-size80);
 }
 
 /* The last shown actions of a window with layout actions, such as a chat window, keep the inset of the main window's last
  * actions to the window's edge: its layout actions, or the actions before them while those show in its Session Activity Bar. */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.titlebar-last-actions {
-	padding-right: calc(var(--vscode-spacing-size80) + var(--vscode-agents-layout-floatingPanelGap));
+	padding-right: calc(var(--vscode-spacing-size40) + var(--vscode-agents-layout-floatingPanelGap));
 }
 
-.monaco-workbench:not(.fullscreen) .part.titlebar > .sessions-titlebar-container.custom-window-controls > .titlebar-right > .titlebar-actions-container.titlebar-last-actions {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right.has-window-controls > .titlebar-actions-container.titlebar-last-actions {
 	padding-right: var(--vscode-spacing-size80);
 }
 
@@ -137,7 +141,7 @@
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container .monaco-button {
-	height: 22px;
+	height: var(--vscode-spacing-size240);
 	padding: 0 var(--vscode-spacing-size80);
 }
 
@@ -150,12 +154,45 @@
 	gap: 1px;
 }
 
-.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-toolbar .actions-container > .action-item.open-in-vscode-titlebar-widget + .action-item {
-	margin-left: 5px;
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right .monaco-toolbar .actions-container {
+	gap: var(--vscode-spacing-size40);
 }
 
-/* Add spacing between the session action group and the layout actions that follow it. */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + :is(.titlebar-right-layout-container, .titlebar-window-layout-container):not(.has-no-actions) {
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item :is(.action-label, .monaco-button, .monaco-button-dropdown) {
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size240);
+	min-height: var(--vscode-spacing-size240);
+}
+
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item .action-label {
+	min-width: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item :is(.action-label.codicon, .monaco-button.codicon) {
+	width: var(--vscode-spacing-size240);
+}
+
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item .monaco-button {
+	padding-block: 0;
+}
+
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item .monaco-button.codicon {
+	padding-inline: 0;
+	justify-content: center;
+}
+
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item.changes-actions-bar {
+	margin-inline: 0;
+}
+
+/*
+ * Add spacing between the session action group and the actions that follow it: extension actions or layout actions.
+ * Empty or overflowing extension actions don't take part, the layout actions after them get the spacing.
+ */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + :is(.titlebar-extension-actions-container, .titlebar-right-layout-container, .titlebar-window-layout-container):not(.has-no-actions),
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-extension-actions-container:is(.has-no-actions, .overflowing) + .titlebar-right-layout-container:not(.has-no-actions) {
 	margin-left: var(--vscode-spacing-size40);
 }
 
@@ -219,6 +256,55 @@
 /* Spacing between the left toolbar's actions. */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .actions-container {
 	gap: 4px;
+}
+
+/* Application menu: the first entry of the left toolbar, shaped like its actions. */
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact {
+	box-sizing: border-box;
+	width: auto;
+	min-width: 0;
+	margin-left: var(--vscode-spacing-size80);
+	align-items: center;
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact + .left-toolbar-container {
+	padding-left: var(--vscode-spacing-size40);
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button {
+	width: auto;
+	height: auto;
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button > .menubar-menu-title {
+	width: auto;
+	height: auto;
+	/* Like the toolbar's action labels: a 16px icon in a 22px target. */
+	padding: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-icon-foreground);
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact:not(:focus-within) > .menubar-menu-button:hover > .menubar-menu-title {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button.open > .menubar-menu-title {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+/* The shared title bar rule highlights the whole button while it is open or focused; the title shows the state instead. */
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button:is(.open, :focus) {
+	background-color: transparent;
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button:is(:hover, :focus, .open) > .menubar-menu-title {
+	/* The shared compact menu insets its outlines for the activity bar's larger entries; trace this smaller target instead. */
+	outline-offset: -1px !important;
+}
+
+.agent-sessions-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .menubar.compact > .menubar-menu-button:focus-visible > .menubar-menu-title {
+	outline: 1px solid var(--vscode-focusBorder) !important;
 }
 
 /* Remove the titlebar shadow in agent sessions */

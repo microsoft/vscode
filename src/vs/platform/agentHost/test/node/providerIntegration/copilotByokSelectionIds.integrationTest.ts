@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient } from '@github/copilot-sdk';
-import { Emitter } from '../../../../../base/common/event.js';
+import { RuntimeConnection, CopilotClient } from '@microsoft/copilot-sdk';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { getByokLmAgentModelId, isByokLmAgentModelId, type IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
@@ -44,16 +44,22 @@ suite('Agent Host Provider Integration - Copilot BYOK selection ids', function (
 		const baseDirectory = await mkdtemp(`${tmpdir()}/byok-selection-ids-`);
 		const models = store.add(new Emitter<IByokLmModelInfo[]>());
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client', { chat: async () => ({ output: [] }), onDidChangeModels: models.event });
+		const registration = registry.register('client', { chat: async () => ({ output: [] }), onDidChangeModels: models.event, onDidDelta: Event.None });
 		models.fire(byokModels);
 		const proxy = new ByokLmProxyService(new NullLogService(), registry);
 		const handle = await proxy.start();
 		const client = new CopilotClient({
 			mode: 'empty',
-			baseDirectory,
-			useLoggedInUser: false,
-			logLevel: 'error',
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(baseDirectory)),
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: baseDirectory,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(baseDirectory)),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
+			observability: {
+				logLevel: 'error',
+			},
 		});
 		let clientStarted = false;
 		let session: Awaited<ReturnType<CopilotClient['createSession']>> | undefined;
@@ -64,7 +70,7 @@ suite('Agent Host Provider Integration - Copilot BYOK selection ids', function (
 			const byok = await synthesizeByokSessionConfig(sessionId, registry, async () => handle, new NullLogService());
 			await client.start();
 			clientStarted = true;
-			session = await client.createSession({ sessionId, model: agentModelIds[0], availableTools: [], ...byok });
+			session = await client.createSession({ sessionId, model: agentModelIds[0], tools: { availableTools: [] }, inference: byok });
 
 			const listedIds = (await session.rpc.model.list()).list.map(entry => (entry as { id: string }).id);
 			const selectedIds: (string | undefined)[] = [];

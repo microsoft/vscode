@@ -20,13 +20,20 @@
 }
 
 .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon {
+	flex: 0 0 auto;
+}
+
+.monaco-workbench .part.titlebar.inactive .open-in-vscode-titlebar-widget {
+	color: var(--vscode-titleBar-inactiveForeground);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container .monaco-action-bar .action-item.open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon.codicon {
+	color: inherit;
+}
+
+.monaco-workbench .open-in-vscode-titlebar-widget:not(.codicon-icons) > .open-in-vscode-titlebar-widget-icon {
 	width: 16px;
 	height: 16px;
-	flex: 0 0 auto;
-	/* Dev fallback: the VS Code shield logo bundled in the sessions media folder.
-	 * In production builds the distro mixin overwrites
-	 * vs/workbench/browser/media/code-icon.svg with the quality-branded icon;
-	 * the per-quality rules below then take precedence. */
 	background-image: url('./vscode-icon.svg');
 	background-repeat: no-repeat;
 	background-position: center center;
@@ -34,27 +41,24 @@
 	filter: grayscale(1);
 }
 
-/* In production builds vscode-distro overlays vs/workbench/browser/media/code-icon.svg
- * with the quality-specific branded VS Code icon. Use it whenever the product quality is
- * known (the data-product-quality attribute is only set in non-dev builds). */
-.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="stable"] > .open-in-vscode-titlebar-widget-icon,
-.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="insider"] > .open-in-vscode-titlebar-widget-icon,
-.monaco-workbench .open-in-vscode-titlebar-widget[data-product-quality="exploration"] > .open-in-vscode-titlebar-widget-icon {
+.monaco-workbench .open-in-vscode-titlebar-widget:not(.codicon-icons)[data-product-quality="stable"] > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench .open-in-vscode-titlebar-widget:not(.codicon-icons)[data-product-quality="insider"] > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench .open-in-vscode-titlebar-widget:not(.codicon-icons)[data-product-quality="exploration"] > .open-in-vscode-titlebar-widget-icon {
 	background-image: url('../../../workbench/browser/media/code-icon.svg');
 }
 
-.monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon,
-.monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon {
+.monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget:not(.codicon-icons) > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget:not(.codicon-icons) > .open-in-vscode-titlebar-widget-icon {
 	transition: filter 160ms ease;
 }
 
-.monaco-reduce-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon,
-.monaco-workbench.monaco-reduce-motion .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon {
+.monaco-reduce-motion .monaco-workbench .open-in-vscode-titlebar-widget:not(.codicon-icons) > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench.monaco-reduce-motion .open-in-vscode-titlebar-widget:not(.codicon-icons) > .open-in-vscode-titlebar-widget-icon {
 	transition-duration: 0ms !important;
 }
 
-.monaco-workbench .open-in-vscode-titlebar-widget:hover > .open-in-vscode-titlebar-widget-icon,
-.monaco-workbench .open-in-vscode-titlebar-widget:focus-visible > .open-in-vscode-titlebar-widget-icon {
+.monaco-workbench .open-in-vscode-titlebar-widget:not(.codicon-icons):is(:hover, .hovered) > .open-in-vscode-titlebar-widget-icon,
+.monaco-workbench .open-in-vscode-titlebar-widget:not(.codicon-icons):focus-visible > .open-in-vscode-titlebar-widget-icon {
 	filter: none;
 }
 
@@ -75,9 +79,9 @@
 	transition-delay: 200ms;
 }
 
-.monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget:hover > .open-in-vscode-titlebar-widget-label,
+.monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget:is(:hover, .hovered) > .open-in-vscode-titlebar-widget-label,
 .monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget:focus-visible > .open-in-vscode-titlebar-widget-label,
-.monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget:hover > .open-in-vscode-titlebar-widget-label,
+.monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget:is(:hover, .hovered) > .open-in-vscode-titlebar-widget-label,
 .monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget:focus-visible > .open-in-vscode-titlebar-widget-label {
 	transition-delay: 0ms;
 }
@@ -87,20 +91,9 @@
 	transition-duration: 0ms !important;
 }
 
-.monaco-workbench .open-in-vscode-titlebar-widget:hover,
-.monaco-workbench .open-in-vscode-titlebar-widget:focus-visible {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	outline: none;
-}
-
-.monaco-workbench .open-in-vscode-titlebar-widget:hover > .open-in-vscode-titlebar-widget-label,
+.monaco-workbench .open-in-vscode-titlebar-widget:is(:hover, .hovered) > .open-in-vscode-titlebar-widget-label,
 .monaco-workbench .open-in-vscode-titlebar-widget:focus-visible > .open-in-vscode-titlebar-widget-label {
 	max-width: 200px;
 	opacity: 1;
 	margin-left: 6px;
-}
-
-.monaco-workbench .open-in-vscode-titlebar-widget:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
 }

@@ -57,6 +57,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps): void {
 		this.githubStandardEvents.push({ eventName, properties });
 	}
+	sendGHTelemetryEventForContext(): void { }
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.enhancedEvents.push({ eventName, properties });
 		this.enhancedMeasurements.push(measurements);
@@ -127,14 +128,14 @@ suite('AgentHostTelemetryReporter', () => {
 		const reporter = new AgentHostTelemetryReporter(service);
 		const completion = createTurnCompletedReport('copilotcli');
 		reporter.turnCompleted(completion);
-		reporter.turnCompleted({ ...completion, providerTelemetryContext: { usedPrewarmedSession: true } });
+		reporter.turnCompleted({ ...completion, providerTelemetryContext: { usedPrewarmedSession: true, prewarmReadyAfterTurnStartMs: 1200, prewarmReadyBeforeTurnStartMs: 0, prewarmLaunchCount: 2, prewarmWarmUpComplete: false } });
 		reporter.turnCompleted({ ...completion, providerTelemetryContext: { prewarmedSessionDiscardReason: 'clientToolsChanged' } });
 		reporter.turnCompleted({ ...completion, providerTelemetryContext: { prewarmSkipReason: 'expired' } });
-		assert.deepStrictEqual(service.standardEvents.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => ({ used: event.data?.usedPrewarmedSession, discardReason: event.data?.prewarmedSessionDiscardReason, skipReason: event.data?.prewarmSkipReason })), [
-			{ used: undefined, discardReason: undefined, skipReason: undefined },
-			{ used: true, discardReason: undefined, skipReason: undefined },
-			{ used: undefined, discardReason: 'clientToolsChanged', skipReason: undefined },
-			{ used: undefined, discardReason: undefined, skipReason: 'expired' },
+		assert.deepStrictEqual(service.standardEvents.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => ({ used: event.data?.usedPrewarmedSession, discardReason: event.data?.prewarmedSessionDiscardReason, skipReason: event.data?.prewarmSkipReason, readyAfter: event.data?.prewarmReadyAfterTurnStartMs, readyBefore: event.data?.prewarmReadyBeforeTurnStartMs, launchCount: event.data?.prewarmLaunchCount, warmUpComplete: event.data?.prewarmWarmUpComplete })), [
+			{ used: undefined, discardReason: undefined, skipReason: undefined, readyAfter: undefined, readyBefore: undefined, launchCount: undefined, warmUpComplete: undefined },
+			{ used: true, discardReason: undefined, skipReason: undefined, readyAfter: 1200, readyBefore: 0, launchCount: 2, warmUpComplete: false },
+			{ used: undefined, discardReason: 'clientToolsChanged', skipReason: undefined, readyAfter: undefined, readyBefore: undefined, launchCount: undefined, warmUpComplete: undefined },
+			{ used: undefined, discardReason: undefined, skipReason: 'expired', readyAfter: undefined, readyBefore: undefined, launchCount: undefined, warmUpComplete: undefined },
 		]);
 	});
 

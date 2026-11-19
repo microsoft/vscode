@@ -1930,7 +1930,11 @@ export class Repository implements Disposable {
 	}
 
 	async merge(ref: string): Promise<void> {
-		await this.run(Operation.Merge, () => this.repository.merge(ref));
+		// Only pass `-S` when the setting is enabled so that git's own config applies otherwise
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const signCommit = config.get<boolean>('enableCommitSigning') === true;
+
+		await this.run(Operation.Merge, () => this.repository.merge(ref, { signCommit }));
 	}
 
 	async mergeAbort(): Promise<void> {
@@ -1981,12 +1985,6 @@ export class Repository implements Disposable {
 
 			// Create the worktree
 			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch, noTrack });
-
-			// Update worktree root in global state
-			const newWorktreeRoot = path.dirname(worktreePath!);
-			if (defaultWorktreeRoot && !pathEquals(newWorktreeRoot, defaultWorktreeRoot)) {
-				this.globalState.update(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`, newWorktreeRoot);
-			}
 
 			// Worktree setup is best effort and must not delay or fail creation.
 			this._setupWorktree(worktreePath!).then(undefined, err => {
@@ -3510,7 +3508,10 @@ export class Repository implements Disposable {
 			// Notification
 			const replaceLocalTags = l10n.t('Replace Local Tag(s)');
 			const replaceLocalTagsAlways = l10n.t('Always Replace Local Tag(s)');
-			const message = l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0}. Would you like to resolve the conflict by replacing the local tag(s)?', tags.join(', '));
+			const maxTags = 5;
+			const message = tags.length <= maxTags
+				? l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0}. Would you like to resolve the conflict by replacing the local tag(s)?', tags.join(', '))
+				: l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0} and {1} more. Would you like to resolve the conflict by replacing the local tag(s)?', tags.slice(0, maxTags).join(', '), tags.length - maxTags);
 			const choice = await window.showErrorMessage(message, { modal: true }, replaceLocalTags, replaceLocalTagsAlways);
 
 			if (choice !== replaceLocalTags && choice !== replaceLocalTagsAlways) {
