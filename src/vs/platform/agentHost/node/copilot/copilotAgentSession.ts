@@ -89,7 +89,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ModelSelection, type ToolCallContributor, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type ChatToolCallReadyAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isHostNoticeTurn, isSubagentSession, lastAttributableTurnId, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
@@ -318,6 +318,7 @@ interface ILastMcpAuthRequirement {
 
 interface ICopilotActiveToolCall {
 	readonly turnId: string;
+	readonly subagentEditTurnId?: string;
 	readonly copilotTrackingId?: string;
 	readonly startedAt?: string;
 	readonly toolName: string;
@@ -2667,7 +2668,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(this._sessionDataService.openDatabase(this._storageUri));
 		this._editTracker = this._register(this._instantiationService.createInstance(
 			FileEditTracker,
-			this._storageUri.toString(),
+			{ storage: this._storageUri, chat: this._chatChannelUri },
 			() => this._ownerSessionUri.toString(),
 			COPILOT_CLI_AGENT_PROVIDER_ID,
 			{ toUri: path => copilotSdkPathToUri(this._pathMapper, path), toFileServiceUri: path => this._sdkFileServiceUri(path) },
@@ -11598,11 +11599,17 @@ export class CopilotAgentSession extends Disposable {
 			const isToolSearch = this._isToolSearchActive() && e.data.toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME;
 			const contributor = replacementFailure === undefined ? this._getToolCallContributor(e.data.toolName, mcpServerName) : undefined;
 			const intention = getToolIntention(e.data.toolName, parameters, intentionSummary);
-			const telemetryContext = parentToolCallId && !this._fusionPhases.has(parentToolCallId)
+			const isSubagent = parentToolCallId !== undefined && !this._fusionPhases.has(parentToolCallId);
+			const turn = this._currentTurn.value;
+			const chatState = isSubagent && !turn ? this._stateManager.getChatState(this._chatChannelUri.toString()) : undefined;
+			const activeChatTurn = chatState?.activeTurn;
+			const hostEditTurnId = activeChatTurn && !isHostNoticeTurn(activeChatTurn) ? activeChatTurn.id : lastAttributableTurnId(chatState?.turns);
+			const telemetryContext = isSubagent
 				? this._subagents.getAccountContext(parentToolCallId)
-				: this._currentTurn.value?.telemetryContext;
+				: turn?.telemetryContext;
 			this._activeToolCalls.set(e.data.toolCallId, {
-				turnId: this._turnId,
+				turnId: turn?.id ?? '',
+				subagentEditTurnId: isSubagent ? turn?.id ?? hostEditTurnId : undefined,
 				copilotTrackingId: telemetryContext?.copilotTrackingId,
 				startedAt: e.timestamp,
 				toolName: e.data.toolName,
@@ -11613,7 +11620,7 @@ export class CopilotAgentSession extends Disposable {
 				mcpServerName,
 				contributor,
 				intention,
-				autoTier: parentToolCallId && !this._fusionPhases.has(parentToolCallId)
+				autoTier: isSubagent
 					? this._committedAutoTierBySubagentToolCallId.get(parentToolCallId)
 					: this._committedAutoTier,
 				fusionModel: getHydraFusionModel(e.data.fusion?.syntheticModel ?? (this._fusionPhaseToolCallId(e.agentId, e.data.fusion) !== undefined || (parentToolCallId && this._fusionPhases.has(parentToolCallId)) ? this._fusionProgress.syntheticModel : undefined)),
@@ -11812,10 +11819,19 @@ export class CopilotAgentSession extends Disposable {
 			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
 			const turn = this._currentTurn.value;
 			const turnId = tracked.turnId;
+			const isSubagent = parentToolCallId !== undefined && !this._fusionPhases.has(parentToolCallId);
+			const editTurnId = isSubagent ? tracked.subagentEditTurnId : turnId;
+			const editClientContext = !isSubagent || turn?.id === editTurnId ? turn?.clientContext : undefined;
+			if (e.data.success && tracked.toolName === CopilotToolName.Task) {
+				const invocationTurnId = isSubagent ? this._subagents.getInvocationTurnId(parentToolCallId) : turnId;
+				this._subagents.recordInvocationTurn(e.data.toolCallId, invocationTurnId);
+			}
 			const chatUri = parentToolCallId ? this._subagentChatUri(parentToolCallId) : this._chatChannelUri.toString();
 			const modelId = tracked.fusionSourceModel ?? this._lastSeenModelId;
-			// Recording an SDK edit must finish even when its turn no longer accepts display updates.
-			const fileEdits = filePaths.map(filePath => this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, parentToolCallId !== undefined, turn?.clientContext, chatUri, tracked.autoTier, tracked.fusionModel, tracked.copilotTrackingId)
+			if (isSubagent && editTurnId === undefined && filePaths.length > 0) {
+				this._logService.trace(`[Copilot:${sessionId}] Storing edit without root turn attribution for subagent tool ${e.data.toolCallId}`);
+			}
+			const fileEdits = filePaths.map(filePath => this._editTracker.takeCompletedEdit(editTurnId ?? '', e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, parentToolCallId !== undefined, editClientContext, chatUri, tracked.autoTier, tracked.fusionModel, tracked.copilotTrackingId)
 				.catch(err => {
 					this._logService.warn(`[Copilot:${sessionId}] Failed to take completed edit`, err);
 					return undefined;
@@ -11945,7 +11961,6 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			const abortToken = this._abortToken;
-			const isSubagent = parentToolCallId !== undefined && !this._fusionPhases.has(parentToolCallId);
 			// A steering handoff can move the tool to the next turn while its completion persists.
 			const publishingTurnId = () => this._unpublishedToolCompletions.get(e.data.toolCallId)?.toolCall.turnId ?? turnId;
 			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn || (this._currentTurn.value !== undefined && this._currentTurn.value.id === publishingTurnId()));
@@ -12291,6 +12306,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			const parentToolCallId = tracked?.parentToolCallId;
+			if (tracked && (!parentToolCallId || this._fusionPhases.has(parentToolCallId))) {
+				this._subagents.recordInvocationTurn(e.data.toolCallId, tracked.turnId);
+			}
 			const taskPrompt = typeof tracked?.parameters?.prompt === 'string' ? tracked.parameters.prompt : undefined;
 			this._subagents.start({
 				toolCallId: e.data.toolCallId,
