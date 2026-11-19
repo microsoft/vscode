@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILogService } from '../../../log/common/log.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { AGENT_BRANCH_PREFIX } from '../../common/worktreePaths.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './copilotApiService.js';
@@ -19,7 +21,7 @@ export interface IAgentBranchNameGeneratorRequest {
 	readonly agentSessionId?: string;
 	readonly message?: string;
 	readonly githubToken?: string;
-	readonly signal?: AbortSignal;
+	readonly cancellationToken?: CancellationToken;
 	/**
 	 * Optional prefix prepended before the built-in {@link AGENT_BRANCH_PREFIX}
 	 * when constructing the branch name (e.g. the user's `git.branchPrefix`
@@ -60,15 +62,16 @@ export class AgentBranchNameGenerator implements IAgentBranchNameGenerator {
 			return undefined;
 		}
 
+		const lifetime = new DisposableStore();
 		try {
 			const rawBranchName = await this._copilotApiService.utilityChatCompletion(request.githubToken, {
 				messages: this._buildBranchNamePrompt(message),
 				telemetry: { source: 'git-branch', agentSessionId: request.agentSessionId },
 			}, {
-				signal: request.signal,
+				signal: request.cancellationToken && CancellationToken.toAbortSignal(request.cancellationToken, lifetime),
 			});
 
-			if (request.signal?.aborted) {
+			if (request.cancellationToken?.isCancellationRequested) {
 				return undefined;
 			}
 
@@ -90,6 +93,8 @@ export class AgentBranchNameGenerator implements IAgentBranchNameGenerator {
 		} catch (err) {
 			this._logService.warn('[AgentBranchNameGenerator] Failed to generate branch name', err);
 			return undefined;
+		} finally {
+			lifetime.dispose();
 		}
 	}
 

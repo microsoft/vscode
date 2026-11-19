@@ -273,10 +273,17 @@ export class SCMViewService implements ISCMViewService {
 				equalsFn: () => false
 			}, this.onDidFocusRepository, () => this.focusedRepository);
 
+		// Editors can be restored before their repository is opened (ex: window reload), so we
+		// also have to re-evaluate the active editor when the repository containing it is added
+		const onDidAddActiveEditorRepository = Event.filter(this.scmService.onDidAddRepository, repository => {
+			const activeResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+			return !!activeResource && this.scmService.getRepository(activeResource) === repository;
+		});
+
 		this._activeEditorObs = observableFromEventOpts({
 			owner: this,
 			equalsFn: () => false
-		}, this.editorService.onDidActiveEditorChange, () => this.editorService.activeEditor);
+		}, Event.any(this.editorService.onDidActiveEditorChange, onDidAddActiveEditorRepository), () => this.editorService.activeEditor);
 
 		this._activeEditorRepositoryObs = derivedObservableWithCache<ISCMRepository | undefined>(this,
 			(reader, lastValue) => {

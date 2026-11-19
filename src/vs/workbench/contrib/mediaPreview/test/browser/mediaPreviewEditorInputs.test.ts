@@ -4,26 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { $, append } from '../../../../../base/browser/dom.js';
+import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
+import { OverlayLayoutElement } from '../../../../../base/browser/overlayLayoutElement.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isNative } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
-import { EditorInputCapabilities } from '../../../../common/editor.js';
+import { IEditorOptions, IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { EditorCloseContext, EditorInputCapabilities, IEditorCloseEvent, IVisibleEditorPane } from '../../../../common/editor.js';
 import { TestFileDialogService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileChangesEvent, FileChangeType, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { SideBySideEditor } from '../../../../browser/parts/editor/sideBySideEditor.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
-import { IOverlayWebview, WebviewMessageReceivedEvent } from '../../../webview/browser/webview.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IEditorGroup, IEditorGroupsService, IModalEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService, MODAL_GROUP, PreferredGroup, USE_MODAL_EDITOR_SETTING } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IOverlayWebview, IWebviewService, WebviewMessageReceivedEvent } from '../../../webview/browser/webview.js';
 import { isCustomEditorCompatibleInput } from '../../../customEditor/common/customEditor.js';
 import { AUDIO_PREVIEW_EDITOR_ID, IMAGE_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_EDITOR_ID } from '../../common/mediaPreview.js';
 import { ImagePreviewEditorInput } from '../../browser/imagePreviewEditorInput.js';
@@ -84,6 +96,8 @@ suite('Media Preview - ImagePreviewEditorInput', () => {
 
 suite('Media Preview - MediaPlayerEditorInput', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	test('identifies audio and video previews by kind and resource', async () => {
 		const disposables = store.add(new DisposableStore());
@@ -173,14 +187,15 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 		}, { showsError: true, showsLfsMessage: true, hasVideo: false });
 	});
 
-	async function createMediaPlayer(disposables: DisposableStore, kind: MediaPlayerKind, resource: URI, content: number[], reportedSize = content.length) {
+	async function createMediaPlayer(disposables: DisposableStore, kind: MediaPlayerKind, resource: URI, content: number[], reportedSize = content.length, configure?: (instantiationService: TestInstantiationService) => void) {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		configure?.(instantiationService);
 		const buffer = VSBuffer.fromByteArray(content);
 		const fileService = instantiationService.get(IFileService);
 		fileService.stat = async resource => ({ resource, size: reportedSize } as IFileStatWithMetadata);
 		fileService.readFile = async resource => ({ resource, value: buffer, size: buffer.byteLength } as IFileContent);
 
-		const webview = { html: '', onMessage: disposables.add(new Emitter<WebviewMessageReceivedEvent>()), message: new DeferredPromise<unknown>(), openedExternally: [] as string[] };
+		const webview = { html: '', container: $('.webview-overlay-content'), onMessage: disposables.add(new Emitter<WebviewMessageReceivedEvent>()), message: new DeferredPromise<unknown>(), openedExternally: [] as string[] };
 		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
 			override async open(target: URI | string, options?: OpenOptions) {
 				if (options?.openExternal) {
@@ -190,6 +205,7 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 			}
 		});
 		const input = disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, kind, resource, new class extends mock<IOverlayWebview>() {
+			override readonly container = webview.container;
 			override readonly onMessage = webview.onMessage.event;
 			override setHtml(value: string) { webview.html = value; }
 			override async postMessage(value: unknown) {
@@ -201,6 +217,334 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 		await input.resolve();
 		return webview;
 	}
+
+	test('cancels an interrupted native fullscreen exit without leaving an unhandled rejection', async () => {
+		const webview = await createMediaPlayer(store.add(new DisposableStore()), 'video', URI.file('/media/clip.webm'), []);
+		const outcomes = [];
+		for (const scenario of ['already-exited', 'escape-during-exit', 'unexpected-failure']) {
+			const document = new mainWindow.DOMParser().parseFromString(webview.html, 'text/html');
+			const video = document.querySelector('video')!;
+			video.setAttribute('data-fullscreen-dialog', '');
+			let fullscreenElement: Element | null = scenario === 'already-exited' ? null : video;
+			let exits = 0;
+			sinon.stub(document, 'fullscreenElement').get(() => fullscreenElement);
+			sinon.stub(document, 'exitFullscreen').callsFake(async () => {
+				exits++;
+				if (scenario === 'escape-during-exit') {
+					fullscreenElement = null;
+				}
+				throw new TypeError('Fullscreen exit failed');
+			});
+			const messages: { type: string; error?: string }[] = [];
+			let onMessage: ((event: MessageEvent) => Promise<void>) | undefined;
+			new Function('acquireVsCodeApi', 'document', 'window', document.querySelector('script')!.textContent!)(
+				() => ({ postMessage: (message: typeof messages[number]) => messages.push(message) }),
+				document,
+				{ addEventListener: (type: string, handler: typeof onMessage) => { if (type === 'message') { onMessage = handler; } } },
+			);
+			messages.length = 0;
+			assert.ok(onMessage);
+			await onMessage(new MessageEvent('message', { data: { type: 'exit-native-fullscreen' } }));
+			outcomes.push({ scenario, exits, messages });
+		}
+		assert.deepStrictEqual(outcomes, [
+			{ scenario: 'already-exited', exits: 0, messages: [{ type: 'cancel-fullscreen' }] },
+			{ scenario: 'escape-during-exit', exits: 1, messages: [{ type: 'cancel-fullscreen', error: undefined }] },
+			{ scenario: 'unexpected-failure', exits: 1, messages: [{ type: 'cancel-fullscreen', error: 'TypeError: Fullscreen exit failed' }] },
+		]);
+	});
+
+	test('reveals the player after cancelling the native fullscreen handoff', async () => {
+		const webview = await createMediaPlayer(store.add(new DisposableStore()), 'video', URI.file('/media/clip.webm'), []);
+		webview.onMessage.fire({ message: { type: 'prepare-fullscreen' } });
+		const prepared = webview.container.classList.contains('media-player-transition');
+		webview.message = new DeferredPromise<unknown>();
+		webview.onMessage.fire({ message: { type: 'cancel-fullscreen' } });
+		const layout = await webview.message.p;
+		const awaitingLayout = webview.container.classList.contains('media-player-transition');
+		webview.onMessage.fire({ message: { type: 'video-layout', id: 1, width: 0, height: 0 } });
+		assert.deepStrictEqual({
+			prepared, awaitingLayout, layout,
+			revealed: !webview.container.classList.contains('media-player-transition'),
+		}, { prepared: true, awaitingLayout: true, layout: { type: 'layout-video', id: 1 }, revealed: true });
+	});
+
+	test('reveals native fullscreen and reports errors when the browser refuses to exit', async () => {
+		const reportError = sinon.stub(errorHandler, 'onUnexpectedError');
+		const webview = await createMediaPlayer(store.add(new DisposableStore()), 'video', URI.file('/media/clip.webm'), []);
+		webview.onMessage.fire({ message: { type: 'prepare-fullscreen' } });
+		webview.onMessage.fire({ message: { type: 'cancel-fullscreen', error: 'Fullscreen exit failed' } });
+		const restored = {
+			transitionMasked: webview.container.classList.contains('media-player-transition'),
+			nativeMaskDisabled: webview.container.classList.contains('media-player-fullscreen-error'),
+			error: reportError.firstCall.args[0].message,
+		};
+		webview.onMessage.fire({ message: { type: 'prepare-fullscreen' } });
+		assert.deepStrictEqual({
+			restored,
+			nextRequestMasked: webview.container.classList.contains('media-player-transition'),
+			nextRequestNativeMaskDisabled: webview.container.classList.contains('media-player-fullscreen-error'),
+		}, {
+			restored: { transitionMasked: false, nativeMaskDisabled: true, error: 'Fullscreen exit failed' },
+			nextRequestMasked: true, nextRequestNativeMaskDisabled: false,
+		});
+	});
+
+	test('offers dialog fullscreen for desktop video in both window types when modal editors are enabled', async () => {
+		const results = [];
+		for (const [kind, sessionsWindow, useModal] of [
+			['video', true, 'some'],
+			['video', false, 'some'],
+			['audio', true, 'some'],
+			['video', true, 'off'],
+		] as const) {
+			const webview = await createMediaPlayer(store.add(new DisposableStore()), kind, URI.file('/media/clip.webm'), [], 0, instantiationService => {
+				instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: sessionsWindow });
+				instantiationService.stub(IConfigurationService, new TestConfigurationService({ [USE_MODAL_EDITOR_SETTING]: useModal }));
+			});
+			const document = new mainWindow.DOMParser().parseFromString(webview.html, 'text/html');
+			const video = document.querySelector('video');
+			results.push({
+				kind, sessionsWindow, useModal,
+				addedButtons: document.querySelectorAll('button').length,
+				dialog: video?.hasAttribute('data-fullscreen-dialog') ?? false,
+				nativeFullscreenHidden: !!video?.getAttribute('controlslist') || webview.html.includes('::-webkit-media-controls-fullscreen-button'),
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ kind: 'video', sessionsWindow: true, useModal: 'some', addedButtons: 0, dialog: isNative, nativeFullscreenHidden: false },
+			{ kind: 'video', sessionsWindow: false, useModal: 'some', addedButtons: 0, dialog: isNative, nativeFullscreenHidden: false },
+			{ kind: 'audio', sessionsWindow: true, useModal: 'some', addedButtons: 0, dialog: false, nativeFullscreenHidden: false },
+			{ kind: 'video', sessionsWindow: true, useModal: 'off', addedButtons: 0, dialog: false, nativeFullscreenHidden: false },
+		]);
+	});
+
+	test('enables the native player fullscreen control only for supported desktop video previews', () => {
+		const results: { fullscreen: boolean; suppressesNativeFullscreenPaint: boolean }[] = [];
+		for (const [kind, sessionsWindow, useModal] of [
+			['video', true, 'some'],
+			['video', false, 'some'],
+			['audio', true, 'some'],
+			['video', true, 'off'],
+		] as const) {
+			const disposables = store.add(new DisposableStore());
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: sessionsWindow });
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [USE_MODAL_EDITOR_SETTING]: useModal }));
+			instantiationService.stub(IWebviewService, {
+				createWebviewOverlay: info => {
+					results.push({
+						fullscreen: info.options.allowFullscreen === true,
+						suppressesNativeFullscreenPaint: info.options.customClasses === 'media-player-webview',
+					});
+					return new class extends mock<IOverlayWebview>() {
+						override readonly onMessage = Event.None;
+						override dispose() { }
+					};
+				},
+			});
+			disposables.add(MediaPlayerEditorInput.create(instantiationService, kind, URI.file('/media/clip.webm'), undefined));
+		}
+		assert.deepStrictEqual(results, [
+			{ fullscreen: isNative, suppressesNativeFullscreenPaint: isNative },
+			{ fullscreen: isNative, suppressesNativeFullscreenPaint: isNative },
+			{ fullscreen: false, suppressesNativeFullscreenPaint: false },
+			{ fullscreen: false, suppressesNativeFullscreenPaint: false },
+		]);
+	});
+
+	test('disables dialog fullscreen in detached windows and restores it when moved back', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const claims: boolean[] = [];
+		const webview = new class extends mock<IOverlayWebview>() {
+			override readonly onMessage = Event.None;
+			override options = { allowFullscreen: isNative };
+			override claim() { claims.push(this.options.allowFullscreen); }
+			override dispose() { }
+		};
+		const input = disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, 'video', URI.file('/media/clip.webm'), webview));
+		const owner = {};
+		const detachedWindow = upcastPartial<CodeWindow>({ vscodeWindowId: mainWindow.vscodeWindowId + 1 });
+		input.claim(owner, mainWindow, undefined);
+		input.claim(owner, detachedWindow, undefined);
+		input.claim(owner, mainWindow, undefined);
+		assert.deepStrictEqual(claims, [isNative, false, isNative]);
+	});
+
+	(isNative ? test : test.skip)('closes the containing modal diff and reveals the player if closing is vetoed', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const modalElement = append(mainWindow.document.body, $('.part.modal-editor-part'));
+		disposables.add(toDisposable(() => modalElement.remove()));
+		const anchor = append(modalElement, $('.video-anchor'));
+		anchor.style.cssText = 'width: 320px; height: 180px;';
+		const overlay = disposables.add(new OverlayLayoutElement());
+		append(modalElement, overlay.root);
+		overlay.setAnchorElement(anchor);
+		const onMessage = disposables.add(new Emitter<WebviewMessageReceivedEvent>());
+		const layoutRequested = new DeferredPromise<void>();
+		const messages: object[] = [];
+		let closedInput: EditorInput | undefined;
+		instantiationService.stub(IEditorService, { get visibleEditorPanes() { return [diffPane]; } });
+		const input = disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, 'video', URI.file('/media/clip.webm'), new class extends mock<IOverlayWebview>() {
+			override readonly container = overlay.content;
+			override readonly onMessage = onMessage.event;
+			override async postMessage(message: { type: string }) {
+				messages.push(message);
+				if (message.type === 'layout-video') {
+					layoutRequested.complete();
+				}
+				return true;
+			}
+			override dispose() { }
+		}));
+		const diffInput = disposables.add(instantiationService.createInstance(DiffEditorInput, 'Video Diff', undefined, input, input, true));
+		const group = upcastPartial<IEditorGroup>({
+			id: 1,
+			closeEditor: async editor => { closedInput = editor; return false; },
+		});
+		const source = upcastPartial<IVisibleEditorPane>({ input, group });
+		const diffPane = Object.assign(Object.create(SideBySideEditor.prototype), {
+			_input: diffInput,
+			getPrimaryEditorPane: () => undefined,
+			getSecondaryEditorPane: () => source,
+		}) as IVisibleEditorPane;
+		onMessage.fire({ message: { type: 'prepare-fullscreen' } });
+		onMessage.fire({ message: { type: 'toggle-fullscreen' } });
+		await layoutRequested.p;
+		onMessage.fire({
+			message: {
+				type: 'video-layout', id: 1,
+				width: overlay.content.clientWidth, height: overlay.content.clientHeight,
+			}
+		});
+		assert.deepStrictEqual({
+			closedContainingDiff: closedInput === diffInput,
+			revealed: !overlay.content.classList.contains('media-player-transition'),
+			messages,
+		}, {
+			closedContainingDiff: true, revealed: true,
+			messages: [{ type: 'exit-native-fullscreen' }, { type: 'layout-video', id: 1 }],
+		});
+	});
+
+	(isNative ? test : test.skip)('shares a diff video without overriding remembered dialog state and restores its inner pane on close', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+		const container = append(mainWindow.document.body, $('.part'));
+		disposables.add(toDisposable(() => container.remove()));
+		const anchor = append(container, $('.video-anchor'));
+		anchor.style.cssText = 'width: 320px; height: 180px;';
+		const modalElement = append(container, $('.modal-editor-part'));
+		const modalAnchor = append(modalElement, $('.modal-anchor'));
+		modalAnchor.style.cssText = 'width: 640px; height: 360px;';
+		let headerFocused = false;
+		instantiationService.stub(IEditorGroupsService, {
+			activeModalEditorPart: upcastPartial<IModalEditorPart>({ focusToolbar: () => { headerFocused = true; } }),
+		});
+		const overlay = disposables.add(new OverlayLayoutElement());
+		overlay.content.classList.add('webview-overlay-content');
+		append(container, overlay.root);
+		overlay.setAnchorElement(anchor, { clippingContainer: container });
+		const onMessage = disposables.add(new Emitter<WebviewMessageReceivedEvent>());
+		const onDidCloseEditor = disposables.add(new Emitter<IEditorCloseEvent>());
+		const opened = new DeferredPromise<void>();
+		const messages: object[] = [];
+		const claims: object[] = [];
+		let restoredAnchor: HTMLElement | undefined;
+		let restoredClip: HTMLElement | undefined;
+		let focused = false;
+		let openCount = 0;
+		instantiationService.stub(IEditorService, {
+			get visibleEditorPanes() { return [diffPane]; },
+		});
+		instantiationService.stub(IEditorService, 'openEditor', async (editor: EditorInput, options?: IEditorOptions, group?: PreferredGroup) => {
+			openCount++;
+			assert.deepStrictEqual({ sameInput: editor === input, options, group }, {
+				sameInput: true, options: { pinned: true }, group: MODAL_GROUP,
+			});
+			input.updateGroup(2);
+			overlay.setAnchorElement(modalAnchor);
+			return upcastPartial<IVisibleEditorPane>({ input, group: modalGroup });
+		});
+		const input = disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, 'video', URI.file('/media/clip.webm'), new class extends mock<IOverlayWebview>() {
+			override readonly container = overlay.content;
+			override readonly onMessage = onMessage.event;
+			override claim(owner: object) { claims.push(owner); }
+			override focus() { }
+			override setAnchorElement(element: HTMLElement, clippingContainer?: HTMLElement) {
+				restoredAnchor = element;
+				restoredClip = clippingContainer;
+				overlay.setAnchorElement(element, { clippingContainer });
+			}
+			override async postMessage(message: { type: string }) {
+				messages.push(message);
+				if (message.type === 'fullscreen') {
+					opened.complete();
+				}
+				return true;
+			}
+			override dispose() { }
+		}));
+		const sourceGroup = upcastPartial<IEditorGroup>({ id: 1 });
+		const source = upcastPartial<IVisibleEditorPane>({
+			input, group: sourceGroup, isVisible: () => true,
+			focus: () => { focused = true; },
+		});
+		const diffPane = Object.assign(Object.create(SideBySideEditor.prototype), {
+			getPrimaryEditorPane: () => undefined,
+			getSecondaryEditorPane: () => source,
+		}) as IVisibleEditorPane;
+		const modalGroup = upcastPartial<IEditorGroup>({
+			id: 2, onDidCloseEditor: onDidCloseEditor.event,
+			closeEditor: async editor => {
+				assert.ok(editor);
+				onDidCloseEditor.fire({ editor, groupId: 2, context: EditorCloseContext.UNKNOWN, index: 0, sticky: false });
+				return true;
+			},
+		});
+		onMessage.fire({ message: { type: 'prepare-fullscreen' } });
+		onMessage.fire({ message: { type: 'toggle-fullscreen' } });
+		onMessage.fire({ message: { type: 'toggle-fullscreen' } });
+		await opened.p;
+		const transitionOpacity = () => mainWindow.getComputedStyle(overlay.content).opacity;
+		const transitionStates = [transitionOpacity()];
+		onMessage.fire({ message: { type: 'video-layout', id: 0, width: 640, height: 360 } });
+		transitionStates.push(transitionOpacity());
+		onMessage.fire({ message: { type: 'video-layout', id: 1, width: 640, height: 360 } });
+		transitionStates.push(transitionOpacity());
+		modalAnchor.querySelector<HTMLElement>('[tabindex="0"]')!.dispatchEvent(new FocusEvent('focus'));
+		overlay.content.querySelector<HTMLElement>('span[tabindex="0"]')!.dispatchEvent(new FocusEvent('focus'));
+		onMessage.fire({ message: { type: 'toggle-fullscreen' } });
+		transitionStates.push(transitionOpacity());
+		onMessage.fire({ message: { type: 'video-layout', id: 1, width: 320, height: 180 } });
+		transitionStates.push(transitionOpacity());
+		onMessage.fire({ message: { type: 'video-layout', id: 2, width: 319, height: 180 } });
+		transitionStates.push(transitionOpacity());
+		onMessage.fire({ message: { type: 'video-layout', id: 3, width: 320, height: 180 } });
+		transitionStates.push(transitionOpacity());
+		assert.deepStrictEqual({
+			openCount, messages, transitionStates, restoredOwner: claims[0] === source,
+			restoredAnchor: restoredAnchor === anchor, restoredClip: restoredClip === container, group: input.group, focused,
+			headerFocused, focusGuardsRemoved: overlay.content.querySelectorAll('span[tabindex="0"]').length === 0,
+		}, {
+			openCount: 1,
+			messages: [
+				{ type: 'exit-native-fullscreen' },
+				{ type: 'layout-video', id: 1 },
+				{ type: 'fullscreen', expanded: true },
+				{ type: 'focus-video' },
+				{ type: 'layout-video', id: 2 },
+				{ type: 'fullscreen', expanded: false },
+				{ type: 'layout-video', id: 3 },
+			],
+			transitionStates: ['0', '0', '1', '0', '0', '0', '1'],
+			restoredOwner: true, restoredAnchor: true, restoredClip: true, group: 1, focused: true,
+			headerFocused: true, focusGuardsRemoved: true,
+		});
+	});
 
 	// Files can only be opened in an external application on desktop
 	const openFile = isNative ? [{ label: 'Open File', message: 'open-externally' }] : [];

@@ -174,7 +174,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 	}());
 	instantiationService.set(IContextViewService, disposableStore.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.set(IActionWidgetService, disposableStore.add(instantiationService.createInstance(ActionWidgetService)));
-	const toolbar = dom.append(container, dom.$(newChat ? '.new-chat-widget-container.revealed' : '.interactive-input-part'));
+	const toolbar = dom.append(container, dom.$(newChat ? '.new-chat-widget-container.default-new-session.revealed' : '.interactive-input-part'));
 	disposableStore.add(trackChatInputPickerFocus(toolbar));
 	toolbar.style.position = 'absolute';
 	toolbar.style.left = phoneWidth === undefined ? '350px' : '8px';

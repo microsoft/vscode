@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement, ViewContainer, IViewContainersRegistry, ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -18,6 +17,7 @@ import { SessionsAccountTelemetryContribution } from './sessionsAccountTelemetry
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
+import { AutomationHistoryActionsContribution } from '../../automations/browser/automationRunHistory.js';
 import './views/sessionsViewActions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -33,12 +33,9 @@ import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/cha
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { AutomationSessionsListingContribution } from './automationSessionsListing.js';
 import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestart.js';
-import { ISessionAttentionService } from '../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
-import { SessionAttentionService } from '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
-import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, USE_WORKTREE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
+import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, SessionsSidebarCustomizationsCategories, USE_WORKTREE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { sessionsListConfigurationProperties } from '../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
-
-registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -121,8 +118,21 @@ export const sessionsConfiguration = {
 			default: false,
 			experiment: { mode: 'auto' },
 		},
+		[SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING]: {
+			type: 'string',
+			enum: [SessionsSidebarCustomizationsCategories.All, SessionsSidebarCustomizationsCategories.Reduced],
+			enumDescriptions: [
+				localize('sessions.sidebar.customizationsCategories.all', "Show all customization categories."),
+				localize('sessions.sidebar.customizationsCategories.reduced', "Show Overview, Plugins, MCP Servers, Skills, and Instructions. More shows the other categories, and Less hides them again."),
+			],
+			tags: ['experimental'],
+			description: localize('sessions.sidebar.customizationsCategories', "Controls which customization categories the Customizations section below the Sessions list shows."),
+			default: SessionsSidebarCustomizationsCategories.Reduced,
+			experiment: { mode: 'auto' },
+		},
 		[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING],
 		[SESSIONS_LIST_INBOX_ENABLED_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INBOX_ENABLED_SETTING],
+		[SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING],
 		[SESSIONS_LIST_AGENT_TOOLS_SETTING]: {
 			type: 'boolean',
 			tags: ['preview'],
@@ -136,6 +146,12 @@ export const sessionsConfiguration = {
 		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING],
 		[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING],
 		[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING],
+		[SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.automations.showSharedByOthers', "Controls whether the Automations view includes shared automations created by other users and their run history. This does not change automation execution or access permissions."),
+		},
 		[SESSIONS_LIST_INDENT_ITEMS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INDENT_ITEMS_SETTING],
 		[SESSIONS_CHAT_TABS_SETTING]: {
 			type: 'string',
@@ -169,6 +185,7 @@ export const sessionsConfiguration = {
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(sessionsConfiguration);
 
+registerWorkbenchContribution2(AutomationHistoryActionsContribution.ID, AutomationHistoryActionsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);

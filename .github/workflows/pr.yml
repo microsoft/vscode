@@ -616,7 +616,7 @@ jobs:
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
-      rustup_toolchain: 1.88
+      rustup_toolchain: '1.97.0'
       cli_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.cli == 'true' }}
       copilot_shim_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true' }}
       runner: *linux-runner
@@ -639,6 +639,8 @@ jobs:
       electron_smoke_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       browser_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
       browser_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
+      # Only the merge queue runs the WebKit browser unit tests (see the Browser-Unit (WebKit) job)
+      browser_unit_webkit: ${{ github.event_name == 'merge_group' && (needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true') }}
       remote_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       # The Electron (node.js) job runs only the node.js integration tests that the plan selects, and is
       # skipped when it selects none.
@@ -743,6 +745,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
+      # The rebuild below compiles `kerberos` (an optional peer of the proxy agents that
+      # @vscode/test-web uses) whenever the lockfile resolves it for copilot-chat, which needs
+      # libkrb5-dev, one of the cached apt packages.
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
+
       - name: Build copilot dependencies
         run: pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
 
@@ -830,16 +838,16 @@ jobs:
       - name: Install setuptools
         run: pip install setuptools
 
-      - name: Install system dependencies
-        run: |
-          set -e
-          # The extension host tests launch VS Code, whose Chromium sandbox needs unprivileged
-          # user namespaces, which Ubuntu 24.04 restricts by default via AppArmor
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          sudo apt-get update
-          # libkrb5-dev: the rebuild below compiles `kerberos` (an optional peer of the proxy agents
-          # that @vscode/test-web uses) whenever the lockfile resolves it for copilot-chat.
-          sudo apt-get install -y xvfb libgtk-3-0 libgbm1 libkrb5-dev
+      # The extension host tests launch VS Code, whose Chromium sandbox needs unprivileged
+      # user namespaces, which Ubuntu 24.04 restricts by default via AppArmor
+      - name: Allow unprivileged user namespaces
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # xvfb, libgtk-3-0 and libgbm1 for the extension host tests, and libkrb5-dev for the rebuild
+      # below, which compiles `kerberos` (an optional peer of the proxy agents that @vscode/test-web
+      # uses) whenever the lockfile resolves it for copilot-chat
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
 
       # Same commands as the Copilot jobs of pr-pnpm-store.yml.
       - name: Install dependencies

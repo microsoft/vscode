@@ -7,31 +7,33 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableFromEvent, observableSignal } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { GroupModelChangeKind, isEditorCommandsContext } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
-import { DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
 import { FilesDetailsState, getFilesDetailsState, getFloatingMarkdownDetailsState, getLayoutWorkspace, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty, isQuickChatShown } from './desktopSharedHelpers.js';
@@ -663,7 +665,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 	private _registerToggleDetailsAction(): IDisposable {
 		const that = this;
-		return registerAction2(class extends Action2 {
+		const action = registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: TOGGLE_DETAILS_COMMAND_ID,
@@ -681,22 +683,12 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 							IsAuxiliaryWindowContext.toNegated(),
 							DesktopLayoutContext)
 					},
-					menu: {
-						id: MenuId.EditorTitleLayout,
+					// The primary action of both split buttons below.
+					menu: [Menus.DetailsToggle, Menus.MultiDiffFileListToggle].map(id => ({
+						id,
 						group: 'navigation',
-						order: desktopHeaderToggleDetailsOrder,
-						// Not every tab type has a detail panel to show/hide (e.g. browser and
-						// search tabs), so only surface the toggle for tab types that do, or
-						// for a multi diff editor whose file list it toggles instead.
-						when: ContextKeyExpr.and(
-							IsSessionsWindowContext,
-							IsAuxiliaryWindowContext.toNegated(),
-							IsTopRightEditorGroupContext,
-							DesktopLayoutContext,
-							ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
-							MainEditorAreaVisibleContext,
-							ContextKeyExpr.or(HasDockedDetailsContext, toggleMultiDiffEditorFileListContext))
-					}
+						order: 1,
+					}))
 				});
 			}
 
@@ -714,5 +706,62 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				that.toggleDetails();
 			}
 		});
+
+		const splitButtonWhen = ContextKeyExpr.and(
+			IsSessionsWindowContext,
+			IsAuxiliaryWindowContext.toNegated(),
+			IsTopRightEditorGroupContext,
+			DesktopLayoutContext,
+			MainEditorAreaVisibleContext);
+
+		return combinedDisposable(
+			action,
+			MenuRegistry.appendMenuItems([
+				// Toggle Details with a dropdown of the details positions, also while the details float.
+				{
+					id: MenuId.EditorTitleLayout, item: {
+						submenu: Menus.DetailsToggle,
+						title: localize2('detailsPosition', "Details Position"),
+						icon: Codicon.listSelection,
+						isSplitButton: { excludePrimaryActionFromDropdown: true },
+						group: 'navigation',
+						order: desktopHeaderToggleDetailsOrder,
+						// Not every tab type has a detail panel to show/hide (e.g. browser and
+						// search tabs), so only surface the toggle for tab types that do.
+						when: ContextKeyExpr.and(
+							splitButtonWhen,
+							toggleMultiDiffEditorFileListContext.negate(),
+							ContextKeyExpr.or(
+								HasDockedDetailsContext,
+								// The Changes tab also keeps the toggle while a session switch replaces the
+								// Changes editor, matching the changeset picker in the header.
+								ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+								DesktopChangesEditorTransitionContext))
+					}
+				},
+				// In a multi diff editor with a changed files list, Toggle Details shows or hides that list instead while the details
+				// are docked, with a dropdown that puts the list on either side of the diffs.
+				{
+					id: MenuId.EditorTitleLayout, item: {
+						submenu: Menus.MultiDiffFileListToggle,
+						title: localize2('fileListPosition', "Files Position"),
+						icon: Codicon.listSelection,
+						isSplitButton: { excludePrimaryActionFromDropdown: true },
+						group: 'navigation',
+						order: desktopHeaderToggleDetailsOrder,
+						when: ContextKeyExpr.and(splitButtonWhen, toggleMultiDiffEditorFileListContext),
+					}
+				},
+				...([
+					['multiDiffEditor.positionFileListLeft', localize2('fileListPositionLeft', "Left"), 'left', 1],
+					['multiDiffEditor.positionFileListRight', localize2('fileListPositionRight', "Right"), 'right', 2],
+				] as const).map(([id, title, position, order]) => ({
+					id: Menus.MultiDiffFileListToggle, item: {
+						command: { id, title, toggled: MultiDiffEditorFileListPositionContext.isEqualTo(position) },
+						group: '2_organize',
+						order,
+					}
+				})),
+			]));
 	}
 }

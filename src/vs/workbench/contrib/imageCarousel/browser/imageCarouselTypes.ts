@@ -20,9 +20,13 @@ export interface IImageCarouselMarkUpResult {
 export interface IImageCarouselMarkUp extends IDisposable {
 	/** Resolves once the markup ends, with the changed image, or `undefined` when it did not change. */
 	readonly result: Promise<IImageCarouselMarkUpResult | undefined>;
+	/** Whether the markup has changes, which cancelling it discards. */
+	readonly hasChanges: boolean;
 	focus(): void;
 	/** Ends the markup and keeps its changes, like its own Done does. `result` settles once they are applied. */
 	finish(): void;
+	/** Ends the markup without its changes, like its own Cancel does, once the user confirms discarding any. Resolves with whether it ended. */
+	cancel(): Promise<boolean>;
 }
 
 export interface ICarouselImage {

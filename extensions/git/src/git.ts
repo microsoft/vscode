@@ -2280,8 +2280,14 @@ export class Repository {
 		await this.exec(['update-ref', '--no-deref', ref, newSha, oldSha]);
 	}
 
-	async merge(ref: string): Promise<void> {
-		const args = ['merge', ref];
+	async merge(ref: string, opts?: { signCommit?: boolean }): Promise<void> {
+		const args = ['merge'];
+
+		if (opts?.signCommit) {
+			args.push('-S');
+		}
+
+		args.push(ref);
 
 		try {
 			await this.exec(args);
@@ -2517,17 +2523,16 @@ export class Repository {
 			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 		};
 
-		args.push(options.remote);
-
-		for (const tag of options.tags) {
-			args.push(`refs/tags/${tag}:refs/tags/${tag}`);
-		}
-
 		if (options.force) {
 			args.push('--force');
 		}
 
-		await this.exec(args, spawnOptions);
+		args.push(options.remote);
+
+		const refspecs = options.tags.map(tag => `refs/tags/${tag}:refs/tags/${tag}`);
+		for (const chunk of splitInChunks(refspecs, MAX_CLI_LENGTH)) {
+			await this.exec([...args, ...chunk], spawnOptions);
+		}
 	}
 
 	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<boolean> {

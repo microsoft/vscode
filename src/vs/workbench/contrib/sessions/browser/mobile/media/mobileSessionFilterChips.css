@@ -36,6 +36,18 @@
 	display: none;
 }
 
+.mobile-session-list-actions.has-no-actions {
+	display: none;
+}
+
+.mobile-session-list-actions .monaco-action-bar .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size100);
+}
+
 .mobile-session-filter-chip {
 	display: inline-flex;
 	align-items: center;

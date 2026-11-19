@@ -15,6 +15,7 @@ import { chatTurnStarted } from '../common/chatActionBuilders.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { artifactServerToolDefinitions, createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
+import type { IAgentHostArtifactRecordedReport, IAgentHostArtifactRemovedReport } from '../../node/agentHostTelemetryReporter.js';
 
 suite('Artifact Server Tools', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -427,6 +428,29 @@ suite('Artifact Server Tools', () => {
 			result: [`Added reference: ${id}`, `Promoted artifact: ${id}`, `Already recorded: ${id}`].join('\n'),
 			artifacts: [{ ...reference, id, chat: buildDefaultChatUri('copilot:/artifacts'), isArtifact: true, origin: { chat: buildDefaultChatUri('copilot:/artifacts') } }],
 			persisted: [[{ ...reference, id, chat: buildDefaultChatUri('copilot:/artifacts'), isArtifact: true, origin: { chat: buildDefaultChatUri('copilot:/artifacts') } }]],
+		});
+	});
+
+	test('reports what each add and remove call did to every entry', async () => {
+		const recorded: IAgentHostArtifactRecordedReport[] = [];
+		const removed: IAgentHostArtifactRemovedReport[] = [];
+		const { sessionUri, execute, artifacts, startUserTurn } = createHarness({ reportArtifactRecorded: report => recorded.push(report), reportArtifactRemoved: report => removed.push(report) });
+		const pullRequest = { type: 'pullRequest', label: 'Fix', isArtifact: false, link: 'https://github.com/microsoft/vscode/pull/1' };
+		const docs = { type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com/docs' };
+		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [pullRequest, docs] });
+		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [{ ...pullRequest, isArtifact: true }, docs] });
+		startUserTurn();
+		await execute(ArtifactServerToolName.RemoveArtifactOrReference, { id: artifacts()[1].id });
+
+		const shared = { provider: 'copilot', session: sessionUri, chat: buildDefaultChatUri(sessionUri), turnId: undefined, toolCallId: undefined };
+		assert.deepStrictEqual({ recorded, removed }, {
+			recorded: [
+				{ ...shared, source: 'agentTool', kind: SessionArtifactType.PullRequest, isArtifact: false, outcome: 'added', isGitHub: true, batchSize: 2 },
+				{ ...shared, source: 'agentTool', kind: SessionArtifactType.Website, isArtifact: false, outcome: 'added', isGitHub: false, batchSize: 2 },
+				{ ...shared, source: 'agentTool', kind: SessionArtifactType.PullRequest, isArtifact: true, outcome: 'promoted', isGitHub: true, batchSize: 2 },
+				{ ...shared, source: 'agentTool', kind: SessionArtifactType.Website, isArtifact: false, outcome: 'alreadyRecorded', isGitHub: false, batchSize: 2 },
+			],
+			removed: [{ ...shared, turnId: 'turn-1', initiator: 'agentTool', kind: SessionArtifactType.Website, isArtifact: false, isGitHub: false }],
 		});
 	});
 
