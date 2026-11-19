@@ -1132,6 +1132,23 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
+	test('a mixed workspace does not restore an unsupported local harness', () => {
+		const configuration = new TestConfigurationService({ [ChatConfiguration.DefaultToCopilotHarness]: true });
+		const sessions = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex);
+		const storage = disposables.add(new TestStorageService());
+		const workspace = createWorkspace(URI.file('/workspace'), URI.parse('custom-vfs://provider/workspace'));
+		storeUserSelectedSessionType(storage, SessionType.AgentHostClaude);
+
+		assert.deepStrictEqual({
+			usable: [SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex]
+				.map(type => isNewChatSessionTypeUsable(type, configuration, sessions, workspace)),
+			resolved: resolveSessionType(configuration, sessions, storage, workspace, true, { currentSessionType: SessionType.AgentHostCodex }),
+		}, {
+			usable: [true, false, false],
+			resolved: { sessionType: SessionType.AgentHostCopilot },
+		});
+	});
+
 	test('remembered agent host is usable before contribution registers', () => {
 		const configurationService = new TestConfigurationService();
 		const chatSessionsService = createChatSessionsService();
