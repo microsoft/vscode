@@ -41,6 +41,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from '../../node/agentConfigurationService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
+import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
@@ -1641,6 +1642,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		subscriptions?: string[];
 		isolation?: 'folder' | 'worktree';
 		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error; /** Recorded storage when it is not the creation-time one. */ storage?: string };
+		missingPeerDatabases?: ReadonlySet<string>;
 		sessionOpenError?: Error;
 		/** Receives the resource of each session database that is opened. */
 		dbOpens?: string[];
@@ -1663,30 +1665,39 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		}
 		const sessionDataService = createSessionDataService(db);
 		const peerDataService = options.peer ? createSessionDataService(options.peer.db) : undefined;
+		const openDatabase: ISessionDataService['openDatabase'] = resource => {
+			if (!options.peer || (options.peer.storage ?? options.peer.resource) !== resource.toString()) {
+				options.dbOpens?.push(resource.toString());
+				if (options.sessionOpenError) {
+					throw options.sessionOpenError;
+				}
+				return sessionDataService.openDatabase(resource);
+			}
+			if (options.peer.openError) {
+				throw options.peer.openError;
+			}
+			const ref = peerDataService!.openDatabase(resource);
+			return {
+				object: ref.object,
+				dispose: () => {
+					options.peer?.onDispose?.();
+					ref.dispose();
+				},
+			};
+		};
 		const svc = disposables.add(new TestableChangesetService(
 			stateManager,
 			log,
 			{
 				...sessionDataService,
-				openDatabase: resource => {
-					if (!options.peer || (options.peer.storage ?? options.peer.resource) !== resource.toString()) {
-						options.dbOpens?.push(resource.toString());
-						if (options.sessionOpenError) {
-							throw options.sessionOpenError;
-						}
-						return sessionDataService.openDatabase(resource);
+				openDatabase,
+				tryOpenDatabase: async resource => {
+					if (options.missingPeerDatabases?.has(resource.toString())) {
+						return undefined;
 					}
-					if (options.peer.openError) {
-						throw options.peer.openError;
-					}
-					const ref = peerDataService!.openDatabase(resource);
-					return {
-						object: ref.object,
-						dispose: () => {
-							options.peer?.onDispose?.();
-							ref.dispose();
-						},
-					};
+					return options.peer && (options.peer.storage ?? options.peer.resource) === resource.toString()
+						? openDatabase(resource)
+						: sessionDataService.tryOpenDatabase(resource);
 				},
 			},
 			options.git,
@@ -2264,6 +2275,54 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
+	test('Session Changes and Working Set skip restored peers without an edits database', async () => {
+		const peer = buildChatUri(sessionStr, 'peer-with-edits');
+		const readOnlyChat = buildChatUri(sessionStr, 'read-only-peer');
+		const readOnlyStorage = creationTimeChatStorageResource(sessionStr, readOnlyChat, buildDefaultChatUri(sessionStr));
+		const sessionChangeset = buildSessionChangesetUri(sessionStr);
+		const workingSet = buildWorkingSetChangesetUri(sessionStr);
+		const dbOpens: string[] = [];
+		const db = new TestSessionDatabase();
+		const peerDb = new TestSessionDatabase();
+		const edit = (turnId: string, filePath: string) => ({
+			turnId, filePath, toolCallId: filePath, kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb'),
+		});
+		db.addEdit(edit('main-turn', '/repo/main.ts'));
+		peerDb.addEdit(edit('peer-turn', '/repo/peer.ts'));
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repo'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			db, dbOpens,
+			peer: { resource: peer, db: peerDb, turnId: 'peer-turn' },
+			missingPeerDatabases: new Set([readOnlyStorage]),
+			subscriptions: [workingSet],
+		});
+		stateManager.registerRestoredChatSummary(sessionStr, readOnlyChat, {
+			storageResource: readOnlyStorage,
+			resolver: async () => ({ turns: [] }),
+		});
+
+		svc.refreshSessionChangeset(sessionStr, 'fileEditTracker');
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await Promise.all([
+			waitForChangesetReady(stateManager, sessionChangeset),
+			waitForChangesetReady(stateManager, workingSet),
+		]);
+
+		const paths = (changeset: string) => stateManager.getChangesetState(changeset)?.files.map(file => URI.parse(file.id).path).sort();
+		assert.deepStrictEqual({
+			session: paths(sessionChangeset),
+			workingSet: paths(workingSet),
+			openedReadOnlyPeer: dbOpens.includes(readOnlyStorage),
+		}, {
+			session: ['/repo/main.ts', '/repo/peer.ts'],
+			workingSet: ['/repo/main.ts', '/repo/peer.ts'],
+			openedReadOnlyPeer: false,
+		});
+	});
+
 	test('turn-complete lifecycle computes Session Changes only for the containing session', async () => {
 		const peer = buildChatUri(sessionStr, 'peer');
 		const db = new TestSessionDatabase();
@@ -2299,7 +2358,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		await svc.computeTurnChangeset(sessionStr, 'turn-1', 'fileEditTracker');
 		const turnFilesBefore = stateManager.getChangesetState(turnUri)?.files.map(file => file.id).sort();
 
-		const tracked = svc.openTrackedTurnDatabase(sessionStr, 'turn-1')!;
+		const tracked = (await svc.openTrackedTurnDatabase(sessionStr, 'turn-1'))!;
 		const folderScope = tracked.folderScope?.map(folder => folder.toString());
 		const otherChatDatabases = tracked.otherChatDatabases.length;
 		try {
@@ -2501,7 +2560,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
-	test('opens the other chats\' databases whose edits Session Changes combine with a turn\'s', () => {
+	test('opens the other chats\' databases whose edits Session Changes combine with a turn\'s', async () => {
 		const peer = buildChatUri(sessionStr, 'peer');
 		const db = new TestSessionDatabase();
 		const peerDb = new TestSessionDatabase();
@@ -2514,21 +2573,21 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			// Stored somewhere else than its URI, as a moved chat is.
 			peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: ['file:///repoB'], storage: 'copilot:/moved-in-storage', onDispose: () => { peerDisposals++; } },
 		});
-		const open = (owner: string, turnId: string) => {
-			const tracked = svc.openTrackedTurnDatabase(owner, turnId)!;
+		const open = async (owner: string, turnId: string) => {
+			const tracked = (await svc.openTrackedTurnDatabase(owner, turnId))!;
 			const describe = (candidate: unknown) => candidate === db ? 'session' : candidate === peerDb ? 'peer' : 'other';
 			const result = { db: describe(tracked.db), otherChatDatabases: tracked.otherChatDatabases.map(describe) };
 			tracked.dispose();
 			return { ...result, peerDisposals };
 		};
 
-		assert.deepStrictEqual({ defaultChatTurn: open(sessionStr, 'turn-1'), peerTurn: open(peer, 'peer-turn') }, {
+		assert.deepStrictEqual({ defaultChatTurn: await open(sessionStr, 'turn-1'), peerTurn: await open(peer, 'peer-turn') }, {
 			defaultChatTurn: { db: 'session', otherChatDatabases: ['peer'], peerDisposals: 1 },
 			peerTurn: { db: 'peer', otherChatDatabases: ['session'], peerDisposals: 3 },
 		});
 	});
 
-	test('opens the databases, folders, and folder scope that Session Changes is computed from', () => {
+	test('opens the databases, folders, and folder scope that Session Changes is computed from', async () => {
 		const peer = buildChatUri(sessionStr, 'peer');
 		const db = new TestSessionDatabase();
 		const peerDb = new TestSessionDatabase();
@@ -2542,8 +2601,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: ['file:///repoB'], storage: 'copilot:/moved-in-storage', onDispose: () => { peerDisposals++; } },
 		});
 		const describe = (candidate: unknown) => candidate === db ? 'session' : candidate === peerDb ? 'peer' : 'other';
-		const open = (owner: string) => {
-			const tracked = svc.openTrackedSessionDatabases(owner);
+		const open = async (owner: string) => {
+			const tracked = await svc.openTrackedSessionDatabases(owner);
 			tracked.dispose();
 			return {
 				sources: tracked.sources.map(source => ({ chat: source.chat, storage: source.storage, db: describe(source.db) })),
@@ -2554,7 +2613,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			};
 		};
 
-		assert.deepStrictEqual({ session: open(sessionStr), peer: open(peer) }, {
+		assert.deepStrictEqual({ session: await open(sessionStr), peer: await open(peer) }, {
 			session: {
 				sources: [{ chat: buildDefaultChatUri(sessionStr), storage: sessionStr, db: 'session' }, { chat: peer, storage: 'copilot:/moved-in-storage', db: 'peer' }],
 				otherChatDatabases: [],

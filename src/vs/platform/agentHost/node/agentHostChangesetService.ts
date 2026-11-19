@@ -585,7 +585,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._markChangesetComputing(changesetUri);
 		const computeDisposables = this._staticComputeResources.add(new DisposableStore());
 		try {
-			const tracked = computeDisposables.add(this.openTrackedSessionDatabases(owner));
+			const tracked = await this.openTrackedSessionDatabases(owner);
+			if (computeDisposables.isDisposed) {
+				tracked.dispose();
+				return;
+			}
+			computeDisposables.add(tracked);
 			const sources = tracked.sources.map(source => ({ sessionUri: source.storage, db: source.db }));
 			const files = await computeWorkingSetFiles(sources, this._diffComputeService, tracked.folderScope);
 			// A queued refresh may include a completed edit that these snapshots missed.
@@ -1395,7 +1400,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		let trackedDiffs: readonly ISessionFileDiff[] = [];
 		if (trackedRoots.length > 0) {
-			const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, true);
+			const peerSources = isAhpChatChannel(session) ? [] : await this._openPeerChatSources(session, true);
 			try {
 				trackedDiffs = await computeUnionedDiffs([
 					{ sessionUri: session, db },
@@ -1611,7 +1616,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 	}
 
-	openTrackedTurnDatabase(owner: ProtocolURI, turnId: string): ITrackedTurnDatabase | undefined {
+	async openTrackedTurnDatabase(owner: ProtocolURI, turnId: string): Promise<ITrackedTurnDatabase | undefined> {
 		// Resolves the database and folder scope exactly as the `fileEditTracker`
 		// per-turn computation does, so callers see the same file identities.
 		const ref = this._sessionDataService.openDatabase(URI.parse(this._getTrackedDatabaseUri(owner)));
@@ -1630,7 +1635,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		let others: ReturnType<ISessionDataService['openDatabase']>[];
 		try {
-			others = this._openOtherSessionChangesSources(turnOwner, source.storage);
+			others = await this._openOtherSessionChangesSources(turnOwner, source.storage);
 		} catch (err) {
 			source.dispose();
 			ref.dispose();
@@ -1650,7 +1655,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		};
 	}
 
-	openTrackedSessionDatabases(owner: ProtocolURI): ITrackedSessionDatabases {
+	async openTrackedSessionDatabases(owner: ProtocolURI): Promise<ITrackedSessionDatabases> {
 		// Mirrors the `fileEditTracker` Session Changes computation in
 		// `_doComputeStaticChangeset`: same databases, directories, and scope.
 		const isChat = isAhpChatChannel(owner);
@@ -1663,9 +1668,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		let others: ReturnType<ISessionDataService['openDatabase']>[] = [];
 		try {
 			if (isChat) {
-				others = this._openOtherSessionChangesSources(owner, storage);
+				others = await this._openOtherSessionChangesSources(owner, storage);
 			} else {
-				peers = this._openPeerChatSources(owner, true);
+				peers = await this._openPeerChatSources(owner, true);
 			}
 		} catch (err) {
 			ref.dispose();
@@ -1696,12 +1701,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * Opens the databases whose edits the containing session's Session Changes
 	 * combine with those in `storage`: the session's own and each peer chat's.
 	 */
-	private _openOtherSessionChangesSources(owner: ProtocolURI, storage: ProtocolURI): ReturnType<ISessionDataService['openDatabase']>[] {
+	private async _openOtherSessionChangesSources(owner: ProtocolURI, storage: ProtocolURI): Promise<ReturnType<ISessionDataService['openDatabase']>[]> {
 		const session = this._containingSessionUri(owner);
 		const sessionStorage = this._getTrackedDatabaseUri(session);
 		const others = sessionStorage === storage ? [] : [this._sessionDataService.openDatabase(URI.parse(sessionStorage))];
 		try {
-			for (const peer of this._openPeerChatSources(session, true)) {
+			for (const peer of await this._openPeerChatSources(session, true)) {
 				if (peer.sessionUri === storage) {
 					peer.ref.dispose();
 				} else {
@@ -2289,8 +2294,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 				usedEditTrackerFallback = strategy === 'auto';
 				const folderScope = this._getTrackedEditFolderScope(session, workingDirectories);
-				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, strategy === 'fileEditTracker' || useActiveTurnEdits);
+				const peerSources = isAhpChatChannel(session) ? [] : await this._openPeerChatSources(session, strategy === 'fileEditTracker' || useActiveTurnEdits);
 				try {
+					if (this._store.isDisposed) {
+						return;
+					}
 					if (peerSources.length > 0) {
 						const sources: ISessionDiffSource[] = [
 							{ sessionUri: this._getTrackedDatabaseUri(session), db: sessionDatabase() },
@@ -2506,13 +2514,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
-	 * Opens the databases for every non-default (peer) chat in a multi-chat
+	 * Opens existing databases for non-default (peer) chats in a multi-chat
 	 * session. Each peer chat records its file edits into its own database
 	 * keyed by the chat URI, so the session changeset must union those
 	 * databases with the session DB. Returns an empty array for single-chat
 	 * sessions. Callers MUST dispose every returned `ref`.
 	 */
-	private _openPeerChatSources(session: ProtocolURI, requireAllSources = false): { sessionUri: ProtocolURI; chat: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] {
+	private async _openPeerChatSources(session: ProtocolURI, requireAllSources = false): Promise<{ sessionUri: ProtocolURI; chat: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[]> {
 		const chats = this._stateManager.getSessionState(session)?.chats ?? [];
 		const sources: { sessionUri: ProtocolURI; chat: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] = [];
 		for (const chat of chats) {
@@ -2521,8 +2529,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			try {
 				const storage = this._getTrackedDatabaseUri(chat.resource);
-				const ref = this._sessionDataService.openDatabase(URI.parse(storage));
-				sources.push({ sessionUri: storage, chat: chat.resource, ref });
+				const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(storage));
+				if (ref) {
+					sources.push({ sessionUri: storage, chat: chat.resource, ref });
+				}
 			} catch (err) {
 				this._logService.warn(`[AgentHostChangesetService] Failed to open peer chat database for session changes: ${chat.resource}`, err);
 				if (requireAllSources) {

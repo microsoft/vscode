@@ -90,8 +90,8 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 	const discardedTurns: { owner: string; turnIds: readonly string[] }[] = [];
 	const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
 	const changesets = createNoopChangesetService();
-	changesets.openTrackedTurnDatabase = () => tracked.database;
-	changesets.openTrackedSessionDatabases = () => ({ ...trackedSession, dispose: () => { } });
+	changesets.openTrackedTurnDatabase = async () => tracked.database;
+	changesets.openTrackedSessionDatabases = async () => ({ ...trackedSession, dispose: () => { } });
 	changesets.onFileEditsDiscarded = (owner, turnIds) => { discardedTurns.push({ owner, turnIds }); };
 	if (opts?.registerSession !== false) {
 		stateManager.createSession({
