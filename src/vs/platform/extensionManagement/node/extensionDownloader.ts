@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Promises } from '../../../base/common/async.js';
-import { getErrorMessage } from '../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { joinPath } from '../../../base/common/resources.js';
@@ -15,7 +15,7 @@ import { Promises as FSPromises } from '../../../base/node/pfs.js';
 import { buffer, CorruptZipMessage } from '../../../base/node/zip.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { toExtensionManagementError } from '../common/abstractExtensionManagementService.js';
-import { ExtensionManagementError, ExtensionManagementErrorCode, ExtensionSignatureVerificationCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from '../common/extensionManagement.js';
+import { ExtensionGalleryError, ExtensionGalleryErrorCode, ExtensionManagementError, ExtensionManagementErrorCode, ExtensionSignatureVerificationCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from '../common/extensionManagement.js';
 import { ExtensionKey, groupByExtension } from '../common/extensionManagementUtil.js';
 import { fromExtractError } from './extensionManagementUtil.js';
 import { IExtensionSignatureVerificationService } from './extensionSignatureVerificationService.js';
@@ -214,12 +214,22 @@ export class ExtensionsDownloader extends Disposable {
 				await downloadFn();
 				return attempts;
 			} catch (e) {
-				if (attempts++ > retries) {
+				if (attempts++ > retries || !this.isRetryableError(e)) {
 					throw e;
 				}
 				this.logService.warn(`Failed downloading ${name}. ${getErrorMessage(e)}. Retry again...`, extension.identifier.id);
 			}
 		}
+	}
+
+	private isRetryableError(error: unknown): boolean {
+		if (isCancellationError(error)) {
+			return false;
+		}
+		if (error instanceof ExtensionGalleryError && error.code === ExtensionGalleryErrorCode.ClientError) {
+			return error.statusCode === 408 || error.statusCode === 429;
+		}
+		return true;
 	}
 
 	protected async validate(zipPath: string, filePath: string): Promise<void> {

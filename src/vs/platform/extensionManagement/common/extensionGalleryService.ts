@@ -23,7 +23,7 @@ import { isEngineValid } from '../../extensions/common/extensionValidator.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { asJson, asTextOrError, IRequestService, isClientError, isServerError, isSuccess } from '../../request/common/request.js';
+import { asJson, asTextOrError, IRequestService, isClientError, isServerError, isSuccess, readBoundedResponse, readHeader } from '../../request/common/request.js';
 import { resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
 import { IStorageService } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -1946,8 +1946,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			if (context.res.statusCode === 200) {
 				return context;
 			}
-			const message = await asTextOrError(context);
-			throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
+			context.stream?.destroy?.();
+			throw new Error(`Expected 200, got back ${context.res.statusCode ?? 'unknown'} instead.`);
 		} catch (err) {
 			if (isCancellationError(err)) {
 				throw err;
@@ -1985,7 +1985,41 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			});
 
 			const fallbackOptions = { ...options, headers: await this.getRequestHeaders(fallbackUrl, options.headers), url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
-			return this.requestService.request(fallbackOptions, token);
+			const fallbackContext = await this.requestService.request(fallbackOptions, token);
+			if (isSuccess(fallbackContext)) {
+				return fallbackContext;
+			}
+
+			const statusCode = fallbackContext.res.statusCode;
+			const responseText = await this.readErrorResponseText(fallbackContext);
+			const statusText = statusCode !== undefined ? `HTTP ${statusCode}` : 'unknown HTTP status';
+			const errorMessage = responseText
+				? `Failed to fetch asset '${assetType}' for extension '${extension}' (${statusText}): ${responseText}`
+				: `Failed to fetch asset '${assetType}' for extension '${extension}' (${statusText}).`;
+			const errorCode = isClientError(fallbackContext)
+				? ExtensionGalleryErrorCode.ClientError
+				: isServerError(fallbackContext)
+					? ExtensionGalleryErrorCode.ServerError
+					: ExtensionGalleryErrorCode.Failed;
+			throw new ExtensionGalleryError(errorMessage, errorCode, statusCode);
+		}
+	}
+
+	private async readErrorResponseText(context: IRequestContext): Promise<string | undefined> {
+		const contentType = readHeader(context.res.headers, 'content-type')?.split(';', 1)[0].trim().toLowerCase();
+		if (contentType && contentType !== 'text/plain' && contentType !== 'application/json' && !contentType.endsWith('+json')) {
+			context.stream?.destroy?.();
+			return undefined;
+		}
+		try {
+			const text = (await readBoundedResponse(context, 1024, () => new Error('Response too large'))).trim();
+			if (!text || (!contentType && text.startsWith('<'))) {
+				return undefined;
+			}
+			return text;
+		} catch {
+			context.stream?.destroy?.();
+			return undefined;
 		}
 	}
 

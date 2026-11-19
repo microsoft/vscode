@@ -27,7 +27,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
-import { ExtensionBlockingOrigin, ExtensionBlockingScope, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
+import { ExtensionBlockingOrigin, ExtensionBlockingScope, ExtensionGalleryError, ExtensionGalleryErrorCode, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
@@ -271,6 +271,101 @@ suite('Extension Gallery Service', () => {
 			{ authorization: 'Bearer resource-token', activityId: 'activity-id', clientId: `VSCode ${productService.version}` },
 			{ authorization: undefined, activityId: 'activity-id', clientId: `VSCode ${productService.version}` },
 		]);
+	});
+
+	test('download rejects with ExtensionGalleryError and does not write VSIX on HTTP 403', async () => {
+		const requestService = new RecordingRequestService(options => {
+			if (options.url?.includes('/latest')) {
+				return requestContext(200, rawLatestExtension());
+			}
+			return {
+				res: { statusCode: 403, headers: { 'content-type': 'text/plain; charset=utf-8' } },
+				stream: bufferToStream(VSBuffer.fromString('Blocked by corporate proxy')),
+			};
+		});
+		const galleryService = createExtensionGalleryService(requestService);
+		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+		const target = joinPath(environmentService.serviceMachineIdResource, '..', 'forbidden.vsix');
+
+		await assert.rejects(
+			() => galleryService.download(extension, target, InstallOperation.Install),
+			(err: unknown) => {
+				if (!(err instanceof ExtensionGalleryError)) {
+					return false;
+				}
+				assert.strictEqual(err.code, ExtensionGalleryErrorCode.ClientError);
+				assert.strictEqual(err.statusCode, 403);
+				assert.ok(err.message.includes('HTTP 403'));
+				assert.ok(err.message.includes('Blocked by corporate proxy'));
+				return true;
+			}
+		);
+		assert.strictEqual(await fileService.exists(target), false);
+	});
+
+	test('download rejects with ServerError and omits HTML body on HTTP 502', async () => {
+		const requestService = new RecordingRequestService(options => {
+			if (options.url?.includes('/latest')) {
+				return requestContext(200, rawLatestExtension());
+			}
+			return {
+				res: { statusCode: 502, headers: { 'content-type': 'text/html' } },
+				stream: bufferToStream(VSBuffer.fromString('<html><body>Bad Gateway</body></html>')),
+			};
+		});
+		const galleryService = createExtensionGalleryService(requestService);
+		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+		const target = joinPath(environmentService.serviceMachineIdResource, '..', 'gateway-error.vsix');
+
+		await assert.rejects(
+			() => galleryService.download(extension, target, InstallOperation.Install),
+			(err: unknown) => {
+				if (!(err instanceof ExtensionGalleryError)) {
+					return false;
+				}
+				assert.strictEqual(err.code, ExtensionGalleryErrorCode.ServerError);
+				assert.strictEqual(err.statusCode, 502);
+				assert.ok(err.message.includes('HTTP 502'));
+				assert.ok(!err.message.includes('<html>'));
+				return true;
+			}
+		);
+		assert.strictEqual(await fileService.exists(target), false);
+	});
+
+	test('downloadSignatureArchive rejects and does not write file on HTTP 403', async () => {
+		const requestService = new RecordingRequestService(options => {
+			if (options.url?.includes('/latest')) {
+				return requestContext(200, rawLatestExtension());
+			}
+			return {
+				res: { statusCode: 403, headers: { 'content-type': 'text/plain' } },
+				stream: bufferToStream(VSBuffer.fromString('Forbidden')),
+			};
+		});
+		const galleryService = createExtensionGalleryService(requestService);
+		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+		const target = joinPath(environmentService.serviceMachineIdResource, '..', 'forbidden.sigzip');
+
+		await assert.rejects(
+			() => galleryService.downloadSignatureArchive({
+				...extension,
+				assets: {
+					...extension.assets,
+					signature: { uri: 'https://marketplace.test/sig', fallbackUri: 'https://marketplace.test/fallback/sig' }
+				}
+			}, target),
+			(err: unknown) => {
+				if (!(err instanceof ExtensionGalleryError)) {
+					return false;
+				}
+				assert.strictEqual(err.code, ExtensionGalleryErrorCode.ClientError);
+				assert.strictEqual(err.statusCode, 403);
+				assert.ok(err.message.includes('HTTP 403'));
+				return true;
+			}
+		);
+		assert.strictEqual(await fileService.exists(target), false);
 	});
 
 	for (const [origin, expectedAuthorization] of [
