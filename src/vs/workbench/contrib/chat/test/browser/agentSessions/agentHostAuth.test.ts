@@ -725,6 +725,51 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 	});
 
+	test('prompts again after a dismissed broader fallback is replaced while the rejected exact session remains', async () => {
+		const account = { id: 'account-1', label: 'Account 1' };
+		const exactSession = { id: 'exact-session', scopes: ['read'], accessToken: 'stale-token', account };
+		const broaderSession = { id: 'broader-session', scopes: ['read', 'write'], accessToken: 'fresh-token', account };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [exactSession] : [exactSession, broaderSession]),
+		});
+		const commandService = new TestCommandService();
+		commandService.result = { success: undefined, dialogSkipped: false };
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+		const recover = () => instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options, AuthRequiredReason.Expired));
+
+		await recover();
+		await recover();
+		await recover();
+		await recover();
+		const afterDismissal = { commandCalls: commandService.calls.length, authenticateCalls: [...authenticateCalls] };
+		broaderSession.accessToken = 'replacement-token';
+		await recover();
+		await recover();
+
+		assert.deepStrictEqual({
+			afterDismissal,
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			afterDismissal: { commandCalls: 1, authenticateCalls: ['stale-token', 'fresh-token'] },
+			commandCalls: 2,
+			authenticateCalls: ['stale-token', 'fresh-token', 'replacement-token'],
+		});
+	});
+
 	test('tries a broader matching session once before prompting again', async () => {
 		const account = { id: 'account-1', label: 'Account 1' };
 		const exactSession = { id: 'exact-session', scopes: ['read'], accessToken: 'stale-token', account };

@@ -349,7 +349,7 @@ export class AgentHostAuthenticationRecovery {
 	 * The credential whose sign-in prompt the user last closed. Challenges for it stay silent until a sign-in replaces
 	 * it. Kept by {@link clear}, because closing the dialog is a decision about the credential, not the connection.
 	 */
-	private _dismissedTokens: ReadonlySet<string> = new Set();
+	private _dismissedToken: string | undefined;
 	private readonly _pendingRecoveries = new Map<string, Promise<void>>();
 
 	constructor(
@@ -486,7 +486,9 @@ export class AgentHostAuthenticationRecovery {
 			deferPrompt('the host only needs it on demand');
 			return;
 		}
-		if (this._dismissedTokens.has(challengedToken) || this._dismissedTokens.has(currentSession.accessToken)) {
+		// Only the prompted credential: the current session may be an exact-scope one the host already rejected,
+		// which stays resolvable after a sign-in replaces the broader fallback that was prompted for.
+		if (this._dismissedToken === challengedToken) {
 			deferPrompt('its sign-in was dismissed and no sign-in has replaced the credential since');
 			return;
 		}
@@ -509,7 +511,7 @@ export class AgentHostAuthenticationRecovery {
 		const result = await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, this._telemetryService, resource, options, 'hostChallenge', challengedToken);
 		throwIfAuthenticationStale(options);
 		if (result.kind === 'dismissed') {
-			this._dismissedTokens = new Set([challengedToken, currentSession.accessToken]);
+			this._dismissedToken = challengedToken;
 			logService.info(`${options.logPrefix} Sign-in for ${resource.resource} was dismissed; challenges for its credential stay silent until a sign-in replaces it`);
 			return;
 		}
