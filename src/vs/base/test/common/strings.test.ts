@@ -200,6 +200,9 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('héllo wörld ünï', 7, '…'), '…wörld ünï');
 		assert.strictEqual(strings.lcut('привет мир тест', 6, '…'), '…мир тест');
 		assert.strictEqual(strings.lcut('he\u0301llo wo\u0308rld', 6, '…'), '…wo\u0308rld');
+		assert.strictEqual(strings.lcut('می\u200cروم', 3, '…'), 'می\u200cروم');
+		assert.strictEqual(strings.lcut('foo ❤️ bar', 5, '…'), '…❤️ bar');
+		assert.strictEqual(strings.lcut('今天天气很好我们去散步', 5, '…'), '…我们去散步');
 	});
 
 	test('rcut', () => {
@@ -239,6 +242,9 @@ suite('Strings', () => {
 		assert.strictEqual(strings.rcut('héllo wörld ünï', 7, '…'), 'héllo…');
 		assert.strictEqual(strings.rcut('привет мир тест', 8, '…'), 'привет…');
 		assert.strictEqual(strings.rcut('he\u0301llo wo\u0308rld', 8, '…'), 'he\u0301llo…');
+		assert.strictEqual(strings.rcut('می\u200cروم', 2, '…'), '…');
+		assert.strictEqual(strings.rcut('foo ❤️ bar', 5, '…'), 'foo…');
+		assert.strictEqual(strings.rcut('今天天气很好我们去散步', 5, '…'), '今天天气…');
 	});
 
 	test('escape', () => {

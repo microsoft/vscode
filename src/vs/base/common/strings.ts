@@ -776,22 +776,33 @@ export function isEmojiImprecise(x: number): boolean {
 	);
 }
 
-const WORD_CHAR_RE = /[\p{L}\p{N}\p{M}_]/u;
+const WORD_CHAR_RE = /[\p{L}\p{N}_]/u;
+const INHERIT_WORD_RE = /[\p{M}\u200C\u200D]/u;
+const wordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
 
 function* wordBoundaries(text: string): IterableIterator<number> {
-	let prevIsWord = false;
-	for (let i = 0; i < text.length;) {
-		const cp = text.codePointAt(i) ?? 0;
-		const charLen = cp > 0xFFFF ? 2 : 1;
-		const isWord = WORD_CHAR_RE.test(text.slice(i, i + charLen));
-		if (isWord !== prevIsWord) {
-			yield i;
-			prevIsWord = isWord;
+	for (const seg of wordSegmenter.segment(text)) {
+		if (!seg.isWordLike) {
+			continue;
 		}
-		i += charLen;
-	}
-	if (prevIsWord) {
-		yield text.length;
+		const segText = seg.segment;
+		let prevIsWord = false;
+		for (let offset = 0; offset < segText.length;) {
+			const cp = segText.codePointAt(offset) ?? 0;
+			const charLen = cp > 0xFFFF ? 2 : 1;
+			const ch = segText.slice(offset, offset + charLen);
+			if (!INHERIT_WORD_RE.test(ch)) {
+				const isWord = WORD_CHAR_RE.test(ch);
+				if (isWord !== prevIsWord) {
+					yield seg.index + offset;
+					prevIsWord = isWord;
+				}
+			}
+			offset += charLen;
+		}
+		if (prevIsWord) {
+			yield seg.index + segText.length;
+		}
 	}
 }
 
