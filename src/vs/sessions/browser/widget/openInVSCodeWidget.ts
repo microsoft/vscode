@@ -11,13 +11,13 @@ import { IAction } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
-import { IConfigurationService, isConfigured } from '../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING } from '../../../platform/chat/common/chatSettings.js';
+import { observeAgentsWindowTitleBarIconExposure } from '../../../platform/chat/browser/agentsWindowTitleBarIcons.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { logSettingExperimentTrigger } from '../../../platform/telemetry/common/experimentTrigger.js';
 import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
 
 const openInVSCodeIcon = registerIcon('open-in-vscode', Codicon.vscode, localize('openInVSCodeIcon', "Icon for the Open in VS Code button in the title bar."));
@@ -61,11 +61,9 @@ export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
 		container.setAttribute('aria-label', hoverText);
 		this._register(this.hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), container, hoverText));
 
-		if (!isConfigured(this.configurationService.inspect<boolean>(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING))) {
-			logSettingExperimentTrigger(this.telemetryService, AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING);
-		}
 		this.iconElement = append(container, $('span.open-in-vscode-titlebar-widget-icon'));
 		this.updateIcon();
+		this._register(observeAgentsWindowTitleBarIconExposure(this.iconElement, this.configurationService, this.telemetryService));
 		this.iconElement.setAttribute('aria-hidden', 'true');
 
 		const labelEl = append(container, $('span.open-in-vscode-titlebar-widget-label'));
@@ -75,16 +73,17 @@ export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
 	private iconElement: HTMLElement | undefined;
 
 	private updateIcon(): void {
+		if (!this.iconElement) {
+			return;
+		}
 		const useCodicons = this.configurationService.getValue<boolean>(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING) === true;
 		this.element?.classList.toggle('codicon-icons', useCodicons);
-		if (this.iconElement) {
-			const icon = this.productService.quality === 'insider' ? openInVSCodeInsidersIcon : openInVSCodeIcon;
-			const classNames = ThemeIcon.asClassNameArray(icon);
-			if (useCodicons) {
-				this.iconElement.classList.add(...classNames);
-			} else {
-				this.iconElement.classList.remove(...classNames);
-			}
+		const icon = this.productService.quality === 'insider' ? openInVSCodeInsidersIcon : openInVSCodeIcon;
+		const classNames = ThemeIcon.asClassNameArray(icon);
+		if (useCodicons) {
+			this.iconElement.classList.add(...classNames);
+		} else {
+			this.iconElement.classList.remove(...classNames);
 		}
 	}
 

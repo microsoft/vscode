@@ -23,6 +23,14 @@
 	flex: 0 0 auto;
 }
 
+.monaco-workbench .part.titlebar.inactive .open-in-vscode-titlebar-widget {
+	color: var(--vscode-titleBar-inactiveForeground);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container .monaco-action-bar .action-item.open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon.codicon {
+	color: inherit;
+}
+
 .monaco-workbench .open-in-vscode-titlebar-widget:not(.codicon-icons) > .open-in-vscode-titlebar-widget-icon {
 	width: 16px;
 	height: 16px;

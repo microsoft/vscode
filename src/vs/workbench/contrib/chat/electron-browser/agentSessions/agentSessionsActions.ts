@@ -50,7 +50,7 @@ import { AGENTS_LAUNCHER_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
-import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -59,6 +59,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING } from '../../../../../platform/chat/common/chatSettings.js';
+import { observeAgentsWindowTitleBarIconExposure } from '../../../../../platform/chat/browser/agentsWindowTitleBarIcons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { serializeChatDraft, UnsupportedChatDraftAttachmentError } from '../../common/attachments/chatDraft.js';
@@ -524,11 +525,9 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 
 		this.hover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, ''));
 
-		if (!isConfigured(this.configurationService.inspect<boolean>(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING))) {
-			logSettingExperimentTrigger(this.telemetryService, AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING);
-		}
 		this.iconElement = append(container, $('span.open-in-agents-titlebar-widget-icon'));
 		this.updateIcon();
+		this._register(observeAgentsWindowTitleBarIconExposure(this.iconElement, this.configurationService, this.telemetryService));
 		this.iconElement.setAttribute('aria-hidden', 'true');
 
 		this.labelElement = append(container, $('span.open-in-agents-titlebar-widget-label'));
@@ -551,15 +550,16 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 	private iconElement: HTMLElement | undefined;
 
 	private updateIcon(): void {
+		if (!this.iconElement) {
+			return;
+		}
 		const useCodicons = this.configurationService.getValue<boolean>(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING) === true;
 		this.element?.classList.toggle('codicon-icons', useCodicons);
-		if (this.iconElement) {
-			const classNames = ThemeIcon.asClassNameArray(openInAgentsWindowIcon);
-			if (useCodicons) {
-				this.iconElement.classList.add(...classNames);
-			} else {
-				this.iconElement.classList.remove(...classNames);
-			}
+		const classNames = ThemeIcon.asClassNameArray(openInAgentsWindowIcon);
+		if (useCodicons) {
+			this.iconElement.classList.add(...classNames);
+		} else {
+			this.iconElement.classList.remove(...classNames);
 		}
 	}
 

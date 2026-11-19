@@ -20,6 +20,14 @@
 	flex: 0 0 auto;
 }
 
+.monaco-workbench .part.titlebar.inactive .open-in-agents-titlebar-widget {
+	color: var(--vscode-titleBar-inactiveForeground);
+}
+
+.monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon.codicon {
+	color: inherit;
+}
+
 .monaco-workbench .open-in-agents-titlebar-widget:not(.codicon-icons) > .open-in-agents-titlebar-widget-icon {
 	width: 16px;
 	height: 16px;
