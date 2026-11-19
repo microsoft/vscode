@@ -148,6 +148,12 @@ export class CodeBlockPart extends Disposable {
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
 	private lastLayoutWidth: number | undefined;
+	/**
+	 * Request code blocks live in a bubble whose width is decided by CSS, so they are
+	 * laid out to the measured width of their container instead of the list width.
+	 */
+	private requestContainerWidth: number | undefined;
+	private readonly requestContainerWidthObserver = this._register(new MutableDisposable());
 	private _isHovered = false;
 	private _isDropdownVisible = false;
 	private _toolbarElement!: HTMLElement;
@@ -476,14 +482,37 @@ export class CodeBlockPart extends Disposable {
 		}
 
 		const editorBorder = 2;
-		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
+		const contentWidth = this.requestContainerWidth ?? width - editorBorder;
+		width = contentWidth - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
 		// !!!!
 		// Important: Using here postponeRendering = true to avoid doing a sync layout on the editor
 		// which can be very expensive if there are many code blocks being laid out at once.
 		// This allows multiple editors to coordinate and render together at the next animation frame.
 		// !!!!
-		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height }, /* postponeRendering */ true);
+		this.editor.layout({ width, height }, /* postponeRendering */ true);
 		this.updatePaddingForLayout();
+	}
+
+	private updateRequestContainerWidthObserver(data: ICodeBlockData): void {
+		if (!isRequestVM(data.element)) {
+			this.requestContainerWidthObserver.clear();
+			this.requestContainerWidth = undefined;
+			return;
+		}
+		if (this.requestContainerWidthObserver.value) {
+			return;
+		}
+		const observer = new dom.DisposableResizeObserver('CodeBlockPart.requestContainerWidth', entries => {
+			const entry = entries.at(-1);
+			// A hidden code block (e.g. in sticky scroll) reports 0, keep the last known width
+			if (!entry || entry.contentRect.width === 0 || entry.contentRect.width === this.requestContainerWidth) {
+				return;
+			}
+			this.requestContainerWidth = entry.contentRect.width;
+			this.layout();
+		}, dom.getWindow(this.element));
+		observer.observe(this.element);
+		this.requestContainerWidthObserver.value = observer;
 	}
 
 	private getContentHeight() {
@@ -492,6 +521,7 @@ export class CodeBlockPart extends Disposable {
 
 	render(data: ICodeBlockData, width: number) {
 		this.currentCodeBlockData = data;
+		this.updateRequestContainerWidthObserver(data);
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}

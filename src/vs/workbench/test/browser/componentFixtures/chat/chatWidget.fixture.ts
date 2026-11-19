@@ -1053,6 +1053,49 @@ const ISSUE_309796_MISSING_BACKSLASH: IFixtureMessage[] = [
 	},
 ];
 
+// https://github.com/microsoft/vscode/issues/349335
+const ISSUE_349335_REQUEST_CODE_BLOCK_WIDTH: IFixtureMessage[] = [
+	{
+		user: [
+			'i need to update the status bar button script to install from pnpm for vscode:',
+			'',
+			'```json',
+			'{',
+			'	"text": "",',
+			'	"icon": "rocket",',
+			'	"command": "nvm use default; npm install && npm run watch",',
+			'	"tooltip": "Set up Code OSS for development",',
+			'	"color": "button.background",',
+			'	"alignment": "left",',
+			'	"priority": 85',
+			'},',
+			'```',
+		].join('\n'),
+		assistant: [{ kind: 'markdown', text: 'Replace `npm install` with `pnpm install` in the `command`.' }],
+	},
+];
+
+/** The editor of a request code block must fill the code block, whatever width CSS gives the request bubble. */
+async function renderRequestCodeBlockWidth(context: ComponentFixtureContext): Promise<void> {
+	await renderChatWidget(context, {
+		messages: ISSUE_349335_REQUEST_CODE_BLOCK_WIDTH,
+		width: 400,
+		height: 420,
+		listHeight: 420,
+		inputVisible: false,
+	});
+
+	const request = context.container.querySelector<HTMLElement>('.interactive-request');
+	if (!request) {
+		throw new Error('The request did not render');
+	}
+	await waitForFixtureDomCondition(request, () => {
+		const codeBlock = request.querySelector<HTMLElement>('.interactive-result-code-block');
+		const editor = codeBlock?.querySelector<HTMLElement>('.monaco-editor');
+		return !!codeBlock && !!editor && codeBlock.clientWidth > 0 && editor.offsetWidth === codeBlock.clientWidth;
+	}, context.disposableStore);
+}
+
 const STREAMING: IFixtureMessage[] = [
 	{
 		user: 'Search the workspace for TODO comments',
@@ -3080,6 +3123,10 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	}),
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
+		'issue-349335-request-code-block-width': defineComponentFixture({
+			virtualTime: { enabled: false },
+			render: renderRequestCodeBlockWidth,
+		}),
 	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
 	LastResponseContentHover: defineComponentFixture({ render: renderLastResponseHover }),
