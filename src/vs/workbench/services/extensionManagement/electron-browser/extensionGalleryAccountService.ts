@@ -231,9 +231,9 @@ abstract class AbstractGalleryAccountProvider extends Disposable implements IExt
 		super();
 	}
 
-	async getAccount(serviceIndexUrl: string, forceRefresh = false): Promise<IExtensionGalleryAccount | undefined> {
+	async getAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined> {
 		try {
-			return await this.doGetAccount(serviceIndexUrl, forceRefresh);
+			return await this.doGetAccount(serviceIndexUrl);
 		} catch (error) {
 			// Distinct from "no account" so the caller does not demand sign-in for a transient failure.
 			this.logService.error('[Marketplace] Unable to resolve the marketplace account', error);
@@ -242,7 +242,7 @@ abstract class AbstractGalleryAccountProvider extends Disposable implements IExt
 		}
 	}
 
-	protected abstract doGetAccount(serviceIndexUrl: string, forceRefresh?: boolean): Promise<IExtensionGalleryAccount | undefined>;
+	protected abstract doGetAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined>;
 
 	abstract signIn(): Promise<void>;
 
@@ -462,7 +462,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	private serviceIndexUrl: string | undefined;
 	private resourceTokenAccount: { readonly id: string; readonly serviceIndexUrl: string } | undefined;
 
-	protected override async doGetAccount(serviceIndexUrl: string, forceRefresh = false): Promise<IExtensionGalleryAccount | undefined> {
+	protected override async doGetAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined> {
 		this.serviceIndexUrl = serviceIndexUrl;
 		if (!this.protectedResourceCache || this.protectedResourceCache.serviceIndexUrl !== serviceIndexUrl) {
 			this.protectedResourceCache = { serviceIndexUrl };
@@ -483,7 +483,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		if (!protectedResource || protectedResource.invalidScopes || !this.hasResourceScopes(protectedResource.scopes)) {
 			return {};
 		}
-		const resourceSession = await this.getResourceSession(session, protectedResource, forceRefresh);
+		const resourceSession = await this.getResourceSession(session, protectedResource);
 		if (!resourceSession) {
 			return {};
 		}
@@ -548,7 +548,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	 * decides whether that server is one it will mint for — an unsupported one throws, and is
 	 * treated here as simply having no session.
 	 */
-	private async getResourceSession(session: AuthenticationSession, protectedResource: IMarketplaceProtectedResource, forceRefresh = false): Promise<AuthenticationSession | undefined> {
+	private async getResourceSession(session: AuthenticationSession, protectedResource: IMarketplaceProtectedResource): Promise<AuthenticationSession | undefined> {
 		const serviceIndexUrl = this.serviceIndexUrl;
 		if (!this.hasResourceScopes(protectedResource.scopes)) {
 			return undefined;
@@ -558,7 +558,6 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 				account: session.account,
 				authorizationServer: URI.parse(protectedResource.authorizationServer),
 				silent: true,
-				...(forceRefresh ? { _workbenchForceRefresh: true } : {}),
 			});
 			return sessions.at(0);
 		} catch (error) {
@@ -831,7 +830,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 			}
 			return this.accountRequest.promise;
 		}
-		const promise = this.resolveAccount(provider, serviceIndexUrl, generation, forceRefresh);
+		const promise = this.resolveAccount(provider, serviceIndexUrl, generation);
 		this.accountRequest = { generation, forceRefresh, promise };
 		try {
 			return await promise;
@@ -842,8 +841,8 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		}
 	}
 
-	private async resolveAccount(provider: IExtensionGalleryAccountProvider, serviceIndexUrl: string, generation: number, forceRefresh: boolean): Promise<IExtensionGalleryAccount | undefined> {
-		const account = await provider.getAccount(serviceIndexUrl, forceRefresh);
+	private async resolveAccount(provider: IExtensionGalleryAccountProvider, serviceIndexUrl: string, generation: number): Promise<IExtensionGalleryAccount | undefined> {
+		const account = await provider.getAccount(serviceIndexUrl);
 		if (this._store.isDisposed || generation !== this.accountGeneration) {
 			return undefined;
 		}
