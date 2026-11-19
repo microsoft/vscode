@@ -16,7 +16,7 @@ import { getHashedRemotesFromConfig } from './workspaceTags.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, GradleDependencyCompactRegex, GradleDependencyLooseRegex, MavenGroupIdRegex, JavaLibrariesToLookFor } from '../common/javaWorkspaceTags.js';
 import { hashAsync } from '../../../../base/common/hash.js';
-import { getCargoDependencyNames, getCargoWorkspaceDependenciesForFolder, RustCratesToLookFor } from '../common/rustWorkspaceTags.js';
+import { getCargoDependencyNames, getCargoWorkspaceDependenciesForFolder, isAzureCargoDependency, RustCratesToLookFor } from '../common/rustWorkspaceTags.js';
 
 const MetaModulesToLookFor = [
 	// Azure packages
@@ -1734,7 +1734,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 							if (RustCratesToLookFor.includes(dependency)) {
 								tags['workspace.cargo.' + dependency] = true;
 							}
-							if (!tags['workspace.cargo.any-azure'] && dependency.startsWith('azure_')) {
+							if (!tags['workspace.cargo.any-azure'] && isAzureCargoDependency(dependency)) {
 								tags['workspace.cargo.any-azure'] = true;
 							}
 						}

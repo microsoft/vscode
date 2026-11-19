@@ -8,7 +8,7 @@ import * as crypto from 'crypto';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from '../../common/workspaceTags.js';
-import { getCargoDependencyNames, getCargoWorkspaceDependencies, getCargoWorkspaceDependenciesForFolder } from '../../common/rustWorkspaceTags.js';
+import { getCargoDependencyNames, getCargoWorkspaceDependencies, getCargoWorkspaceDependenciesForFolder, isAzureCargoDependency } from '../../common/rustWorkspaceTags.js';
 
 function hash(value: string): string {
 	return crypto.createHash('sha256').update(value.toString()).digest('hex');
@@ -148,6 +148,44 @@ package = "tokio"
 		]);
 	});
 
+	test('Cargo legacy dependency section names', () => {
+		assert.deepStrictEqual(getCargoDependencyNames(`
+[dev_dependencies]
+tokio = "1"
+[build_dependencies]
+client = { package = "reqwest", version = "1" }
+[target.'cfg(unix)'.dev_dependencies]
+serde = "1"
+[target.'cfg(windows)'.build_dependencies]
+bindgen = "1"
+`).sort(), ['bindgen', 'reqwest', 'serde', 'tokio']);
+	});
+
+	test('Cargo inline workspace table defines inherited dependencies', () => {
+		const contents = 'workspace = { members = ["member"], dependencies = { client.package = "reqwest", client.version = "1", serde = "1" } }';
+		assert.deepStrictEqual([
+			getCargoDependencyNames(contents).sort(),
+			[...(getCargoWorkspaceDependencies(contents) ?? [])]
+		], [
+			['reqwest', 'serde'],
+			[['client', 'reqwest'], ['serde', 'serde']]
+		]);
+	});
+
+	test('Cargo Azure aggregate recognizes crate name prefixes', () => {
+		const dependencies = getCargoDependencyNames(`
+[dependencies]
+identity = { package = "azure_identity", version = "1" }
+functions = { package = "azure-functions", version = "1" }
+not_azure = "1"
+`);
+		assert.deepStrictEqual(dependencies.map(name => [name, isAzureCargoDependency(name)]), [
+			['azure_identity', true],
+			['azure-functions', true],
+			['not_azure', false]
+		]);
+	});
+
 	test('Cargo workspace renames resolve before or after inherited declarations', () => {
 		const workspaces = [`
 [workspace.dependencies]
@@ -231,6 +269,53 @@ client.workspace = true
 			['reqwest'],
 			[member.path, URI.joinPath(root, 'crates').path, root.path]
 		]);
+	});
+
+	test('Cargo explicit workspace overrides ancestor discovery', async () => {
+		const root = URI.parse('test:/repo');
+		const member = URI.joinPath(root, 'member');
+		const workspace = URI.joinPath(root, 'other');
+		const contents = '[package]\nworkspace = "../other"\n[dependencies]\nclient.workspace = true';
+		const files = new Map([
+			[root.path, '[workspace.dependencies]\nclient = { package = "tokio", version = "1" }'],
+			[workspace.path, 'workspace = { dependencies = { client = { package = "reqwest", version = "1" } } }']
+		]);
+		const reads: string[] = [];
+		const readManifest = async (folder: URI) => {
+			reads.push(folder.path);
+			return files.get(folder.path);
+		};
+		const dependencies = await getCargoWorkspaceDependenciesForFolder(member, contents, readManifest, new Map());
+		const missing = await getCargoWorkspaceDependenciesForFolder(member, contents.replace('../other', '../missing'), readManifest, new Map());
+		assert.deepStrictEqual([
+			getCargoDependencyNames(contents, dependencies),
+			missing,
+			reads
+		], [
+			['reqwest'],
+			undefined,
+			[workspace.path, URI.joinPath(root, 'missing').path]
+		]);
+	});
+
+	test('Cargo explicit workspace accepts TOML string and package forms', async () => {
+		const root = URI.parse('test:/repo');
+		const member = URI.joinPath(root, 'member');
+		const workspace = URI.joinPath(root, 'other');
+		const dependency = '\n[dependencies]\nclient.workspace = true';
+		const forms = [
+			'[package]\nworkspace = \'../other\'',
+			'package.workspace = "../\\u006fther"',
+			'package = { workspace = "../other" }'
+		];
+		const results: string[][] = [];
+		const readManifest = async (folder: URI) => folder.path === workspace.path ? '[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }' : undefined;
+		for (const form of forms) {
+			const contents = form + dependency;
+			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, readManifest, new Map());
+			results.push(getCargoDependencyNames(contents, resolved));
+		}
+		assert.deepStrictEqual(results, [['reqwest'], ['reqwest'], ['reqwest']]);
 	});
 
 	test('Cargo ignores dependency-like content in multiline strings', () => {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
+import { dirname, getComparisonKey, isEqual, resolvePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const RustCratesToLookFor = [
@@ -64,6 +64,10 @@ interface CargoDependency {
 	workspace?: boolean;
 }
 
+export function isAzureCargoDependency(name: string): boolean {
+	return name.startsWith('azure_') || name.startsWith('azure-');
+}
+
 export function getCargoDependencyNames(contents: string, inheritedWorkspaceDependencies?: ReadonlyMap<string, string>): string[] {
 	return getCargoDependencyNamesFromManifest(contents, inheritedWorkspaceDependencies);
 }
@@ -93,7 +97,10 @@ export async function getCargoWorkspaceDependenciesForFolder(
 		return undefined;
 	}
 
-	let currentFolder = folder;
+	if (manifest.hasWorkspacePath && manifest.workspacePath === undefined) {
+		return undefined;
+	}
+	let currentFolder = manifest.workspacePath === undefined ? folder : resolvePath(folder, manifest.workspacePath);
 	while (true) {
 		const key = getComparisonKey(currentFolder);
 		let dependencies = cache.get(key);
@@ -110,6 +117,9 @@ export async function getCargoWorkspaceDependenciesForFolder(
 		}
 		if (dependencies) {
 			return dependencies;
+		}
+		if (manifest.hasWorkspacePath) {
+			return undefined;
 		}
 		const parent = dirname(currentFolder);
 		if (isEqual(currentFolder, parent)) {
@@ -139,12 +149,14 @@ function getCargoDependencyNamesFromManifest(contents: string, inheritedWorkspac
 	return [...names];
 }
 
-function parseCargoDependencies(contents: string): { sections: Map<string, CargoDependency>[]; workspaceDependencies: Map<string, CargoDependency>; hasWorkspace: boolean } {
+function parseCargoDependencies(contents: string): { sections: Map<string, CargoDependency>[]; workspaceDependencies: Map<string, CargoDependency>; hasWorkspace: boolean; hasWorkspacePath: boolean; workspacePath?: string } {
 	const workspaceDependencies = new Map<string, CargoDependency>();
 	const sections = new Map<string, Map<string, CargoDependency>>();
 	let tablePath: string[] | undefined = [];
 	let inlineTable: { path: string[]; value: string; braceDepth: number } | undefined;
 	let hasWorkspace = false;
+	let hasWorkspacePath = false;
+	let workspacePath: string | undefined;
 	const stringState: { multilineQuote?: string } = {};
 
 	const getDependencySection = (section: DependencySection): Map<string, CargoDependency> => {
@@ -159,7 +171,22 @@ function parseCargoDependencies(contents: string): { sections: Map<string, Cargo
 		return dependencies;
 	};
 
-	const applyDependencyAssignment = (path: string[], value: string) => {
+	const applyDependencyAssignment = (path: string[], value: string): void => {
+		if (path.length === 2 && path[0] === 'package' && path[1] === 'workspace') {
+			hasWorkspacePath = true;
+			workspacePath = parseTomlString(value);
+			return;
+		}
+		if (path.length === 1 && (path[0] === 'workspace' || path[0] === 'package') && value.startsWith('{')) {
+			hasWorkspace ||= path[0] === 'workspace';
+			for (const entry of parseInlineTable(value)) {
+				const assignment = parseDependencyAssignment(entry);
+				if (assignment) {
+					applyDependencyAssignment([...path, ...assignment.keys], assignment.value);
+				}
+			}
+			return;
+		}
 		const location = getDependencyLocation(path);
 		if (!location) {
 			return;
@@ -229,14 +256,14 @@ function parseCargoDependencies(contents: string): { sections: Map<string, Cargo
 
 		const path = [...tablePath, ...assignment.keys];
 		const value = assignment.value;
-		if (getDependencyLocation(path) && value.trimStart().startsWith('{') && countBraces(value) > 0) {
+		if ((getDependencyLocation(path) || (path.length === 1 && (path[0] === 'workspace' || path[0] === 'package'))) && value.startsWith('{') && countBraces(value) > 0) {
 			inlineTable = { path, value, braceDepth: countBraces(value) };
 		} else {
 			applyDependencyAssignment(path, value);
 		}
 	}
 
-	return { sections: [...sections.values(), workspaceDependencies], workspaceDependencies, hasWorkspace };
+	return { sections: [...sections.values(), workspaceDependencies], workspaceDependencies, hasWorkspace, hasWorkspacePath, workspacePath };
 }
 
 interface DependencySection {
@@ -245,7 +272,7 @@ interface DependencySection {
 }
 
 function getDependencyLocation(path: string[]): { section: DependencySection; alias?: string; property?: string } | undefined {
-	const dependencySections = ['dependencies', 'dev-dependencies', 'build-dependencies'];
+	const dependencySections = ['dependencies', 'dev-dependencies', 'build-dependencies', 'dev_dependencies', 'build_dependencies'];
 	let sectionLength: number;
 	if (path[0] === 'workspace' && dependencySections.includes(path[1])) {
 		sectionLength = 2;
@@ -260,6 +287,7 @@ function getDependencyLocation(path: string[]): { section: DependencySection; al
 		return undefined;
 	}
 	const sectionPath = path.slice(0, sectionLength);
+	sectionPath[sectionLength - 1] = sectionPath[sectionLength - 1].replace('_', '-');
 	return {
 		section: { id: JSON.stringify(sectionPath), isWorkspace: sectionPath[0] === 'workspace' },
 		alias: path[sectionLength],
@@ -418,6 +446,45 @@ function parseTomlKey(value: string): string | undefined {
 		return key.slice(1, -1);
 	}
 	return /^[A-Za-z0-9_-]+$/.test(key) ? key : undefined;
+}
+
+function parseTomlString(value: string): string | undefined {
+	if (value.length < 2 || value[0] !== value[value.length - 1]) {
+		return undefined;
+	}
+	if (value[0] === '\'') {
+		return value.slice(1, -1);
+	}
+	if (value[0] !== '"') {
+		return undefined;
+	}
+	let result = '';
+	for (let i = 1; i < value.length - 1; i++) {
+		if (value[i] !== '\\') {
+			result += value[i];
+			continue;
+		}
+		const escaped = value[++i];
+		const escapes: Record<string, string> = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', '"': '"', '\\': '\\' };
+		if (escapes[escaped] !== undefined) {
+			result += escapes[escaped];
+		} else if (escaped === 'u' || escaped === 'U') {
+			const length = escaped === 'u' ? 4 : 8;
+			const hex = value.slice(i + 1, i + 1 + length);
+			if (hex.length !== length || !/^[0-9a-fA-F]+$/.test(hex)) {
+				return undefined;
+			}
+			const codePoint = Number.parseInt(hex, 16);
+			if (codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) {
+				return undefined;
+			}
+			result += String.fromCodePoint(codePoint);
+			i += length;
+		} else {
+			return undefined;
+		}
+	}
+	return result;
 }
 
 function countBraces(value: string): number {
