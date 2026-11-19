@@ -6,9 +6,8 @@
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
-import { Mutable } from '../../../../../base/common/types.js';
 import { generateUuid, isUUID } from '../../../../../base/common/uuid.js';
-import { CloudSandboxRequestError, cloudSandboxDiscoveryTriggers, cloudSandboxFullScanReasons, cloudSandboxTaskCreationPaths, type CloudSandboxDiscoveryTrigger, type CloudSandboxFullScanReason, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectOptions, type ICloudSandboxCreatedSession, type ICloudSandboxCreateSessionRequest, type ICloudSandboxDiscoveryDiagnostics, type ICloudSandboxDiscoveryResult } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxRequestError, cloudSandboxDiscoveryTriggers, cloudSandboxFullScanReasons, cloudSandboxTaskCreationPaths, type CloudSandboxFullScanReason, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectOptions, type ICloudSandboxCreatedSession, type ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { connectionCloseReasons, connectionHandshakeMethods, connectionHandshakeStates, type ConnectionCloseReason, type ConnectionHandshakeMethod, type ConnectionHandshakeState, type ConnectionDiagnosticRequestKind, IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
 import { RemoteAgentHostConnectionObserver } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -16,6 +15,12 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CloudSandboxLifecycleTelemetry, type CloudSandboxLifecycleOperation, type CloudSandboxRefreshStopReason, type ICloudSandboxLifecycleContext } from './cloudSandboxLifecycleTelemetry.js';
+
+import { ICloudSandboxDiscoveryTelemetryData } from '../../../../../platform/agentHost/common/cloudSandboxDiscovery.js';
+export type { ICloudSandboxDiscoveryTelemetryData } from '../../../../../platform/agentHost/common/cloudSandboxDiscovery.js';
+
+import { sessionFeedReasons, ICloudSandboxSessionFeedTelemetryData } from '../../../../../platform/agentHost/common/cloudSandboxSessionFeed.js';
+export type { CloudSandboxSessionFeedOutcome, CloudSandboxSessionFeedReason, ICloudSandboxSessionFeedTelemetryData } from '../../../../../platform/agentHost/common/cloudSandboxSessionFeed.js';
 
 export type { CloudSandboxRefreshStopReason } from './cloudSandboxLifecycleTelemetry.js';
 
@@ -30,30 +35,6 @@ export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'connectSessio
  * {@link requestOutcomeForStatus}.
  */
 export type CloudSandboxRequestOutcome = 'succeeded' | 'waking' | 'clientError' | 'serverError' | 'networkError' | 'unexpectedStatus';
-
-/**
- * What a session feed attempt or established socket did. A closed set, so it is safe to send
- * verbatim. `unavailable` is the server declining the feed for this account; `negotiationFailed`
- * and `socketFailed` are retried attempts that leave the window on discovery polling meanwhile.
- */
-export type CloudSandboxSessionFeedOutcome = 'connected' | 'renewed' | 'unavailable' | 'negotiationFailed' | 'socketFailed' | 'disconnected' | 'invalidMessage';
-
-const sessionFeedReasons = ['initial', 'recovery', 'renewal', 'serverDisconnect', 'normalClose', 'goingAway', 'abnormalClose', 'policyClose', 'otherClose', 'socketError', 'invalidMessage', 'handshakeTimeout', 'negotiationRejected', 'negotiationError', 'authenticationUnavailable', 'networkFailure', 'negotiationTimeout', 'invalidMetadata', 'socketSetup', 'unavailable'] as const;
-export type CloudSandboxSessionFeedReason = typeof sessionFeedReasons[number];
-
-export interface ICloudSandboxSessionFeedTelemetryData {
-	readonly outcome: CloudSandboxSessionFeedOutcome;
-	/** Dropped sockets and failed attempts since the last healthy connection, including this failure. */
-	readonly consecutiveFailures: number;
-	/** Delay before the next automatic attempt; absent when the feed connected or stopped retrying. */
-	readonly retryDelayMs?: number;
-	/** HTTP status of a rejected negotiation request, when that caused the failure. */
-	readonly statusCode?: number;
-	readonly reason?: CloudSandboxSessionFeedReason;
-	readonly connectionDurationMs?: number;
-	readonly lastMessageAgeMs?: number;
-	readonly gapDurationMs?: number;
-}
 
 export type CloudSandboxConnectionStage = 'credentials' | 'connection' | 'relay' | 'protocol' | 'authentication' | 'restoration';
 export type CloudSandboxConnectionOutcome = 'success' | 'failure' | 'cancelled';
@@ -1001,32 +982,6 @@ export type CloudSandboxConnectionHealthClassification = CloudSandboxEnvironment
 	owner: 'osortega';
 	comment: 'Delta cloud sandbox or user-local relay connection exposure, unexpected losses and receive load, aggregated every five minutes with a final teardown flush.';
 };
-
-export interface ICloudSandboxDiscoveryTelemetryData extends Mutable<ICloudSandboxDiscoveryDiagnostics> {
-	trigger: CloudSandboxDiscoveryTrigger | 'unknown';
-	requestedMode: 'full' | 'incremental' | 'targeted';
-	mode: 'full' | 'incremental' | 'targeted';
-	outcome: ICloudSandboxDiscoveryResult['kind'] | 'cancelled';
-	durationMs: number;
-	pageCount?: number;
-	listRequestCount?: number;
-	listOperationCount?: number;
-	listOperationFailureCount?: number;
-	taskBatchOperationCount?: number;
-	taskBatchOperationFailureCount?: number;
-	taskCount: number;
-	sandboxTaskCount: number;
-	changedSandboxTaskCount: number;
-	checkpointAdvanced: boolean;
-	checkpointAvailable?: boolean;
-	checkpointSource?: 'serverDate' | 'taskUpdate' | 'unavailable';
-	listPageFailureCount?: number;
-	taskDetailFailureCount?: number;
-	repositoryEnrichmentMissCount?: number;
-	unresolvedTaskCount?: number;
-	unreadPageScopeCount?: number;
-	generationInvalidated?: boolean;
-}
 
 type CloudSandboxDiscoveryEvent = Omit<ICloudSandboxDiscoveryTelemetryData, 'requestedMode' | 'mode' | 'outcome' | 'intentMode' | 'fullScanReason' | 'checkpointSource' | 'coalescedTrigger'> & {
 	requestedMode: ICloudSandboxDiscoveryTelemetryData['requestedMode'] | 'unknown';

@@ -298,7 +298,7 @@ export class AutomationsCardsWidget extends Disposable {
 			this.automationService.automations.read(reader);
 			const allRuns = visibleContent.read(reader).runs;
 			const sessions = resolveAutomationRunSessions(allRuns, this.sessionsManagementService.getSessions(), this.uriIdentityService);
-			this.historySection.render(allRuns, sessions);
+			this.historySection.render(allRuns, sessions, reader);
 			this.cardsSection.setPresentedRunIds(sessions.keys());
 		}));
 		const refreshScheduler = this._register(new RunOnceScheduler(() => {

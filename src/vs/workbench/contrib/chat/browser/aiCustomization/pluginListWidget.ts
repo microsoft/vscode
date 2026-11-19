@@ -831,7 +831,7 @@ export class PluginListWidget extends Disposable {
 	private sectionTitleHeader!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private browseCustomizationsButton!: Button;
-	private marketplaceActionsButton!: Button;
+	private manageMarketplacesButton!: Button;
 	private marketplaceBackContainer!: HTMLElement;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
@@ -971,20 +971,16 @@ export class PluginListWidget extends Disposable {
 		}));
 		this.browseCustomizationsButton.label = browseLabel;
 		this._register(this.browseCustomizationsButton.onDidClick(() => this._onDidRequestBrowse.fire()));
-		const moreLabel = localize('moreMarketplaceActions', "More Marketplace Actions");
-		this.marketplaceActionsButton = this._register(new Button(titleActions, {
+		const manageLabel = localize('manageMarketplaces', "Manage Marketplaces");
+		this.manageMarketplacesButton = this._register(new Button(titleActions, {
 			...defaultButtonStyles,
 			secondary: true,
 			small: true,
-			supportIcons: true,
-			title: moreLabel,
-			ariaLabel: moreLabel,
+			title: manageLabel,
+			ariaLabel: manageLabel,
 		}));
-		this.marketplaceActionsButton.element.classList.add('section-title-more-action');
-		this.marketplaceActionsButton.element.setAttribute('aria-haspopup', 'menu');
-		this.marketplaceActionsButton.element.setAttribute('aria-expanded', 'false');
-		this.marketplaceActionsButton.icon = Codicon.ellipsis;
-		this._register(this.marketplaceActionsButton.onDidClick(() => this.showMarketplaceActions()));
+		this.manageMarketplacesButton.label = manageLabel;
+		this._register(this.manageMarketplacesButton.onDidClick(() => this.commandService.executeCommand(MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID)));
 		this.updateHeaderActions();
 		const sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
 		const sectionTitleDescriptionText = DOM.append(sectionTitleDescription, $('span.section-title-description-text'));
@@ -1895,27 +1891,7 @@ export class PluginListWidget extends Disposable {
 	private updateHeaderActions(): void {
 		const visible = isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService);
 		this.browseCustomizationsButton.element.style.display = visible ? '' : 'none';
-		this.marketplaceActionsButton.element.style.display = visible ? '' : 'none';
-	}
-
-	private showMarketplaceActions(): void {
-		const disposables = new DisposableStore();
-		const configure = disposables.add(new Action(
-			'plugin.configureMarketplaces',
-			localize('configureMarketplaces', "Configure Marketplaces"),
-			undefined,
-			true,
-			() => this.commandService.executeCommand(MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID),
-		));
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.marketplaceActionsButton.element,
-			getActions: () => [configure],
-			onHide: () => {
-				this.marketplaceActionsButton.element.setAttribute('aria-expanded', 'false');
-				disposables.dispose();
-			},
-		});
-		this.marketplaceActionsButton.element.setAttribute('aria-expanded', 'true');
+		this.manageMarketplacesButton.element.style.display = visible ? '' : 'none';
 	}
 
 	private updatePluginTreeEmptyState(itemCount: number): void {
