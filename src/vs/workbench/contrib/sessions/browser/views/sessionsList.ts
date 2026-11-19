@@ -4586,7 +4586,7 @@ function toDropReaction(feedback: ISessionDropFeedback | undefined): ITreeDragOv
 
 //#region Sessions List Control
 
-interface ISessionsListControlBaseOptions {
+interface ISessionsListControlOptions {
 	readonly pendingSections?: IObservable<readonly IPendingSessionSection[]>;
 	readonly schedulingEnabled?: IObservable<boolean>;
 	readonly scheduledSessions?: IObservable<readonly IPendingSessionItem[]>;
@@ -4646,13 +4646,6 @@ interface ISessionsListControlBaseOptions {
 	 */
 	readonly approvalModel?: AgentSessionApprovalModel;
 }
-
-export type ISessionsListControlOptions = ISessionsListControlBaseOptions;
-
-/**
- * @deprecated Use {@link ISessionsListControlOptions} instead.
- */
-export type ISessionsListOptions = ISessionsListControlOptions;
 
 interface IListOpenRequest {
 	readonly session: ISession;
