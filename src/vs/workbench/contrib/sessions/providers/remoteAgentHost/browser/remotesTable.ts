@@ -103,16 +103,16 @@ function getGitHubEnvironmentState(remote: ICustomizationRemote): { readonly lab
 	const share = remote.gitHubEnvironment;
 	switch (share?.state) {
 		case undefined: return undefined;
-		case 'connecting': return { label: localize('remotes.gitHubEnvironmentSharing', "Sharing {0} as a GitHub environment...", remote.name), icon: connectionProgressIcon, error: false };
-		case 'error': return { label: localize('remotes.gitHubEnvironmentError', "{0} could not be shared as a GitHub environment: {1}", remote.name, share.error ?? ''), icon: Codicon.warning, error: true };
+		case 'connecting': return { label: localize('remotes.gitHubEnvironmentSharing', "Sharing as a GitHub environment..."), icon: connectionProgressIcon, error: false };
+		case 'error': return { label: localize('remotes.gitHubEnvironmentError', "Couldn't share as a GitHub environment: {0}", share.error ?? ''), icon: Codicon.warning, error: true };
 		case 'unavailable': return {
 			label: share.unavailableReason === 'host'
-				? localize('remotes.gitHubEnvironmentSharedByHost', "{0} is shared as a GitHub environment by the remote itself.", remote.name)
-				: localize('remotes.gitHubEnvironmentSharedByAccount', "{0} is shared as a GitHub environment by another GitHub account.", remote.name),
+				? localize('remotes.gitHubEnvironmentSharedByHost', "Shared as a GitHub environment by the remote itself.")
+				: localize('remotes.gitHubEnvironmentSharedByAccount', "Shared as a GitHub environment by another GitHub account."),
 			icon: Codicon.github,
 			error: false,
 		};
-		default: return { label: localize('remotes.gitHubEnvironmentShared', "{0} is shared as a GitHub environment for other apps signed in with your GitHub account.", remote.name), icon: Codicon.github, error: false };
+		default: return { label: localize('remotes.gitHubEnvironmentShared', "Shared as a GitHub environment for other apps signed in with your GitHub account."), icon: Codicon.github, error: false };
 	}
 }
 
@@ -750,7 +750,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.visibility.class = ThemeIcon.asClassName(entry.remote.pickerUnavailableReason || entry.remote.hidden ? Codicon.eyeClosed : Codicon.eye);
 					template.rename.label = localize('remotes.rename', "Rename...");
 					template.rename.enabled = !entry.busy;
-					template.createDevContainer.label = localize('remotes.createDevContainer', "Create Dev Container on {0}", entry.remote.name);
+					template.createDevContainer.label = localize('remotes.createDevContainer', "Create Dev Container");
 					template.createDevContainer.enabled = showCreateDevContainer && !entry.busy;
 					template.copyAddress.label = localize('remotes.copyAddress', "Copy Address");
 					template.locationPreference.label = localize('remotes.locationPreference', "Configure Agent Run Behavior...");
@@ -762,8 +762,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.gitHubEnvironment.label = share?.state === 'connecting' || share?.state === 'unavailable'
 						? getGitHubEnvironmentLabel(entry.remote) ?? ''
 						: share
-							? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing {0} as GitHub Environment", entry.remote.name)
-							: localize('remotes.shareAsGitHubEnvironment', "Share {0} as GitHub Environment", entry.remote.name);
+							? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing as GitHub Environment")
+							: localize('remotes.shareAsGitHubEnvironment', "Share as GitHub Environment");
 					template.gitHubEnvironment.enabled = showGitHubEnvironment && !entry.busy && share?.state !== 'connecting' && share?.state !== 'unavailable';
 					template.gitHubEnvironment.class = ThemeIcon.asClassName(share?.state === 'connecting' ? connectionProgressIcon : Codicon.github);
 					template.showExtension.label = entry.remote.contributedBy ? localize('remotes.showExtension', "Show {0} Extension", entry.remote.contributedBy.displayName) : '';

@@ -3065,12 +3065,12 @@ suite('RemotesWidget', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ states, changes: model.gitHubEnvironmentChanges }, {
 			states: [
-				{ label: 'Share Build server as GitHub Environment', enabled: true },
-				{ label: 'Stop Sharing Build server as GitHub Environment', enabled: true },
-				{ label: 'Sharing Build server as a GitHub environment...', enabled: false },
-				{ label: 'Stop Sharing Build server as GitHub Environment', enabled: true },
-				{ label: 'Share Build server as GitHub Environment', enabled: true },
-				{ label: 'Build server is shared as a GitHub environment by another GitHub account.', enabled: false },
+				{ label: 'Share as GitHub Environment', enabled: true },
+				{ label: 'Stop Sharing as GitHub Environment', enabled: true },
+				{ label: 'Sharing as a GitHub environment...', enabled: false },
+				{ label: 'Stop Sharing as GitHub Environment', enabled: true },
+				{ label: 'Share as GitHub Environment', enabled: true },
+				{ label: 'Shared as a GitHub environment by another GitHub account.', enabled: false },
 			],
 			changes: [{ id: 'ssh:build', shared: true }, { id: 'ssh:build', shared: false }],
 		});
@@ -3701,7 +3701,7 @@ suite('RemotesWidget', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ before, after, creations: model.devContainerCreations }, {
 			before: { connect: 'Disconnect Laptop', create: undefined, copy: 'Copy Address', delete: 'Delete Dev Tunnel...' },
-			after: { connect: 'Disconnect Laptop', create: 'Create Dev Container on Laptop', copy: 'Copy Address', delete: 'Delete Dev Tunnel...' },
+			after: { connect: 'Disconnect Laptop', create: 'Create Dev Container', copy: 'Copy Address', delete: 'Delete Dev Tunnel...' },
 			creations: [tunnel.id],
 		});
 	});
