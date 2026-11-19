@@ -86,7 +86,9 @@ export function getRepositoryFromUrl(url: string): { owner: string; repo: string
 	// Generic HTTPS URL: https://host/owner/repo[.git]
 	match = /^https:\/\/([^/]+)\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
 	if (match) {
-		return { owner: match[2], repo: match[3], baseUrl: `https://${match[1]}` };
+		// Use URL to extract the origin, stripping any embedded credentials.
+		const origin = new URL(url).origin;
+		return { owner: match[2], repo: match[3], baseUrl: origin };
 	}
 
 	// Generic SSH URL: git@host:owner/repo[.git]
