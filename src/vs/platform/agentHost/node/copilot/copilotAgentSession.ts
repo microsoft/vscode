@@ -96,7 +96,8 @@ import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotMod
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
-import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { readAgentCustomizationMeta } from '../../common/meta/vscode/agentCustomizationMeta.js';
+import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentHostClientConnectionService } from '../agentHostClientConnectionService.js';
@@ -8938,6 +8939,8 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 		this._lastAppliedAgent = selection;
+		// The selected agent may bring its own guidance for the Assisted permissions judge.
+		await this._syncAssistedApprovalInstructions();
 	}
 
 	// ---- permission handling ------------------------------------------------
@@ -9521,22 +9524,27 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Applies the user's instructions for the Assisted permissions judge. The runtime
+	 * Applies the user's instructions for the Assisted permissions judge, followed by those of
+	 * the selected custom agent (`vscode: assisted-approval-instructions` in its agent file). The runtime
 	 * holds them only for the live SDK session and never persists them, so they are
-	 * reapplied after every create and resume.
+	 * reapplied after every create and resume, and whenever the selected agent changes.
 	 */
 	private _syncAssistedApprovalInstructions(): Promise<void> {
 		return this._assistedApprovalInstructionsSequencer.queue(async () => {
 			if (this._isInactiveForBackgroundConfigSync()) {
 				return;
 			}
+			const wrapper = this._wrapper;
 			const configured = this._configurationService.getRootValue(platformRootSchema, AgentHostAssistedApprovalInstructionsConfigKey) ?? '';
+			const agent = await this._selectedAgentAssistedApprovalInstructions(wrapper);
 			// The runtime clears the instructions for blank text, so blank and empty are equivalent.
-			const instructions = configured.trim() ? configured : '';
+			const instructions = [
+				configured.trim(),
+				agent ? `Instructions from the "${agent.name}" agent the user selected for this chat:\n${agent.instructions}` : '',
+			].filter(Boolean).join('\n\n');
 			if (instructions === this._appliedAssistedApprovalInstructions) {
 				return;
 			}
-			const wrapper = this._wrapper;
 			const result = await this._awaitControlPlaneRpc('Assisted permissions instructions', wrapper.session.rpc.permissions.configure({ assistedApprovalInstructions: instructions }));
 			if (!result.success) {
 				throw new Error('The runtime did not apply the Assisted permissions instructions.');
@@ -9546,6 +9554,22 @@ export class CopilotAgentSession extends Disposable {
 				this._appliedAssistedApprovalInstructions = instructions;
 			}
 		});
+	}
+
+	/** The selected agent's instructions for the Assisted permissions judge, parsed with its agent file. */
+	private async _selectedAgentAssistedApprovalInstructions(wrapper: CopilotSessionWrapper): Promise<{ readonly name: string; readonly instructions: string } | undefined> {
+		let sdkName = this._lastAppliedAgent ?? undefined;
+		if (this._lastAppliedAgent === undefined) {
+			// Only after a resume is the selection unknown: the runtime restored it.
+			try {
+				sdkName = (await this._awaitControlPlaneRpc('rpc.agent.getCurrent', wrapper.session.rpc.agent.getCurrent())).agent?.name;
+			} catch (error) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Could not read the restored agent for its Assisted permissions instructions`, error);
+			}
+		}
+		const agent = sdkName ? getCopilotAgentCustomization(this._launchPlan.snapshot, sdkName) : undefined;
+		const instructions = agent && readAgentCustomizationMeta(agent)['vscode.assistedApprovalInstructions'];
+		return agent && instructions ? { name: agent.name, instructions } : undefined;
 	}
 
 	/**
