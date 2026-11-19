@@ -668,7 +668,7 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 		}
 
 		const surface = envService ? exposureSurfaceForEditor(envService.getEditorInfo().name) : undefined;
-		if (surface && telemetryService && envService) {
+		if (surface && telemetryService) {
 			this._exposureTracker = new ExperimentExposureTracker(
 				surface,
 				gate => this.variables[gate],
@@ -677,14 +677,7 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 					const trackingId = instantiationService?.invokeFunction(accessor => accessor.get(IAuthenticationService).copilotToken?.getTokenValue('tid'));
 					// Exposures go to GitHub telemetry only, so they need the tracking ID; reads
 					// before the token arrives (or while signed out) are exposed once it does.
-					return trackingId ? {
-						// Hosts pass treatment variables without the assignment's data version.
-						dataVersion: '',
-						entryPoint: envService.getEditorPluginInfo().name,
-						trackingId,
-						// chat-lib has no device ID the host's ExP assignment is known to use.
-						deviceId: undefined,
-					} : undefined;
+					return trackingId ? { trackingId } : undefined;
 				},
 				exposure => sendExperimentExposureGHTelemetry(telemetryService, exposure),
 			);

@@ -11,17 +11,14 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 import { IVSCodeExtensionContext } from '../../../extContext/common/extensionContext';
 import { ILogService } from '../../../log/common/logService';
 import { createPlatformServices } from '../../../test/node/services';
-import { EXP_EXPOSURE_EVENT, EXPOSURE_GATE_TREATMENTS, ExperimentExposureTracker, exposureMetadata, exposureSurfaceForEditor, IExperimentExposure, IExposureContext, sendExperimentExposureTelemetry, TreatmentValue } from '../../common/experimentExposure';
+import { EXP_EXPOSURE_EVENT, EXPOSURE_GATE_TREATMENTS, ExperimentExposureTracker, exposureSurfaceForEditor, IExperimentExposure, IExposureContext, sendExperimentExposureTelemetry, TreatmentValue } from '../../common/experimentExposure';
 import { TelemetryDestination, TelemetryEventMeasurements, TelemetryEventProperties, TelemetryTrustedValue } from '../../common/telemetry';
 import { BaseExperimentationService, TASClientDelegateFn } from '../../node/baseExperimentationService';
 
 const VSCODE_GATE = EXPOSURE_GATE_TREATMENTS.vscode;
 
 const CONTEXT: IExposureContext = {
-	dataVersion: '42',
-	entryPoint: 'GitHub.copilot-chat',
 	trackingId: 'tid-1',
-	deviceId: 'device-1',
 };
 
 function createTracker(treatments: Record<string, TreatmentValue>) {
@@ -223,31 +220,6 @@ describe('exposureSurfaceForEditor', () => {
 	});
 });
 
-describe('exposureMetadata', () => {
-	it('has the same keys and values as the monolith exp_exposure metadata', () => {
-		expect(exposureMetadata({ ...CONTEXT, flag: 'copilotchat.a', value: 15, surface: 'vscode' })).toEqual({
-			flag: 'copilotchat.a',
-			value: '15',
-			value_type: 'number',
-			trigger: 'automatic',
-			data_version: '42',
-			surface: 'vscode',
-			entry_point: 'GitHub.copilot-chat',
-			assignment_units: '{"copilot_tracking_id":"tid-1","device_id":"device-1"}',
-			sdk: 'copilot_chat_ts',
-			sdk_version: '1.0.0',
-		});
-	});
-
-	it('leaves the tracking ID out of the units when signed out', () => {
-		const metadata = exposureMetadata({ ...CONTEXT, trackingId: undefined, flag: 'copilotchat.a', value: true, surface: 'vscode' });
-
-		expect(metadata.assignment_units).toBe('{"device_id":"device-1"}');
-		expect(metadata.value).toBe('true');
-		expect(metadata.value_type).toBe('bool');
-	});
-});
-
 describe('sendExperimentExposureTelemetry', () => {
 	function send(exposure: IExperimentExposure) {
 		const sent: { eventName: string; destination: TelemetryDestination; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }[] = [];
@@ -259,20 +231,18 @@ describe('sendExperimentExposureTelemetry', () => {
 		return sent;
 	}
 
-	function trusted(exposure: IExperimentExposure) {
-		return Object.fromEntries(Object.entries(exposureMetadata(exposure)).map(([k, v]) => [k, new TelemetryTrustedValue(v)]));
-	}
+	const properties = { 'ABExp.queriedFeature': new TelemetryTrustedValue('vscode.copilotchat.a') };
 
-	it('sends exp_exposure to GitHub and Microsoft telemetry with the metadata as trusted properties', () => {
+	it('sends exp_exposure to GitHub and Microsoft telemetry with the query-expfeature properties', () => {
 		const exposure: IExperimentExposure = { ...CONTEXT, flag: 'copilotchat.a', value: 'treatment', surface: 'vscode' };
 
-		expect(send(exposure)).toEqual([{ eventName: EXP_EXPOSURE_EVENT, destination: { github: true, microsoft: true }, properties: trusted(exposure), measurements: undefined }]);
+		expect(send(exposure)).toEqual([{ eventName: EXP_EXPOSURE_EVENT, destination: { github: true, microsoft: true }, properties, measurements: undefined }]);
 	});
 
 	it('sends a signed-out exposure to Microsoft telemetry only, without a cached tracking ID', () => {
 		const exposure: IExperimentExposure = { ...CONTEXT, trackingId: undefined, flag: 'copilotchat.a', value: 'treatment', surface: 'vscode' };
 
-		expect(send(exposure)).toEqual([{ eventName: EXP_EXPOSURE_EVENT, destination: { github: false, microsoft: true }, properties: { ...trusted(exposure), 'common.tid': '' }, measurements: undefined }]);
+		expect(send(exposure)).toEqual([{ eventName: EXP_EXPOSURE_EVENT, destination: { github: false, microsoft: true }, properties: { ...properties, 'common.tid': '' }, measurements: undefined }]);
 	});
 });
 

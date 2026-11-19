@@ -67,13 +67,6 @@ function readReleaseDate(logService: ILogService, tag: string): string | undefin
 
 const CopilotRelatedPluginVersionPrefix = 'X-Copilot-RelatedPluginVersion-';
 
-/** Posted by tas-client after each assignments endpoint response, with its `DataVersion`. */
-const ASSIGNMENTS_VALIDATION_EVENT = 'assignments-validation';
-/** Posted by tas-client when an assignments endpoint request fails. */
-const ASSIGNMENTS_ERROR_EVENT = 'call-assignments-error';
-/** The shared property vscode-tas-client sets to the assignment context of the snapshot in use. */
-const ASSIGNMENT_CONTEXT_PROPERTY = 'abexp.assignmentcontext';
-
 export enum RelatedExtensionsFilter {
 	CopilotRelatedPluginVersionCppTools = CopilotRelatedPluginVersionPrefix + 'msvscodecpptools',
 	CopilotRelatedPluginVersionCMakeTools = CopilotRelatedPluginVersionPrefix + 'msvscodecmaketools',
@@ -319,10 +312,7 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		};
 		let assignments = getAssignments();
 		let self: MicrosoftExperimentationService | undefined = undefined;
-		// Only the new assignments endpoint reports a data version, through TAS telemetry.
-		let dataVersion = '';
 		const delegateFn = (memento: vscode.Memento, userInfoStore: UserInfoStore, gate: RevocationGate) => {
-			dataVersion = '';
 			const state = copilotTokenStore.authenticationState;
 			const identity = state === 'signedOut' ? 'signedOut' : state === 'signedIn' ? copilotTokenStore.copilotToken?.getTokenValue('tid') : undefined;
 			const wrappedMemento = new ExpMementoWrapper(memento, identity, envService);
@@ -336,7 +326,7 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 				targetPopulation,
 				// Wrapped per generation so a superseded delegate's in-flight fetch cannot write
 				// telemetry (e.g. overwrite `abexp.assignmentcontext`) after being replaced.
-				telemetry: new RevocableExpTelemetry(telemetryService, gate, version => dataVersion = version),
+				telemetry: new RevocableExpTelemetry(telemetryService, gate),
 				memento: wrappedMemento,
 				filterProviders: [
 					new GitHubAccountFilterProvider(userInfoStore, logService),
@@ -371,7 +361,7 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 			if (state === 'unknown' || (state === 'signedIn' && !trackingId)) {
 				return undefined;
 			}
-			return { dataVersion, entryPoint: id, trackingId, deviceId: envService.devDeviceId };
+			return { trackingId };
 		}, exposure => sendExperimentExposureTelemetry(telemetryService, exposure));
 
 		const legacyAccountFilterProvider = new GitHubAccountFilterProvider(this._userInfoStore, logService);
@@ -407,26 +397,14 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
  * properties (notably `abexp.assignmentcontext`) after a newer delegate has replaced it.
  */
 class RevocableExpTelemetry implements IExperimentationTelemetry {
-	private _fetched: { readonly assignmentContext: string; readonly dataVersion: string } | undefined;
-
 	constructor(
 		private readonly _actual: IExperimentationTelemetry,
 		private readonly _gate: RevocationGate,
-		private readonly _onDataVersion: (dataVersion: string) => void,
 	) { }
 
 	setSharedProperty(name: string, value: string): void {
 		if (this._gate.isRevoked) {
 			return;
-		}
-		// tas-client sets the assignment context only when it installs a snapshot as the one
-		// reads use. After the first read, polled responses are stored but not installed, so a
-		// fetched data version applies only once its snapshot is. The assignments provider's
-		// context is appended last, after a `;`.
-		if (name === ASSIGNMENT_CONTEXT_PROPERTY) {
-			const fetched = this._fetched?.assignmentContext;
-			const installed = !!fetched && (value === fetched || value.endsWith(`;${fetched}`));
-			this._onDataVersion(installed ? this._fetched!.dataVersion : '');
 		}
 		this._actual.setSharedProperty(name, value);
 	}
@@ -434,16 +412,6 @@ class RevocableExpTelemetry implements IExperimentationTelemetry {
 	postEvent(eventName: string, props: Map<string, string>): void {
 		if (this._gate.isRevoked) {
 			return;
-		}
-		if (eventName === ASSIGNMENTS_VALIDATION_EVENT) {
-			const dataVersion = props.get('DataVersion');
-			this._fetched = {
-				assignmentContext: props.get('AssignmentContext') ?? '',
-				dataVersion: dataVersion && dataVersion !== 'undefined' ? dataVersion : '',
-			};
-		} else if (eventName === ASSIGNMENTS_ERROR_EVENT) {
-			// A snapshot installed without this fetch's assignments has no data version.
-			this._fetched = undefined;
 		}
 		this._actual.postEvent(eventName, props);
 	}

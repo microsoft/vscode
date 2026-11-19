@@ -8,8 +8,9 @@ import { ITelemetryService, TelemetryEventProperties, TelemetryTrustedValue } fr
 /**
  * `exp_exposure` is sent the first time a session reads an assigned treatment variable, and
  * again when a later read sees a different value. Triggered experiment scorecards use it as the
- * exposure event. Its metadata matches the GitHub monolith's and the `githubexp` Go SDK's
- * `exp_exposure`, so one trigger condition works across surfaces.
+ * exposure event. Its properties are the same as `query-expfeature`'s, which tas-client sends when
+ * Copilot in VS Code queries a treatment variable, so a trigger on `ABExp.queriedFeature` carries
+ * over to `exp_exposure` on every surface.
  *
  * A triggered scorecard is only valid when its trigger fires in every arm under the same
  * conditions. Exposures don't guarantee that on their own:
@@ -23,8 +24,9 @@ import { ITelemetryService, TelemetryEventProperties, TelemetryTrustedValue } fr
  *   on the outer flag, which every arm reads.
  */
 export const EXP_EXPOSURE_EVENT = 'exp_exposure';
-export const EXPOSURE_SDK = 'copilot_chat_ts';
-export const EXPOSURE_SDK_VERSION = '1.0.0';
+
+/** The config ID tas-client prefixes to a treatment variable in `ABExp.queriedFeature`. */
+const QUERIED_FEATURE_CONFIG_ID = 'vscode';
 
 export type ExposureSurface = 'vscode' | 'jetbrains' | 'visualstudio';
 
@@ -59,14 +61,8 @@ export type TreatmentValue = boolean | number | string;
 
 /** What the surface knows about the assignment when a flag is read. */
 export interface IExposureContext {
-	/** The ExP data version of the assignment, or empty when the client doesn't receive it. */
-	readonly dataVersion: string;
-	/** The extension or plugin that read the flag. */
-	readonly entryPoint: string;
 	/** The `copilottrackingid` ExP unit; unset when signed out. */
 	readonly trackingId: string | undefined;
-	/** The `devdeviceid` ExP unit. */
-	readonly deviceId: string | undefined;
 }
 
 export interface IExperimentExposure extends IExposureContext {
@@ -187,44 +183,9 @@ export class ExperimentExposureTracker {
 	}
 }
 
-export function exposureValueType(value: TreatmentValue): 'bool' | 'number' | 'string' {
-	switch (typeof value) {
-		case 'boolean': return 'bool';
-		case 'number': return 'number';
-		default: return 'string';
-	}
-}
-
-/** Every ExP unit present, keyed by the analytics pipeline's entity type (as in `githubexp`). */
-export function exposureAssignmentUnits(exposure: IExposureContext): Record<string, string> {
-	const units: Record<string, string> = {};
-	if (exposure.trackingId) {
-		units.copilot_tracking_id = exposure.trackingId;
-	}
-	if (exposure.deviceId) {
-		units.device_id = exposure.deviceId;
-	}
-	return units;
-}
-
-/** The event's metadata, with the same keys and values as the monolith's `exp_exposure`. */
-export function exposureMetadata(exposure: IExperimentExposure): Record<string, string> {
-	return {
-		flag: exposure.flag,
-		value: String(exposure.value),
-		value_type: exposureValueType(exposure.value),
-		trigger: 'automatic',
-		data_version: exposure.dataVersion,
-		surface: exposure.surface,
-		entry_point: exposure.entryPoint,
-		assignment_units: JSON.stringify(exposureAssignmentUnits(exposure)),
-		sdk: EXPOSURE_SDK,
-		sdk_version: EXPOSURE_SDK_VERSION,
-	};
-}
-
+/** The event's properties: the same as `query-expfeature`'s. */
 export function exposureTelemetryProperties(exposure: IExperimentExposure): TelemetryEventProperties {
-	return Object.fromEntries(Object.entries(exposureMetadata(exposure)).map(([key, value]) => [key, new TelemetryTrustedValue(value)]));
+	return { 'ABExp.queriedFeature': new TelemetryTrustedValue(`${QUERIED_FEATURE_CONFIG_ID}.${exposure.flag}`) };
 }
 
 /**
@@ -236,17 +197,8 @@ export function sendExperimentExposureTelemetry(telemetryService: Pick<ITelemetr
 	/* __GDPR__
 		"exp_exposure" : {
 			"owner": "siddharth-ramesh",
-			"comment": "Sent the first time a session reads an assigned ExP treatment variable, and again when a later read sees a different value. Used as the exposure event of triggered experiment scorecards.",
-			"flag": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The treatment variable that was read." },
-			"value": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The value ExP assigned to the treatment variable." },
-			"value_type": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The value's type: bool, number or string." },
-			"trigger": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always automatic: the exposure is a side effect of the read." },
-			"data_version": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The ExP data version of the assignment, when known." },
-			"surface": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The client surface that read the flag." },
-			"entry_point": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The extension or plugin that read the flag." },
-			"assignment_units": { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight", "comment": "JSON of the ExP units the assignment used: the Copilot tracking ID and the device ID." },
-			"sdk": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The exposure implementation." },
-			"sdk_version": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The exposure implementation's version." }
+			"comment": "Sent the first time a session reads an assigned ExP treatment variable, and again when a later read sees a different value. Used as the exposure event of triggered experiment scorecards. Has the same properties as query-expfeature.",
+			"ABExp.queriedFeature": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The treatment variable that was read, prefixed with the vscode config ID as in query-expfeature." }
 		}
 	*/
 	const properties = exposureTelemetryProperties(exposure);

@@ -212,7 +212,6 @@ describe('SimpleExperimentationService', () => {
 			} as unknown as ITelemetryService;
 			const envService = {
 				getEditorInfo: () => new NameAndVersion(editorName, '1.0.0'),
-				getEditorPluginInfo: () => new NameAndVersion('copilot-intellij', '1.5.0'),
 			} as unknown as IEnvService;
 			const token = (tid: string) => ({ getTokenValue: (key: string) => key === 'tid' ? tid : undefined });
 			const authService: { copilotToken: ReturnType<typeof token> | undefined } = { copilotToken: trackingId ? token(trackingId) : undefined };
@@ -224,7 +223,7 @@ describe('SimpleExperimentationService', () => {
 			return { service, sent, metadata, signIn: (tid: string) => authService.copilotToken = token(tid) };
 		}
 
-		it('sends exp_exposure with the monolith metadata for a JetBrains host when its gate is on', () => {
+		it('sends exp_exposure with the query-expfeature properties for a JetBrains host when its gate is on', () => {
 			const { service, sent, metadata } = createHostedService('JetBrains-IC');
 			service.updateTreatmentVariables({ [EXPOSURE_GATE_TREATMENTS.jetbrains]: true, 'feature-a': 'treatment' });
 
@@ -234,18 +233,7 @@ describe('SimpleExperimentationService', () => {
 			expect(service.getTreatmentVariable('missing')).toBeUndefined();
 
 			expect(sent.map(e => e.eventName)).toEqual([EXP_EXPOSURE_EVENT]);
-			expect(metadata()).toEqual([{
-				flag: 'feature-a',
-				value: 'treatment',
-				value_type: 'string',
-				trigger: 'automatic',
-				data_version: '',
-				surface: 'jetbrains',
-				entry_point: 'copilot-intellij',
-				assignment_units: '{"copilot_tracking_id":"tid-1"}',
-				sdk: 'copilot_chat_ts',
-				sdk_version: '1.0.0',
-			}]);
+			expect(metadata()).toEqual([{ 'ABExp.queriedFeature': 'vscode.feature-a' }]);
 			service.dispose();
 		});
 
@@ -254,16 +242,15 @@ describe('SimpleExperimentationService', () => {
 			service.updateTreatmentVariables({ [EXPOSURE_GATE_TREATMENTS.jetbrains]: true, 'feature-a': true });
 
 			service.getTreatmentVariable('feature-a');
+			expect(metadata()).toHaveLength(0);
 			signIn('tid-1');
 			service.getTreatmentVariable('feature-a');
 			service.getTreatmentVariable('feature-a');
+			expect(metadata()).toHaveLength(1);
 			signIn('tid-2');
 			service.getTreatmentVariable('feature-a');
 
-			expect(metadata().map(m => m.assignment_units)).toEqual([
-				'{"copilot_tracking_id":"tid-1"}',
-				'{"copilot_tracking_id":"tid-2"}',
-			]);
+			expect(metadata()).toHaveLength(2);
 			service.dispose();
 		});
 
@@ -278,7 +265,7 @@ describe('SimpleExperimentationService', () => {
 			signIn('tid-1');
 			service.updateTreatmentVariables(variables);
 
-			expect(metadata().map(m => [m.flag, m.surface, m.assignment_units])).toEqual([['feature-a', 'visualstudio', '{"copilot_tracking_id":"tid-1"}']]);
+			expect(metadata()).toEqual([{ 'ABExp.queriedFeature': 'vscode.feature-a' }]);
 			service.dispose();
 		});
 
@@ -292,7 +279,7 @@ describe('SimpleExperimentationService', () => {
 			service.dispose();
 		});
 
-		it('uses the Visual Studio gate and surface for a Visual Studio host', () => {
+		it('uses the Visual Studio gate for a Visual Studio host', () => {
 			const { service, metadata } = createHostedService('VisualStudio');
 			service.updateTreatmentVariables({ [EXPOSURE_GATE_TREATMENTS.jetbrains]: true, 'feature-a': 1 });
 
@@ -302,7 +289,7 @@ describe('SimpleExperimentationService', () => {
 			service.updateTreatmentVariables({ [EXPOSURE_GATE_TREATMENTS.visualstudio]: true, 'feature-a': 1 });
 			service.getTreatmentVariable('feature-a');
 
-			expect(metadata().map(m => [m.surface, m.value, m.value_type])).toEqual([['visualstudio', '1', 'number']]);
+			expect(metadata()).toEqual([{ 'ABExp.queriedFeature': 'vscode.feature-a' }]);
 			service.dispose();
 		});
 

@@ -102,7 +102,6 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 			new Map([[ConfigKey.Shared.AuthProvider, provider]]),
 		));
 		const env = new class extends mock<IEnvService>() {
-			override devDeviceId = 'test-device';
 			override isPreRelease() { return false; }
 			override getVersion() { return '1.0.0'; }
 		}();
@@ -463,11 +462,10 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		expect(sendTelemetryEvent.mock.calls.map(([eventName, destination, properties]) => ({
 			eventName,
 			destination,
-			units: (properties?.assignment_units as TelemetryTrustedValue<string>).value,
 			tid: properties?.['common.tid'],
 		}))).toEqual([
-			{ eventName: 'exp_exposure', destination: { github: true, microsoft: true }, units: '{"copilot_tracking_id":"user","device_id":"test-device"}', tid: undefined },
-			{ eventName: 'exp_exposure', destination: { github: false, microsoft: true }, units: '{"device_id":"test-device"}', tid: '' },
+			{ eventName: 'exp_exposure', destination: { github: true, microsoft: true }, tid: undefined },
+			{ eventName: 'exp_exposure', destination: { github: false, microsoft: true }, tid: '' },
 		]);
 	});
 
@@ -477,8 +475,6 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		const sendTelemetryEvent = vi.fn<(eventName: string, destination: TelemetryDestination, properties?: TelemetryEventProperties) => void>();
 		const telemetry = new class extends mock<ITelemetryService>() {
 			override sendTelemetryEvent = sendTelemetryEvent;
-			override setSharedProperty() { }
-			override postEvent() { }
 		}();
 		const created = createService(token, state, AuthProviderId.GitHub, new ExperimentationExtensionContext(), telemetry);
 		const config = () => vi.mocked(getExperimentationServiceFromConfig).mock.calls.at(-1)![0];
@@ -486,60 +482,11 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 			treatments.set(`/vscode/${flag}`, value);
 			created.service.getTreatmentVariable(flag);
 		};
-		const exposures = () => sendTelemetryEvent.mock.calls.map(([, , properties]) => [
-			(properties?.flag as TelemetryTrustedValue<string>).value,
-			(properties?.data_version as TelemetryTrustedValue<string>).value,
-		]);
-		const validation = (dataVersion: string, assignmentContext: string) => config().telemetry.postEvent('assignments-validation', new Map([['DataVersion', dataVersion], ['AssignmentContext', assignmentContext]]));
-		const install = (assignmentContext: string) => config().telemetry.setSharedProperty('abexp.assignmentcontext', assignmentContext);
-		const fail = () => config().telemetry.postEvent('call-assignments-error', new Map([['ErrorType', 'ServerError']]));
-		return { ...created, config, read, exposures, validation, install, fail };
+		const exposures = () => sendTelemetryEvent.mock.calls.map(([, , properties]) => (properties?.['ABExp.queriedFeature'] as TelemetryTrustedValue<string>).value);
+		return { ...created, config, read, exposures };
 	}
 
 	const userToken = (tid: string) => new CopilotToken(createTestExtendedTokenInfo({ token: `tid=${tid}`, endpoints: { exp: 'https://exp.individual.githubcopilot.com' } }));
-
-	it('reports the data version of the assignment snapshot in use, not the latest poll', () => {
-		const { read, exposures, validation, install } = exposingService(userToken('user'), 'signedIn');
-
-		// Cached snapshot from a previous session, then the first fetch installs v1.
-		install('cached;');
-		read('copilotchat.a', 'a');
-		validation('1', 'ctx1;');
-		install('legacy;ctx1;');
-		read('copilotchat.b', 'b');
-		// A background poll fetches v2 but tas-client keeps serving the consumed v1 snapshot.
-		validation('2', 'ctx2;');
-		read('copilotchat.c', 'c');
-		// A forced refresh installs v2.
-		install('legacy;ctx2;');
-		read('copilotchat.d', 'd');
-
-		expect(exposures()).toEqual([
-			['copilotchat.a', ''],
-			['copilotchat.b', '1'],
-			['copilotchat.c', '1'],
-			['copilotchat.d', '2'],
-		]);
-	});
-
-	it('does not attribute a fetched data version to a snapshot installed without its assignments', () => {
-		const { read, exposures, validation, install, fail } = exposingService(userToken('user'), 'signedIn');
-
-		// A poll fetches v2, then a forced refresh's assignments request fails and only legacy installs.
-		validation('2', 'ctx2;');
-		fail();
-		install('legacy;');
-		read('copilotchat.a', 'a');
-		// A legacy context that merely contains the fetched context isn't that fetch's snapshot.
-		validation('3', 'ctx3;');
-		install('legacy-ctx3;');
-		read('copilotchat.b', 'b');
-
-		expect(exposures()).toEqual([
-			['copilotchat.a', ''],
-			['copilotchat.b', ''],
-		]);
-	});
 
 	it('does not expose reads until sign-in settles', () => {
 		const { tokens, read, exposures } = exposingService(undefined, 'unknown');
@@ -549,7 +496,7 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		tokens.authenticationState = 'signedIn';
 		read('copilotchat.a', 'a');
 
-		expect(exposures()).toEqual([['copilotchat.a', '']]);
+		expect(exposures()).toEqual(['vscode.copilotchat.a']);
 	});
 
 	it('exposes a read made before sign-in settled once it does, without another read', () => {
@@ -560,7 +507,7 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		tokens.copilotToken = userToken('user');
 		tokens.authenticationState = 'signedIn';
 
-		expect(exposures()).toEqual([['copilotchat.a', '']]);
+		expect(exposures()).toEqual(['vscode.copilotchat.a']);
 	});
 
 	it('does not load assignments cached for another account', () => {
