@@ -1482,6 +1482,14 @@ export interface IAgentChatReleaseOptions {
 	readonly canContinue?: () => boolean;
 }
 
+/** What a deferred chat's composer would send with, used to shape its warm runtime ({@link IAgentChats.warmChat}). */
+export interface IAgentWarmChatSelection {
+	/** The model to warm with; `undefined` keeps the chat's current model. */
+	readonly model: ModelSelection | undefined;
+	/** The custom agent to warm with; `undefined` is the default agent. */
+	readonly agent: AgentSelection | undefined;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -1528,8 +1536,15 @@ export interface IAgentChats {
 	 * disposing the chat discards it. Resolves `true` when a warm runtime is
 	 * live afterwards; a chat that cannot be warmed resolves `false` without
 	 * doing work.
+	 *
+	 * The host calls it again while the user composes. A warm runtime that
+	 * still matches `selection` is kept and its unclaimed lifetime extended;
+	 * one launched with another model or agent is replaced; and a chat whose
+	 * warm runtime expired or was torn down is warmed again. `selection` only
+	 * shapes the warm launch: the first send still selects its own model and
+	 * agent and replaces a launch that does not match them.
 	 */
-	warmChat?(chat: URI, context: IAgentChatContext): Promise<boolean>;
+	warmChat?(chat: URI, context: IAgentChatContext, selection?: IAgentWarmChatSelection): Promise<boolean>;
 
 	/**
 	 * Records why the host is not (yet) warming a deferred chat
