@@ -9,7 +9,7 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostKeepAwakeConfigKey, AgentHostKeepAwakeOnBatteryConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostKeepAwakeConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -122,16 +122,15 @@ suite('AgentHostKeepAwake', () => {
 		});
 	});
 
-	test('settings immediately release or replace the hold, and disposal releases it', () => {
+	test('changing the mode immediately releases or replaces the hold, and disposal releases it', () => {
 		const controller = startController();
 		state.dispatchServerAction(chat, chatTurnStarted('turn', 'Work'));
-		config.updateRootConfig({ [AgentHostKeepAwakeConfigKey]: false });
+		config.updateRootConfig({ [AgentHostKeepAwakeConfigKey]: 'never' });
 		assert.strictEqual(releases, 1);
-		config.updateRootConfig({ [AgentHostKeepAwakeOnBatteryConfigKey]: false });
 		assert.deepStrictEqual(acquired, [true]);
-		config.updateRootConfig({ [AgentHostKeepAwakeConfigKey]: true });
+		config.updateRootConfig({ [AgentHostKeepAwakeConfigKey]: 'whenPluggedIn' });
 		assert.deepStrictEqual(acquired, [true, false]);
-		config.updateRootConfig({ [AgentHostKeepAwakeOnBatteryConfigKey]: true });
+		config.updateRootConfig({ [AgentHostKeepAwakeConfigKey]: 'always' });
 		assert.deepStrictEqual(acquired, [true, false, true]);
 		assert.strictEqual(releases, 2);
 		controller.dispose();

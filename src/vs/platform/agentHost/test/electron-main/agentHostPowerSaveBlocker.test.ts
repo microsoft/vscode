@@ -19,8 +19,9 @@ suite('AgentHostElectronPowerSaveBlocker', () => {
 	let stops: number;
 	let batteryChanged: Emitter<boolean>;
 
-	function createBlocker(): AgentHostElectronPowerSaveBlocker {
+	function createBlocker(supportsBatteryPower = true): AgentHostElectronPowerSaveBlocker {
 		return disposables.add(new AgentHostElectronPowerSaveBlocker(new NullLogService(), {
+			supportsBatteryPower,
 			onDidChangeOnBatteryPower: batteryChanged.event,
 			isOnBatteryPower: () => {
 				probes++;
@@ -59,5 +60,13 @@ suite('AgentHostElectronPowerSaveBlocker', () => {
 		blocker.handleMessage(toAgentHostPowerSaveBlockerMessage({ kind: 'acquire', allowOnBattery: true }));
 		blocker.handleMessage({ type: 'invalid' });
 		assert.deepStrictEqual({ probes, starts, stops }, { probes: 0, starts: 1, stops: 0 });
+	});
+
+	test('releases an unconditional hold when switching to plugged-in only without power source support', () => {
+		const blocker = createBlocker(false);
+		blocker.handleMessage(toAgentHostPowerSaveBlockerMessage({ kind: 'acquire', allowOnBattery: true }));
+		blocker.handleMessage(toAgentHostPowerSaveBlockerMessage({ kind: 'acquire', allowOnBattery: false }));
+		batteryChanged.fire(false);
+		assert.deepStrictEqual({ probes, starts, stops }, { probes: 0, starts: 1, stops: 1 });
 	});
 });

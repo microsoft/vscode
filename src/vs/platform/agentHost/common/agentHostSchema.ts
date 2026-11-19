@@ -732,7 +732,23 @@ export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPrep
  */
 export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
 export const AgentHostKeepAwakeConfigKey = 'keepAwakeWhileWorking';
-export const AgentHostKeepAwakeOnBatteryConfigKey = 'keepAwakeOnBattery';
+
+export const enum AgentHostKeepAwakeMode {
+	Never = 'never',
+	Always = 'always',
+	WhenPluggedIn = 'whenPluggedIn',
+}
+
+export const agentHostKeepAwakeConfiguration = {
+	type: 'string' as const,
+	enum: [AgentHostKeepAwakeMode.Never, AgentHostKeepAwakeMode.Always, AgentHostKeepAwakeMode.WhenPluggedIn],
+	enumDescriptions: [
+		localize('agentHost.config.keepAwake.never', "Allow idle sleep while a chat is working."),
+		localize('agentHost.config.keepAwake.always', "Prevent idle sleep while a chat is working, even on battery power."),
+		localize('agentHost.config.keepAwake.whenPluggedIn', "Prevent idle sleep only while the host is plugged in. On Linux desktop, the power source is unavailable, so this option allows idle sleep."),
+	],
+	default: AgentHostKeepAwakeMode.Always,
+};
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
@@ -1160,17 +1176,10 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
 		default: true,
 	}),
-	[AgentHostKeepAwakeConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
+	[AgentHostKeepAwakeConfigKey]: schemaProperty<AgentHostKeepAwakeMode>({
+		...agentHostKeepAwakeConfiguration,
 		title: localize('agentHost.config.keepAwake.title', "Keep Awake While Working"),
-		description: localize('agentHost.config.keepAwake.description', "Prevent the machine running this Agent Host from idle-sleeping while a chat is working, where supported. The display can turn off and explicit sleep is not inhibited."),
-		default: true,
-	}),
-	[AgentHostKeepAwakeOnBatteryConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.keepAwakeOnBattery.title', "Keep Awake on Battery"),
-		description: localize('agentHost.config.keepAwakeOnBattery.description', "Allow idle-sleep inhibition while the machine running this Agent Host is on battery power."),
-		default: true,
+		description: localize('agentHost.config.keepAwake.description', "Controls when this Agent Host prevents idle sleep while a chat is working. The display can turn off and explicit sleep is not inhibited."),
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',

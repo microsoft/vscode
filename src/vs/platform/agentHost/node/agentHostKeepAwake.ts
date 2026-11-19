@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { AgentHostKeepAwakeConfigKey, AgentHostKeepAwakeOnBatteryConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { agentHostKeepAwakeConfiguration, AgentHostKeepAwakeConfigKey, AgentHostKeepAwakeMode, platformRootSchema } from '../common/agentHostSchema.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -19,7 +19,7 @@ export class AgentHostKeepAwake extends Disposable {
 
 	private readonly _hold = this._register(new MutableDisposable<IDisposable>());
 	private readonly _release = this._register(new RunOnceScheduler(() => this._hold.clear(), AgentHostKeepAwake.RELEASE_DELAY));
-	private _allowOnBattery: boolean | undefined;
+	private _mode: AgentHostKeepAwakeMode | undefined;
 
 	constructor(
 		private readonly _acquire: (allowOnBattery: boolean) => IDisposable,
@@ -40,16 +40,15 @@ export class AgentHostKeepAwake extends Disposable {
 	}
 
 	private _update(): void {
-		const enabled = this._configurationService.getRootValue(platformRootSchema, AgentHostKeepAwakeConfigKey) !== false;
-		const allowOnBattery = this._configurationService.getRootValue(platformRootSchema, AgentHostKeepAwakeOnBatteryConfigKey) !== false;
-		if (!enabled || allowOnBattery !== this._allowOnBattery) {
+		const mode = this._configurationService.getRootValue(platformRootSchema, AgentHostKeepAwakeConfigKey) ?? agentHostKeepAwakeConfiguration.default;
+		if (mode !== this._mode) {
 			this._release.cancel();
 			this._hold.clear();
+			this._mode = mode;
 		}
-		this._allowOnBattery = allowOnBattery;
-		if (enabled && this._stateManager.hasRunningChats) {
+		if (mode !== AgentHostKeepAwakeMode.Never && this._stateManager.hasRunningChats) {
 			this._release.cancel();
-			this._hold.value ??= this._acquire(allowOnBattery);
+			this._hold.value ??= this._acquire(mode === AgentHostKeepAwakeMode.Always);
 		} else if (this._hold.value && !this._release.isScheduled()) {
 			this._release.schedule();
 		}

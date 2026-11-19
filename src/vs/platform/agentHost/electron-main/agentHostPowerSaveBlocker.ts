@@ -6,17 +6,20 @@
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { createPowerSaveBlocker, isOnBatteryPower, onDidChangeOnBatteryPower } from '../../native/electron-main/power.js';
 import { ILogService } from '../../log/common/log.js';
 import { parseAgentHostPowerSaveBlockerMessage } from '../common/agentHostPowerSaveBlocker.js';
 
 interface IAgentHostPowerRuntime {
+	readonly supportsBatteryPower: boolean;
 	readonly onDidChangeOnBatteryPower: Event<boolean>;
 	isOnBatteryPower(): boolean;
 	createPowerSaveBlocker(): IDisposable;
 }
 
 const electronPowerRuntime: IAgentHostPowerRuntime = {
+	supportsBatteryPower: isMacintosh || isWindows,
 	onDidChangeOnBatteryPower,
 	isOnBatteryPower,
 	createPowerSaveBlocker: () => createPowerSaveBlocker('prevent-app-suspension'),
@@ -32,7 +35,9 @@ export class AgentHostElectronPowerSaveBlocker extends Disposable {
 		private readonly _powerRuntime: IAgentHostPowerRuntime = electronPowerRuntime,
 	) {
 		super();
-		this._register(_powerRuntime.onDidChangeOnBatteryPower(() => this._update()));
+		if (_powerRuntime.supportsBatteryPower) {
+			this._register(_powerRuntime.onDidChangeOnBatteryPower(() => this._update()));
+		}
 	}
 
 	handleMessage(message: unknown): void {
@@ -41,7 +46,7 @@ export class AgentHostElectronPowerSaveBlocker extends Disposable {
 			return;
 		}
 
-		if (request.kind === 'release') {
+		if (request.kind === 'release' || (!request.allowOnBattery && !this._powerRuntime.supportsBatteryPower)) {
 			this._allowOnBattery = undefined;
 			this._poll.cancel();
 			this._blocker.clear();
