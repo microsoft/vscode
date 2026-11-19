@@ -27,6 +27,7 @@ import { SessionCanvasContextService, SessionCanvasRegistryService } from './ses
 import { SessionCanvasSerializer } from './sessionCanvasSerializer.js';
 import { PinnedCanvasPageContribution } from './pinnedCanvasPage.js';
 import './pinnedCanvasActions.js';
+import './newCanvasSessionAction.js';
 import { getCanvasReferenceKey } from '../../../../workbench/common/canvasReference.js';
 
 registerSingleton(ICanvasContextService, SessionCanvasContextService, InstantiationType.Delayed);
