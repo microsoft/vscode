@@ -3848,18 +3848,31 @@ suite('SessionServerTools', () => {
 			return { result, calls };
 		}
 
-		test('forks the calling chat at its last completed turn with the model of that turn, then names and starts the fork', async () => {
+		test('forks the calling chat at its last completed turn with the model of its running turn, then names and starts the fork', async () => {
 			const source = buildDefaultChatUri('copilot:/s1');
 			const running = { ...completed, activeTurn: { message: { text: 'fork this', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet' } }, responseParts: [] } };
 			assert.deepStrictEqual(await runFork({ prompt: 'Try approach B', title: 'Approach B' }, running), {
 				result: `Forked into a new nested session and started it with the prompt (${buildOpenSessionLinkUri('copilot:/s1', 'NEW')}).`,
 				calls: [
 					{ read: source },
-					{ create: 'copilot:/s1', fork: { source, turnId: 't2' }, model: { id: 'gpt-4o' }, title: 'Approach B' },
+					{ create: 'copilot:/s1', fork: { source, turnId: 't2' }, model: { id: 'claude-sonnet' }, title: 'Approach B' },
 					{ rename: 'NEW', title: 'Approach B' },
 					{ prompt: 'NEW', text: 'Try approach B', delegation: { sourceSession: 'copilot:/s1', sourceChat: source, sourceTurnId: 'turn-1' } },
 				],
 			});
+		});
+
+		test('refuses more than 50 forks of a session per hour unless orchestration limits are off', async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			let limitsEnabled = true;
+			const group = createSessionServerToolGroup(createAccessor({ getChatContext: async () => completed }), () => limitsEnabled, () => 0);
+			const fork = async () => { await group.execute(stateManager, executionContext('copilot:/s1'), SessionServerToolName.ForkSession, {}); };
+			for (let i = 0; i < 50; i++) {
+				await fork();
+			}
+			await assert.rejects(fork, /Refusing to create more chats: this session already used 50 of 50 .*Retry after 3600 seconds/);
+			limitsEnabled = false;
+			await fork();
 		});
 
 		test('forks a linked nested session without starting it', async () => {

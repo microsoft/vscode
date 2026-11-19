@@ -328,7 +328,7 @@ const forkSessionInputSchema: ToolDefinition['inputSchema'] = {
 	properties: {
 		session: { type: 'string', description: 'The session or nested session to fork: an `agent-host-session://` link or a session URI from `list_sessions`. A link carrying a chat id forks that nested session. Omit to fork the chat this tool runs in.' },
 		prompt: { type: 'string', description: 'Optional message to start the fork with. Omit to create the fork without starting a turn.' },
-		title: { type: 'string', maxLength: 200, description: 'Optional short title for the fork. Defaults to "Forked: " followed by the source\'s title.' },
+		title: { type: 'string', maxLength: 200, description: 'Optional short title for the fork.' },
 	},
 };
 
@@ -433,7 +433,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.ForkSession,
 		title: 'Fork Session',
-		description: 'Fork a session or nested session into a new nested session of the same session, as the user\'s Fork action does. The fork copies the conversation up to its last completed turn (this chat\'s running turn is not included) and keeps its agent, model and folders; the source is unchanged. Use it when the user asks to fork or branch the conversation, for example to try another approach without losing the current one. Optionally start the fork with `prompt`. To start new or delegated work without the conversation history, use `create_session` instead.',
+		description: 'Fork a session or nested session into a new nested session of the same session, as the user\'s Fork action does. The fork copies the conversation up to its last completed turn (this chat\'s running turn is not included) and keeps its agent, model and folders; the source is unchanged. Use it when the user asks to fork or branch the conversation, for example to try another approach without losing the current one. To start new or delegated work without the conversation history, use `create_session` instead.',
 		inputSchema: forkSessionInputSchema,
 		annotations: { readOnlyHint: false },
 		deferLoading: true,
@@ -1691,7 +1691,7 @@ interface IForkSessionArgs {
 	readonly title?: unknown;
 }
 
-export interface IResolvedForkSessionArgs {
+interface IResolvedForkSessionArgs {
 	readonly session: URI;
 	/** The chat to fork: a nested session, a session's main session, or the calling chat. */
 	readonly chat: URI;
@@ -1699,7 +1699,7 @@ export interface IResolvedForkSessionArgs {
 	readonly title?: string;
 }
 
-export interface IForkSessionResult {
+interface IForkSessionResult {
 	readonly session: string;
 	readonly chat: string;
 	/** Clickable {@link AGENT_HOST_SESSION_LINK_SCHEME} URI that opens the fork. */
@@ -1711,7 +1711,7 @@ export interface IForkSessionResult {
  * Validates `fork_session` arguments and resolves the chat to fork: the chat a link names, matched against its
  * session's recorded chats, or the calling chat, whose session is its recorded owner.
  */
-export async function getForkSessionArgs(rawArgs: unknown, listSessions: () => Promise<readonly IAgentSessionMetadata[]>, currentChannel: ProtocolURI | undefined, getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined, getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined): Promise<IResolvedForkSessionArgs> {
+async function getForkSessionArgs(rawArgs: unknown, listSessions: () => Promise<readonly IAgentSessionMetadata[]>, currentChannel: ProtocolURI | undefined, getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined, getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined): Promise<IResolvedForkSessionArgs> {
 	const args = (rawArgs ?? {}) as IForkSessionArgs;
 	const sessionInput = getOptionalString(args.session, 'session', SessionServerToolName.ForkSession);
 	const prompt = getOptionalString(args.prompt, 'prompt', SessionServerToolName.ForkSession);
@@ -1742,9 +1742,9 @@ export async function getForkSessionArgs(rawArgs: unknown, listSessions: () => P
 
 /**
  * Forks a chat as the user's Fork action does: a new chat of the same session, created through the host's
- * `createChat` fork path at the source's last completed turn, with the model of that turn.
+ * `createChat` fork path at the source's last completed turn, with the model of its running turn, else of its last completed turn.
  */
-export async function applyForkSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel: ProtocolURI, sourceTurnId?: string): Promise<IForkSessionResult> {
+async function applyForkSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel: ProtocolURI, sourceTurnId?: string): Promise<IForkSessionResult> {
 	const args = await getForkSessionArgs(rawArgs, () => accessor.listSessions(), currentChannel, chat => accessor.getChatOwner(chat), session => accessor.getDefaultChat(session));
 	if (!accessor.supportsChatForks(args.session)) {
 		throw new Error('Cannot fork: the agent of this session does not support forking.');
@@ -1758,7 +1758,7 @@ export async function applyForkSessionTool(accessor: ISessionServerToolAccessor,
 	if (!lastTurn) {
 		throw new Error('Cannot fork: the session has no completed turns yet.');
 	}
-	const model = lastTurn.message.model;
+	const model = (snapshot.activeTurn?.message ?? lastTurn.message).model;
 	const source = currentChatUri(currentChannel);
 	const credentials = source ? accessor.getCredentialSource(source) : undefined;
 	const chat = URI.parse(mintPeerChatUri(chatUriFormatOf(accessor.getDefaultChat(args.session.toString())), args.session.toString()));
@@ -1782,7 +1782,7 @@ export async function applyForkSessionTool(accessor: ISessionServerToolAccessor,
 }
 
 /** Builds the model-facing `fork_session` result. */
-export function formatForkSessionResult(result: IForkSessionResult): string {
+function formatForkSessionResult(result: IForkSessionResult): string {
 	return result.started
 		? `Forked into a new nested session and started it with the prompt (${result.openLink}).`
 		: `Forked into a new nested session (${result.openLink}).`;
@@ -2647,8 +2647,7 @@ function getSessionToolDisplay(toolName: string, args: unknown, result?: IServer
 				pastTenseMessage: localize('toolComplete.deleteSession', "Deleted session"),
 			};
 		case SessionServerToolName.ForkSession: {
-			const input = args as IForkSessionArgs | undefined;
-			const self = input !== undefined && input.session === undefined;
+			const self = (args as IForkSessionArgs | undefined)?.session === undefined;
 			return {
 				displayName: localize('toolName.forkSession', "Fork Session"),
 				invocationMessage: self ? localize('toolInvoke.forkSession.self', "Forking this chat") : localize('toolInvoke.forkSession', "Forking session"),

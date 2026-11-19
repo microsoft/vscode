@@ -1329,7 +1329,7 @@
     },
     {
       "name": "fork_session",
-      "description": "Fork a session or nested session into a new nested session of the same session, as the user's Fork action does. The fork copies the conversation up to its last completed turn (this chat's running turn is not included) and keeps its agent, model and folders; the source is unchanged. Use it when the user asks to fork or branch the conversation, for example to try another approach without losing the current one. Optionally start the fork with `prompt`. To start new or delegated work without the conversation history, use `create_session` instead.",
+      "description": "Fork a session or nested session into a new nested session of the same session, as the user's Fork action does. The fork copies the conversation up to its last completed turn (this chat's running turn is not included) and keeps its agent, model and folders; the source is unchanged. Use it when the user asks to fork or branch the conversation, for example to try another approach without losing the current one. To start new or delegated work without the conversation history, use `create_session` instead.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1343,7 +1343,7 @@
           },
           "title": {
             "type": "string",
-            "description": "Optional short title for the fork. Defaults to \"Forked: \" followed by the source's title.\n\n{maxLength: 200}"
+            "description": "Optional short title for the fork.\n\n{maxLength: 200}"
           }
         }
       },

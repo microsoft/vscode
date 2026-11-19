@@ -21,6 +21,7 @@ import { readSessionArtifacts } from '../../../../common/sessionArtifacts.js';
 import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, NotificationType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type SessionAddedParams, type StateAction } from '../../../../common/state/sessionActions.js';
 import {
+	ChatOriginKind,
 	getAgentHostChatId,
 	readSessionCreationReference,
 	ROOT_STATE_URI,
@@ -62,7 +63,7 @@ interface ISeedFeedbackOptions {
 
 const feedbackToolNames = ['addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
 const feedbackResourceUri = 'untitled://server-tools/reviewed.ts';
-function getSessionToolNames(supportsWorkspaceChange: boolean): readonly SessionServerToolName[] {
+function getSessionToolNames(supportsWorkspaceChange: boolean, supportsFork: boolean): readonly SessionServerToolName[] {
 	return [
 		SessionServerToolName.ListSessions,
 		SessionServerToolName.GetCurrentSession,
@@ -72,6 +73,7 @@ function getSessionToolNames(supportsWorkspaceChange: boolean): readonly Session
 		SessionServerToolName.SendMessage,
 		SessionServerToolName.GetSessionContext,
 		SessionServerToolName.DeleteSession,
+		...(supportsFork ? [SessionServerToolName.ForkSession] : []),
 		...(supportsWorkspaceChange ? [SessionServerToolName.IsolateSession] : []),
 	];
 }
@@ -285,7 +287,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			}
 			return state.serverTools.map(tool => tool.name);
 		}, 100, 30);
-		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...getSessionToolNames(supportsWorkspaceChange)]);
+		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...getSessionToolNames(supportsWorkspaceChange, config.supportsChatFork)]);
 	});
 
 	serverToolTest('server tool: rename_chat renames the chat it runs in', async function () {
@@ -844,6 +846,31 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			messages: ['/rename Created Peer'],
 		});
 	}, config.supportsMultipleChats && supportsCurrentSessionCreation);
+
+	serverToolTest('server tool: fork_session forks the calling chat with its history and runs the prompt', async function () {
+		const session = await createSession('fork-session');
+		await driveTurnToCompletion(context.client, session.sessionUri, 'turn-fork-seed', 'Reply exactly "FORK_SEED".', reserveClientSequenceBlock());
+		const before = new Set((await sessionState(session.sessionUri)).chats.map(chat => chat.resource));
+		await driveServerTool(
+			session,
+			'turn-fork-session',
+			'Call fork_session exactly once with prompt "Reply exactly FORK_PROMPT" and title "Forked Chat", then reply exactly "forked".',
+			SessionServerToolName.ForkSession,
+		);
+		const after = await sessionState(session.sessionUri);
+		const fork = after.chats.find(chat => !before.has(chat.resource));
+		assert.ok(fork);
+		const forkState = await waitForChatIdle(fork.resource);
+		assert.deepStrictEqual({
+			title: fork.title,
+			origin: fork.origin?.kind,
+			messages: forkState.turns.map(turn => turn.message.text),
+		}, {
+			title: 'Forked Chat',
+			origin: ChatOriginKind.Fork,
+			messages: ['Reply exactly "FORK_SEED".', 'Reply exactly FORK_PROMPT'],
+		});
+	}, config.supportsMultipleChats && config.supportsChatFork && config.supportsChatForkE2E);
 
 	serverToolTest('server tool: create_session currentSession applies an explicit peer title', async function () {
 		const session = await createSession('create-chat-title');
