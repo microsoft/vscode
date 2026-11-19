@@ -1544,6 +1544,58 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		});
 	});
 
+	test('a transient service-index failure during 401 recovery keeps the catalog with the replacement token', async () => {
+		fakeClock();
+		let failing = false;
+		renewingMarketplace(() => failing ? () => mockResponse(503, { message: 'unavailable' }) : undefined);
+		const service = createService();
+		const manifest = await service.getExtensionGalleryManifest();
+		failing = true;
+		const remote = new ExtensionGalleryAuthorizationChannel(service);
+		const renewed = await remote.call<boolean>('remote', 'refreshAccessToken', { targetUrl: MARKETPLACE_URL, accessToken: 'resource-1' });
+
+		assert.deepStrictEqual({
+			renewed, status: service.extensionGalleryManifestStatus,
+			sameManifest: await service.getExtensionGalleryManifest() === manifest,
+			token: await service.getAccessToken(MARKETPLACE_URL),
+			published: authorizationUpdates.map(update => update.accessToken),
+		}, {
+			renewed: true, status: ExtensionGalleryManifestStatus.Available, sameManifest: true,
+			token: 'resource-2', published: ['resource-1', 'resource-2'],
+		});
+	});
+
+	test('a transient service-index failure during 401 recovery retracts a rejected token the provider still serves from cache', async () => {
+		fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		let resourceRequests = 0;
+		// Microsoft authentication returns its cached, unexpired token to a silent request.
+		stubResourceScopedAuthentication(() => {
+			resourceRequests++;
+			return { ...createMicrosoftSession('resource-token'), expiresAfter: 60 * 60 * 1000 };
+		});
+		let failing = false;
+		requestHandler = options => failing && options.url === MARKETPLACE_URL
+			? mockResponse(503, { message: 'unavailable' })
+			: gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA)(options);
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		failing = true;
+		const remote = new ExtensionGalleryAuthorizationChannel(service);
+		const renewed = await remote.call<boolean>('remote', 'refreshAccessToken', { targetUrl: MARKETPLACE_URL, accessToken: 'resource-token' });
+
+		assert.deepStrictEqual({
+			renewed, resourceRequests, status: service.extensionGalleryManifestStatus,
+			manifest: await service.getExtensionGalleryManifest(),
+			token: await service.getAccessToken(MARKETPLACE_URL),
+			published: authorizationUpdates.map(update => update.accessToken),
+		}, {
+			renewed: false, resourceRequests: 2, status: ExtensionGalleryManifestStatus.AccessDenied,
+			manifest: null, token: undefined, published: ['resource-token', undefined],
+		});
+	});
+
 	test('OS resume renews after wall-clock expiry without advancing the timer', async () => {
 		const clock = fakeClock();
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
