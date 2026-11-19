@@ -582,7 +582,8 @@ export function isNewChatSessionTypeUsable(
 	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType) {
 		return false;
 	}
-	if (chatSessionsService.getChatSessionContribution(sessionType)?.hideFromSessionTypePicker) {
+	const contribution = chatSessionsService.getChatSessionContribution(sessionType);
+	if (contribution?.hideFromSessionTypePicker) {
 		return false;
 	}
 	if (sessionType === localChatSessionType) {
@@ -591,10 +592,10 @@ export function isNewChatSessionTypeUsable(
 	if (isAgentHostTarget(sessionType)) {
 		// Remote agent hosts are per-window; require that this window registered the host's contribution.
 		return agentHostEnabled
-			&& (!isRemoteAgentHostTarget(sessionType) || !!chatSessionsService.getChatSessionContribution(sessionType))
+			&& (!isRemoteAgentHostTarget(sessionType) || !!contribution)
 			&& !isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, configurationService)
-			// Of the local harnesses, only Copilot can work with virtual workspace folders.
-			&& (!hasVirtualWorkspaceContent(workspace) || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot);
+			// In workspaces with virtual folders, defer to contribution visibility for non-Copilot harnesses.
+			&& (!!contribution || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot || !hasVirtualWorkspaceContent(workspace));
 	}
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace, managedSandboxEnforced);
 }

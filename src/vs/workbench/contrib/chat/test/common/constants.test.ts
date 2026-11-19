@@ -1099,7 +1099,7 @@ suite('ChatConfiguration defaults', () => {
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
 			[ChatConfiguration.EditorPreferCopilotHarness]: true,
 		});
-		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const rememberedStorageService = disposables.add(new TestStorageService());
 		const currentStorageService = disposables.add(new TestStorageService());
 		const workspace = createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode'));
@@ -1134,7 +1134,7 @@ suite('ChatConfiguration defaults', () => {
 
 	test('a mixed workspace does not restore an unsupported local harness', () => {
 		const configuration = new TestConfigurationService({ [ChatConfiguration.DefaultToCopilotHarness]: true });
-		const sessions = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex);
+		const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storage = disposables.add(new TestStorageService());
 		const workspace = createWorkspace(URI.file('/workspace'), URI.parse('custom-vfs://provider/workspace'));
 		storeUserSelectedSessionType(storage, SessionType.AgentHostClaude);
@@ -1146,6 +1146,23 @@ suite('ChatConfiguration defaults', () => {
 		}, {
 			usable: [true, false, false],
 			resolved: { sessionType: SessionType.AgentHostCopilot },
+		});
+	});
+
+	test('a mixed remote workspace restores available remembered and current harnesses', () => {
+		const configuration = new TestConfigurationService({ [ChatConfiguration.DefaultToCopilotHarness]: true });
+		const sessions = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex);
+		const workspace = createWorkspace(URI.parse('vscode-remote://ssh-remote+test/workspace'), URI.parse('custom-vfs://provider/workspace'));
+		const rememberedStorage = disposables.add(new TestStorageService());
+		const emptyStorage = disposables.add(new TestStorageService());
+		storeUserSelectedSessionType(rememberedStorage, SessionType.AgentHostClaude);
+
+		assert.deepStrictEqual({
+			remembered: resolveSessionTypeWithReason(configuration, sessions, rememberedStorage, workspace, true),
+			current: resolveSessionTypeWithReason(configuration, sessions, emptyStorage, workspace, true, { currentSessionType: SessionType.AgentHostCodex }),
+		}, {
+			remembered: { sessionType: SessionType.AgentHostClaude, selectionReason: 'rememberedSelection' },
+			current: { sessionType: SessionType.AgentHostCodex, selectionReason: 'currentSession' },
 		});
 	});
 
