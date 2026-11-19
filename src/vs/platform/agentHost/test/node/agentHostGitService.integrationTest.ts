@@ -1777,6 +1777,18 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('push sets the upstream on the only remote when it is not origin', async () => {
+		const dir = initRepo();
+		const remotePath = join(dir, 'remote.git');
+		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['remote', 'add', 'upstream', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'agents/session'], { cwd: dir, env, stdio: 'pipe' });
+
+		await svc!.push(URI.file(dir), { ref: 'agents/session', setUpstream: true });
+
+		assert.strictEqual(cp.execFileSync('git', ['rev-parse', '--abbrev-ref', 'agents/session@{upstream}'], { cwd: dir, env, encoding: 'utf8' }).trim(), 'upstream/agents/session');
+	});
+
 	(hasGit ? test : test.skip)('addWorktree tracks an explicitly selected remote when creating its local branch', async () => {
 		const dir = initRepo();
 		const remotePath = join(dir, 'remote.git');

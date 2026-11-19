@@ -421,7 +421,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const pushRef = headBranch === branchName ? branchName : `${branchName}:${headBranch}`;
 		const createHead = headOwner === gitHubState.owner ? headBranch : `${headOwner}:${headBranch}`;
 
-		this._logService.info(`[AgentHostPullRequestOperationHandler] Pushing branch ${branchName} to ${upstreamBranch?.remote ?? 'origin'} for session ${sessionUri}`);
+		this._logService.info(`[AgentHostPullRequestOperationHandler] Pushing branch ${branchName} to ${upstreamBranch?.remote ?? 'its default push remote'} for session ${sessionUri}`);
 		const upstreamPresent = await this._gitService.hasUpstream(workingDirectory, branchName);
 		this._throwIfCancelled(token);
 		try {
