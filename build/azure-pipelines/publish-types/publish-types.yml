@@ -41,10 +41,11 @@ steps:
     displayName: Check version
 
   - bash: |
+      export -n GITHUB_TOKEN
       git config --global user.email "vscode@microsoft.com"
       git config --global user.name "VSCode"
 
-      git clone https://$(GITHUB_TOKEN)@github.com/DefinitelyTyped/DefinitelyTyped.git --depth=1
+      git clone https://github.com/DefinitelyTyped/DefinitelyTyped.git --depth=1
       node build/azure-pipelines/publish-types/update-types.ts
 
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
@@ -56,9 +57,12 @@ steps:
       git status
       git checkout -b "vscode-types-$TAG_VERSION"
       git commit -m "VS Code $TAG_VERSION Extension API"
-      git push origin "vscode-types-$TAG_VERSION"
+      GIT_AUTH_HEADER="Authorization: Basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" \
+        git --config-env=http.https://github.com/DefinitelyTyped/DefinitelyTyped.git.extraheader=GIT_AUTH_HEADER push origin "vscode-types-$TAG_VERSION"
 
     displayName: Push update to DefinitelyTyped
+    env:
+      GITHUB_TOKEN: $(GITHUB_TOKEN)
 
   - bash: |
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)

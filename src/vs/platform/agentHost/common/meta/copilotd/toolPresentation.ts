@@ -10,8 +10,8 @@ import { basename } from '../../../../../base/common/resources.js';
 import { isString } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { getInlineToolInput, parsePartialToolInputForDisplay } from '../../partialToolInput.js';
-import { ToolCallStatus, type StringOrMarkdown, type ToolCallState } from '../../state/protocol/state.js';
+import { getInlineToolInput, parsePartialToolInput, parsePartialToolInputForDisplay } from '../../partialToolInput.js';
+import { ToolCallStatus, ToolResultContentType, type StringOrMarkdown, type ToolCallState } from '../../state/protocol/state.js';
 import { AgentPermissionRequestKind, readPermissionRequestMeta } from './agentPermissionRequestMeta.js';
 
 export interface IToolPresentation {
@@ -182,6 +182,25 @@ export function readCopilotUrlPermissionPresentation(call: ToolCallState): { inv
 			: request.url,
 		...(typeof call.confirmationTitle === 'string' && call.confirmationTitle.trim() ? { confirmationTitle: call.confirmationTitle } : {}),
 	};
+}
+
+/**
+ * The Copilot runtime reports what a finished task did as the `summary` of its `task_complete` call, which
+ * the VS Code host shows as response text. Compensates for hosts that leave it in the tool call.
+ */
+export function readCopilotTaskCompleteMarkdown(call: ToolCallState): string | undefined {
+	if (call.status !== ToolCallStatus.Completed || !call.success || call.contributor || call._meta?.ui !== undefined
+		|| call.toolName.trim().toLowerCase() !== 'task_complete') {
+		return undefined;
+	}
+	// The summary is shown in full, so it is not read through the bounded parser that labels use.
+	const input = getInlineToolInput(call.toolInput);
+	const argument = input ? parsePartialToolInput(input)?.summary : undefined;
+	const summary = isString(argument) && argument.trim()
+		? argument
+		: call.content?.flatMap(block => block.type === ToolResultContentType.Text ? [block.text] : []).join('\n');
+	// A new paragraph, as response text is joined without a separator.
+	return summary?.trim() ? '\n\n' + localize('copilotd.taskComplete.summary', "**Task completed:**\n\n{0}", summary) : undefined;
 }
 
 export function readCopilotToolPresentation(call: ToolCallState): IToolPresentation | undefined {

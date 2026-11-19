@@ -31,7 +31,7 @@ suite('GitHubApiClient', () => {
 		let signInError: Error | string | undefined;
 		let signInResult = true;
 		let enterpriseUrl: string | undefined = 'https://enterprise.example.com';
-		const signals: AbortSignal[] = [];
+		const signals: CancellationToken[] = [];
 		const signIns: Parameters<IDefaultAccountService['signIn']>[0][] = [];
 		let releases = 0;
 		const acquired = new DeferredPromise<void>();
@@ -41,8 +41,8 @@ suite('GitHubApiClient', () => {
 		});
 		const workbench = new class extends mock<IWorkbenchGitHubService>() {
 			override readonly onDidChangeDefaultClient = defaultClientChanged.event;
-			override async acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
-				signals.push(signal);
+			override async acquireDefaultAccountApiClient(cancellationToken: CancellationToken): Promise<IGitHubAccountClient> {
+				signals.push(cancellationToken);
 				void acquired.complete();
 				await acquisition;
 				if (!available) {
@@ -161,7 +161,7 @@ suite('GitHubApiClient', () => {
 		source.cancel();
 		await rejected;
 		await gate.complete();
-		assert.deepStrictEqual({ peer: await peer, acquisitions: setup.signals.length, aborted: setup.signals[0].aborted }, {
+		assert.deepStrictEqual({ peer: await peer, acquisitions: setup.signals.length, aborted: setup.signals[0].isCancellationRequested }, {
 			peer: 'peer', acquisitions: 1, aborted: false,
 		});
 	});
@@ -170,12 +170,12 @@ suite('GitHubApiClient', () => {
 		test(`${reason} changes cancel work, release the lease, and reacquire`, async () => {
 			const setup = setupClient();
 			const gate = new DeferredPromise<void>();
-			const started = new DeferredPromise<AbortSignal>();
-			const operation = setup.client.withClient(async (_client, signal) => {
-				void started.complete(signal);
+			const started = new DeferredPromise<CancellationToken>();
+			const operation = setup.client.withClient(async (_client, cancellationToken) => {
+				void started.complete(cancellationToken);
 				await gate.p;
 			});
-			const signal = await started.p;
+			const cancellationToken = await started.p;
 			const rejected = assert.rejects(operation, isCancellationError);
 			if (reason === 'account') {
 				setup.changeAccount();
@@ -185,7 +185,7 @@ suite('GitHubApiClient', () => {
 			await gate.complete();
 			await rejected;
 			await setup.client.withClient(async () => undefined);
-			assert.deepStrictEqual({ aborted: signal.aborted, acquisitions: setup.signals.length, releases: setup.releases }, {
+			assert.deepStrictEqual({ aborted: cancellationToken.isCancellationRequested, acquisitions: setup.signals.length, releases: setup.releases }, {
 				aborted: true, acquisitions: 2, releases: 1,
 			});
 		});

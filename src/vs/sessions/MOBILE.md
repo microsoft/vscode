@@ -20,7 +20,9 @@ Features omitted by an entry must not become required dependencies of shared vie
 
 For starting browser sessions, each entry registers its `ISessionRepositoryPicker` implementation. Providers call that required service without selecting or importing a picker implementation; authentication, cancellation, and repository validation remain provider-owned. The regular entry registers the existing quick picker, while the experimental mobile entry registers its repository sheet.
 
-`IChatViewFactory` supplies composer options, including editor metrics and new-session chrome. These options are forwarded to new-session, nested-chat, running-chat, and edited-request inputs; mode/model presentation does not control font sizing or clipboard access. Clipboard attachments are registered through the existing chat context-item mechanism by each entry. The experimental mobile entry reads the clipboard only after selection.
+`IChatViewFactory` supplies composer options, including editor metrics and new-session chrome. These options are forwarded to new-session, nested-chat, running-chat, and edited-request inputs; mode/model presentation does not control font sizing or clipboard access. File and clipboard attachments are registered through the existing chat context-item mechanism by each entry. The experimental mobile entry reads the clipboard only after selection and resolves device files to shared image or text-content attachments, not paths on the agent's host. Workspace-file references remain owned by shared context search.
+
+New-session and nested-chat views require an entry-selected `INewSessionPresentation`. It owns welcome composition, picker placement, styles, and matching accessibility help; shared widgets retain workspace selection, drafts, provider configuration, and sending. The regular presentation owns the collapsible options tray and its preferences. Mobile selects compact choices without constructing or importing that tray.
 
 Directly composed chat inputs, such as automation prompts, receive the same editor options from the view factory and pass them to their input component.
 

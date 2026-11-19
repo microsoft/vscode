@@ -52,7 +52,7 @@ export function readArtifactIntegrationNotice(source: { readonly _meta?: Record<
 		return undefined;
 	}
 	const { kind, iconId } = value as Record<string, unknown>;
-	if (kind !== 'enabled' && kind !== 'changed' && kind !== 'disabled') {
+	if (kind !== 'enabled' && kind !== 'changed' && kind !== 'disabled' && kind !== 'status') {
 		return undefined;
 	}
 	return { kind, iconId: typeof iconId === 'string' ? iconId : undefined };

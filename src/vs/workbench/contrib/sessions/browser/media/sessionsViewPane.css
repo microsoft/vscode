@@ -3,6 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .agent-sessions-viewpane :is(.agent-sessions-header-actions, .mobile-session-list-actions) .monaco-action-bar .action-item .action-label:not(.disabled) {
+	&.checked {
+		background-color: var(--vscode-toolbar-activeBackground);
+
+		&:not(:focus-visible, .focus-visible) {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, transparent);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+	}
+
+	&:is(:focus-visible, .focus-visible) {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	}
+}
+
 .agent-sessions-viewpane {
 
 	.agent-sessions-container {

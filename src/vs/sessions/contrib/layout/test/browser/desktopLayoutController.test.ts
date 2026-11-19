@@ -18,10 +18,12 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -31,14 +33,15 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { DesktopChangesEditorTransitionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
-import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, observableMultiDiffEditorFileListVisible } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { MultiDiffEditorFileListAvailableContext, observableMultiDiffEditorFileListVisible } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
@@ -50,7 +53,7 @@ import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../../../workbench/contrib/se
 import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import '../../../changes/browser/changesActions.js';
 import '../../../changes/browser/changesView.contribution.js';
-import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
+import { SESSIONS_FILES_CONTAINER_ID, TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
@@ -203,6 +206,33 @@ suite('DesktopLayoutController', () => {
 			});
 		}
 	}
+
+	test('[review] checks do not reveal empty Changes when artifact integrations are enabled', async () => {
+		harness = createTestHarness(store, { activateAux: true, desktopLayout: true });
+		// The pull request artifact shows the checks, so the Changes view does not.
+		(harness.instaService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ArtifactIntegrationsSettingId, true);
+		store.add(harness.instaService.createInstance(TestDesktopController));
+		const session = makeSession(URI.parse('session:artifact-checks'));
+		harness.activeSessionObs.set(session, undefined);
+		harness.visibleSessionsObs.set([session], undefined);
+		await settle();
+		harness.activeEditorInput = makeChangesEditor(session.resource);
+		harness.onDidActiveEditorChange.fire();
+		harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		await settle();
+		const initiallyHidden = !harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		harness.ciChecksObs.set([{
+			id: 1, name: 'CI', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure,
+			startedAt: undefined, completedAt: undefined, detailsUrl: undefined,
+		}], undefined);
+		await settle();
+		assert.deepStrictEqual({
+			initiallyHidden, hiddenWithChecks: !harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+		}, {
+			initiallyHidden: true, hiddenWithChecks: true,
+		});
+	});
 
 	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
 		for (const replaceResource of [false, true]) {
@@ -1929,12 +1959,12 @@ suite('DesktopLayoutController', () => {
 	test('[desktop] Toggle Details targets the multi diff file list while docked and the widget while floating', () => {
 		createDesktopController();
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		const configurationService = new TestConfigurationService({ [multiDiffEditorExperimentalFileListSetting]: true });
+		const configurationService = new TestConfigurationService();
 		const createGroup = (activeEditorId: string): IEditorGroup => {
 			const scopedContextKeyService = store.add(new ContextKeyService(configurationService));
 			MainEditorAreaVisibleContext.bindTo(scopedContextKeyService).set(true);
 			ActiveEditorContext.bindTo(scopedContextKeyService).set(activeEditorId);
-			// A group keeps the key of a multi diff editor pane that is no longer active.
+			// A group can keep the key of an editor pane that is no longer active.
 			MultiDiffEditorFileListAvailableContext.bindTo(scopedContextKeyService).set(true);
 			return new class extends mock<IEditorGroup>() {
 				override readonly scopedContextKeyService = scopedContextKeyService;
@@ -1945,7 +1975,7 @@ suite('DesktopLayoutController', () => {
 		const activeEditorPane = { group: multiDiffEditorGroup };
 		harness.instaService.stub(IEditorService, 'activeEditorPane', activeEditorPane);
 		harness.instaService.stub(IEditorGroupsService, 'getGroup', (groupId: number) => groupId === 2 ? multiDiffEditorGroup : undefined);
-		const fileListVisible = observableMultiDiffEditorFileListVisible({}, configurationService, harness.storageService, store);
+		const fileListVisible = observableMultiDiffEditorFileListVisible({}, constObservable(true), harness.storageService, store);
 		const handler = CommandsRegistry.getCommand(TOGGLE_DETAILS_COMMAND_ID)?.handler;
 		assert.ok(handler, 'Toggle Details command should be registered');
 		const toggle = (activeGroup: IEditorGroup, ...args: unknown[]) => {
@@ -2018,6 +2048,35 @@ suite('DesktopLayoutController', () => {
 			visibleByMode: [true, false],
 			commandAvailable: true,
 		});
+	});
+
+	test('[D7 desktop] Toggle Details also shows for the Changes tab, including during a session switch', () => {
+		createDesktopController();
+
+		const [toggleDetails] = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
+		const isShown = (activeEditor: string, options: { hasDockedDetails?: boolean; transition?: boolean } = {}) => {
+			const values: Record<string, ContextKeyValue> = {
+				[IsSessionsWindowContext.key]: true,
+				[IsAuxiliaryWindowContext.key]: false,
+				[IsTopRightEditorGroupContext.key]: true,
+				[DesktopLayoutContext.key]: true,
+				[MainEditorAreaVisibleContext.key]: true,
+				[HasDockedDetailsContext.key]: options.hasDockedDetails ?? false,
+				[ActiveEditorContext.key]: activeEditor,
+				[DesktopChangesEditorTransitionContext.key]: options.transition ?? false,
+			};
+			const context: IContext = { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
+			return toggleDetails.when?.evaluate(context) ?? false;
+		};
+		// The Changes tab keeps the toggle even before the detail target is published.
+		assert.deepStrictEqual({
+			changes: isShown(SessionChangesEditorInput.EDITOR_ID),
+			changesTransition: isShown('', { transition: true }),
+			textFileWithDockedDetails: isShown(TEXT_FILE_EDITOR_ID, { hasDockedDetails: true }),
+			withoutDockedDetails: isShown('test.browserEditor'),
+		}, { changes: true, changesTransition: true, textFileWithDockedDetails: true, withoutDockedDetails: false });
 	});
 
 	test('[desktop reload] preserves Aux-only layout while the active session is still restoring', async () => {

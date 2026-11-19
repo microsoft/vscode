@@ -32,6 +32,7 @@ import { type IMarketplaceReference, IPluginMarketplaceService, MarketplaceRefer
 import { InstalledAgentPluginsViewId } from '../chat.js';
 import { isAgentFinderPublicFeedAvailable } from '../aiCustomization/customizationMarketplaceConfiguration.js';
 import { getProviderMarketplaceSourceId } from '../aiCustomization/customizationMarketplaceWorkbenchService.js';
+import { getTeamProvidedMarketplaceDescription, isTeamProvidedVisible } from '../aiCustomization/customizationTeamProvenance.js';
 import { getPluginCustomizationMarketplaceNavigationSourceId, isPluginMarketplaceAvailableInDiscover } from '../aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -242,9 +243,11 @@ const removeMarketplaceButton: IQuickInputButton = {
 export const MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID = 'workbench.action.chat.managePluginMarketplaces';
 
 export class AddPluginMarketplaceAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.addPluginMarketplace';
+
 	constructor() {
 		super({
-			id: 'workbench.action.chat.addPluginMarketplace',
+			id: AddPluginMarketplaceAction.ID,
 			title: localize2('addPluginMarketplace', "Add Plugin Marketplace"),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
@@ -492,6 +495,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 					description: [
 						marketplace.isDefault ? localize('defaultMarketplace', "Default") : undefined,
 						marketplace.managed ? localize('managedMarketplaceDescription', "Managed by Organization") : undefined,
+						isTeamProvidedVisible(marketplace.team, marketplace.managed) ? getTeamProvidedMarketplaceDescription() : undefined,
 						!marketplace.available ? localize('unavailableMarketplace', "Unavailable") : undefined,
 					].filter((description): description is string => !!description).join(', ') || undefined,
 					detail: marketplace.source,

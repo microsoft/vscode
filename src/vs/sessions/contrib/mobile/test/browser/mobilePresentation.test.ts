@@ -39,7 +39,8 @@ import { SessionsGridContent } from '../../../../../workbench/contrib/sessions/b
 import { ISessionsPartContentHost } from '../../../../../workbench/browser/parts/sessions/sessionsPartContent.js';
 import { MobileChatEditPresenter } from '../../browser/mobileChatEditPresenter.js';
 import { MobileChatViewFactory } from '../../browser/mobileChatViewFactory.js';
-import { MobileNullChatWindowService } from '../../browser/mobileNullChatWindowService.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { NullChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/nullChatWindowService.js';
 import { MobileSessionsListPresentation } from '../../browser/mobileSessionsListPresentation.js';
 
 suite('Mobile presentation composition', () => {
@@ -47,7 +48,7 @@ suite('Mobile presentation composition', () => {
 	teardown(() => sinon.restore());
 
 	test('separate chat windows cannot be activated by mobile consumers', async () => {
-		const windows = new MobileNullChatWindowService();
+		const windows = new NullChatWindowService();
 		await assert.rejects(windows.open(URI.parse('chat:/test')), /Separate chat windows are not available/);
 		assert.throws(() => windows.registerProvider(upcastPartial<IChatWindowProvider>({})), /Separate chat windows are not available/);
 	});
@@ -69,27 +70,54 @@ suite('Mobile presentation composition', () => {
 		const container = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
 		const factory = new MobileChatViewFactory();
-		const views = [false, true].map(isNewChatInSession => {
+		const views = [0, 1].map(() => {
 			const scope = store.add(new TestInstantiationService());
-			const createInstance = sinon.stub(scope, 'createInstance');
+			const createInstance = sinon.stub(scope, 'createInstance').callThrough();
 			createInstance.onFirstCall().returns(upcastPartial<AbstractChatView>({}));
-			createInstance.onSecondCall().returns(upcastPartial<MenuWorkbenchToolBar>({
+			createInstance.onThirdCall().returns(upcastPartial<MenuWorkbenchToolBar>({
 				getItemsLength: () => 1,
 				onDidChangeMenuItems: Event.None,
 				dispose: () => { },
 			}));
-			factory.createNewChatView(isNewChatInSession, {}, scope);
+			factory.createNewChatView(false, {}, scope);
 			const options = createInstance.firstCall.args.at(-1) as IChatViewOptions;
-			return { createInstance, options };
+			const presentation = store.add(options.newSessionPresentation!.create(false, scope));
+			return { createInstance, presentation };
 		});
-		for (const { options } of views) {
+		for (const { presentation } of views) {
 			const before = dom.append(container, dom.$('div'));
-			store.add(options.renderNewSessionHeader!(container, before));
+			store.add(presentation.renderWorkspaceOptions(container, before, {
+				hoverDelegate: getDefaultHoverDelegate('element'),
+				getRepositoryControlId: () => undefined,
+			}));
 		}
 		assert.deepStrictEqual(views.map(({ createInstance }) => ({
 			calls: createInstance.callCount,
-			headerConstructor: createInstance.secondCall.args[0],
-		})), views.map(() => ({ calls: 2, headerConstructor: MenuWorkbenchToolBar })));
+			headerConstructor: createInstance.thirdCall.args[0],
+		})), views.map(() => ({ calls: 3, headerConstructor: MenuWorkbenchToolBar })));
+	});
+
+	test('a nested mobile welcome keeps its choices without a host selector or desktop tray', () => {
+		const container = dom.append(document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const content = dom.append(container, dom.$('div'));
+		const options = dom.append(content, dom.$('div'));
+		const row = dom.append(options, dom.$('div'));
+		const factory = new MobileChatViewFactory();
+		const scope = store.add(new TestInstantiationService());
+		const presentation = store.add(factory.newSessionPresentation.create(true, scope));
+		presentation.render(container, content);
+		const workspace = store.add(presentation.renderWorkspaceOptions(options, row, {
+			hoverDelegate: getDefaultHoverDelegate('element'),
+			getRepositoryControlId: () => undefined,
+		}));
+		assert.deepStrictEqual({
+			legacyPresentation: container.querySelectorAll('.experimental-new-session-composer, .new-chat-session-options').length,
+			hostSelectors: container.querySelectorAll('.sessions-new-session-place-row').length,
+			choices: workspace.sessionTypePickerHost === row,
+			repositoryControlsStayWithInput: workspace.repositoryControlsHost === undefined,
+			hidden: row.hidden || row.inert,
+		}, { legacyPresentation: 0, hostSelectors: 0, choices: true, repositoryControlsStayWithInput: true, hidden: false });
 	});
 
 	for (const mobile of [false, true]) {
@@ -107,13 +135,13 @@ suite('Mobile presentation composition', () => {
 			factory.createChatView(instantiationService, options);
 			const passedOptions = createInstance.getCalls().map(call => call.args.at(-1) as IChatViewOptions);
 			assert.deepStrictEqual(passedOptions.map(value => ({
-				input: value.inputEditorOptions, icon: value.showEmptyStateIcon, header: typeof value.renderNewSessionHeader, pet: value.renderChatPet,
+				input: value.inputEditorOptions, icon: value.showEmptyStateIcon, welcome: typeof value.newSessionPresentation?.create, pet: value.renderChatPet,
 				background: value.background?.hasBackground() ?? false,
 				composerPresentation: typeof value.newSessionInput?.createComposer,
 				isolationPresentation: typeof factory.newSessionInput?.createIsolationPicker,
-			})), Array.from({ length: 3 }, (_, index) => ({
+			})), Array.from({ length: 3 }, () => ({
 				input: mobile ? { fontSize: 16, lineHeight: 24 } : undefined,
-				icon: mobile ? false : undefined, header: mobile && index < 2 ? 'function' : 'undefined', pet: false,
+				icon: mobile ? false : undefined, welcome: 'function', pet: false,
 				background: !mobile,
 				composerPresentation: mobile ? 'undefined' : 'function',
 				isolationPresentation: mobile ? 'undefined' : 'function',

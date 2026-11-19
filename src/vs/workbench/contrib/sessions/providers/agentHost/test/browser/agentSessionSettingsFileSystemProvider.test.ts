@@ -43,12 +43,14 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 		readonly session: ISession;
 		readonly uri: URI;
 		readonly sessionProvider: IMockAgentHostSessionsProvider;
+		readonly removeProvider: () => void;
 	}
 
 	interface IMockAgentHostSessionsProvider extends IAgentHostSessionsProvider {
 		config: ResolveSessionConfigResult | undefined;
 		readonly onDidChangeSessionConfigEmitter: Emitter<string>;
 		readonly onDidChangeSessionsEmitter: Emitter<{ added: readonly ISession[]; removed: readonly ISession[]; changed: readonly ISession[] }>;
+		readonly onDidChangeAllSessionsEmitter: Emitter<{ added: readonly ISession[]; removed: readonly ISession[]; changed: readonly ISession[] }>;
 		readonly replaceCalls: Array<{ sessionId: string; values: Record<string, unknown> }>;
 	}
 
@@ -56,11 +58,13 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 		initialConfig: ResolveSessionConfigResult | undefined,
 		registerProvider = true,
 		sessionScoped = false,
+		outOfScope = false,
 	): ITestHarness {
 		const session = createSession();
 
 		const onDidChangeSessionConfigEmitter = store.add(new Emitter<string>());
 		const onDidChangeSessionsEmitter = store.add(new Emitter<{ added: readonly ISession[]; removed: readonly ISession[]; changed: readonly ISession[] }>());
+		const onDidChangeAllSessionsEmitter = store.add(new Emitter<{ added: readonly ISession[]; removed: readonly ISession[]; changed: readonly ISession[] }>());
 		const replaceCalls: Array<{ sessionId: string; values: Record<string, unknown> }> = [];
 
 		const sessionProvider: IMockAgentHostSessionsProvider = {
@@ -68,10 +72,15 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 			config: initialConfig,
 			onDidChangeSessionConfigEmitter,
 			onDidChangeSessionsEmitter,
+			onDidChangeAllSessionsEmitter,
 			replaceCalls,
 			onDidChangeSessionConfig: onDidChangeSessionConfigEmitter.event,
 			onDidChangeSessions: onDidChangeSessionsEmitter.event,
-			getSessions: () => [session],
+			// A provider with a listing scope also tells of the sessions that scope hides
+			...(outOfScope ? { onDidChangeAllSessions: onDidChangeAllSessionsEmitter.event } : {}),
+			// A session outside the provider's listing scope, such as of another folder, is not among its listed sessions
+			getSessions: () => outOfScope ? [] : [session],
+			getAllSessions: () => [session],
 			getSessionOwnConfig: (_sessionId: string) => sessionProvider.config,
 			replaceSessionConfig: async (sessionId: string, values: Record<string, unknown>) => {
 				replaceCalls.push({ sessionId, values });
@@ -105,7 +114,11 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 		const schemaRegistrar = store.add(instantiationService.createInstance(AgentSessionSettingsSchemaRegistrar));
 		const fs = store.add(instantiationService.createInstance(AgentSessionSettingsFileSystemProvider, schemaRegistrar));
 
-		return { fs, session, uri: agentSessionSettingsUri(session), sessionProvider };
+		const removeProvider = () => {
+			registerProvider = false;
+			onDidChangeProvidersEmitter.fire({ added: [], removed: [sessionProvider as unknown as ISessionsProvider] });
+		};
+		return { fs, session, uri: agentSessionSettingsUri(session), sessionProvider, removeProvider };
 	}
 
 	test('reads, watches and writes through the session-scoped runtime rather than the catalog', async () => {
@@ -330,6 +343,43 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 
 			assert.strictEqual(schemaRegistry.hasSchemaContent(schemaId), false);
 			assert.strictEqual(schemaRegistry.getSchemaAssociations()[schemaId], undefined);
+		});
+
+		test('the schema of a session outside its provider\'s listing scope is disposed when the session is removed', async () => {
+			const { fs, uri, session, sessionProvider } = createHarness({
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: { type: 'string', title: 'Auto Approve', sessionMutable: true, enum: ['default'] },
+					},
+				},
+				values: { autoApprove: 'default' },
+			}, true, false, true);
+			const schemaId = expectedSchemaId(session);
+
+			await fs.readFile(uri);
+			sessionProvider.onDidChangeAllSessionsEmitter.fire({ added: [], removed: [session], changed: [] });
+
+			assert.deepStrictEqual({ content: schemaRegistry.hasSchemaContent(schemaId), association: schemaRegistry.getSchemaAssociations()[schemaId] }, { content: false, association: undefined });
+		});
+
+		test('the schema of a session outside its provider\'s listing scope is disposed as the provider goes', async () => {
+			const { fs, uri, session, removeProvider } = createHarness({
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: { type: 'string', title: 'Auto Approve', sessionMutable: true, enum: ['default'] },
+					},
+				},
+				values: { autoApprove: 'default' },
+			}, true, false, true);
+			const schemaId = expectedSchemaId(session);
+
+			await fs.readFile(uri);
+			const registered = schemaRegistry.hasSchemaContent(schemaId);
+			removeProvider();
+
+			assert.deepStrictEqual({ registered, afterProviderGone: schemaRegistry.hasSchemaContent(schemaId), association: schemaRegistry.getSchemaAssociations()[schemaId] }, { registered: true, afterProviderGone: false, association: undefined });
 		});
 	});
 });

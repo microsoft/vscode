@@ -288,6 +288,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Source workspace for a container-backed provider, retained while disconnected or restored. */
 	readonly devContainerSourceWorkspace?: URI;
+	/** Address of the SSH, Tunnel, or WSL host, or `local` for this computer, that runs this provider's Dev Container environment, if it represents one. */
+	readonly devContainerEnvironmentHost?: string;
 	/** Fires when Dev Container workspace availability should be checked again. */
 	readonly onDidChangeDevContainerAvailability?: Event<void>;
 	/** Whether this workspace supports Dev Container execution. */
@@ -466,6 +468,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * session is unknown or the host connection is unavailable.
 	 */
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
+
+	/** Returns this host's current connection, or `undefined` while disconnected. */
+	getAgentConnection?(): IAgentConnection | undefined;
 
 	/** Sends a request on an `mcp://` AHP side channel of this host's connection. */
 	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
