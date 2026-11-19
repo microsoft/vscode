@@ -207,4 +207,44 @@ suite('SCMViewService', () => {
 			scmViewService.dispose();
 		}));
 	}
+
+	test('sorts repositories by full path, keeping nested repositories after their parent', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({ 'scm.repositories.sortOrder': 'path' })
+		}, disposables);
+
+		const repositories = [
+			'/ws/a', '/ws/b', '/ws/a/common1', '/ws/a/x', '/ws/a/common1/foo', '/ws/a/common1/foo/bar',
+			'/ws/a/x/common2', '/ws/b/common1', '/ws/b/y', '/ws/b/common1/foo', '/ws/b/y/common2'
+		].map(path => new class extends mock<ISCMRepository>() {
+			override readonly id = path;
+			override readonly provider = new class extends mock<ISCMProvider>() {
+				override readonly id = path;
+				override readonly providerId = 'git';
+				override readonly label = 'Git';
+				override readonly rootUri = URI.file(path);
+				override readonly isHidden = constObservable(false);
+			}();
+		}());
+
+		instantiationService.stub(ISCMService, new class extends mock<ISCMService>() {
+			override readonly repositories = repositories;
+			override readonly onDidAddRepository = Event.None;
+			override readonly onDidRemoveRepository = Event.None;
+			override getRepository(): ISCMRepository | undefined { return undefined; }
+		}());
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override readonly activeEditor = undefined;
+			override readonly onDidActiveEditorChange = Event.None;
+		}());
+
+		const scmViewService = disposables.add(instantiationService.createInstance(SCMViewService));
+		const menus = disposables.add(scmViewService.menus as SCMMenus);
+		disposables.add(menus.titleMenu);
+
+		assert.deepStrictEqual(scmViewService.repositories.map(r => r.provider.rootUri?.path), [
+			'/ws/a', '/ws/a/common1', '/ws/a/common1/foo', '/ws/a/common1/foo/bar', '/ws/a/x', '/ws/a/x/common2',
+			'/ws/b', '/ws/b/common1', '/ws/b/common1/foo', '/ws/b/y', '/ws/b/y/common2'
+		]);
+	}));
 });
