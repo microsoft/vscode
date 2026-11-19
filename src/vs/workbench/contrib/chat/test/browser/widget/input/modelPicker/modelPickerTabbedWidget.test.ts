@@ -187,6 +187,7 @@ suite('TabbedModelPicker', () => {
 		comparison?: IModelPickerComparison;
 		comparisonModels?: ILanguageModelChatMetadataAndIdentifier[];
 		localModels?: IModelPickerLocalModels;
+		onCreateModelRouter?: () => void;
 	} = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
 		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px; --vscode-spacing-size280: 28px;';
@@ -312,6 +313,7 @@ suite('TabbedModelPicker', () => {
 			onSelect: model => selections.push(model.identifier),
 			onTogglePin: (id, pinned) => { if (pinned) { pins.push(id); } },
 			onManageModels: () => { },
+			onCreateModelRouter: options.onCreateModelRouter,
 			onDidToggleOtherModels: () => { },
 			onDidSearch: () => { },
 			onConfigurationChanged: (...change) => configurationChanges.push(change),
@@ -1588,7 +1590,7 @@ suite('TabbedModelPicker', () => {
 				detailsResource: resource, modelRouterRoutes: [{ name: 'build', model: 'First', effort: 'high' }, { model: 'Second' }],
 			},
 		};
-		const { popup, picker, openedEditors, pins } = createPicker({ models: [...models, router] });
+		const { popup, picker, openedEditors, pins } = createPicker({ models: [...models, router], selectedModelId: router.identifier });
 		openDetails(popup, 'Daily Driver');
 		const details = {
 			routes: Array.from(popup.querySelectorAll('.chat-model-card-route'), route => route.textContent),
@@ -2884,6 +2886,79 @@ suite('TabbedModelPicker', () => {
 			});
 		});
 	}
+
+	/** A model router as the Copilot agent host lists it, with what it is for. */
+	function routerModel(name: string, description: string): ILanguageModelChatMetadataAndIdentifier {
+		const id = `model-router:${name.toLowerCase()}`;
+		return {
+			identifier: `copilot/${id}`,
+			metadata: {
+				...model(name, false).metadata, id, detail: 'Model router', tooltip: description,
+				detailsResource: URI.file(`/routers/${name.toLowerCase()}.model-router.yaml`), modelRouterRoutes: [{ model: 'First' }, { model: 'Second' }],
+			},
+		};
+	}
+
+	test('model routers get a tab of their own after every provider, none of which lists them; each says what it is for, and the last row starts a new one', () => {
+		const daily = routerModel('Daily', 'First to build, Second for quick questions.');
+		const review = routerModel('Review', 'A second opinion.');
+		let created = 0;
+		// Copilot's models size the popup, here tall enough to show every router row.
+		const result = createPicker({ models: [...copilotModels, model('Third'), model('Fourth'), daily, review, ollamaModel], selectedModelId: daily.identifier, pinnedModelIds: [review.identifier], onCreateModelRouter: () => created++ });
+		const routers = {
+			...tabState(result.popup),
+			descriptions: Array.from(result.popup.querySelectorAll('.chat-model-picker-tabbed .monaco-list-row .detail'), detail => detail.textContent).filter(Boolean),
+		};
+		const newRouter = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-tabbed .monaco-list-row')).find(row => row.querySelector('.title')?.textContent === 'New Router...');
+		// It runs a command, so it is not announced as one of the choices around it.
+		const newRouterRole = newRouter?.getAttribute('role');
+		newRouter?.click();
+		const afterNewRouter = { role: newRouterRole, created, visible: result.picker.isVisible };
+		reopen(result);
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
+		const copilot = listRows(result.popup);
+		element(result.popup, '[data-id="search"]').click();
+		const input = result.popup.querySelector<HTMLInputElement>('input')!;
+		input.value = 'Daily';
+		input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		const found = Array.from(result.popup.querySelectorAll('.chat-model-picker-tabbed .monaco-list-row.action'), row => ({
+			title: row.querySelector('.title')?.textContent,
+			badge: row.querySelector('.action-item-badge')?.textContent,
+			description: row.querySelector('.detail')?.textContent,
+		}));
+		assert.deepStrictEqual({ routers, afterNewRouter, copilot, found }, {
+			routers: {
+				tabs: ['Copilot', 'Ollama', 'Routers'],
+				active: 'Routers',
+				rows: ['--Pinned', 'Review', 'Daily', '--', 'New Router...'],
+				descriptions: ['A second opinion.', 'First to build, Second for quick questions.'],
+			},
+			afterNewRouter: { role: 'menuitem', created: 1, visible: false },
+			copilot: ['Auto', '--', 'First', 'Fixed', 'Fourth', 'Second', 'Third'],
+			found: [{ title: 'Daily', badge: 'Routers', description: '' }],
+		});
+	});
+
+	test('with no routers, the Routers tab is shown only to a chat that can write one, and says what a router is', () => {
+		let created = 0;
+		const withoutCreating = createPicker({ models: copilotModels });
+		const tabsWithoutCreating = tabState(withoutCreating.popup).tabs;
+		withoutCreating.dismiss();
+		const result = createPicker({ models: copilotModels, onCreateModelRouter: () => created++ });
+		const { tabs, active } = tabState(result.popup);
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Routers"]').click();
+		const welcome = element(result.popup, '.chat-model-picker-welcome');
+		const text = Array.from(welcome.querySelectorAll('.chat-model-picker-welcome-title, .chat-model-picker-welcome-message, .monaco-button'), part => part.textContent);
+		element(welcome, '.monaco-button').click();
+		assert.deepStrictEqual({ tabsWithoutCreating, tabs, active, text, created, visible: result.picker.isVisible }, {
+			tabsWithoutCreating: ['Copilot'],
+			tabs: ['Copilot', 'Routers'],
+			active: 'Copilot',
+			text: ['Routers', 'A router picks the model for a chat from routes you write.', 'Create a Router'],
+			created: 1,
+			visible: false,
+		});
+	});
 
 	test('Fusion\'s tiers controlled by a read-only schema cannot be changed, Max included', async () => {
 		const fusion = createFusionModel();
