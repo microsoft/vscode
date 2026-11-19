@@ -2235,6 +2235,7 @@ export interface SCMArtifactDto {
 export interface MainThreadSCMShape extends IDisposable {
 	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: IconPathDto | undefined, isHidden: boolean | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): Promise<void>;
+	$setSourceControlsHidden(changes: [handle: number, isHidden: boolean][]): Promise<void>;
 	$unregisterSourceControl(handle: number): Promise<void>;
 
 	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): Promise<void>;

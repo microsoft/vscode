@@ -28,7 +28,7 @@ import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_LIST_SHOW_
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatAutomationRunStatus as formatRunStatus, formatUnavailableAutomationsMessage, getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
+import { formatAutomationRunStatus as formatRunStatus, formatUnavailableAutomationsMessage, getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
@@ -44,10 +44,11 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const configurationService = accessor.get(IConfigurationService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		const templates = readAutomationTemplates(agentPluginService.plugins.get());
-		const automations = getVisibleAutomations(getAutomationsViewContent(
+		const { automations } = getAutomationsViewContent(
 			automationService.automations.get(), [],
 			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
-		).automations, configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true);
+			configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
+		);
 		const builtInTemplatesVisible = hasEmptyAutomationSection(automations) && templates.some(template => !template.source);
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
@@ -121,6 +122,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				const { automations, runs } = getAutomationsViewContent(
 					automationService.automations.get(), automationService.runs.get(),
 					configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+					configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 				);
 				const sessions = sessionsManagementService.getSessions();
 				const hasCatalogedSession = (resource: URI) => sessions.some(session => isEqual(session.resource, resource));
@@ -140,7 +142,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 					remoteManagementEnabled,
 				);
 				return buildAutomationsAccessibleContent(
-					getVisibleAutomations(automations, configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true),
+					automations,
 					runs.filter(run => {
 						const retainedHistory = automationService.getAutomationHistoryState?.(run.automationId) !== undefined;
 						return retainedHistory || (

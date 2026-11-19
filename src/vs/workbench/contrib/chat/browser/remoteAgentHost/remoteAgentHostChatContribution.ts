@@ -675,7 +675,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				return true;
 			} : undefined,
 			authenticate: this._authenticateCallback(address, connection, reason),
-		}))
+		}, reason))
 			.catch(err => {
 				this._logService.error(`[RemoteAgentHost] Failed to authenticate notified resource ${protectedResource.resource}`, err);
 			})
