@@ -7,7 +7,6 @@ import { Promises, Sequencer } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, constObservable, derived, derivedOpts, disposableObservableValue, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -23,6 +22,7 @@ import { IWorkingCopyService } from '../../../../../services/workingCopy/common/
 import { IChatProgress, IChatWorkspaceEdit } from '../../../common/chatService/chatService.js';
 import { ChatEditingSessionState, IChatEditingSession, IEditSessionDiffStats, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits } from '../../../common/editing/chatEditingService.js';
 import { IChatRequestDisablement, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatEditingSnapshotTextModelContentProvider } from '../../chatEditing/chatEditingTextModelContentProviders.js';
 import { AgentHostEditReview } from './agentHostEditReview.js';
 import { AgentHostCheckpointReview } from './agentHostCheckpointReview.js';
 import { fileEditsToExternalEdits, type IToolCallFileEdit } from './stateToProgressAdapter.js';
@@ -339,11 +339,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		if (!cp || !hasFile) {
 			return undefined;
 		}
-		return URI.from({
-			scheme: Schemas.chatEditingSnapshotScheme,
-			path: uri.path,
-			query: JSON.stringify({ session: this.chatSessionResource.toString(), requestId, undoStop: '' }),
-		});
+		return ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this.chatSessionResource, requestId, '', uri.path, uri.scheme, uri.authority);
 	}
 
 	async getSnapshotContents(requestId: string, uri: URI, _stopId: string | undefined): Promise<VSBuffer | undefined> {
