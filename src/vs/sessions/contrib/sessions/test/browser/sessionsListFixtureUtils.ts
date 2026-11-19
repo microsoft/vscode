@@ -75,6 +75,7 @@ import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessio
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
 import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
@@ -695,6 +696,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 				override readonly entries = constObservable([]);
 				override readonly selected = constObservable(undefined);
 			}());
+			reg.defineInstance(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane: constObservable(false) });
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
@@ -1257,6 +1259,7 @@ export async function renderSessionsViewFixture(context: ComponentFixtureContext
 		override isVisible() { return true; }
 	}());
 	instantiationService.stub(ISessionsHostLayoutService, new class extends mock<ISessionsHostLayoutService>() { }());
+	instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane: constObservable(false) });
 	instantiationService.stub(IPinnedCanvasService, new class extends mock<IPinnedCanvasService>() {
 		override readonly enabled = constObservable(false);
 		override readonly entries = constObservable([]);

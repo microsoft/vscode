@@ -168,7 +168,7 @@ export interface MarkdownCompletionApi {
 	execute(command: vscode.Command): Thenable<unknown>;
 }
 
-const completionApi: MarkdownCompletionApi = {
+export const completionApi: MarkdownCompletionApi = {
 	provide: async (uri, position, resolveCount) => vscode.commands.executeCommand('vscode.executeCompletionItemProvider', uri, position, undefined, resolveCount),
 	apply: edit => vscode.workspace.applyEdit(edit),
 	execute: command => vscode.commands.executeCommand(command.command, ...(command.arguments ?? [])),

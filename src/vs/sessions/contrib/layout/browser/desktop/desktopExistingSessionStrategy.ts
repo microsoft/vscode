@@ -34,6 +34,7 @@ import { ISessionChangesService } from '../../../../../workbench/contrib/session
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ChatEditorInput } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
 import { FilesDetailsState, getFilesDetailsState, getFloatingMarkdownDetailsState, getLayoutWorkspace, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty, isQuickChatShown } from './desktopSharedHelpers.js';
@@ -72,6 +73,8 @@ const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(
 export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
+	/** Whether Details are hidden for a side chat tab of a Quick Chat; see {@link _syncSideChatDetailVisibility}. */
+	private _detailsHiddenForSideChat = false;
 
 	constructor(
 		ctx: IDesktopLayoutContext,
@@ -486,9 +489,12 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				previousActiveEditor = undefined;
 				previousEditorPartVisible = false;
 				previousEditorSessionKey = undefined;
+				this._syncSideChatDetailVisibility(isQuickChat && activeEditorObs.read(reader) instanceof ChatEditorInput && editorPartVisibleObs.read(reader));
 				return;
 			}
 			previousQuickChatResource = undefined;
+			// The session's own rules decide its Details from now on.
+			this._detailsHiddenForSideChat = false;
 
 			const sessionKey = this._ctx.ownerKeyFor(shown, reader)?.toString();
 			const sessionChanged = activeSessionKey !== undefined && activeSessionKey !== sessionKey;
@@ -551,6 +557,29 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			pendingOutgoingEditor = undefined;
 			layoutRestored.trigger(undefined);
 		}));
+	}
+
+	/**
+	 * A Quick Chat does not choose its Details by its active tab, but beside a side chat tab, which shows a chat, they have
+	 * nothing to show: they hide while it is the active tab of the shown editor area, and come back once another tab is.
+	 */
+	private _syncSideChatDetailVisibility(sideChatActive: boolean): void {
+		if (this._ctx.isRestoringSessionLayout) {
+			return;
+		}
+		if (sideChatActive) {
+			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				this._detailPanel.setHiddenTransiently(true, true);
+				this._detailsHiddenForSideChat = true;
+			}
+			return;
+		}
+		if (this._detailsHiddenForSideChat) {
+			this._detailsHiddenForSideChat = false;
+			if (this._detailPanel.hiddenByEditor && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._detailPanel.setHiddenTransiently(false);
+			}
+		}
 	}
 
 	private _syncDetailVisibility(target: DetailPanelTarget, revealOnly: boolean, emptyFilesShown: boolean): void {

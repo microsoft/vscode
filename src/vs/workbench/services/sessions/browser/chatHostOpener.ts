@@ -15,8 +15,18 @@ import { ISessionGridPanes, ISessionHost, SessionHostKind } from './sessionHost.
 export interface IChatHostOpener {
 	/** Whether it shows `chat`. */
 	showsChat(chat: URI): boolean;
-	/** Reveals `chat`, which it shows, focused unless `preserveFocus`. */
+	/**
+	 * Whether it takes `chat` before showing it, such as the main window's side pane for side chats. Opening `chat` then
+	 * calls {@link reveal} instead of showing it in the grid.
+	 */
+	claimsChat?(chat: URI): boolean;
+	/** Reveals `chat`, which it shows or claims, focused unless `preserveFocus`. */
 	reveal(chat: URI, options?: { readonly preserveFocus?: boolean }): Promise<void>;
+	/**
+	 * Whether it opens `chat` beside a chat it shows ({@link openBeside}), such as only side chats for the side pane; any chat
+	 * when undefined. A chat it does not open there opens as if the chat it was opened from did not show there.
+	 */
+	opensBeside?(chat: URI): boolean;
 	/** Opens `chat` beside `reference`, which it shows, focused unless `preserveFocus`. */
 	openBeside(chat: URI, reference: URI, options?: { readonly preserveFocus?: boolean }): Promise<void>;
 	/**
@@ -48,6 +58,9 @@ export interface IChatHostOpenerService {
 
 	/** The opener of the surface that shows `chat`, if one does. */
 	getOpenerOf(chat: URI): IChatHostOpener | undefined;
+
+	/** The opener of the surface that shows `chat`, else of one that {@link IChatHostOpener.claimsChat claims} it. */
+	getOpenerFor(chat: URI): IChatHostOpener | undefined;
 }
 
 export const IChatHostOpenerService = createDecorator<IChatHostOpenerService>('chatHostOpenerService');
@@ -79,5 +92,9 @@ export class ChatHostOpenerService implements IChatHostOpenerService {
 
 	getOpenerOf(chat: URI): IChatHostOpener | undefined {
 		return this._openers.find(opener => opener.showsChat(chat));
+	}
+
+	getOpenerFor(chat: URI): IChatHostOpener | undefined {
+		return this.getOpenerOf(chat) ?? this._openers.find(opener => opener.claimsChat?.(chat));
 	}
 }
