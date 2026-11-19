@@ -164,12 +164,18 @@ function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | u
 			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier && alternative.selectsTier === b[index].selectsTier);
 }
 
-/** Appends a section to a model card, under a title when it has one, and returns it for its content. */
-export function renderModelCardSection(card: HTMLElement, title: string | undefined): HTMLElement {
+/**
+ * Appends a section to a model card, under a title when it has one, and returns it for its
+ * content. A `value` is what the title names, such as a context size, shown beside it.
+ */
+export function renderModelCardSection(card: HTMLElement, title: string | undefined, value?: string): HTMLElement {
 	const section = dom.append(card, dom.$('.chat-model-card-section'));
 	if (title) {
 		const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
 		dom.append(heading, dom.$('.chat-model-card-section-title', undefined, title));
+		if (value) {
+			dom.append(heading, dom.$('.chat-model-card-section-value', undefined, value));
+		}
 	}
 	return section;
 }
@@ -815,10 +821,7 @@ export class ModelCard extends DisposableStore {
 		if (!total) {
 			return;
 		}
-		const section = dom.append(this.element, dom.$('.chat-model-card-section'));
-		const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
-		dom.append(heading, dom.$('.chat-model-card-section-title', undefined, getMaxContextLabel()));
-		dom.append(heading, dom.$('.chat-model-card-section-value', undefined, formatTokenCount(total)));
+		renderModelCardSection(this.element, getMaxContextLabel(), formatTokenCount(total));
 	}
 
 	private _renderCost(context: IModelConfigProperty | undefined): void {

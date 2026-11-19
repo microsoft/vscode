@@ -17,7 +17,7 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../../platform/agentHo
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigPropertySchema, ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelRouterRoutesMeta, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelFusionInlineChatTier, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelRouterRoutesMeta, readAgentModelRouterSwitchingMeta, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelFusionInlineChatTier, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
@@ -249,10 +249,18 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			});
 	}
 
-	/** A model router's file and routes, which its details in the model picker show. Other models have neither. */
-	private _modelRouterDetailsFor(model: SessionModelInfo): Pick<ILanguageModelChatMetadata, 'detailsResource' | 'modelRouterRoutes'> {
+	/** A model router's file, its routes and whether it switches between them, which its details in the model picker show. Other models have none of these. */
+	private _modelRouterDetailsFor(model: SessionModelInfo): Pick<ILanguageModelChatMetadata, 'detailsResource' | 'modelRouterRoutes' | 'modelRouterSwitching'> {
 		const routerUri = readModelRouterUri(model);
-		return routerUri ? { detailsResource: this._fromAgentHost(URI.parse(routerUri)), modelRouterRoutes: readAgentModelRouterRoutesMeta(model) } : {};
+		if (!routerUri) {
+			return {};
+		}
+		const modelRouterSwitching = readAgentModelRouterSwitchingMeta(model);
+		return {
+			detailsResource: this._fromAgentHost(URI.parse(routerUri)),
+			modelRouterRoutes: readAgentModelRouterRoutesMeta(model),
+			...(modelRouterSwitching ? { modelRouterSwitching } : {}),
+		};
 	}
 
 	/**
