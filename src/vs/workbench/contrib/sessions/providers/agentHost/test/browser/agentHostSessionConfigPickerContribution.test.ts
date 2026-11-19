@@ -20,7 +20,7 @@ import { IChat, ISession } from '../../../../../../services/sessions/common/sess
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatPhoneInputPresenter } from '../../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { Menus } from '../../../../browser/menus.js';
-import { NewSessionFolderPickerOffersNewWorktreeContext, SessionIdContext } from '../../../../common/contextkeys.js';
+import { bindNewSessionFolderPickerOffersNewWorktree, SessionIdContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../chat/common/actions/chatContextKeys.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -105,21 +105,37 @@ suite('AgentHostSessionConfigPickerContribution', () => {
 	test('leaves out the isolation picker where the composer offers New Worktree itself, as with the folders of an editor window', () => {
 		const { hosts } = setup();
 		hosts.set([hostShowing(constObservable(sessionOf('restricted')))], undefined);
-		const shown = (offersNewWorktree: boolean) => {
-			const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
-			contextKeyService.createKey(ChatContextKeys.enabled.key, true);
-			contextKeyService.createKey(SessionIdContext.key, 'restricted');
-			contextKeyService.createKey(NewSessionFolderPickerOffersNewWorktreeContext.key, offersNewWorktree);
-			return MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
-				.filter(isIMenuItem)
-				.filter(item => item.when?.serialize().includes(`'restricted'`) && contextKeyService.contextMatchesRules(item.when))
-				.map(item => item.command.title as string)
-				.sort();
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+		contextKeyService.createKey(SessionIdContext.key, 'restricted');
+		const shown = () => MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+			.filter(isIMenuItem)
+			.filter(item => item.when?.serialize().includes(`'restricted'`) && contextKeyService.contextMatchesRules(item.when))
+			.map(item => item.command.title as string)
+			.sort();
+		const shownFor = (allowedFolders: IObservable<readonly URI[]> | undefined) => {
+			const binding = bindNewSessionFolderPickerOffersNewWorktree(contextKeyService, allowedFolders);
+			try {
+				return shown();
+			} finally {
+				binding.dispose();
+			}
 		};
+		const agentsWindow = shownFor(undefined);
+		const editorWindow = shownFor(constObservable([URI.file('/repo')]));
+		// A window opens its first folder while its composer shows
+		const windowFolders = observableValue<readonly URI[]>('windowFolders', []);
+		const binding = bindNewSessionFolderPickerOffersNewWorktree(contextKeyService, windowFolders);
+		const editorWindowWithoutFolders = shown();
+		windowFolders.set([URI.file('/repo')], undefined);
+		const editorWindowGainingFolders = shown();
+		binding.dispose();
 
-		assert.deepStrictEqual({ agentsWindow: shown(false), editorWindow: shown(true) }, {
+		assert.deepStrictEqual({ agentsWindow, editorWindow, editorWindowWithoutFolders, editorWindowGainingFolders }, {
 			agentsWindow: ['Branch', 'Isolation'],
 			editorWindow: ['Branch'],
+			editorWindowWithoutFolders: ['Branch', 'Isolation'],
+			editorWindowGainingFolders: ['Branch'],
 		});
 	});
 
