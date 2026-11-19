@@ -46,6 +46,10 @@ on:
         type: string
         default: main
 
+permissions:
+  contents: read
+  actions: read
+
 env:
   NPM_ARCH: x64
   VSCODE_ARCH: x64
