@@ -80,6 +80,7 @@ import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/c
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -6121,11 +6122,19 @@ suite('Sessions - SessionsList', () => {
 			{ hasNext: true, action: 'keyboard' },
 			{ hasNext: false, action: 'keyboard' },
 			{ hasNext: true, action: 'rerender' },
+			{ hasNext: true, action: 'settings' },
 		] as const) {
 			test(`Inbox automatically spotlights the moved session once (next: ${hasNext}, action: ${action})`, async () => {
 				const source = buildTestSession({ id: 'source', title: 'Source' });
 				const next = buildTestSession({ id: 'next', title: 'Next', minutesAgo: 1 });
 				const harness = createListHarness(disposables, hasNext ? [source.session, next.session] : [source.session]);
+				const settingsQueries: (string | undefined)[] = [];
+				harness.instantiationService.stub(IPreferencesService, upcastPartial<IPreferencesService>({
+					openSettings: async options => {
+						settingsQueries.push(options?.query);
+						return undefined;
+					},
+				}));
 				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
 				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
 				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
@@ -6152,10 +6161,15 @@ suite('Sessions - SessionsList', () => {
 				let tourId: string | undefined;
 				let targetId: string | undefined;
 				let navigationExplained = false;
+				let settingsLinkFocused: boolean | undefined;
 				const focusTarget = append(harness.createContainer(), $('button'));
 				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
-					runScenario: async id => {
+					runScenario: async (id, token) => {
 						tourId = id;
+						const aborted = disposables.add(new Emitter<void>());
+						if (token) {
+							disposables.add(token.onCancellationRequested(() => aborted.fire()));
+						}
 						const scenario = onboardingScenarioRegistry.getScenario(id)!;
 						const payload = scenario.presentation.payload as ISpotlightPayload;
 						const step = (await payload.resolveSteps!())[0];
@@ -6169,7 +6183,7 @@ suite('Sessions - SessionsList', () => {
 						const shownTour = new DeferredPromise<void>();
 						const previousFocus = mainWindow.document.activeElement;
 						const result = presentation.run({ ...scenario, presentation: { ...scenario.presentation, payload: { steps: [step] } } }, {
-							targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shownTour.complete(); },
+							targetWindow: mainWindow, onAbort: aborted.event, onDidShow: () => { void shownTour.complete(); },
 						});
 						await shownTour.p;
 						void tourShown.complete();
@@ -6184,6 +6198,11 @@ suite('Sessions - SessionsList', () => {
 							const returnButton = Array.from(callout.querySelectorAll<HTMLElement>('.monaco-button')).find(button => button.textContent === 'Return to Session')!;
 							keyboardReturnFocused = mainWindow.document.activeElement === returnButton;
 							returnButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+						} else if (action === 'settings') {
+							dismiss.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true }));
+							const link = callout.querySelector<HTMLElement>('.spotlight-callout-description a')!;
+							settingsLinkFocused = mainWindow.document.activeElement === link;
+							link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 						} else if (action === 'escape') {
 							dismiss.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 						} else {
@@ -6231,6 +6250,8 @@ suite('Sessions - SessionsList', () => {
 				await opening.complete();
 				await tourShown.p;
 				if (action === 'rerender') {
+					const returnButton = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.spotlight-callout .monaco-button')).find(button => button.textContent === 'Return to Session')!;
+					returnButton.focus();
 					list.setItemCollapsed({ section: SessionInboxSection.Working }, true);
 					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
@@ -6238,6 +6259,7 @@ suite('Sessions - SessionsList', () => {
 					await retry(async () => {
 						assert.strictEqual(mainWindow.document.querySelector<HTMLElement>('.spotlight-overlay')?.style.display, '');
 					}, 10, 100);
+					assert.strictEqual(mainWindow.document.activeElement, returnButton);
 				}
 				await dismissTour.complete();
 				await tourFinished.p;
@@ -6259,11 +6281,14 @@ suite('Sessions - SessionsList', () => {
 					toursBeforeOpen, notifications: notifications.length, tours, navigationExplained,
 					sourceOpenRequests, shownAfterAction,
 					targetReleased, tourReleased: onboardingScenarioRegistry.getScenario(tourId!),
+					settingsQueries, settingsLinkFocused,
 				}, {
 					toursBeforeOpen: hasNext ? 0 : 1, notifications: 0, navigationExplained: true,
 					tours: [{ targetIsSource: true, hasDismissButton: true, targetInteractive: true, role: 'dialog', focusRestored: true, keyboardReturnFocused: action === 'keyboard' ? true : undefined }],
 					targetReleased: true, tourReleased: undefined,
 					sourceOpenRequests: action === 'keyboard' ? 1 : 0, shownAfterAction: action === 'keyboard' || !hasNext ? 'source' : 'next',
+					settingsQueries: action === 'settings' ? [`@id:${SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING}`] : [],
+					settingsLinkFocused: action === 'settings' ? true : undefined,
 				});
 			});
 		}

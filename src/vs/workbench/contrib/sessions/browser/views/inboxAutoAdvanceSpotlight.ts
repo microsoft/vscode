@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardingRegistry.js';
 import { OnboardingOutcome } from '../../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../onboarding/common/onboardingScenarioService.js';
+import { SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING } from '../../common/sessionConfig.js';
 
 /** Reveals the replied-to session after the first automatic Inbox navigation. */
 export class InboxAutoAdvanceSpotlight extends Disposable {
@@ -20,12 +23,15 @@ export class InboxAutoAdvanceSpotlight extends Disposable {
 		private readonly openSession: () => void,
 		private readonly hasNext: boolean,
 		@IOnboardingScenarioService private readonly onboardingService: IOnboardingScenarioService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 	}
 
 	async show(): Promise<void> {
 		let returnToSession = false;
+		let openSettings = false;
+		const settingsLink = 'command:workbench.action.openSettings';
 		const cancellation = new CancellationTokenSource();
 		this._register(toDisposable(() => cancellation.dispose(true)));
 		const id = 'sessions.inboxAutoAdvance';
@@ -43,11 +49,18 @@ export class InboxAutoAdvanceSpotlight extends Disposable {
 							id: 'repliedSession',
 							targetId: target.targetId,
 							title: localize('inboxAutoAdvanceSpotlight.title', "Your session is here"),
-							description: localize('inboxAutoAdvanceSpotlight.description', "This is the session you replied to. It appears in Working while the agent processes your reply and returns to Inbox when it needs attention. {0} Choose Return to Session or select the session in the sidebar to return to the conversation. You can turn off automatic navigation in the Inbox Auto Advance setting.",
+							description: new MarkdownString(localize('inboxAutoAdvanceSpotlight.description', "This is the session you replied to. It appears in Working while the agent processes your reply and returns to Inbox when it needs attention. {0} Choose Return to Session or select the session in the sidebar to return to the conversation. You can turn off automatic navigation in the [Inbox Auto Advance]({1}) setting.",
 								this.hasNext
 									? localize('inboxAutoAdvanceSpotlight.next', "Inbox opened the next session.")
 									: localize('inboxAutoAdvanceSpotlight.empty', "No Inbox sessions remain, so focus moved to the Inbox heading."),
-							),
+								settingsLink,
+							), { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }),
+							onDidClickLink: link => {
+								if (link === settingsLink) {
+									openSettings = true;
+									cancellation.cancel();
+								}
+							},
 							primaryAction: {
 								label: localize('inboxAutoAdvanceSpotlight.return', "Return to Session"),
 								run: () => { returnToSession = true; },
@@ -68,7 +81,9 @@ export class InboxAutoAdvanceSpotlight extends Disposable {
 		}));
 		try {
 			const outcome = await this.onboardingService.runScenario(id, cancellation.token);
-			if (returnToSession && outcome === OnboardingOutcome.Completed && !cancellation.token.isCancellationRequested) {
+			if (openSettings && !this._store.isDisposed) {
+				await this.preferencesService.openSettings({ query: `@id:${SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING}` });
+			} else if (returnToSession && outcome === OnboardingOutcome.Completed && !cancellation.token.isCancellationRequested) {
 				// Return after the spotlight has restored focus.
 				this.openSession();
 			}
