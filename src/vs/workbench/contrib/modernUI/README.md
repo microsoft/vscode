@@ -26,7 +26,7 @@ Editor and workbench suggestion menus use the Outer radius on their first item's
 
 In the editor window, this selection also applies to the Panel, Primary Side Bar, and Secondary Side Bar tab strips, for both text and icon labels, including the top and bottom Activity Bar positions. Connected headers continue the recessed tab-strip background through their toolbar actions, while the selected tab opens into its panel's own background. Selected caps fill the header height, with generous internal padding for text and icon labels; overflow controls retain their compact sizing. The first tab meets the frame without a second leading stroke or shoulder, and floating caps share the card's snapped perimeter stroke rather than drawing a second inset line. Bottom-positioned strips connect upward. Accounts, Settings, inactive tabs, and overflow actions remain separate controls. High-contrast themes retain explicit connected borders and keyboard-focus indicators. These panel and horizontal Activity Bar styles do not change the Agents window.
 
-Connected pane and horizontal Activity Bar caps use the same convex corner radius as editor tabs. Concave shoulder radii remain independent and stable through focus changes. Floating caps can paint beyond their header or footer and are clipped once at the card's rounded outer border, keeping the stroke continuous at the perimeter. Frame-touching corners retain their square treatment; if a compact menu precedes the tab strip, the first tab retains its own leading stroke, rounded cap, and shoulder until the menu is removed.
+Connected pane and horizontal Activity Bar caps use the same convex corner radius as editor tabs. Concave shoulder radii remain independent and stable through focus changes. Floating caps can paint beyond their header or footer to the card's rounded outer edge. At a rounded frame-touching corner, the first cap's fill follows the frame and leaves its curved stroke visible; the cap retains its own straight perimeter stroke. Square compact and Activity Bar joins retain their existing treatment. If a compact menu precedes the tab strip, the first tab retains its own leading stroke, rounded cap, and shoulder until the menu is removed.
 
 The default vertical Activity Bar retains its existing selection, hover, background colors, sizing, and overflow behavior independently of the editor tab style.
 
@@ -94,7 +94,7 @@ In high contrast, the connected boundary uses `focusBorder` for the active edito
 windows. Editor windows require `workbench.experimental.modernUI`; the Agents
 window already uses its own modern design. The treatment applies to quick input
 (including the Command Palette), custom menus and pickers, hovers, custom dialogs,
-the notification center, and settled notification toasts. It also applies in
+spotlight callouts, the notification center, and settled notification toasts. It also applies in
 auxiliary editor windows. Native OS menus/dialogs, rich quick-input overlays,
 editor backgrounds, panels, session cards, chat inputs, and web windows are unchanged.
 

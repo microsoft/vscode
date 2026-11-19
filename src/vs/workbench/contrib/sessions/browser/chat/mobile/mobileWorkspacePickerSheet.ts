@@ -154,8 +154,8 @@ function descriptionToString(value: IActionListItem<IWorkspacePickerItem>['descr
  * are instead rendered as an inline search section: a search input at
  * the top of the sheet and a folder list beneath the recents, refreshed
  * as the user types. When the picker would otherwise produce only
- * browse actions (no workspaces, no commands, no inline search), the
- * first one is invoked directly and the sheet is skipped entirely.
+ * a single browse action (no workspaces, no commands, no inline folder
+ * search), it is invoked directly and the sheet is skipped entirely.
  */
 export async function showMobileWorkspacePickerSheet(
 	layoutService: IWorkbenchLayoutService,
@@ -186,10 +186,8 @@ export async function showMobileWorkspacePickerSheet(
 		typeof b.listFolders === 'function' && surfacedProviderIds.has(b.providerId)
 	);
 
-	// No workspaces / commands, no inline search, and we have a single
-	// browse action — invoke it directly rather than opening a sheet
-	// that would only contain it.
-	if (!showSearch && rowItems.length === 0 && inlineFolderActions.length === 0 && headerBrowseActions.length === 1) {
+	// Search only filters existing workspaces, so it adds nothing when the list is empty.
+	if (rowItems.length === 0 && inlineFolderActions.length === 0 && headerBrowseActions.length === 1) {
 		headerBrowseActions[0].invoke();
 		return;
 	}

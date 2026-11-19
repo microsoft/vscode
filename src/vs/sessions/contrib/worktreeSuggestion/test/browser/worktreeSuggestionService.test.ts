@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -36,6 +36,7 @@ import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/services/sessions/common/sessionChangesService.js';
 import { WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
@@ -136,6 +137,7 @@ suite('WorktreeSuggestionService', () => {
 		const notifications: unknown[] = [];
 		const onboarding: string[] = [];
 		const shownTours = new Set<string>(options.spotlightShown ? [WORKTREE_SUGGESTION_TOUR_ID] : []);
+		const onDidSendRequest = store.add(new Emitter<ISendRequestSentEvent>());
 		const service = store.add(new WorktreeSuggestionService(
 			configuration,
 			storage,
@@ -220,8 +222,11 @@ suite('WorktreeSuggestionService', () => {
 				}
 			}(),
 			new NullLogService(),
+			new class extends mock<ISessionsManagementService>() {
+				override readonly onDidSendRequest = onDidSendRequest.event;
+			}(),
 		));
-		return { service, storage, telemetry, isolationChanges, opened, notifications, onboarding };
+		return { service, storage, telemetry, isolationChanges, opened, notifications, onboarding, onDidSendRequest };
 	}
 
 	function summarize(suggestion: IWorktreeSuggestion | undefined) {
@@ -326,13 +331,48 @@ suite('WorktreeSuggestionService', () => {
 		}, {
 			initially: false,
 			afterClosing: true,
-			stored: { hintClosed: true },
+			stored: { hintClosed: true, worktreeSessionCreated: false },
 			inPreview: false,
 			afterClosingInPreview: true,
 			inNextPreview: false,
 			afterPreview: true,
 			afterReset: false,
 			events: ['dismissed:inlineHint'],
+		});
+	});
+
+	test('remembers a new session started in a new worktree, also during a preview, until reset', () => {
+		const { service, onDidSendRequest } = createService();
+		const created = () => service.hasCreatedWorktreeSession(undefined);
+		const send = (isNewSession: boolean, isolation: 'worktree' | 'folder' | undefined) => onDidSendRequest.fire({
+			session: createSession(),
+			chat: new class extends mock<IChat>() { }(),
+			isNewSession,
+			isNewChat: true,
+			newSessionConfig: { isolation, providerConfig: {} },
+			options: { query: 'task' },
+		});
+
+		const initially = created();
+		send(true, 'folder');
+		send(false, 'worktree');
+		send(true, undefined);
+		const afterOtherRequests = created();
+		service.setPreview(WorktreeSuggestionVariant.UncommittedFilesCount);
+		const inPreview = created();
+		send(true, 'worktree');
+		const afterWorktreeSessionInPreview = created();
+		service.setPreview(undefined);
+		const afterPreview = created();
+		service.reset();
+
+		assert.deepStrictEqual({ initially, afterOtherRequests, inPreview, afterWorktreeSessionInPreview, afterPreview, afterReset: created() }, {
+			initially: false,
+			afterOtherRequests: false,
+			inPreview: false,
+			afterWorktreeSessionInPreview: true,
+			afterPreview: true,
+			afterReset: false,
 		});
 	});
 

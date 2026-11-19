@@ -43,6 +43,7 @@ import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, type ITerminalSandboxCommand, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../../chat/common/tools/languageModelToolsConfirmationService.js';
 import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultCompressor.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -2811,7 +2812,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		const toolSpecificData = { kind: 'terminal', commandLine: { original: 'npm test' }, language: 'bash' } as IChatTerminalToolInvocationData;
-		// eslint-disable-next-line @typescript-eslint/naming-convention
+		// eslint-disable-next-line ts-eslint-js/naming-convention
 		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'npm test', toolSpecificData);
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -2869,7 +2870,7 @@ suite('RunInTerminalTool', () => {
 			getOutput: () => output,
 		});
 
-		// eslint-disable-next-line @typescript-eslint/naming-convention
+		// eslint-disable-next-line ts-eslint-js/naming-convention
 		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'npm init', toolSpecificData, outputMonitor);
 
@@ -2916,7 +2917,7 @@ suite('RunInTerminalTool', () => {
 			getOutput: () => output,
 		});
 
-		// eslint-disable-next-line @typescript-eslint/naming-convention
+		// eslint-disable-next-line ts-eslint-js/naming-convention
 		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'git --no-pager diff -- foo.ts', toolSpecificData, outputMonitor);
 
@@ -2969,7 +2970,7 @@ suite('RunInTerminalTool', () => {
 		// the agent has already received `output` as the tool result, so the BG
 		// monitor's first re-detection of the same prompt must not fire a steering
 		// message that would yield the agent's in-flight `send_to_terminal` reply.
-		// eslint-disable-next-line @typescript-eslint/naming-convention
+		// eslint-disable-next-line ts-eslint-js/naming-convention
 		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }, alreadyNotifiedInputNeededOutput?: string) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'mkdir -p foo && cd foo && npm init', toolSpecificData, outputMonitor, output);
 
@@ -3025,7 +3026,7 @@ suite('RunInTerminalTool', () => {
 			dispose: () => { },
 		});
 
-		// eslint-disable-next-line @typescript-eslint/naming-convention
+		// eslint-disable-next-line ts-eslint-js/naming-convention
 		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'ssh host', toolSpecificData, outputMonitor);
 
@@ -3116,7 +3117,7 @@ suite('RunInTerminalTool', () => {
 	suite('input-needed steering text', () => {
 		function buildSteeringText(hungHint: 'none' | 'timeout' | 'idleSilence'): string {
 			const sessionResource = LocalChatSessionUri.forSession('input-needed-steering-session');
-			// eslint-disable-next-line @typescript-eslint/naming-convention
+			// eslint-disable-next-line ts-eslint-js/naming-convention
 			return (runInTerminalTool as unknown as { _buildInputNeededSteeringText(s: URI, t: string, h: 'none' | 'timeout' | 'idleSilence'): string })
 				._buildInputNeededSteeringText(sessionResource, 'test-term-id', hungHint);
 		}
@@ -3571,6 +3572,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			readToolSet: new ToolSet('read', 'read', Codicon.book, ToolDataSource.Internal, undefined, undefined, undefined, undefined, undefined, contextKeyService),
 		};
 		instantiationService.stub(ILanguageModelToolsService, mockToolsService as ILanguageModelToolsService);
+		instantiationService.stub(ILanguageModelToolsConfirmationService, { registerConfirmationContribution: () => toDisposable(() => { }) });
 
 		instantiationService.stub(IToolResultCompressor, {
 			_serviceBrand: undefined,

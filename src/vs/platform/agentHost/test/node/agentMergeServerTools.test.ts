@@ -5,23 +5,23 @@
 
 import * as assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
 import { PullRequestMutationApi, PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { AGENT_MERGE_TOOL_NAMES } from '../../common/agentMergePrompt.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
+import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AGENT_MERGE_TOOL_NAMES } from '../../common/agentMergePrompt.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
+import { SessionStatus, buildChatUri, buildDefaultChatUri, withSessionGitHubState, withSessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -31,8 +31,9 @@ import { AgentMergeTools, IAgentMergeTurnContext } from '../../node/agentMergeTo
 import { AgentMergeCIRequest, createAgentMergeServerToolGroup, parseAgentMergeCIRequest, readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName, setAgentMergeEnabledToolName } from '../../node/shared/agentMergeServerTools.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
-import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { chatTurnStarted } from '../common/chatActionBuilders.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
 
 suite('Agent Merge server tools', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -502,10 +503,10 @@ suite('Agent Merge server tools', () => {
 			};
 			const context: IAgentMergeTurnContext = {
 				client, session: sessionUri, chat: buildDefaultChatUri(sessionUri), folderKey: workingDirectory.toString(),
-				apiClient: createTestGitHubService().acquireRepositoryApiClient(new AbortController().signal),
+				apiClient: createTestGitHubService().acquireRepositoryApiClient(CancellationToken.None),
 				turnId: 'turn', ref, headSha: 'head', actions: ['addressReviews'],
 				configuration: { ...defaultAgentMergeConfiguration, addressReviews: true, replyAttribution: true },
-				snapshot, signal: new AbortController().signal, commentWatermark: '',
+				snapshot, cancellationToken: CancellationToken.None, commentWatermark: '',
 				deferredCheckIds: new Set(), initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
 				trackReviewReply: reply => { trackedReplies.push(reply); },
 			};
@@ -536,7 +537,7 @@ suite('Agent Merge server tools', () => {
 					operationId: 'agent-merge:turn:T1', threadId: 'T1',
 					body: 'Fixed the feedback\n\n> [!NOTE]\n> Automated reply by VS Code Agent Merge.',
 					resolve: true,
-				}, context.signal]],
+				}, context.cancellationToken]],
 			});
 		});
 	}

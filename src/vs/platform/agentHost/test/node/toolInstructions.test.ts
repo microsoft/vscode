@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { SectionOverride } from '@github/copilot-sdk';
+import type { SectionOverride } from '@microsoft/copilot-sdk';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions, type IToolInstructionContext } from '../../node/copilot/prompts/toolInstructions.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
 import { copilotCliConfigSchema } from '../../common/copilotCliConfig.js';

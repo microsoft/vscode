@@ -167,11 +167,16 @@ export class ChatPetJumpGameModel {
 		this._hops = checkpoint.hops;
 		this.accumulator = 0;
 		this.cancelCharge();
-		const platform = this._platforms.find(platform => platform.id === this._player.platform);
-		if (platform?.kind === 'crumbling') {
-			platform.collapseStep = this.steps;
-			platform.collapseProgress = 0;
-			platform.fallDistance = 0;
+		for (const platform of this._platforms) {
+			if (platform.kind === 'crumbling') {
+				if (platform.id === this._player.platform) {
+					platform.collapseStep = this.steps;
+				} else {
+					delete platform.collapseStep;
+				}
+				platform.collapseProgress = 0;
+				platform.fallDistance = 0;
+			}
 		}
 		this.resize(width);
 	}

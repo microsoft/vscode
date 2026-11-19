@@ -39,13 +39,13 @@ suite('MultiDiffEditor Actions', () => {
 		assert.ok(toggle.menu && !Array.isArray(toggle.menu));
 		// The view mode and position stay available in the Agents window, which contributes the submenu to its own editor title menu.
 		// Hidden where the editor has no file list, so a host's own entries are not shown next to disabled ones.
-		const whenKeys = ['activeEditor', 'config.multiDiffEditor.experimental.fileList', 'multiDiffEditorFileListAvailable'];
-		const preconditionKeys = ['activeEditor', 'config.multiDiffEditor.experimental.fileList', 'multiDiffEditorFileListAvailable'];
+		const whenKeys = ['activeEditor', 'multiDiffEditorFileListAvailable'];
+		const preconditionKeys = ['activeEditor', 'multiDiffEditorFileListAvailable'];
 		assert.deepStrictEqual({ group: submenu.group, icon: toggle.icon, toggleOrder: toggle.menu.order, togglePreconditionKeys: toggle.precondition?.keys().sort(), entries }, {
 			group: 'z_files',
 			icon: { id: 'list-flat' },
 			toggleOrder: 100001,
-			togglePreconditionKeys: ['activeEditor', 'config.multiDiffEditor.experimental.fileList', 'isSessionsWindow', 'multiDiffEditorFileListAvailable'],
+			togglePreconditionKeys: ['activeEditor', 'isSessionsWindow', 'multiDiffEditorFileListAvailable'],
 			entries: [
 				{ id: 'multiDiffEditor.viewFileListAsList', submenu: submenu.submenu.id, group: '1_view', order: 1, toggled: 'multiDiffEditorFileListViewMode == \'list\'', whenKeys, preconditionKeys },
 				{ id: 'multiDiffEditor.viewFileListAsTree', submenu: submenu.submenu.id, group: '1_view', order: 2, toggled: 'multiDiffEditorFileListViewMode == \'tree\'', whenKeys, preconditionKeys },

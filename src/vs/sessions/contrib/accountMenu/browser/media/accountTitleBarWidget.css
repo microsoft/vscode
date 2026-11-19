@@ -9,31 +9,25 @@
 	justify-content: center;
 	gap: 0;
 	position: relative;
-	height: 22px;
-	width: 22px;
-	min-width: 22px;
+	height: var(--vscode-spacing-size240);
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
 	background: transparent;
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--vscode-cornerRadius-small);
 	color: inherit;
 	cursor: pointer;
 	-webkit-app-region: no-drag;
 	overflow: hidden;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-widget:hover,
-.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget {
-	background: var(--vscode-toolbar-hoverBackground);
-}
-
 .agent-sessions-workbench .sessions-account-titlebar-widget:active,
-.agent-sessions-workbench .sessions-account-titlebar-widget.menu-visible,
-.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget.menu-visible {
+.agent-sessions-workbench .sessions-account-titlebar-widget.menu-visible {
 	background: var(--vscode-toolbar-activeBackground);
 }
 
-.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .sessions-account-titlebar-widget.menu-visible:not(:focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-icon {
@@ -67,12 +61,6 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-label {
 	display: none;
-}
-
-/* Spacing between titlebar-right action items (account widget, update indicator, etc.) */
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .actions-container {
-	gap: 6px;
 }
 
 /* Badge on account icon */
@@ -611,42 +599,4 @@
 	font-size: var(--vscode-fontSize-label1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1;
-}
-
-/* Motion animations */
-
-.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget,
-.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget {
-	transition: background-color 150ms ease-out;
-}
-
-.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget-icon,
-.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget-label,
-.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget-badge,
-.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget-icon,
-.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget-label,
-.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget-badge {
-	transition: opacity 150ms ease-out, transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out;
-}
-
-.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget:hover .sessions-account-titlebar-widget-badge,
-.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget.menu-visible .sessions-account-titlebar-widget-badge,
-.monaco-enable-motion .agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget .sessions-account-titlebar-widget-badge,
-.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget:hover .sessions-account-titlebar-widget-badge,
-.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget.menu-visible .sessions-account-titlebar-widget-badge,
-.agent-sessions-workbench.monaco-enable-motion .action-item:focus-within .sessions-account-titlebar-widget .sessions-account-titlebar-widget-badge {
-	transform: scale(1.04);
-}
-
-/* Reduced motion */
-
-.monaco-reduce-motion .agent-sessions-workbench .sessions-account-titlebar-widget,
-.monaco-reduce-motion .agent-sessions-workbench .sessions-account-titlebar-widget-icon,
-.monaco-reduce-motion .agent-sessions-workbench .sessions-account-titlebar-widget-label,
-.monaco-reduce-motion .agent-sessions-workbench .sessions-account-titlebar-widget-badge,
-.agent-sessions-workbench.monaco-reduce-motion .sessions-account-titlebar-widget,
-.agent-sessions-workbench.monaco-reduce-motion .sessions-account-titlebar-widget-icon,
-.agent-sessions-workbench.monaco-reduce-motion .sessions-account-titlebar-widget-label,
-.agent-sessions-workbench.monaco-reduce-motion .sessions-account-titlebar-widget-badge {
-	transition-duration: 0ms !important;
 }

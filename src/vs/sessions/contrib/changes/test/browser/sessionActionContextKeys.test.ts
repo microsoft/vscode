@@ -4,16 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { Event } from '../../../../../base/common/event.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentHostPullRequestOperationId } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext, SessionArtifactIntegrationsEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionChangeset, ISessionChangesetOperation } from '../../../../../workbench/services/sessions/common/session.js';
+import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
@@ -109,6 +114,28 @@ suite('Session Action Context Keys', () => {
 		const afterUnrelated = reads;
 		DesktopChangesEditorTransitionContext.bindTo(scoped).set(true);
 		assert.deepStrictEqual({ unrelatedReads: afterUnrelated - afterBind, relatedTriggersRead: reads > afterUnrelated }, { unrelatedReads: 0, relatedTriggersRead: true });
+	});
+
+	test('the artifact integrations key holds only while the setting is enabled and the session supports artifact integrations', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: false });
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		// Binders registered by other contributions, such as Agent Merge's, look up the session's provider.
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ onDidChangeProviders: Event.None, getProvider: () => undefined }));
+		const supportsArtifactIntegrations = observableValue('supportsArtifactIntegrations', true);
+		const session = Object.assign(createTestActiveSession('session'), { capabilities: derived(reader => ({ supportsMultipleChats: false, supportsArtifactIntegrations: supportsArtifactIntegrations.read(reader) })) });
+		const scoped = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		disposables.add(bindSessionActionContextKeys(instantiationService, { ...createSource({}), session: constObservable(session) }, scoped));
+
+		const states = [SessionArtifactIntegrationsEnabledContext.getValue(scoped)];
+		await configuration.setUserConfiguration(ArtifactIntegrationsSettingId, true);
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: setting => setting === ArtifactIntegrationsSettingId }));
+		states.push(SessionArtifactIntegrationsEnabledContext.getValue(scoped));
+		supportsArtifactIntegrations.set(false, undefined);
+		states.push(SessionArtifactIntegrationsEnabledContext.getValue(scoped));
+
+		assert.deepStrictEqual(states, [false, true, false]);
 	});
 
 	test('runs registered binders for each bound source', () => {

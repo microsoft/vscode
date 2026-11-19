@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { filterConfigurationToSchema } from '../../chat/browser/widget/input/chatModelConfigurationLogic.js';
+import { getModelConfigProperty, getModelConfigValueLabel, MODEL_CONFIG_GROUP_EFFORT } from '../../chat/browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { isModelComparisonSupported } from '../../chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../chat/common/languageModels.js';
 import { localize } from '../../../../nls.js';
@@ -31,6 +32,7 @@ export function createSessionComparisonHarness(
 	})) {
 		throw new Error(localize('comparison.configurationUnavailable', "The requested model configuration is not supported by the selected model."));
 	}
+	const effort = getModelConfigProperty(model, { getModelConfiguration: () => configuration }, MODEL_CONFIG_GROUP_EFFORT, true);
 	return {
 		providerId,
 		sessionTypeId: sessionType.id,
@@ -38,6 +40,7 @@ export function createSessionComparisonHarness(
 		modelId: model.identifier,
 		modelLabel: model.metadata.name,
 		modelConfiguration: Object.keys(configuration).length ? { ...configuration } : undefined,
+		...(effort ? { modelConfigurationLabel: getModelConfigValueLabel(effort.schema, effort.value) } : {}),
 		permissionId: permission.id,
 		permissionLabel: permission.label,
 		modeId: permission.comparisonModeId,

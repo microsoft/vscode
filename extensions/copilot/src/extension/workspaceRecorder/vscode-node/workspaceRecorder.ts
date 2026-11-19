@@ -43,14 +43,6 @@ export class WorkspaceRecorder extends Disposable {
 		this._schedule(() => this._impl.then(v => v.handleOnDidCloseTextDocument(this._getTime(), documentUri)));
 	}
 
-	handleOnDidShowTextDocument(documentUri: string): void {
-		this._schedule(() => this._impl.then(v => v.handleOnDidShowTextDocument(this._getTime(), documentUri)));
-	}
-
-	handleOnDidHideTextDocument(documentUri: string): void {
-		this._schedule(() => this._impl.then(v => v.handleOnDidHideTextDocument(this._getTime(), documentUri)));
-	}
-
 	handleOnDidChangeTextDocument(documentUri: string, edit: StringEdit, newModelVersion: number, metadata: IChangedMetadata | undefined): void {
 		if (edit.isEmpty()) { return; }
 
@@ -187,18 +179,6 @@ export class WorkspaceRecorderImpl extends Disposable {
 
 	async handleOnDidCloseTextDocument(time: number, documentUri: string): Promise<void> {
 		this._documentInitialTexts.delete(this._getRelativePath(documentUri));
-	}
-
-	async handleOnDidShowTextDocument(time: number, documentUri: string): Promise<void> {
-		const id = await this._getId(documentUri);
-		if (id === undefined) { return; }
-		this._appendEntry({ kind: 'opened', id, time });
-	}
-
-	async handleOnDidHideTextDocument(time: number, documentUri: string): Promise<void> {
-		const id = await this._getId(documentUri);
-		if (id === undefined) { return; }
-		this._appendEntry({ kind: 'closed', id, time });
 	}
 
 	async handleOnDidChangeTextDocument(time: number, documentUri: string, edit: StringEdit, newModelVersion: number, metadata: IChangedMetadata | undefined): Promise<void> {

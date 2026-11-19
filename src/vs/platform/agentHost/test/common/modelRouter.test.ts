@@ -7,7 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
-import { IModelRouter, IModelRouterDiagnostic, matchModelReference, ModelReferenceMatch, MODEL_ROUTER_MAX_DECISION_TEXT_BYTES, MODEL_ROUTER_MAX_FILE_BYTES, ModelRouterDiagnosticSeverity, modelRouterDecisionTextBytes, modelRouterNameFromFileName, modelRouterNameFromModelId, parseModelRouter, resolveModelRouter } from '../../common/modelRouter.js';
+import { ContextSizeConfigKey, createContextSizeConfigSchemaPropertyFromLimits } from '../../common/agentModelConfiguration.js';
+import { readAgentModelRouterRoutesMeta, withAgentModelExperimentalMeta, withAgentModelRouterRoutesMeta } from '../../common/meta/agentModelMeta.js';
+import { IModelRouter, IModelRouterDiagnostic, matchModelReference, ModelReferenceMatch, MODEL_ROUTER_MAX_DECISION_TEXT_BYTES, MODEL_ROUTER_MAX_FILE_BYTES, ModelRouterDiagnosticSeverity, modelRouterDecisionTextBytes, modelRouterNameFromFileName, modelRouterNameFromModelId, parseModelRouter, resolveModelRouter, summarizeModelRouterRoutes } from '../../common/modelRouter.js';
 import { ReasoningEffortConfigKey } from '../../common/reasoningEffort.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 
@@ -65,6 +67,76 @@ suite('modelRouter', () => {
 			});
 		});
 
+		test('reads `display-name` on one line, and `context-size` for the router and for a route', () => {
+			const parsed = parseModelRouter('version: 1\ndisplay-name: |\n  Daily\n  Driver\ndescription: Test.\ncontext-size: long\nroutes:\n  - model: a\n    when: A.\n    context-size: default\n  - model: b\n    when: B.\n', 'r.model-router.yaml');
+			assert.deepStrictEqual({
+				displayName: parsed.router?.displayName,
+				router: parsed.router?.contextSize,
+				routes: parsed.router?.routes.map(route => route.contextSize),
+				diagnostics: parsed.diagnostics,
+				invalid: errors(`version: 1\ndisplay-name: ${'x'.repeat(65)}\ndescription: Test.\nroutes:\n  - model: a\n    when: A.\n    context-size: huge\n  - model: b\n    when: B.\n`),
+			}, {
+				displayName: 'Daily Driver',
+				router: 'long',
+				routes: ['default', undefined],
+				diagnostics: [],
+				invalid: ['The display name is longer than 64 characters.', 'Route 1\'s `context-size` is `default` or `long`.'],
+			});
+		});
+
+		test('parses a route\'s name and guidance, and lets named routes share a model', () => {
+			const parsed = parseModelRouter(withRoutes([
+				'  - name: feature',
+				'    model: [opus, sonnet]',
+				'    when: Building.',
+				'    effort: high',
+				'    guidance: Plan first.',
+				'  - name: bug-fix',
+				'    model: opus',
+				'    when: Fixing.',
+				'  - model: opus',
+				'    when: Anything else.',
+			].join('\n')), 'workday.model-router.yaml');
+			assert.deepStrictEqual({ routes: parsed.router?.routes, guidance: parsed.router?.guidance, diagnostics: parsed.diagnostics }, {
+				routes: [
+					{ models: ['opus', 'sonnet'], when: 'Building.', examples: [], effort: 'high', name: 'feature', mainAgentGuidance: 'Plan first.' },
+					{ models: ['opus'], when: 'Fixing.', examples: [], name: 'bug-fix' },
+					{ models: ['opus'], when: 'Anything else.', examples: [] },
+				],
+				// A route's guidance is for the chat's main agent, never for the routing decision.
+				guidance: '',
+				diagnostics: [],
+			});
+		});
+
+		test('checks names and guidance', () => {
+			const check = (text: string) => messages(parseModelRouter(`version: 1\ndescription: Test.\n${text}\n`, 'workday.model-router.yaml').diagnostics);
+			const guided = 'routes:\n  - model: a\n    when: A.\n    guidance: Plan first.';
+			assert.deepStrictEqual({
+				oneGuidedRoute: check(guided),
+				oneRoute: check('routes:\n  - model: a\n    when: A.'),
+				sameName: check('routes:\n  - name: one\n    model: a\n    when: A.\n  - name: one\n    model: b\n    when: B.'),
+				sameModel: check('routes:\n  - model: a\n    when: A.\n  - model: a\n    when: B.\n    effort: low'),
+				badName: check('routes:\n  - name: Bug_Fix\n    model: a\n    when: A.\n  - model: b\n    when: B.'),
+				// A chat that moves to another route gets that route's guidance, so the two go together.
+				autoSwitching: check(`switching: auto\n${guided}`),
+				longGuidance: check(`${guided} ${'x'.repeat(4000)}`),
+				// The preview format, which this build no longer reads.
+				playbooks: check('playbooks:\n  one:\n    when: A.\n    main: a'),
+				roles: check(`roles:\n  reviewer:\n    description: Reviews.\n${guided}`),
+			}, {
+				oneGuidedRoute: [],
+				oneRoute: ['A router has 2 to 10 routes; this one has 1.'],
+				sameName: ['The name `one` is already route 1\'s; each name belongs to one route.'],
+				sameModel: ['`a` is already in route 1; each model belongs to one route, unless the routes have a `name`.'],
+				badName: ['Route 1\'s `name` is lowercase letters, digits and single hyphens, like `bug-fix`.'],
+				autoSwitching: [],
+				longGuidance: ['Route 1\'s `guidance` is too long: at most 4000 characters.'],
+				playbooks: ['Write `playbooks` as `routes`: a list where each route has `model` and `when`, and can have a `name` and `guidance`.'],
+				roles: ['`roles` are no longer read. To have a custom agent used, name it in a route\'s `guidance`.'],
+			});
+		});
+
 		test('reads a file saved with a byte order mark', () => {
 			assert.deepStrictEqual(parseModelRouter(`\uFEFF${valid}`, 'daily-driver.model-router.yaml'), parseModelRouter(valid, 'daily-driver.model-router.yaml'));
 		});
@@ -82,7 +154,7 @@ suite('modelRouter', () => {
 			assert.deepStrictEqual(errors(valid, 'Daily Driver.model-router.yaml'), ['The name must be lowercase letters, digits and single hyphens, like `daily-driver`.']);
 			assert.deepStrictEqual(errors(valid.replace(/^description: .*\n/m, '')), ['Add a `description`; it is shown in the model picker.']);
 			assert.deepStrictEqual(errors(withRoutes('  - model: a\n    when: A.')), ['A router has 2 to 10 routes; this one has 1.']);
-			assert.deepStrictEqual(errors(withRoutes(`${twoRoutes}\n  - model: [c, A]\n    when: C.`)), ['`A` is already in route 1; each model belongs to one route.']);
+			assert.deepStrictEqual(errors(withRoutes(`${twoRoutes}\n  - model: [c, A]\n    when: C.`)), ['`A` is already in route 1; each model belongs to one route, unless the routes have a `name`.']);
 			assert.deepStrictEqual(errors(withRoutes('  - model: a\n  - model: b\n    when: B.')), ['Route 1 needs `when`: when to use this model.']);
 			assert.deepStrictEqual(errors(withRoutes('  - model: a b\n    when: A.\n  - model: b\n    when: B.')), ['Route 1 needs `model`: a model id like `claude-haiku-5.5` or `anthropic/claude-haiku-4-5`, or a list of them in preference order.']);
 			assert.deepStrictEqual(errors(`effort: auto\n${withRoutes('  - model: a\n    when: A.\n    effort: auto\n  - model: b\n    when: B.')}`), ['Route 1\'s `effort` is `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`.']);
@@ -153,8 +225,8 @@ suite('modelRouter', () => {
 	});
 
 	suite('resolveModelRouter', () => {
-		function model(id: string, options: { byok?: string; efforts?: string[]; policy?: PolicyState; retiring?: string } = {}): IAgentModelInfo {
-			const meta = { ...createAgentModelByokMeta(options.byok), ...(options.retiring ? { warningText: { model_pending_deprecation: options.retiring } } : {}) };
+		function model(id: string, options: { byok?: string; efforts?: string[]; policy?: PolicyState; retiring?: string; experimental?: boolean } = {}): IAgentModelInfo {
+			const meta = { ...createAgentModelByokMeta(options.byok), ...(options.retiring ? { warningText: { model_pending_deprecation: options.retiring } } : {}), ...withAgentModelExperimentalMeta(undefined, options.experimental ? 'Experimental' : undefined) };
 			return {
 				provider: 'copilot',
 				id,
@@ -177,6 +249,76 @@ suite('modelRouter', () => {
 			assert.strictEqual(modelId(matchModelReference(models, 'openrouter/aion-labs/aion-3.0')), 'byok-2');
 			assert.strictEqual(matchModelReference(models, 'anthropic/claude-opus-4-8'), undefined);
 			assert.strictEqual(matchModelReference(models, 'claude-haiku-4-5'), undefined);
+		});
+
+		test('a model family without a version is the newest released model of that family the account can use', () => {
+			const models = [
+				model('claude-opus-5'), model('claude-opus-5.5'), model('claude-sonnet-5.5'), model('gpt-4o-mini'),
+				model('acme-pro-1'), model('acme-pro-2'), model('acme-pro-3', { policy: PolicyState.Disabled }), model('acme-pro-2-fast'),
+				model('acme-lite-1'), model('acme-lite-2', { experimental: true }), model('acme-lab-1', { experimental: true }), model('acme-nightly', { experimental: true }),
+				model('acme-max-1', { policy: PolicyState.Disabled }), model('acme-max-1-fast'), model('acme-chat-4o'), model('acme-chat-5', { policy: PolicyState.Disabled }),
+				model('byok-dated', { byok: 'anthropic/Work/claude-haiku-4-20261001' }), model('byok-new', { byok: 'anthropic/Work/claude-haiku-4-5-20251001' }), model('byok-new-older', { byok: 'anthropic/Work/claude-haiku-4-5-20250901' }), model('byok-newest', { byok: 'anthropic/Work/claude-haiku-4-5-2025-11-01' }),
+				model('byok-home', { byok: 'anthropic/Home/claude-haiku-4-5-20251001' }), model('byok-nested', { byok: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' }), model('byok-attached-older', { byok: 'ollama/llama3' }), model('byok-attached', { byok: 'ollama/llama3.2' }),
+			];
+			const match = (reference: string) => {
+				const result = matchModelReference(models, reference);
+				return result?.kind === 'ambiguous' ? result.families ?? result.models.map(candidate => candidate.id) : result?.kind === 'experimental' ? { experimental: result.models.map(candidate => candidate.id) } : modelId(result);
+			};
+			assert.deepStrictEqual({
+				opus: match('opus'),
+				withVendorWord: match('claude-opus'),
+				// Not the fast variant, and not the newest one, which policy turned off.
+				newestUsable: match('pro'),
+				variant: match('pro-fast'),
+				// An experimental model is never a family's newest, and a family of only those picks none.
+				newestReleased: match('lite'),
+				onlyExperimental: match('lab'),
+				experimentalById: match('acme-nightly'),
+				// A family whose models are all turned off is not replaced by its fast variant: the caller reports it and tries the next model.
+				allDisabled: match('max'),
+				// A letter after a number is part of the version: `4o` is the family's version 4, used while policy has the newer one turned off.
+				alphanumericVersion: match('chat'),
+				// A snapshot's date is not part of its version: 4.5 is newer than 4, whenever each was made. A date is the same written together or apart.
+				byokInGroup: match('anthropic/Work/haiku'),
+				// The same family in two groups is two families, and an id's own path is written in full.
+				byokInTwoGroups: match('anthropic/haiku'),
+				byokNestedId: [match('openrouter/aion-labs/aion'), match('openrouter/aion')],
+				// A version can be written onto the name.
+				byokAttachedVersion: match('ollama/llama'),
+				// A version asks for that model, so a missing one is not replaced by its family.
+				missingVersion: match('claude-opus-7'),
+				missingAlphanumericVersion: match('gpt-4o'),
+				manyFamilies: match('claude'),
+				unknown: match('gemini'),
+			}, {
+				opus: 'claude-opus-5.5',
+				withVendorWord: 'claude-opus-5.5',
+				newestUsable: 'acme-pro-2',
+				variant: 'acme-pro-2-fast',
+				newestReleased: 'acme-lite-1',
+				onlyExperimental: { experimental: ['acme-lab-1'] },
+				experimentalById: 'acme-nightly',
+				allDisabled: 'acme-max-1',
+				alphanumericVersion: 'acme-chat-4o',
+				byokInGroup: 'byok-newest',
+				byokInTwoGroups: ['anthropic/Work/claude-haiku', 'anthropic/Home/claude-haiku'],
+				byokNestedId: ['byok-nested', undefined],
+				byokAttachedVersion: 'byok-attached',
+				missingVersion: undefined,
+				missingAlphanumericVersion: undefined,
+				manyFamilies: ['claude-opus', 'claude-sonnet'],
+				unknown: undefined,
+			});
+			const result = resolveModelRouter(router([{ models: ['opus'], when: 'A.', examples: [] }, { models: ['claude', 'lab', 'max', 'pro'], when: 'B.', examples: [] }]), models);
+			assert.deepStrictEqual({ routes: result.routes.map(r => [r.model.id, r.reference]), diagnostics: messages(result.diagnostics) }, {
+				routes: [['claude-opus-5.5', 'opus'], ['acme-pro-2', 'pro']],
+				diagnostics: [
+					'Route 2: `claude` matches more than one model family; use one of `claude-opus`, `claude-sonnet`.',
+					'Route 2: `lab` matches only experimental models, which a family never picks; use the id of one, such as `acme-lab-1`.',
+					'Route 2: acme-max-1 is disabled by policy.',
+					'Route 2 uses `pro` because `claude` is not available.',
+				],
+			});
 		});
 
 		test('reports a BYOK id that matches more than one model, and the full id picks one', () => {
@@ -219,6 +361,36 @@ suite('modelRouter', () => {
 			]);
 		});
 
+		test('a router\'s picker row lists its routes that have a model, with what the router sets each to', () => {
+			const contextSizes = { type: 'number' as const, title: 'Context', enum: [200_000, 1_000_000] };
+			const models = [model('a', { efforts: ['low', 'medium', 'high'] }), model('b', { efforts: ['low'] }), { ...model('c'), configSchema: { type: 'object' as const, properties: { [ContextSizeConfigKey]: contextSizes } } }];
+			const routes: IModelRouter['routes'] = [
+				{ models: ['a'], when: 'A.', examples: [], name: 'build', effort: 'high' },
+				{ models: ['b'], when: 'B.', examples: [] },
+				{ models: ['c'], when: 'C.', examples: [], contextSize: 'long' },
+				{ models: ['gone'], when: 'D.', examples: [] },
+			];
+			// The routes are added to the router's row beside what it already carries.
+			const row = { ...model('row'), _meta: withAgentModelRouterRoutesMeta({ other: 1 }, summarizeModelRouterRoutes(router(routes), models)) };
+			assert.deepStrictEqual({
+				chosen: readAgentModelRouterRoutesMeta(row),
+				kept: row._meta?.other,
+				effortOff: summarizeModelRouterRoutes(router(routes, 'off'), models),
+				// Effort is chosen with the route, so it is not chosen when one route is left.
+				oneRoute: summarizeModelRouterRoutes(router(routes.slice(1, 2)), models),
+				// A row from another host lists only what reads as a route.
+				malformed: readAgentModelRouterRoutesMeta({ ...model('row'), _meta: { 'vscode.chat.modelRouterRoutes': [{ model: 'A', effort: 3, contextTokens: -1 }, { name: 'x' }, 'y'] } }),
+				otherModel: readAgentModelRouterRoutesMeta(model('row')),
+			}, {
+				chosen: [{ name: 'build', model: 'a', effort: 'high' }, { model: 'b', effort: 'auto' }, { model: 'c', contextTokens: 1_000_000 }],
+				kept: 1,
+				effortOff: [{ name: 'build', model: 'a' }, { model: 'b' }, { model: 'c', contextTokens: 1_000_000 }],
+				oneRoute: [{ model: 'b' }],
+				malformed: [{ model: 'A' }],
+				otherModel: [],
+			});
+		});
+
 		test('warns about retiring models and when too few routes are left', () => {
 			const result = resolveModelRouter(router([{ models: ['a'], when: 'A.', examples: [] }, { models: ['gone'], when: 'B.', examples: [] }]), [model('a', { retiring: 'Retires on Dec 1.' })]);
 			assert.deepStrictEqual(result.routes[0].retiring, 'Retires on Dec 1.');
@@ -227,6 +399,44 @@ suite('modelRouter', () => {
 				'Route 2 (gone) is skipped: none of its models are available on this account.',
 				'Only 1 of this router\'s models is available, so there is nothing to route between.',
 			]);
+		});
+
+		test('resolves named routes by name, so two can run on the same model', () => {
+			const named = router([
+				{ models: ['a'], when: 'A.', examples: [], name: 'feature' },
+				{ models: ['gone', 'a'], when: 'B.', examples: [], name: 'bug-fix' },
+				{ models: ['gone'], when: 'C.', examples: [], name: 'quick' },
+				{ models: ['a'], when: 'D.', examples: [] },
+				// A pick of `a` could mean the route above or this one.
+				{ models: ['b'], when: 'E.', examples: [], name: 'a' },
+			]);
+			const result = resolveModelRouter(named, [model('a'), model('b')]);
+			assert.deepStrictEqual({ routes: result.routes.map(resolved => [resolved.route.name, resolved.model.id]), diagnostics: messages(result.diagnostics) }, {
+				routes: [['feature', 'a'], ['bug-fix', 'a'], [undefined, 'a']],
+				diagnostics: [
+					'Route `bug-fix` uses `a` because `gone` is not available.',
+					'Route `quick` (gone) is skipped: none of its models are available on this account.',
+					'Route `a` is skipped: `a` is the name of one route and the model of another.',
+				],
+			});
+		});
+
+		test('applies `context-size` only to models that offer a larger window', () => {
+			const withLong = (id: string): IAgentModelInfo => ({ ...model(id), configSchema: { type: 'object', properties: { [ContextSizeConfigKey]: createContextSizeConfigSchemaPropertyFromLimits(200_000, 1_000_000)! } } });
+			const route = (id: string, contextSize?: 'default' | 'long') => ({ models: [id], when: 'W.', examples: [], ...(contextSize ? { contextSize } : {}) });
+			const resolve = (candidate: IModelRouter, models: IAgentModelInfo[]) => {
+				const result = resolveModelRouter(candidate, models);
+				return { sizes: result.routes.map(resolved => resolved.contextSize), diagnostics: messages(result.diagnostics) };
+			};
+			assert.deepStrictEqual({
+				routerDefault: resolve({ ...router([route('a'), route('b', 'default'), route('c')]), contextSize: 'long' }, [withLong('a'), withLong('b'), model('c')]),
+				routeAsksWithoutOne: resolve(router([route('a', 'long'), route('c', 'long')]), [withLong('a'), model('c')]),
+				noModelHasOne: resolve({ ...router([route('c'), route('d')]), contextSize: 'long' }, [model('c'), model('d')]),
+			}, {
+				routerDefault: { sizes: ['long', 'default', undefined], diagnostics: [] },
+				routeAsksWithoutOne: { sizes: ['long', undefined], diagnostics: ['Route 2: c has one context size, so `context-size: long` is ignored.'] },
+				noModelHasOne: { sizes: [undefined, undefined], diagnostics: ['None of this router\'s models has a larger context size, so `context-size: long` is ignored.'] },
+			});
 		});
 	});
 });

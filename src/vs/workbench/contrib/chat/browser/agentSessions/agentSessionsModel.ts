@@ -59,6 +59,7 @@ export interface IAgentSessionsModel {
 	readonly resolved: boolean;
 
 	readonly sessions: IAgentSession[];
+	readonly sessionsIncludingAutomationRuns?: IAgentSession[];
 	getSession(resource: URI): IAgentSession | undefined;
 
 	/**
@@ -327,6 +328,7 @@ export interface IMarshalledAgentSessionContext {
 
 	readonly session: IAgentSession;
 	readonly sessions: IAgentSession[]; // support for multi-selection
+	readonly showAutomationRuns?: boolean;
 }
 
 export function isMarshalledAgentSessionContext(thing: unknown): thing is IMarshalledAgentSessionContext {
@@ -336,6 +338,28 @@ export function isMarshalledAgentSessionContext(thing: unknown): thing is IMarsh
 	}
 
 	return false;
+}
+
+/**
+ * Adapts the argument of the shared sessions list menu, an array of selected sessions
+ * that only share a `resource` with agent sessions, to the marshalled context the agent
+ * session actions expect. Any other context is returned unchanged. Returns `undefined`
+ * when none of the selected sessions is a known agent session.
+ */
+export function toAgentSessionContext(context: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[] | undefined, getSession: (resource: URI) => IAgentSession | undefined): IAgentSession | IMarshalledAgentSessionContext | undefined {
+	if (!Array.isArray(context)) {
+		return context as IAgentSession | IMarshalledAgentSessionContext | undefined;
+	}
+
+	const sessions: IAgentSession[] = [];
+	for (const candidate of context as readonly { readonly resource: URI }[]) {
+		const session = URI.isUri(candidate?.resource) ? getSession(candidate.resource) : undefined;
+		if (session) {
+			sessions.push(session);
+		}
+	}
+
+	return sessions.length > 0 ? { $mid: MarshalledId.AgentSessionContext, session: sessions[0], sessions } : undefined;
 }
 
 //#endregion
@@ -542,8 +566,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	private _sessions: ResourceMap<IInternalAgentSession>;
 	get sessions(): IAgentSession[] {
-		return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values()))
-			.filter(session => session.metadata?.isAutomation !== true);
+		return this.sessionsIncludingAutomationRuns.filter(session => session.metadata?.isAutomation !== true);
+	}
+
+	get sessionsIncludingAutomationRuns(): IAgentSession[] {
+		return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values()));
 	}
 
 	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());

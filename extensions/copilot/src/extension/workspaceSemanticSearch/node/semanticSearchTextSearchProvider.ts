@@ -18,8 +18,6 @@ import { IWorkspaceService } from '../../../platform/workspace/common/workspaceS
 import { IRerankerService } from '../../../platform/workspaceChunkSearch/common/rerankerService';
 import { IWorkspaceChunkSearchService } from '../../../platform/workspaceChunkSearch/node/workspaceChunkSearchService';
 import { TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
-import { raceCancellation } from '../../../util/vs/base/common/async';
-import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { StopWatch } from '../../../util/vs/base/common/stopwatch';
 import * as strings from '../../../util/vs/base/common/strings';
@@ -608,59 +606,4 @@ export class SemanticSearchTextSearchProvider extends Disposable implements vsco
 		}
 		return undefined;
 	}
-}
-
-function getMatchRanges(fileResults: FileChunk[]): { sourceRange: vscode.Range; previewRange: vscode.Range }[] {
-	const ranges: { sourceRange: vscode.Range; previewRange: vscode.Range }[] = [];
-	fileResults.forEach(snippet => {
-		const range = new VSCodeRange(
-			new Position(snippet.range.startLineNumber, snippet.range.startColumn),
-			new Position(snippet.range.endLineNumber, snippet.range.endColumn)
-		);
-
-		ranges.push({ sourceRange: range, previewRange: range });
-	});
-
-	return ranges;
-}
-
-export async function getSearchResults(
-	fileReader: (uri: vscode.Uri) => Promise<Uint8Array>,
-	fileResults: FileChunk[],
-	token: vscode.CancellationToken = CancellationToken.None,
-	logService?: ILogService,
-	telemetryService?: ITelemetryService
-): Promise<vscode.TextSearchMatch2[]> {
-	const results: vscode.TextSearchMatch2[] = [];
-
-	const getResultsRanges = async () => {
-		// get all chunks per file
-		const fileChunks: { [key: string]: FileChunk[] } = {};
-		fileResults.forEach(fileResult => {
-			const filePath = fileResult.file.path;
-			if (!fileChunks[filePath]) {
-				fileChunks[filePath] = [];
-			}
-			fileChunks[filePath].push(fileResult);
-		});
-		await Promise.all(Object.keys(fileChunks).map(async filePath => {
-			const file = fileChunks[filePath][0].file;
-			const fileContent = await fileReader(file);
-			const ranges = getMatchRanges(fileChunks[filePath]);
-			if (ranges.length) {
-				results.push(
-					new TextSearchMatch2(
-						file,
-						ranges,
-						fileContent.toString(),
-					)
-				);
-			}
-		}
-		));
-
-		return results;
-	};
-
-	return await raceCancellation(getResultsRanges(), token) ?? [];
 }

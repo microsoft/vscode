@@ -31,6 +31,7 @@ import { IContextViewDelegate, IContextViewService } from '../../../../../../../
 import { IContextKeyService } from '../../../../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IHoverService } from '../../../../../../../../platform/hover/browser/hover.js';
+import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { NullHoverService } from '../../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
@@ -58,6 +59,7 @@ import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../.
 import { IOnboardingScenario, OnboardingOutcome } from '../../../../../../onboarding/common/onboardingScenario.js';
 import { TestHostService, TestLayoutService } from '../../../../../../../test/browser/workbenchTestServices.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
+import { NullTelemetryService } from '../../../../../../../../platform/telemetry/common/telemetryUtils.js';
 
 function model(id: string, configurable = true): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -240,6 +242,7 @@ suite('TabbedModelPicker', () => {
 		instantiationService.set(IContextViewService, contextView);
 		instantiationService.set(IHoverService, NullHoverService);
 		instantiationService.set(IOpenerService, NullOpenerService);
+		instantiationService.set(ILabelService, upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }));
 		const openedEditors: IResourceEditorInput[] = [];
 		instantiationService.stub(IEditorService, {}, 'openEditor', async (input: IResourceEditorInput) => {
 			openedEditors.push(input);
@@ -705,7 +708,7 @@ suite('TabbedModelPicker', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return document.body; }
 			}();
-			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService));
+			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService));
 			const scenario: IOnboardingScenario<ISpotlightPayload> = {
 				id: 'test.compareModels',
 				trigger: { kind: 'auto' },
@@ -820,6 +823,8 @@ suite('TabbedModelPicker', () => {
 					: undefined,
 				controlModels: { First: { label: 'First', exists: true, featured: true }, Second: { label: 'Second', exists: true, featured: true } },
 			});
+			anchor.style.left = 'calc(100% - 500px)';
+			picker.show(anchor, context);
 			const listHeight = () => element(popup, '.monaco-list').offsetHeight;
 			popup.style.setProperty('--vscode-strokeThickness', '1px');
 			popup.style.setProperty('--vscode-inputOption-activeBackground', 'rgb(10, 20, 30)');
@@ -859,17 +864,64 @@ suite('TabbedModelPicker', () => {
 			anchor.style.width = '38px';
 			picker.show(anchor, context);
 			const reopened = bounds();
+			// The view lines up with the anchor at the device pixels its edges are painted at, so compare painted edges
+			const dpr = dom.getWindow(popup).devicePixelRatio;
+			const painted = (value: number) => Math.round(value * dpr);
+			const isBesideAnchor = (rect: DOMRect) => painted(rect.bottom) <= painted(anchor.getBoundingClientRect().top) || painted(rect.top) >= painted(anchor.getBoundingClientRect().bottom);
+			const isAligned = (rect: DOMRect) => painted(rect.left) === painted(anchor.getBoundingClientRect().left);
 			assert.deepStrictEqual({
+				initiallyBesideAnchor: isBesideAnchor(first),
+				initiallyAligned: isAligned(first),
 				sameListViewport: firstRows === initialRows,
 				withinViewportCap: firstRows <= Math.floor(dom.getWindow(popup).innerHeight * 0.6),
 				stableHeight: reopened.height === first.height,
 				stableRows: listHeight() === firstRows,
-				aligned: reopened.left === anchor.getBoundingClientRect().left,
-				besideAnchor: reopened.bottom <= anchor.getBoundingClientRect().top || reopened.top >= anchor.getBoundingClientRect().bottom,
+				aligned: isAligned(reopened),
+				besideAnchor: isBesideAnchor(reopened),
 				fitsWindow: reopened.top >= 0 && reopened.bottom <= dom.getWindow(popup).innerHeight,
-			}, { sameListViewport: true, withinViewportCap: true, stableHeight: true, stableRows: true, aligned: true, besideAnchor: true, fitsWindow: true });
+			}, { initiallyBesideAnchor: true, initiallyAligned: true, sameListViewport: true, withinViewportCap: true, stableHeight: true, stableRows: true, aligned: true, besideAnchor: true, fitsWindow: true });
 		});
 	}
+
+	test('comparison stays vertically anchored when its list fills the fractional space above the trigger', () => {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select two or more models to compare their responses side by side.',
+				summary: '', selectedModelIds: [], multiple: true, maxSelections: 10,
+				canGoBack: false, canGoNext: false, canFinish: true,
+			}, undefined),
+			cancel: () => { }, reset: () => { }, select: () => { }, setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const manyModels = Array.from({ length: 25 }, (_, index) => model(`Model-${index}`));
+		const { picker, popup, anchor, context, dismiss } = createPicker({
+			comparison, realContextView: true, anchorTop: '400.5px', models: manyModels,
+			pinnedModelIds: manyModels.map(model => model.identifier),
+			controlModels: Object.fromEntries(manyModels.map(model => [model.metadata.id, { label: model.metadata.name, exists: true, featured: true }])),
+		});
+		dismiss();
+		for (const size of [2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36]) {
+			anchor.parentElement!.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+		}
+		anchor.parentElement!.style.setProperty('--vscode-strokeThickness', '1px');
+		anchor.parentElement!.style.setProperty('--vscode-fontSize-label1', '13px');
+		anchor.style.left = 'calc(100% - 500px)';
+		picker.show(anchor, context);
+		element(popup, '[aria-label="Compare Models"]').click();
+		const bounds = element(popup, '.chat-model-picker-widget').getBoundingClientRect();
+		const trigger = anchor.getBoundingClientRect();
+		assert.ok(bounds.height > 300, `Expected a constrained list, got ${bounds.height}`);
+		// The view lines up with the trigger at the device pixels its edges are painted at
+		const dpr = dom.getWindow(popup).devicePixelRatio;
+		const painted = (value: number) => Math.round(value * dpr);
+		assert.deepStrictEqual({
+			aligned: painted(bounds.left) === painted(trigger.left),
+			above: painted(bounds.bottom) <= painted(trigger.top),
+			fits: bounds.top >= 0,
+		}, { aligned: true, above: true, fits: true });
+	});
 
 	test('comparison shows every harness tab and selects attempts, judge, and synthesizer across them', () => {
 		const copilot = models[0];
@@ -1442,6 +1494,30 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('search lists newer model versions first without reversing alphabetical order', () => {
+		const models = [
+			['gpt-5.6-sol', 'GPT-5.6 Sol'],
+			['gpt-6-sol', 'GPT-6 Sol'],
+			['gpt-6.1-sol', 'GPT-6.1 Sol'],
+			['claude-sonnet-5', 'Claude Sonnet 5'],
+		].map(([id, name]) => {
+			const entry = model(id);
+			return { ...entry, metadata: { ...entry.metadata, name } };
+		});
+		const { popup } = createPicker({ models, selectedModelId: models[2].identifier, pinnedModelIds: models.map(model => model.identifier) });
+		element(popup, '[data-id="search"]').click();
+		const input = popup.querySelector<HTMLInputElement>('input')!;
+		const results = ['', 'sol'].map(query => {
+			input.value = query;
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			return [...popup.querySelectorAll('.chat-model-picker-model .title')].map(title => title.textContent);
+		});
+		assert.deepStrictEqual(results, [
+			['Claude Sonnet 5', 'GPT-6.1 Sol', 'GPT-6 Sol', 'GPT-5.6 Sol'],
+			['GPT-6.1 Sol', 'GPT-6 Sol', 'GPT-5.6 Sol'],
+		]);
+	});
+
 	test('idempotent filtered opening focuses the exact row without selecting it', () => {
 		const a = model('same');
 		const b = { ...model('same'), identifier: 'codex/target', metadata: { ...a.metadata, vendor: 'codex', modelPickerGroup: { id: 'copilot', label: 'GitHub Copilot' } } };
@@ -1502,6 +1578,34 @@ suite('TabbedModelPicker', () => {
 			});
 		});
 	}
+
+	test('a model router\'s Details show its routes, pin it and open its file', () => {
+		const resource = URI.file('/routers/daily.model-router.yaml');
+		const router: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'copilot/model-router:daily',
+			metadata: {
+				...model('Daily Driver', false).metadata, id: 'model-router:daily', detail: 'Model router', tooltip: 'First to build, Second for quick questions.',
+				detailsResource: resource, modelRouterRoutes: [{ name: 'build', model: 'First', effort: 'high' }, { model: 'Second' }],
+			},
+		};
+		const { popup, picker, openedEditors, pins } = createPicker({ models: [...models, router] });
+		openDetails(popup, 'Daily Driver');
+		const details = {
+			routes: Array.from(popup.querySelectorAll('.chat-model-card-route'), route => route.textContent),
+			file: element(popup, '.chat-model-card-definition-file a').textContent,
+			// Details used to open the file itself.
+			opened: openedEditors.length,
+			visible: picker.isVisible,
+		};
+		element(popup, '[aria-label="Pin Model"]').click();
+		element(popup, '.chat-model-card-definition-file a').click();
+		assert.deepStrictEqual({ details, pins, opened: openedEditors, visible: picker.isVisible }, {
+			details: { routes: ['build (default)FirstHigh', 'Second'], file: 'daily.model-router.yaml', opened: 0, visible: true },
+			pins: ['copilot/model-router:daily'],
+			opened: [{ resource }],
+			visible: false,
+		});
+	});
 
 	test('required models without a source still explain the restriction', () => {
 		const { popup } = createPicker({ agentModelPreferences: { models: ['First'], required: true } });
@@ -2149,6 +2253,41 @@ suite('TabbedModelPicker', () => {
 			selections: [],
 		});
 	});
+
+	for (const showUnavailable of [false, true]) {
+		test(`version requirements stay scoped to built-in models with unavailable suggestions ${showUnavailable ? 'shown' : 'hidden'}`, () => {
+			const gated = model('Gated');
+			const compatible = model('Compatible');
+			const byok = { ...gated, identifier: 'ollama/Gated', metadata: { ...gated.metadata, name: 'BYOK Gated', vendor: 'ollama' } };
+			const result = createPicker({
+				models: [gated, compatible, byok],
+				selectedModelId: compatible.identifier,
+				showUnavailable,
+				controlModels: {
+					Gated: { label: 'Gated', exists: true, featured: true, minVSCodeVersion: '99.0.0' },
+					Compatible: { label: 'Compatible', exists: true, featured: true },
+				},
+			});
+			const gatedRow = Array.from(result.popup.querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.find(row => row.querySelector('.title')?.textContent === 'Gated')!;
+			const update = gatedRow.textContent?.includes('Update VS Code');
+			gatedRow.click();
+			const gatedSelections = [...result.selections];
+			reopen(result);
+			selectRow(result.popup, 'Compatible');
+			reopen(result);
+			element(result.popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
+			const byokRows = listRows(result.popup);
+			element(result.popup, '.monaco-list-row:not(.separator)').click();
+
+			assert.deepStrictEqual({ update, gatedSelections, byokRows, selections: result.selections }, {
+				update: true,
+				gatedSelections: [],
+				byokRows: ['BYOK Gated'],
+				selections: [compatible.identifier, byok.identifier],
+			});
+		});
+	}
 
 	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
 		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a tier`, () => {

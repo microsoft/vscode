@@ -38,10 +38,12 @@ import { ChatWorkingProgressLogo } from '../chatWorkingLogo.js';
 import { autorun, constObservable, derived, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { animateChatProgress } from '../chatProgressAnimation.js';
+import { ChatActivityLabelTransition } from './chatActivityLabelTransition.js';
 import { ChatDropdownPillActionViewItem } from '../../../../../browser/chatDropdownPill.js';
 import { ChatPillsWidget, type IChatPill } from '../../../../../browser/chatPills.js';
 import { sessionBackgroundShellsPillOptions, sessionSubagentsPillOptions } from '../../sessionChatPillOptions.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
+import { renderSubagentChatLinks } from './chatSubagentOpenChat.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -58,6 +60,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	protected progressIconElement: HTMLElement | undefined;
 	private readonly progressId: string | undefined;
 	private readonly progressAction: IChatContentPartRenderContext['progressMessageAction'];
+	private readonly parentSessionResource: string;
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized | { content: IMarkdownString },
@@ -77,6 +80,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		this.currentContent = progress.content;
 		this.progressId = hasKey(progress, { kind: true }) && progress.kind === 'progressMessage' ? progress.id : undefined;
 		this.progressAction = context.progressMessageAction;
+		this.parentSessionResource = context.element.sessionResource.toString();
 		this.persistentProgress = !!context.suppressProgressShimmer;
 
 		const followingContent = context.content.slice(context.contentIndex + 1);
@@ -106,6 +110,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		const result = this.chatContentMarkdownRenderer.render(progress.content);
 		result.element.classList.add('progress-step');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
+		this._fileWidgetStore.add(renderSubagentChatLinks(result.element, this.parentSessionResource, this.instantiationService));
 		if (this.useShimmer) {
 			this.applyShimmer(result.element);
 		}
@@ -220,6 +225,11 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		}
 	}
 
+	/** The element showing the message, which is replaced when the message changes. */
+	protected get messageElement(): HTMLElement | undefined {
+		return this.renderedMessage.value?.element;
+	}
+
 	updateMessage(content: IMarkdownString): void {
 		if (this.isHidden) {
 			return;
@@ -233,6 +243,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		result.element.classList.add('progress-step');
 		this._fileWidgetStore.clear();
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
+		this._fileWidgetStore.add(renderSubagentChatLinks(result.element, this.parentSessionResource, this.instantiationService));
 		if (this.persistentProgress && this.useShimmer) {
 			this.applyShimmer(result.element);
 		}
@@ -350,6 +361,7 @@ export class ChatProgressSubPart extends Disposable {
 }
 
 const WORKING_LABEL_MIN_DWELL_MS = 1200;
+const WORKING_LABEL_ROTATION_MS = 10_000;
 const DELAYED_PROGRESS_MESSAGE_TIMEOUT_MS = 90_000;
 const lastPickedWorkingLabelByElement = new WeakMap<ChatTreeItem, { label: string; pickedAt: number; progressStep?: number }>();
 const lastPickedLegacyWorkingLabelByElement = new Map<string, { label: string; pickedAt: number }>();
@@ -375,6 +387,26 @@ function pickLegacyWorkingLabel(elementId: string, configurationService: IConfig
 	return label;
 }
 
+function pickNextWorkingLabel(configurationService: IConfigurationService, current: string | undefined): string {
+	const fun = maybePickFunWorkingMessage(configurationService);
+	if (fun && fun !== current) {
+		return fun;
+	}
+	const pool = buildPhrasePool(defaultThinkingMessages, configurationService);
+	const alternatives = pool.filter(label => label !== current);
+	const candidates = alternatives.length ? alternatives : pool;
+	return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+/** Replaces the phrase {@link pickWorkingLabel} keeps for the running activity, so a long one does not look stalled. */
+function replaceWorkingLabel(element: ChatTreeItem, configurationService: IConfigurationService): void {
+	const existing = lastPickedWorkingLabelByElement.get(element);
+	if (existing) {
+		existing.label = pickNextWorkingLabel(configurationService, existing.label);
+		existing.pickedAt = Date.now();
+	}
+}
+
 /** Keeps labels stable within an activity and gives new phrases a minimum dwell time. */
 export function pickWorkingLabel(element: ChatTreeItem, configurationService: IConfigurationService, progressStep?: number): string {
 	if (progressStep === undefined) {
@@ -390,13 +422,7 @@ export function pickWorkingLabel(element: ChatTreeItem, configurationService: IC
 		}
 	}
 
-	const fun = maybePickFunWorkingMessage(configurationService);
-	const label = fun && fun !== existing?.label ? fun : (() => {
-		const pool = buildPhrasePool(defaultThinkingMessages, configurationService);
-		const alternatives = pool.filter(label => label !== existing?.label);
-		const candidates = alternatives.length ? alternatives : pool;
-		return candidates[Math.floor(Math.random() * candidates.length)];
-	})();
+	const label = pickNextWorkingLabel(configurationService, existing?.label);
 	lastPickedWorkingLabelByElement.set(element, { label, pickedAt: now, progressStep });
 	return label;
 }
@@ -415,6 +441,8 @@ const imageGenerationMessageIntervalMs = 4000;
 
 export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
 	private explicitContent: IMarkdownString | undefined;
+	/** The latest requested label, which the persistent footer may still be wiping to. */
+	private targetContent: IMarkdownString;
 	private isActive: boolean;
 	private progressStep: number | undefined;
 	private showDelayedProgressMessage: boolean;
@@ -423,8 +451,10 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 	private responseComplete = false;
 	private readonly contextElement: ChatTreeItem;
 	private readonly workingLogo: ChatWorkingProgressLogo | undefined;
+	private readonly labelTransition: ChatActivityLabelTransition | undefined;
 	private readonly delayedProgressMessageScheduler: RunOnceScheduler | undefined;
 	private readonly imageGenerationMessageScheduler: RunOnceScheduler | undefined;
+	private readonly workingLabelRotationScheduler: RunOnceScheduler | undefined;
 	private imageGeneration: boolean;
 	private imageGenerationMessageIndex = 0;
 	private readonly backgroundActivity = observableValue<IChatWorkingProgress['backgroundActivity']>(this, undefined);
@@ -471,8 +501,18 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			this.workingLogo.domNode.classList.add('chat-working-logo-compact');
 			this.workingLogo.setActive(isActive);
 			this.progressIconElement.appendChild(this.workingLogo.domNode);
+			this.labelTransition = this._register(instantiationService.createInstance(ChatActivityLabelTransition, {
+				getElement: () => this.messageElement,
+				shouldAnimate: () => this.targetContent.value !== this.currentContent.value,
+				showTarget: () => {
+					if (this.targetContent.value !== this.currentContent.value) {
+						this.updateMessage(this.targetContent);
+					}
+				},
+			}));
 		}
 		this.explicitContent = explicitContent;
+		this.targetContent = this.currentContent;
 		this.isActive = isActive;
 		this.imageGeneration = imageGeneration;
 		this.progressStep = workingProgress.progressStep;
@@ -555,11 +595,15 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		this.imageGenerationMessageScheduler = this.workingLogo
 			? this._register(new RunOnceScheduler(() => this.rotateImageGenerationMessage(), imageGenerationMessageIntervalMs))
 			: undefined;
+		this.workingLabelRotationScheduler = this.workingLogo
+			? this._register(new RunOnceScheduler(() => this.rotateWorkingLabel(), WORKING_LABEL_ROTATION_MS))
+			: undefined;
 		if (this.workingLogo && isResponseVM(context.element)) {
 			this._register(context.element.model.onDidChange(() => this.onResponseActivity()));
 		}
 		this.updateDelayedProgressMessageScheduler();
 		this.updateImageGenerationMessageScheduler();
+		this.updateWorkingLabelRotationScheduler();
 
 		// Keep the replacement anchor, but never leave disposed progress visible.
 		this._register(toDisposable(() => hide(this.domNode)));
@@ -576,6 +620,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 				}
 				this.updateActiveState();
 				this.updateImageGenerationMessageScheduler();
+				this.updateWorkingLabelRotationScheduler();
 				this.onResponseActivity();
 			}));
 		}
@@ -589,7 +634,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 	}
 
 	get workingLabel(): string {
-		return renderAsPlaintext(this.currentContent);
+		return renderAsPlaintext(this.targetContent);
 	}
 
 	/** Returns whether the rendered progress changed. */
@@ -617,8 +662,9 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}
 		this.updateDelayedProgressMessageScheduler(shouldResetDelayedProgress);
 		this.updateImageGenerationMessageScheduler();
+		this.updateWorkingLabelRotationScheduler(previousProgressStep !== progressStep);
 		const resolvedContent = this.resolveWorkingContent();
-		if (this.workingLogo && content?.value === previousExplicitContent?.value && resolvedContent.value === this.currentContent.value && isActive === previousIsActive && !backgroundActivityChanged) {
+		if (this.workingLogo && content?.value === previousExplicitContent?.value && resolvedContent.value === this.targetContent.value && isActive === previousIsActive && !backgroundActivityChanged) {
 			return false;
 		}
 		const shouldAnnounce = announce && !!this.workingLogo
@@ -627,7 +673,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		if (this.workingLogo) {
 			this.updateActiveState();
 		}
-		this.updateMessage(resolvedContent);
+		this.showWorkingContent(resolvedContent);
 		transaction(tx => {
 			if (backgroundActivityChanged) {
 				this.backgroundActivity.set(backgroundActivity, tx);
@@ -653,6 +699,18 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		this.domNode.classList.toggle('chat-working-progress-active', active);
 		this.workingLogo.setActive(active);
 		this.setShimmerActive(active);
+	}
+
+	/** Shows a label, which the persistent footer wipes to, and restarts the phrase rotation when it is a new one. */
+	private showWorkingContent(content: IMarkdownString): void {
+		const changed = content.value !== this.targetContent.value;
+		this.targetContent = content;
+		if (this.labelTransition) {
+			this.labelTransition.update();
+		} else {
+			this.updateMessage(content);
+		}
+		this.updateWorkingLabelRotationScheduler(changed);
 	}
 
 	private resolveWorkingContent(): IMarkdownString {
@@ -696,8 +754,33 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			return;
 		}
 		this.imageGenerationMessageIndex = (this.imageGenerationMessageIndex + 1) % imageGenerationMessages.length;
-		this.updateMessage(this.resolveWorkingContent());
+		this.showWorkingContent(this.resolveWorkingContent());
 		this.updateImageGenerationMessageScheduler();
+	}
+
+	/** Only generic phrases rotate, once one has been shown for a while without new activity. Other labels name a state that still holds. */
+	private shouldRotateWorkingLabel(): boolean {
+		return !this.explicitContent && !this.imageGeneration && !this.showingDelayedProgressMessage
+			&& this.progressStep !== undefined && this.isActive && !this.responseComplete;
+	}
+
+	private updateWorkingLabelRotationScheduler(reset = false): void {
+		if (!this.workingLabelRotationScheduler) {
+			return;
+		}
+		if (!this.shouldRotateWorkingLabel()) {
+			this.workingLabelRotationScheduler.cancel();
+		} else if (reset || !this.workingLabelRotationScheduler.isScheduled()) {
+			this.workingLabelRotationScheduler.schedule();
+		}
+	}
+
+	private rotateWorkingLabel(): void {
+		if (!this.shouldRotateWorkingLabel()) {
+			return;
+		}
+		replaceWorkingLabel(this.contextElement, this.workingConfigurationService);
+		this.showWorkingContent(this.resolveWorkingContent());
 	}
 
 	private onResponseActivity(): void {
@@ -707,7 +790,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		const wasShowingDelayedProgress = this.showingDelayedProgressMessage;
 		this.showingDelayedProgressMessage = false;
 		if (wasShowingDelayedProgress) {
-			this.updateMessage(this.resolveWorkingContent());
+			this.showWorkingContent(this.resolveWorkingContent());
 		}
 		this.updateDelayedProgressMessageScheduler(true);
 	}
@@ -723,7 +806,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}
 		this.showingDelayedProgressMessage = true;
 		const content = this.resolveWorkingContent();
-		this.updateMessage(content);
+		this.showWorkingContent(content);
 		if (this.workingConfigurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
 			status(stripIcons(renderAsPlaintext(content)));
 		}

@@ -11,6 +11,7 @@ import { decodeBase64, VSBuffer } from '../../../../../../../base/common/buffer.
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import { isLinuxWebKit } from '../../../../../../../base/test/browser/linuxWebKit.js';
 import { dirname } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -312,7 +313,10 @@ suite('ChatResourceGroupWidget', () => {
 		assert.deepStrictEqual(imageDimensions.get(resource), { width: 1, height: 1 });
 	});
 
-	test('a slow referenced image does not delay embedded images in the same gallery', async () => {
+	// WebKit on Linux (Playwright's port) can't decode the image fixture, unlike Chromium and WebKit on macOS
+	const testUnlessLinuxWebKit = isLinuxWebKit ? test.skip : test;
+
+	testUnlessLinuxWebKit('a slow referenced image does not delay embedded images in the same gallery', async () => {
 		const { content } = deferImageRead();
 		const widget = render([
 			{ kind: 'data', uri: resource, mimeType: 'image/png' },
@@ -520,7 +524,7 @@ suite('ChatResourceGroupWidget', () => {
 		});
 	}
 
-	test('disposing an inline image releases its object URL and load listeners', async () => {
+	testUnlessLinuxWebKit('disposing an inline image releases its object URL and load listeners', async () => {
 		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', value: decodeBase64(imageData).buffer }]);
 		const image = widget.domNode.querySelector<HTMLImageElement>('img')!;
 		await image.decode();
@@ -561,8 +565,23 @@ suite('ChatResourceGroupWidget', () => {
 		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, decoded: true, hoverImages: 1 });
 	});
 
+	test('tool result thumbnails show an image placeholder, not a warning, until they are ready', async () => {
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', value: decodeBase64(imageData).buffer }], false);
+		const state = () => ({
+			icons: [...widget.domNode.querySelectorAll('.image-attachment .chat-attached-context-pill .codicon')].map(icon => icon.className),
+			images: snapshot(widget).images,
+		});
+		const loading = state();
+		await waitForElement(widget.domNode, 'img.chat-attached-context-pill-image');
+
+		assert.deepStrictEqual({ loading, ready: state() }, {
+			loading: { icons: ['codicon codicon-file-media-compact'], images: 0 },
+			ready: { icons: [], images: 1 },
+		});
+	});
+
 	for (const inline of [false, true]) {
-		test(`${inline ? 'selected generated-image previews' : 'tool result thumbnails'} keep one image copy menu`, async () => {
+		testUnlessLinuxWebKit(`${inline ? 'selected generated-image previews' : 'tool result thumbnails'} keep one image copy menu`, async () => {
 			const menus: Parameters<IContextMenuService['showContextMenu']>[0][] = [];
 			const clipboard = new TestClipboardService();
 			instantiationService.stub(IClipboardService, clipboard);

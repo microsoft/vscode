@@ -9,10 +9,10 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { getMenuActionGroupTitle, IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { IChatContextPicker, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/attachments/chatContextPickService.js';
+import { ChatContextPick, IChatContextPicker, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/attachments/chatContextPickService.js';
 import { ChatViewId, IChatWidget, isIChatViewViewContext } from '../../chat/browser/chat.js';
 
 export function registerCanvasContextPicker(
@@ -61,7 +61,7 @@ class CanvasContextPickerPick implements IChatContextPickerItem {
 			placeholder: localize('chatContext.canvases.placeholder', "Select a canvas"),
 			picks: () => observableFromEvent(menu, menu.onDidChange, () => ({
 				busy: false,
-				picks: this.getActions(menu).map(action => this.toPick(action)),
+				picks: this.getPicks(menu),
 			})),
 			dispose: () => menu.dispose(),
 		};
@@ -71,10 +71,26 @@ class CanvasContextPickerPick implements IChatContextPickerItem {
 		return menu.getActions().flatMap(([, actions]) => actions).filter(action => action.id !== Separator.ID);
 	}
 
+	/** The picks of the menu's actions, each titled group under its title, as a menu shows them. */
+	private getPicks(menu: IMenu): ChatContextPick[] {
+		const picks: ChatContextPick[] = [];
+		for (const [, groupActions] of menu.getActions()) {
+			const actions = groupActions.filter(action => action.id !== Separator.ID);
+			const title = actions.length > 0 ? getMenuActionGroupTitle(actions[0]) : undefined;
+			if (title) {
+				picks.push({ type: 'separator', label: title });
+			}
+			picks.push(...actions.map(action => this.toPick(action)));
+		}
+		return picks;
+	}
+
 	private toPick(action: IAction): IChatContextPickerPickItem {
+		// A canvas entry shows the canvas's own icon, as its menu does.
+		const icon = action instanceof MenuItemAction ? action.item.icon : undefined;
 		return {
 			label: action.label,
-			iconClass: ThemeIcon.asClassName(Codicon.preview),
+			...(icon && !ThemeIcon.isThemeIcon(icon) && icon.dark ? { iconPath: { dark: icon.dark, light: icon.light } } : { iconClass: ThemeIcon.asClassName(ThemeIcon.isThemeIcon(icon) ? icon : Codicon.preview) }),
 			disabled: !action.enabled,
 			asAttachment: async () => {
 				try {

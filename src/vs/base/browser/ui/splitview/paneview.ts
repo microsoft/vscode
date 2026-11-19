@@ -664,7 +664,7 @@ export class PaneView extends Disposable {
 	}
 
 	private getPaneHeaderElements(): HTMLElement[] {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		return [...this.element.querySelectorAll('.pane-header')] as HTMLElement[];
 	}
 

@@ -90,6 +90,7 @@ import { IExtHostOutputService } from './extHostOutput.js';
 import { ExtHostProfileContentHandlers } from './extHostProfileContentHandler.js';
 import { IExtHostProgress } from './extHostProgress.js';
 import { ExtHostQuickDiff } from './extHostQuickDiff.js';
+import { ExtHostRemoteAgentHosts } from './extHostRemoteAgentHosts.js';
 import { ExtHostAgentEditorComments } from './extHostAgentEditorComments.js';
 import { createExtHostQuickOpen } from './extHostQuickOpen.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -260,6 +261,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostDocumentsAndEditors, extHostLanguageModels, extHostDiagnostics, extHostLanguageModelTools, extHostChatSessions));
 	const extHostChatContext = rpcProtocol.set(ExtHostContext.ExtHostChatContext, new ExtHostChatContext(rpcProtocol, extHostCommands, extHostEditorTabs));
 	const extHostChatDebug = rpcProtocol.set(ExtHostContext.ExtHostChatDebug, new ExtHostChatDebug(rpcProtocol));
+	const extHostRemoteAgentHosts = new ExtHostRemoteAgentHosts(rpcProtocol);
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
 	const extHostAiSettingsSearch = rpcProtocol.set(ExtHostContext.ExtHostAiSettingsSearch, new ExtHostAiSettingsSearch(rpcProtocol));
@@ -729,6 +731,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentSymbolProvider(extension, checkSelector(selector), provider, metadata);
 			},
+			registerStructuralDiffProvider(selector: vscode.DocumentSelector, provider: vscode.StructuralDiffProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerStructuralDiffProvider(extension, checkSelector(selector), provider);
+			},
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerWorkspaceSymbolProvider(extension, provider);
 			},
@@ -1184,6 +1189,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return _asExtensionEvent(extHostWorkspace.onDidChangeWorkspace)(listener, thisArgs, disposables);
+			},
+			onDidChangeWorkspaceFolderLocations: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'workspaceFolderLocations');
+				return _asExtensionEvent(extHostWorkspace.onDidChangeWorkspaceFolderLocations)(listener, thisArgs, disposables);
 			},
 			asRelativePath: (pathOrUri, includeWorkspace?) => {
 				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
@@ -1790,6 +1799,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatOutputRenderer');
 				return extHostChatOutputRenderer.registerChatOutputRenderer(extension, viewType, renderer);
 			},
+			registerRemoteAgentHost(host: vscode.RemoteAgentHost): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'remoteAgentHost');
+				return extHostRemoteAgentHosts.registerRemoteAgentHost(extension, host);
+			},
 			registerChatWorkspaceContextProvider(id: string, provider: vscode.ChatWorkspaceContextProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatContextProvider');
 				return extHostChatContext.registerChatWorkspaceContextProvider(`${extension.id}-${id}`, provider);
@@ -2127,6 +2140,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SnippetString: extHostTypes.SnippetString,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StandardTokenType: extHostTypes.StandardTokenType,
+			StructuralDiffClassification: extHostTypes.StructuralDiffClassification,
+			StructuralDiffTag: extHostTypes.StructuralDiffTag,
 			SyntaxHighlightingTokenFontStyle: extHostTypes.SyntaxHighlightingTokenFontStyle,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,

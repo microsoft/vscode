@@ -516,6 +516,19 @@ suite('ModelPickerActionItem', () => {
 		});
 	});
 
+	test('a cached Auto that has not loaded yet is named Copilot Fusion in both its label and its hover', () => {
+		const auto = createModel('auto');
+		const { domNode, getHoverContents } = renderPicker({ ...auto, metadata: { ...auto.metadata, name: 'Auto' } }, { models: [] });
+		const hover = getHoverContents();
+		assert.deepStrictEqual({
+			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
+			hover: isManagedHoverTooltipMarkdownString(hover) ? hover.markdownNotSupportedFallback : hover,
+		}, {
+			label: 'Copilot Fusion',
+			hover: 'Models • Copilot Fusion\n\nCopilot Fusion selects a single model or orchestrates multiple models to complete your task.',
+		});
+	});
+
 	test('a directly selected on-device model reads "<model> · On-device", as in the Copilot CLI and app', () => {
 		const model = createModel('MAI Code 1.1 Flash');
 		const { domNode } = renderPicker({ ...model, metadata: { ...model.metadata, id: 'vscode-on-device/MAI-Code-1.1-Flash', targetChatSessionType: SessionType.AgentHostCopilot } });

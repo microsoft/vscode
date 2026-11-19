@@ -17,7 +17,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { GroupModelChangeKind, isEditorCommandsContext } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
@@ -25,15 +25,17 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
-import { DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
-import { FilesDetailsState, getFilesDetailsState, getLayoutWorkspace, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty, isQuickChatShown } from './desktopSharedHelpers.js';
+import { FilesDetailsState, getFilesDetailsState, getFloatingMarkdownDetailsState, getLayoutWorkspace, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty, isQuickChatShown } from './desktopSharedHelpers.js';
 import { IDesktopLayoutContext, DesktopLayoutStrategy } from './desktopLayoutStrategy.js';
 import { ISidePaneVisibilityState, SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
 import { ISessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
@@ -47,7 +49,10 @@ const desktopHeaderToggleDetailsOrder = 10;
  * Whether Toggle Details toggles the changed files list of the multi diff editor shown in
  * the editor area instead of the detail panel. Evaluated against an editor group's context.
  */
-const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(MainEditorAreaVisibleContext, ActiveMultiDiffEditorHasFileListContext)!;
+const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(
+	ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
+	MainEditorAreaVisibleContext,
+	ActiveMultiDiffEditorHasFileListContext)!;
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
@@ -448,6 +453,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		const editorMaximizedObs = observableFromEvent(this, this._layoutService.onDidChangeEditorMaximized, () => this._layoutService.isEditorMaximized());
 		const detailVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		const floatingDetailsObs = observableFromEvent(this, this._layoutService.onDidChangeAuxiliaryBarFloating, () => this._layoutService.isAuxiliaryBarFloating());
 		let initialized = false;
 		let wasExistingActive = false;
 		let activeSessionKey: string | undefined;
@@ -523,7 +529,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			previousActiveEditor = activeEditor;
 			previousEditorPartVisible = editorPartVisible;
 			previousEditorSessionKey = sessionKey;
-			const target = this._computeTarget(reader, activeEditor, mainPartEmpty, editorMaximized, editorPartVisible, workspace);
+			const target = this._computeTarget(reader, activeEditor, mainPartEmpty, editorMaximized, editorPartVisible, workspace, floatingDetailsObs.read(reader));
 			if (target === DetailPanelTarget.EditorHidden && activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)) {
 				detailVisibleObs.read(reader);
 			}
@@ -570,9 +576,18 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		this._detailPanel.setHiddenTransiently(false);
 	}
 
-	private _computeTarget(reader: IReader | undefined, activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean, workspace: ISessionWorkspace): DetailPanelTarget {
+	private _computeTarget(reader: IReader | undefined, activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean, workspace: ISessionWorkspace, floatingDetails: boolean): DetailPanelTarget {
 		if (mainPartEmpty) {
 			return this._ctx.isRestoringSessionLayout ? DetailPanelTarget.Preserve : DetailPanelTarget.Hidden;
+		}
+
+		if (activeEditor && floatingDetails) {
+			switch (getFloatingMarkdownDetailsState(activeEditor, workspace)) {
+				case FilesDetailsState.Active:
+					return DetailPanelTarget.FilesForced;
+				case FilesDetailsState.Available:
+					return editorPartVisible ? DetailPanelTarget.FilesHidden : DetailPanelTarget.Changes;
+			}
 		}
 
 		if (activeEditor && isEditorWithoutDockedDetails(activeEditor)) {
@@ -679,8 +694,15 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 							IsAuxiliaryWindowContext.toNegated(),
 							IsTopRightEditorGroupContext,
 							DesktopLayoutContext,
+							ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
 							MainEditorAreaVisibleContext,
-							ContextKeyExpr.or(HasDockedDetailsContext, toggleMultiDiffEditorFileListContext))
+							ContextKeyExpr.or(
+								HasDockedDetailsContext,
+								toggleMultiDiffEditorFileListContext,
+								// The Changes tab also keeps the toggle while a session switch replaces the
+								// Changes editor, matching the changeset picker in the header.
+								ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+								DesktopChangesEditorTransitionContext))
 					}
 				});
 			}
@@ -691,7 +713,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				const group = context
 					? accessor.get(IEditorGroupsService).getGroup(context.groupId)
 					: accessor.get(IEditorService).activeEditorPane?.group;
-				if (group?.scopedContextKeyService.contextMatchesRules(toggleMultiDiffEditorFileListContext)) {
+				if (!that._layoutService.isAuxiliaryBarFloating() && group?.scopedContextKeyService.contextMatchesRules(toggleMultiDiffEditorFileListContext)) {
 					toggleMultiDiffEditorFileList(accessor.get(IStorageService));
 					return;
 				}

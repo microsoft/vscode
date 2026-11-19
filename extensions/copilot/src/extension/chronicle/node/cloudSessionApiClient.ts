@@ -9,7 +9,7 @@ import { INTEGRATION_ID } from '../../../platform/endpoint/common/licenseAgreeme
 import { IFetcherService, type Response } from '../../../platform/networking/common/fetcherService';
 import { FetchBlockedError, type HttpFetchFn, type HttpResponse } from '../../../shared-fetch-utils/common/fetchTypes';
 import { rateLimitBackoffMiddleware } from '../../../shared-fetch-utils/common/middleware/rateLimitBackoffMiddleware';
-import type { CreateSessionFailureReason, CreateSessionResult, CloudSession, SessionEvent, SubmitSessionEventsResult } from '../common/cloudSessionTypes';
+import type { CreateSessionFailureReason, CreateSessionResult, SessionEvent, SubmitSessionEventsResult } from '../common/cloudSessionTypes';
 
 /** Timeout for individual cloud API requests (ms). */
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -210,26 +210,6 @@ export class CloudSessionApiClient {
 		}
 
 		return { ok: true };
-	}
-
-	/**
-	 * Get a session by ID (used for reattach verification).
-	 */
-	async getSession(sessionId: string): Promise<CloudSession | undefined> {
-		const outcome = await this._fetch(`${SESSIONS_PATH}/${sessionId}`, {
-			method: 'GET',
-			callSite: 'chronicle.cloudGetSession',
-			operation: 'getSession',
-		});
-		if (outcome.kind !== 'response' || !outcome.response.ok) {
-			return undefined;
-		}
-
-		try {
-			return (await outcome.response.json()) as CloudSession;
-		} catch {
-			return undefined;
-		}
 	}
 
 	/**

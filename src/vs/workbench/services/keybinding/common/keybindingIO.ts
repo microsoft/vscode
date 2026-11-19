@@ -40,7 +40,8 @@ export class KeybindingIO {
 			out.writeLine();
 			out.write(`                                     "args": ${JSON.stringify(item.commandArgs)}`);
 		}
-		if (item.systemWide) {
+		// Copied into the user's keybindings, a default system-wide keybinding would register always, regardless of `when`.
+		if (item.systemWide && !item.isDefault) {
 			out.write(',');
 			out.writeLine();
 			out.write(`                                     "systemWide": true`);

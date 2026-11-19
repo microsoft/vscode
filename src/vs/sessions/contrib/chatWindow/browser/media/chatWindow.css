@@ -6,6 +6,7 @@
 /* The window behind the cards of a chat window, as behind the main window's. */
 .monaco-workbench .agents-chat-window {
 	background-color: var(--vscode-agents-background);
+	--chat-window-frame-inset: 0px;
 }
 
 /* The parts of a chat window are cards, as the main window's are. */
@@ -13,7 +14,20 @@
 	--part-grid-card-background: var(--vscode-agentsPanel-background);
 	--part-grid-card-border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, transparent));
 	--part-grid-card-border-width: 1px;
-	--part-grid-card-radius: var(--agents-part-corner-radius);
+	--part-grid-card-radius: var(--vscode-agentsWindow-editorArea-cornerRadius, var(--agents-part-corner-radius));
+}
+
+.monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="chat"] > .part-grid-card {
+	--part-grid-card-radius: var(--vscode-agentsWindow-chatPanels-cornerRadius, var(--agents-part-corner-radius));
+}
+
+.monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="terminals"] > .part-grid-card {
+	--part-grid-card-radius: var(--vscode-agentsWindow-toolsPanel-cornerRadius, var(--agents-part-corner-radius));
+}
+
+/* Every part is an editor part internally, but its frame follows the role of the card hosting it. */
+.monaco-workbench.agent-sessions-workbench:not(.modern-ui-compact) .agents-chat-window .part-grid-card > .part.editor:not(.modal-editor-part) {
+	--agents-component-corner-radius: var(--part-grid-card-radius);
 }
 
 /* The main part's card has the background of the main window's side pane: the editor's. So do the cards of the parts the grid creates, which are like the main part. */
@@ -22,8 +36,13 @@
 }
 
 /* With connected tabs, the groups of the parts draw their frames, around their tabs and their editors, as those of the main window's side pane do: the cards leave their frames to them. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window {
+	--chat-window-frame-inset: min(var(--vscode-strokeThickness), round(down, calc(var(--agents-floating-panel-gap) / 2), 1px));
+}
+
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell:is([data-part-grid-cell="main"], [data-part-grid-cell="chat"], [data-part-grid-created]) > .part-grid-card {
 	--part-grid-card-frame-owner: content;
+	--part-grid-card-border-width: var(--chat-window-frame-inset);
 }
 
 /* Only the groups of parts that show multiple tabs draw frames (`editorPart.css`), as in the main window's side pane: the cards of the others draw them, where the terminals' card does. A part split into groups is framed by its card (below). */
@@ -34,6 +53,7 @@
 /* The terminals' card draws its frame at its edges, as the main window's panel does, and is as wide as the cards beside it, as the panel is as wide as the chat above it. */
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell[data-part-grid-cell="terminals"] > .part-grid-card {
 	--part-grid-card-frame-owner: content;
+	--part-grid-card-border-width: var(--chat-window-frame-inset);
 }
 
 /* The cards draw the frames of the parts in them, which draw none of their own, as they do in the main window. */
@@ -58,7 +78,7 @@
 	--part-grid-card-radius: 0;
 }
 
-/* The strip's column shows the window behind the strip, as the main window's column does: only the strip is framed. */
+/* The strip's column shows the window behind the strip, as the main window's column does. */
 .monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="strip"] > .part-grid-card {
 	--part-grid-card-background: transparent;
 }
@@ -80,6 +100,7 @@
  */
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split]:is([data-part-grid-cell]) > .part-grid-card {
 	--part-grid-card-frame-owner: card;
+	--part-grid-card-border-width: var(--vscode-strokeThickness);
 	--part-grid-card-border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, transparent));
 	background-clip: border-box;
 }
@@ -90,7 +111,7 @@
 }
 
 /*
- * The strip fills its column from top to bottom, as the main window's does (`sessionActivityBar.css`), to the right of
+ * The strip follows the card frames, as the main window's does (`sessionActivityBar.css`), to the right of
  * the gap the column keeps to the cards (`getChatWindowStripWidth`). By rules of its own: those of the main window's
  * column follow the state of the main window, whose classes the workbench element of a chat window mirrors.
  */
@@ -105,8 +126,8 @@
 	right: 0;
 }
 
-/* The cards beside it show their frames inset within them by the stroke, as the main window's chat does: moved toward
- * them by as much, as beside that chat, so that the gap between them shows as wide as the gap between cards. */
-.monaco-workbench:not(.modern-ui-compact) .agents-chat-window .chat-window-strip > .session-activity-bar.docked {
-	right: var(--vscode-strokeThickness);
+/* Follow the inset card frames independently of the main window's visibility state. */
+.monaco-workbench.modern-ui-tabs:not(.modern-ui-compact) .agents-chat-window .chat-window-strip > .session-activity-bar.docked {
+	top: var(--vscode-strokeThickness);
+	bottom: var(--vscode-strokeThickness);
 }

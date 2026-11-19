@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { FolderLocationChangeReason, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
@@ -16,6 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { distinct } from '../../../../base/common/arrays.js';
 import { basename, isEqual, isEqualAuthority, joinPath, removeTrailingPathSeparator } from '../../../../base/common/resources.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IFileDialogService, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -24,7 +27,7 @@ import { IHostService } from '../../host/browser/host.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { SaveReason } from '../../../common/editor.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
@@ -76,6 +79,8 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@ILogService protected readonly logService: ILogService,
+		@IWorkspaceFolderLocationService private readonly workspaceFolderLocationService: IWorkspaceFolderLocationService,
+		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 	) {
 		super();
 	}
@@ -122,6 +127,143 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 		// Finally pick a good default
 		return `workspace.${WORKSPACE_EXTENSION}`;
+	}
+
+	private folderLocationRequest = 0;
+	private pendingFolderLocationRequests = 0;
+
+	async setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void> {
+		if (options?.ifIdle && this.pendingFolderLocationRequests > 0) {
+			return;
+		}
+
+		this.pendingFolderLocationRequests++;
+		try {
+			await this.doSetFolderLocation(location, options?.reason, options?.folder);
+		} finally {
+			this.pendingFolderLocationRequests--;
+		}
+	}
+
+	private async doSetFolderLocation(location: URI, reason?: FolderLocationChangeReason, folder?: URI): Promise<void> {
+		const currentFolder = this.contextService.getWorkspace().folders[0];
+		if (!currentFolder || !this.workspaceFolderLocationService.canSetLocation(currentFolder)) {
+			throw new Error(localize('folderLocationLocalSingleFolderOnly', "Folder locations are only supported in local single-folder workspaces."));
+		}
+
+		if (folder && !this.uriIdentityService.extUri.isEqual(folder, this.contextService.getWorkspace().folders[0].uri)) {
+			throw new Error(localize('folderLocationUnknownFolder', "'{0}' is not a folder of this workspace.", folder.toString()));
+		}
+
+		// Only the most recent invocation takes effect, regardless of the order in which resolutions complete
+		const request = ++this.folderLocationRequest;
+
+		const getIdentity = () => {
+			if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+				throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
+			}
+			const workspace = this.contextService.getWorkspace();
+			return workspace.uri ?? workspace.folders[0].uri;
+		};
+		const identity = getIdentity();
+		const validatePrimary = () => {
+			if (!this.uriIdentityService.extUri.isEqual(getIdentity(), identity)) {
+				throw new Error(localize('folderLocationWrongPrimary', "The workspace changed while the folder location was being set."));
+			}
+		};
+
+		let resolved: IResolvedFolderLocation | undefined;
+		if (!this.uriIdentityService.extUri.isEqual(location, identity)) {
+			if (identity.scheme !== Schemas.file || location.scheme !== Schemas.file) {
+				throw new Error(localize('folderLocationLocalOnly', "Folder locations are only supported for local folders."));
+			}
+
+			resolved = await this.workspaceFolderLocationService.resolveLocation(identity, location, CancellationToken.None);
+			if (!resolved) {
+				throw new Error(localize('folderLocationUnknown', "'{0}' is not an alternate location of '{1}'.", location.toString(), identity.toString()));
+			}
+
+			if (request !== this.folderLocationRequest) {
+				return; // superseded by a newer invocation
+			}
+			validatePrimary(); // the workspace may have changed while resolving
+		}
+
+		// Whether this request is still the latest one for the same workspace; it never throws
+		const isCurrent = () => request === this.folderLocationRequest
+			&& this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
+			&& this.uriIdentityService.extUri.isEqual(getIdentity(), identity);
+
+		// Same, but a workspace change is an error
+		const isFresh = () => {
+			if (request !== this.folderLocationRequest) {
+				return false;
+			}
+			validatePrimary();
+			return true;
+		};
+
+		// Settle the trust of the destination before switching, so its settings are never applied under another trust.
+		// This also applies to returning to the primary location, which has its own trust.
+		// A request superseded before its trust grant starts persists no trust: freshness is checked right before each grant.
+		// Once a grant has started (a built-in provider vouched for the location, or the user said yes) it completes,
+		// but the superseded switch itself is not applied.
+		let trusted: boolean | undefined;
+		const destinationIsCurrent = this.uriIdentityService.extUri.isEqual(location, currentFolder.uri);
+		if (!destinationIsCurrent && this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
+			const wasTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
+			let destinationTrusted = (await this.workspaceTrustManagementService.getUriTrustInfo(location)).trusted;
+			if (!isFresh()) {
+				return;
+			}
+
+			if (!destinationTrusted) {
+				if (resolved?.builtIn) {
+					// A built-in provider vouches for its locations: they inherit the trust of the primary location
+					const primaryTrusted = (await this.workspaceTrustManagementService.getUriTrustInfo(identity)).trusted;
+					if (!isFresh()) {
+						return;
+					}
+					if (primaryTrusted) {
+						await this.workspaceTrustManagementService.setUrisTrust([location], true);
+						destinationTrusted = true;
+					}
+				} else if (wasTrusted) {
+					const { confirmed } = await this.dialogService.confirm({
+						type: Severity.Info,
+						message: localize('trustFolderLocationMessage', "Do you trust the authors of the files in this folder?"),
+						detail: localize('trustFolderLocationDetail', "You are switching a trusted workspace to a location whose files are not currently trusted. If you do not trust them, the workspace switches in Restricted Mode."),
+						cancelButton: localize('no', "No"),
+						custom: { icon: Codicon.shield }
+					});
+					if (!isFresh()) {
+						return; // a superseded request does not persist trust
+					}
+					if (confirmed) {
+						await this.workspaceTrustManagementService.setUrisTrust([location], true);
+						destinationTrusted = true;
+					}
+				}
+			}
+			trusted = destinationTrusted;
+		}
+
+		if (!isFresh()) {
+			return; // superseded by a newer invocation, or the workspace changed
+		}
+
+		// The queued switch is skipped when superseded while waiting for earlier workspace edits.
+		// The location metadata is published as soon as the switch was applied, so it always follows the last applied switch.
+		await this.contextService.setFolderLocation(location, {
+			trusted,
+			isCurrent,
+			onApplied: () => {
+				const folder = this.contextService.getWorkspace().folders[0];
+				if (folder && this.uriIdentityService.extUri.isEqual(folder.uri, location)) {
+					this.workspaceFolderLocationService.setLocation(folder, resolved, reason);
+				}
+			}
+		});
 	}
 
 	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {

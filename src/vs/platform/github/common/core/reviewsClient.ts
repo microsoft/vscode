@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { mergeArrayPages } from '../client/pagination.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { numberSegment, repositoryPath, withQuery } from '../client/routing.js';
@@ -12,12 +13,12 @@ import { Connection, CursorOptions, NodeIdentity } from './core.js';
 import { CoreClient, cursorVariables, parseAccount, parseActor, parseConnection, parseNodeIdentity, parseTeam } from './coreClient.js';
 import { PullRequestSummary } from './pullRequests.js';
 import { parsePullRequestSummary, pullRequestPath } from './pullRequestsClient.js';
-import { ReplyToThreadOptions, CreateReviewCommentRequest, CreateReviewRequest, CreateReviewThreadRequest, FileViewedState, IReviewsClient, ListReviewThreadsOptions, RemoveReviewersRequest, RequestedReviewers, RequestReviewersRequest, Review, ReviewComment, ReviewThread, ReviewThreadSummary, SubmitReviewRequest, ThreadComment, ThreadResolution } from './reviews.js';
+import { CreateReviewCommentRequest, CreateReviewRequest, CreateReviewThreadRequest, FileViewedState, IReviewsClient, ListReviewThreadsOptions, RemoveReviewersRequest, ReplyToThreadOptions, RequestReviewersRequest, RequestedReviewers, Review, ReviewComment, ReviewThread, ReviewThreadSummary, SubmitReviewRequest, ThreadComment, ThreadResolution } from './reviews.js';
 
 export class ReviewsClient implements IReviewsClient {
 	constructor(private readonly _client: CoreClient) { }
 
-	async list(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Review[]> {
+	async list(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Review[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'reviews',
@@ -26,10 +27,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseReviews, mergeArrayPages);
+		}, cancellationToken, parseReviews, mergeArrayPages);
 	}
 
-	async get(repository: RepositoryRef, pullNumber: number, reviewId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review> {
+	async get(repository: RepositoryRef, pullNumber: number, reviewId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'GET',
@@ -37,10 +38,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseReview);
+		}, cancellationToken, parseReview);
 	}
 
-	async create(repository: RepositoryRef, pullNumber: number, request: CreateReviewRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review> {
+	async create(repository: RepositoryRef, pullNumber: number, request: CreateReviewRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'POST',
@@ -49,10 +50,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseReview);
+		}, cancellationToken, parseReview);
 	}
 
-	async update(repository: RepositoryRef, pullNumber: number, reviewId: number, body: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review> {
+	async update(repository: RepositoryRef, pullNumber: number, reviewId: number, body: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'PUT',
@@ -61,10 +62,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseReview);
+		}, cancellationToken, parseReview);
 	}
 
-	async submit(repository: RepositoryRef, pullNumber: number, reviewId: number, request: SubmitReviewRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review> {
+	async submit(repository: RepositoryRef, pullNumber: number, reviewId: number, request: SubmitReviewRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'POST',
@@ -73,10 +74,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseReview);
+		}, cancellationToken, parseReview);
 	}
 
-	async deletePending(repository: RepositoryRef, pullNumber: number, reviewId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review> {
+	async deletePending(repository: RepositoryRef, pullNumber: number, reviewId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'DELETE',
@@ -84,10 +85,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseReview);
+		}, cancellationToken, parseReview);
 	}
 
-	async dismiss(repository: RepositoryRef, pullNumber: number, reviewId: number, message: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Review> {
+	async dismiss(repository: RepositoryRef, pullNumber: number, reviewId: number, message: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Review> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'PUT',
@@ -96,10 +97,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseReview);
+		}, cancellationToken, parseReview);
 	}
 
-	async listComments(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ReviewComment[]> {
+	async listComments(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ReviewComment[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'reviews',
@@ -108,10 +109,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseComments, mergeArrayPages);
+		}, cancellationToken, parseComments, mergeArrayPages);
 	}
 
-	async listCommentsForReview(repository: RepositoryRef, pullNumber: number, reviewId: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ReviewComment[]> {
+	async listCommentsForReview(repository: RepositoryRef, pullNumber: number, reviewId: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ReviewComment[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'reviews',
@@ -120,10 +121,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseComments, mergeArrayPages);
+		}, cancellationToken, parseComments, mergeArrayPages);
 	}
 
-	async createComment(repository: RepositoryRef, pullNumber: number, request: CreateReviewCommentRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<ReviewComment> {
+	async createComment(repository: RepositoryRef, pullNumber: number, request: CreateReviewCommentRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ReviewComment> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'POST',
@@ -132,10 +133,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'required',
 			expectedStatus: 201,
 			options
-		}, signal, parseComment);
+		}, cancellationToken, parseComment);
 	}
 
-	async replyToComment(repository: RepositoryRef, pullNumber: number, commentId: number, body: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<ReviewComment> {
+	async replyToComment(repository: RepositoryRef, pullNumber: number, commentId: number, body: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ReviewComment> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'POST',
@@ -144,10 +145,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'required',
 			expectedStatus: 201,
 			options
-		}, signal, parseComment);
+		}, cancellationToken, parseComment);
 	}
 
-	async updateComment(repository: RepositoryRef, commentId: number, body: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<ReviewComment> {
+	async updateComment(repository: RepositoryRef, commentId: number, body: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ReviewComment> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'PATCH',
@@ -156,10 +157,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseComment);
+		}, cancellationToken, parseComment);
 	}
 
-	async deleteComment(repository: RepositoryRef, commentId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
+	async deleteComment(repository: RepositoryRef, commentId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'DELETE',
@@ -168,10 +169,10 @@ export class ReviewsClient implements IReviewsClient {
 			expectedStatus: 204,
 			responseBody: 'none',
 			options
-		}, signal);
+		}, cancellationToken);
 	}
 
-	async getRequestedReviewers(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<RequestedReviewers> {
+	async getRequestedReviewers(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<RequestedReviewers> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'GET',
@@ -179,10 +180,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseRequestedReviewers);
+		}, cancellationToken, parseRequestedReviewers);
 	}
 
-	async requestReviewers(repository: RepositoryRef, pullNumber: number, request: RequestReviewersRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequestSummary> {
+	async requestReviewers(repository: RepositoryRef, pullNumber: number, request: RequestReviewersRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<PullRequestSummary> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'POST',
@@ -191,10 +192,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'required',
 			expectedStatus: 201,
 			options
-		}, signal, parsePullRequestSummary);
+		}, cancellationToken, parsePullRequestSummary);
 	}
 
-	async removeReviewers(repository: RepositoryRef, pullNumber: number, request: RemoveReviewersRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequestSummary> {
+	async removeReviewers(repository: RepositoryRef, pullNumber: number, request: RemoveReviewersRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<PullRequestSummary> {
 		return this._client.request({
 			domain: 'reviews',
 			method: 'DELETE',
@@ -203,10 +204,10 @@ export class ReviewsClient implements IReviewsClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parsePullRequestSummary);
+		}, cancellationToken, parsePullRequestSummary);
 	}
 
-	async listThreads(pullRequestId: string, signal: AbortSignal, options?: ListReviewThreadsOptions): Promise<Connection<ReviewThread> | null> {
+	async listThreads(pullRequestId: string, cancellationToken: CancellationToken, options?: ListReviewThreadsOptions): Promise<Connection<ReviewThread> | null> {
 		const { query = {}, ...requestOptions } = options ?? {};
 		return this._client.graphqlPages(
 			'reviews',
@@ -216,110 +217,110 @@ export class ReviewsClient implements IReviewsClient {
 				...cursorVariables(query),
 				commentsFirst: cursorVariables({ first: query.commentsFirst }).first,
 			},
-			signal,
+			cancellationToken,
 			data => parseThreadsQuery(data)?.node?.reviewThreads ?? null,
 			requestOptions
 		);
 	}
 
-	async listThreadSummaries(pullRequestId: string, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<ReviewThreadSummary> | null> {
+	async listThreadSummaries(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<ReviewThreadSummary> | null> {
 		const { query = {}, ...requestOptions } = options ?? {};
 		return this._client.graphqlPages(
 			'reviews',
 			listThreadSummariesQuery,
 			{ pullRequestId, ...cursorVariables(query) },
-			signal,
+			cancellationToken,
 			data => parseThreadSummariesQuery(data)?.node?.reviewThreads ?? null,
 			requestOptions
 		);
 	}
 
-	async listThreadComments(threadId: string, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<ThreadComment> | null> {
+	async listThreadComments(threadId: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<ThreadComment> | null> {
 		const { query = {}, ...requestOptions } = options ?? {};
 		return this._client.graphqlPages(
 			'reviews',
 			listThreadCommentsQuery,
 			{ threadId, ...cursorVariables(query) },
-			signal,
+			cancellationToken,
 			data => parseCommentsQuery(data)?.node?.comments ?? null,
 			requestOptions
 		);
 	}
 
-	async createThread(request: CreateReviewThreadRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<ReviewThread> {
+	async createThread(request: CreateReviewThreadRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ReviewThread> {
 		return this._client.graphql(
 			'reviews',
 			createThreadMutation,
 			{ input: request },
-			signal,
+			cancellationToken,
 			data => parseThreadMutation(data).result.thread,
 			options
 		);
 	}
 
-	async replyToThread(threadId: string, body: string, signal: AbortSignal, options?: ReplyToThreadOptions): Promise<ThreadComment> {
+	async replyToThread(threadId: string, body: string, cancellationToken: CancellationToken, options?: ReplyToThreadOptions): Promise<ThreadComment> {
 		const { pullRequestReviewId, ...requestOptions } = options ?? {};
 		return this._client.graphql(
 			'reviews',
 			replyToThreadMutation,
 			{ input: { pullRequestReviewThreadId: threadId, body, pullRequestReviewId } },
-			signal,
+			cancellationToken,
 			data => parseReplyMutation(data).result.comment,
 			requestOptions
 		);
 	}
 
-	async resolveThread(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<ThreadResolution> {
+	async resolveThread(threadId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ThreadResolution> {
 		return this._client.graphql(
 			'reviews',
 			resolveThreadMutation,
 			{ input: { threadId } },
-			signal,
+			cancellationToken,
 			data => parseResolutionMutation(data).result.thread,
 			options
 		);
 	}
 
-	async unresolveThread(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<ThreadResolution> {
+	async unresolveThread(threadId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ThreadResolution> {
 		return this._client.graphql(
 			'reviews',
 			unresolveThreadMutation,
 			{ input: { threadId } },
-			signal,
+			cancellationToken,
 			data => parseResolutionMutation(data).result.thread,
 			options
 		);
 	}
 
-	async listFileViewedStates(pullRequestId: string, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<FileViewedState> | null> {
+	async listFileViewedStates(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<FileViewedState> | null> {
 		const { query: queryOptions = {}, ...requestOptions } = options ?? {};
 		return this._client.graphqlPages(
 			'reviews',
 			listViewedFilesQuery,
 			{ pullRequestId, ...cursorVariables(queryOptions) },
-			signal,
+			cancellationToken,
 			data => parseViewedFilesQuery(data)?.node?.files ?? null,
 			requestOptions
 		);
 	}
 
-	async markFileViewed(pullRequestId: string, path: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<NodeIdentity> {
+	async markFileViewed(pullRequestId: string, path: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<NodeIdentity> {
 		return this._client.graphql(
 			'reviews',
 			markFileViewedMutation,
 			{ input: { pullRequestId, path } },
-			signal,
+			cancellationToken,
 			data => parseViewedFileMutation(data).result.pullRequest,
 			options
 		);
 	}
 
-	async unmarkFileViewed(pullRequestId: string, path: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<NodeIdentity> {
+	async unmarkFileViewed(pullRequestId: string, path: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<NodeIdentity> {
 		return this._client.graphql(
 			'reviews',
 			unmarkFileViewedMutation,
 			{ input: { pullRequestId, path } },
-			signal,
+			cancellationToken,
 			data => parseViewedFileMutation(data).result.pullRequest,
 			options
 		);

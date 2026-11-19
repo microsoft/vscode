@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEvent, SessionEventPayload, SystemNotification } from '@github/copilot-sdk';
+import type { SessionEvent, SessionEventPayload, SystemNotification } from '@microsoft/copilot-sdk';
 import { softAssertNever } from '../../../../base/common/assert.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { subagentChatTitle } from '../../common/agent.js';
-import { getSubagentMetadata, getToolKind, type ToolAgentNameResolver } from './copilotToolDisplay.js';
+import { formatSubagentChatLink, getSubagentMetadata, getToolKind, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 
 export interface ICopilotSystemNotification {
 	/** Text for a new system-origin AHP turn; derived from SDK `data.kind` metadata, e.g. shell completion `description`. */
@@ -69,7 +69,7 @@ export function getCopilotSubagentDisplayNames(events: readonly SessionEvent[]):
 	return names;
 }
 
-export function buildCopilotSystemNotification(event: SessionEventPayload<'system.notification'>, resolveAgentName?: ToolAgentNameResolver): ICopilotSystemNotification | undefined {
+export function buildCopilotSystemNotification(event: SessionEventPayload<'system.notification'>, resolveAgentName?: ToolAgentNameResolver, resolveAgentChat?: (agentId: string) => string | undefined): ICopilotSystemNotification | undefined {
 	const data = event.data;
 	const kind: SystemNotification = data.kind;
 	const content = cleanSystemNotificationContent(data.content);
@@ -91,6 +91,18 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 		case 'agent_completed':
 		case 'agent_idle': {
 			const name = resolveAgentName?.(kind.agentId)?.trim() || getCopilotSubagentDisplayInfo(event)?.displayName;
+			const chat = name ? resolveAgentChat?.(kind.agentId) : undefined;
+			if (name && chat) {
+				const link = formatSubagentChatLink(name, chat);
+				return {
+					messageText: kind.type === 'agent_idle'
+						? localize('agentHost.copilot.systemNotification.linkedAgentIdle', "{0} is complete", link)
+						: kind.status === 'failed'
+							? localize('agentHost.copilot.systemNotification.linkedAgentFailed', "{0} failed", link)
+							: localize('agentHost.copilot.systemNotification.linkedAgentCompleted', "{0} completed", link),
+					startsTurn: true,
+				};
+			}
 			const formattedName = name ? appendEscapedMarkdownInlineCode(name) : undefined;
 			if (kind.type === 'agent_idle') {
 				return {
