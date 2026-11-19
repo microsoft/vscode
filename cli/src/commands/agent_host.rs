@@ -30,6 +30,7 @@ use crate::tunnels::user_data_path::resolve_user_data_path;
 use crate::update_service::Platform;
 use crate::util::command::{kill_tree, DetachFromParent};
 use crate::util::errors::{wrap, AnyError, CodeError};
+use crate::util::file_lock::{FileLock, Lock};
 use crate::util::http::ReqwestSimpleHttp;
 use crate::util::prereqs::PreReqChecker;
 
@@ -60,19 +61,27 @@ const SUPERVISOR_READY_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 ///   endpoint registry and either prints info about the live supervisor
 ///   (`Reuse`), or starts a new supervisor (`SpawnFresh`) — daemonized by
 ///   default, or run inline in this process when `--foreground` is set.
+///   GitHub environments start a dedicated supervisor, with one owner per
+///   server data directory.
 ///
 /// * **Supervisor** (when [`SUPERVISOR_ENV`] is set): binds the public TCP
 ///   listener, publishes a registry entry recording this process's PID +
 ///   port, runs the proxy accept loop, and manages the underlying VS Code
 ///   server as a regular child process so the supervisor can kill+respawn
 ///   it on update.
-pub async fn agent_host(ctx: CommandContext, mut args: AgentHostArgs) -> Result<i32, AnyError> {
-	if args.github_environment {
-		args.foreground = true;
-		return run_supervisor(ctx, args).await;
-	}
+pub async fn agent_host(ctx: CommandContext, args: AgentHostArgs) -> Result<i32, AnyError> {
 	if std::env::var_os(SUPERVISOR_ENV).is_some() {
 		return run_supervisor(ctx, args).await;
+	}
+	if args.github_environment {
+		// Avoid prompting on duplicates; the supervisor rechecks and holds the lock.
+		drop(acquire_github_environment_lock(&args)?);
+		legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
+		if !args.foreground {
+			let credential = github_environment_credential(&ctx).await?;
+			require_persisted_github_environment_credential(&ctx.paths, &ctx.log, &credential)?;
+		}
+		return start_supervisor(ctx, args).await;
 	}
 	run_foreground(ctx, args).await
 }
@@ -224,6 +233,11 @@ async fn start_supervisor(ctx: CommandContext, args: AgentHostArgs) -> Result<i3
 /// an [`AgentHostSidecar`] on the user's chosen `--host`/`--port`,
 /// prints the readiness banner / sentinel, then services connections until killed.
 async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Result<i32, AnyError> {
+	let _github_environment_lock = if args.github_environment {
+		Some(acquire_github_environment_lock(&args)?)
+	} else {
+		None
+	};
 	let started = Instant::now();
 	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
 	let instance_id = uuid::Uuid::new_v4().to_string();
@@ -259,7 +273,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 
 	let platform: Platform = PreReqChecker::new().verify().await?;
 	let github_environment = if args.github_environment {
-		legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 		Some(github_environment_config(&ctx, &args).await?)
 	} else {
 		None
@@ -442,42 +455,89 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	Ok(0)
 }
 
-async fn github_environment_config(
-	ctx: &CommandContext,
-	args: &AgentHostArgs,
-) -> Result<GithubEnvironmentConfig, AnyError> {
-	if args
-		.name
+fn acquire_github_environment_lock(args: &AgentHostArgs) -> Result<FileLock, AnyError> {
+	// Match server.main.ts: the backend's data directory owns the MC identity,
+	// independently of the CLI credential cache and endpoint registry.
+	let server_data_dir = args
+		.server_data_dir
 		.as_deref()
-		.is_some_and(|name| name.trim().is_empty())
-	{
-		return Err(wrap("", "GitHub environment name must not be empty").into());
-	}
-	let roots = if args.github_environment_root.is_empty() {
-		vec![std::env::current_dir().map_err(|e| wrap(e, "could not resolve current directory"))?]
-	} else {
-		args.github_environment_root.clone()
-	};
-	let roots = roots
-		.iter()
-		.map(|root| {
-			let path = fs::canonicalize(root)
-				.map_err(|e| wrap(e, format!("could not resolve project {}", root.display())))?;
-			if !path.is_dir() {
-				return Err(wrap(
-					"",
-					format!("project {} is not a directory", root.display()),
-				));
-			}
-			Ok(path.to_string_lossy().into_owned())
+		.filter(|path| !path.is_empty())
+		.map(PathBuf::from)
+		.or_else(|| {
+			std::env::var_os("VSCODE_AGENT_FOLDER")
+				.filter(|path| !path.is_empty())
+				.map(PathBuf::from)
 		})
-		.collect::<Result<Vec<_>, _>>()?;
-	let mut auth = Auth::with_namespace(
-		&ctx.paths,
-		ctx.log.clone(),
-		Some("github-environments".into()),
-	);
+		.or_else(|| dirs::home_dir().map(|home| home.join(constants::SERVER_DATA_PARENT_DIR)))
+		.ok_or_else(|| {
+			wrap(
+				"",
+				"Could not resolve the GitHub environment server data directory",
+			)
+		})?;
+	let user_data_dir = server_data_dir.join("data");
+	let mut builder = fs::DirBuilder::new();
+	builder.recursive(true);
+	#[cfg(unix)]
+	{
+		use std::os::unix::fs::DirBuilderExt;
+		builder.mode(0o700);
+	}
+	builder.create(&user_data_dir).map_err(|error| {
+		wrap(
+			error,
+			"Could not create the GitHub environment data directory",
+		)
+	})?;
+	let file = fs::OpenOptions::new()
+		.read(true)
+		.write(true)
+		.create(true)
+		.truncate(false)
+		.open(user_data_dir.join("agent-host-github-environment.lock"))
+		.map_err(|error| wrap(error, "Could not open the GitHub environment lock"))?;
+	match FileLock::acquire(file)? {
+		Lock::Acquired(lock) => Ok(lock),
+		Lock::AlreadyLocked(_) => Err(wrap(
+			"",
+			format!(
+				"A GitHub environment is already starting or running for {}. \
+				 Stop the existing host with `{application_name} agent kill`, \
+				 or use a different --server-data-dir.",
+				server_data_dir.display(),
+				application_name = constants::APPLICATION_NAME,
+			),
+		)
+		.into()),
+	}
+}
+
+fn github_environment_auth(paths: &LauncherPaths, log: &log::Logger) -> Auth {
+	let mut auth = Auth::with_namespace(paths, log.clone(), Some("github-environments".into()));
 	auth.set_provider(AuthProvider::Github);
+	auth
+}
+
+fn require_persisted_github_environment_credential(
+	paths: &LauncherPaths,
+	log: &log::Logger,
+	credential: &str,
+) -> Result<(), AnyError> {
+	let message = "GitHub environment credentials could not be saved for background startup; retry with --foreground";
+	// A fresh Auth reads storage rather than the login instance's in-memory cache.
+	let persisted = github_environment_auth(paths, log)
+		.get_current_credential()
+		.map_err(|e| wrap(e, message))?;
+	if !persisted.is_some_and(|saved| {
+		matches!(saved.provider, AuthProvider::Github) && saved.access_token() == credential
+	}) {
+		return Err(wrap("", message).into());
+	}
+	Ok(())
+}
+
+async fn github_environment_credential(ctx: &CommandContext) -> Result<String, AnyError> {
+	let auth = github_environment_auth(&ctx.paths, &ctx.log);
 	let credential = if auth.get_current_credential()?.is_some() {
 		auth.get_credential().await?
 	} else {
@@ -491,6 +551,22 @@ async fn github_environment_config(
 	if credential.is_empty() {
 		return Err(wrap("", "GitHub environment access token must not be empty").into());
 	}
+	Ok(credential)
+}
+
+async fn github_environment_config(
+	ctx: &CommandContext,
+	args: &AgentHostArgs,
+) -> Result<GithubEnvironmentConfig, AnyError> {
+	if args
+		.name
+		.as_deref()
+		.is_some_and(|name| name.trim().is_empty())
+	{
+		return Err(wrap("", "GitHub environment name must not be empty").into());
+	}
+	let paths = github_environment_paths(&ctx.log, &args.github_environment_root)?;
+	let credential = github_environment_credential(ctx).await?;
 	#[derive(serde::Deserialize)]
 	struct GithubUser {
 		id: u64,
@@ -512,10 +588,115 @@ async fn github_environment_config(
 		base_url: "https://api.github.com".into(),
 		account_id: user.id.to_string(),
 		credential,
-		roots,
+		optional_roots: paths
+			.roots
+			.iter()
+			.filter(|root| !paths.projects.contains(root))
+			.cloned()
+			.collect(),
+		roots: paths.roots,
+		default_directory: paths.projects[0].clone(),
+		projects: paths.projects,
 		name: args.name.clone(),
 		live: true,
 	})
+}
+
+struct GithubEnvironmentPaths {
+	roots: Vec<String>,
+	projects: Vec<String>,
+}
+
+fn github_environment_paths(
+	log: &log::Logger,
+	requested_roots: &[PathBuf],
+) -> Result<GithubEnvironmentPaths, AnyError> {
+	let projects = if requested_roots.is_empty() {
+		vec![std::env::current_dir().map_err(|e| wrap(e, "could not resolve current directory"))?]
+	} else {
+		requested_roots.to_vec()
+	};
+	let projects = projects
+		.iter()
+		.map(|root| {
+			let path = fs::canonicalize(root)
+				.map_err(|e| wrap(e, format!("could not resolve project {}", root.display())))?;
+			if !path.is_dir() {
+				return Err(wrap(
+					"",
+					format!("project {} is not a directory", root.display()),
+				));
+			}
+			Ok(path.to_string_lossy().into_owned())
+		})
+		.collect::<Result<Vec<_>, _>>()?;
+	let mut roots = projects.clone();
+	if requested_roots.is_empty() {
+		#[cfg(windows)]
+		roots.extend(github_environment_drive_roots(
+			log,
+			|letter| {
+				let drive = [letter as u16, b':' as u16, b'\\' as u16, 0];
+				// SAFETY: drive is a valid, null-terminated UTF-16 root path.
+				unsafe { windows_sys::Win32::Storage::FileSystem::GetDriveTypeW(drive.as_ptr()) }
+			},
+			|path| fs::canonicalize(path),
+		));
+		#[cfg(not(windows))]
+		{
+			let _ = log;
+			roots.push("/".into());
+		}
+	}
+	Ok(GithubEnvironmentPaths { roots, projects })
+}
+
+#[cfg(windows)]
+fn github_environment_drive_roots(
+	log: &log::Logger,
+	drive_type: impl Fn(u8) -> u32,
+	canonicalize: impl Fn(&Path) -> std::io::Result<PathBuf>,
+) -> Vec<String> {
+	use windows_sys::Win32::System::WindowsProgramming::{
+		DRIVE_CDROM, DRIVE_FIXED, DRIVE_RAMDISK, DRIVE_REMOVABLE,
+	};
+
+	let mut roots = Vec::new();
+	for letter in b'A'..=b'Z' {
+		if !matches!(
+			drive_type(letter),
+			DRIVE_FIXED | DRIVE_REMOVABLE | DRIVE_CDROM | DRIVE_RAMDISK
+		) {
+			continue;
+		}
+		let drive = PathBuf::from(format!("{}:\\", letter as char));
+		match canonicalize(&drive) {
+			Ok(path) => {
+				if matches!(
+					path.components().next(),
+					Some(std::path::Component::Prefix(prefix))
+						if matches!(prefix.kind(), std::path::Prefix::Disk(_) | std::path::Prefix::VerbatimDisk(_))
+				) {
+					roots.push(path.to_string_lossy().into_owned());
+				} else {
+					info!(
+						log,
+						"Excluding network-backed drive {} from GitHub environment sharing",
+						drive.display()
+					);
+				}
+			}
+			Err(error) => {
+				warning!(
+					log,
+					"Skipping inaccessible GitHub environment drive {}: {}",
+					drive.display(),
+					error
+				);
+			}
+		}
+	}
+	roots
 }
 
 /// Resolve the user's `--host`/`--port` choice into a single
@@ -924,12 +1105,18 @@ impl ActiveAgentHost {
 	}
 
 	/// Populate the `--agent-host-bridge-*` fields on a [`CodeServerArgs`]
-	/// so the spawned VS Code server's `agentHostProxy` channel dials this
-	/// supervisor. Uses [`dial_host`] for the host so a supervisor bound
+	/// so a spawned VS Code server that predates registry discovery dials
+	/// this supervisor. Uses [`dial_host`] for the host so a supervisor bound
 	/// to a wildcard (`0.0.0.0` / `::`) is reached via loopback rather
-	/// than the wildcard itself.
+	/// than the wildcard itself. Those servers put the host into a `ws://`
+	/// URL, so IPv6 literals are bracketed.
 	pub fn apply_to_bridge(&self, csa: &mut CodeServerArgs) {
-		csa.agent_host_bridge_host = Some(self.dial_host().to_string());
+		let host = self.dial_host();
+		csa.agent_host_bridge_host = Some(if host.contains(':') && !host.starts_with('[') {
+			format!("[{host}]")
+		} else {
+			host.to_string()
+		});
 		csa.agent_host_bridge_port = Some(self.port);
 		csa.agent_host_bridge_connection_token = self.token.clone();
 	}
@@ -1024,6 +1211,259 @@ mod tests {
 	use std::fs;
 	use tokio::net::TcpListener;
 
+	#[tokio::test]
+	async fn github_environment_rejects_duplicate_start_before_authentication() {
+		let dir = tempfile::tempdir().unwrap();
+		let mut args = AgentHostArgs {
+			github_environment: true,
+			server_data_dir: Some(dir.path().join("server").to_string_lossy().into_owned()),
+			user_data_dir: Some(dir.path().join("registry").to_string_lossy().into_owned()),
+			..Default::default()
+		};
+		let _owner = acquire_github_environment_lock(&args).unwrap();
+		for foreground in [false, true] {
+			args.foreground = foreground;
+			for supervisor in [false, true] {
+				let ctx = CommandContext {
+					log: log::Logger::test(),
+					paths: LauncherPaths::new_without_replacements(dir.path().join("cli")),
+					args: Default::default(),
+					http: reqwest::Client::new(),
+				};
+				let error = if supervisor {
+					run_supervisor(ctx, args.clone()).await
+				} else {
+					agent_host(ctx, args.clone()).await
+				}
+				.unwrap_err();
+				assert!(
+					error.to_string().contains("already starting or running"),
+					"{error}"
+				);
+			}
+		}
+	}
+
+	#[test]
+	#[cfg(unix)]
+	fn github_environment_lock_keeps_new_server_data_private() {
+		use std::os::unix::fs::PermissionsExt;
+
+		let dir = tempfile::tempdir().unwrap();
+		let server_data_dir = dir.path().join("server");
+		let args = AgentHostArgs {
+			server_data_dir: Some(server_data_dir.to_string_lossy().into_owned()),
+			..Default::default()
+		};
+		let _owner = acquire_github_environment_lock(&args).unwrap();
+		assert_eq!(
+			[server_data_dir.clone(), server_data_dir.join("data")]
+				.map(|path| fs::metadata(path).unwrap().permissions().mode() & 0o777),
+			[0o700, 0o700]
+		);
+	}
+
+	#[test]
+	fn github_environment_lock_releases_and_is_scoped_to_server_data() {
+		let dir = tempfile::tempdir().unwrap();
+		let args = AgentHostArgs {
+			server_data_dir: Some(dir.path().join("server").to_string_lossy().into_owned()),
+			..Default::default()
+		};
+		let owner = acquire_github_environment_lock(&args).unwrap();
+		let other = AgentHostArgs {
+			server_data_dir: Some(
+				dir.path()
+					.join("other-server")
+					.to_string_lossy()
+					.into_owned(),
+			),
+			..Default::default()
+		};
+		let _other_owner = acquire_github_environment_lock(&other).unwrap();
+		drop(owner);
+		assert!(acquire_github_environment_lock(&args).is_ok());
+	}
+
+	#[tokio::test]
+	async fn github_environment_background_rejects_missing_persisted_credential() {
+		let dir = tempfile::tempdir_in(".").unwrap();
+		let paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let log = log::Logger::test();
+		fs::create_dir(paths.root().join("token-github-environments.json")).unwrap();
+		let auth = github_environment_auth(&paths, &log);
+		let credential = auth
+			.login(Some(AuthProvider::Github), Some("fresh-token".into()), None)
+			.await
+			.unwrap();
+
+		assert_eq!(
+			auth.get_current_credential()
+				.unwrap()
+				.unwrap()
+				.access_token(),
+			credential.access_token()
+		);
+		let error = require_persisted_github_environment_credential(
+			&paths,
+			&log,
+			credential.access_token(),
+		)
+		.unwrap_err();
+		assert_eq!(
+			error.to_string(),
+			"GitHub environment credentials could not be saved for background startup; retry with --foreground: "
+		);
+	}
+
+	#[tokio::test]
+	async fn github_environment_background_rejects_mismatched_persisted_credential() {
+		let dir = tempfile::tempdir_in(".").unwrap();
+		let paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let log = log::Logger::test();
+		fs::write(paths.root().join("token-github-environments.json"), "null").unwrap();
+		for (provider, token) in [
+			(AuthProvider::Github, "stale-token"),
+			(AuthProvider::Microsoft, "fresh-token"),
+		] {
+			github_environment_auth(&paths, &log)
+				.login(Some(provider), Some(token.into()), None)
+				.await
+				.unwrap();
+
+			let error =
+				require_persisted_github_environment_credential(&paths, &log, "fresh-token")
+					.unwrap_err();
+			assert_eq!(
+				error.to_string(),
+				"GitHub environment credentials could not be saved for background startup; retry with --foreground: "
+			);
+		}
+	}
+
+	#[tokio::test]
+	async fn github_environment_background_accepts_persisted_credential() {
+		let dir = tempfile::tempdir_in(".").unwrap();
+		let paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let log = log::Logger::test();
+		fs::write(paths.root().join("token-github-environments.json"), "null").unwrap();
+		let credential = github_environment_auth(&paths, &log)
+			.login(Some(AuthProvider::Github), Some("fresh-token".into()), None)
+			.await
+			.unwrap();
+
+		require_persisted_github_environment_credential(&paths, &log, credential.access_token())
+			.unwrap();
+	}
+
+	#[test]
+	fn github_environment_roots_default_to_local_filesystems() {
+		let cwd = std::env::current_dir().unwrap();
+		let root = cwd.ancestors().last().unwrap();
+		let paths = github_environment_paths(&log::Logger::test(), &[]).unwrap();
+		assert_eq!(
+			(
+				paths.projects,
+				paths.roots.contains(
+					&fs::canonicalize(root)
+						.unwrap()
+						.to_string_lossy()
+						.into_owned()
+				)
+			),
+			(
+				vec![fs::canonicalize(&cwd)
+					.unwrap()
+					.to_string_lossy()
+					.into_owned()],
+				true
+			)
+		);
+	}
+
+	#[cfg(windows)]
+	#[test]
+	fn github_environment_roots_include_other_local_drives() {
+		let cwd = std::env::current_dir().unwrap();
+		let roots = github_environment_paths(&log::Logger::test(), &[])
+			.unwrap()
+			.roots;
+		for letter in b'A'..=b'Z' {
+			let drive = PathBuf::from(format!("{}:\\", letter as char));
+			if drive.exists() && cwd.ancestors().last() != Some(drive.as_path()) {
+				let canonical = fs::canonicalize(drive).unwrap();
+				if matches!(
+					canonical.components().next(),
+					Some(std::path::Component::Prefix(prefix))
+						if matches!(prefix.kind(), std::path::Prefix::VerbatimDisk(_) | std::path::Prefix::Disk(_))
+				) {
+					assert!(
+						roots.contains(&canonical.to_string_lossy().into_owned()),
+						"missing {canonical:?}"
+					);
+				}
+			}
+		}
+	}
+
+	#[cfg(windows)]
+	#[test]
+	fn github_environment_roots_skip_unusable_and_network_drives() {
+		use windows_sys::Win32::System::WindowsProgramming::{
+			DRIVE_CDROM, DRIVE_FIXED, DRIVE_NO_ROOT_DIR, DRIVE_REMOTE,
+		};
+
+		let roots = github_environment_drive_roots(
+			&log::Logger::test(),
+			|letter| match letter {
+				b'C' | b'D' | b'E' | b'Q' => DRIVE_FIXED,
+				b'F' => DRIVE_CDROM,
+				b'Z' => DRIVE_REMOTE,
+				_ => DRIVE_NO_ROOT_DIR,
+			},
+			|path| match path.to_str().unwrap() {
+				"C:\\" | "Q:\\" => Ok(path.to_path_buf()),
+				"D:\\" => Ok(PathBuf::from("\\\\server\\share\\")),
+				"E:\\" => Err(std::io::Error::from_raw_os_error(5)),
+				"F:\\" => Err(std::io::Error::from_raw_os_error(21)),
+				_ => panic!("must not probe absent or network drives: {path:?}"),
+			},
+		);
+		assert_eq!(roots, vec!["C:\\", "Q:\\"]);
+	}
+
+	#[test]
+	fn github_environment_roots_preserve_explicit_scope() {
+		let dir = tempfile::tempdir().unwrap();
+		let project = dir.path().join("project");
+		fs::create_dir(&project).unwrap();
+		assert_eq!(
+			{
+				let paths =
+					github_environment_paths(&log::Logger::test(), &[project.clone()]).unwrap();
+				(paths.roots, paths.projects)
+			},
+			{
+				let project = fs::canonicalize(project)
+					.unwrap()
+					.to_string_lossy()
+					.into_owned();
+				(vec![project.clone()], vec![project])
+			}
+		);
+	}
+
+	#[test]
+	fn github_environment_roots_reject_invalid_explicit_roots() {
+		let dir = tempfile::tempdir().unwrap();
+		let file = dir.path().join("file");
+		fs::write(&file, "").unwrap();
+		assert!(github_environment_paths(&log::Logger::test(), &[file]).is_err());
+		assert!(
+			github_environment_paths(&log::Logger::test(), &[dir.path().join("missing")]).is_err()
+		);
+	}
+
 	#[test]
 	fn mint_connection_token_generates_and_persists() {
 		let dir = tempfile::tempdir().unwrap();
@@ -1071,6 +1511,32 @@ mod tests {
 			token: Some("tok".to_string()),
 			instance_id: "instance-existing".to_string(),
 		}
+	}
+
+	#[test]
+	fn apply_to_bridge_brackets_ipv6_hosts_for_legacy_server_urls() {
+		let bridge_host = |host: Option<&str>| {
+			let mut csa = CodeServerArgs::default();
+			ActiveAgentHost {
+				pid: 1,
+				host: host.map(str::to_string),
+				port: 9000,
+				token: None,
+			}
+			.apply_to_bridge(&mut csa);
+			csa.agent_host_bridge_host.unwrap()
+		};
+		assert_eq!(
+			[
+				Some("::1"),
+				Some("[::1]"),
+				Some("::"),
+				Some("127.0.0.1"),
+				None
+			]
+			.map(bridge_host),
+			["[::1]", "[::1]", "127.0.0.1", "127.0.0.1", "127.0.0.1"]
+		);
 	}
 
 	#[test]

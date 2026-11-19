@@ -47,6 +47,14 @@ export interface IAgentFeedbackChangeEvent {
 export interface IAgentFeedbackNavigationBearing {
 	readonly activeIdx: number;
 	readonly totalCount: number;
+	/** Whether editors should reveal and focus the anchored item. `false` when the anchor was set without revealing it; a missing value means `true`. */
+	readonly reveal?: boolean;
+}
+
+export interface IAgentFeedbackNavigationChangeEvent {
+	readonly sessionResource: URI;
+	/** Whether editors should reveal and focus the comment the navigation is now anchored at. */
+	readonly reveal: boolean;
 }
 
 export interface IAgentFeedbackCommentRevealEvent {
@@ -98,8 +106,6 @@ export interface ISubmitFeedbackOptions {
 	 * request goes to this chat.
 	 */
 	readonly targetChat?: URI;
-	/** Sends to the explicit target chat without opening a widget; rejects on failure. */
-	readonly background?: boolean;
 	/** Submit Agent Host feedback without requiring or focusing a chat widget. */
 	readonly backgroundSubmit?: (query: string, attachment: IAgentFeedbackVariableEntry) => Promise<boolean>;
 	readonly onRequestAccepted?: () => void;
@@ -114,7 +120,7 @@ export interface IAgentFeedbackService {
 
 	readonly onDidChangeFeedback: Event<IAgentFeedbackChangeEvent>;
 	readonly onDidChangeFeedbackVisibility: Event<URI>;
-	readonly onDidChangeNavigation: Event<URI>;
+	readonly onDidChangeNavigation: Event<IAgentFeedbackNavigationChangeEvent>;
 	readonly onDidRevealSessionComment: Event<IAgentFeedbackCommentRevealEvent>;
 	/** Fired when {@link getFeedbackSessionResource} may resolve differently. */
 	readonly onDidChangeFeedbackScope: Event<void>;
@@ -187,8 +193,6 @@ export interface IAgentFeedbackService {
 	 * Get all feedback items for a session.
 	 */
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
-	/** Observes existing feedback without keeping unopened sessions subscribed after the observer is disposed. */
-	getFeedbackObservable(sessionResource: URI): IObservable<readonly IAgentFeedback[]>;
 	/** Whether feedback for this session is owned by an Agent Host annotations channel. */
 	isAgentHostSession(sessionResource: URI): boolean;
 
@@ -254,7 +258,10 @@ export interface IAgentFeedbackService {
 	 */
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined;
 	getNextNavigableItem<T extends INavigableSessionComment>(sessionResource: URI, items: readonly T[], next: boolean): T | undefined;
-	setNavigationAnchor(sessionResource: URI, itemId: string | undefined): void;
+	/**
+	 * Anchor the navigation of a session at an item. Unless `reveal` is `false`, editors reveal and focus the item.
+	 */
+	setNavigationAnchor(sessionResource: URI, itemId: string | undefined, options?: { readonly reveal?: boolean }): void;
 
 	/**
 	 * Get the current navigation bearings for a session.

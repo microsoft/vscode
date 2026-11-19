@@ -27,13 +27,20 @@ import { AgentHostTerminalService } from '../../browser/agentHostTerminalService
 import { ICreateTerminalOptions, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../browser/terminal.js';
 import { ITerminalProfileProvider, ITerminalProfileService } from '../../common/terminal.js';
 
+let nextTestInstanceId = 1;
+
 class TestTerminalInstance extends mock<ITerminalInstance>() {
+	override readonly instanceId = nextTestInstanceId++;
 	override readonly store = new DisposableStore();
 	private readonly _onDisposed = this.store.add(new Emitter<ITerminalInstance>());
 	override readonly onDisposed = this._onDisposed.event;
 	override readonly onWillData = Event.None;
 	private _isDisposed = false;
 	override get isDisposed(): boolean { return this._isDisposed; }
+
+	constructor(override readonly shellLaunchConfig: IShellLaunchConfig = {}) {
+		super();
+	}
 
 	override dispose(): void {
 		if (this._isDisposed) {
@@ -50,6 +57,7 @@ class TestTerminalService extends mock<ITerminalService>() {
 	readonly createdConfigs: IShellLaunchConfig[] = [];
 	failNextCreation = false;
 	disposeInstanceOnCreation = false;
+	onCreatingInstance: ((instance: ITerminalInstance) => void) | undefined;
 
 	constructor(private readonly _store: Pick<DisposableStore, 'add'>) {
 		super();
@@ -66,7 +74,8 @@ class TestTerminalService extends mock<ITerminalService>() {
 			this.failNextCreation = false;
 			throw new Error('terminal creation failed');
 		}
-		const instance = this._store.add(new TestTerminalInstance());
+		const instance = this._store.add(new TestTerminalInstance(config as IShellLaunchConfig));
+		this.onCreatingInstance?.(instance);
 		if (this.disposeInstanceOnCreation) {
 			instance.dispose();
 		}
@@ -268,6 +277,19 @@ suite('AgentHostTerminalService', () => {
 			hostDisposeCallCount: 0,
 			reconnectResult: { recovered: 0, total: 0 },
 		});
+	});
+
+	test('knows the host of a terminal from the moment the terminal service creates its instance', async () => {
+		store.add(service.registerEntry({ name: 'devbox', address: 'ssh://devbox', getConnection: () => connection }));
+		const addresses: (string | undefined)[] = [];
+		terminalService.onCreatingInstance = instance => addresses.push(service.getAgentHostAddress(instance));
+
+		const instance = await service.createTerminal(connection);
+		addresses.push(service.getAgentHostAddress(instance));
+		// Another terminal launched with the same settings is not that terminal.
+		addresses.push(service.getAgentHostAddress(store.add(new TestTerminalInstance({ ...instance.shellLaunchConfig }))));
+
+		assert.deepStrictEqual(addresses, ['ssh://devbox', 'ssh://devbox', undefined]);
 	});
 
 	test('a failed terminal creation disposes the PTY registration', async () => {

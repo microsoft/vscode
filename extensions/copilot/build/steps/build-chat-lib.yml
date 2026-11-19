@@ -15,15 +15,23 @@ steps:
 
   - template: ../../../../build/azure-pipelines/common/install-pnpm.yml@self
 
+  # The rebuild below compiles `kerberos` (an optional peer of the proxy agents that
+  # @vscode/test-web uses) whenever the lockfile resolves it for copilot-chat, and on Linux that
+  # needs the Kerberos headers.
+  - script: ./build/azure-pipelines/linux/apt-install-with-retry.sh libkrb5-dev
+    displayName: 🛠 Install Kerberos headers
+    condition: and(succeeded(), eq(variables['Agent.OS'], 'Linux'))
+
   # chat-lib and Copilot are members of the root pnpm workspace. pnpm runs the root install scripts,
   # which install the whole repository, on every install that runs scripts, filtered or not: the
   # install skips them, then builds Copilot's dependencies and runs its postinstall. The extraction
   # sets chat-lib's dependencies to Copilot's versions, in its package.json and in the root
-  # pnpm-lock.yaml.
+  # pnpm-lock.yaml. The rebuild ignores the root .pnpmfile.mjs, which builds native modules for
+  # Electron: chat-lib runs in Node.js, and network isolation blocks the Electron headers.
   - bash: |
       set -e
       pnpm install --frozen-lockfile --ignore-scripts --filter copilot-chat --filter @vscode/chat-lib
-      pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
+      pnpm --ignore-pnpmfile --filter copilot-chat --filter @vscode/chat-lib rebuild
       pnpm run postinstall
       pnpm run extract-chat-lib
     displayName: 📂 Extract chat-lib

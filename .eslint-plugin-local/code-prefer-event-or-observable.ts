@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { TSESTree } from '@typescript-eslint/utils';
-import type * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Scope, SourceCode, Visitor } from '@oxlint/plugins';
 
 type Options = {
 	checkPublicMethods?: boolean;
@@ -13,9 +11,9 @@ type Options = {
 
 type MessageId = 'constructorCallback' | 'methodCallback';
 
-export default new class PreferEventOrObservable implements eslint.Rule.RuleModule {
+export default new class PreferEventOrObservable implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		type: 'suggestion',
 		docs: {
 			description: 'Prefer events and observables over callback dependencies in constructors and public methods.',
@@ -33,14 +31,14 @@ export default new class PreferEventOrObservable implements eslint.Rule.RuleModu
 		}],
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		const options = context.options[0] as Options | undefined;
 		const checkPublicMethods = options?.checkPublicMethods ?? true;
 
-		function checkParameters(parameters: TSESTree.Parameter[], messageId: MessageId): void {
+		function checkParameters(parameters: ESTree.ParamPattern[], messageId: MessageId): void {
 			for (const original of parameters) {
 				let parameter = original.type === 'TSParameterProperty' ? original.parameter : original;
-				let initializer: TSESTree.Expression | undefined;
+				let initializer: ESTree.Expression | undefined;
 				if (parameter.type === 'AssignmentPattern') {
 					initializer = parameter.right;
 					parameter = parameter.left;
@@ -59,9 +57,9 @@ export default new class PreferEventOrObservable implements eslint.Rule.RuleModu
 			}
 		}
 
-		const listeners: eslint.Rule.RuleListener = {
+		const listeners: Visitor = {
 			':matches(MethodDefinition, TSAbstractMethodDefinition)': (node: ESTree.Node) => {
-				const method = node as TSESTree.MethodDefinition | TSESTree.TSAbstractMethodDefinition;
+				const method = node as ESTree.MethodDefinition;
 				if (method.kind === 'constructor') {
 					checkParameters(method.value.params, 'constructorCallback');
 				} else if (checkPublicMethods && isPublicMember(method)) {
@@ -71,18 +69,18 @@ export default new class PreferEventOrObservable implements eslint.Rule.RuleModu
 		};
 
 		if (checkPublicMethods) {
-			listeners.TSMethodSignature = (node: ESTree.Node | TSESTree.TSMethodSignature) => {
+			listeners.TSMethodSignature = (node: ESTree.Node) => {
 				if (node.type === 'TSMethodSignature') {
 					checkParameters(node.params, 'methodCallback');
 				}
 			};
-			listeners.TSPropertySignature = (node: ESTree.Node | TSESTree.TSPropertySignature) => {
+			listeners.TSPropertySignature = (node: ESTree.Node) => {
 				if (node.type === 'TSPropertySignature' && node.typeAnnotation?.typeAnnotation.type === 'TSFunctionType') {
 					checkParameters(node.typeAnnotation.typeAnnotation.params, 'methodCallback');
 				}
 			};
 			listeners[':matches(PropertyDefinition, TSAbstractPropertyDefinition)'] = (node: ESTree.Node) => {
-				const property = node as TSESTree.PropertyDefinition | TSESTree.TSAbstractPropertyDefinition;
+				const property = node as ESTree.PropertyDefinition;
 				if (!isPublicMember(property)) {
 					return;
 				}
@@ -99,11 +97,11 @@ export default new class PreferEventOrObservable implements eslint.Rule.RuleModu
 	}
 };
 
-function isPublicMember(node: TSESTree.MethodDefinition | TSESTree.TSAbstractMethodDefinition | TSESTree.PropertyDefinition | TSESTree.TSAbstractPropertyDefinition): boolean {
+function isPublicMember(node: ESTree.MethodDefinition | ESTree.PropertyDefinition): boolean {
 	return node.accessibility !== 'private' && node.accessibility !== 'protected' && node.key.type !== 'PrivateIdentifier';
 }
 
-function isCallbackType(type: TSESTree.TypeNode | undefined, sourceCode: eslint.SourceCode, seen = new Set<TSESTree.Node>()): boolean {
+function isCallbackType(type: ESTree.TSType | undefined, sourceCode: SourceCode, seen = new Set<ESTree.Node>()): boolean {
 	if (!type || seen.has(type)) {
 		return false;
 	}
@@ -122,13 +120,13 @@ function isCallbackType(type: TSESTree.TypeNode | undefined, sourceCode: eslint.
 				return false;
 			}
 			const name = type.typeName.name;
-			for (let scope: eslint.Scope.Scope | null = sourceCode.getScope(type.typeName); scope; scope = scope.upper) {
+			for (let scope: Scope | null = sourceCode.getScope(type.typeName); scope; scope = scope.upper) {
 				const variable = scope.set.get(name);
 				if (!variable || variable.defs.length === 0) {
 					continue;
 				}
 				return variable.defs.some(definition => {
-					const declaration = definition.node as TSESTree.Node;
+					const declaration = definition.node;
 					if (declaration.type === 'TSTypeAliasDeclaration') {
 						return isCallbackType(declaration.typeAnnotation, sourceCode, seen);
 					}

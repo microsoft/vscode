@@ -319,7 +319,15 @@ const runtimeStatusFeature = {
 	renderer: new SyncDescriptor(RuntimeStatusMarkdownRenderer),
 };
 
+const featuresListSize = 200;
+const featureViewMinimumSize = 500;
+
 export class ExtensionFeaturesTab extends Themable {
+
+	/**
+	 * The width that the tab needs to show the list of features, at its default width, next to the feature that it shows.
+	 */
+	static readonly PREFERRED_WIDTH = featuresListSize + featureViewMinimumSize;
 
 	readonly domNode: HTMLElement;
 
@@ -388,12 +396,12 @@ export class ExtensionFeaturesTab extends Themable {
 				featuresListContainer.style.width = `${width}px`;
 				list.layout(height, width);
 			}
-		}, 200, undefined, true);
+		}, featuresListSize, undefined, true);
 
 		splitView.addView({
 			onDidChange: Event.None,
 			element: featureViewContainer,
-			minimumSize: 500,
+			minimumSize: featureViewMinimumSize,
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width, _, height) => {
 				featureViewContainer.style.width = `${width}px`;

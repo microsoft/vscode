@@ -28,8 +28,8 @@ export type RemoteAgentHostHandoffResult =
 		/** Resolves to whether the host is connected once its connection settles. The service reports connection failures. */
 		readonly connected: Promise<boolean>;
 		/**
-		 * Whether the remote's editor windows use the connected host as their own agent host. Only a tunnel's editor
-		 * windows do, unless its gateway selected the agent host of an editor on the tunnel's machine instead.
+		 * Whether the remote's editor windows use the connected host as their own agent host. SSH and tunnels share
+		 * the standalone host unless an editor-owned endpoint was selected; WSL always shares it.
 		 */
 		readonly sharesEditorWindowAgentHost: () => boolean;
 		readonly unavailableReason?: undefined;
@@ -38,15 +38,13 @@ export type RemoteAgentHostHandoffResult =
 
 export const IRemoteWorkspaceHandoffService = createDecorator<IRemoteWorkspaceHandoffService>('remoteWorkspaceHandoffService');
 
-/** Hands folders and sessions of SSH, WSL and Tunnel editor windows to the remote agent host on the same machine. */
+/** Hands folders and sessions of SSH, WSL and Tunnel editor windows to their shared remote agent host, unless an editor-owned endpoint was selected. */
 export interface IRemoteWorkspaceHandoffService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Resolves a VS Code remote to the remote agent host on the same machine.
-	 * Adds that host when the Agents Window does not know it yet, offering to
-	 * sign in first when only an account that is not signed in can find or
-	 * connect to it, and starts a user-initiated connection.
+	 * Resolves an SSH, WSL or tunnel authority, adding the host if needed and starting a user-initiated connection.
+	 * Offers sign-in first when a signed-out account is needed to find or connect to the host.
 	 */
 	resolveHost(remoteAuthority: string, token: CancellationToken): Promise<RemoteAgentHostHandoffResult>;
 

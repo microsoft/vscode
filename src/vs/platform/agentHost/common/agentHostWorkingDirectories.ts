@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { StringSHA1 } from '../../../base/common/hash.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, IExtUri } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 
 /**
@@ -26,9 +26,9 @@ export function getWorkingDirectoryKey(workingDirectory: string): string {
 	return extUriBiasedIgnorePathCase.getComparisonKey(URI.parse(workingDirectory));
 }
 
-/** Returns a stable identity for an effective folder/worktree set. */
-export function getWorkingDirectoryScopeId(workingDirectories: readonly string[]): string {
-	const keys = [...new Set(workingDirectories.map(directory => extUriBiasedIgnorePathCase.getComparisonKey(URI.parse(directory))))].sort();
+/** Returns a stable identity for an effective folder/worktree set, using OS-biased path casing unless a comparison strategy is supplied. */
+export function getWorkingDirectoryScopeId(workingDirectories: readonly string[], uriComparer: IExtUri = extUriBiasedIgnorePathCase): string {
+	const keys = [...new Set(workingDirectories.map(directory => uriComparer.getComparisonKey(URI.parse(directory))))].sort();
 	const sha1 = new StringSHA1();
 	sha1.update(JSON.stringify(keys));
 	return sha1.digest();

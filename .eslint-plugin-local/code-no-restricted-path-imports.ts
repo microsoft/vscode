@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as eslint from 'eslint';
-import type * as ESTree from 'estree';
-import type { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, Location, RuleMeta, Scope, Visitor } from '@oxlint/plugins';
 import minimatch from 'minimatch';
 import { posix, resolve, win32 } from 'path';
 import { createImportRuleListener } from './utils.ts';
@@ -38,9 +36,9 @@ export function resolveImport(root: string, filename: string, specifier: string)
 	return pathApi.relative(root, resolved).replace(/\\/g, '/');
 }
 
-export default new class NoRestrictedPathImports implements eslint.Rule.RuleModule {
+export default new class NoRestrictedPathImports implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			restricted: '{{message}}',
 		},
@@ -68,10 +66,11 @@ export default new class NoRestrictedPathImports implements eslint.Rule.RuleModu
 		}],
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const { paths } = context.options[0] as { paths: RestrictedPath[] };
+	create(context: Context): Visitor {
+		// `RestrictedPath` has no index signature, so it doesn't overlap with JSON values
+		const { paths } = context.options[0] as unknown as { paths: RestrictedPath[] };
 
-		const checkImport = (loc: TSESTree.SourceLocation | eslint.AST.SourceLocation | null | undefined, value: string): void => {
+		const checkImport = (loc: Location | null | undefined, value: string): void => {
 			const resolved = resolveImport(repositoryRoot, context.filename, value);
 			if (resolved === undefined || !loc) {
 				return;
@@ -86,7 +85,7 @@ export default new class NoRestrictedPathImports implements eslint.Rule.RuleModu
 			}
 		};
 
-		const checkSource = (node: eslint.Rule.Node | ESTree.Node | undefined): void => {
+		const checkSource = (node: ESTree.Node | undefined): void => {
 			const value = getStaticString(node);
 			if (node && value !== undefined) {
 				checkImport(node.loc, value);
@@ -94,7 +93,7 @@ export default new class NoRestrictedPathImports implements eslint.Rule.RuleModu
 		};
 
 		const isGlobalRequire = (node: ESTree.Node): boolean => {
-			for (let scope: eslint.Scope.Scope | null = context.sourceCode.getScope(node); scope; scope = scope.upper) {
+			for (let scope: Scope | null = context.sourceCode.getScope(node); scope; scope = scope.upper) {
 				const variable = scope.set.get('require');
 				if (variable) {
 					return variable.defs.length === 0;
@@ -106,7 +105,7 @@ export default new class NoRestrictedPathImports implements eslint.Rule.RuleModu
 		return {
 			...createImportRuleListener((node, value) => checkImport(node.loc, value)),
 			ImportExpression: (node: ESTree.ImportExpression) => checkSource(node.source),
-			'TSImportType > Literal': (node: eslint.Rule.Node) => checkSource(node),
+			'TSImportType > Literal': (node: ESTree.Node) => checkSource(node),
 			CallExpression: (node: ESTree.CallExpression) => {
 				if (node.callee.type === 'Identifier' && node.callee.name === 'require' && node.arguments.length === 1 && isGlobalRequire(node)) {
 					checkSource(node.arguments[0]);
@@ -119,7 +118,7 @@ export default new class NoRestrictedPathImports implements eslint.Rule.RuleModu
 /**
  * Returns the value of a string literal or of a template literal without substitutions.
  */
-function getStaticString(node: eslint.Rule.Node | ESTree.Node | undefined): string | undefined {
+function getStaticString(node: ESTree.Node | undefined): string | undefined {
 	if (node?.type === 'Literal' && typeof node.value === 'string') {
 		return node.value;
 	}

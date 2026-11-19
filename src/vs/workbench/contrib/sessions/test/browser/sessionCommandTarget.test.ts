@@ -26,7 +26,7 @@ import { ISessionGridPane, SessionGridPaneKind } from '../../../../services/sess
 import { VisibleSessions } from '../../../../services/sessions/browser/visibleSessions.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { sessionsServiceWithGridHost, withCreatedStatus } from './sessionHostTestUtils.js';
+import { sessionsServiceWithGridHost, withCreatedStatus, navigationServiceOf } from './sessionHostTestUtils.js';
 
 const CHAT_WINDOW_ID = 4242;
 
@@ -51,7 +51,7 @@ suite('resolveSessionCommandTarget', () => {
 		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<ISession | undefined>(sessionB), chat: constObservable(otherChat), contextKeyService, windowId: constObservable(mainWindow.vscodeWindowId) });
 		const groups = [upcastPartial<IEditorGroup>({ id: 1, windowId: mainWindow.vscodeWindowId }), upcastPartial<IEditorGroup>({ id: 7, windowId: CHAT_WINDOW_ID })];
 		const sessionsService = sessionsServiceWithGridHost(mainHost);
-		const sessionHostService = disposables.add(new SessionHostService(sessionsService, upcastPartial<IEditorGroupsService>({ getGroup: id => groups.find(group => group.id === id) })));
+		const sessionHostService = disposables.add(new SessionHostService(navigationServiceOf(sessionsService), upcastPartial<IEditorGroupsService>({ getGroup: id => groups.find(group => group.id === id) })));
 		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<ISession | undefined>(sessionA), chat: constObservable(sideChat), contextKeyService, windowId: constObservable(CHAT_WINDOW_ID) });
 		disposables.add(sessionHostService.registerHost(chatWindowHost));
 		instantiationService.stub(ISessionHostService, sessionHostService);
@@ -181,7 +181,7 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 			isDetachedPane: host => paneOfHost(host)?.kind === SessionGridPaneKind.Detached,
 			getPaneOfHost: host => paneOfHost(host),
 		});
-		const sessionHostService = disposables.add(new SessionHostService(sessionsService, upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
+		const sessionHostService = disposables.add(new SessionHostService(navigationServiceOf(sessionsService), upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
 		const panes = new Map<ISessionHost, string>();
 		const hostOfPane = new Map<ISessionGridPane, ISessionHost>();
 		for (const pane of model.panes.get()) {

@@ -20,7 +20,7 @@ import {
 import { CodeSnippetBuilder } from './code';
 import * as protocol from '../../common/serverProtocol';
 import { type CodeCacheItem, type EmitterContext, ProgramContext, RecoverableError, type SnippetProvider } from './types';
-import tss, { type CancellationTokenWithTimer, Symbols, Types } from './typescripts';
+import tss, { type CancellationTokenWithTimer, Symbols } from './typescripts';
 
 export class RequestContext {
 	private readonly symbols: Map<Project, Symbols> = new Map();
@@ -48,17 +48,6 @@ export class RequestContext {
 		if (result === undefined) {
 			result = new Symbols(project, this.session.token);
 			this.symbols.set(project, result);
-		}
-		return result;
-	}
-
-	public async getPreferredNeighborFiles(project: Project): Promise<SourceFile[]> {
-		const result: SourceFile[] = [];
-		for (const file of this.neighborFiles) {
-			const sourceFile = await project.program.getSourceFile(file);
-			if (sourceFile !== undefined) {
-				result.push(sourceFile);
-			}
 		}
 		return result;
 	}
@@ -249,10 +238,6 @@ class RunnableResultReference {
 		this.cached = cached;
 	}
 
-	public get items(): protocol.ContextItem[] {
-		return this.cached.items.map(item => protocol.ContextItemReference.create(item.key));
-	}
-
 	public toJson(): protocol.ContextRunnableResultReference {
 		return { kind: protocol.ContextRunnableResultKind.Reference, id: this.cached.id };
 	}
@@ -275,10 +260,6 @@ export class ContextResult implements RunnableResultContext {
 		this.primaryBudget = primaryBudget;
 		this.secondaryBudget = secondaryBudget;
 		this.context = context;
-	}
-
-	public getSession(): ComputeContextSession {
-		return this.context.session;
 	}
 
 	public addPath(path: number[]): void {
@@ -701,16 +682,9 @@ export interface ProviderComputeContext {
 
 export type ContextProviderFactory = (node: Node, tokenInfo: tss.TokenInfo, context: ProviderComputeContext) => ContextProvider | undefined;
 
-export class TokenBudgetExhaustedError extends Error {
-	constructor() {
-		super('Budget exhausted');
-	}
-}
-
 export class CharacterBudget {
 	private charBudget: number;
 	private readonly lowWaterMark: number;
-	private itemRejected: boolean = false;
 
 	constructor(budget: number, lowWaterMark: number = 256) {
 		this.charBudget = budget;
@@ -722,31 +696,10 @@ export class CharacterBudget {
 	}
 
 	public hasRoom(chars: number): boolean {
-		const result = this.charBudget - this.lowWaterMark >= chars;
-		if (!result) {
-			this.itemRejected = true;
-		}
-		return result;
+		return this.charBudget - this.lowWaterMark >= chars;
 	}
 
 	public isExhausted(): boolean {
 		return this.charBudget <= 0;
 	}
-
-	public wasItemRejected(): boolean {
-		return this.itemRejected;
-	}
-
-	public throwIfExhausted(): void {
-		if (this.isExhausted()) {
-			throw new TokenBudgetExhaustedError();
-		}
-	}
-
-	public spentAndThrowIfExhausted(chars: number): void {
-		this.spent(chars);
-		this.throwIfExhausted();
-	}
 }
-
-export { Types };

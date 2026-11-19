@@ -250,6 +250,8 @@ export interface IChatSessionsExtensionPoint {
 	 * declaratively-contributed extensions supply a static boolean and omit this.
 	 */
 	readonly onDidChangeRequiresCopilotSignIn?: Event<void>;
+	/** Signals changes to dynamic creation availability without withdrawing the session type or its open drafts. */
+	readonly onDidChangeAvailability?: Event<void>;
 	/**
 	 * Whether this session type can delegate to another session.
 	 * Defaults to true.
@@ -628,6 +630,11 @@ export interface IChatSession extends IDisposable {
 		 * model instead of falling back to the request history's.
 		 */
 		readonly selectedModelId?: string;
+		/**
+		 * The configuration (e.g. thinking effort) that the transferred draft
+		 * gives {@link selectedModelId}, kept for the same cold restore.
+		 */
+		readonly selectedModelConfiguration?: IStringDictionary<unknown>;
 	};
 
 	requestHandler?: (

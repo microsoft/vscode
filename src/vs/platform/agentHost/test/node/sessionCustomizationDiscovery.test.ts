@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { CopilotClient } from '@github/copilot-sdk';
+import type { CopilotClient } from '@microsoft/copilot-sdk';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -21,6 +21,8 @@ import { CustomizationLoadStatus, CustomizationType, type SkillCustomization } f
 import { McpServerStatus } from '../../common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../common/state/protocol/mcpAppDefaults.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
+import { readCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
+import { readCustomizationTeamProvided } from '../../common/meta/customizationTeamMeta.js';
 import { hasReadableCustomizationContent } from '../../common/agentHostCustomizationUri.js';
 import { readSkillArgumentHint } from '../../common/meta/skillCustomizationMeta.js';
 import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
@@ -620,6 +622,85 @@ suite('SessionCustomizationDiscovery', () => {
 		client.rpc.plugins.list = async () => { throw new Error('plugin inventory unavailable'); };
 		const partial = await discovery.discover(client, CancellationToken.None);
 		assert.deepStrictEqual(partial.flatMap(item => item.type === CustomizationType.McpServer ? [item.name] : item.children?.map(child => child.name) ?? []), ['sessionStart', 'server']);
+	});
+
+	test('publishes organization control for plugins managed by enterprise settings', async () => {
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async () => ({
+			hooks: ['required', 'blocked', 'supplied', 'unmanaged'].map(name => ({ id: `${name}-hook`, hookType: 'sessionStart', origin: 'plugin', source: name, enabled: true, pluginId: name })),
+			errors: [], warnings: [],
+		}));
+		client.rpc.plugins.list = async () => ({
+			plugins: [
+				{ id: 'required', name: 'required', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/required', managed: true, managedDesiredEnabled: true },
+				{ id: 'blocked', name: 'blocked', marketplace: 'enterprise', enabled: false, rootPath: '/plugins/blocked', managed: true, managedDesiredEnabled: false },
+				{ id: 'supplied', name: 'supplied', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/supplied', managed: true, team: true },
+				{ id: 'unmanaged', name: 'unmanaged', marketplace: 'public', enabled: true, rootPath: '/plugins/unmanaged', managed: false, managedDesiredEnabled: true, team: true },
+				{ id: 'childless', name: 'childless', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/childless', managed: true, managedDesiredEnabled: true },
+				{ id: 'not-installed', name: 'not-installed', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false },
+				{ id: 'blocked-not-installed', name: 'blocked-not-installed', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: false, installed: false },
+				{ id: 'unmanaged-childless', name: 'unmanaged-childless', marketplace: 'public', enabled: true, rootPath: '/plugins/unmanaged-childless' },
+			],
+		});
+		const result = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual(Object.fromEntries(result.filter(item => item.type === CustomizationType.Plugin).map(plugin => [plugin.name, {
+			organization: readCustomizationOrganizationMeta(plugin),
+			// Team assignment is provenance only, so it is published alongside organization control rather than instead of it.
+			team: readCustomizationTeamProvided(plugin),
+			uri: plugin.uri,
+			load: plugin.load?.kind,
+			children: plugin.children?.length,
+		}])), {
+			required: { organization: { requiredEnabled: true }, team: false, uri: inMemoryPathToUri('/plugins/required').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			blocked: { organization: { requiredEnabled: false }, team: false, uri: inMemoryPathToUri('/plugins/blocked').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			supplied: { organization: {}, team: true, uri: inMemoryPathToUri('/plugins/supplied').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			unmanaged: { organization: undefined, team: true, uri: inMemoryPathToUri('/plugins/unmanaged').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			childless: { organization: { requiredEnabled: true }, team: false, uri: inMemoryPathToUri('/plugins/childless').toString(), load: CustomizationLoadStatus.Loaded, children: 0 },
+			'not-installed': { organization: { requiredEnabled: true }, team: false, uri: 'agent-discovery://copilot/plugins/not-installed', load: CustomizationLoadStatus.Error, children: 0 },
+		});
+	});
+
+	test('publishes a required plugin that failed to install from the session inventory, since global records omit it', async () => {
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async () => ({ hooks: [], errors: [], warnings: [] }));
+		client.rpc.plugins.list = async () => ({ plugins: [{ id: 'installed', name: 'installed', marketplace: 'enterprise', enabled: false, rootPath: '/plugins/installed' }] });
+		const sessionPlugins = async () => [
+			{ id: 'installed', name: 'installed', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/installed', managed: true, managedDesiredEnabled: true, installed: true },
+			{ id: 'missing', name: 'missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false },
+			{ id: 'blocked-missing', name: 'blocked-missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: false, installed: false },
+			{ id: 'session-only', name: 'session-only', marketplace: '', enabled: true, rootPath: '/plugins/session-only' },
+		];
+		const discover = async (plugins?: () => Promise<Awaited<ReturnType<typeof sessionPlugins>> | undefined>) => (await discovery.discover(client, CancellationToken.None, plugins))
+			.filter(item => item.type === CustomizationType.Plugin)
+			.map(plugin => ({ name: plugin.name, uri: plugin.uri, load: plugin.load?.kind, organization: readCustomizationOrganizationMeta(plugin) }));
+		assert.deepStrictEqual({
+			withoutSession: await discover(),
+			sessionNotReady: await discover(async () => undefined),
+			sessionFailed: await discover(async () => { throw new Error('session closed'); }),
+			session: await discover(sessionPlugins),
+		}, {
+			withoutSession: [], sessionNotReady: [], sessionFailed: [],
+			session: [{ name: 'missing', uri: 'agent-discovery://copilot/plugins/missing', load: CustomizationLoadStatus.Error, organization: { requiredEnabled: true } }],
+		});
+	});
+
+	test('marks plugins the runtime registers as built in', async () => {
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async () => ({
+			hooks: ['computer-use', 'installed'].map(name => ({ id: `${name}-hook`, hookType: 'sessionStart', origin: 'plugin', source: name, enabled: true, pluginId: name })),
+			errors: [], warnings: [],
+		}));
+		client.rpc.plugins.list = async () => ({
+			plugins: [
+				{ id: 'computer-use', name: 'computer-use', marketplace: '', enabled: true, rootPath: '/plugins/computer-use', source: 'builtin' },
+				{ id: 'installed', name: 'installed', marketplace: 'public', enabled: true, rootPath: '/plugins/installed' },
+			],
+		});
+		const result = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual(Object.fromEntries(result.filter(item => item.type === CustomizationType.Plugin).map(plugin => [plugin.name, readCustomizationDiscoveryMeta(plugin)?.source])), {
+			'computer-use': 'builtin',
+			installed: undefined,
+		});
 	});
 
 	test('marks agent instruction rule sources as always apply', async () => {

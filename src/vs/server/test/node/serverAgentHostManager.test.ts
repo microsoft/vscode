@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdir, mkdtemp, realpath, rm } from 'fs/promises';
+import { tmpdir } from 'os';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { join, parse, win32 } from '../../../base/common/path.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IChannel, IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../../platform/agentHost/common/agent.js';
 import { AgentHostIpcChannels } from '../../../platform/agentHost/common/agentService.js';
+import { getConnectionDiagnosticError } from '../../../platform/agentHost/common/connectionDiagnostics.js';
 import { NullLogService, NullLoggerService } from '../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { readGithubEnvironmentOptions, ServerAgentHostManager, type IServerAgentHostManagerOptions } from '../../node/serverAgentHostManager.js';
@@ -22,6 +27,7 @@ class MockChannel implements IChannel {
 	private readonly _listeners = new Map<string, Emitter<unknown>>();
 	private readonly _callResults = new Map<string, unknown>();
 	readonly calls: { command: string; arg: unknown }[] = [];
+	onCall: ((command: string) => void) | undefined;
 
 	getEmitter(event: string): Emitter<unknown> {
 		let emitter = this._listeners.get(event);
@@ -38,6 +44,7 @@ class MockChannel implements IChannel {
 
 	call<T>(command: string, _arg?: unknown): Promise<T> {
 		this.calls.push({ command, arg: _arg });
+		this.onCall?.(command);
 		return Promise.resolve((this._callResults.get(command) ?? undefined) as T);
 	}
 
@@ -213,6 +220,10 @@ suite('ServerAgentHostManager', () => {
 		starter.connectionTrackerChannel.getEmitter('onDidChangeConnectionCount').fire(count);
 	}
 
+	function fireGitHubEnvironmentRegistered(registered: boolean): void {
+		starter.connectionTrackerChannel.getEmitter('onDidChangeGitHubEnvironmentRegistered').fire(registered);
+	}
+
 	test('no lifetime token initially', async () => {
 		const manager = createManager();
 		await waitForStart(manager);
@@ -224,7 +235,7 @@ suite('ServerAgentHostManager', () => {
 		roots: ['/project'], name: 'build-machine', live: true,
 	};
 
-	test('consumes GitHub environment credentials without delegating them to relay clients', () => {
+	test('consumes only trusted GitHub environment bootstrap fields', () => {
 		const env = { VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS: JSON.stringify({ ...githubEnvironment, useLocalCredentials: true }) };
 		assert.deepStrictEqual({ options: readGithubEnvironmentOptions(env), env }, {
 			options: githubEnvironment, env: {},
@@ -235,12 +246,48 @@ suite('ServerAgentHostManager', () => {
 		assert.strictEqual(readGithubEnvironmentOptions({}), undefined);
 	});
 
+	test('keeps GitHub environment filesystem grants separate from projects and the default directory', () => {
+		const options = { ...githubEnvironment, roots: ['C:\\project', 'C:\\', 'Q:\\'], optionalRoots: ['C:\\', 'Q:\\'], projects: ['C:\\project'], defaultDirectory: 'C:\\project' };
+		const env = { VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS: JSON.stringify(options) };
+		assert.deepStrictEqual({ options: readGithubEnvironmentOptions(env), env }, { options, env: {} });
+	});
+
+	(isWindows ? test : test.skip)('normalizes only extended Windows drive roots in GitHub environment bootstrap', () => {
+		const directory = `\\\\?\\Q:\\${'directory\\'.repeat(30)}`;
+		const options = {
+			...githubEnvironment,
+			roots: ['\\\\?\\C:\\', '\\\\?\\Q:\\', directory],
+			optionalRoots: ['\\\\?\\Q:\\'],
+			projects: ['\\\\?\\C:\\', directory],
+			defaultDirectory: '\\\\?\\C:\\',
+		};
+		assert.deepStrictEqual(readGithubEnvironmentOptions({ VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS: JSON.stringify(options) }), {
+			...options,
+			roots: ['C:\\', 'Q:\\', directory],
+			optionalRoots: ['Q:\\'],
+			projects: ['C:\\', directory],
+			defaultDirectory: 'C:\\',
+		});
+	});
+
 	test('rejects malformed GitHub environment bootstrap and still removes the credential', () => {
 		for (const value of [
 			'', 'null', '{}', JSON.stringify({ ...githubEnvironment, baseUrl: 'https://untrusted.example' }),
 			JSON.stringify({ ...githubEnvironment, credential: '' }),
 			JSON.stringify({ ...githubEnvironment, roots: [] }),
 			JSON.stringify({ ...githubEnvironment, roots: [123] }),
+			JSON.stringify({ ...githubEnvironment, optionalRoots: null }),
+			JSON.stringify({ ...githubEnvironment, optionalRoots: [123] }),
+			JSON.stringify({ ...githubEnvironment, optionalRoots: [''] }),
+			JSON.stringify({ ...githubEnvironment, optionalRoots: ['/not-granted'] }),
+			JSON.stringify({ ...githubEnvironment, optionalRoots: ['/project'], projects: ['/project'] }),
+			JSON.stringify({ ...githubEnvironment, optionalRoots: ['/project'], defaultDirectory: '/project' }),
+			JSON.stringify({ ...githubEnvironment, projects: null }),
+			JSON.stringify({ ...githubEnvironment, projects: [123] }),
+			JSON.stringify({ ...githubEnvironment, projects: [''] }),
+			JSON.stringify({ ...githubEnvironment, defaultDirectory: null }),
+			JSON.stringify({ ...githubEnvironment, defaultDirectory: 123 }),
+			JSON.stringify({ ...githubEnvironment, defaultDirectory: '' }),
 			JSON.stringify({ ...githubEnvironment, accountId: 'not-an-owner' }),
 			JSON.stringify({ ...githubEnvironment, name: '' }),
 			JSON.stringify({ ...githubEnvironment, name: null }),
@@ -269,10 +316,50 @@ suite('ServerAgentHostManager', () => {
 		}, {
 			ready: ['environment-123', 'environment-123'],
 			configurations: [
-				{ command: 'configureMissionControl', arg: [githubEnvironment] },
-				{ command: 'configureMissionControl', arg: [githubEnvironment] },
+				{ command: 'configureMissionControl', arg: [{ ...githubEnvironment, useLocalCredentials: true }] },
+				{ command: 'configureMissionControl', arg: [{ ...githubEnvironment, useLocalCredentials: true }] },
 			],
 		});
+	});
+
+	test('installs the host OAuth credential before registration and reinstalls it after a crash', async () => {
+		const authentication = new DeferredPromise<void>();
+		const authenticationRequested = new DeferredPromise<void>();
+		starter.managementChannel.onCall = command => {
+			if (command === 'setHostExecutionCredentials') {
+				void authenticationRequested.complete();
+			}
+		};
+		starter.managementChannel.setCallResult('setHostExecutionCredentials', authentication.p);
+		starter.managementChannel.setCallResult('getMissionControlEnvironmentId', 'environment-123');
+		const manager = createManager({ githubEnvironment });
+		await authenticationRequested.p;
+		assert.deepStrictEqual(starter.managementChannel.calls.map(call => call.command), ['setHostExecutionCredentials']);
+		await authentication.complete();
+		await manager.ensureStarted();
+		starter.fireProcessExit(1);
+		await manager.ensureStarted();
+		const expected = [[
+			{ resource: 'https://api.github.com', scopes: ['read:user', 'user:email'], token: 'test-credential' },
+			{ resource: 'https://api.github.com/repos', scopes: ['repo'], token: 'test-credential' },
+		]];
+		assert.deepStrictEqual(starter.managementChannel.calls.filter(call => call.command === 'setHostExecutionCredentials').map(call => call.arg), [expected, expected]);
+	});
+
+	test('does not register or report ready when the host credential is rejected', async () => {
+		starter.managementChannel.onCall = command => {
+			if (command === 'setHostExecutionCredentials') {
+				throw new Error('Rejected host execution credential');
+			}
+		};
+		const ready: string[] = [];
+		const manager = createManager({ githubEnvironment, onGithubEnvironmentReady: id => ready.push(id) });
+		await assert.rejects(manager.ensureStarted(), /Rejected host execution credential/);
+		assert.deepStrictEqual({
+			ready,
+			configured: starter.managementChannel.calls.some(call => call.command === 'configureMissionControl'),
+			disposed: starter.connectionStores.every(store => store.isDisposed),
+		}, { ready: [], configured: false, disposed: true });
 	});
 
 	test('does not report ready when GitHub environment registration fails', async () => {
@@ -283,6 +370,76 @@ suite('ServerAgentHostManager', () => {
 		assert.deepStrictEqual({ ready, disposed: starter.connectionStores.every(store => store.isDisposed) }, {
 			ready: [], disposed: true,
 		});
+	});
+
+	test('rechecks automatic GitHub environment roots after a crash without dropping explicit roots', async () => {
+		const directory = await realpath(await mkdtemp(join(tmpdir(), 'vscode-github-environment-')));
+		const drive = join(directory, 'drive');
+		try {
+			await mkdir(drive);
+			const configuration = { ...githubEnvironment, roots: [directory, drive], projects: [directory], defaultDirectory: directory, useLocalCredentials: true };
+			starter.managementChannel.setCallResult('getMissionControlEnvironmentId', 'environment-123');
+			const manager = createManager({ githubEnvironment: { ...configuration, optionalRoots: [drive] } });
+			await manager.ensureStarted();
+			await rm(drive, { recursive: true });
+			starter.fireProcessExit(1);
+			await manager.ensureStarted();
+			await mkdir(drive);
+			starter.fireProcessExit(1);
+			await manager.ensureStarted();
+			assert.deepStrictEqual(starter.managementChannel.calls.filter(call => call.command === 'configureMissionControl').map(call => call.arg), [
+				[configuration],
+				[{ ...configuration, roots: [directory] }],
+				[configuration],
+			]);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	(isWindows ? test : test.skip)('keeps canonical Windows drive roots through GitHub environment registration', async () => {
+		const directory = await realpath(tmpdir());
+		const drive = parse(directory).root;
+		const project = win32.toNamespacedPath(directory);
+		const root = win32.toNamespacedPath(drive);
+		starter.managementChannel.setCallResult('getMissionControlEnvironmentId', 'environment-123');
+		for (const scope of [
+			{ roots: [project, root], optionalRoots: [root], projects: [project], defaultDirectory: project },
+			{ roots: [root], projects: [root], defaultDirectory: root },
+		]) {
+			const manager = createManager({
+				githubEnvironment: readGithubEnvironmentOptions({
+					VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS: JSON.stringify({ ...githubEnvironment, ...scope }),
+				}),
+			});
+			await manager.ensureStarted();
+		}
+		assert.deepStrictEqual(starter.managementChannel.calls.filter(call => call.command === 'configureMissionControl').map(call => call.arg), [
+			[{ ...githubEnvironment, roots: [project, drive], projects: [project], defaultDirectory: project, useLocalCredentials: true }],
+			[{ ...githubEnvironment, roots: [drive], projects: [drive], defaultDirectory: drive, useLocalCredentials: true }],
+		]);
+	});
+
+	test('preserves a structured GitHub environment configuration failure instead of reporting a missing ID', async () => {
+		const failure = new Error('Socket error', {
+			cause: Object.assign(new Error('Network timed out'), { code: 'ETIMEDOUT' }),
+		});
+		const diagnostic = getConnectionDiagnosticError(failure);
+		starter.managementChannel.setCallResult('configureMissionControl', { error: diagnostic });
+		const ready: string[] = [];
+		const manager = createManager({ githubEnvironment, onGithubEnvironmentReady: id => ready.push(id) });
+		let received: ReturnType<typeof getConnectionDiagnosticError> | undefined;
+		try {
+			await manager.ensureStarted();
+			assert.fail('Configuration must fail');
+		} catch (error) {
+			received = getConnectionDiagnosticError(error);
+		}
+		assert.deepStrictEqual({
+			error: received, ready,
+			lookedUpId: starter.managementChannel.calls.some(call => call.command === 'getMissionControlEnvironmentId'),
+			disposed: starter.connectionStores.every(store => store.isDisposed),
+		}, { error: diagnostic, ready: [], lookedUpId: false, disposed: true });
 	});
 
 	test('allows the CLI to gracefully shut down a registered GitHub environment', async () => {
@@ -371,28 +528,30 @@ suite('ServerAgentHostManager', () => {
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
-	test('releases token only when both sessions and standalone WebSocket connections are zero', async () => {
+	test('releases token only when sessions, standalone WebSocket connections and client GitHub environment registration are gone', async () => {
 		const manager = createManager();
 		await waitForStart(manager);
-
-		fireActiveSessions(1);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
-
-		fireConnectionCount(1);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
-
-		fireActiveSessions(0);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
-
-		fireConnectionCount(0);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
+		const states: boolean[] = [];
+		for (const fire of [
+			() => fireActiveSessions(1),
+			() => fireConnectionCount(1),
+			() => fireGitHubEnvironmentRegistered(true),
+			() => fireActiveSessions(0),
+			() => fireConnectionCount(0),
+			() => fireGitHubEnvironmentRegistered(false),
+		]) {
+			fire();
+			states.push(lifetimeService.hasActiveConsumers);
+		}
+		assert.deepStrictEqual(states, [true, true, true, true, true, false]);
 	});
 
-	test('process exit resets both signals and clears token', async () => {
+	test('process exit resets all signals and clears token', async () => {
 		const manager = createManager();
 		await waitForStart(manager);
 		fireActiveSessions(2);
 		fireConnectionCount(1);
+		fireGitHubEnvironmentRegistered(true);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 
 		starter.fireProcessExit(1);

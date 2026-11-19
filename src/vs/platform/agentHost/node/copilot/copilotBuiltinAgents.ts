@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CustomAgentConfig } from '@github/copilot-sdk';
+import type { CustomAgentConfig } from '@microsoft/copilot-sdk';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';

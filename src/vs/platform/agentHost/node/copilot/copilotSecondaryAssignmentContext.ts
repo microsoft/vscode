@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
+import type { GitHubTelemetryNotification } from '@microsoft/copilot-sdk';
 import { isValidAssignmentContext } from '../../../telemetry/common/assignmentContext.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 

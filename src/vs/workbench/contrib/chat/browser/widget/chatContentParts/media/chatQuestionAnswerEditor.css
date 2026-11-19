@@ -31,19 +31,6 @@
 	background-color: var(--vscode-input-background);
 }
 
-/* Idle (unfocused and empty): same frame as any input; only the placeholder reads as an action. */
-.chat-question-answer-editor.ghost {
-	cursor: text;
-}
-
-.chat-question-answer-editor.ghost .monaco-editor .editorPlaceholder {
-	color: var(--vscode-textLink-foreground);
-}
-
 .monaco-workbench:not(.monaco-reduce-motion) .chat-question-answer-editor {
 	transition: border-color 150ms ease-out;
-
-	.monaco-editor .editorPlaceholder {
-		transition: color 150ms ease-out;
-	}
 }

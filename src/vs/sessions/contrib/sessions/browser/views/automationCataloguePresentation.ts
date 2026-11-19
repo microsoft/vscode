@@ -5,8 +5,21 @@
 
 import { groupByMap } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
-import type { IAutomationDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { getEntryAddress, IRemoteAgentHostEntry, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { type IAutomationDescriptor, type IAutomationRun, isAutomationVisible } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import type { IAutomationProviderDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+
+export function getAutomationsViewContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], showOthers: boolean) {
+	const hiddenIds = new Set(automations
+		.filter(automation => !isAutomationVisible(automation, showOthers))
+		.map(automation => automation.id));
+	return {
+		automations: automations.filter(automation => !hiddenIds.has(automation.id)),
+		runs: runs.filter(run => !hiddenIds.has(run.automationId)),
+	};
+}
 
 export function getAutomationOwnershipGroups(automations: readonly IAutomationDescriptor[]) {
 	return [
@@ -17,7 +30,56 @@ export function getAutomationOwnershipGroups(automations: readonly IAutomationDe
 			description: localize('automations.repositoryOwnedDescription', "These automations are visible to anyone with repository access, and can be edited by anyone with write access."),
 			automations: automations.filter(automation => automation.ownership === 'repository'),
 		},
-	].filter(group => group.automations.length > 0 || group.ownership === 'user' && automations.some(automation => automation.ownership === 'repository'));
+	].filter(group => group.automations.length > 0 || group.ownership === 'user' && automations.some(automation => automation.ownership === 'repository'))
+		.map(group => ({ ...group, automations: group.automations.sort((a, b) => Number(b.enabled) - Number(a.enabled)) }));
+}
+
+export function getVisibleAutomations(automations: readonly IAutomationDescriptor[], sendLaterEnabled: boolean): readonly IAutomationDescriptor[] {
+	return automations.filter(automation =>
+		!sendLaterEnabled || automation.purpose !== 'scheduledChat' || automation.oneTimeDispatchedAt !== undefined);
+}
+
+export function hasEmptyAutomationSection(automations: readonly IAutomationDescriptor[]): boolean {
+	return automations.length === 0 || getAutomationOwnershipGroups(automations)
+		.some(group => group.automations.length === 0);
+}
+
+export interface IAutomationRemoteStatusPresentation {
+	readonly tunnelEntries: readonly IRemoteAgentHostEntry[];
+	readonly replacedTunnelProviderIds: ReadonlySet<string>;
+	readonly ignoredGitHubEnvironmentProviderIds: ReadonlySet<string>;
+	readonly visibleUnavailableProviders: readonly IAutomationProviderDescriptor[];
+	readonly suppressedAllReasons: boolean;
+}
+
+export function getAutomationRemoteStatusPresentation(
+	unavailableProviders: readonly IAutomationProviderDescriptor[],
+	configuredEntries: readonly IRemoteAgentHostEntry[],
+	githubEnvironmentIds: readonly string[],
+	replaceTunnelWarnings: boolean,
+): IAutomationRemoteStatusPresentation {
+	const tunnelEntries = configuredEntries.filter(entry => entry.connection.type === RemoteAgentHostEntryType.Tunnel);
+	const tunnelProviderIds = new Set(tunnelEntries.map(entry => `agenthost-${agentHostAuthority(getEntryAddress(entry))}`));
+	const githubEnvironmentProviderIds = new Set(githubEnvironmentIds
+		.map(environmentId => `agenthost-${agentHostAuthority(cloudSandboxAddress(environmentId))}`));
+	const replacedTunnelProviderIds = new Set(replaceTunnelWarnings
+		? unavailableProviders
+			.filter(provider => provider.unavailableReasonCode === 'disconnected' && tunnelProviderIds.has(provider.id))
+			.map(provider => provider.id)
+		: []);
+	const ignoredGitHubEnvironmentProviderIds = new Set(unavailableProviders
+		.filter(provider => provider.unavailableReasonCode === 'disconnected' && githubEnvironmentProviderIds.has(provider.id))
+		.map(provider => provider.id));
+	const visibleUnavailableProviders = unavailableProviders.filter(provider =>
+		!ignoredGitHubEnvironmentProviderIds.has(provider.id)
+		&& !replacedTunnelProviderIds.has(provider.id));
+	return {
+		tunnelEntries,
+		replacedTunnelProviderIds,
+		ignoredGitHubEnvironmentProviderIds,
+		visibleUnavailableProviders,
+		suppressedAllReasons: unavailableProviders.length > 0 && visibleUnavailableProviders.length === 0,
+	};
 }
 
 export function getUnavailableAutomationsReasons(unavailableProviders: readonly IAutomationProviderDescriptor[]): string[] {

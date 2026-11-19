@@ -10,7 +10,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
+import { mcpAccessConfig, McpAccessValue, normalizeMcpGalleryUrl } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
@@ -24,7 +24,7 @@ import { DisposableStore, IDisposable, IReference, MutableDisposable, toDisposab
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { autorun, derived } from '../../../../../base/common/observable.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
@@ -52,12 +52,12 @@ import { basename, dirname, getComparisonKey, isEqual } from '../../../../../bas
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
+import { observeVisibleSectionBadges } from './aiCustomizationSectionBadges.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { createInstalledPluginItem, McpListWidget } from './mcpListWidget.js';
-import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -95,6 +95,7 @@ import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, Customizat
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { isAgentHostTarget, isRemoteAgentHostTarget, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/chatSessionsService.js';
+import { IAgentCustomizationInstallationAnswers, IAgentCustomizationInstallationConfigurationRequest } from '../../../../../platform/agentHost/common/agent.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -128,6 +129,8 @@ import { IMcpService, IMcpWorkbenchService, isMcpOAuthClientSecretStorageKey, ty
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
+import { ICustomizationInstallationConfigurationService } from '../agentSessions/agentHost/customizationInstallationConfigurationService.js';
+import { McpServerInstallForm } from '../agentSessions/agentHost/mcpServerInstallForm.js';
 import { type CustomizationSourceFolderReadiness, ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
@@ -404,6 +407,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private sectionsListContainer: HTMLElement | undefined;
 	private sectionsList!: WorkbenchList<ISectionItem>;
 	private contentContainer!: HTMLElement;
+	private contentInner!: HTMLElement;
 	private listWidget!: AICustomizationListWidget;
 	private listWidgetSectionLoad: Promise<void> = Promise.resolve();
 	private mcpListWidget: McpListWidget | undefined;
@@ -522,6 +526,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private pluginDetailInput: IAgentPluginItem | undefined;
 	private pluginDetailOrigin: CustomizationDetailBaseOrigin | undefined;
 
+	// The form that configures an MCP server installation, shown over the current page
+	private readonly mcpInstallPage = this._register(new MutableDisposable<IDisposable & { readonly form: McpServerInstallForm; readonly returnFocus: Element | null }>());
+	private readonly mcpInstallPresenter = this._register(new MutableDisposable());
+
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
 	private readonly sectionBadges = new Map<AICustomizationManagementSection, string>();
@@ -613,6 +621,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IAgentHostActiveClientService private readonly agentHostActiveClientService: IAgentHostActiveClientService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
+		@ICustomizationInstallationConfigurationService private readonly installationConfigurationService: ICustomizationInstallationConfigurationService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -626,6 +635,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this._register(autorun(reader => {
 			this.workspaceService.activeProjectRoot.read(reader);
 			this.workspaceService.activeProjectLabel.read(reader);
+			this.workspaceService.activeTargetLabels?.read(reader);
 			this.updateTargetLabelPresentation();
 			if (this.viewMode === 'editor') {
 				this.currentEditingProjectRoot = this.workspaceService.getActiveProjectRoot();
@@ -791,11 +801,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateTargetLabelPresentation(): void {
-		const harnessLabel = this.getActiveHarnessLabel();
-		const workspaceLabel = this.workspaceService.activeProjectLabel.get();
+		const targetLabels = this.workspaceService.activeTargetLabels?.get();
+		const harnessLabel = targetLabels?.harness ?? this.getActiveHarnessLabel();
+		const workspaceLabel = targetLabels?.workspace ?? this.workspaceService.activeProjectLabel.get();
 		this.welcomePage?.setHarnessLabel(harnessLabel);
 		if (this.input instanceof AICustomizationManagementEditorInput) {
-			this.input.setTargetLabels(harnessLabel, workspaceLabel);
+			this.input.setTargetLabels(harnessLabel, workspaceLabel, targetLabels?.environment);
 		}
 	}
 
@@ -806,20 +817,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	private rebuildVisibleSections(): void {
 		const activeId = this.harnessService.activeHarness.get();
-		const descriptor = this.harnessService.findHarnessById(activeId);
-		const hidden = new Set(descriptor?.hiddenSections ?? []);
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
-			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
-			if (!hidden.has(s.id) && (!contributed || !!contribution) && this.isContributedSectionEnabled(s.id)) {
+			if (aiCustomizationManagementSectionRegistry.isVisible(s.id, activeId, this.harnessService, this.configurationService)) {
+				s.badge = this.sectionBadges.get(s.id);
 				this.sections.push(contribution ? {
 					...s,
 					label: contribution.label,
 					description: contribution.description,
 					separatorBefore: contribution.separatorBefore,
-					badge: this.sectionBadges.get(s.id),
 				} : s);
 			}
 		}
@@ -843,8 +851,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private isContributedSectionEnabled(section: AICustomizationManagementSection): boolean {
-		const settings = aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get())?.enablementSettings;
-		return !settings || settings.some(setting => this.configurationService.getValue<boolean>(setting) === true);
+		return aiCustomizationManagementSectionRegistry.isEnabled(aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get()), this.configurationService);
 	}
 
 	private updateContributedSectionEnablement(): void {
@@ -921,7 +928,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			this._previousActiveHarnessId = activeId;
 		}));
-		this.registerContributedSectionBadges();
+		this.registerSectionBadges();
 
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.welcomePage?.isMarketplaceConfigurationChange(e)) {
@@ -1257,7 +1264,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createContent(): void {
-		const contentInner = DOM.append(this.contentContainer, $('.content-inner'));
+		const contentInner = this.contentInner = DOM.append(this.contentContainer, $('.content-inner'));
 
 		// Welcome page (shown when no section is selected)
 		this.createWelcomePage(contentInner);
@@ -2475,6 +2482,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		if (item.extensionId) {
+			// The Agents window has no Extensions view, so it shows the extension in its Extensions section instead.
+			const extensionsSection = this.sections.some(section => section.id === AICustomizationManagementSection.Extensions)
+				? this.ensureContributedSectionWidget(AICustomizationManagementSection.Extensions)
+				: undefined;
+			if (extensionsSection?.showExtension) {
+				this.selectSection(AICustomizationManagementSection.Extensions);
+				extensionsSection.showExtension(item.extensionId);
+				return;
+			}
 			await this.commandService.executeCommand(showExtensionsWithIdsCommandId, [item.extensionId]);
 		}
 	}
@@ -3646,20 +3662,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	/**
-	 * Shows the badges that contributed sections describe on their navigation entries.
+	 * Shows the badges that sections register on their navigation entries while the sections are visible.
 	 */
-	private registerContributedSectionBadges(): void {
-		// Resolve the badge observables once per harness so that badge changes only re-read them.
-		const sectionBadges = derived(this, reader => {
-			const activeHarness = this.harnessService.activeHarness.read(reader);
-			return this.workspaceService.managementSections.map(section => {
-				const getBadge = aiCustomizationManagementSectionRegistry.get(section, activeHarness)?.getBadge;
-				return { section, badge: getBadge ? this.instantiationService.invokeFunction(getBadge) : undefined };
-			});
+	private registerSectionBadges(): void {
+		const visibleBadges = observeVisibleSectionBadges({
+			instantiationService: this.instantiationService,
+			harnessService: this.harnessService,
+			workspaceService: this.workspaceService,
+			configurationService: this.configurationService,
 		});
 		this.editorDisposables.add(autorun(reader => {
-			for (const { section, badge } of sectionBadges.read(reader)) {
-				this.updateSectionBadge(section, badge?.read(reader));
+			const badges = new Map(visibleBadges.read(reader).map(({ section, badge }) => [section, badge]));
+			for (const section of this.workspaceService.managementSections) {
+				this.updateSectionBadge(section, badges.get(section));
 			}
 		}));
 	}
@@ -3829,19 +3844,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Move focus to the search input so keyboard users can immediately
 		// filter without extra Tab traversal (parity with mouse-click flow).
 		if (!options?.preserveFocus) {
-			if (section === AICustomizationManagementSection.McpServers) {
-				this.mcpListWidget?.focusSearch();
-			} else if (section === AICustomizationManagementSection.Plugins) {
-				this.pluginListWidget?.focusSearch();
-			} else if (section === AICustomizationManagementSection.Models) {
-				this.modelsWidget?.focusSearch();
-			} else if (section === AICustomizationManagementSection.Tools) {
-				this.toolsListWidget?.focusSearch();
-			} else if (this.contributedSectionContainers.has(section)) {
-				this.ensureContributedSectionWidget(section)?.focus?.();
-			} else {
-				this.listWidget?.focusSearch();
-			}
+			this.focusSectionContent(section);
+		}
+	}
+
+	/**
+	 * Moves focus to the search input of the given section, or into its widget for contributed sections.
+	 */
+	private focusSectionContent(section: AICustomizationManagementSection): void {
+		if (section === AICustomizationManagementSection.McpServers) {
+			this.mcpListWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Plugins) {
+			this.pluginListWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Models) {
+			this.modelsWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Tools) {
+			this.toolsListWidget?.focusSearch();
+		} else if (this.contributedSectionContainers.has(section)) {
+			this.ensureContributedSectionWidget(section)?.focus?.();
+		} else {
+			this.listWidget?.focusSearch();
 		}
 	}
 
@@ -3875,6 +3897,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private updateContentVisibility(): void {
 		this.contentNavigationGeneration++;
+		// Navigating cancels an installation that is being configured.
+		this.mcpInstallPage.clear();
 		const isEditorMode = this.viewMode === 'editor';
 		const isMigrationMode = this.viewMode === 'migration';
 		const isMarketplaceDetailMode = this.viewMode === 'marketplaceDetail';
@@ -4183,7 +4207,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 
 		await super.setInput(input, options, context, token);
-		input.setTargetLabels(this.getActiveHarnessLabel(), this.workspaceService.activeProjectLabel.get());
+		const targetLabels = this.workspaceService.activeTargetLabels?.get();
+		input.setTargetLabels(
+			targetLabels?.harness ?? this.getActiveHarnessLabel(),
+			targetLabels?.workspace ?? this.workspaceService.activeProjectLabel.get(),
+			targetLabels?.environment,
+		);
 		if (!token.isCancellationRequested) {
 			this.initializeContributedSectionWidgets();
 			if (this.selectedSection && this.isContributedSectionEnabled(this.selectedSection)) {
@@ -4241,6 +4270,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
+		if (visible) {
+			// Installations started here ask for their configuration here.
+			this.mcpInstallPresenter.value = this.installationConfigurationService.registerPresenter({
+				collect: (request, token) => this.collectMcpServerInstallConfiguration(request, token),
+			});
+		} else {
+			this.mcpInstallPresenter.clear();
+			this.mcpInstallPage.clear();
+		}
 		this.welcomePage?.setVisible(visible && this.viewMode === 'list' && this.selectedSection === undefined);
 		for (const [section, widget] of this.contributedSectionWidgets) {
 			widget.setVisible?.(visible && this.viewMode === 'list' && this.selectedSection === section && this.isContributedSectionEnabled(section));
@@ -4277,6 +4315,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	override focus(): void {
 		super.focus();
+		const installForm = this.mcpInstallPage.value?.form;
+		if (installForm) {
+			installForm.focus();
+			return;
+		}
 		if (this.focusDetailPage()) {
 			return;
 		}
@@ -4288,19 +4331,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.welcomePage?.focus();
 			return;
 		}
-		if (this.selectedSection === AICustomizationManagementSection.McpServers) {
-			this.mcpListWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Plugins) {
-			this.pluginListWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Models) {
-			this.modelsWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Tools) {
-			this.toolsListWidget?.focusSearch();
-		} else if (this.selectedSection && this.contributedSectionContainers.has(this.selectedSection)) {
-			this.ensureContributedSectionWidget(this.selectedSection)?.focus?.();
-		} else {
-			this.listWidget?.focusSearch();
-		}
+		this.focusSectionContent(this.selectedSection);
 	}
 
 	/**
@@ -4374,22 +4405,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 			// to handle the case where the editor just opened with a persisted section that
 			// matches the requested one (content might not be loaded yet).
 			if (this.viewMode === 'marketplaceDetail') {
-				this.goBackFromMarketplaceDetail();
+				this.goBackFromMarketplaceDetail(options?.preserveFocus);
 			}
 			if (this.viewMode === 'editor') {
-				this.goBackToList();
+				this.goBackToList(options?.preserveFocus);
 			}
 			if (this.viewMode === 'migration') {
 				this.viewMode = 'list';
 			}
 			if (this.viewMode === 'mcpDetail') {
-				this.goBackFromMcpDetail();
+				this.goBackFromMcpDetail(options?.preserveFocus);
 			}
 			if (this.viewMode === 'connectorDetail') {
-				this.goBackFromConnectorDetail();
+				this.goBackFromConnectorDetail(options?.preserveFocus);
 			}
 			if (this.viewMode === 'pluginDetail') {
-				this.goBackFromPluginDetail();
+				this.goBackFromPluginDetail(options?.preserveFocus);
 			}
 			this.selectedSection = sectionId;
 			this.sectionContextKey.set(sectionId);
@@ -4410,6 +4441,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 				if (sectionId === AICustomizationManagementSection.Plugins) {
 					this.pluginListWidget?.showBrowseMarketplace();
 				}
+			}
+
+			// Showing the section hides whatever had focus before (such as the welcome
+			// page search), so move focus into the section to keep the modal's Escape
+			// handling, Tab order, and screen reader context.
+			if (!options?.preserveFocus) {
+				this.focusSectionContent(sectionId);
 			}
 			return true;
 		}
@@ -5833,6 +5871,61 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	//#endregion
 
+	//#region MCP Server Install Form
+
+	/**
+	 * Shows the form that configures an MCP server installation over the current page, which is
+	 * back as it was once the form closes. Resolves with the submitted answers, or with `undefined`
+	 * when the form is cancelled or the user navigates elsewhere.
+	 */
+	private collectMcpServerInstallConfiguration(request: IAgentCustomizationInstallationConfigurationRequest, token: CancellationToken): Promise<IAgentCustomizationInstallationAnswers | undefined> {
+		// A newer installation replaces one that is still being configured.
+		this.mcpInstallPage.clear();
+		if (token.isCancellationRequested) {
+			return Promise.resolve(undefined);
+		}
+		return new Promise(resolve => {
+			const returnFocus = DOM.getActiveElement();
+			const store = new DisposableStore();
+			const content = this.contentInner;
+			const container = DOM.append(content, $('.mcp-install-container'));
+			const form = store.add(this.instantiationService.createInstance(McpServerInstallForm, container, request));
+			// Hides the current page without changing it.
+			content.classList.add('configuring-installation');
+			store.add(toDisposable(() => {
+				container.remove();
+				content.classList.remove('configuring-installation');
+				// Has no effect once the form was submitted.
+				resolve(undefined);
+			}));
+			store.add(form.onDidSubmit(answers => {
+				resolve(answers);
+				this.closeMcpServerInstallPage();
+			}));
+			store.add(form.onDidCancel(() => this.closeMcpServerInstallPage()));
+			store.add(token.onCancellationRequested(() => this.closeMcpServerInstallPage()));
+			this.mcpInstallPage.value = { form, returnFocus, dispose: () => store.dispose() };
+			form.focus();
+		});
+	}
+
+	/** Closes the install form and returns focus to where the installation was started. */
+	private closeMcpServerInstallPage(): void {
+		const returnFocus = this.mcpInstallPage.value?.returnFocus;
+		this.mcpInstallPage.clear();
+		// The page below may have missed a layout while it was hidden.
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		if (DOM.isHTMLElement(returnFocus) && returnFocus.offsetParent) {
+			returnFocus.focus();
+		} else {
+			this.focus();
+		}
+	}
+
+	//#endregion
+
 	//#region Embedded MCP Server Detail
 
 	private createEmbeddedMcpDetail(): void {
@@ -6203,7 +6296,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateContentVisibility();
 
 		this.pluginDetailDisposables.clear();
-		this.embeddedPluginDetail.setInput(item);
+		this.embeddedPluginDetail.setInput(item, this.pluginListWidget);
 		this.pluginDetailScrollable?.scanDomNode();
 
 		if (this.dimension) {

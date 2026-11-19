@@ -49,7 +49,7 @@ export class PinnedCanvasPage extends AbstractCustomView {
 				return '';
 			}
 			if (entry.state.read(reader) === PinnedCanvasState.Unavailable) {
-				return localize('pinnedCanvasPage.unavailable', "This canvas is no longer open in its chat. Remove it from the sidebar, or go to its chat to open it again.");
+				return localize('pinnedCanvasPage.unavailable', "This canvas is no longer open in its chat. Select it in the sidebar to reopen it, or remove it from the sidebar.");
 			}
 			if (entry.reference.read(reader)) {
 				return localize('pinnedCanvasPage.hidden', "This canvas is not shown.");

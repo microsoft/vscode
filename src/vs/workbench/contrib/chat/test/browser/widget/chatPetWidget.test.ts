@@ -2122,6 +2122,50 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('hides the pet from its context menu', async () => {
+		const parent = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent);
+		disposables.add(toDisposable(() => parent.remove()));
+		let menu: IContextMenuDelegate | undefined;
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService(), editorWindowEnvironment));
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, parent, parent),
+			undefined,
+			service,
+			new TestAccessibilityService(),
+			new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void { menu = delegate; }
+			}(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+			workbenchInstantiationService(undefined, disposables),
+		));
+		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
+		assert.ok(button);
+		button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const actions = menu?.getActions() ?? [];
+		const hide = actions.find(action => action.id === 'chat.pet.hide');
+		assert.ok(hide);
+		await hide.run();
+		await hide.run();
+
+		assert.deepStrictEqual({
+			label: hide.label,
+			isLast: actions[actions.length - 1] === hide,
+			enabled: service.enabled.get(),
+		}, {
+			label: 'Hide Pet',
+			isLast: true,
+			enabled: false,
+		});
+	});
+
 	test('stacks dragging above sticky scroll and leaves the persistent content fade to the input', () => {
 		const session = mainWindow.document.createElement('div');
 		session.className = 'interactive-session chat-floating-persistent-content';

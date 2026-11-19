@@ -1074,6 +1074,17 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
+/**
+ * Returns the path of a linked worktree given the content of its `gitdir` file
+ * (`<commonDir>/worktrees/<name>/gitdir`). The content is relative to the folder
+ * containing the `gitdir` file when the worktree uses relative paths (git >= 2.48).
+ */
+export function getWorktreePathFromGitdir(worktreeGitDirPath: string, gitdirContent: string): string {
+	// Remove '/.git' suffix
+	const worktreePath = gitdirContent.replace(/\/.git.*$/, '');
+	return path.isAbsolute(worktreePath) ? worktreePath : path.resolve(worktreeGitDirPath, worktreePath);
+}
+
 const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
 
 function parseGitStashes(raw: string): Stash[] {
@@ -2506,17 +2517,16 @@ export class Repository {
 			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 		};
 
-		args.push(options.remote);
-
-		for (const tag of options.tags) {
-			args.push(`refs/tags/${tag}:refs/tags/${tag}`);
-		}
-
 		if (options.force) {
 			args.push('--force');
 		}
 
-		await this.exec(args, spawnOptions);
+		args.push(options.remote);
+
+		const refspecs = options.tags.map(tag => `refs/tags/${tag}:refs/tags/${tag}`);
+		for (const chunk of splitInChunks(refspecs, MAX_CLI_LENGTH)) {
+			await this.exec([...args, ...chunk], spawnOptions);
+		}
 	}
 
 	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<boolean> {
@@ -3154,8 +3164,7 @@ export class Repository {
 
 					result.push({
 						name: dirent.name,
-						// Remove '/.git' suffix
-						path: gitdirContent.replace(/\/.git.*$/, ''),
+						path: getWorktreePathFromGitdir(path.dirname(gitdirPath), gitdirContent),
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 						// Detached if HEAD does not start with 'ref: '

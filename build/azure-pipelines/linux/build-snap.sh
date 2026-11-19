@@ -11,6 +11,13 @@ snapcraft --version
 # This applies to both the apt commands below and snapcraft's internal apt operations for stage-packages
 sudo sh -c 'echo "Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries'
 
+# Abandon a stalled connection after 15s instead of apt's default 120s. snapcraft
+# fetches stage-packages one at a time, and when the mirror stalls a connection the
+# retry on a new one usually succeeds at once; with the default, 35 such stalls took
+# 70 minutes and the job hit its time limit. The timeout applies to inactivity, so
+# slow but progressing downloads are unaffected.
+sudo sh -c 'echo "Acquire::http::Timeout \"15\";" > /etc/apt/apt.conf.d/80-timeout'
+
 # Point apt at the Azure Ubuntu mirror. The build agents cannot reach
 # archive.ubuntu.com/ports.ubuntu.com (DNS resolves them to a non-routable
 # TEST-NET address, so connections time out), whereas the Azure mirror is
@@ -27,10 +34,27 @@ done
 # Make sure we get latest packages
 sudo apt-get update
 sudo apt-get upgrade -y
-sudo apt-get install -y curl apt-transport-https ca-certificates
+sudo apt-get install -y curl apt-transport-https ca-certificates gcc
 
 # Define variables
 SNAP_ROOT="$(pwd)/.build/linux/snap/$VSCODE_ARCH"
+
+# Build OpenSSL 3 shared libraries against core20 glibc from the prebuilt static
+# archives so the Copilot SDK runtime resolves libcrypto.so.3 / libssl.so.3 from
+# the snap rather than loading an incompatible host OpenSSL.
+OPENSSL_PREBUILT_DIR="$(pwd)/.build/linux/snap/openssl"
+if [ -f "$OPENSSL_PREBUILT_DIR/libcrypto.a" ] && [ -f "$OPENSSL_PREBUILT_DIR/libssl.a" ]; then
+  for prebuild_dir in "$SNAP_ROOT"/code-*/usr/share/*/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*; do
+    [ -d "$prebuild_dir" ] || continue
+    gcc -shared -Wl,-soname,libcrypto.so.3 \
+      -Wl,--whole-archive "$OPENSSL_PREBUILT_DIR/libcrypto.a" -Wl,--no-whole-archive \
+      -ldl -pthread -o "$prebuild_dir/libcrypto.so.3"
+    gcc -shared -Wl,-soname,libssl.so.3 \
+      -Wl,-rpath,'$ORIGIN' \
+      -Wl,--whole-archive "$OPENSSL_PREBUILT_DIR/libssl.a" -Wl,--no-whole-archive \
+      -L"$prebuild_dir" -l:libcrypto.so.3 -ldl -pthread -o "$prebuild_dir/libssl.so.3"
+  done
+fi
 
 # Create snap package
 BUILD_VERSION="$(date +%s)"

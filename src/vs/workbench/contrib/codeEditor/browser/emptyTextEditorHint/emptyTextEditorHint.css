@@ -14,3 +14,110 @@
 	color: var(--vscode-textLink-foreground);
 	pointer-events: auto;
 }
+
+/* Experimental: workbench.editor.experimental.emptyEditorHintActions */
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions {
+	box-sizing: border-box;
+	/* The width is set in `layout()`, to fit narrow editors */
+	/* `left` is the center of the editor */
+	transform: translateX(-50%);
+	padding: var(--vscode-spacing-size80);
+	user-select: none;
+	-webkit-user-select: none;
+	/* Clicks between the rows go to the editor */
+	pointer-events: none;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-rows .monaco-action-bar.vertical .actions-container {
+	display: block;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .watermark-entry,
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-close,
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-footer {
+	/* Dimmed, so that the hint does not compete with the cursor */
+	opacity: 0.6;
+	transition: opacity 0.1s ease-out;
+	pointer-events: auto;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .watermark-entry:hover,
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .watermark-entry:focus,
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-close:hover,
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-close:focus-within,
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-footer:hover,
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-footer:focus-within {
+	opacity: 1;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .monaco-action-bar.vertical .action-label.separator {
+	width: auto;
+	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size80) !important; /* overrides the action bar's separator margin */
+	opacity: 0.6;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-close {
+	position: absolute;
+	top: calc(-1 * var(--vscode-spacing-size160));
+	right: 0;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-footer {
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+	margin-top: var(--vscode-spacing-size120);
+	padding: 0 var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-dont-show {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-dont-show:hover {
+	text-decoration: underline;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-dont-show:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .action-item.empty-editor-hint-actions-split {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-split > .watermark-entry {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-dropdown {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size280);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	opacity: 0.6;
+	transition: opacity 0.1s ease-out;
+	pointer-events: auto;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-split:hover > .empty-editor-hint-actions-dropdown,
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-split:focus-within > .empty-editor-hint-actions-dropdown {
+	opacity: 1;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-dropdown:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}

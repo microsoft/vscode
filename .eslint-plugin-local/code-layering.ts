@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 import { posix, relative, resolve } from 'path';
 import { createImportRuleListener } from './utils.ts';
 
@@ -50,9 +49,9 @@ function findLayer(folders: readonly string[], isLayer: (folder: string) => bool
 	return undefined;
 }
 
-export default new class implements eslint.Rule.RuleModule {
+export default new class implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			layerbreaker: 'Bad layering. You are not allowed to access {{from}} from here, allowed layers are: [{{allowed}}]'
 		},
@@ -72,18 +71,19 @@ export default new class implements eslint.Rule.RuleModule {
 		]
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		const check = createLayeringChecker(repositoryRoot, context.filename, context.options[0] as Layers);
 		if (!check) {
 			return {};
 		}
 
 		const checkImport = (node: ESTree.Node | null | undefined): void => {
-			if (node?.type !== 'Literal' || typeof node.value !== 'string' || !node.loc) {
+			if (node?.type !== 'Literal' || typeof node.value !== 'string') {
 				return;
 			}
 			const violation = check(node.value);
-			if (violation) {
+			// oxlint computes `loc` on first access, so only access it to report
+			if (violation && node.loc) {
 				context.report({
 					loc: node.loc,
 					messageId: 'layerbreaker',
@@ -96,7 +96,7 @@ export default new class implements eslint.Rule.RuleModule {
 		};
 
 		return {
-			...createImportRuleListener(node => checkImport(node as ESTree.Node)),
+			...createImportRuleListener(node => checkImport(node)),
 			ImportExpression: (node: ESTree.ImportExpression) => checkImport(node.source),
 			CallExpression: (node: ESTree.CallExpression) => {
 				if (node.callee.type === 'Identifier' && node.callee.name === 'require' && node.arguments.length === 1) {

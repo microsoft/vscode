@@ -46,17 +46,18 @@ extends:
 
           - template: build/azure-pipelines/common/install-pnpm.yml@self
 
+          # Every platform build of VS Code ships the built-in Copilot extension with the
+          # version that the build stamped, so the Windows x64 server archive has it.
           - download: vscode
-            artifact: copilot_vsix
-            displayName: 📥 Download Copilot VSIX
+            artifact: vscode_server_win32_x64_archive
+            displayName: 📥 Download VS Code server (Windows x64)
             condition: and(succeeded(), ne(variables['resources.pipeline.vscode.runName'], ''))
 
           - bash: |
               set -e
-              if [ -f "$(Pipeline.Workspace)/vscode/copilot_vsix/copilot-chat.vsix" ]; then
-                unzip -o "$(Pipeline.Workspace)/vscode/copilot_vsix/copilot-chat.vsix" 'extension/package.json'
-                VERSION=$(node -p "require('./extension/package.json').version")
-                rm -rf extension
+              ARCHIVE="$(Pipeline.Workspace)/vscode/vscode_server_win32_x64_archive/vscode-server-win32-x64.zip"
+              if [ -f "$ARCHIVE" ]; then
+                VERSION=$(unzip -p "$ARCHIVE" 'vscode-server-win32-x64/extensions/copilot/package.json' | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
                 node -e "
                   const fs = require('fs');
                   const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -65,20 +66,28 @@ extends:
                 "
                 echo "Set extension version to $VERSION"
               else
-                echo "No Copilot VSIX found, using version from package.json"
+                echo "No VS Code server archive found, using version from package.json"
               fi
             displayName: 📋 Sync version from extension
             workingDirectory: extensions/copilot
+
+          # The rebuild below compiles `kerberos` (an optional peer of the proxy agents that
+          # @vscode/test-web uses) whenever the lockfile resolves it for copilot-chat, and on Linux that
+          # needs the Kerberos headers.
+          - script: ./build/azure-pipelines/linux/apt-install-with-retry.sh libkrb5-dev
+            displayName: 🛠 Install Kerberos headers
+            condition: and(succeeded(), eq(variables['Agent.OS'], 'Linux'))
 
           # chat-lib and Copilot are members of the root pnpm workspace. pnpm runs the root install scripts,
           # which install the whole repository, on every install that runs scripts, filtered or not: the
           # install skips them, then builds Copilot's dependencies and runs its postinstall. The extraction
           # sets chat-lib's dependencies to Copilot's versions, in its package.json and in the root
-          # pnpm-lock.yaml.
+          # pnpm-lock.yaml. The rebuild ignores the root .pnpmfile.mjs, which builds native modules for
+          # Electron: chat-lib runs in Node.js, and network isolation blocks the Electron headers.
           - bash: |
               set -e
               pnpm install --frozen-lockfile --ignore-scripts --filter copilot-chat --filter @vscode/chat-lib
-              pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
+              pnpm --ignore-pnpmfile --filter copilot-chat --filter @vscode/chat-lib rebuild
               pnpm run postinstall
               pnpm run extract-chat-lib
             displayName: 📂 Extract chat-lib
@@ -116,6 +125,8 @@ extends:
         testPlatforms:
           - name: Linux
             nodeVersions: [24.x]
+            # chat-lib is consumed by other products, which don't share our GLIBC requirements.
+            useSysroot: false
           - name: MacOS
             nodeVersions: [24.x]
           - name: Windows

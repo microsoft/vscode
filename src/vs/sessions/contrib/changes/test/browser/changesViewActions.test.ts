@@ -39,7 +39,7 @@ import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../work
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
-import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu, TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -55,14 +55,18 @@ import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISess
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService, NoChangesEditorScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionArtifactIntegrationsEnabledContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../../../../workbench/contrib/sessionChanges/browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
+import '../../../../browser/layoutActions.js';
+import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
 import '../../../codeReview/browser/codeReview.contributions.js';
+import '../../../editor/browser/editor.contribution.js';
 
 // Awaited while this file loads so that the contribution's permanent registrations are in place before
 // any suite runs instead of being registered by this suite.
@@ -126,6 +130,23 @@ suite('Changes View Actions', () => {
 			commandId: 'workbench.agentSessions.action.openPullRequest',
 			args: [activeSession],
 		}]);
+	});
+
+	test('the title bar leaves Fix Checks and Open Pull Request to the pull request artifact while artifact integrations apply to the session', () => {
+		const fixChecks = MenuRegistry.getMenuItems(MenuId.AgentsChangesPrimaryActionSubMenu).filter(isIMenuItem).find(item => item.command.id === FIX_CI_CHECKS_COMMAND_ID)!;
+		const openPullRequest = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar).filter(isIMenuItem).find(item => item.command.id === 'workbench.action.agentSessions.openPullRequest')!;
+		const visible = (artifactIntegrationsEnabled: boolean) => {
+			const context = contextWith({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveSessionContextKeys.HasPullRequest.key]: true,
+				[hasActiveSessionFailedCIChecks.key]: true,
+				[activeSessionCIFixRequested.key]: false,
+				[SessionArtifactIntegrationsEnabledContext.key]: artifactIntegrationsEnabled,
+			});
+			return [fixChecks, openPullRequest].map(item => item.when?.evaluate(context) ?? true);
+		};
+
+		assert.deepStrictEqual({ disabled: visible(false), enabled: visible(true) }, { disabled: [true, true], enabled: [false, false] });
 	});
 
 	suite('Open Changes', () => {
@@ -692,37 +713,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Toggle Files of the changed files list of the Changes editor is a primary action of its header, with the workbench\'s command', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
-			.filter(isIMenuItem)
-			.find(item => item.command.id === TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID)!;
-		const visible = (values: Record<string, unknown>) => {
-			const context = new Context(1, null);
-			for (const [key, value] of Object.entries({
-				[IsSessionsWindowContext.key]: true,
-				[ActiveEditorContext.key]: SessionChangesEditor.ID,
-				[DesktopLayoutContext.key]: true,
-				[IsTopRightEditorGroupContext.key]: true,
-				[MainEditorAreaVisibleContext.key]: true,
-				[MultiDiffEditorFileListAvailableContext.key]: true,
-				...values,
-			})) {
-				context.setValue(key, value);
-			}
-			return item.when?.evaluate(context) ?? true;
-		};
-		assert.deepStrictEqual({
-			group: item.group,
-			changesEditor: visible({}),
-			editorAreaHidden: visible({ [MainEditorAreaVisibleContext.key]: false }),
-			withoutFileList: visible({ [MultiDiffEditorFileListAvailableContext.key]: false }),
-			otherEditor: visible({ [ActiveEditorContext.key]: 'workbench.editors.textEditor' }),
-			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
-			tabRowItems: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).filter(item => item.command.id === TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID).length,
-		}, { group: 'navigation', changesEditor: true, editorAreaHidden: false, withoutFileList: false, otherEditor: false, icon: Codicon.listFlat.id, tabRowItems: 0 });
-	});
-
-	test('Changes editor header shows Run Code Review, the More Actions menu of its diff actions, then Toggle Files only where its host enables the list, and its tab row none of them', () => {
+	test('Changes editor header shows Run Code Review and the More Actions menu of its diff actions, no Toggle Files where its host enables the list, and its tab row none of them', () => {
 		const menuService = disposables.add(new MenuService(NullCommandService, new MockKeybindingService(), disposables.add(new TestStorageService())));
 		const getLabels = (menuId: MenuId, contextKeyService: ContextKeyService) => menuService.getMenuActions(menuId, contextKeyService)
 			.map(([group, actions]) => [group, actions.map(action => action.label)] as const);
@@ -766,9 +757,9 @@ suite('Changes View Actions', () => {
 		const withFileList = render(true);
 		const filesViewAndPosition = getLabels(Menus.ChangesFilesViewAndPosition, withFileListContext!);
 		assert.deepStrictEqual({ withFileList, filesViewAndPosition, withoutFileList: render(false) }, {
-			withFileList: { headerRow: ['Run Code Review', 'More Actions', '|', 'Toggle Files'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [] },
+			withFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
 			filesViewAndPosition: [['1_view', ['View as List', 'View as Tree']], ['2_position', ['On the Left', 'On the Right']]],
-			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [] },
+			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
 		});
 	});
 
@@ -1118,6 +1109,10 @@ suite('Changes View Actions', () => {
 		assert.strictEqual(getChangesAccessibilityHelp().includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
 	});
 
+	test('Changes accessibility help includes the floating Markdown guidance', () => {
+		assert.strictEqual(getChangesAccessibilityHelp().includes('The floating Files widget remains available alongside Markdown Editor and Markdown previews.'), true);
+	});
+
 	test('Changes accessibility help describes Files View and its selection state', () => {
 		const content = getChangesAccessibilityHelp();
 		assert.deepStrictEqual({
@@ -1133,11 +1128,9 @@ suite('Changes View Actions', () => {
 		const content = getChangesAccessibilityHelp();
 		assert.deepStrictEqual({
 			hasToolbarLocation: content.includes('Run Code Review and the diff actions of the Changes editor are on the right of its header row'),
-			hasToggleFiles: content.includes('Toggle Files follows a separator at the end of the row'),
 			hasFilesViewGroup: content.includes('Files View submenu in the final group'),
 		}, {
 			hasToolbarLocation: true,
-			hasToggleFiles: true,
 			hasFilesViewGroup: true,
 		});
 	});
@@ -1280,7 +1273,6 @@ suite('Changes View Actions', () => {
 			context.setValue(IsTopRightEditorGroupContext.key, true);
 			context.setValue(MainEditorAreaVisibleContext.key, true);
 			context.setValue(ActiveEditorContext.key, activeEditor);
-			context.setValue(`config.${multiDiffEditorExperimentalFileListSetting}`, true);
 			context.setValue(MultiDiffEditorFileListAvailableContext.key, fileListAvailable);
 			return items.map(item => item.when?.evaluate(context) ?? true);
 		};

@@ -13,21 +13,27 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { MCP_SERVER_LOGS_META_KEY } from '../../../../../../platform/agentHost/common/otlp/mcpServerLogsChannel.js';
+import type { OtlpExportLogsParams } from '../../../../../../platform/agentHost/common/state/protocol/channels-otlp/notifications.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { type AgentProvider, type IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
+import { readRuntimePluginEnablement, withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { withMcpServerConnectorNameMeta, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { createSessionState, RootState, SessionState, SessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
+import { AbstractMessageLogger, ILogService, ILoggerService, LogLevel, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -54,6 +60,10 @@ import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHo
 import { createInstalledMcpServerDetailInput } from '../../../browser/aiCustomization/mcpListWidget.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
+	connection?: IAgentConnection;
+	defaultChatResource?: URI;
+	setPluginEnabled?: (provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>;
+	listPluginInstallations?: (provider: AgentProvider, session?: URI, chat?: URI) => Promise<readonly IAgentPluginInstallation[]>;
 	readonly backendSession = URI.parse('other-agent://tenant/conversations/opaque-session?revision=1');
 	readonly clientId = 'vscode';
 	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
@@ -129,6 +139,8 @@ class RecordingLogService extends NullLogService {
 }
 
 class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
+	backendChatResource: URI | undefined;
+	override getBackendChatResource(): URI | undefined { return this.backendChatResource; }
 	private readonly _targets = new ResourceMap<FakeTarget>();
 
 	constructor(
@@ -141,6 +153,10 @@ class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationSe
 
 	setTarget(sessionResource: URI, target: FakeTarget): void {
 		this._targets.set(sessionResource, target);
+	}
+
+	disposeMcpDiagnostics(sessionResource: URI): void {
+		this._disposeMcpDiagnostics(sessionResource);
 	}
 
 	setMcpAuthenticationVerificationTimeout(timeoutMs: number): void {
@@ -189,6 +205,120 @@ class TestSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
 
 suite('AbstractAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('runtime plugin presentation uses exact chat inventory and never inherits default-chat activation', async () => {
+		const sut = createSut();
+		const session = URI.parse('client-session://selection/peer');
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'file:///plugins/native',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: false, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const target = new FakeTarget([plugin], 'file:///repository');
+		const calls: unknown[][] = [];
+		target.listPluginInstallations = async (...args) => {
+			calls.push(args);
+			return [{ name: 'native', marketplace: '', directSourceId: 'opaque-source', enabled: false, effectiveEnabled: false }];
+		};
+		sut.setTarget(session, target);
+		sut.backendChatResource = URI.parse('other-chat://tenant/opaque-chat?peer=2');
+		const [resolved] = await sut.resolveRuntimePluginEnablement(session, [plugin]);
+		target.listPluginInstallations = undefined;
+		const [unavailable] = await sut.resolveRuntimePluginEnablement(session, [plugin]);
+		assert.deepStrictEqual({
+			calls,
+			effective: readRuntimePluginEnablement(resolved)?.effectiveEnabled,
+			unavailable: readRuntimePluginEnablement(unavailable)?.effectiveEnabled,
+			source: readRuntimePluginEnablement(plugin)?.effectiveEnabled,
+		}, {
+			calls: [['other-provider', target.backendSession, sut.backendChatResource]],
+			effective: false,
+			unavailable: undefined,
+			source: true,
+		});
+	});
+
+	test('read-only hosts retain advertised activation only for their advertised default chat', async () => {
+		const sut = createSut();
+		const session = URI.parse('client-session://selection/conversation');
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'other-host:/plugins/native',
+			load: { kind: CustomizationLoadStatus.Loaded },
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: true, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const target = new FakeTarget([plugin]);
+		target.defaultChatResource = URI.parse('other-chat://opaque/default');
+		sut.setTarget(session, target);
+		sut.backendChatResource = target.defaultChatResource;
+		const [main] = await sut.resolveRuntimePluginEnablement(session, [plugin]);
+		sut.backendChatResource = URI.parse('other-chat://opaque/peer');
+		const [peer] = await sut.resolveRuntimePluginEnablement(session, [plugin]);
+		assert.deepStrictEqual({
+			mainPreserved: main === plugin,
+			readOnly: sut.canSetRuntimePluginEnablement(session),
+			peerActivation: readRuntimePluginEnablement(peer)?.effectiveEnabled,
+		}, { mainPreserved: true, readOnly: false, peerActivation: undefined });
+	});
+
+	test('runtime inventory failure marks only its provider unavailable and preserves unrelated customizations', async () => {
+		const log: string[] = [];
+		const sut = createSut(undefined, { logService: new RecordingLogService(log) });
+		const session = URI.parse('client-session://selection/peer');
+		const native: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'file:///plugins/native',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'unavailable', plugin: 'native@marketplace', globalEnabled: true, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const healthy: PluginCustomization = {
+			...native, id: 'healthy',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'healthy', plugin: 'healthy@marketplace', globalEnabled: true, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const ordinary: PluginCustomization = { type: CustomizationType.Plugin, id: 'ordinary', name: 'Ordinary', uri: 'file:///plugins/ordinary' };
+		const target = new FakeTarget([native, healthy, ordinary]);
+		target.listPluginInstallations = async provider => {
+			if (provider === 'unavailable') {
+				throw new Error('Runtime unavailable');
+			}
+			return [{ name: 'healthy', marketplace: 'marketplace', enabled: true, effectiveEnabled: true }];
+		};
+		sut.setTarget(session, target);
+		sut.backendChatResource = URI.parse('other-chat://tenant/peer');
+		const resolved = await sut.resolveRuntimePluginEnablement(session, target.customizations);
+		assert.deepStrictEqual({
+			error: resolved[0].type === CustomizationType.Plugin ? resolved[0].load?.kind : undefined,
+			effective: resolved.map(plugin => readRuntimePluginEnablement(plugin)?.effectiveEnabled),
+			ordinaryPreserved: resolved[2] === ordinary,
+			logged: log.some(entry => entry.includes('Failed to read runtime plugin inventory')),
+		}, { error: 'error', effective: [undefined, true, undefined], ordinaryPreserved: true, logged: true });
+	});
+
+	test('runtime plugin mutations preserve opaque owning session and exact chat and reject stale capability or policy', async () => {
+		const sut = createSut();
+		const session = URI.parse('client-session://selection/peer');
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'native', name: 'Native', uri: 'file:///plugins/native',
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: false, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const target = new FakeTarget([plugin], 'file:///repository');
+		const calls: unknown[][] = [];
+		target.setPluginEnabled = async (...args) => { calls.push(args); };
+		let ready = false;
+		target.listPluginInstallations = async () => [{ name: 'native', marketplace: '', directSourceId: 'opaque-source', enabled: false, effectiveEnabled: ready ? true : undefined, repositoryEnabled: false }];
+		sut.setTarget(session, target);
+		sut.backendChatResource = URI.parse('other-chat://tenant/opaque-chat?peer=2');
+		await assert.rejects(() => sut.setRuntimePluginEnablement(session, plugin.id, 'global', true), /session is ready/);
+		ready = true;
+		await sut.setRuntimePluginEnablement(session, plugin.id, 'repository', false);
+		await sut.setRuntimePluginEnablement(session, plugin.id, 'repository', null);
+		assert.throws(() => sut.setCustomizationEnablement(session, plugin.id, undefined, CustomizationEnablementKind.Session, true), /owning runtime/);
+		target.customizations = [{ ...plugin, _meta: withRuntimePluginEnablement(plugin._meta, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: false, repositorySupported: true, managedDesiredEnabled: false }) }];
+		await assert.rejects(() => sut.setRuntimePluginEnablement(session, plugin.id, 'global', true), /managed/);
+		target.setPluginEnabled = undefined;
+		await assert.rejects(() => sut.setRuntimePluginEnablement(session, plugin.id, 'global', true), /unavailable/);
+		assert.deepStrictEqual(calls, [
+			['other-provider', 'opaque-source', false, 'repository', target.backendSession, sut.backendChatResource],
+			['other-provider', 'opaque-source', null, 'repository', target.backendSession, sut.backendChatResource],
+		]);
+	});
 
 	function captureStatus(): () => string {
 		const host = document.body.appendChild(document.createElement('div'));
@@ -292,6 +422,43 @@ suite('AbstractAgentHostCustomizationService', () => {
 		}, {
 			operations: ['background:blocking'],
 			actions: [true, false],
+		});
+	});
+
+	test('distinguishes MCP servers waiting for plugin activation from disabled servers', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'opaque-plugin', uri: 'urn:peer:plugin', name: 'Plugin',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			load: { kind: CustomizationLoadStatus.Loading },
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: true, repositorySupported: true }),
+			children: [mcpServer('opaque-server', 'Server')],
+		};
+		const target = new FakeTarget([plugin]);
+		sut.setTarget(session, target);
+		const read = () => sut.getMcpServers(session).map(server => ({
+			enabled: server.enabled,
+			waitingForSessionStart: server.waitingForSessionStart,
+		}));
+		const pending = read();
+		target.customizations = [{ ...plugin, children: [{ ...mcpServer('opaque-server', 'Server'), enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }] }];
+		const disabledServer = read();
+		target.customizations = [{ ...plugin, _meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: false, repositorySupported: true }) }];
+		const disabledPlugin = read();
+		target.customizations = [{ ...plugin, _meta: undefined }];
+		const withoutRuntimeMetadata = read();
+		target.customizations = [{
+			...plugin, load: { kind: CustomizationLoadStatus.Loaded },
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: true, effectiveEnabled: true, repositorySupported: true }),
+		}];
+		assert.deepStrictEqual({ pending, disabledServer, disabledPlugin, withoutRuntimeMetadata, ready: read() }, {
+			pending: [{ enabled: false, waitingForSessionStart: true }],
+			disabledServer: [{ enabled: false, waitingForSessionStart: undefined }],
+			disabledPlugin: [{ enabled: false, waitingForSessionStart: undefined }],
+			withoutRuntimeMetadata: [{ enabled: false, waitingForSessionStart: undefined }],
+			ready: [{ enabled: true, waitingForSessionStart: undefined }],
 		});
 	});
 
@@ -585,6 +752,27 @@ suite('AbstractAgentHostCustomizationService', () => {
 		]);
 	});
 
+	test('exposes host permissions only when their schema is writable', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const permissions = { allow: ['Mcp(server)'], deny: ['Write'], ask: ['Read'] };
+		const configs: IAgentHostCustomizationTarget['rootConfig'][] = [
+			undefined,
+			{ schema: { type: 'object', properties: {} }, values: { permissions } },
+			{ schema: { type: 'object', properties: { [SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions', readOnly: true } } }, values: { permissions } },
+			{ schema: { type: 'object', properties: { [SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions', readOnly: false } } }, values: { permissions } },
+			{ schema: { type: 'object', properties: { [SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions' } } }, values: {} },
+		];
+		const results = configs.map(config => {
+			sut.setTarget(session, new class extends FakeTarget {
+				readonly rootConfig = config;
+			}([]));
+			return sut.getHostPermissions(session);
+		});
+
+		assert.deepStrictEqual(results, [undefined, undefined, undefined, permissions, { allow: [], deny: [] }]);
+	});
+
 	test('preserves global and session decisions when re-enabling workspace enablement', () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');
@@ -621,6 +809,164 @@ suite('AbstractAgentHostCustomizationService', () => {
 		const [second] = sut.getMcpServers(session);
 
 		assert.strictEqual(second.logOutputChannelId, first.logOutputChannelId);
+	});
+
+	function createMcpLogsSut(level: LogLevel) {
+		const records: { level: LogLevel; message: string }[] = [];
+		const loggerService = store.add(new class extends NullLoggerService {
+			protected override doCreateLogger() {
+				const logger = new class extends AbstractMessageLogger {
+					protected override log(level: LogLevel, message: string): void {
+						records.push({ level, message });
+					}
+				}();
+				logger.setLevel(level);
+				return logger;
+			}
+		}());
+		const sut = createSut(undefined, { configure: instantiation => instantiation.stub(ILoggerService, loggerService) });
+		const logs = store.add(new Emitter<OtlpExportLogsParams>());
+		const available = observableValue('mcpLogsConnectionAvailable', true);
+		const operations: string[] = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly onDidReceiveOtlpLogs = logs.event;
+			override readonly connectionAvailable = available;
+			override async subscribeStateless(resource: URI): Promise<void> {
+				operations.push(`subscribe:${resource.toString()}`);
+			}
+			override unsubscribe(resource: URI): void {
+				operations.push(`unsubscribe:${resource.toString()}`);
+			}
+		}();
+		const session = URI.parse('client-session://selection/opaque');
+		const servers = ['first', 'second'].map(id => ({
+			...mcpServer(id, id),
+			_meta: { [MCP_SERVER_LOGS_META_KEY]: `other-logs://tenant/${id}%20diagnostics/{level}?opaque=value` },
+		}));
+		const target = new FakeTarget(servers);
+		target.connection = connection;
+		sut.setTarget(session, target);
+		const emit = (channel: string, ...entries: { severityNumber: number; body: string }[]) => logs.fire({
+			channel,
+			payload: {
+				resourceLogs: [{
+					scopeLogs: [{
+						logRecords: entries.map(entry => ({
+							severityNumber: entry.severityNumber, body: { stringValue: entry.body },
+						}))
+					}]
+				}]
+			},
+		});
+		return { sut, session, target, servers, loggerService, available, operations, records, emit, logs };
+	}
+
+	test('lazily subscribes revealed MCP diagnostics and routes only owned channels at their severity', async () => {
+		const { sut, session, loggerService, operations, records, emit } = createMcpLogsSut(LogLevel.Info);
+		const [first] = sut.getMcpServers(session);
+		const beforeReveal = [...operations];
+		await sut.showMcpServerLog(session, first.id);
+		sut.getMcpServers(session);
+		sut.getMcpServers(session);
+		emit('other-logs://tenant/second%20diagnostics/info?opaque=value', { severityNumber: 17, body: 'rpc:unowned' });
+		emit('other-logs://tenant/first diagnostics/info?opaque=value',
+			{ severityNumber: 1, body: 'rpc:filtered' },
+			{ severityNumber: 13, body: 'rpc:warning' },
+			{ severityNumber: 17, body: 'rpc:error' });
+		assert.deepStrictEqual({
+			beforeReveal,
+			operations,
+			records: records.filter(record => record.message.startsWith('rpc:')),
+			level: loggerService.getLogger(first.logOutputChannelId!)?.getLevel(),
+		}, {
+			beforeReveal: [],
+			operations: ['subscribe:other-logs://tenant/first%20diagnostics/info?opaque%3Dvalue'],
+			records: [{ level: LogLevel.Warning, message: 'rpc:warning' }, { level: LogLevel.Error, message: 'rpc:error' }],
+			level: LogLevel.Info,
+		});
+	});
+
+	test('eager MCP diagnostics follow logger levels, reconnect and server/session teardown', () => {
+		const { sut, session, target, servers, loggerService, available, operations, logs } = createMcpLogsSut(LogLevel.Debug);
+		const [first] = sut.getMcpServers(session);
+		const logger = loggerService.getLogger(first.logOutputChannelId!)!;
+		logger.setLevel(LogLevel.Trace);
+		logger.setLevel(LogLevel.Info);
+		logger.setLevel(LogLevel.Debug);
+		logger.setLevel(LogLevel.Off);
+		logger.setLevel(LogLevel.Debug);
+		available.set(false, undefined);
+		available.set(true, undefined);
+		sut.updateTarget(target, [servers[1]]);
+		sut.disposeMcpDiagnostics(session);
+		assert.deepStrictEqual({ operations, listening: logs.hasListeners(), registered: [...loggerService.getRegisteredLoggers()].length }, {
+			operations: [
+				'subscribe:other-logs://tenant/first%20diagnostics/debug?opaque%3Dvalue',
+				'subscribe:other-logs://tenant/second%20diagnostics/debug?opaque%3Dvalue',
+				'unsubscribe:other-logs://tenant/first%20diagnostics/debug?opaque%3Dvalue',
+				'subscribe:other-logs://tenant/first%20diagnostics/trace?opaque%3Dvalue',
+				'unsubscribe:other-logs://tenant/first%20diagnostics/trace?opaque%3Dvalue',
+				'subscribe:other-logs://tenant/first%20diagnostics/debug?opaque%3Dvalue',
+				'unsubscribe:other-logs://tenant/first%20diagnostics/debug?opaque%3Dvalue',
+				'subscribe:other-logs://tenant/first%20diagnostics/debug?opaque%3Dvalue',
+				'unsubscribe:other-logs://tenant/first%20diagnostics/debug?opaque%3Dvalue',
+				'unsubscribe:other-logs://tenant/second%20diagnostics/debug?opaque%3Dvalue',
+				'subscribe:other-logs://tenant/first%20diagnostics/debug?opaque%3Dvalue',
+				'subscribe:other-logs://tenant/second%20diagnostics/debug?opaque%3Dvalue',
+				'unsubscribe:other-logs://tenant/first%20diagnostics/debug?opaque%3Dvalue',
+				'unsubscribe:other-logs://tenant/second%20diagnostics/debug?opaque%3Dvalue',
+			],
+			listening: false,
+			registered: 0,
+		});
+	});
+
+	test('eager MCP diagnostics share duplicate server subscriptions and keep replayed times', () => {
+		const { sut, session, target, operations, records, logs } = createMcpLogsSut(LogLevel.Debug);
+		const template = 'other-logs://tenant/shared/{level}';
+		const declared = { ...mcpServer('declared', 'shared'), _meta: { [MCP_SERVER_LOGS_META_KEY]: template } };
+		const live = { ...mcpServer('live', 'shared'), _meta: { [MCP_SERVER_LOGS_META_KEY]: template } };
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'Plugin', load: { kind: CustomizationLoadStatus.Loaded }, children: [declared] };
+		sut.updateTarget(target, [plugin, live]);
+		sut.getMcpServers(session);
+		sut.updateTarget(target, [plugin]);
+		logs.fire({
+			channel: 'other-logs://tenant/shared/debug',
+			payload: { resourceLogs: [{ scopeLogs: [{ logRecords: [{ timeUnixNano: '1000000', severityNumber: 9, body: { stringValue: 'rpc:replayed' } }] }] }] },
+		});
+		const beforeTeardown = [...operations];
+		sut.disposeMcpDiagnostics(session);
+		assert.deepStrictEqual({ beforeTeardown, operations, records: records.filter(record => record.message.includes('rpc:')) }, {
+			beforeTeardown: ['subscribe:other-logs://tenant/shared/debug'],
+			operations: ['subscribe:other-logs://tenant/shared/debug', 'unsubscribe:other-logs://tenant/shared/debug'],
+			records: [{ level: LogLevel.Info, message: '[1970-01-01T00:00:00.001Z] rpc:replayed' }],
+		});
+	});
+
+	test('revealed MCP diagnostics survive transient loading snapshots', async () => {
+		const { sut, session, target, operations } = createMcpLogsSut(LogLevel.Info);
+		const declared = { ...mcpServer('declared', 'declared'), _meta: { [MCP_SERVER_LOGS_META_KEY]: 'other-logs://tenant/declared/{level}' } };
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'Plugin', load: { kind: CustomizationLoadStatus.Loaded }, children: [declared] };
+		sut.updateTarget(target, [plugin]);
+		await sut.showMcpServerLog(session, sut.getMcpServers(session)[0].id);
+		sut.updateTarget(target, [{ ...plugin, load: { kind: CustomizationLoadStatus.Loading }, children: undefined }]);
+		sut.updateTarget(target, [plugin]);
+		assert.deepStrictEqual(operations, ['subscribe:other-logs://tenant/declared/info']);
+	});
+
+	test('MCP diagnostics without advertised logs retain state-only output', async () => {
+		const { sut, session, target, operations, records } = createMcpLogsSut(LogLevel.Debug);
+		target.customizations = [mcpServer('first', 'first')];
+		const [first] = sut.getMcpServers(session);
+		await sut.showMcpServerLog(session, first.id);
+		sut.updateTarget(target, [{ ...mcpServer('first', 'first'), state: { kind: McpServerStatus.Ready } }]);
+		assert.deepStrictEqual({ operations, records }, {
+			operations: [],
+			records: [
+				{ level: LogLevel.Info, message: `Server 'first' is stopped` },
+				{ level: LogLevel.Info, message: `Server 'first' is running` },
+			],
+		});
 	});
 
 	test('surfaces the host-published winning disabled reason for MCP servers', () => {

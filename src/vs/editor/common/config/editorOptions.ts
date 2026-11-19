@@ -4792,6 +4792,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
+					restricted: true,
 					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
 				'editor.inlineSuggest.edits.allowCodeShifting': {
@@ -5625,6 +5626,24 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 			selectLeadingAndTrailingWhitespace: boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace),
 			selectSubwords: boolean((input as ISmartSelectOptions).selectSubwords, this.defaultValue.selectSubwords),
 		};
+	}
+}
+
+//#endregion
+
+//#region tabFocusMode
+
+class EditorTabFocusMode extends EditorBooleanOption<EditorOption.tabFocusMode> {
+
+	constructor() {
+		super(
+			EditorOption.tabFocusMode, 'tabFocusMode', false,
+			{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }
+		);
+	}
+
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
+		return env.tabFocusMode;
 	}
 }
 
@@ -7064,9 +7083,7 @@ export const EditorOptions = {
 		}
 	)),
 	pixelRatio: register(new EditorPixelRatio()),
-	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,
-		{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }
-	)),
+	tabFocusMode: register(new EditorTabFocusMode()),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),

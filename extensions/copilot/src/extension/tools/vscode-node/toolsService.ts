@@ -20,16 +20,13 @@ import { isDisposable } from '../../../util/vs/base/common/lifecycle';
 import { autorunIterableDelta } from '../../../util/vs/base/common/observableInternal';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { getContributedToolName, getToolName, mapContributedToolNamesInSchema, mapContributedToolNamesInString, ToolName } from '../common/toolNames';
-import { ICopilotTool, ICopilotToolExtension, modelSpecificToolApplies, ToolRegistry } from '../common/toolsRegistry';
+import { ICopilotTool, modelSpecificToolApplies, ToolRegistry } from '../common/toolsRegistry';
 import { BaseToolsService } from '../common/toolsService';
 
 export class ToolsService extends BaseToolsService {
 	declare _serviceBrand: undefined;
 
 	private readonly _copilotTools: Lazy<Map<ToolName, ICopilotTool<unknown>>>;
-
-	// Extensions to override definitions for existing tools.
-	private readonly _toolExtensions: Lazy<Map<ToolName, ICopilotToolExtension<unknown>>>;
 
 	private _connectedModelSpecificTools = false;
 
@@ -95,7 +92,6 @@ export class ToolsService extends BaseToolsService {
 	) {
 		super(logService);
 		this._copilotTools = new Lazy(() => new Map(ToolRegistry.getTools().map(t => [t.toolName, _instantiationService.createInstance(t)] as const)));
-		this._toolExtensions = new Lazy(() => new Map(ToolRegistry.getToolExtensions().map(t => [t.toolName, _instantiationService.createInstance(t)] as const)));
 	}
 
 	private getModelSpecificTools() {
@@ -365,11 +361,6 @@ export class ToolsService extends BaseToolsService {
 				const owned = override?.tool || this.getCopilotTool(toolName);
 				if (owned?.alternativeDefinition) {
 					resultTool = owned.alternativeDefinition(resultTool, endpoint);
-				}
-
-				const extension = this._toolExtensions.value.get(toolName);
-				if (extension?.alternativeDefinition) {
-					resultTool = extension.alternativeDefinition(resultTool, endpoint);
 				}
 
 				return resultTool;

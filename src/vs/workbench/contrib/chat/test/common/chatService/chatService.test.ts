@@ -59,7 +59,7 @@ import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, IChatReq
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatRequestAcceptedEvent, IChatService, IChatUserActionEvent, ResponseModelState, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService, rekeyIntendedModel } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
@@ -69,7 +69,7 @@ import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatRequestModeInfo, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { IChatSessionIndex } from '../../../common/model/chatSessionStore.js';
@@ -647,10 +647,11 @@ suite('ChatService', () => {
 	test('acceptance counts submissions once, not rejections, system messages, retries or queue drains', async () => {
 		const service = createChatService();
 		const model = startSessionModel(service).object;
-		const accepted: boolean[] = [];
-		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		const modeInfo: IChatRequestModeInfo = { kind: undefined, isBuiltin: true, modeInstructions: undefined, telemetryModeId: undefined, applyCodeBlockSuggestionId: undefined };
+		const accepted: { isNewSession: boolean; modeInfo?: IChatRequestModeInfo }[] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push({ isNewSession: event.isNewSession, modeInfo: event.modeInfo })));
 		await service.sendRequest(model.sessionResource, '');
-		const first = await service.sendRequest(model.sessionResource, 'first');
+		const first = await service.sendRequest(model.sessionResource, 'first', { modeInfo });
 		ChatSendResult.assertSent(first);
 		await first.data.responseCompletePromise;
 		await service.resendRequest(model.getRequests()[0]);
@@ -661,7 +662,25 @@ suite('ChatService', () => {
 		await service.sendRequest(model.sessionResource, 'steering', { queue: ChatRequestQueueKind.Steering, pauseQueue: true });
 		service.processPendingRequests(model.sessionResource);
 		await timeout(10);
-		assert.deepStrictEqual(accepted, [true, false, false]);
+		assert.deepStrictEqual(accepted, [
+			{ isNewSession: true, modeInfo },
+			{ isNewSession: false, modeInfo: undefined },
+			{ isNewSession: false, modeInfo: undefined },
+		]);
+	});
+
+	test('acceptance exposes the Agent Host origin of delegated submissions', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const accepted: IChatRequestAcceptedEvent['agentHostMessageOrigin'][] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.agentHostMessageOrigin)));
+		for (const agentHostMessageOrigin of [undefined, { kind: MessageKind.Agent }]) {
+			const sent = await service.sendRequest(model.sessionResource, 'hello', { agentHostMessageOrigin });
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+		}
+		await service.sendRequest(model.sessionResource, 'queued', { queue: ChatRequestQueueKind.Queued, pauseQueue: true, agentHostMessageOrigin: { kind: MessageKind.Tool } });
+		assert.deepStrictEqual(accepted, [undefined, { kind: MessageKind.Agent }, { kind: MessageKind.Tool }]);
 	});
 
 	async function createSurveySession(sessionType: string, provider?: string) {
@@ -6634,12 +6653,13 @@ suite('ChatService', () => {
 			assert.deepStrictEqual({ canceled: response?.isCanceled, completionTimestamp: response?.completionTimestamp }, { canceled: true, completionTimestamp: completedAt });
 		});
 
-		test('a cold restore waits for the transferred draft\'s model, not the history\'s last one', async () => {
+		test('a cold restore waits for the transferred draft\'s model and configuration, not the history\'s last model', async () => {
 			const draftModelId = 'agent-host-copilotcli:gpt-5.3-codex';
+			const configuration = { thinkingLevel: 'high', contextSize: 200_000 };
 			const { resource } = setupRemoteProvider({
 				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme, modelId: 'agent-host-copilotcli:claude-opus-5.5' }],
 				// The live catalog is not loaded, so the draft arrives without its model's metadata.
-				transferredState: { editingSession: undefined, inputState: { attachments: [], contrib: {}, inputText: '', mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, selections: [] }, selectedModelId: draftModelId },
+				transferredState: { editingSession: undefined, inputState: { attachments: [], contrib: {}, inputText: '', mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, selections: [] }, selectedModelId: draftModelId, selectedModelConfiguration: configuration },
 			});
 
 			const testService = createChatService();
@@ -6651,7 +6671,7 @@ suite('ChatService', () => {
 				intended: ref.object.inputModel.intendedModel,
 				selected: ref.object.inputModel.state.get()?.selectedModel?.identifier,
 			}, {
-				intended: { modelId: draftModelId, reason: ModelSelectionReason.SessionRestore },
+				intended: { modelId: draftModelId, reason: ModelSelectionReason.SessionRestore, configuration },
 				selected: undefined,
 			});
 		});

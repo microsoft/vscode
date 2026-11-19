@@ -74,6 +74,15 @@ parts:
         cd "/snap/$snap/current" && find . -type f,l -exec rm -f "$SNAPCRAFT_PRIME/{}" \;
       done
       patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler
+      ARCH_TRIPLET="${SNAPCRAFT_ARCH_TRIPLET:-x86_64-linux-gnu}"
+      for f in \
+        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/copilot-runtime \
+        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/runtime.node \
+        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/libssl.so.3; do
+        if [ -f "$f" ]; then
+          patchelf --force-rpath --set-rpath '$ORIGIN:/snap/core20/current/lib/'"$ARCH_TRIPLET" "$f"
+        fi
+      done
 
 
 apps:

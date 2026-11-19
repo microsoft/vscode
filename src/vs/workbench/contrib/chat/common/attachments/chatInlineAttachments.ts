@@ -55,6 +55,12 @@ export interface IInlineAttachmentAnchor {
 	 * of the pill's reference, and is unset for the prompt that is persisted.
 	 */
 	readonly promptText?: string;
+	/**
+	 * Whether the prompt says the pill's text exactly where the pill is, rather
+	 * than separated from adjacent text by spaces, as for a link, which needs no
+	 * parsing as a token of its own and may be enclosed in other text.
+	 */
+	readonly verbatim?: boolean;
 }
 
 /**
@@ -93,8 +99,9 @@ interface IProjectedAnchor {
 /**
  * Projects a chat input with inline attachment pills onto the prompt it
  * represents. A pill's text is separated from adjacent text with a space so it
- * parses as its own token. An {@link INLINE_ATTACHMENT_ANCHOR} without a pill
- * is dropped from the prompt.
+ * parses as its own token, unless the pill is {@link IInlineAttachmentAnchor.verbatim verbatim},
+ * while adjacent pills are always separated from each other. An
+ * {@link INLINE_ATTACHMENT_ANCHOR} without a pill is dropped from the prompt.
  *
  * @returns `undefined` when the input contains no anchor, in which case the
  * input already is the prompt.
@@ -114,6 +121,8 @@ export function projectInlineAttachments(input: string, anchors: readonly IInlin
 	const projected: IProjectedAnchor[] = [];
 	let text = '';
 	let copiedUntil = 0;
+	// Where the text of the previous pill ends in the prompt.
+	let previousEnd = -1;
 	for (let offset = input.indexOf(INLINE_ATTACHMENT_ANCHOR); offset !== -1; offset = input.indexOf(INLINE_ATTACHMENT_ANCHOR, offset + 1)) {
 		text += input.slice(copiedUntil, offset);
 		copiedUntil = offset + 1;
@@ -125,11 +134,13 @@ export function projectInlineAttachments(input: string, anchors: readonly IInlin
 			continue;
 		}
 
-		const leading = text.length > 0 && !isWhitespace(text.charAt(text.length - 1)) ? ' ' : '';
+		// A pill right after another one is separated from it, whose trailing space a pill leaves to the next one.
+		const leading = text.length > 0 && !isWhitespace(text.charAt(text.length - 1)) && (!anchor.verbatim || promptOffset === previousEnd) ? ' ' : '';
 		const next = nextPromptCharacter(input, offset + 1, anchorsByOffset);
-		const trailing = next !== undefined && next !== INLINE_ATTACHMENT_ANCHOR && !isWhitespace(next) ? ' ' : '';
+		const trailing = !anchor.verbatim && next !== undefined && next !== INLINE_ATTACHMENT_ANCHOR && !isWhitespace(next) ? ' ' : '';
 		const replacement = leading + anchor.text + trailing;
 		text += replacement;
+		previousEnd = text.length;
 		projected.push({ inputOffset: offset, promptOffset, replacement, textStart: promptOffset + leading.length, anchor });
 	}
 	text += input.slice(copiedUntil);

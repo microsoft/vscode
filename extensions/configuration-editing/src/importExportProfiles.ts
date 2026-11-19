@@ -7,7 +7,10 @@ import * as vscode from 'vscode';
 import { basename } from 'path';
 import * as internalGitHub from '@vscode/internal-github';
 
-type GitHubApi = Pick<typeof internalGitHub, 'getClient' | 'getAnonymousClient'>;
+type GitHubApi = {
+	getClient(sessionId: string, token?: vscode.CancellationToken): Thenable<Pick<internalGitHub.GitHubClient, 'gists' | 'dispose'>>;
+	getAnonymousClient: typeof internalGitHub.getAnonymousClient;
+};
 type AuthenticationApi = Pick<typeof vscode.authentication, 'getSession'>;
 
 export class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
