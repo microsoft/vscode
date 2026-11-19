@@ -35,7 +35,7 @@ import { IPartsSplash } from '../../../platform/theme/common/themeService.js';
 import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
 import { FileUserDataProvider } from '../../../platform/userData/common/fileUserDataProvider.js';
 import { UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
-import { IColorScheme, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../../platform/window/common/window.js';
+import { IColorScheme, IEmbeddedEditorWindowOptions, IEmbeddedWindowBounds, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../../platform/window/common/window.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -107,6 +107,9 @@ export class TestNativeHostService implements INativeHostService {
 
 	async openAgentsWindow(_options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void> { }
 	async showAgentsLauncher(): Promise<void> { }
+	async showEmbeddedEditorWindow(_toOpen: IWindowOpenable[], _options: IEmbeddedEditorWindowOptions): Promise<void> { }
+	async layoutEmbeddedEditorWindow(_bounds: IEmbeddedWindowBounds): Promise<void> { }
+	async hideEmbeddedEditorWindow(): Promise<void> { }
 
 	readonly onDidChangeAgentHostEditorState = Event.None;
 	async getAgentHostEditorState(): Promise<IAgentHostEditorState> { return { revision: 0, editorSessionCount: 0, sessions: [], lastShown: undefined, lastCopilotHarnessIntroductionSessionCount: undefined, invitation: undefined }; }

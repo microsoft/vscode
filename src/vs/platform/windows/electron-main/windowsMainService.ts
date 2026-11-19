@@ -37,7 +37,7 @@ import product from '../../product/common/product.js';
 import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
 import { IStateService } from '../../state/node/state.js';
-import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowFolderLocation, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, EMBEDDED_EDITOR_WINDOW_CHANGED_CHANNEL, IAgentsWindowDraft, IAddRemoveFoldersRequest, IEmbeddedEditorWindowOptions, IEmbeddedWindowBounds, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowFolderLocation, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
 import { CodeWindow } from './windowImpl.js';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnRequestedPath, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
@@ -88,6 +88,8 @@ interface IOpenBrowserWindowOptions {
 	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
 	readonly forceProfile?: string;
 	readonly forceTempProfile?: boolean;
+
+	readonly embeddingWindow?: ICodeWindow;
 }
 
 interface IPathResolveOptions {
@@ -219,6 +221,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private readonly windows = new Map<number, ICodeWindow>();
 
+	private readonly visibleEmbeddedWindows = new Map<number /* embedding window */, ICodeWindow>();
+	private readonly embeddedEditorBounds = new Map<number /* embedding window */, IEmbeddedWindowBounds>();
+
 	private readonly windowsStateHandler: WindowsStateHandler;
 
 	constructor(
@@ -316,6 +321,110 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		return windows;
 	}
+
+	//#region Embedded editor windows
+
+	async showEmbeddedEditorWindow(embeddingWindowId: number, toOpen: IWindowOpenable[], options: IEmbeddedEditorWindowOptions): Promise<void> {
+		const embeddingWindow = this.getWindowById(embeddingWindowId);
+		if (!embeddingWindow || embeddingWindow.embeddingWindow) {
+			throw new Error('An editor window can only be embedded in a top-level window');
+		}
+
+		const pathsToOpen = coalesce(await Promise.all(toOpen.map(openable => this.resolveOpenable(openable))));
+		let pathToOpen: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen | undefined;
+		const folders = pathsToOpen.filter(isSingleFolderWorkspacePathToOpen);
+		if (folders.length > 1) {
+			const remoteAuthority = folders[0].remoteAuthority;
+			const workspace = await this.doGetWorkspaceMatchingFoldersFromLastSession(remoteAuthority, folders) ?? await this.workspacesManagementMainService.createUntitledWorkspace(folders.map(folder => ({ uri: folder.workspace.uri })));
+			pathToOpen = { workspace, remoteAuthority };
+		} else {
+			pathToOpen = pathsToOpen.find(path => isWorkspacePathToOpen(path) || isSingleFolderWorkspacePathToOpen(path));
+		}
+		if (!pathToOpen?.workspace) {
+			throw new Error('An embedded editor window needs a folder or workspace to open');
+		}
+
+		const workspaceToOpen = pathToOpen.workspace;
+		const workspaceUri = isWorkspaceIdentifier(workspaceToOpen) ? workspaceToOpen.configPath : workspaceToOpen.uri;
+		let window = findWindowOnWorkspaceOrFolder([...embeddingWindow.embeddedWindows], workspaceUri);
+		if (!window) {
+			window = await this.openInBrowserWindow({
+				workspace: workspaceToOpen,
+				remoteAuthority: pathToOpen.remoteAuthority,
+				cli: this.environmentMainService.args,
+				forceNewWindow: true,
+				embeddingWindow
+			});
+
+			if (options.chatSessionToOpen) {
+				window.sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(options.chatSessionToOpen).toString());
+			}
+		}
+
+		this.embeddedEditorBounds.set(embeddingWindowId, options.bounds);
+		this.setVisibleEmbeddedWindow(embeddingWindow, window);
+		window.focus();
+	}
+
+	layoutEmbeddedEditorWindow(embeddingWindowId: number, bounds: IEmbeddedWindowBounds): void {
+		this.embeddedEditorBounds.set(embeddingWindowId, bounds);
+		this.visibleEmbeddedWindows.get(embeddingWindowId)?.layoutEmbedded(bounds);
+	}
+
+	hideEmbeddedEditorWindow(embeddingWindowId: number): void {
+		const embeddingWindow = this.getWindowById(embeddingWindowId);
+		if (embeddingWindow) {
+			this.setVisibleEmbeddedWindow(embeddingWindow, undefined);
+		}
+	}
+
+	revealEmbeddedWindow(window: ICodeWindow): boolean {
+		const embeddingWindow = window.embeddingWindow;
+		if (!embeddingWindow || !this.embeddedEditorBounds.has(embeddingWindow.id)) {
+			return false;
+		}
+
+		this.setVisibleEmbeddedWindow(embeddingWindow, window);
+		return true;
+	}
+
+	private setVisibleEmbeddedWindow(embeddingWindow: ICodeWindow, window: ICodeWindow | undefined): void {
+		const previous = this.visibleEmbeddedWindows.get(embeddingWindow.id);
+		if (previous === window) {
+			return;
+		}
+
+		if (window) {
+			this.visibleEmbeddedWindows.set(embeddingWindow.id, window);
+			window.layoutEmbedded(this.embeddedEditorBounds.get(embeddingWindow.id));
+		} else {
+			this.visibleEmbeddedWindows.delete(embeddingWindow.id);
+		}
+		previous?.layoutEmbedded(undefined);
+
+		embeddingWindow.send(EMBEDDED_EDITOR_WINDOW_CHANGED_CHANNEL, window?.id);
+	}
+
+	private onEmbeddingRelatedWindowClosed(window: ICodeWindow): void {
+
+		// An embedded window that closes leaves its embedding window
+		const embeddingWindow = window.embeddingWindow;
+		if (embeddingWindow && this.visibleEmbeddedWindows.get(embeddingWindow.id) === window) {
+			this.visibleEmbeddedWindows.delete(embeddingWindow.id);
+			embeddingWindow.send(EMBEDDED_EDITOR_WINDOW_CHANGED_CHANNEL, undefined);
+		}
+
+		// An embedding window that closes takes its embedded windows with it
+		if (!embeddingWindow) {
+			this.visibleEmbeddedWindows.delete(window.id);
+			this.embeddedEditorBounds.delete(window.id);
+			for (const embeddedWindow of this.getWindows().filter(candidate => candidate.embeddingWindow === window)) {
+				embeddedWindow.nativeWindow?.destroy();
+			}
+		}
+	}
+
+	//#endregion
 
 	private async ensureAgentsWindow(openConfig: IOpenConfiguration): Promise<IOpenConfiguration> {
 		const agentSessionsWorkspaceUri = this.environmentMainService.agentSessionsWorkspace;
@@ -1668,6 +1777,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined,
 
 			isSessionsWindow: isWorkspaceIdentifier(options.workspace) && isEqual(options.workspace.configPath, this.environmentMainService.agentSessionsWorkspace),
+			embeddingWindowId: options.embeddingWindow?.id,
 		};
 
 		// New window
@@ -1682,7 +1792,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath,
 				isSessionsWindow: configuration.isSessionsWindow,
-				minimized
+				minimized,
+				embeddingWindow: options.embeddingWindow
 			});
 			mark('code/didCreateCodeWindow');
 
@@ -1713,7 +1824,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			disposables.add(createdWindow.onDidChangeAlwaysOnTop(alwaysOnTop => this._onDidChangeAlwaysOnTop.fire({ window: createdWindow, alwaysOnTop })));
 			disposables.add(createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y })));
 
-			const webContents = assertReturnsDefined(createdWindow.win?.webContents);
+			const webContents = assertReturnsDefined(createdWindow.webContents);
 			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
 			disposables.add(Event.fromNodeEventEmitter(webContents, 'devtools-reload-page')(() => this.lifecycleMainService.reload(createdWindow)));
 
@@ -1829,6 +1940,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private onWindowClosed(window: ICodeWindow, disposables: IDisposable): void {
+		this.onEmbeddingRelatedWindowClosed(window);
 
 		// Remove from our list so that Electron can clean it up
 		this.windows.delete(window.id);
@@ -1841,6 +1953,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private onWindowDestroyed(window: ICodeWindow): void {
+		this.onEmbeddingRelatedWindowClosed(window);
 
 		// Remove from our list so that Electron can clean it up
 		this.windows.delete(window.id);
@@ -1852,6 +1965,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	getFocusedWindow(): ICodeWindow | undefined {
 		const window = BrowserWindow.getFocusedWindow();
 		if (window) {
+			const embeddedWindow = this.visibleEmbeddedWindows.get(window.id);
+			if (embeddedWindow?.webContents?.isFocused()) {
+				return embeddedWindow;
+			}
+
 			return this.getWindowById(window.id);
 		}
 
@@ -1906,13 +2024,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined {
 		const browserWindow = BrowserWindow.fromWebContents(webContents);
-		if (!browserWindow) {
-			return undefined;
+		const window = browserWindow ? this.getWindowById(browserWindow.id) : undefined;
+		if (window?.matches(webContents)) {
+			return window;
 		}
 
-		const window = this.getWindowById(browserWindow.id);
-
-		return window?.matches(webContents) ? window : undefined;
+		// The workbench of an embedded window renders in a view of its embedding window
+		return this.getWindows().find(candidate => candidate.embeddingWindow && candidate.matches(webContents));
 	}
 
 	restoreExactlyOnNextStartup(restore: boolean): void {

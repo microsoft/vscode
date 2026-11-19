@@ -428,7 +428,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace, reason: e.reason })));
 
 		// Window Before Closing: Main -> Renderer
-		const win = assertReturnsDefined(window.win);
+		const win = assertReturnsDefined(window.nativeWindow);
 		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'close')(e => {
 
 			// The window already acknowledged to be closed
@@ -540,17 +540,29 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		this.trace(`Lifecycle#unload() - window ID ${window.id}`);
 
-		// first ask the window itself if it vetos the unload
-		const windowUnloadReason = this._quitRequested ? UnloadReason.QUIT : reason;
-		const veto = await this.onBeforeUnloadWindowInRenderer(window, windowUnloadReason);
-		if (veto) {
-			this.trace(`Lifecycle#unload() - veto in renderer (window ID ${window.id})`);
+		// A window that closes closes the windows embedded in it, so they get to veto first
+		const embeddedWindows = reason === UnloadReason.CLOSE && !this._quitRequested ? window.embeddedWindows.filter(embeddedWindow => embeddedWindow.isReady) : [];
+		const windows = [...embeddedWindows, window];
 
-			return this.handleWindowUnloadVeto(veto);
+		// first ask the windows themselves if they veto the unload
+		const windowUnloadReason = this._quitRequested ? UnloadReason.QUIT : reason;
+		for (const candidate of windows) {
+			const veto = await this.onBeforeUnloadWindowInRenderer(candidate, windowUnloadReason);
+			if (veto) {
+				this.trace(`Lifecycle#unload() - veto in renderer (window ID ${candidate.id})`);
+
+				return this.handleWindowUnloadVeto(veto);
+			}
 		}
 
-		// finally if there are no vetos, unload the renderer
-		await this.onWillUnloadWindowInRenderer(window, windowUnloadReason);
+		// finally if there are no vetos, unload the renderers
+		for (const candidate of windows) {
+			await this.onWillUnloadWindowInRenderer(candidate, windowUnloadReason);
+		}
+		for (const embeddedWindow of embeddedWindows) {
+			this.windowToCloseRequest.add(embeddedWindow.id);
+			embeddedWindow.close();
+		}
 
 		return false;
 	}

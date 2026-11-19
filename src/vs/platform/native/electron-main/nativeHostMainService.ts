@@ -37,7 +37,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
-import { AGENTS_LAUNCHER_IPC_CHANNEL, AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
+import { AGENTS_LAUNCHER_IPC_CHANNEL, AgentsWindowOpenSource, IColorScheme, IEmbeddedEditorWindowOptions, IEmbeddedWindowBounds, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
 import { IFolderLocationsMainService } from '../../windows/electron-main/folderLocationsMainService.js';
 import { defaultBrowserWindowOptions, isBackgroundThrottlingAllowed, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -282,7 +282,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
 	getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
 	async getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: boolean }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>> {
-		const mainWindows = this.windowsMainService.getWindows().map(window => ({
+		const mainWindows = this.windowsMainService.getWindows().filter(window => !window.embeddingWindow).map(window => ({
 			id: window.id,
 			workspace: window.openedWorkspace ?? toWorkspaceIdentifier(window.backupPath, window.isExtensionDevelopmentHost),
 			title: window.win?.getTitle() ?? '',
@@ -305,7 +305,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async getWindowCount(windowId: number | undefined): Promise<number> {
-		return this.windowsMainService.getWindowCount();
+		return this.windowsMainService.getWindows().filter(window => !window.embeddingWindow).length;
 	}
 
 	async getActiveWindowId(windowId: number | undefined): Promise<number | undefined> {
@@ -384,6 +384,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openAgentsWindow(windowId: number | undefined, options?: IOpenAgentsWindowOptions): Promise<void> {
+
+		// An editor window embedded in the Agents window returns to it
+		const embeddingWindow = this.codeWindowById(windowId)?.embeddingWindow;
+		if (embeddingWindow?.config?.isSessionsWindow) {
+			this.windowsMainService.hideEmbeddedEditorWindow(embeddingWindow.id);
+			embeddingWindow.focus({ mode: FocusMode.Force });
+			return;
+		}
+
 		const windows = await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
@@ -392,6 +401,26 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (windows.length > 0) {
 			// Transfer focus is a no-op on macOS while VS Code is hidden, e.g. when run from a system-wide keybinding
 			windows[0].focus({ mode: FocusMode.Force });
+		}
+	}
+
+	async showEmbeddedEditorWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: IEmbeddedEditorWindowOptions): Promise<void> {
+		if (typeof windowId !== 'number') {
+			throw new Error('An editor window can only be embedded in a window');
+		}
+
+		await this.windowsMainService.showEmbeddedEditorWindow(windowId, toOpen, options);
+	}
+
+	async layoutEmbeddedEditorWindow(windowId: number | undefined, bounds: IEmbeddedWindowBounds): Promise<void> {
+		if (typeof windowId === 'number') {
+			this.windowsMainService.layoutEmbeddedEditorWindow(windowId, bounds);
+		}
+	}
+
+	async hideEmbeddedEditorWindow(windowId: number | undefined): Promise<void> {
+		if (typeof windowId === 'number') {
+			this.windowsMainService.hideEmbeddedEditorWindow(windowId);
 		}
 	}
 
@@ -637,7 +666,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		this.logService.trace(`Setting background throttling for window ${windowId} to '${allowed}'`);
 
-		window?.win?.webContents?.setBackgroundThrottling(isBackgroundThrottlingAllowed(this.environmentMainService, allowed));
+		window?.webContents?.setBackgroundThrottling(isBackgroundThrottlingAllowed(this.environmentMainService, allowed));
 	}
 
 	//#endregion
@@ -812,7 +841,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 		// macOS requires an image under the cursor; the file's own icon shows what the drop adds.
 		const icon = await app.getFileIcon(path, { size: 'normal' });
-		window.win.webContents.startDrag({ file: path, icon });
+		window.webContents?.startDrag({ file: path, icon });
 	}
 
 	async setRepresentedFilename(windowId: number | undefined, path: string, options?: INativeHostOptions): Promise<void> {
@@ -1177,7 +1206,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async getScreenshot(windowId: number | undefined, rect?: IRectangle, options?: INativeHostOptions): Promise<VSBuffer | undefined> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		const captured = await window?.win?.webContents.capturePage(rect);
+		const captured = await window?.webContents?.capturePage(rect);
 
 		const buf = captured?.toJPEG(95);
 		return buf && VSBuffer.wrap(buf);
@@ -1266,7 +1295,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async getProcessId(windowId: number | undefined): Promise<number | undefined> {
 		const window = this.windowById(undefined, windowId);
-		return window?.win?.webContents.getOSProcessId();
+		return window?.webContents?.getOSProcessId();
 	}
 
 	async killProcess(windowId: number | undefined, pid: number, code: string): Promise<void> {
@@ -1288,7 +1317,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async triggerPaste(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		this.logService.trace(`Triggering paste in window ${windowId} with options:`, options);
 		const window = this.windowById(options?.targetWindowId, windowId);
-		return window?.win?.webContents.paste() ?? Promise.resolve();
+		return window?.webContents?.paste() ?? Promise.resolve();
 	}
 
 	async readImage(): Promise<Uint8Array> {
@@ -1403,6 +1432,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async closeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
+
+		// An embedded window closes on its own, without its embedding window
+		const codeWindow = window && this.codeWindowById(window.id);
+		if (codeWindow === window && codeWindow?.embeddingWindow) {
+			return codeWindow.close();
+		}
+
 		return window?.win?.close();
 	}
 
@@ -1432,7 +1468,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
 		const window = this.codeWindowById(windowId);
-		const session = window?.win?.webContents?.session;
+		const session = window?.webContents?.session;
 
 		return session ? session.resolveProxy(url) : app.resolveProxy(url);
 	}
@@ -1481,7 +1517,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.webContents.openDevTools(options?.mode ? { mode: options.mode, activate: options.activate } : undefined);
+		window?.webContents?.openDevTools(options?.mode ? { mode: options.mode, activate: options.activate } : undefined);
 	}
 
 	async toggleDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
@@ -1490,7 +1526,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.webContents.toggleDevTools();
+		window?.webContents?.toggleDevTools();
 	}
 
 	async openDevToolsWindow(windowId: number | undefined, url: string): Promise<void> {
@@ -1645,11 +1681,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
 		const window = this.codeWindowById(windowId);
-		if (!window?.win) {
+		if (!window?.webContents) {
 			throw new Error();
 		}
 
-		const profiler = new WindowProfiler(window.win, session, this.logService);
+		const profiler = new WindowProfiler(window.webContents, session, this.logService);
 		const result = await profiler.inspect(duration);
 		return result;
 	}

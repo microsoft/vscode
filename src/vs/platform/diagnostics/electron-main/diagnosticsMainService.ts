@@ -117,9 +117,14 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 
 	private async codeWindowToInfo(window: ICodeWindow): Promise<IWindowDiagnostics> {
 		const folderURIs = await this.getFolderURIs(window);
-		const win = assertReturnsDefined(window.win);
-
-		return this.browserWindowToInfo(win, folderURIs, window.remoteAuthority);
+		const webContents = assertReturnsDefined(window.webContents);
+		return {
+			id: window.id,
+			pid: webContents.getOSProcessId(),
+			title: webContents.getTitle(),
+			folderURIs,
+			remoteAuthority: window.remoteAuthority
+		};
 	}
 
 	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowDiagnostics {

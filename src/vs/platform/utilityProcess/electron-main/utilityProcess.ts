@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess } from 'electron';
+import { Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
@@ -11,6 +11,7 @@ import { StringDecoder } from 'string_decoder';
 import { timeout } from '../../../base/common/async.js';
 import { FileAccess } from '../../../base/common/network.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { ICodeWindow } from '../../window/electron-main/window.js';
 import Severity from '../../../base/common/severity.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
@@ -475,7 +476,8 @@ export class WindowUtilityProcess extends UtilityProcess {
 
 	override start(configuration: IWindowUtilityProcessConfiguration): boolean {
 		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId);
-		if (!responseWindow?.win || responseWindow.win.isDestroyed() || responseWindow.win.webContents.isDestroyed()) {
+		const responseWebContents = responseWindow?.webContents;
+		if (!responseWindow?.win || responseWindow.win.isDestroyed() || !responseWebContents || responseWebContents.isDestroyed()) {
 			this.log('Refusing to start utility process because requesting window cannot be found or is destroyed...', Severity.Error);
 
 			return true;
@@ -488,16 +490,16 @@ export class WindowUtilityProcess extends UtilityProcess {
 		}
 
 		// Register to window events
-		this.registerWindowListeners(responseWindow.win, configuration);
+		this.registerWindowListeners(responseWindow, configuration);
 
 		// Establish & exchange message ports
 		const windowPort = this.connect(configuration.payload);
-		responseWindow.win.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
+		responseWebContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
 
 		return true;
 	}
 
-	private registerWindowListeners(window: BrowserWindow, configuration: IWindowUtilityProcessConfiguration): void {
+	private registerWindowListeners(window: ICodeWindow, configuration: IWindowUtilityProcessConfiguration): void {
 
 		// If the lifecycle of the utility process is bound to the window,
 		// we terminate the process if the window closes or changes.
@@ -509,8 +511,8 @@ export class WindowUtilityProcess extends UtilityProcess {
 			const terminate = graceTime && graceTime > 0
 				? () => this.waitForExit(graceTime)
 				: () => this.kill();
-			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(terminate));
-			this._register(Event.fromNodeEventEmitter(window, 'closed')(terminate));
+			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window === window)(terminate));
+			this._register(window.onDidClose(terminate));
 		}
 	}
 }

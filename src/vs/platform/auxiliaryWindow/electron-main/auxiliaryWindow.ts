@@ -33,10 +33,14 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		return super.win;
 	}
 
+	override get webContents(): WebContents {
+		return this.ownedWebContents;
+	}
+
 	private stateApplied = false;
 
 	constructor(
-		private readonly webContents: WebContents,
+		private readonly ownedWebContents: WebContents,
 		private readonly windowOptions: BrowserWindowConstructorOptions | undefined,
 		private readonly windowMode: WindowMode | undefined,
 		private readonly disableMaximize: boolean,

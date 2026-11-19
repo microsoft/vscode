@@ -41,8 +41,8 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 
 	private getWebContents(id: WebviewWebContentsId | WebviewWindowId): WebContents | undefined {
 		if (hasKey(id, { windowId: true })) {
-			const window = this.windowsMainService.getWindowById(id.windowId)?.win;
-			return window && !window.isDestroyed() ? window.webContents : undefined;
+			const contents = this.windowsMainService.getWindowById(id.windowId)?.webContents;
+			return contents && !contents.isDestroyed() ? contents : undefined;
 		}
 
 		return electron.webContents.fromId(id.webContentsId);

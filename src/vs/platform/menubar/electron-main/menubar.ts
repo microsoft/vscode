@@ -762,15 +762,16 @@ export class Menubar extends Disposable {
 			if (!activeWindow) {
 				return contextSpecificHandlers.inNoWindow();
 			}
+			const activeWebContents = this.windowsMainService.getFocusedWindow()?.webContents ?? activeWindow.webContents;
 
 			// DevTools focused
-			if (activeWindow.webContents.isDevToolsFocused() &&
-				activeWindow.webContents.devToolsWebContents) {
-				return contextSpecificHandlers.inDevTools(activeWindow.webContents.devToolsWebContents);
+			if (activeWebContents.isDevToolsFocused() &&
+				activeWebContents.devToolsWebContents) {
+				return contextSpecificHandlers.inDevTools(activeWebContents.devToolsWebContents);
 			}
 
 			// Focus is not in the workbench webContents
-			if (!activeWindow.webContents.isFocused()) {
+			if (!activeWebContents.isFocused()) {
 				return contextSpecificHandlers.inNoWindow();
 			}
 
@@ -785,10 +786,12 @@ export class Menubar extends Disposable {
 		// returning their parent windows as target to support running
 		// actions via the main window.
 		let activeBrowserWindow = BrowserWindow.getFocusedWindow();
+		let activeWindow = this.windowsMainService.getFocusedWindow();
 		if (activeBrowserWindow) {
 			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowByWebContents(activeBrowserWindow.webContents);
 			if (auxiliaryWindowCandidate) {
-				activeBrowserWindow = this.windowsMainService.getWindowById(auxiliaryWindowCandidate.parentId)?.win ?? null;
+				activeWindow = this.windowsMainService.getWindowById(auxiliaryWindowCandidate.parentId);
+				activeBrowserWindow = activeWindow?.win ?? null;
 			}
 		}
 
@@ -801,10 +804,11 @@ export class Menubar extends Disposable {
 			const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
 			if (lastActiveWindow?.win?.isMinimized()) {
 				activeBrowserWindow = lastActiveWindow.win;
+				activeWindow = lastActiveWindow;
 			}
 		}
 
-		const activeWindow = activeBrowserWindow ? this.windowsMainService.getWindowById(activeBrowserWindow.id) : undefined;
+		activeWindow ??= activeBrowserWindow ? this.windowsMainService.getWindowById(activeBrowserWindow.id) : undefined;
 		if (activeWindow) {
 			this.logService.trace('menubar#runActionInRenderer', invocation);
 

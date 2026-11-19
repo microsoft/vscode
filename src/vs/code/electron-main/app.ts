@@ -317,7 +317,7 @@ export class CodeApplication extends Disposable {
 		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
 			try {
 				const frame = request.frame;
-				const win = frame ? BrowserWindow.getAllWindows().find(w => w.webContents.mainFrame === frame) : undefined;
+				const win = frame ? (this.windowsMainService?.getWindows().find(window => window.webContents?.mainFrame === frame)?.win ?? BrowserWindow.getAllWindows().find(window => window.webContents.mainFrame === frame)) : undefined;
 
 				const displays = electronScreen.getAllDisplays();
 				let targetDisplay = displays[0];
@@ -394,6 +394,13 @@ export class CodeApplication extends Disposable {
 			}
 
 			// Check to see if the request comes from one of the main windows (or shared process) and not from embedded content
+			for (const window of this.windowsMainService.getWindows()) {
+				const webContents = window.webContents;
+				if (webContents && !webContents.isDestroyed() && frame.processId === webContents.mainFrame.processId) {
+					return true;
+				}
+			}
+
 			const windows = getAllWindowsExcludingOffscreen();
 			for (const window of windows) {
 				if (frame.processId === window.webContents.mainFrame.processId) {
@@ -416,10 +423,9 @@ export class CodeApplication extends Disposable {
 
 			// Check to see if the request comes from one of the main editor windows.
 			for (const window of this.windowsMainService.getWindows()) {
-				if (window.win) {
-					if (frame.processId === window.win.webContents.mainFrame.processId) {
-						return true;
-					}
+				const webContents = window.webContents;
+				if (webContents && !webContents.isDestroyed() && frame.processId === webContents.mainFrame.processId) {
+					return true;
 				}
 			}
 

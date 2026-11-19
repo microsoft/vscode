@@ -17,7 +17,7 @@ import { ServicesAccessor, createDecorator } from '../../instantiation/common/in
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { AgentsWindowOpenSource, ChatSessionToOpen, IAgentsWindowDraft, IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, ChatSessionToOpen, IAgentsWindowDraft, IEmbeddedEditorWindowOptions, IEmbeddedWindowBounds, IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
 import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from '../../window/electron-main/window.js';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
@@ -43,6 +43,20 @@ export interface IWindowsMainService {
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 
 	openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, reveal?: URI | 'new', source?: AgentsWindowOpenSource, folderUriIsDefault?: boolean, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI, revealRemoteAuthority?: string): Promise<ICodeWindow[]>;
+
+	/**
+	 * Shows an editor window for the given folders or workspace inside the embedding window,
+	 * creating it unless the embedding window already holds one for them.
+	 */
+	showEmbeddedEditorWindow(embeddingWindowId: number, toOpen: IWindowOpenable[], options: IEmbeddedEditorWindowOptions): Promise<void>;
+	layoutEmbeddedEditorWindow(embeddingWindowId: number, bounds: IEmbeddedWindowBounds): void;
+	hideEmbeddedEditorWindow(embeddingWindowId: number): void;
+
+	/**
+	 * Shows an embedded window inside its embedding window where it was last laid out.
+	 * Returns `false` when its embedding window never laid out an editor window.
+	 */
+	revealEmbeddedWindow(window: ICodeWindow): boolean;
 
 	sendToFocused(channel: string, ...args: unknown[]): void;
 	sendToOpeningWindow(channel: string, ...args: unknown[]): void;

@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Parts that an editor window shown inside the Agents window covers. */
+.agent-sessions-workbench .embedded-editor-covered,
+.agent-sessions-workbench.embedded-editor-visible .session-activity-bar-column {
+	visibility: hidden;
+}
+
+/* A picture of the editor window, shown while content of the Agents window shows over it. */
+.agent-sessions-workbench > .embedded-editor-picture {
+	position: absolute;
+	z-index: 1;
+	pointer-events: none;
+	object-fit: fill;
+}

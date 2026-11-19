@@ -218,8 +218,8 @@ export class WindowsStateHandler extends Disposable {
 		// 1.) Find a last active window (pick any other first window otherwise)
 		if (!currentWindowsState.lastActiveWindow) {
 			let activeWindow = this.windowsMainService.getLastActiveWindow();
-			if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
-				activeWindow = this.windowsMainService.getWindows().find(window => !window.isExtensionDevelopmentHost);
+			if (!activeWindow || activeWindow.isExtensionDevelopmentHost || activeWindow.embeddingWindow) {
+				activeWindow = this.windowsMainService.getWindows().find(window => !window.isExtensionDevelopmentHost && !window.embeddingWindow);
 			}
 
 			if (activeWindow) {
@@ -253,7 +253,7 @@ export class WindowsStateHandler extends Disposable {
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
 		// to come from the stored lastClosedWindowState on Win/Linux at least
 		if (this.windowsMainService.getWindowCount() > 1) {
-			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => {
+			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost && !window.embeddingWindow).map(window => {
 				const windowState = this.toWindowState(window, exact);
 
 				if (windowState.uiState.mode === WindowMode.Fullscreen) {
@@ -281,7 +281,7 @@ export class WindowsStateHandler extends Disposable {
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
 	private onBeforeCloseWindow(window: ICodeWindow): void {
-		if (this.lifecycleMainService.quitRequested) {
+		if (this.lifecycleMainService.quitRequested || window.embeddingWindow) {
 			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
 		}
 

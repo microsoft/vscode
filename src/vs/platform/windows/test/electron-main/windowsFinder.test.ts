@@ -46,6 +46,11 @@ suite('WindowsFinder', () => {
 			whenClosedOrLoaded: Promise<void> = Promise.resolve();
 			id: number = -1;
 			win: Electron.BrowserWindow = null!;
+			nativeWindow: Electron.BrowserWindow = null!;
+			webContents: Electron.WebContents | undefined;
+			contentView: Electron.View | undefined;
+			embeddingWindow: ICodeWindow | undefined;
+			embeddedWindows: readonly ICodeWindow[] = [];
 			config: INativeWindowConfiguration | undefined;
 			openedWorkspace = options.openedFolderUri ? { id: '', uri: options.openedFolderUri } : options.openedWorkspace;
 			backupPath?: string | undefined;
@@ -58,6 +63,7 @@ suite('WindowsFinder', () => {
 			isReady = true;
 
 			ready(): Promise<ICodeWindow> { throw new Error('Method not implemented.'); }
+			layoutEmbedded(): void { throw new Error('Method not implemented.'); }
 			setReady(): void { throw new Error('Method not implemented.'); }
 			addTabbedWindow(window: ICodeWindow): void { throw new Error('Method not implemented.'); }
 			load(config: INativeWindowConfiguration, options: { isReload?: boolean }): void { throw new Error('Method not implemented.'); }
