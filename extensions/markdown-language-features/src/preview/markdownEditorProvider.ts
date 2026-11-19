@@ -370,7 +370,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		if (document.uri.scheme === 'untitled' || document.getText().length === 0) {
 			return false;
 		}
-		return this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true);
+		const initialMode = vscode.workspace.getConfiguration('markdown.editor').get<'read' | 'edit'>('experimental.initialMode', 'read');
+		return this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, initialMode !== 'edit');
 	}
 
 	#configureWebview(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, editEpoch: number, readonly: boolean): void {

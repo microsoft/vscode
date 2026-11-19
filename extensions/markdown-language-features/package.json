@@ -1611,6 +1611,24 @@
             "description": "%configuration.markdown.editor.highlightActiveBlock%",
             "scope": "resource"
           },
+          "markdown.editor.experimental.initialMode": {
+            "type": "string",
+            "enum": [
+              "read",
+              "edit"
+            ],
+            "enumDescriptions": [
+              "%configuration.markdown.editor.experimental.initialMode.read%",
+              "%configuration.markdown.editor.experimental.initialMode.edit%"
+            ],
+            "default": "read",
+            "markdownDescription": "%configuration.markdown.editor.experimental.initialMode%",
+            "scope": "window",
+            "tags": [
+              "experimental",
+              "onExP"
+            ]
+          },
           "markdown.editor.renderWhitespace": {
             "type": "boolean",
             "default": false,
