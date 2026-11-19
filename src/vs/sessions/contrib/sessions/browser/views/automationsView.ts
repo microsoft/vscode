@@ -76,7 +76,7 @@ import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { isActiveSessionStatus, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionStatusIcon } from '../../../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
 
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
@@ -227,6 +227,7 @@ interface IAutomationHistorySessionList extends IDisposable {
 interface IAutomationTemporaryRunRow extends IDisposable {
 	readonly element: HTMLElement;
 	readonly title: HTMLElement;
+	focus(): void;
 	update(run: IAutomationRun, title: string): void;
 }
 
@@ -356,7 +357,7 @@ export class AutomationsCardsWidget extends Disposable {
 					sessions.set(run.id, session);
 				}
 			}
-			this.historySection.render(allRuns, sessions);
+			this.historySection.render(allRuns, sessions, reader);
 			this.cardsSection.setPresentedRunIds(sessions.keys());
 		}));
 		const refreshScheduler = this._register(new RunOnceScheduler(() => {
@@ -1723,6 +1724,9 @@ class AutomationRunSession implements ISession {
  */
 class AutomationHistorySection extends Disposable {
 
+	private static readonly INITIAL_RUN_COUNT = 10;
+	private static readonly PAGE_SIZE = 20;
+
 	private readonly container: HTMLElement;
 	private readonly ownersContainer: HTMLElement;
 	private readonly groupsContainer: HTMLElement;
@@ -1741,6 +1745,10 @@ class AutomationHistorySection extends Disposable {
 	private readonly cloudSessions = new Map<string, AutomationRunSession>();
 	private readonly stoppingRuns = observableValue<ReadonlySet<string>>(this, new Set());
 	private readonly chatModels: IObservable<readonly IChatModel[]>;
+	private readonly visibleRunCount = observableValue(this, AutomationHistorySection.INITIAL_RUN_COUNT);
+	private readonly showMoreButton: Button;
+	private firstHiddenRunId: string | undefined;
+	private nextVisibleRunCount = AutomationHistorySection.INITIAL_RUN_COUNT;
 
 	override dispose(): void {
 		this.disposeAllGroups();
@@ -1770,9 +1778,27 @@ class AutomationHistorySection extends Disposable {
 		this.ownersContainer = DOM.append(this.container, $('.automations-history-owners'));
 		this.groupsContainer = DOM.append(this.container, $('.automations-history-groups'));
 		this.approvalModel = this._register(this.instantiationService.createInstance(AgentSessionApprovalModel));
+		this.showMoreButton = this._register(new Button(this.container, { ...defaultButtonStyles, secondary: true }));
+		this.showMoreButton.element.classList.add('automations-history-show-more');
+		this.showMoreButton.label = localize('showMoreHistory', "Show More");
+		this._register(autorun(reader => {
+			this.showMoreButton.enabled = !this.isMarkingAllRead.read(reader);
+		}));
+		this._register(this.showMoreButton.onDidClick(() => {
+			this.pendingFocusRunId = this.firstHiddenRunId;
+			this.shouldRestoreFocus = true;
+			this.visibleRunCount.set(this.nextVisibleRunCount, undefined);
+			status(localize('moreHistoryShown', "More run history shown."));
+		}));
 	}
 
-	render(allRuns: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): void {
+	render(allRuns: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>, reader: IReader): void {
+		const activeElement = DOM.getActiveElement();
+		const historyOwnedFocus = DOM.isHTMLElement(activeElement) && this.groupsContainer.contains(activeElement);
+		const focusedList = historyOwnedFocus ? [...this.runFocusTargets.values()].find(target => target.container.contains(activeElement))?.list : undefined;
+		const focusedSession = focusedList?.getFocusedSession();
+		const focused = focusedSession ? [...this.runFocusTargets].find(([, target]) =>
+			target.list === focusedList && target.session === focusedSession) : undefined;
 		// Runs that continue a session share it: show the session once, for its newest run.
 		const shownSessions = new Set<ISession>();
 		const runs = allRuns.filter(run => {
@@ -1791,11 +1817,15 @@ class AutomationHistorySection extends Disposable {
 				this.cloudSessions.delete(id);
 			}
 		}
+		let focusedTemporaryRunId: string | undefined;
 		for (const group of this.persistentGroups.values()) {
 			for (const [id, row] of group.temporaryRows) {
-				if (DOM.isAncestorOfActiveElement(row.element) && (sessions.has(id) || !runIds.has(id))) {
-					this.pendingFocusRunId = id;
-					this.shouldRestoreFocus = true;
+				if (DOM.isAncestorOfActiveElement(row.element)) {
+					focusedTemporaryRunId = id;
+					if (sessions.has(id) || !runIds.has(id)) {
+						this.pendingFocusRunId = id;
+						this.shouldRestoreFocus = true;
+					}
 				}
 			}
 		}
@@ -1816,10 +1846,30 @@ class AutomationHistorySection extends Disposable {
 			this.currentRuns.set(sessionRuns, tx);
 			this.currentSessions.set(historySessions, tx);
 		});
-		const activeElement = DOM.getActiveElement();
-		const historyOwnedFocus = DOM.isHTMLElement(activeElement) && this.groupsContainer.contains(activeElement);
-		const focused = historyOwnedFocus ? [...this.runFocusTargets].find(([, target]) =>
-			target.container.contains(activeElement) && target.list.getFocusedSession() === target.session) : undefined;
+		const visibleRunCount = this.visibleRunCount.read(reader);
+		this.firstHiddenRunId = undefined;
+		this.nextVisibleRunCount = visibleRunCount;
+		let hiddenRunCount = 0;
+		const displayedRuns = visibleRuns.filter((run, index) => {
+			const session = historySessions.get(run.id);
+			const active = session
+				? isActiveSessionStatus(session.status.read(reader)) || session instanceof AutomationRunSession && isActiveSessionStatus(session.session.status.read(reader))
+				: run.status === 'pending' || run.status === 'running' || run.needsInput;
+			const keepsFocus = session && session === focused?.[1].session || run.id === focusedTemporaryRunId;
+			if (index < visibleRunCount || active || keepsFocus) {
+				return true;
+			}
+			this.firstHiddenRunId ??= run.id;
+			if (++hiddenRunCount <= AutomationHistorySection.PAGE_SIZE) {
+				this.nextVisibleRunCount = index + 1;
+			}
+			return false;
+		});
+		if (!hiddenRunCount && DOM.isAncestorOfActiveElement(this.showMoreButton.element)) {
+			this.focusFallback.focus();
+		}
+		this.showMoreButton.element.style.display = hiddenRunCount ? '' : 'none';
+		this.showMoreButton.element.setAttribute('aria-label', localize('showMoreHistoryLabel', "Show more run history, {0} remaining", hiddenRunCount));
 		this.runFocusTargets.clear();
 		this.renderedFocusableRunIds = [];
 
@@ -1836,7 +1886,7 @@ class AutomationHistorySection extends Disposable {
 		this.container.style.display = '';
 		this.ensureHeader();
 
-		const groups = groupRunsByDate(visibleRuns);
+		const groups = groupRunsByDate(displayedRuns);
 		const activeKeys = new Set(groups.map(group => group.key));
 		for (const [key, entry] of this.persistentGroups) {
 			if (!activeKeys.has(key)) {
@@ -1870,16 +1920,20 @@ class AutomationHistorySection extends Disposable {
 		}
 
 		this.restoreFocusAfterRender();
-		if (historyOwnedFocus && DOM.isHTMLElement(activeElement) && !this.groupsContainer.contains(DOM.getActiveElement())) {
+		if (historyOwnedFocus && DOM.isHTMLElement(activeElement)) {
 			// A newer run of a shared session takes over its row, possibly in another date group.
 			const target = focused && (this.runFocusTargets.get(focused[0])
 				?? [...this.runFocusTargets.values()].find(candidate => isEqual(candidate.session.resource, focused[1].session.resource)));
-			if (activeElement.isConnected) {
-				activeElement.focus();
-			} else if (target) {
-				target.list.focusSession(target.session);
-			} else {
-				this.focusFallback.focus();
+			if (target && (target.list !== focusedList || target.list.getFocusedSession() !== target.session || !activeElement.isConnected)) {
+				target.list.focusSession(target.session, true);
+			} else if (!this.groupsContainer.contains(DOM.getActiveElement())) {
+				if (activeElement.isConnected) {
+					activeElement.focus();
+				} else if (target) {
+					target.list.focusSession(target.session, true);
+				} else {
+					this.focusFallback.focus();
+				}
 			}
 		}
 	}
@@ -2159,9 +2213,11 @@ class AutomationHistorySection extends Disposable {
 		const titleHover = disposables.add(new MutableDisposable());
 		const detailsHover = disposables.add(new MutableDisposable());
 		let updateActions: (() => void) | undefined;
+		let focus = () => this.focusFallback.focus();
 		if (run.externalResource) {
 			const actions = DOM.append(element, $('.automations-run-actions'));
 			const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, actions, { telemetrySource: 'automationRun' }));
+			focus = () => currentRun.sessionResource ? main.focus() : toolbar.focus();
 			disposables.add(Gesture.addTarget(element));
 			for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
 				disposables.add(DOM.addDisposableListener(element, eventType, event => {
@@ -2237,6 +2293,7 @@ class AutomationHistorySection extends Disposable {
 		return {
 			element,
 			title: titleElement,
+			focus,
 			update: (run, title) => {
 				currentRun = run;
 				titleElement.textContent = title;
@@ -2458,10 +2515,17 @@ class AutomationHistorySection extends Disposable {
 		if (!this.shouldRestoreFocus) {
 			return;
 		}
-		const target = this.pendingFocusRunId ? this.runFocusTargets.get(this.pendingFocusRunId) : undefined;
+		const runId = this.pendingFocusRunId;
+		const target = runId ? this.runFocusTargets.get(runId) : undefined;
+		const temporaryRow = runId
+			? [...this.persistentGroups.values()].map(group => group.temporaryRows.get(runId)).find(row => row !== undefined)
+			: undefined;
 		this.clearPendingFocus();
 		if (target) {
-			target.list.focusSession(target.session);
+			target.list.focusSession(target.session, true);
+		} else if (temporaryRow) {
+			temporaryRow.focus();
+			temporaryRow.element.scrollIntoView({ block: 'nearest' });
 		} else {
 			this.focusFallback.focus();
 		}
