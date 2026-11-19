@@ -341,7 +341,15 @@ export class BrowserViewFrameInspector extends Disposable {
 			throw new Error(`Element not found: ${elementId}`);
 		}
 
-		return this.extractNodeData({ objectId: result.objectId });
+		try {
+			return await this.extractNodeData({ objectId: result.objectId });
+		} finally {
+			try {
+				await this.connection.sendCommand('Runtime.releaseObject', { objectId: result.objectId });
+			} catch {
+				// The frame or execution context may have been destroyed during extraction.
+			}
+		}
 	}
 
 	/**

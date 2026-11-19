@@ -22,6 +22,8 @@ import { IExperimentationService } from '../../telemetry/common/nullExperimentat
 import { getModelCapabilityOverride } from '../common/chatModelCapabilities';
 import { IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation } from '../common/endpointProvider';
 
+export type EmbeddingsModelFamily = 'text-embedding-3-small' | 'metis';
+
 export interface IModelMetadataFetcher {
 
 	/**
@@ -67,7 +69,7 @@ export interface IModelMetadataFetcher {
 	 * Retrieves an embeddings model by its family name
 	 * @param family The family of the model to fetch
 	 */
-	getEmbeddingsModel(family: 'text-embedding-3-small'): Promise<IEmbeddingModelInformation>;
+	getEmbeddingsModel(family: EmbeddingsModelFamily): Promise<IEmbeddingModelInformation>;
 }
 
 /**
@@ -219,7 +221,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		return resolvedModel;
 	}
 
-	public async getEmbeddingsModel(family: 'text-embedding-3-small'): Promise<IEmbeddingModelInformation> {
+	public async getEmbeddingsModel(family: EmbeddingsModelFamily): Promise<IEmbeddingModelInformation> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
 		const resolvedModel = this._familyMap.get(family)?.[0];
 		if (!resolvedModel || !isEmbeddingModelInformation(resolvedModel)) {

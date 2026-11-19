@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as fs from 'fs';
+import { tmpdir } from 'os';
 import * as path from '../../../../../base/common/path.js';
 import * as platform from '../../../../../base/common/platform.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFolderQuery, QueryType, IRawFileMatch } from '../../common/search.js';
 import { Engine as FileSearchEngine, FileWalker } from '../../node/fileSearch.js';
-import { flakySuite } from '../../../../../base/test/node/testUtils.js';
+import { flakySuite, getRandomTestPath } from '../../../../../base/test/node/testUtils.js';
 import { FileAccess } from '../../../../../base/common/network.js';
+import { createCrossLinkedFolders } from './symlinkLoopFixture.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const EXAMPLES_FIXTURES = URI.file(path.join(TEST_FIXTURES, 'examples'));
@@ -413,6 +416,31 @@ flakySuite('FileSearchEngine', () => {
 			assert.strictEqual(count, 1);
 			done();
 		});
+	});
+
+	// Creating symbolic links requires elevated privileges on Windows
+	(platform.isWindows ? test.skip : test)('Files: stops following symbolic links that form too many loops #143060', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'filesearch-symlink-loops');
+		try {
+			const files = await createCrossLinkedFolders(root, 8, '');
+			const engine = new FileSearchEngine({
+				type: QueryType.File,
+				folderQueries: [{ folder: URI.file(root) }]
+			});
+
+			const paths: string[] = [];
+			await new Promise<void>((resolve, reject) => engine.search(result => paths.push(path.join(root, result.relativePath)), () => { }, error => error ? reject(error) : resolve()));
+
+			assert.deepStrictEqual({
+				hasDuplicates: new Set(paths).size !== paths.length,
+				missingFiles: files.filter(file => !paths.includes(file))
+			}, {
+				hasDuplicates: false,
+				missingFiles: []
+			});
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test('Files: *.* exclude folder with leading wildcard', function (done: () => void) {

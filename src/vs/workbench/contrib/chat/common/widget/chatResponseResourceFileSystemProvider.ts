@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { canceled } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { createSingleCallFunction } from '../../../../../base/common/functional.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { newWriteableStream, ReadableStreamEvents } from '../../../../../base/common/stream.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProvider, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileReadStreamOptions, IFileService, IFileSystemProvider, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ChatResponseResource } from '../model/chatModel.js';
+import { ChatResponseResource, IChatModel } from '../model/chatModel.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService/chatService.js';
 import { isToolResultInputOutputDetails } from '../tools/languageModelToolsService.js';
 
@@ -92,7 +94,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._register(this.chatService.onDidDisposeSession(e => {
@@ -173,9 +175,35 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		return Promise.resolve(this.lookupURI(resource));
 	}
 
-	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
+	readFileStream(resource: URI, options: IFileReadStreamOptions = {}, token: CancellationToken = CancellationToken.None): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
-		Promise.resolve(this.lookupURI(resource)).then(v => stream.end(v));
+		const disposables = new DisposableStore();
+		const finish = createSingleCallFunction((value: Uint8Array | undefined, error: Error | undefined) => {
+			disposables.dispose();
+			if (error) {
+				stream.error(error);
+			}
+			stream.end(value);
+		});
+		if (token.isCancellationRequested) {
+			finish(undefined, canceled());
+			return stream;
+		}
+		disposables.add(token.onCancellationRequested(() => finish(undefined, canceled())));
+		Promise.resolve().then(() => {
+			if (token.isCancellationRequested) {
+				throw canceled();
+			}
+			return this.lookupURI(resource);
+		}).then(value => {
+			if (token.isCancellationRequested) {
+				finish(undefined, canceled());
+				return;
+			}
+			const start = Math.max(0, options.position ?? 0);
+			const end = typeof options.length === 'number' ? start + Math.max(0, options.length) : value.byteLength;
+			finish(value.subarray(start, end), undefined);
+		}, error => finish(undefined, error instanceof Error ? error : new Error(String(error))));
 		return stream;
 	}
 
@@ -213,30 +241,20 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		throw createFileSystemProviderError('fs is readonly', FileSystemProviderErrorCode.NoPermissions);
 	}
 
-	private findMatchingInvocation(uri: URI) {
-		const parsed = ChatResponseResource.parseUri(uri);
-		if (!parsed) {
-			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
-		}
-		const { sessionResource, toolCallId, index } = parsed;
-		const session = this.chatService.getSession(sessionResource);
-		if (!session) {
-			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
-		}
-
+	private findMatchingInvocationInSession(session: IChatModel, toolCallId: string): IChatToolInvocation | IChatToolInvocationSerialized {
 		const requests = session.getRequests();
 		for (let k = requests.length - 1; k >= 0; k--) {
 			const req = requests[k];
 			const tc = req.response?.entireResponse.value.find((r): r is IChatToolInvocation | IChatToolInvocationSerialized => (r.kind === 'toolInvocation' || r.kind === 'toolInvocationSerialized') && r.toolCallId === toolCallId);
 			if (tc) {
-				return { result: tc, index };
+				return tc;
 			}
 		}
 
 		throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 	}
 
-	private lookupURI(uri: URI): Uint8Array | Promise<Uint8Array> {
+	private async lookupURI(uri: URI): Promise<Uint8Array> {
 		const associated = this._associated.get(uri);
 		if (associated) {
 			if (associated.data instanceof Uint8Array) {
@@ -247,7 +265,16 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			return decoded;
 		}
 
-		const { result, index } = this.findMatchingInvocation(uri);
+		const parsed = ChatResponseResource.parseUri(uri);
+		if (!parsed) {
+			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
+		}
+		const { sessionResource, toolCallId, index } = parsed;
+		const session = this.chatService.getSession(sessionResource);
+		if (!session) {
+			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
+		}
+		const result = this.findMatchingInvocationInSession(session, toolCallId);
 		const details = IChatToolInvocation.resultDetails(result);
 		if (!isToolResultInputOutputDetails(details)) {
 			throw createFileSystemProviderError(`Tool does not have I/O`, FileSystemProviderErrorCode.FileNotFound);

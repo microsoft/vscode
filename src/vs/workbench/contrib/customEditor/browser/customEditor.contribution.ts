@@ -14,7 +14,7 @@ import { ICustomEditorService } from '../common/customEditor.js';
 import { WebviewEditor } from '../../webviewPanel/browser/webviewEditor.js';
 import { CustomEditorInput } from './customEditorInput.js';
 import { CustomEditorDiffInput, CustomEditorSideBySideDiffInput } from './customEditorDiffInput.js';
-import { CustomEditorService } from './customEditors.js';
+import { CustomEditorResolverContribution, CustomEditorService } from './customEditors.js';
 
 registerSingleton(ICustomEditorService, CustomEditorService, InstantiationType.Delayed);
 
@@ -39,4 +39,5 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 	.registerEditorSerializer(CustomEditorSideBySideDiffInputSerializer.ID, CustomEditorSideBySideDiffInputSerializer);
 
+registerWorkbenchContribution2(CustomEditorResolverContribution.ID, CustomEditorResolverContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ComplexCustomWorkingCopyEditorHandler.ID, ComplexCustomWorkingCopyEditorHandler, WorkbenchPhase.BlockStartup);

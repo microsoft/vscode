@@ -11,8 +11,12 @@ export function stripSSHComment(s: string): string {
 	return idx !== -1 ? s.substring(0, idx).trim() : s;
 }
 
+/** GitHub's SSH endpoints only serve Git operations and cannot host shell connections. */
+const gitOnlySSHHosts = new Set(['github.com', 'ssh.github.com']);
+
 /**
- * Extract Host aliases from SSH config content (without following Includes).
+ * Extract connectable Host aliases from SSH config content (without following Includes).
+ * Patterns and GitHub's Git-only endpoints are skipped.
  */
 export function parseSSHConfigHostEntries(content: string): string[] {
 	const hosts: string[] = [];
@@ -25,7 +29,7 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 		if (hostMatch) {
 			const hostValue = stripSSHComment(hostMatch[1]);
 			for (const h of hostValue.split(/\s+/)) {
-				if (!h.includes('*') && !h.includes('?') && !h.startsWith('!')) {
+				if (!h.includes('*') && !h.includes('?') && !h.startsWith('!') && !gitOnlySSHHosts.has(h.toLowerCase())) {
 					hosts.push(h);
 				}
 			}
@@ -34,19 +38,57 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 	return hosts;
 }
 
-/**
- * Split a space-separated `ssh -G` path list, honoring double quotes so paths
- * containing spaces survive. `ssh -G` emits `userknownhostsfile` and
- * `globalknownhostsfile` as one line holding several paths.
- */
-function parseSSHPathList(value: string): string[] {
+/** Parses Include arguments with OpenSSH quoting, escapes and comments; undefined indicates invalid quotes or an empty path. */
+export function parseSSHConfigIncludePaths(value: string): string[] | undefined {
 	const paths: string[] = [];
-	const pattern = /"([^"]*)"|(\S+)/g;
+	let index = 0;
+	while (index < value.length) {
+		while (value[index] === ' ' || value[index] === '\t') {
+			index++;
+		}
+		if (index === value.length || value[index] === '#') {
+			break;
+		}
+
+		let path = '';
+		let quote: '"' | '\'' | undefined;
+		while (index < value.length) {
+			const char = value[index++];
+			if (char === '\\') {
+				const next = value[index];
+				if (next === '"' || next === '\'' || next === '\\' || (!quote && next === ' ')) {
+					path += next;
+					index++;
+				} else {
+					path += char;
+				}
+			} else if (!quote && (char === ' ' || char === '\t')) {
+				break;
+			} else if (!quote && (char === '"' || char === '\'')) {
+				quote = char;
+			} else if (char === quote) {
+				quote = undefined;
+			} else {
+				path += char;
+			}
+		}
+		if (quote || !path) {
+			return undefined;
+		}
+		paths.push(path);
+	}
+	return paths;
+}
+
+/** Retains token boundaries so the node layer can recover unquoted paths using filesystem evidence. */
+export function tokenizeSSHPathList(value: string): { path: string; start: number; end: number; quoted: boolean }[] {
+	const paths: { path: string; start: number; end: number; quoted: boolean }[] = [];
+	const pattern = /"(?<quoted>[^"]*)"|(?<unquoted>\S+)/g;
 	let match: RegExpExecArray | null;
 	while ((match = pattern.exec(value)) !== null) {
-		const path = match[1] ?? match[2];
+		const path = match.groups?.quoted ?? match.groups?.unquoted;
 		if (path) {
-			paths.push(path);
+			paths.push({ path, start: match.index, end: pattern.lastIndex, quoted: match.groups?.quoted !== undefined });
 		}
 	}
 	return paths;
@@ -81,13 +123,15 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 
 	return {
 		hostname: map.get('hostname') ?? '',
+		...(map.get('hostkeyalias') ? { hostKeyAlias: map.get('hostkeyalias') } : {}),
 		user: map.get('user') || undefined,
 		port: parseInt(map.get('port') ?? '22', 10),
 		identityFile: identityFiles,
 		identityAgent: map.get('identityagent') || undefined,
+		...(map.get('proxycommand') && map.get('proxycommand')?.toLowerCase() !== 'none' ? { proxyCommand: map.get('proxycommand') } : {}),
 		forwardAgent: map.get('forwardagent') === 'yes',
-		userKnownHostsFiles: parseSSHPathList(map.get('userknownhostsfile') ?? ''),
-		globalKnownHostsFiles: parseSSHPathList(map.get('globalknownhostsfile') ?? ''),
+		userKnownHostsFiles: tokenizeSSHPathList(map.get('userknownhostsfile') ?? '').map(token => token.path),
+		globalKnownHostsFiles: tokenizeSSHPathList(map.get('globalknownhostsfile') ?? '').map(token => token.path),
 		strictHostKeyChecking: strictHostKeyChecking && isSSHStrictHostKeyChecking(strictHostKeyChecking)
 			? strictHostKeyChecking
 			: undefined,

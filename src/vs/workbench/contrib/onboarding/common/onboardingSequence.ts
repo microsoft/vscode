@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IOnboardingRunContext } from './onboardingPresentation.js';
 import { OnboardingDismissReason } from './onboardingScenario.js';
@@ -53,20 +54,25 @@ export interface IOnboardingSequenceStepPresentation {
 export interface IOnboardingSequenceStepPresentationRegistry {
 	register(presentation: IOnboardingSequenceStepPresentation): IDisposable;
 	get(kind: string): IOnboardingSequenceStepPresentation | undefined;
+	readonly onDidChange: Event<void>;
 }
 
 class OnboardingSequenceStepPresentationRegistry implements IOnboardingSequenceStepPresentationRegistry {
 	private readonly _presentations = new Map<string, IOnboardingSequenceStepPresentation>();
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
 
 	register(presentation: IOnboardingSequenceStepPresentation): IDisposable {
 		if (this._presentations.has(presentation.kind)) {
 			throw new Error(`An onboarding sequence step presentation with kind '${presentation.kind}' is already registered.`);
 		}
 		this._presentations.set(presentation.kind, presentation);
+		this._onDidChange.fire();
 		return {
 			dispose: () => {
 				if (this._presentations.get(presentation.kind) === presentation) {
 					this._presentations.delete(presentation.kind);
+					this._onDidChange.fire();
 				}
 			}
 		};

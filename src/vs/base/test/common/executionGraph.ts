@@ -151,7 +151,7 @@ export function buildHistoryFromTasks(
 const _skipFramePatterns = [
 	/[\\/]virtualScheduling[\\/]/,
 	/[\\/]vs[\\/]base[\\/]common[\\/]async\./,
-	/timeTravelScheduler|traceableTimeApi/,
+	/timeTravelScheduler/,
 	/RunOnceScheduler\.schedule/,
 	/scheduleAtNextAnimationFrame/,
 	/TimeoutTimer\.cancelAndSet/,

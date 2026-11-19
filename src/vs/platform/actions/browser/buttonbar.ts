@@ -81,7 +81,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 		this._actionRunner = this._store.add(new ActionRunner());
 		if (_options?.telemetrySource) {
-			this._actionRunner.onDidRun(e => {
+			this._actionRunner.onWillRun(e => {
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
 					'workbenchActionExecuted',
 					{ id: e.action.id, from: _options.telemetrySource! }

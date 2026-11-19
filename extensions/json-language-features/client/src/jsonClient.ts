@@ -22,7 +22,8 @@ import {
 import { hash } from './utils/hash';
 import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem, createSchemaLoadIssueItem, createSchemaLoadStatusItem } from './languageStatus';
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
-import { matchesUrlPattern } from './utils/urlMatch';
+import { getSchemaRequestUrl, matchesUrlPattern } from './utils/urlMatch';
+import { escapeGlobCharacters } from './utils/strings';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -226,6 +227,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	toDispose.push(schemaResolutionErrorStatusBarItem);
 
 	const fileSchemaErrors = new Map<string, string>();
+	const schemaRequestAliases = new Map<string, { readonly requestUrl: string }>();
 	let schemaDownloadEnabled = !!workspace.getConfiguration().get(SettingIds.enableSchemaDownload);
 	let trustedDomains = workspace.getConfiguration().get<Record<string, boolean>>(SettingIds.trustedDomains, {});
 
@@ -239,8 +241,19 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 
 	toDispose.push(commands.registerCommand(CommandIds.clearCacheCommandId, async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
+			// Preserve aliases recorded by requests that finish while the cache is being cleared.
+			const aliasesToClear = new Map(schemaRequestAliases);
 			const cachedSchemas = await runtime.schemaRequests.clearCache();
-			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
+			const schemaIds = new Set(cachedSchemas);
+			for (const [schemaId, alias] of schemaRequestAliases) {
+				if (schemaIds.has(alias.requestUrl)) {
+					schemaIds.add(schemaId);
+				}
+				if (aliasesToClear.get(schemaId) === alias) {
+					schemaRequestAliases.delete(schemaId);
+				}
+			}
+			await client.sendNotification(SchemaContentChangeNotification.type, [...schemaIds]);
 		}
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
@@ -419,10 +432,16 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 			if (!workspace.isTrusted) {
 				throw new ResponseError(SchemaRequestServiceErrors.UntrustedWorkspaceError, l10n.t('Downloading schemas is disabled in untrusted workspaces'));
 			}
-			if (!await isTrusted(uri)) {
-				throw new ResponseError(SchemaRequestServiceErrors.UntrustedSchemaError, l10n.t('Location {0} is untrusted', uriString));
+			let requestUrl: URL;
+			try {
+				requestUrl = getSchemaRequestUrl(uri);
+			} catch (e) {
+				throw new ResponseError(SchemaRequestServiceErrors.HTTPError, e.toString(), e);
 			}
-			if (runtime.telemetry && uri.authority === 'schema.management.azure.com') {
+			if (!await isTrusted(requestUrl)) {
+				throw new ResponseError(SchemaRequestServiceErrors.UntrustedSchemaError, l10n.t('Location {0} is untrusted', requestUrl.href));
+			}
+			if (runtime.telemetry && requestUrl.host === 'schema.management.azure.com') {
 				/* __GDPR__
 					"json.schema" : {
 						"owner": "aeschli",
@@ -430,10 +449,14 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 						"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The azure schema URL that was requested." }
 					}
 				*/
-				runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriString });
+				runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: requestUrl.href });
 			}
 			try {
-				return await runtime.schemaRequests.getContent(uriString);
+				const content = await runtime.schemaRequests.getContent(requestUrl.href);
+				if (runtime.schemaRequests.clearCache && requestUrl.href !== uriPath) {
+					schemaRequestAliases.set(uriPath, { requestUrl: requestUrl.href });
+				}
+				return content;
 			} catch (e) {
 				throw new ResponseError(SchemaRequestServiceErrors.HTTPError, e.toString(), e);
 			}
@@ -689,20 +712,23 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		return schemaAssociationsCache;
 	}
 
-	async function isTrusted(uri: Uri): Promise<boolean> {
-		if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-			return true;
-		}
-		const uriString = uri.toString(true);
-
+	async function isTrusted(url: URL): Promise<boolean> {
 		// Check against trustedDomains setting
-		if (matchesUrlPattern(uri, trustedDomains)) {
+		if (matchesUrlPattern(url, trustedDomains)) {
 			return true;
 		}
+
+		const matchesSchemaUri = (uri: string): boolean => {
+			try {
+				return getSchemaRequestUrl(Uri.parse(uri)).href === url.href;
+			} catch {
+				return false;
+			}
+		};
 
 		const knownAssociations = await getSchemaAssociations(false);
 		for (const association of knownAssociations) {
-			if (association.uri === uriString) {
+			if (matchesSchemaUri(association.uri)) {
 				return true;
 			}
 		}
@@ -710,7 +736,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		if (settingsCache.json && settingsCache.json.schemas) {
 			for (const schemaSetting of settingsCache.json.schemas) {
 				const schemaUri = schemaSetting.url;
-				if (schemaUri === uriString) {
+				if (schemaUri && matchesSchemaUri(schemaUri)) {
 					return true;
 				}
 			}
@@ -922,16 +948,46 @@ function computeSettings(): Settings {
 	};
 
 	/*
+	 * Expand a leading `${workspaceFolder}` (also after a `!` exclusion prefix) to the workspace
+	 * folder path, anchoring the pattern to the folder.
+	 */
+	const expandWorkspaceFolder = (fileMatch: string[] | undefined, workspaceFolder: Uri | undefined): string[] | undefined => {
+		if (!Array.isArray(fileMatch) || !workspaceFolder) {
+			return fileMatch;
+		}
+		// Lowercase a drive letter and percent-encode `#` and `?`, like the server's uri
+		// normalization does, so that the folder is spelled the way the document uris are.
+		const folderPath = escapeGlobCharacters(workspaceFolder.path
+			.replace(/^\/[A-Z]:/, s => s.toLowerCase())
+			.replace(/[#?]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+			.replace(/\/$/, ''));
+		const prefix = '${workspaceFolder}/';
+		return fileMatch.map(fm => {
+			if (typeof fm !== 'string') {
+				return fm;
+			}
+			const exclusion = fm.startsWith('!') ? '!' : '';
+			const pattern = fm.substring(exclusion.length);
+			if (!pattern.startsWith(prefix)) {
+				return fm;
+			}
+			return exclusion + folderPath + '/' + pattern.substring(prefix.length);
+		});
+	};
+
+	/*
 	 * Add schemas from the settings
 	 * folderUri to which folder the setting is scoped to. `undefined` means global (also external files)
 	 * settingsLocation against which path relative schema URLs are resolved
+	 * workspaceFolder the folder `${workspaceFolder}` in fileMatch patterns expands to. `undefined`
+	 * where no single folder applies (user settings, multi-root workspace file settings)
 	 */
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: string | undefined, settingsLocation: Uri | undefined) => {
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: string | undefined, settingsLocation: Uri | undefined, workspaceFolder?: Uri) => {
 		if (schemaSettings) {
 			for (const setting of schemaSettings) {
 				const url = getSchemaId(setting, settingsLocation);
 				if (url) {
-					const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri, schema: setting.schema };
+					const schemaSetting: JSONSchemaSettings = { url, fileMatch: expandWorkspaceFolder(setting.fileMatch, workspaceFolder), folderUri, schema: setting.schema };
 					schemas.push(schemaSetting);
 				}
 			}
@@ -953,12 +1009,12 @@ function computeSettings(): Settings {
 			for (const folder of folders) {
 				const folderUri = folder.uri;
 				const folderSchemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
-				collectSchemaSettings(folderSchemaConfigInfo?.workspaceFolderValue, folderUri.toString(false), folderUri);
+				collectSchemaSettings(folderSchemaConfigInfo?.workspaceFolderValue, folderUri.toString(false), folderUri, folderUri);
 			}
 		} else {
 			if (schemaConfigInfo.workspaceValue && folders.length === 1) {
 				// single folder workspace: settings apply to all files (also external files)
-				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, folders[0].uri);
+				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, folders[0].uri, folders[0].uri);
 			}
 		}
 	}
@@ -996,4 +1052,3 @@ export namespace ErrorCodes {
 export function isSchemaResolveError(d: Diagnostic) {
 	return typeof d.code === 'number' && d.code >= ErrorCodes.SchemaResolveError;
 }
-

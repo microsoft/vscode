@@ -11,9 +11,9 @@ import pall from 'p-all';
 import path from 'path';
 import VinylFile from 'vinyl';
 import vfs from 'vinyl-fs';
-import { all, copyrightFilter, eslintFilter, indentationFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } from './filters.ts';
-import eslint from './gulp-eslint.ts';
-import * as formatter from './lib/formatter.ts';
+import { all, copyrightFilter, indentationFilter, lintFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } from './filters.ts';
+import { Formatter } from './lib/formatter.ts';
+import { oxlint } from './oxlint.ts';
 import gulpstylelint from './stylelint.ts';
 
 const copyrightHeaderLines = [
@@ -45,7 +45,7 @@ export function checkCopilotEnginesVersion(repoRoot: string): string | undefined
 /**
  * Checks that every tracked .js/.cjs/.mjs file in the repo is listed in
  * `.eslint-allowed-javascript-files`. This complements the
- * `local/code-no-new-javascript-files` ESLint rule by also covering files
+ * `local/code-no-new-javascript-files` lint rule by also covering files
  * that are excluded via `.eslint-ignore`.
  *
  * Returns an error message if there are unknown JS files, or undefined if OK.
@@ -82,7 +82,7 @@ export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined 
 /**
  * Main hygiene function that runs checks on files
  */
-export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runEslint = true): NodeJS.ReadWriteStream {
+export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runOxlint = true): NodeJS.ReadWriteStream {
 	const started = Date.now();
 	const requestedPaths = Array.isArray(some) ? some : undefined;
 	const scope = requestedPaths ? `${requestedPaths.length} requested path${requestedPaths.length === 1 ? '' : 's'}` : some ? 'provided file stream' : 'full repository';
@@ -173,20 +173,22 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		this.emit('data', file);
 	});
 
-	const formatting = es.map(function (file: any, cb) {
-		try {
-			const rawInput = file.contents!.toString('utf8');
-			if (!formatter.verifyFormatting(file.path, rawInput)) {
-				console.error(
-					`File not formatted. Run the 'Format Document' command to fix it:`,
-					file.relative
-				);
-				errorCount++;
-			}
-			cb(undefined, file);
-		} catch (err) {
-			cb(err);
-		}
+	// Started for the first file that the formatting check covers.
+	let formatter: Promise<Formatter> | undefined;
+	const formatting = es.map(function (file: VinylFile, cb) {
+		formatter ??= Formatter.start();
+		formatter
+			.then(f => f.verifyFormatting(file.path, file.contents!.toString('utf8')))
+			.then(formatted => {
+				if (!formatted) {
+					console.error(
+						`File not formatted. Run the 'Format Document' command to fix it:`,
+						file.relative
+					);
+					errorCount++;
+				}
+				cb(undefined, file);
+			}, err => cb(err));
 	});
 
 	let input: NodeJS.ReadWriteStream;
@@ -233,17 +235,26 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(trackCheckedFile()).pipe(formatting)
 	];
 
-	if (runEslint) {
+	if (runOxlint) {
+		// oxlint lints files on disk, so it runs once on all of their paths
+		const lintPaths: string[] = [];
 		streams.push(
 			result
-				.pipe(filter(Array.from(eslintFilter)))
+				.pipe(filter(Array.from(lintFilter)))
 				.pipe(trackCheckedFile())
-				.pipe(
-					eslint((results) => {
-						errorCount += results.warningCount;
-						errorCount += results.errorCount;
-					})
-				)
+				.pipe(es.through(function (file: VinylFile) {
+					lintPaths.push(file.relative.replace(/\\/g, '/'));
+					this.emit('data', file);
+				}, async function () {
+					try {
+						if (lintPaths.length) {
+							errorCount += await oxlint(lintPaths);
+						}
+						this.emit('end');
+					} catch (error) {
+						this.emit('error', error);
+					}
+				}))
 		);
 	}
 
@@ -268,7 +279,8 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 				}
 				this.emit('data', data);
 			},
-			function () {
+			async function () {
+				await formatter?.then(f => f.dispose(), () => undefined);
 				process.stdout.write('\n');
 				console.log(`Hygiene checked ${checkedFiles.size} file${checkedFiles.size === 1 ? '' : 's'} in ${Date.now() - started}ms.`);
 				if (requestedPaths && checkedFiles.size === 0) {
@@ -372,6 +384,13 @@ if (import.meta.main) {
 					}
 
 					console.log(`Reading ${some.length} git index version${some.length === 1 ? '' : 's'}...`);
+
+					// oxlint lints the files on disk rather than their staged versions
+					const unstaged = new Set(cp.execSync('git diff --name-only', { encoding: 'utf8', maxBuffer: 2000 * 1024 }).split(/\r?\n/));
+					const partiallyStaged = some.filter(file => unstaged.has(file) && /\.[cm]?[jt]sx?$/.test(file));
+					if (partiallyStaged.length > 0) {
+						console.warn(`oxlint checks the unstaged changes of these files too: ${partiallyStaged.join(', ')}`);
+					}
 
 					createGitIndexVinyls(some)
 						.then(

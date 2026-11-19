@@ -21,7 +21,7 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event, IValueWithChangeEvent, ValueWithChangeEvent } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { KeyCodeChord, Keybinding, ResolvedKeybinding, decodeKeybinding } from '../../../base/common/keybindings.js';
-import { Disposable, DisposableStore, IDisposable, IReference, ImmortalReference, combinedDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { OS, isLinux, isMacintosh } from '../../../base/common/platform.js';
 import { basename } from '../../../base/common/resources.js';
@@ -59,7 +59,7 @@ import { KeybindingResolver } from '../../../platform/keybinding/common/keybindi
 import { IKeybindingItem, KeybindingsRegistry } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ResolvedKeybindingItem } from '../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
-import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, Verbosity } from '../../../platform/label/common/label.js';
+import { IFormatterChangeEvent, ILabelService, IWorkspaceLabelDecorator, ResourceLabelFormatter, Verbosity } from '../../../platform/label/common/label.js';
 import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { IListService, ListService } from '../../../platform/list/browser/listService.js';
 import { ConsoleLogger, ILogService, ILoggerService, NullLoggerService } from '../../../platform/log/common/log.js';
@@ -90,99 +90,22 @@ import { Range } from '../../common/core/range.js';
 import { getEditorFeatures } from '../../common/editorFeatures.js';
 import { WorkspaceEdit } from '../../common/languages.js';
 import { ILanguageService } from '../../common/languages/language.js';
-import { ITextModel, ITextSnapshot } from '../../common/model.js';
+import { ITextModel } from '../../common/model.js';
 import { LanguageService } from '../../common/services/languageService.js';
 import { IMarkerDecorationsService } from '../../common/services/markerDecorations.js';
 import { MarkerDecorationsService } from '../../common/services/markerDecorationsService.js';
 import { IModelService } from '../../common/services/model.js';
 import { ModelService } from '../../common/services/modelService.js';
-import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../common/services/resolverService.js';
+import { ITextModelService } from '../../common/services/resolverService.js';
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService, ITextResourcePropertiesService } from '../../common/services/textResourceConfiguration.js';
 import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
 import { StandaloneServicesNLS } from '../../common/standaloneStrings.js';
 import { IStandaloneThemeService } from '../common/standaloneTheme.js';
+import { InMemoryTextModelService } from '../../common/services/inMemoryTextModelService.js';
 import { StandaloneQuickInputService } from './quickInput/standaloneQuickInputService.js';
 import { StandaloneWebWorkerService } from './services/standaloneWebWorkerService.js';
 import { StandaloneThemeService } from './standaloneThemeService.js';
 import { StandaloneTreeSitterLibraryService } from './standaloneTreeSitterLibraryService.js';
-
-class SimpleModel implements IResolvedTextEditorModel {
-
-	private readonly model: ITextModel;
-	private readonly _onWillDispose: Emitter<void>;
-
-	constructor(model: ITextModel) {
-		this.model = model;
-		this._onWillDispose = new Emitter<void>();
-	}
-
-	public get onWillDispose(): Event<void> {
-		return this._onWillDispose.event;
-	}
-
-	public resolve(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	public get textEditorModel(): ITextModel {
-		return this.model;
-	}
-
-	public createSnapshot(): ITextSnapshot {
-		return this.model.createSnapshot();
-	}
-
-	public isReadonly(): boolean {
-		return false;
-	}
-
-	private disposed = false;
-	public dispose(): void {
-		this.disposed = true;
-
-		this._onWillDispose.fire();
-	}
-
-	public isDisposed(): boolean {
-		return this.disposed;
-	}
-
-	public isResolved(): boolean {
-		return true;
-	}
-
-	public getLanguageId(): string | undefined {
-		return this.model.getLanguageId();
-	}
-}
-
-class StandaloneTextModelService implements ITextModelService {
-	public _serviceBrand: undefined;
-
-	constructor(
-		@IModelService private readonly modelService: IModelService
-	) { }
-
-	public createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		const model = this.modelService.getModel(resource);
-
-		if (!model) {
-			return Promise.reject(new Error(`Model not found`));
-		}
-
-		return Promise.resolve(new ImmortalReference(new SimpleModel(model)));
-	}
-
-	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
-		return {
-			dispose: function () { /* no op */ }
-		};
-	}
-
-	public canHandleResource(resource: URI): boolean {
-		return false;
-	}
-}
 
 class StandaloneEditorProgressService implements IEditorProgressService {
 	declare readonly _serviceBrand: undefined;
@@ -255,6 +178,7 @@ class StandaloneDialogService implements IDialogService {
 
 	_serviceBrand: undefined;
 
+	readonly hasDialog = false;
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
 
@@ -836,7 +760,7 @@ class StandaloneWorkspaceContextService implements IWorkspaceContextService {
 
 	constructor() {
 		const resource = URI.from({ scheme: StandaloneWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: STANDALONE_EDITOR_WORKSPACE_ID, folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
+		this.workspace = { id: STANDALONE_EDITOR_WORKSPACE_ID, folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })], uri: resource };
 	}
 
 	getCompleteWorkspace(): Promise<IWorkspace> {
@@ -970,8 +894,16 @@ class StandaloneUriLabelService implements ILabelService {
 		return basename(resource);
 	}
 
-	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: Verbosity }): string {
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose?: Verbosity; withLocation?: boolean }): string {
 		return '';
+	}
+
+	public getFolderLocationLabel(folder: URI): string | undefined {
+		return undefined;
+	}
+
+	public registerWorkspaceLabelDecorator(decorator: IWorkspaceLabelDecorator): IDisposable {
+		return Disposable.None;
 	}
 
 	public getSeparator(scheme: string, authority?: string): '/' | '\\' {
@@ -1048,11 +980,20 @@ class StandaloneWorkspaceTrustManagementService implements IWorkspaceTrustManage
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {
 		// noop
 	}
+	isWorkspaceTrustSourceResolved(): boolean {
+		return true;
+	}
+	async resolveWorkspaceTrust(): Promise<void> {
+		// noop
+	}
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
 		throw new Error('Method not supported.');
 	}
 	async setUrisTrust(uri: URI[], trusted: boolean): Promise<void> {
 		// noop
+	}
+	registerTrustedAuthority(scheme: string, authority: string): IDisposable {
+		return Disposable.None;
 	}
 	getTrustedUris(): URI[] {
 		return [];
@@ -1199,7 +1140,7 @@ registerSingleton(IEditorProgressService, StandaloneEditorProgressService, Insta
 registerSingleton(IStorageService, InMemoryStorageService, InstantiationType.Eager);
 registerSingleton(IBulkEditService, StandaloneBulkEditService, InstantiationType.Eager);
 registerSingleton(IWorkspaceTrustManagementService, StandaloneWorkspaceTrustManagementService, InstantiationType.Eager);
-registerSingleton(ITextModelService, StandaloneTextModelService, InstantiationType.Eager);
+registerSingleton(ITextModelService, InMemoryTextModelService, InstantiationType.Eager);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Eager);
 registerSingleton(IListService, ListService, InstantiationType.Eager);
 registerSingleton(ICommandService, StandaloneCommandService, InstantiationType.Eager);

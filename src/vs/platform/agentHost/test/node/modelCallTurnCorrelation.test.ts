@@ -10,6 +10,22 @@ import { ModelCallTurnCorrelation } from '../../node/copilot/modelCallTurnCorrel
 suite('ModelCallTurnCorrelation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('retains the original account context with bounded history and explicit cleanup', () => {
+		const correlation = new ModelCallTurnCorrelation({ cacheLimit: 2 });
+		const original = { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' };
+		correlation.recordTelemetryContext('call-1', original);
+		correlation.recordTelemetryContext('call-1', { copilotSku: 'sku-b', copilotTrackingId: 'analytics-b' });
+		const retained = correlation.getTelemetryContext('call-1');
+		correlation.recordTelemetryContext('call-2', original);
+		correlation.recordTelemetryContext('call-3', original);
+		const evicted = correlation.getTelemetryContext('call-1');
+		const latest = correlation.getTelemetryContext('call-3');
+		correlation.clearTelemetryContexts();
+		assert.deepStrictEqual({ retained, evicted, latest, cleared: correlation.getTelemetryContext('call-3') }, {
+			retained: original, evicted: undefined, latest: original, cleared: undefined,
+		});
+	});
+
 	test('returns a correlation recorded before response telemetry', () => {
 		const correlation = new ModelCallTurnCorrelation();
 		correlation.record('model-call-1', 'turn-1');

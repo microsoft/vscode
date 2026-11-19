@@ -5,10 +5,14 @@
 
 import { isDeepStrictEqual } from 'util';
 import { ErrorUtils } from '../../../util/common/errors';
-import { CancellationToken, CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
+import { TaskSingler } from '../../../util/common/taskSingler';
+import { raceCancellationError } from '../../../util/vs/base/common/async';
+import { cancelOnDispose, type CancellationToken, CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
 import { Emitter } from '../../../util/vs/base/common/event';
+import { CancellationError, isCancellationError } from '../../../util/vs/base/common/errors';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { autorun, observableFromEvent } from '../../../util/vs/base/common/observable';
+import { IAuthenticationService } from '../../authentication/common/authentication';
 import { CopilotToken } from '../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
@@ -18,6 +22,8 @@ import { ILogService } from '../../log/common/logService';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
 import { IProxyModelsService } from '../common/proxyModelsService';
 
+const MODEL_LOAD_MAX_ATTEMPTS = 3;
+
 export class ProxyModelsService extends Disposable implements IProxyModelsService {
 	readonly _serviceBrand: undefined;
 
@@ -25,9 +31,14 @@ export class ProxyModelsService extends Disposable implements IProxyModelsServic
 	public readonly onModelListUpdated = this._onModelListUpdated.event;
 
 	private _models: WireTypes.ModelList.t | undefined;
+	/** Token whose account-specific `/models` response is stored in {@link _models}. */
+	private _modelsToken: string | undefined;
+	private readonly _refreshTaskSingler = new TaskSingler<WireTypes.ModelList.t>();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(
 		@ICopilotTokenStore private readonly _tokenStore: ICopilotTokenStore,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ICAPIClientService private readonly _capiClient: ICAPIClientService,
 		@IFetcherService private readonly _fetchService: IFetcherService,
 		@ILogService private readonly _logService: ILogService,
@@ -39,22 +50,16 @@ export class ProxyModelsService extends Disposable implements IProxyModelsServic
 
 		this._register(autorun(reader => {
 			const copilotToken = copilotTokenObs.read(reader);
+			this._modelsToken = undefined;
+			if (!copilotToken) {
+				return;
+			}
 			const cts = new CancellationTokenSource();
-			this._fetchLatestModels(copilotToken, cts.token).then(models => {
-				if (models === undefined) {
-					return;
+			void this._loadModelsForToken(copilotToken, cts.token).catch((e: unknown) => {
+				if (!isCancellationError(e)) {
+					const err = ErrorUtils.fromUnknown(e);
+					this._logService.error(err, 'Failed to fetch models in autorun');
 				}
-				if (cts.token.isCancellationRequested) {
-					return;
-				}
-				if (isDeepStrictEqual(this._models, models)) {
-					return;
-				}
-				this._models = models;
-				this._onModelListUpdated.fire();
-			}).catch((e: unknown) => {
-				const err = ErrorUtils.fromUnknown(e);
-				this._logService.error(err, 'Failed to fetch models in autorun');
 			});
 			reader.store.add({ dispose: () => cts.dispose(true) });
 		}));
@@ -76,11 +81,61 @@ export class ProxyModelsService extends Disposable implements IProxyModelsServic
 		return this._models?.models.filter(model => model.serviceType === 'InstantApplyChat');
 	}
 
-	private async _fetchLatestModels(copilotToken: CopilotToken | undefined, token: CancellationToken): Promise<WireTypes.ModelList.t | undefined> {
-		if (!copilotToken) {
-			return undefined;
+	get modelsLoaded(): boolean {
+		const copilotToken = this._tokenStore.copilotToken;
+		return copilotToken !== undefined && this._modelsToken === copilotToken.token && this._models !== undefined;
+	}
+
+	async ensureModelsLoaded(cancellationToken: CancellationToken): Promise<void> {
+		for (let attempt = 0; attempt < MODEL_LOAD_MAX_ATTEMPTS; attempt++) {
+			if (cancellationToken.isCancellationRequested || this._disposeToken.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (this.modelsLoaded) {
+				return;
+			}
+
+			const copilotToken = await this._raceCancellation(this._authenticationService.getCopilotToken(), cancellationToken);
+			if (await this._loadModelsForToken(copilotToken, cancellationToken)) {
+				return;
+			}
+		}
+		throw new Error(`Copilot token changed during ${MODEL_LOAD_MAX_ATTEMPTS} consecutive model load attempts`);
+	}
+
+	private async _loadModelsForToken(copilotToken: CopilotToken, cancellationToken: CancellationToken): Promise<boolean> {
+		if (cancellationToken.isCancellationRequested || this._disposeToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (this._tokenStore.copilotToken?.token !== copilotToken.token) {
+			return false;
+		}
+		if (this._modelsToken === copilotToken.token && this._models !== undefined) {
+			return true;
 		}
 
+		const models = await this._raceCancellation(
+			this._refreshTaskSingler.getOrCreate(copilotToken.token, () => this._fetchLatestModels(copilotToken, this._disposeToken)),
+			cancellationToken
+		);
+		if (this._tokenStore.copilotToken?.token !== copilotToken.token) {
+			return false;
+		}
+
+		this._modelsToken = copilotToken.token;
+		if (isDeepStrictEqual(this._models, models)) {
+			return true;
+		}
+		this._models = models;
+		this._onModelListUpdated.fire();
+		return true;
+	}
+
+	private _raceCancellation<T>(promise: Promise<T>, cancellationToken: CancellationToken): Promise<T> {
+		return raceCancellationError(raceCancellationError(promise, cancellationToken), this._disposeToken);
+	}
+
+	private async _fetchLatestModels(copilotToken: CopilotToken, token: CancellationToken): Promise<WireTypes.ModelList.t> {
 		const url = `${this._capiClient.proxyBaseURL}/models`;
 
 		const abortController = this._fetchService.makeAbortController();
@@ -98,31 +153,20 @@ export class ProxyModelsService extends Disposable implements IProxyModelsServic
 				callSite: 'proxy-models',
 				signal: abortController.signal,
 			});
-		} catch (e: unknown) {
-			const err = ErrorUtils.fromUnknown(e);
-			this._logService.error(err, 'Failed to fetch model list');
-			return;
 		} finally {
 			disposable.dispose();
 		}
 
 		if (!r.ok) {
-			this._logService.error(`Failed to fetch model list: ${r.status} ${r.statusText}`);
-			return;
+			throw new Error(`Failed to fetch model list: ${r.status} ${r.statusText}`);
 		}
 
-		try {
-			const jsonData: unknown = await r.json();
-			const validatedData = WireTypes.ModelList.validator.validate(jsonData);
-			if (validatedData.error) {
-				throw new Error(`Invalid /models response data: ${validatedData.error.message}`); // TODO@ulugbekna: add telemetry
-			}
-			return validatedData.content;
-		} catch (e: unknown) {
-			const err = ErrorUtils.fromUnknown(e);
-			this._logService.error(err, 'Failed to process /models response');
-			return;
+		const jsonData: unknown = await r.json();
+		const validatedData = WireTypes.ModelList.validator.validate(jsonData);
+		if (validatedData.error) {
+			throw new Error(`Invalid /models response data: ${validatedData.error.message}`); // TODO@ulugbekna: add telemetry
 		}
+		return validatedData.content;
 	}
 
 }

@@ -331,6 +331,9 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		}
 	}
 
+	// Control characters such as a carriage return would submit the line early
+	originalPath = originalPath.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+
 	if (!executable) {
 		return originalPath;
 	}

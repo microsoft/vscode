@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../browser/media/sessionChangesEditor.css';
+import '../../../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
 import '../../../agentFeedback/browser/media/agentFeedbackEditorInput.css';
+import '../../../../../workbench/browser/media/feedbackInputWidget.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { $, Dimension, getWindow } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { MultiDiffEditorVariant } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
@@ -39,11 +38,13 @@ import { TestEditorInput } from '../../../../../workbench/test/browser/workbench
 import { AgentFeedbackEditorInputContribution } from '../../../agentFeedback/browser/agentFeedbackEditorInputContribution.js';
 import { AgentFeedbackOverlayController, IAgentFeedbackOverlayEditorGroup } from '../../../agentFeedback/browser/agentFeedbackEditorOverlay.js';
 import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from '../../../agentFeedback/browser/agentFeedbackEditorActions.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
-import { Menus } from '../../../../browser/menus.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISession, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
+import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const SESSION_RESOURCE = URI.parse('fixture-session://agents-diff');
 const MODIFIED_FIRST_RESOURCE = URI.file('/workspace/src/first.ts');
@@ -133,7 +134,6 @@ class AgentsDiffUIElementFactory implements IWorkbenchUIElementFactory {
 function createFixtureSession(): ISession {
 	return new class extends mock<ISession>() {
 		override readonly resource = SESSION_RESOURCE;
-		override readonly changes = constObservable([]);
 	}();
 }
 
@@ -151,6 +151,9 @@ function createAgentFeedbackService(feedback: readonly IAgentFeedback[] = [], fe
 		}
 		override getSessionForFile(resource: URI): ISession | undefined {
 			return resource.toString() === MODIFIED_FIRST_RESOURCE.toString() ? session : undefined;
+		}
+		override getChatChanges(): readonly ISessionFileChange[] {
+			return [];
 		}
 		override getFeedbackSessionResource(resource: URI): URI | undefined {
 			return resource.toString() === feedbackScopeResource.toString() ? SESSION_RESOURCE : undefined;
@@ -180,6 +183,8 @@ class FixtureOverlayEditorGroup extends mock<IEditorGroup>() implements IAgentFe
 		this.activeEditor = input;
 		this.activeEditorPane = new class extends mock<IVisibleEditorPane>() {
 			override readonly input = input;
+			override readonly onDidChangeControl = Event.None;
+			override getControl() { return undefined; }
 		}();
 	}
 
@@ -252,7 +257,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 			reg.define(IMenuService, FixtureAgentFeedbackMenuService);
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
-			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { override getNotebook(): undefined { return undefined; } }());
 			reg.definePartialInstance(IEditorProgressService, {
 				show: () => ({ total: () => { }, worked: () => { }, done: () => { } }),
@@ -280,7 +285,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		editorInstance,
 		instantiationService.createInstance(AgentsDiffUIElementFactory),
 		{
-			variant: MultiDiffEditorVariant.Compact,
+			variant: 'noCards',
 			diffEditorOptions: {
 				hideOriginalLineNumbers: true,
 				folding: false,
@@ -302,7 +307,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		renderDockedDetailPanel(editorPart);
 		const input = disposableStackStore.add(new TestEditorInput(OVERLAY_RESOURCE, 'fixture.agentsDiff'));
 		const group = new FixtureOverlayEditorGroup(editorPane, input);
-		disposableStackStore.add(instantiationService.createInstance(AgentFeedbackOverlayController, group));
+		disposableStackStore.add(instantiationService.createInstance(AgentFeedbackOverlayController, group, undefined));
 		return;
 	}
 

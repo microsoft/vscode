@@ -63,12 +63,23 @@ export function telemetryLevelEnabled(service: ITelemetryService, level: Telemet
 	return service.telemetryLevel >= level;
 }
 
+/** What every model router reports as in telemetry: router names are written by users. */
+export const MODEL_ROUTER_TELEMETRY_ID = 'modelRouter';
+
+/**
+ * Replaces a model router's id (`model-router:<name>`, possibly vendor-prefixed) with
+ * {@link MODEL_ROUTER_TELEMETRY_ID}, leaving other model ids unchanged.
+ */
+export function normalizeModelRouterTelemetryId<T extends string | undefined>(modelId: T): T | typeof MODEL_ROUTER_TELEMETRY_ID {
+	return modelId?.includes('model-router:') ? MODEL_ROUTER_TELEMETRY_ID : modelId;
+}
+
 /**
  * Replaces `/` and `\` with `|` in model identifiers to prevent the
  * telemetry pipeline from redacting them as file paths.
  */
 export function escapeModelIdForTelemetry(modelId: string | undefined): string | undefined {
-	return modelId?.replace(/[\/\\]/g, '|');
+	return normalizeModelRouterTelemetryId(modelId)?.replace(/[\/\\]/g, '|');
 }
 
 export interface ITelemetryEndpoint {

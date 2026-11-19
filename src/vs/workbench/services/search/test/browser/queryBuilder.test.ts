@@ -223,6 +223,40 @@ suite('QueryBuilder', () => {
 			});
 	});
 
+	test('keeps exclude exceptions from settings and escapes a leading ! in other exclude patterns', () => {
+		mockConfigService.setUserConfiguration('search', {
+			...DEFAULT_USER_CONFIG,
+			exclude: {
+				'node_modules': true,
+				'!node_modules/@types': true
+			}
+		});
+
+		assertEqualTextQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ excludePattern: [{ pattern: ['!literal', 'other'] }] }
+			),
+			{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI,
+					excludePattern: [{
+						pattern: {
+							'node_modules': true,
+							'!node_modules/@types': true
+						}
+					}]
+				}],
+				excludePattern: {
+					'{!}literal': true,
+					'other': true
+				},
+				type: QueryType.Text
+			});
+	});
+
 	test('simple include', () => {
 		assertEqualTextQueries(
 			queryBuilder.text(
@@ -450,6 +484,24 @@ suite('QueryBuilder', () => {
 	});
 
 	test('exclude ./ syntax', () => {
+		assertEqualTextQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{
+					excludePattern: [{ pattern: './!old' }],
+					expandPatterns: true
+				}
+			),
+			{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI,
+					excludePattern: makeExcludePatternFromPatterns('{!}old', '{!}old/**'),
+				}],
+				type: QueryType.Text
+			});
+
 		assertEqualTextQueries(
 			queryBuilder.text(
 				PATTERN_INFO,

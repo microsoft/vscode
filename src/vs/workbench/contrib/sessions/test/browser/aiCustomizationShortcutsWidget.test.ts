@@ -1,0 +1,300 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IMenu, IMenuChangeEvent, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IAICustomizationItemsModel } from '../../../chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { IAgentHostToolSetEnablementService } from '../../../chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { IAICustomizationWorkspaceService } from '../../../chat/common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../chat/common/customizationHarnessService.js';
+import { ILanguageModelToolsService, IToolSet } from '../../../chat/common/tools/languageModelToolsService.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
+import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
+
+function createInstantiationService(disposables: Pick<DisposableStore, 'add'>): TestInstantiationService {
+	const instantiationService = workbenchInstantiationService({}, disposables);
+	instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
+	instantiationService.stub(IAICustomizationItemsModel, {
+		getCount: () => constObservable(1),
+		getPluginCount: () => constObservable(1),
+	});
+	instantiationService.stub(IAICustomizationMcpServerCountService, { count: constObservable(1) });
+	instantiationService.stub(ILanguageModelToolsService, { toolSets: constObservable<readonly IToolSet[]>([]) });
+	instantiationService.stub(IAgentHostToolSetEnablementService, {
+		observe: () => constObservable({ toolSets: new Map<string, boolean>(), tools: new Map<string, boolean>() }),
+	});
+	const descriptor = upcastPartial<IHarnessDescriptor>({ id: 'test', label: 'Test', icon: Codicon.extensions });
+	instantiationService.stub(ICustomizationHarnessService, {
+		activeHarness: constObservable('test'),
+		availableHarnesses: constObservable([descriptor]),
+		getActiveDescriptor: () => descriptor,
+	});
+	instantiationService.stub(IAICustomizationWorkspaceService, { managementSections: [] });
+	return instantiationService;
+}
+
+suite('AI customization shortcuts header', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	let container: HTMLElement;
+	let header: HTMLElement;
+
+	// A cycle invalidates the token without inheriting a value from the surrounding theme.
+	const invalidateToken = (name: string) => container.style.setProperty(name, `var(${name})`);
+
+	setup(() => {
+		container = DOM.append(mainWindow.document.body, DOM.$('.monaco-workbench.hc-black'));
+		container.style.cssText = 'position: fixed; top: 0; left: 0; width: 300px; height: 200px; z-index: 10000;';
+		disposables.add(toDisposable(() => container.remove()));
+
+		disposables.add(createInstantiationService(disposables).createInstance(AICustomizationShortcutsWidget, container, undefined));
+
+		const renderedHeader = container.querySelector<HTMLElement>('.ai-customization-header');
+		assert.ok(renderedHeader);
+		header = renderedHeader;
+		container.style.setProperty('--vscode-spacing-size40', '4px');
+		container.style.setProperty('--vscode-spacing-size60', '6px');
+		container.style.setProperty('--vscode-spacing-size100', '10px');
+		container.style.setProperty('--vscode-strokeThickness', '1px');
+		container.style.setProperty('--vscode-list-hoverBackground', 'rgb(240, 240, 240)');
+		container.style.setProperty('--vscode-list-hoverForeground', 'rgb(0, 0, 0)');
+		container.style.setProperty('--vscode-contrastActiveBorder', 'rgb(255, 0, 0)');
+		container.style.setProperty('--vscode-strongForeground', 'rgb(255, 255, 255)');
+		container.style.setProperty('--vscode-descriptionForeground', 'rgb(200, 200, 200)');
+	});
+
+	test('keeps both edges clickable while the hover remains inset', () => {
+		header.classList.add('hovered');
+		const toolbar = container.querySelector<HTMLElement>('.ai-customization-toolbar');
+		const label = header.querySelector<HTMLElement>('.ai-customization-header-label');
+		assert.ok(toolbar && label);
+		const bounds = toolbar.getBoundingClientRect();
+		const headerBounds = header.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		const clickAt = (x: number) => {
+			const target = mainWindow.document.elementFromPoint(x, headerBounds.top + headerBounds.height / 2);
+			target?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			return { target, expanded: header.getAttribute('aria-expanded') };
+		};
+		const clicks = [bounds.left + 1, bounds.right - 1, labelBounds.left + labelBounds.width / 2].map(clickAt);
+		const hoverStyle = mainWindow.getComputedStyle(header, '::before');
+
+		assert.deepStrictEqual({
+			insideHeader: clicks.map(({ target }) => header.contains(target)),
+			lastHitIsDescendant: clicks[2].target !== header,
+			expanded: clicks.map(({ expanded }) => expanded),
+			hoverInsets: [hoverStyle.left, hoverStyle.right],
+		}, {
+			insideHeader: [true, true, true],
+			lastHitIsDescendant: true,
+			expanded: ['false', 'true', 'false'],
+			hoverInsets: ['4px', '4px'],
+		});
+	});
+
+	test('keeps the hover geometry when size tokens are unavailable', () => {
+		for (const token of ['--vscode-spacing-size40', '--vscode-spacing-size60', '--vscode-spacing-size100', '--vscode-cornerRadius-small', '--vscode-strokeThickness']) {
+			invalidateToken(token);
+		}
+		header.click();
+		header.classList.add('hovered');
+		const headerStyle = mainWindow.getComputedStyle(header);
+		const hoverStyle = mainWindow.getComputedStyle(header, '::before');
+
+		assert.deepStrictEqual({
+			padding: [headerStyle.paddingTop, headerStyle.paddingRight],
+			insets: [hoverStyle.left, hoverStyle.right],
+			radius: hoverStyle.borderTopLeftRadius,
+			outline: [headerStyle.outlineStyle, headerStyle.outlineWidth, headerStyle.outlineOffset],
+			fillOutline: hoverStyle.outlineStyle,
+		}, {
+			padding: ['6px', '10px'],
+			insets: ['4px', '4px'],
+			radius: '4px',
+			outline: ['dashed', '1px', '-1px'],
+			fillOutline: 'none',
+		});
+	});
+
+	test('pairs the hover background with themed text and a contrast outline', () => {
+		header.click();
+		header.classList.add('hovered');
+		const label = header.querySelector<HTMLElement>('.ai-customization-header-label');
+		const count = header.querySelector<HTMLElement>('.ai-customization-header-total-count');
+		const chevron = header.querySelector<HTMLElement>('.ai-customization-chevron');
+		assert.ok(label && count && chevron);
+		const colors = () => ({
+			label: mainWindow.getComputedStyle(label).color,
+			count: mainWindow.getComputedStyle(count).color,
+			chevron: mainWindow.getComputedStyle(chevron).color,
+			chevronOpacity: mainWindow.getComputedStyle(chevron).opacity,
+		});
+		const hoverStyle = mainWindow.getComputedStyle(header, '::before');
+		const themed = colors();
+		const background = hoverStyle.backgroundColor;
+		const headerStyle = mainWindow.getComputedStyle(header);
+		const outline = [headerStyle.outlineStyle, headerStyle.outlineColor];
+		const fillOutline = hoverStyle.outlineStyle;
+		invalidateToken('--vscode-list-hoverForeground');
+		const fallback = colors();
+
+		assert.deepStrictEqual({ background, outline, fillOutline, themed, fallback }, {
+			background: 'rgb(240, 240, 240)',
+			outline: ['dashed', 'rgb(255, 0, 0)'],
+			fillOutline: 'none',
+			themed: { label: 'rgb(0, 0, 0)', count: 'rgb(0, 0, 0)', chevron: 'rgb(0, 0, 0)', chevronOpacity: '1' },
+			fallback: { label: 'rgb(255, 255, 255)', count: 'rgb(200, 200, 200)', chevron: 'rgb(200, 200, 200)', chevronOpacity: '1' },
+		});
+	});
+
+	test('preserves the hover outline after pointer focus and the keyboard focus ring', function () {
+		// Hidden Electron windows do not match focus pseudo-classes; run this check in a browser.
+		if (!mainWindow.document.hasFocus()) {
+			this.skip();
+		}
+
+		container.style.setProperty('--vscode-focusBorder', 'rgb(0, 0, 255)');
+
+		for (const theme of ['hc-black', 'hc-light']) {
+			container.classList.remove('hc-black', 'hc-light');
+			container.classList.add(theme);
+			if (header.ariaExpanded === 'true') {
+				header.click();
+			}
+			header.classList.remove('hovered');
+
+			// Avoid inheriting focus-visible from a previously focused test element.
+			const activeElement = mainWindow.document.activeElement;
+			if (activeElement instanceof HTMLElement) {
+				activeElement.blur();
+			}
+			const pointerFocus = { preventScroll: true, focusVisible: false };
+			header.focus(pointerFocus);
+			const unhoveredBoundary = mainWindow.getComputedStyle(header).outlineStyle;
+			header.classList.add('hovered');
+			const pointer = {
+				focused: mainWindow.document.activeElement === header,
+				focusVisible: header.matches(':focus-visible'),
+				outline: [mainWindow.getComputedStyle(header).outlineStyle, mainWindow.getComputedStyle(header).outlineColor],
+				fillOutline: mainWindow.getComputedStyle(header, '::before').outlineStyle,
+			};
+
+			header.click();
+			const expanded = {
+				outline: [mainWindow.getComputedStyle(header).outlineStyle, mainWindow.getComputedStyle(header).outlineColor],
+				fillOutline: mainWindow.getComputedStyle(header, '::before').outlineStyle,
+			};
+			header.blur();
+			const keyboardFocus = { preventScroll: true, focusVisible: true };
+			header.focus(keyboardFocus);
+			const keyboard = {
+				focused: mainWindow.document.activeElement === header,
+				focusVisible: header.matches(':focus-visible'),
+				outline: [mainWindow.getComputedStyle(header).outlineStyle, mainWindow.getComputedStyle(header).outlineColor],
+				fillOutline: mainWindow.getComputedStyle(header, '::before').outlineStyle,
+			};
+
+			assert.deepStrictEqual({ unhoveredBoundary, pointer, expanded, keyboard }, {
+				unhoveredBoundary: 'none',
+				pointer: { focused: true, focusVisible: false, outline: ['dashed', 'rgb(255, 0, 0)'], fillOutline: 'none' },
+				expanded: { outline: ['solid', 'rgb(255, 0, 0)'], fillOutline: 'none' },
+				keyboard: { focused: true, focusVisible: true, outline: ['solid', 'rgb(0, 0, 255)'], fillOutline: 'none' },
+			}, theme);
+		}
+	});
+});
+
+suite('AI customization shortcuts list', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps keyboard focus and the only tab stop at its position when updating the items replaces the focused one, until focus leaves', async () => {
+		const container = DOM.append(mainWindow.document.body, DOM.$('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		const outside = DOM.append(mainWindow.document.body, DOM.$('button'));
+		disposables.add(toDisposable(() => outside.remove()));
+		let labels = ['Overview', 'Skills', 'More'];
+		const onDidChange = disposables.add(new Emitter<IMenuChangeEvent>());
+		const instantiationService = createInstantiationService(disposables);
+		instantiationService.stub(IMenuService, upcastPartial<IMenuService>({
+			createMenu: () => upcastPartial<IMenu>({
+				onDidChange: onDidChange.event,
+				getActions: () => [['navigation', labels.map(label => upcastPartial<MenuItemAction>({ id: label, label, tooltip: '', enabled: true, run: async () => { } }))]],
+				dispose: () => { },
+			}),
+		}));
+		disposables.add(instantiationService.createInstance(AICustomizationShortcutsWidget, container, undefined));
+		const items = () => [...container.querySelectorAll<HTMLElement>('.actions-container > .action-item')];
+		// Hidden Electron windows move focus without dispatching focus events, so dispatch them like a focused window.
+		const dispatchFocusEvents = (previous: Element | null | undefined, next: HTMLElement | undefined) => {
+			if (!mainWindow.document.hasFocus()) {
+				previous?.dispatchEvent(new FocusEvent('blur', { relatedTarget: next ?? null }));
+				previous?.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: next ?? null }));
+				next?.dispatchEvent(new FocusEvent('focus', { relatedTarget: previous ?? null }));
+				next?.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: previous ?? null }));
+			}
+		};
+		const moveFocus = (element: HTMLElement | undefined) => {
+			const previous = DOM.getActiveElement();
+			if (element) {
+				element.focus();
+			} else if (DOM.isHTMLElement(previous)) {
+				previous.blur();
+			}
+			dispatchFocusEvents(previous, element);
+		};
+		// Enters the list afresh, so that its action bar tracks the focused item like with keyboard navigation.
+		const focus = async (index: number) => {
+			moveFocus(undefined);
+			await timeout(0);
+			moveFocus(items()[index].querySelector<HTMLElement>('.action-label') ?? undefined);
+		};
+		const focused = () => {
+			const active = DOM.getActiveElement();
+			return active === outside ? 'outside' : labels[items().findIndex(item => item.contains(active))] ?? 'none';
+		};
+		const update = async (next: string[]) => {
+			// A focused window moves focus out of the focused item before updating the items removes it.
+			if (container.contains(DOM.getActiveElement())) {
+				dispatchFocusEvents(DOM.getActiveElement(), undefined);
+			}
+			labels = next;
+			onDidChange.fire(upcastPartial<IMenuChangeEvent>({}));
+			await Promise.resolve();
+			// Tab and Shift+Tab move between tab stops, so they leave the list when it has only the focused one.
+			const tabStops = items().flatMap((item, index) => item.querySelector<HTMLElement>('.action-label')?.tabIndex === 0 ? [labels[index]] : []);
+			return { focused: focused(), tabStops };
+		};
+
+		await focus(2);
+		const more = await update(['Overview', 'Skills', 'Agents', 'Hooks', 'Less']);
+		await focus(4);
+		const less = await update(['Overview', 'Skills', 'More']);
+		await focus(1);
+		moveFocus(undefined);
+		await Promise.resolve();
+		const focusLeftToNothing = await update(['Overview', 'Skills', 'Agents', 'Hooks', 'Less']);
+		await focus(1);
+		moveFocus(outside);
+		const focusLeftToOutside = await update(['Overview', 'Skills', 'More']);
+
+		assert.deepStrictEqual({ more, less, focusLeftToNothing, focusLeftToOutside }, {
+			more: { focused: 'Agents', tabStops: ['Agents'] },
+			less: { focused: 'More', tabStops: ['More'] },
+			focusLeftToNothing: { focused: 'none', tabStops: ['Overview'] },
+			focusLeftToOutside: { focused: 'outside', tabStops: ['Overview'] },
+		});
+	});
+});

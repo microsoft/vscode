@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow, getWindowId } from '../../../../base/browser/dom.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -10,18 +11,20 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionSummaryHoverService } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
-import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getSessionSummaryHoverData } from '../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
+import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat } from './chatLinkRouting.js';
 
 /**
  * Handles `agent-host-session://` links (surfaced by the `create_session` /
@@ -48,11 +51,12 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 		@ILabelService labelService: ILabelService,
-		@IPreferencesService preferencesService: IPreferencesService,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
-			open: async resource => this._open(resource),
+			open: async (resource, options: OpenOptions = {}) => this._open(resource, options.openToSide === true, this._getSource(options)),
 		}));
 		this._register(linkPresentationService.registerLinkPresentationProvider({
 			id: 'sessions.agentSessionLinkPresentation',
@@ -73,7 +77,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		this._register(sessionSummaryHoverService.registerProvider({
 			provideSessionSummaryHoverData: async resource => {
 				const session = this._findSessionForLink(resource);
-				return session ? getSessionSummaryHoverData(session, sessionsProvidersService, openerService, labelService, preferencesService) : undefined;
+				return session ? getSessionSummaryHoverData(session, sessionsProvidersService, openerService, labelService) : undefined;
 			},
 		}));
 	}
@@ -81,19 +85,43 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 	private _findSessionForLink(resource: URI | string): ISession | undefined {
 		const backendSession = parseOpenSessionLinkUri(resource);
 		return backendSession
-			? findSessionForOpenSessionLink(backendSession, this._sessionsManagementService, this._connectionsService)
+			? findSessionForOpenSessionLink(backendSession, this._sessionsManagementService, this._connectionsService, parseOpenSessionLinkConnectionAuthority(resource))
 			: undefined;
 	}
 
-	private async _open(resource: URI | string): Promise<boolean> {
+	/**
+	 * The chat window the user activated the link in, if one. Only a user gesture redirects: a link a tool, an extension
+	 * or a command opens keeps opening in the main window, whichever window has focus. So does any link while chat windows
+	 * are off. The window's active chat is the clicked one: activating a group of the window makes its chat the active one.
+	 */
+	private _getSource(options: OpenOptions): IChatWindowLinkSource | undefined {
+		if (!options.fromUserGesture) {
+			return undefined;
+		}
+		// A page such as a canvas has focus outside the workbench, so it names its window.
+		return getChatWindowLinkSource(this._chatWindowService.getWindow(options.sourceWindowId ?? getWindowId(getActiveWindow())), this._configurationService);
+	}
+
+	private async _open(resource: URI | string, openToSide: boolean, source: IChatWindowLinkSource | undefined): Promise<boolean> {
 		const session = this._findSessionForLink(resource);
 		if (!session) {
 			return false;
 		}
 		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
-		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
-		await this._sessionsService.openChat(session, chatResource, { source: 'link' });
+		const chatResource = await resolveLinkedChat(this._connectionsService, session, chatId);
+		if (source && await openLinkedChatInChatWindow(this._chatWindowService, source, session, chatResource, openToSide)) {
+			return true;
+		}
+		if (openToSide) {
+			if (chatId) {
+				await this._sessionsService.openChatToSide(session, chatResource);
+			} else {
+				await this._sessionsService.openSessionToSide(session, { forceMainChat: true, source: 'link' });
+			}
+		} else {
+			await this._sessionsService.openChat(session, chatResource, { source: 'link' });
+		}
 		return true;
 	}
 }
@@ -116,7 +144,7 @@ class AgentSessionLinkPresentationWatcher extends Disposable implements ILinkPre
 			reader => {
 				sessionsChanged.read(reader);
 				const session = backendSession
-					? findSessionForOpenSessionLink(backendSession, sessionsManagementService, connectionsService)
+					? findSessionForOpenSessionLink(backendSession, sessionsManagementService, connectionsService, parseOpenSessionLinkConnectionAuthority(resource))
 					: undefined;
 				return session ? readSessionState(session, chatId, reader, kind) : undefined;
 			},
@@ -158,12 +186,16 @@ export function findSessionForOpenSessionLink(
 	backendSession: URI,
 	sessionsManagementService: ISessionsManagementService,
 	connectionsService: IAgentHostConnectionsService,
+	connectionAuthority?: string,
 ): ISession | undefined {
 	return sessionsManagementService.getSessions().find(session => {
+		const identity = connectionsService.resolveSessionResourceIdentity(session.resource);
+		if (connectionAuthority && identity?.connectionAuthority !== connectionAuthority) {
+			return false;
+		}
 		if (isEqual(session.resource, backendSession)) {
 			return true;
 		}
-		const identity = connectionsService.resolveSessionResourceIdentity(session.resource);
 		return !!identity && isEqual(identity.backendSession, backendSession);
 	});
 }

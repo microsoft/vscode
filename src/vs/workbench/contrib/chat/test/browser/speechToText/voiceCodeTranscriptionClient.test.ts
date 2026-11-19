@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -208,19 +209,16 @@ suite('VoiceCodeTranscriptionClient', () => {
 		const socket = await connect(client);
 		const closures: number[] = [];
 		store.add(client.onDidClose(code => closures.push(code)));
-		try {
-			assert.ok(TestWebSocket.ping);
-			TestWebSocket.ping();
-			assert.deepStrictEqual(socket.sent.map(message => JSON.parse(message)), [{ type: 'ping' }]);
-			socket.receive({ type: 'pong' });
+		store.add(toDisposable(() => clock.restore()));
+		assert.ok(TestWebSocket.ping);
+		TestWebSocket.ping();
+		assert.deepStrictEqual(socket.sent.map(message => JSON.parse(message)), [{ type: 'ping' }]);
+		socket.receive({ type: 'pong' });
 
-			const connecting = client.connect(createTestWindow(), 'github-token');
-			client.disconnect();
-			await assert.rejects(connecting);
-			assert.deepStrictEqual(closures, []);
-			await clock.tickAsync(10_000);
-		} finally {
-			clock.restore();
-		}
+		const connecting = client.connect(createTestWindow(), 'github-token');
+		client.disconnect();
+		await assert.rejects(connecting);
+		assert.deepStrictEqual(closures, []);
+		await clock.tickAsync(10_000);
 	});
 });

@@ -5,6 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
+import type { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Event } from '../../../util/vs/base/common/event';
 import { constObservable, IObservable } from '../../../util/vs/base/common/observable';
 import { ModelConfiguration } from './dataTypes/xtabPromptOptions';
@@ -21,6 +22,12 @@ export interface IInlineEditsModelService {
 	selectedModelConfiguration(): ModelConfiguration;
 
 	defaultModelConfiguration(): ModelConfiguration;
+
+	/**
+	 * Waits until model selection is settled when server model discovery can
+	 * affect the selected model.
+	 */
+	ensureModelSelection(cancellationToken: CancellationToken): Promise<void>;
 
 	/**
 	 * Whether the selected model handles inline completions itself, or `undefined` when it expresses
@@ -58,6 +65,9 @@ export class NullInlineEditsModelService implements IInlineEditsModelService {
 
 	defaultModelConfiguration(): ModelConfiguration {
 		return NullInlineEditsModelService._defaultConfiguration();
+	}
+
+	async ensureModelSelection(_cancellationToken: CancellationToken): Promise<void> {
 	}
 
 	private static _defaultConfiguration(): ModelConfiguration {

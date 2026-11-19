@@ -75,6 +75,7 @@
       confirmation: undefined,
       editedFileEvents: undefined,
       modelId: undefined,
+      modelConfiguration: undefined,
       modeInfo: undefined,
       hiddenFromTranscript: undefined,
       terminalExecutionId: undefined,
@@ -88,8 +89,10 @@
         completedAt: undefined
       },
       vote: undefined,
+      lastCallCompletionTokens: undefined,
       modelTotals: undefined,
       sessionCopilotCredits: undefined,
+      sessionCopilotCreditsStatus: undefined,
       voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: undefined,

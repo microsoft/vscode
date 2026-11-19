@@ -25,12 +25,12 @@
 				"title": "Smoke Test: Setup Graceful Deactivation"
 			},
 			{
-				"command": "smoketest.openCopilotCliChat",
-				"title": "Smoke Test: Open CLI Test Session"
-			},
-			{
 				"command": "smoketest.openLocalChat",
 				"title": "Smoke Test: Open Local Test Session"
+			},
+			{
+				"command": "smoketest.openAgentHostChat",
+				"title": "Smoke Test: Open AH Test Session"
 			}
 		]
 	}

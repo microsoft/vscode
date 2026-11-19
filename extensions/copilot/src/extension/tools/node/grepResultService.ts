@@ -11,6 +11,8 @@ import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { LRUCache } from '../../../util/vs/base/common/map';
 
+export const MAX_GREP_RESULT_SESSIONS = 16;
+
 export const IGrepResultService = createServiceIdentifier<IGrepResultService>('IGrepResultService');
 
 interface FileMatch {
@@ -24,7 +26,8 @@ interface MatchResult {
 
 export interface IGrepResultService {
 	readonly _serviceBrand: undefined;
-	readonly onDidRemoveGrepResult: Event<{ sessionUri: vscode.Uri; requestId: string }>;
+	/** Fires only when an entire session is removed from the grep-result cache. */
+	readonly onDidRemoveSession: Event<vscode.Uri>;
 
 	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void;
 	getGrepResult(sessionUri: vscode.Uri, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined;
@@ -32,7 +35,7 @@ export interface IGrepResultService {
 
 export class NullGrepResultService implements IGrepResultService {
 	declare readonly _serviceBrand: undefined;
-	readonly onDidRemoveGrepResult = Event.None;
+	readonly onDidRemoveSession = Event.None;
 
 	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void {
 		// No-op
@@ -54,20 +57,27 @@ interface GrepResult {
 }
 
 class SessionMatches {
+
+	// Keep maximum of `maxMatches` grep results per session.
+	// The results are used to adjust read line calls. If no
+	// match is found the original values are used so the line
+	//  bounds remain accurate. Capping the value helps to
+	// limit memory usage.
 	private static readonly maxMatches = 16;
 
+	public readonly sessionUri: vscode.Uri;
 	private readonly matches: GrepResult[];
 
-	constructor() {
+	constructor(sessionUri: vscode.Uri) {
+		this.sessionUri = sessionUri;
 		this.matches = [];
 	}
 
-	add(result: GrepResult): string | undefined {
+	add(result: GrepResult): void {
 		this.matches.push(result);
 		if (this.matches.length > SessionMatches.maxMatches) {
-			return this.matches.shift()?.requestId;
+			this.matches.shift();
 		}
-		return undefined;
 	}
 
 	get(uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] {
@@ -104,22 +114,26 @@ class SessionMatches {
 export class GrepResultService extends Disposable implements IGrepResultService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidRemoveGrepResult = this._register(new Emitter<{ sessionUri: vscode.Uri; requestId: string }>());
-	readonly onDidRemoveGrepResult = this._onDidRemoveGrepResult.event;
+	private readonly _onDidRemoveSession = this._register(new Emitter<vscode.Uri>());
+	readonly onDidRemoveSession = this._onDidRemoveSession.event;
 
 	private readonly cache: LRUCache<string, SessionMatches>;
 
 	constructor() {
 		super();
-		this.cache = new LRUCache<string, SessionMatches>(10);
+		this.cache = new LRUCache<string, SessionMatches>(MAX_GREP_RESULT_SESSIONS);
 	}
 
 	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void {
 		const key = sessionUri.toString();
 		let sessionMatches = this.cache.get(key);
 		if (sessionMatches === undefined) {
-			sessionMatches = new SessionMatches();
+			const evictedSessionMatches = this.cache.size >= this.cache.limit ? this.cache.first : undefined;
+			sessionMatches = new SessionMatches(sessionUri);
 			this.cache.set(key, sessionMatches);
+			if (evictedSessionMatches !== undefined) {
+				this._onDidRemoveSession.fire(evictedSessionMatches.sessionUri);
+			}
 		}
 
 		const matches = new Map<string, FileMatches>();
@@ -133,10 +147,7 @@ export class GrepResultService extends Disposable implements IGrepResultService 
 			}
 			matches.set(file.uri.toString(), { ranges, prefixMaxEndLines });
 		}
-		const removedRequestId = sessionMatches.add({ requestId, matches });
-		if (removedRequestId !== undefined) {
-			this._onDidRemoveGrepResult.fire({ sessionUri, requestId: removedRequestId });
-		}
+		sessionMatches.add({ requestId, matches });
 	}
 
 	getGrepResult(sessionUri: vscode.Uri, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {

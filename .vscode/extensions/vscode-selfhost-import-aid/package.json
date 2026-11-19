@@ -25,5 +25,9 @@
   },
   "dependencies": {
     "typescript": "5.5.4"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x"
   }
 }

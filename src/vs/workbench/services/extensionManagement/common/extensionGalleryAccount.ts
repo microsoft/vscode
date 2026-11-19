@@ -31,7 +31,7 @@ export interface IExtensionGalleryAccountProvider {
 	readonly onDidChangeAccount: Event<void>;
 
 	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
-	getAccount(): Promise<IExtensionGalleryAccount | undefined>;
+	getAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined>;
 
 	/** Interactive. The provider owns account selection and how the session is obtained. */
 	signIn(): Promise<void>;
@@ -39,7 +39,7 @@ export interface IExtensionGalleryAccountProvider {
 
 export const IExtensionGalleryAccountService = createDecorator<IExtensionGalleryAccountService>('extensionGalleryAccountService');
 
-/** Identity and entitlement for the Private Marketplace. Knows nothing about URLs or HTTP. */
+/** Identity, entitlement, and authentication for the Private Marketplace. */
 export interface IExtensionGalleryAccountService {
 	readonly _serviceBrand: undefined;
 
@@ -48,7 +48,7 @@ export interface IExtensionGalleryAccountService {
 	readonly onDidChangeAccount: Event<void>;
 
 	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
-	getAccount(): Promise<IExtensionGalleryAccount | undefined>;
+	getAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined>;
 
 	/** Interactive sign-in for whichever provider the deployment configured. */
 	signIn(): Promise<void>;

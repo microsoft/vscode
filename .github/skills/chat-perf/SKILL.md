@@ -17,27 +17,27 @@ description: Run chat perf benchmarks and memory leak checks against the local d
 
 ```bash
 # Run perf regression test (compares local dev build vs VS Code 1.115.0):
-npm run perf:chat -- --scenario text-only --runs 3
+pnpm run perf:chat --scenario text-only --runs 3
 
 # Run all scenarios with no baseline (just measure):
-npm run perf:chat -- --no-baseline --runs 3
+pnpm run perf:chat --no-baseline --runs 3
 
 # Compare two local builds (apples-to-apples):
-npm run perf:chat -- --build /path/to/build-A --baseline-build /path/to/build-B --runs 5
+pnpm run perf:chat --build /path/to/build-A --baseline-build /path/to/build-B --runs 5
 
 # Build a local production package and compare against a release:
-npm run perf:chat -- --production-build --baseline-build 1.115.0 --runs 5
+pnpm run perf:chat --production-build --baseline-build 1.115.0 --runs 5
 
 # Run memory leak check (10 messages in one session):
-npm run perf:chat-leak
+pnpm run perf:chat-leak
 
 # Run leak check with more messages for accuracy:
-npm run perf:chat-leak -- --messages 20 --verbose
+pnpm run perf:chat-leak --messages 20 --verbose
 ```
 
 ## Perf regression test
 
-**Script:** `scripts/chat-simulation/test-chat-perf-regression.js` **npm:** `npm run perf:chat`
+**Script:** `scripts/chat-simulation/test-chat-perf-regression.js` **npm:** `pnpm run perf:chat`
 
 Launches VS Code via Playwright Electron, opens the chat panel, sends a message with a mock LLM response, and measures timing, layout, and rendering metrics. By default, downloads VS Code 1.115.0 as a baseline, benchmarks it, then benchmarks the local dev build and compares.
 
@@ -72,7 +72,7 @@ Launches VS Code via Playwright Electron, opens the chat panel, sends a message 
 
 ```bash
 # Compare 1.110.0 against 1.115.0 (no local build needed):
-npm run perf:chat -- --build 1.110.0 --baseline-build 1.115.0 --runs 5
+pnpm run perf:chat --build 1.110.0 --baseline-build 1.115.0 --runs 5
 ```
 
 ### Comparing two local builds
@@ -81,13 +81,13 @@ Both `--build` and `--baseline-build` accept local paths to VS Code executables.
 
 ```bash
 # Compare two dev builds (e.g. feature branch vs main):
-npm run perf:chat -- \
+pnpm run perf:chat \
   --build .build/electron/Code\ -\ OSS.app/Contents/MacOS/Code\ -\ OSS \
   --baseline-build /path/to/other/Code\ -\ OSS.app/Contents/MacOS/Code\ -\ OSS \
   --runs 5
 
 # Compare two production builds:
-npm run perf:chat -- \
+pnpm run perf:chat \
   --build ../VSCode-darwin-arm64-feature/Code\ -\ OSS.app/Contents/MacOS/Code\ -\ OSS \
   --baseline-build ../VSCode-darwin-arm64-main/Code\ -\ OSS.app/Contents/MacOS/Code\ -\ OSS \
   --runs 5
@@ -111,7 +111,7 @@ Using `--production-build` builds a local bundled package via `gulp vscode` for 
 
 ```bash
 # Production build vs release baseline (fair comparison):
-npm run perf:chat -- --production-build --baseline-build 1.115.0 --runs 5
+pnpm run perf:chat --production-build --baseline-build 1.115.0 --runs 5
 ```
 
 ### Settings overrides
@@ -120,17 +120,17 @@ Use `--setting`, `--test-setting`, and `--baseline-setting` to inject VS Code se
 
 ```bash
 # Enable a feature for the test build only:
-npm run perf:chat -- --test-setting chat.experimental.incrementalRendering.enabled=true --runs 3
+pnpm run perf:chat --test-setting chat.experimental.incrementalRendering.enabled=true --runs 3
 
 # Compare two builds with different settings:
-npm run perf:chat -- \
+pnpm run perf:chat \
   --baseline-build "../vscode2/.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS" \
   --baseline-setting chat.experimental.incrementalRendering.enabled=true \
   --test-setting chat.experimental.incrementalRendering.enabled=false \
   --runs 3
 
 # Set a value for both builds:
-npm run perf:chat -- --setting chat.mcp.enabled=false --runs 3
+pnpm run perf:chat --setting chat.mcp.enabled=false --runs 3
 ```
 
 Precedence: `--test-setting` / `--baseline-setting` override `--setting` for the same key. Values are auto-parsed: `true`/`false` become booleans, numbers become numbers, everything else stays a string.
@@ -141,13 +141,13 @@ When results exceed the threshold but aren't statistically significant, the tool
 
 ```bash
 # Initial run with 3 iterations — may be inconclusive:
-npm run perf:chat -- --scenario text-only --runs 3
+pnpm run perf:chat --scenario text-only --runs 3
 
 # Add 3 more runs to the same results file (both test + baseline):
-npm run perf:chat -- --resume .chat-simulation-data/2026-04-14T02-15-14/results.json --runs 3
+pnpm run perf:chat --resume .chat-simulation-data/2026-04-14T02-15-14/results.json --runs 3
 
 # Keep adding until confidence is reached:
-npm run perf:chat -- --resume .chat-simulation-data/2026-04-14T02-15-14/results.json --runs 5
+pnpm run perf:chat --resume .chat-simulation-data/2026-04-14T02-15-14/results.json --runs 5
 ```
 
 `--resume` loads the previous `results.json` and its associated `baseline-*.json`, runs N more iterations for both builds, merges rawRuns, recomputes stats, and re-runs the comparison. The updated files are written back in-place. You can resume multiple times — samples accumulate.
@@ -175,7 +175,7 @@ Scenarios are defined in `scripts/chat-simulation/common/perf-scenarios.js` and 
 - **Tool-call** — multi-turn scenarios with tool invocations (e.g. `tool-read-file`, `tool-edit-file`)
 - **Multi-turn user** — multi-turn conversations with user follow-ups, thinking blocks (e.g. `thinking-response`, `multi-turn-user`, `long-conversation`)
 
-Run `npm run perf:chat -- --help` to see the full list of registered scenario IDs.
+Run `pnpm run perf:chat --help` to see the full list of registered scenario IDs.
 
 ### Metrics collected
 
@@ -205,7 +205,7 @@ Results use **IQR-based outlier removal** and **median** (not mean) to handle st
 
 ## Memory leak check
 
-**Script:** `scripts/chat-simulation/test-chat-mem-leaks.js` **npm:** `npm run perf:chat-leak`
+**Script:** `scripts/chat-simulation/test-chat-mem-leaks.js` **npm:** `pnpm run perf:chat-leak`
 
 Launches one VS Code session, sends N messages sequentially, forces GC between each, and measures renderer heap and DOM node count. Uses **linear regression** on the samples to compute per-message growth rate, which is compared against a threshold.
 
@@ -275,7 +275,7 @@ gh run download <run-id> -R microsoft/vscode -n chat-perf-summary
 1. **Bisect across dates.** Pull `chat-perf-summary/ci-summary.md` from several runs spanning the window. Compare the **test** median (and ±stddev) for the suspect metric+scenario run-to-run — the day it jumps is when `main` changed. A metric that goes *bimodal* (e.g. a raw-run column showing two clusters like `~250 / ~900`) is the flaky signature; a stable shift is a genuine regression.
 2. **Confirm it's real vs. measurement noise.** Check the per-run raw tables (in `ci-summary.md`) — high ±stddev / bimodal values mean the *median* is being pulled around by a few outlier runs, not a uniform slowdown.
 3. **Deep-dive the cause.** Download `perf-results-<group>` (has the `trace.json` per run) for a slow run and inspect what dominates the slow window. Trick that found the `gc_stats` artifact: sum main-thread `RunTask` durations between two `code/chat/*` marks (e.g. `willCollectInstructions` → `didCollectInstructions`) — if the window is ~0% busy, it's an async wait or a GC pause, not real work; then look at the largest `X`-phase events in that window (`MajorGC`, `Layout`, etc.).
-4. **Reproduce a suspect commit locally** to bisect precisely: `npm run perf:chat -- --build <sha> --baseline-build <ver> --runs 7` (or two commits directly via `--build <shaA> --baseline-build <shaB>`).
+4. **Reproduce a suspect commit locally** to bisect precisely: `pnpm run perf:chat --build <sha> --baseline-build <ver> --runs 7` (or two commits directly via `--build <shaA> --baseline-build <shaB>`).
 
 > Tip: `perf-summary-*` (the machine-readable `results.json` with `rawRuns`) is deleted after **1 day**, so for older runs rely on `chat-perf-summary` (raw tables, 30 days) or extract `results.json` from `perf-results-*` (also 30 days).
 
@@ -309,7 +309,7 @@ The copilot extension connects to this server via `IS_SCENARIO_AUTOMATION=1` mod
 
 1. Add a new entry to the appropriate object (`CONTENT_SCENARIOS`, `TOOL_CALL_SCENARIOS`, or `MULTI_TURN_SCENARIOS`) in `common/perf-scenarios.js` using the `ScenarioBuilder` API from `common/mock-llm-server.js`
 2. The scenario is auto-registered by `registerPerfScenarios()` — no manual ID list to update
-3. Run: `npm run perf:chat -- --scenario your-new-scenario --runs 1 --no-baseline --verbose`
+3. Run: `pnpm run perf:chat --scenario your-new-scenario --runs 1 --no-baseline --verbose`
 
 ## Related skills
 
