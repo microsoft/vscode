@@ -10,7 +10,8 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { createBinaryDocumentDiffItem, createTextDocumentDiffItem } from '../../../../../editor/test/browser/widget/multiDiffEditorTestUtils.js';
+import { IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IResourceLabel as IMultiDiffResourceLabel, IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import type { MultiDiffEditorVariant } from '../../../../../editor/common/multiDiffEditor.js';
@@ -158,20 +159,14 @@ export function createMultiDiffEditorFixtureDocument(
 		readonly languageId?: string;
 	}
 ): RefCounted<IDocumentDiffItem> {
-	const createSource = (side: IMultiDiffEditorFixtureDocumentSide | undefined): DiffItemSource | undefined => {
-		if (!side) {
-			return undefined;
-		}
-		const uri = URI.parse(side.uri);
-		const model = side.text === undefined
-			? undefined
-			: textModels.add(createTextModel(instantiationService, side.text, uri, sides.languageId ?? 'typescript'));
-		return new DiffItemSource(uri, model);
-	};
-	return RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-		original: createSource(sides.original),
-		modified: createSource(sides.modified),
-	}, { dispose() { } });
+	const createModel = (side: IMultiDiffEditorFixtureDocumentSide | undefined) => side?.text === undefined
+		? undefined
+		: textModels.add(createTextModel(instantiationService, side.text, URI.parse(side.uri), sides.languageId ?? 'typescript'));
+	const isBinary = [sides.original, sides.modified].some(side => side && side.text === undefined);
+	const item = isBinary
+		? createBinaryDocumentDiffItem(sides.original && URI.parse(sides.original.uri), sides.modified && URI.parse(sides.modified.uri))
+		: createTextDocumentDiffItem(createModel(sides.original), createModel(sides.modified));
+	return RefCounted.createOfNonDisposable<IDocumentDiffItem>(item, { dispose() { } });
 }
 
 export function createMultiDiffEditorFixtureDocuments(instantiationService: TestInstantiationService, textModels: DisposableStore) {
@@ -182,17 +177,8 @@ export function createMultiDiffEditorFixtureDocuments(instantiationService: Test
 	const original3 = textModels.add(createTextModel(instantiationService, originalCode3, URI.parse('inmemory://original/server.ts'), 'typescript'));
 	const modified3 = textModels.add(createTextModel(instantiationService, modifiedCode3, URI.parse('inmemory://modified/server.ts'), 'typescript'));
 	return {
-		doc1: RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-			original: new DiffItemSource(original1.uri, original1),
-			modified: new DiffItemSource(modified1.uri, modified1),
-		}, { dispose() { } }),
-		doc2: RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-			original: new DiffItemSource(original2.uri, original2),
-			modified: new DiffItemSource(modified2.uri, modified2),
-		}, { dispose() { } }),
-		doc3: RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-			original: new DiffItemSource(original3.uri, original3),
-			modified: new DiffItemSource(modified3.uri, modified3),
-		}, { dispose() { } }),
+		doc1: RefCounted.createOfNonDisposable<IDocumentDiffItem>(createTextDocumentDiffItem(original1, modified1), { dispose() { } }),
+		doc2: RefCounted.createOfNonDisposable<IDocumentDiffItem>(createTextDocumentDiffItem(original2, modified2), { dispose() { } }),
+		doc3: RefCounted.createOfNonDisposable<IDocumentDiffItem>(createTextDocumentDiffItem(original3, modified3), { dispose() { } }),
 	};
 }

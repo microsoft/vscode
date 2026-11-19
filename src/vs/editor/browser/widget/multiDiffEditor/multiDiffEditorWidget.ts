@@ -120,6 +120,11 @@ export class MultiDiffEditorWidget extends Disposable {
 		return this._instantiationService.createInstance(MultiDiffEditorViewModel, model);
 	}
 
+	public override dispose(): void {
+		this._viewModel.set(undefined, undefined);
+		super.dispose();
+	}
+
 	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined, options?: { readonly preserveFocus?: boolean; readonly viewState?: IMultiDiffEditorViewState }): void {
 		// `MultiDiffEditor.clearInput()` awaits `super.clearInput()` before it
 		// calls `setViewModel(undefined)`; during that await the editor pane and

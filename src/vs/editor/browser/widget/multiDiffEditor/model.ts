@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, IValueWithChangeEvent } from '../../../../base/common/event.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RefCounted } from '../diffEditor/utils.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
@@ -16,26 +17,50 @@ export interface IMultiDiffEditorModel {
 }
 
 /**
- * A resource participating on one side of a document diff.
+ * A file shown in the multi diff editor. It is cheap to create: its contents are only loaded through {@link resolve}.
  */
-export class DiffItemSource {
-	constructor(
-		public readonly uri: URI,
-		public readonly textModel: ITextModel | undefined,
-	) { }
-}
-
 export interface IDocumentDiffItem {
 	/**
 	 * undefined if the file was created.
 	 */
-	readonly original: DiffItemSource | undefined;
+	readonly originalUri: URI | undefined;
 
 	/**
 	 * undefined if the file was deleted.
 	 */
-	readonly modified: DiffItemSource | undefined;
+	readonly modifiedUri: URI | undefined;
+
+	readonly contextKeys?: Record<string, ContextKeyValue>;
+
+	/**
+	 * Loads the contents. The multi diff editor calls this at most once per item and disposes the reference
+	 * when it no longer shows the item.
+	 */
+	resolve(): Promise<IReference<IResolvedDocumentDiffItem>>;
+}
+
+export type IResolvedDocumentDiffItem = IResolvedTextDocumentDiffItem | IResolvedBinaryDocumentDiffItem;
+
+export interface IResolvedTextDocumentDiffItem {
+	readonly kind: 'text';
+
+	/**
+	 * undefined if the file was created.
+	 */
+	readonly original: ITextModel | undefined;
+
+	/**
+	 * undefined if the file was deleted.
+	 */
+	readonly modified: ITextModel | undefined;
+
 	readonly options?: IDiffEditorOptions;
 	readonly onOptionsDidChange?: Event<void>;
-	readonly contextKeys?: Record<string, ContextKeyValue>;
+}
+
+/**
+ * The contents cannot be shown as text.
+ */
+export interface IResolvedBinaryDocumentDiffItem {
+	readonly kind: 'binary';
 }
