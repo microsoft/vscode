@@ -73,6 +73,10 @@ flowchart LR
 
 The shared resource output exposes guidance references, source-derived definitions, and curated examples. It is generated from the selected checkout, not another database for contributors to author.
 
+## Benchmark guidance placement
+
+[benchmark/tasks.json](benchmark/tasks.json) holds realistic tasks for measuring how well agents find, update, add and audit design guidance. Rerun them when the placement convention, the topic map, or the routing instructions and skills change, and compare the results with the previous run. Expected results name specs by file name, so moving guidance doesn't break them. When you add a topic, add a Find task whose prompt describes the UI work without naming the spec. When you rename a spec, update its expected name.
+
 ## Find the owning guidance
 
 Read the relevant specifications before building or updating UI. No canvas installation is required.
