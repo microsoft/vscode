@@ -59,6 +59,9 @@ export const ActiveMultiDiffEditorHasFileListContext = ContextKeyExpr.and(
 /** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. */
 export const MultiDiffEditorFilesViewAndPositionMenu = new MenuId('MultiDiffEditorFilesViewAndPosition');
 
+/** The Toggle Files split button of the editor title, whose dropdown puts the changed files list on either side of the diffs. */
+export const MultiDiffEditorFileListToggleMenu = new MenuId('MultiDiffEditorFileListToggle');
+
 /**
  * Observes whether the file list should be shown: while the editor offers it and the user has not hidden it.
  * All multi diff editors share the hidden state, so toggling the list in one editor updates the others.

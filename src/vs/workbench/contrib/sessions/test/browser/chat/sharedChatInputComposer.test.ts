@@ -123,7 +123,7 @@ suite('SharedChatInputComposer', () => {
 			_store: store.add(new DisposableStore()),
 			_widget: widget,
 			_sending: observableValue('sending', false),
-			_confirmingSend: observableValue('confirmingSend', false),
+			_suppressSendProgress: observableValue('suppressSendProgress', false),
 			_userInteractionSource: store.add(new MutableDisposable()),
 			_readinessWait: readinessWait,
 			_canSendRequest: typeof options.canSendRequest === 'object' ? options.canSendRequest : constObservable(options.canSendRequest ?? true),
@@ -1016,7 +1016,7 @@ suite('SharedChatInputComposer', () => {
 		const composer: { _renderBusyState(key: { set(value: string): void }): void } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_store: busyStore,
 			_sending: sending,
-			_confirmingSend: constObservable(false),
+			_suppressSendProgress: constObservable(false),
 			options: { loading },
 		});
 		composer._renderBusyState({ set: value => busy.push(value) });
@@ -1034,27 +1034,62 @@ suite('SharedChatInputComposer', () => {
 	test('shows no progress while the host confirms a send', () => runWithFakedTimers({}, async () => {
 		const busyStore = new DisposableStore();
 		const sending = observableValue('sending', false);
-		const confirmingSend = observableValue('confirmingSend', false);
+		const suppressSendProgress = observableValue('suppressSendProgress', false);
 		const busy: string[] = [];
 		const composer: { _renderBusyState(key: { set(value: string): void }): void } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_store: busyStore,
 			_sending: sending,
-			_confirmingSend: confirmingSend,
+			_suppressSendProgress: suppressSendProgress,
 			options: { loading: constObservable(false) },
 		});
 		composer._renderBusyState({ set: value => busy.push(value) });
 		transaction(tx => {
 			sending.set(true, tx);
-			confirmingSend.set(true, tx);
+			suppressSendProgress.set(true, tx);
 		});
 		await timeout(1000);
 		const whileConfirming = busy.filter(value => value !== '');
-		confirmingSend.set(false, undefined);
+		suppressSendProgress.set(false, undefined);
 		await timeout(1000);
 		sending.set(false, undefined);
 		busyStore.dispose();
 
 		assert.deepStrictEqual({ whileConfirming, busy: busy.filter(value => value !== '') }, { whileConfirming: [], busy: ['sending'] });
+	}));
+
+	test('scheduling blocks duplicate sends without showing send progress', () => runWithFakedTimers({}, async () => {
+		const sending = observableValue('sending', false);
+		const picker = new DeferredPromise<undefined>();
+		const busy: string[] = [];
+		const inputEnabled: boolean[] = [];
+		const composer: { schedule(): Promise<void>; _renderBusyState(key: { set(value: string): void }): void } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+			_store: store.add(new DisposableStore()),
+			_sending: sending,
+			_suppressSendProgress: observableValue('suppressSendProgress', false),
+			getInputValue: () => 'Build it',
+			getDraft: () => ({ inputText: 'Build it', attachments: [] }),
+			setInputEnabled: (enabled: boolean) => inputEnabled.push(enabled),
+			options: {
+				loading: constObservable(false),
+				canSchedule: constObservable(true),
+				scheduleRequest: () => picker.p,
+			},
+		});
+		composer._renderBusyState({ set: value => busy.push(value) });
+
+		const scheduling = composer.schedule();
+		await timeout(1000);
+		const whilePicking = busy.filter(value => value !== '');
+		await assert.rejects(composer.schedule(), /Send Later is not available/);
+		await picker.complete(undefined);
+		await scheduling;
+
+		sending.set(true, undefined);
+		await timeout(1000);
+		sending.set(false, undefined);
+		assert.deepStrictEqual({ whilePicking, busy: busy.filter(value => value !== ''), inputEnabled }, {
+			whilePicking: [], busy: ['sending'], inputEnabled: [false, true],
+		});
 	}));
 
 	test('uses the model picker progress instead of a separate busy action for comparison sends', () => runWithFakedTimers({}, async () => {
@@ -1065,7 +1100,7 @@ suite('SharedChatInputComposer', () => {
 		const composer: { _renderBusyState(key: { set(value: string): void }): void } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_store: busyStore,
 			_sending: sending,
-			_confirmingSend: constObservable(false),
+			_suppressSendProgress: constObservable(false),
 			options: {
 				loading: constObservable(false),
 				modelPickerComparison: upcastPartial<IModelPickerComparison>({ summary }),

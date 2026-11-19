@@ -43,7 +43,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { formatSessionListTime, SessionItemStatusContext, SessionsFlatList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { isActiveSessionStatus, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { getAutomationsViewContent } from '../../sessions/browser/views/automationCataloguePresentation.js';
@@ -1054,6 +1054,7 @@ export async function markAllAutomationRunsRead(
 		const { runs } = getAutomationsViewContent(
 			automationService.automations.get(), automationService.runs.get(),
 			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+			configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 		);
 		const models = [...chatModels];
 		const sessionsByResource = new Map(sessionsManagementService.getSessions().map(session => [

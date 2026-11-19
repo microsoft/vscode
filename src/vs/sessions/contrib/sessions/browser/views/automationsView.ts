@@ -71,7 +71,7 @@ import { ChatEntitlementContextKeys } from '../../../../../workbench/services/ch
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, AutomationsHasOthersContext } from '../../../../common/agentsWindowContextKeys.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
-import { formatSchedule, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getAutomationsViewContent, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
+import { formatSchedule, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getAutomationsViewContent, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 
@@ -241,15 +241,16 @@ export class AutomationsCardsWidget extends Disposable {
 				this.automationService.automations.read(reader),
 				this.automationService.runs.read(reader),
 				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+				configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 			);
 		});
 		const visibleAutomations = derived(this, reader => {
 			configurationChanged.read(reader);
-			const sendLaterEnabled = configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true;
-			return getVisibleAutomations(getAutomationsViewContent(
+			return getAutomationsViewContent(
 				this.automationService.automations.read(reader), [],
 				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
-			).automations, sendLaterEnabled);
+				configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
+			).automations;
 		});
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
@@ -1738,6 +1739,7 @@ export class AutomationsCustomViewContribution extends Disposable {
 			hasItemsContext.set(getAutomationsViewContent(
 				automations, [],
 				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+				configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 			).automations.length > 0);
 		}));
 

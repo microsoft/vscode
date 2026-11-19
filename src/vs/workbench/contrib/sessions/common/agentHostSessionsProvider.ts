@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -495,7 +496,7 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 }
 
-export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+export { LOCAL_AGENT_HOST_PROVIDER_ID };
 
 export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;
