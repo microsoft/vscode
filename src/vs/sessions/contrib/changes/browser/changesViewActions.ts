@@ -417,8 +417,8 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 for (const [id, title, group, order, toggled] of [
 	['multiDiffEditor.viewFileListAsList', localize2('viewFileListAsList', "View as List"), '1_view', 1, MultiDiffEditorFileListViewModeContext.isEqualTo('list')],
 	['multiDiffEditor.viewFileListAsTree', localize2('viewFileListAsTree', "View as Tree"), '1_view', 2, MultiDiffEditorFileListViewModeContext.isEqualTo('tree')],
-	['multiDiffEditor.positionFileListLeft', localize2('positionFileListLeft', "On the Left"), '2_position', 1, MultiDiffEditorFileListPositionContext.isEqualTo('left')],
-	['multiDiffEditor.positionFileListRight', localize2('positionFileListRight', "On the Right"), '2_position', 2, MultiDiffEditorFileListPositionContext.isEqualTo('right')],
+	['multiDiffEditor.positionFileListLeft', localize2('positionFileListLeft', "Left"), '2_position', 1, MultiDiffEditorFileListPositionContext.isEqualTo('left')],
+	['multiDiffEditor.positionFileListRight', localize2('positionFileListRight', "Right"), '2_position', 2, MultiDiffEditorFileListPositionContext.isEqualTo('right')],
 ] as const) {
 	MenuRegistry.appendMenuItem(Menus.ChangesFilesViewAndPosition, { command: { id, title, toggled, precondition: changesEditorFilesListShown }, group, order });
 }
