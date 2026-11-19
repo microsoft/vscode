@@ -2931,6 +2931,8 @@ suite('RemotesWidget', () => {
 		choice.click();
 		const save = details.querySelector<HTMLElement>('.remotes-details-footer .monaco-button:not(.secondary)')!;
 		save.focus();
+		// Reveal Save first: WebKit scrolls a clipped, focused button into view when the save finishes.
+		save.scrollIntoView({ block: 'nearest' });
 		const geometry = () => feedbackGeometry(details, ['.remotes-run-choices', '.remotes-details-footer', '.remotes-run-hint']);
 		const before = geometry();
 		const initiallySaved = choice.getAttribute('aria-label')!.includes('Saved preference');
