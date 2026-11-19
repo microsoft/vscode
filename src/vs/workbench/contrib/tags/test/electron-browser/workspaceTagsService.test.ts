@@ -72,17 +72,70 @@ suite('Telemetry - WorkspaceTagsService', () => {
 	}
 
 	test('records exact Azure SDK tags without family fallbacks', async () => {
-		assert.deepStrictEqual(await npmTags([
+		const dependencies = [
+			'@azure/ai-agents',
 			'@azure/ai-content-safety',
+			'@azure/ai-content-understanding',
 			'@azure/ai-discovery',
+			'@azure/ai-projects',
+			'@azure/ai-speech-transcription',
 			'@azure/ai-translation-document',
-			'@azure-rest/core-client'
-		]), {
-			'workspace.npm.@azure/ai-content-safety': true,
-			'workspace.npm.@azure/ai-discovery': true,
-			'workspace.npm.@azure/ai-translation-document': true,
-			'workspace.npm.@azure-rest/core-client': true
-		});
+			'@azure/ai-vision-face-ui',
+			'@azure/ai-voicelive',
+			'@azure/identity-broker',
+			'@azure/identity-cache-persistence',
+			'@azure/identity-vscode',
+			'@azure/keyvault-common',
+			'@azure/storage-common',
+			'@azure/arm-apicenter',
+			'@azure/arm-search',
+			'@azure/arm-batch',
+			'@azure/arm-compute',
+			'@azure/arm-containerinstance',
+			'@azure/arm-containerregistry',
+			'@azure/arm-cosmosdb',
+			'@azure/arm-keyvault',
+			'@azure/arm-network',
+			'@azure/arm-resources',
+			'@azure/arm-storage',
+			'@azure/openai-assistants',
+			'@azure-rest/agrifood-farming',
+			'@azure-rest/ai-translation-document',
+			'@azure-rest/ai-vision-face',
+			'@azure-rest/arm-compute',
+			'@azure-rest/arm-containerservice',
+			'@azure-rest/arm-network',
+			'@azure-rest/arm-servicefabric',
+			'@azure-rest/batch',
+			'@azure-rest/communication-job-router',
+			'@azure-rest/communication-messages',
+			'@azure-rest/confidential-ledger',
+			'@azure-rest/core-client',
+			'@azure-rest/core-client-lro',
+			'@azure-rest/core-client-paging',
+			'@azure-rest/defender-easm',
+			'@azure-rest/developer-devcenter',
+			'@azure-rest/health-deidentification',
+			'@azure-rest/health-insights-cancerprofiling',
+			'@azure-rest/health-insights-clinicalmatching',
+			'@azure-rest/health-insights-radiologyinsights',
+			'@azure-rest/iot-device-update',
+			'@azure-rest/load-testing',
+			'@azure-rest/maps-geolocation',
+			'@azure-rest/maps-render',
+			'@azure-rest/maps-route',
+			'@azure-rest/maps-search',
+			'@azure-rest/maps-timezone',
+			'@azure-rest/onlineexperimentation',
+			'@azure-rest/purview-account',
+			'@azure-rest/purview-administration',
+			'@azure-rest/purview-catalog',
+			'@azure-rest/purview-datamap',
+			'@azure-rest/purview-scanning',
+			'@azure-rest/purview-sharing',
+			'@azure-rest/purview-workflow'
+		];
+		assert.deepStrictEqual(await npmTags(dependencies), Object.fromEntries(dependencies.map(dependency => [`workspace.npm.${dependency}`, true])));
 	});
 
 	test('limits the Azure REST fallback to its package scope', async () => {
