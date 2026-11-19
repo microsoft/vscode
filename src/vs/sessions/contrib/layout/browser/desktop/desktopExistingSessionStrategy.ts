@@ -20,7 +20,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { GroupModelChangeKind, isEditorCommandsContext } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -683,12 +683,12 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 							IsAuxiliaryWindowContext.toNegated(),
 							DesktopLayoutContext)
 					},
-					// The primary action of the split button below.
-					menu: {
-						id: Menus.DetailsToggle,
+					// The primary action of both split buttons below.
+					menu: [Menus.DetailsToggle, Menus.MultiDiffFileListToggle].map(id => ({
+						id,
 						group: 'navigation',
 						order: 1,
-					}
+					}))
 				});
 			}
 
@@ -707,33 +707,61 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			}
 		});
 
-		// Toggle Details with a dropdown of the details positions.
-		const splitButton = MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
-			submenu: Menus.DetailsToggle,
-			title: localize2('detailsPosition', "Details Position"),
-			icon: Codicon.listSelection,
-			isSplitButton: { excludePrimaryActionFromDropdown: true },
-			group: 'navigation',
-			order: desktopHeaderToggleDetailsOrder,
-			// Not every tab type has a detail panel to show/hide (e.g. browser and
-			// search tabs), so only surface the toggle for tab types that do, or
-			// for a multi diff editor whose file list it toggles instead.
-			when: ContextKeyExpr.and(
-				IsSessionsWindowContext,
-				IsAuxiliaryWindowContext.toNegated(),
-				IsTopRightEditorGroupContext,
-				DesktopLayoutContext,
-				ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
-				MainEditorAreaVisibleContext,
-				ContextKeyExpr.or(
-					HasDockedDetailsContext,
-					toggleMultiDiffEditorFileListContext,
-					// The Changes tab also keeps the toggle while a session switch replaces the
-					// Changes editor, matching the changeset picker in the header.
-					ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
-					DesktopChangesEditorTransitionContext))
-		});
+		const splitButtonWhen = ContextKeyExpr.and(
+			IsSessionsWindowContext,
+			IsAuxiliaryWindowContext.toNegated(),
+			IsTopRightEditorGroupContext,
+			DesktopLayoutContext,
+			MainEditorAreaVisibleContext);
 
-		return combinedDisposable(action, splitButton);
+		return combinedDisposable(
+			action,
+			MenuRegistry.appendMenuItems([
+				// Toggle Details with a dropdown of the details positions, also while the details float.
+				{
+					id: MenuId.EditorTitleLayout, item: {
+						submenu: Menus.DetailsToggle,
+						title: localize2('detailsPosition', "Details Position"),
+						icon: Codicon.listSelection,
+						isSplitButton: { excludePrimaryActionFromDropdown: true },
+						group: 'navigation',
+						order: desktopHeaderToggleDetailsOrder,
+						// Not every tab type has a detail panel to show/hide (e.g. browser and
+						// search tabs), so only surface the toggle for tab types that do.
+						when: ContextKeyExpr.and(
+							splitButtonWhen,
+							toggleMultiDiffEditorFileListContext.negate(),
+							ContextKeyExpr.or(
+								HasDockedDetailsContext,
+								// The Changes tab also keeps the toggle while a session switch replaces the
+								// Changes editor, matching the changeset picker in the header.
+								ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+								DesktopChangesEditorTransitionContext))
+					}
+				},
+				// In a multi diff editor with a changed files list, Toggle Details shows or hides that list instead while the details
+				// are docked, with a dropdown that puts the list on either side of the diffs.
+				{
+					id: MenuId.EditorTitleLayout, item: {
+						submenu: Menus.MultiDiffFileListToggle,
+						title: localize2('fileListPosition', "Files Position"),
+						icon: Codicon.listSelection,
+						isSplitButton: { excludePrimaryActionFromDropdown: true },
+						group: 'navigation',
+						order: desktopHeaderToggleDetailsOrder,
+						when: ContextKeyExpr.and(splitButtonWhen, toggleMultiDiffEditorFileListContext),
+					}
+				},
+				...([
+					['multiDiffEditor.positionFileListLeft', localize2('fileListPositionLeft', "Left"), 'left', 1],
+					['multiDiffEditor.positionFileListRight', localize2('fileListPositionRight', "Right"), 'right', 2],
+				] as const).map(([id, title, position, order]) => ({
+					id: Menus.MultiDiffFileListToggle, item: {
+						command: { id, title, toggled: MultiDiffEditorFileListPositionContext.isEqualTo(position) },
+						group: '2_organize',
+						order,
+					}
+				})),
+			]));
 	}
 }

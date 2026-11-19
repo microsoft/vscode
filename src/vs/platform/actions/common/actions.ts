@@ -39,6 +39,11 @@ export interface ISubmenuItem {
 	order?: number;
 	isSelection?: boolean;
 	/**
+	 * Toolbars that let users hide their items always show this item and do not offer to hide it,
+	 * as if it were one of their `alwaysShownItems`.
+	 */
+	isAlwaysShown?: boolean;
+	/**
 	 * A split button shows the first action
 	 * as primary action and the rest of the
 	 * actions in a dropdown.

@@ -18,8 +18,7 @@ import { ContextKeyExpr, ContextKeyValue, IContext } from '../../../platform/con
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDensityActions.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
-import { EmptyFileEditorInput } from '../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { decodeKeybinding } from '../../../base/common/keybindings.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
@@ -33,7 +32,6 @@ import { IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../workben
 import { DesktopWorkbench } from '../../browser/desktopWorkbench.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
-import { HasDockedDetailsContext } from '../../common/agentsWindowContextKeys.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
 import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
@@ -44,7 +42,6 @@ const LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID = 'workbench.action.agentSessions.
 
 // Dynamic imports (layering rules disallow static ones here), awaited while this file loads so that their
 // permanent registrations are in place before any suite runs instead of being registered by this suite.
-const { SessionChangesEditorInput } = await import('../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js');
 await Promise.all([
 	import('../../contrib/editor/browser/editor.contribution.js'),
 	import('../../contrib/terminal/browser/sessionsTerminalContribution.js'),
@@ -197,37 +194,15 @@ suite('Sessions - Layout Actions', () => {
 		assert.deepStrictEqual(resized, [Parts.AUXILIARYBAR_PART, Parts.AUXILIARYBAR_PART, Parts.EDITOR_PART]);
 	});
 
-	test('offers Details Position only for Changes and Files panels, never in the title bar context menu', () => {
-		const visibleIn = (menu: MenuId, values: Record<string, ContextKeyValue>) => {
-			const context: IContext = { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
-			return MenuRegistry.getMenuItems(menu).filter(isISubmenuItem)
-				.some(item => item.submenu === Menus.DetailsPosition && item.when?.evaluate(context) !== false);
-		};
-		const desktop = { agentSessionsDesktopLayout: true };
-		const editors = [EmptyFileEditorInput.EDITOR_ID, SessionChangesEditorInput.EDITOR_ID, 'workbench.editor.browser', 'workbench.editors.terminal', 'workbench.editors.textFileEditor', ''];
-		const fileEditor = { ...desktop, [ActiveEditorContext.key]: 'workbench.editors.textFileEditor' };
+	test('offers the Details Position submenu in View > Appearance, not in the title bar context menu or the editor More Actions menu', () => {
+		const desktop: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true };
+		const context: IContext = { getValue: <T extends ContextKeyValue>(key: string) => desktop[key] as T | undefined };
+		// The editor toolbar offers the positions in the dropdown of Toggle Details instead.
+		const menus = [AgentsWindowMenus.TitleBarContext, Menus.SessionsEditorTitle, MenuId.MenubarAppearanceMenu].filter(menu => MenuRegistry.getMenuItems(menu)
+			.filter(isISubmenuItem)
+			.some(item => item.submenu === Menus.DetailsPosition && item.when?.evaluate(context) !== false));
 
-		assert.deepStrictEqual({
-			titleBar: visibleIn(AgentsWindowMenus.TitleBarContext, desktop),
-			panels: editors.map(editor => visibleIn(Menus.SessionsEditorTitle, { ...desktop, [ActiveEditorContext.key]: editor })),
-			fileWithDetails: visibleIn(Menus.SessionsEditorTitle, { ...fileEditor, [HasDockedDetailsContext.key]: true }),
-			fileWithoutDetails: visibleIn(Menus.SessionsEditorTitle, { ...fileEditor, [HasDockedDetailsContext.key]: false }),
-			chatWindowFile: visibleIn(Menus.SessionsEditorTitle, { ...fileEditor, [HasDockedDetailsContext.key]: true, [IsAuxiliaryWindowContext.key]: true }),
-			chatWindowChanges: visibleIn(Menus.SessionsEditorTitle, { ...desktop, [ActiveEditorContext.key]: SessionChangesEditorInput.EDITOR_ID, [IsAuxiliaryWindowContext.key]: true }),
-			appearance: editors.map(editor => visibleIn(MenuId.MenubarAppearanceMenu, { ...desktop, [ActiveEditorContext.key]: editor })),
-			phone: visibleIn(Menus.SessionsEditorTitle, { ...desktop, sessionsIsPhoneLayout: true, [ActiveEditorContext.key]: EmptyFileEditorInput.EDITOR_ID }),
-			nonDesktop: visibleIn(Menus.SessionsEditorTitle, { [ActiveEditorContext.key]: EmptyFileEditorInput.EDITOR_ID }),
-		}, {
-			titleBar: false,
-			panels: [true, true, false, false, false, false],
-			fileWithDetails: true,
-			fileWithoutDetails: false,
-			chatWindowFile: false,
-			chatWindowChanges: true,
-			appearance: [true, true, true, true, true, true],
-			phone: false,
-			nonDesktop: false,
-		});
+		assert.deepStrictEqual(menus.map(menu => menu.id), [MenuId.MenubarAppearanceMenu.id]);
 	});
 
 	test('offers floating alongside docked detail positions with only the active layout checked', async () => {

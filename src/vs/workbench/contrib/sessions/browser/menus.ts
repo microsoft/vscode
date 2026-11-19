@@ -86,10 +86,16 @@ export const Menus = {
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	DetailsPosition: new MenuId('SessionsDetailsPosition'),
 	/**
-	 * The Toggle Details split button of the editor title layout actions. Toggle Details is its
-	 * primary action, and its dropdown lists the entries of {@link DetailsPosition}.
+	 * The Toggle Details split button of the editor title layout actions for Changes, Files, and other tabs with docked
+	 * details. Toggle Details is its primary action, and its dropdown lists the entries of {@link DetailsPosition}.
 	 */
 	DetailsToggle: new MenuId('SessionsDetailsToggle'),
+	/**
+	 * The Toggle Details split button of the editor title layout actions for a multi diff editor with a changed files
+	 * list while the details are docked. Toggle Details, which shows or hides that list, is its primary action, and its
+	 * dropdown puts the list on the left or right of the diffs.
+	 */
+	MultiDiffFileListToggle: new MenuId('SessionsMultiDiffFileListToggle'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	EmptyChangesActions: new MenuId('SessionsEmptyChangesActions'),
