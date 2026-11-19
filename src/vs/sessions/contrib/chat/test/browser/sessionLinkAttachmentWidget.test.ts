@@ -33,7 +33,7 @@ suite('SessionLinkAttachmentWidget', () => {
 
 	const backendSession = URI.parse('copilotcli:/session-1');
 
-	function createWidget(sessions: readonly ISession[], link = URI.parse(buildOpenSessionLinkUri(backendSession))) {
+	function createWidget(sessions: readonly ISession[], link = URI.parse(buildOpenSessionLinkUri(backendSession)), supportsDeletion = true) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			getSessions: () => [...sessions],
@@ -67,7 +67,7 @@ suite('SessionLinkAttachmentWidget', () => {
 		}));
 
 		const attachment: IChatRequestSessionLinkVariableEntry = { kind: 'sessionLink', id: `sessionLink:${link}`, name: 'Session', value: link };
-		const widget = store.add(instantiationService.createInstance(SessionLinkAttachmentWidget, attachment, { shouldFocusClearButton: false, supportsDeletion: true }, document.createElement('div')));
+		const widget = store.add(instantiationService.createInstance(SessionLinkAttachmentWidget, attachment, { shouldFocusClearButton: false, supportsDeletion }, document.createElement('div')));
 		const icon = () => {
 			const current = [...widget.element.querySelector('.chat-session-link-attachment-icon')!.children].filter(child => !(child as HTMLElement).dataset.iconFadingOut).at(-1)!;
 			return current.classList.contains('monaco-pixel-spinner') ? 'spinner' : [...current.classList].find(className => className.startsWith('codicon-'));
@@ -158,6 +158,28 @@ suite('SessionLinkAttachmentWidget', () => {
 			opened: ['agent-host-session://copilotcli/session-1'],
 			menu: ['Open Session', '', 'Copy Link'],
 			copied: ['code-oss://agents/agent-host-session/copilotcli/session-1'],
+		});
+	});
+
+	test('opens a sent session link with Enter or Space without triggering the message', async () => {
+		const { widget, opened } = createWidget([], undefined, false);
+		let bubbled = 0;
+		widget.element.parentElement!.addEventListener('keydown', () => bubbled++);
+		widget.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		widget.element.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
+		await timeout(0);
+		assert.deepStrictEqual({
+			opened,
+			bubbled,
+			tabIndex: widget.element.tabIndex,
+			role: widget.element.role,
+			removable: !!widget.element.querySelector('.monaco-button'),
+		}, {
+			opened: ['agent-host-session://copilotcli/session-1', 'agent-host-session://copilotcli/session-1'],
+			bubbled: 0,
+			tabIndex: 0,
+			role: 'button',
+			removable: false,
 		});
 	});
 });

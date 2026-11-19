@@ -7,17 +7,22 @@ import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../../../editor/common/core/ranges/offsetRange.js';
+import { PositionOffsetTransformer } from '../../../../../../../editor/common/core/text/positionToOffset.js';
 import { ILinksList, LinkProvider } from '../../../../../../../editor/common/languages.js';
 import { Edge, ILinkComputerTarget, LinkComputer, State, StateMachine } from '../../../../../../../editor/common/languages/linkComputer.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
-import { localize2 } from '../../../../../../../nls.js';
+import { localize, localize2 } from '../../../../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, parseExternalOpenSessionLinkUri, parseOpenSessionLinkUri } from '../../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { getMarkdownCodeAndLinkRanges } from '../../../../common/attachments/chatInlineAttachments.js';
+import { IChatRequestSessionLinkVariableEntry, IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { chatInputSchemes } from '../../../../common/constants.js';
+import { ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest, IParsedChatRequestPart } from '../../../../common/requestParser/chatParserTypes.js';
 
 /** A link to an agent session in a chat input. */
 export interface IChatInputSessionLink {
@@ -90,6 +95,54 @@ function hasLineIncluding(model: ILinkComputerTarget, text: string): boolean {
 		}
 	}
 	return false;
+}
+
+/** Reconstructs presentation-only session references from a submitted request's text. */
+export function recoverSessionLinkMentions(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[], detector: ChatInputSessionLinkDetector): { message: IParsedChatRequest; variables: readonly IChatRequestVariableEntry[] } {
+	const lines = message.text.split(/\r?\n/);
+	const links = detector.detect({ getLineCount: () => lines.length, getLineContent: lineNumber => lines[lineNumber - 1] });
+	if (!links.length) {
+		return { message, variables };
+	}
+
+	const positions = new PositionOffsetTransformer(message.text);
+	const excludedRanges = getMarkdownCodeAndLinkRanges(message.text);
+	const matches = links.map(({ range, link }) => ({
+		range,
+		link,
+		offset: new OffsetRange(positions.getOffset(range.getStartPosition()), positions.getOffset(range.getEndPosition())),
+	})).filter(match => !excludedRanges.some(range => range.intersects(match.offset)));
+	const parts: IParsedChatRequestPart[] = [];
+	const added: IChatRequestSessionLinkVariableEntry[] = [];
+	const usedIds = new Set(variables.map(variable => variable.id));
+	for (const part of message.parts) {
+		if (!(part instanceof ChatRequestTextPart)) {
+			parts.push(part);
+			continue;
+		}
+		let copiedUntil = part.range.start;
+		for (const match of matches) {
+			const { start, endExclusive } = match.offset;
+			if (start < copiedUntil || endExclusive > part.range.endExclusive) {
+				continue;
+			}
+			if (start > copiedUntil) {
+				parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, start), Range.fromPositions(positions.getPosition(copiedUntil), positions.getPosition(start)), message.text.slice(copiedUntil, start)));
+			}
+			let id = `sessionLink:${start}`;
+			while (usedIds.has(id)) {
+				id += ':';
+			}
+			usedIds.add(id);
+			added.push({ kind: 'sessionLink', id, name: localize('chat.inlineAttachment.sessionLink', "Session"), value: match.link });
+			parts.push(new ChatRequestDynamicVariablePart(match.offset, match.range, message.text.slice(start, endExclusive), id, undefined, match.link, undefined, undefined, undefined, undefined, undefined, true));
+			copiedUntil = endExclusive;
+		}
+		if (copiedUntil < part.range.endExclusive) {
+			parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, part.range.endExclusive), Range.fromPositions(positions.getPosition(copiedUntil), positions.getPosition(part.range.endExclusive)), message.text.slice(copiedUntil, part.range.endExclusive)));
+		}
+	}
+	return added.length ? { message: { text: message.text, parts }, variables: [...variables, ...added] } : { message, variables };
 }
 
 export class ChatInputSessionLinkProvider extends Disposable implements LinkProvider {

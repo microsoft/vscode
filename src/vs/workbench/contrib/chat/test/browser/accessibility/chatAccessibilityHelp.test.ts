@@ -122,7 +122,8 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			withoutSending: help.includes('opened without sending your message'),
 			keyboard: help.includes('<keybinding:editor.action.openLink>'),
-		}, { withoutSending: true, keyboard: true });
+			sentMessage: help.includes('use Tab to focus the pill and Enter or Space to open it'),
+		}, { withoutSending: true, keyboard: true, sentMessage: true });
 	});
 
 	test('documents the shared picker and startup lock for Cloud drafts', () => {

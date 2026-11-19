@@ -2538,6 +2538,8 @@ suite('ChatListRenderer', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
+		const attachmentWidgetRegistry = new ChatAttachmentWidgetRegistry();
+		instantiationService.stub(IChatAttachmentWidgetRegistry, attachmentWidgetRegistry);
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, options.persistentProgress ?? ChatProgressAnimation.Draw);
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, options.progressVerbosity ?? ChatProgressVerbosity.Verbose);
@@ -2680,7 +2682,7 @@ suite('ChatListRenderer', () => {
 		};
 		const { renderer, template } = createRenderer(options.getWidget);
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
-		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node, createRenderer };
+		return { disposables, instantiationService, configurationService, attachmentWidgetRegistry, model, viewModel, request, response, container, renderer, template, node, createRenderer };
 	}
 
 	test('transcript notice precedes the first Agent Host response without duplicating on rerender or later turns', () => {
@@ -3407,6 +3409,37 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('inline request attachments', () => {
+		for (const [enabled, registered] of [[true, true], [false, true], [true, false]] as const) {
+			test(`renders session links only with inline attachments and a session widget (enabled=${enabled}, registered=${registered})`, () => {
+				const { disposables, configurationService, attachmentWidgetRegistry, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, enabled);
+				if (registered) {
+					disposables.add(attachmentWidgetRegistry.registerFactory('sessionLink', (attachment, _options, container) => {
+						const element = dom.append(container, dom.$('.chat-attached-context-attachment.test-session-link'));
+						element.textContent = attachment.name;
+						return { element, onDidDelete: Event.None, onDidOpen: Event.None, dispose: () => element.remove() };
+					}));
+				}
+				request.response?.complete();
+				const link = 'agent-host-session://ahp-session/fd85cb8e-8954-4f79-b66b-b66979b73ca8';
+				const text = `Review (${link}).`;
+				const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+				const sent = model.addRequest(message, { variables: [] }, 0);
+				renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
+				assert.deepStrictEqual({
+					pills: template.value.querySelectorAll('.rendered-markdown .test-session-link').length,
+					visibleText: template.value.querySelector('.rendered-markdown')?.textContent,
+					requestText: sent.message.text,
+					variables: sent.variableData.variables.length,
+				}, {
+					pills: enabled && registered ? 1 : 0,
+					visibleText: enabled && registered ? 'Review (Session).' : text,
+					requestText: text,
+					variables: 0,
+				});
+			});
+		}
+
 		for (const fontSize of [13, 18]) {
 			test(`aligns attachment pills and slash commands with the text of a request at chat font size ${fontSize}`, () => {
 				const { container, configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
@@ -3504,7 +3537,6 @@ suite('ChatListRenderer', () => {
 				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, inline);
 				configurationService.setUserConfiguration('chat.editRequests', 'inline');
 				instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None }));
-				instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());
 				const opened: string[] = [];
 				instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({
 					open: async resource => {

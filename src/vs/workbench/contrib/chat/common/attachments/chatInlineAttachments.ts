@@ -549,31 +549,75 @@ function getMarkdownLinkEnd(text: string, offset: number, endExclusive: number):
  * spans, in which a mention renders as its text rather than as a pill.
  */
 export function getMarkdownCodeRanges(text: string): OffsetRange[] {
+	return getMarkdownRanges(text, false);
+}
+
+/** Ranges in which a plain-text link must not be replaced by an inline pill. */
+export function getMarkdownCodeAndLinkRanges(text: string): OffsetRange[] {
+	return getMarkdownRanges(text, true);
+}
+
+function getMarkdownRanges(text: string, includeLinks: boolean): OffsetRange[] {
 	// The lexer normalizes line breaks, so its offsets are mapped back to those of the text.
 	const normalized = text.replace(/\r\n?/g, '\n');
 	const ranges: OffsetRange[] = [];
-	const visit = (tokens: readonly marked.Token[], within: OffsetRange) => {
+	const visit = (tokens: readonly marked.Token[], within: OffsetRange, excludeGaps = false) => {
 		let cursor = within.start;
+		const htmlContainers: { name: string; start: number }[] = [];
 		for (const token of tokens) {
 			const range = token.raw ? findTokenText(normalized, token.raw, new OffsetRange(cursor, within.endExclusive)) : undefined;
 			if (!range) {
 				continue;
 			}
+			if (excludeGaps && range.start > cursor) {
+				ranges.push(new OffsetRange(cursor, range.start));
+			}
 			cursor = range.endExclusive;
-			if (token.type === 'code' || token.type === 'codespan') {
+			if (includeLinks && token.type === 'html') {
+				const opening = /^<(?<name>a|code)(?=[\s>])/i.exec(token.raw);
+				const closing = /^<\/(?<name>a|code)\s*>/i.exec(token.raw);
+				if (opening?.groups) {
+					htmlContainers.push({ name: opening.groups.name.toLowerCase(), start: range.start });
+				} else if (closing?.groups) {
+					const name = closing.groups.name.toLowerCase();
+					const index = htmlContainers.findLastIndex(container => container.name === name);
+					if (index !== -1) {
+						const [container] = htmlContainers.splice(index, 1);
+						ranges.push(new OffsetRange(container.start, range.endExclusive));
+					}
+				}
+			}
+			if (token.type === 'code' || token.type === 'codespan' || (includeLinks && (token.type === 'link' || token.type === 'image' || token.type === 'html'))) {
 				ranges.push(range);
 				continue;
 			}
 			const children = (token as marked.Tokens.Generic).tokens;
 			if (Array.isArray(children)) {
-				visit(children, range);
+				visit(children, range, includeLinks);
 			}
 			if (token.type === 'list') {
-				visit((token as marked.Tokens.List).items, range);
+				visit((token as marked.Tokens.List).items, range, includeLinks);
+			}
+			if (token.type === 'table') {
+				const table = token as marked.Tokens.Table;
+				let cellCursor = range.start;
+				for (const cell of [...table.header, ...table.rows.flat()]) {
+					const cellRange = findTokenText(normalized, cell.text, new OffsetRange(cellCursor, range.endExclusive));
+					if (cellRange) {
+						visit(cell.tokens, cellRange);
+						cellCursor = cellRange.endExclusive;
+					}
+				}
 			}
 		}
+		if (excludeGaps && cursor < within.endExclusive) {
+			ranges.push(new OffsetRange(cursor, within.endExclusive));
+		}
+		for (const container of htmlContainers) {
+			ranges.push(new OffsetRange(container.start, within.endExclusive));
+		}
 	};
-	visit(marked.lexer(normalized), new OffsetRange(0, normalized.length));
+	visit(marked.lexer(normalized), new OffsetRange(0, normalized.length), includeLinks);
 	if (normalized.length === text.length) {
 		return ranges;
 	}
