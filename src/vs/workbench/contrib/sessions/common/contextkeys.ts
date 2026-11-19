@@ -187,6 +187,6 @@ export const DesktopDiffEditorInputActiveContext = new RawContextKey<boolean>('a
 
 //#region < --- Mobile Layout --- >
 
-export const IsPhoneLayoutContext = new RawContextKey<boolean>('sessionsIsPhoneLayout', false, localize('sessionsIsPhoneLayout', "Whether the current layout is the phone layout"));
+export { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 
 //#endregion

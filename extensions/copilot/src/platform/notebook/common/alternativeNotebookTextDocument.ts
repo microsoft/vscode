@@ -238,15 +238,6 @@ abstract class AbstractAlternativeNotebookDocument {
 		return cells;
 	}
 
-	public toAltOffset(cell: NotebookCell, position: Position): number | undefined {
-		const altCell = this.cells.find(c => c.altCell.cell === cell);
-		if (altCell) {
-			return altCell.altCell.toAltOffset(position);
-		} else {
-			return undefined;
-		}
-	}
-
 	public toAltOffsetRange(cell: NotebookCell, ranges: readonly Range[]): OffsetRange[] {
 		let offset = 0;
 		for (const { altCell } of this.cells) {
@@ -277,45 +268,6 @@ abstract class AbstractAlternativeNotebookDocument {
 			}
 		}
 		return [];
-	}
-}
-
-export interface IAlternativeNotebookDocumentSnapshot extends AbstractAlternativeNotebookDocument {
-	withNotebookChanges(events: readonly NotebookDocumentContentChange[]): AlternativeNotebookDocumentSnapshot;
-	withCellChanges(cellTextDoc: TextDocument, edit: readonly TextDocumentContentChangeEvent[]): AlternativeNotebookDocumentSnapshot;
-}
-
-class AlternativeNotebookDocumentSnapshot extends AbstractAlternativeNotebookDocument implements IAlternativeNotebookDocumentSnapshot {
-	public static create(notebook: NotebookDocument, excludeMarkdownCells: boolean): AlternativeNotebookDocumentSnapshot {
-		const blockComment = getBlockComment(notebook);
-		const lineCommentStart = getLineCommentStart(notebook);
-		const notebookCells = notebook.getCells().filter(cell => !excludeMarkdownCells || cell.kind !== NotebookCellKind.Markup);
-		const altCells = buildAlternativeCells(notebookCells, cell => AlternativeNotebookCellSnapshot.fromNotebookCell(cell, blockComment, lineCommentStart));
-
-		return new AlternativeNotebookDocumentSnapshot(notebook, excludeMarkdownCells, blockComment, lineCommentStart, altCells);
-	}
-	constructor(notebook: NotebookDocument,
-		excludeMarkdownCells: boolean,
-		blockComment: [string, string],
-		lineCommentStart: string,
-		altCells: readonly AltCellInfo[]) {
-		super(notebook, excludeMarkdownCells, blockComment, lineCommentStart, altCells);
-	}
-
-	public withNotebookChanges(events: readonly NotebookDocumentContentChange[]): AlternativeNotebookDocumentSnapshot {
-		const cells = withNotebookChangesAndEdit(this.cells, this.blockComment, this.lineCommentStart, events, this.excludeMarkdownCells)[0];
-		return new AlternativeNotebookDocumentSnapshot(this.notebook, this.excludeMarkdownCells, this.blockComment, this.lineCommentStart, cells);
-	}
-
-	public withCellChanges(cellTextDoc: TextDocument, edit: readonly TextDocumentContentChangeEvent[]): AlternativeNotebookDocumentSnapshot {
-		if (edit instanceof StringEdit ? edit.isEmpty() : edit.length === 0) {
-			return this;
-		}
-		const [altCells,] = withCellChangesAndEdit(this.cells, cellTextDoc, edit) || [undefined, undefined] as const;
-		if (!altCells) {
-			return this;
-		}
-		return new AlternativeNotebookDocumentSnapshot(this.notebook, this.excludeMarkdownCells, this.blockComment, this.lineCommentStart, altCells);
 	}
 }
 
@@ -428,15 +380,6 @@ function withNotebookChangesAndEdit(cells: readonly AltCellInfo[], blockComment:
  */
 export function createAlternativeNotebookDocument(notebook: NotebookDocument, excludeMarkdownCells: boolean = true): IAlternativeNotebookDocument {
 	return AlternativeNotebookDocument.create(notebook, excludeMarkdownCells);
-}
-
-/**
- * Represents the Notebook as an alternative text (Jupytext like) document that is immutable.
- * Not to be used when dealing with agents for editing or reading notebooks.
- * Use only with NES or other exceptional cases.
- */
-export function createAlternativeNotebookDocumentSnapshot(notebook: NotebookDocument, excludeMarkdownCells: boolean = true): IAlternativeNotebookDocumentSnapshot {
-	return AlternativeNotebookDocumentSnapshot.create(notebook, excludeMarkdownCells);
 }
 
 export function toAltNotebookCellChangeEdit(notebook: AbstractAlternativeNotebookDocument, cellTextDocument: TextDocument, events: readonly TextDocumentContentChangeEvent[]): StringEdit {
