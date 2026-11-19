@@ -78,11 +78,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			restoreGrouping: content.includes('restore your previous grouping, remembered across reloads'),
 			screenReaderDefault: content.includes('auto, keeps you in the current conversation when a screen reader is attached'),
 			explicitChoices: content.includes('Set it to off to always stay, or on to always advance'),
-			settingsLink: content.includes('Settings link and Show Session button'),
-			persistentNotification: content.includes('notification stays visible until you dismiss it or choose Show Session'),
+			automaticSpotlight: content.includes('When onboarding is enabled, the first automatic move spotlights the session you replied to in Working'),
+			noNotification: content.includes('in Working instead of showing a notification'),
 			returnAction: content.includes('Choose Return to Session'),
 			dismiss: content.includes('press Escape or Got It to dismiss the spotlight'),
-		}, { toggle: true, toggleKeyboard: true, restoreGrouping: true, screenReaderDefault: true, explicitChoices: true, settingsLink: true, persistentNotification: true, returnAction: true, dismiss: true });
+			settingsLink: content.includes('The Change auto-advance link in the spotlight opens this setting.'),
+		}, { toggle: true, toggleKeyboard: true, restoreGrouping: true, screenReaderDefault: true, explicitChoices: true, automaticSpotlight: true, noNotification: true, returnAction: true, dismiss: true, settingsLink: true });
 	});
 
 	test('documents side chats in the side panel, and leaves them out of the archive help, while side chats show there', () => {
