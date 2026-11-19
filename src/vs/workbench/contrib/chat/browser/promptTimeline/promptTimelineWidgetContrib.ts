@@ -13,7 +13,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib, ChatWidget } from '../widget/chatWidget.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
-import { MIN_RAIL_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
+import { MIN_RAIL_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_ENABLED_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { PromptTimelineModel } from './promptTimelineModel.js';
 import { PromptTimelineGutterRail } from './promptTimelineGutterRail.js';
 import { IPromptTimelineRail } from './promptTimelineRail.js';
@@ -54,10 +54,24 @@ export function isStickyPromptHeaderShown(widget: IChatWidget, configurationServ
 }
 
 /**
+ * Which rail a widget shows. The Agents window offers every style through `sessions.chatTimeline.display`.
+ * Elsewhere only the gutter is offered, through `chat.promptTimeline.enabled`: the ruler's content
+ * reservation is built for the Agents window's centered session view.
+ */
+export function getPromptTimelineRailStyle(widget: IChatWidget, configurationService: IConfigurationService, isSessionsWindow: boolean): PromptTimelineRailStyle {
+	if (!supportsPromptTimeline(widget)) {
+		return 'off';
+	}
+	if (isSessionsWindow) {
+		return configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_DISPLAY_SETTING);
+	}
+	return configurationService.getValue<boolean>(PROMPT_TIMELINE_ENABLED_SETTING) === true ? 'gutter' : 'off';
+}
+
+/**
  * Per-widget contribution that overlays the prompt timeline on the chat transcript. It shows the sticky
- * header (`chat.stickyScroll.enabled`, both windows) and/or the rail
- * (`sessions.chatTimeline.display`, Agents window only), and is torn down and re-created when a relevant
- * setting changes.
+ * header (`chat.stickyScroll.enabled`, both windows) and/or the rail (see {@link getPromptTimelineRailStyle}),
+ * and is torn down and re-created when a relevant setting changes.
  */
 export class PromptTimelineWidgetContrib extends Disposable implements IChatWidgetContrib {
 
@@ -81,6 +95,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(PROMPT_TIMELINE_DISPLAY_SETTING)
+				|| e.affectsConfiguration(PROMPT_TIMELINE_ENABLED_SETTING)
 				|| e.affectsConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING)
 				|| e.affectsConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled)) {
 				this._update();
@@ -92,11 +107,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	/** (Re)builds the timeline to match the current settings, or tears it down if no surface is enabled. */
 	private _update(): void {
 		this._enablement.clear();
-		// The rail's layout (and the content reservation it needs) is built for the Agents window's
-		// centered session view, so it stays there; the sticky header works in either window.
-		const railStyle = this.environmentService.isSessionsWindow
-			? this.configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_DISPLAY_SETTING)
-			: 'off';
+		const railStyle = getPromptTimelineRailStyle(this.widget, this.configurationService, this.environmentService.isSessionsWindow);
 		const stickyEnabled = isStickyPromptHeaderShown(this.widget, this.configurationService);
 		if (railStyle !== 'off' || stickyEnabled) {
 			this._createFeature(railStyle, stickyEnabled);
@@ -116,7 +127,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		// The host class provides the positioning context and layout variables both surfaces anchor to.
 		const host = this.widget.domNode;
 		host.classList.add('prompt-timeline-host');
-		this._enablement.add(toDisposable(() => host.classList.remove('prompt-timeline-host', 'prompt-timeline-with-rail')));
+		this._enablement.add(toDisposable(() => host.classList.remove('prompt-timeline-host', 'prompt-timeline-with-rail', 'prompt-timeline-with-gutter')));
 
 		if (railStyle !== 'off') {
 			this._createRail(model, host, railStyle);
@@ -131,10 +142,13 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			railStyle === 'gutter' ? new PromptTimelineGutterRail() : new PromptTimelineRulerRail()
 		);
 		this._enablement.add(observePromptTimelineHostWidth(this.widget as ChatWidget, host, rail));
-		// The ruler reserves room beside the transcript's right scrollbar; the gutter rail lives in the
-		// existing left gutter and needs no reservation, so only the ruler marks the host.
+		// The ruler reserves room beside the transcript's right scrollbar. The gutter rail lives in the
+		// left gutter, which the Agents window's centered rows already leave room for; elsewhere the host
+		// is marked so the transcript widens that gutter.
 		if (railStyle === 'ruler') {
 			host.classList.add('prompt-timeline-with-rail');
+		} else if (!this.environmentService.isSessionsWindow) {
+			host.classList.add('prompt-timeline-with-gutter');
 		}
 		host.appendChild(rail.domNode);
 		this._enablement.add(toDisposable(() => rail.domNode.remove()));

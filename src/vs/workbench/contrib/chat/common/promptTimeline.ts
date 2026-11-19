@@ -9,6 +9,12 @@ export const PROMPT_TIMELINE_CONTRIB_ID = 'chat.promptTimeline';
 /** Setting that controls how the prompt timeline is displayed next to the chat transcript. Agents window only. */
 export const PROMPT_TIMELINE_DISPLAY_SETTING = 'sessions.chatTimeline.display';
 
+/**
+ * Setting that controls whether the prompt timeline's gutter handle is shown next to the chat transcript
+ * outside the Agents window, which uses {@link PROMPT_TIMELINE_DISPLAY_SETTING} instead.
+ */
+export const PROMPT_TIMELINE_ENABLED_SETTING = 'chat.promptTimeline.enabled';
+
 /** Setting that controls whether sticky scroll pins the current prompt while scrolling. */
 export const PROMPT_TIMELINE_STICKY_SCROLL_SETTING = 'chat.stickyScroll.enabled';
 

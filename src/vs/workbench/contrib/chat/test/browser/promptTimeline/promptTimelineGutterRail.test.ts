@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getWindow } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, getWindow } from '../../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PromptTimelineGutterRail, restDotCount } from '../../../browser/promptTimeline/promptTimelineGutterRail.js';
@@ -181,6 +181,24 @@ suite('PromptTimelineGutterRail', () => {
 			path: ['0:jump', '0:diff', '1:jump', '2:jump', '2:diff', '2:jump', '0:jump', '2:jump'],
 			tabbable: 1,
 		});
+	});
+
+	test('activates the focused row target with Enter without letting chat keybindings see it', () => {
+		const rail = createRail([tick(0), tick(1, { added: 1, removed: 0, fileCount: 1 })]);
+		const rows = rowParts(rail);
+		const selected: string[] = [];
+		const reviewed: string[] = [];
+		const escaped: string[] = [];
+		store.add(rail.onDidSelect(id => selected.push(id)));
+		store.add(rail.onDidReview(t => reviewed.push(t.requestId)));
+		store.add(addDisposableListener(document.body, 'keydown', e => escaped.push(e.key)));
+
+		rows[0].jump.focus();
+		keydown(rows[0].jump, 'Enter', 13);
+		rows[1].diff.focus();
+		keydown(rows[1].diff, 'Enter', 13);
+
+		assert.deepStrictEqual({ selected, reviewed, escaped }, { selected: ['0'], reviewed: ['1'], escaped: [] });
 	});
 
 	test('keeps focus in the flyout when a streaming update removes the focused review target', () => {

@@ -7,9 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatWidget } from '../../../browser/chat.js';
-import { isStickyPromptHeaderShown } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
+import { getPromptTimelineRailStyle, isStickyPromptHeaderShown } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
-import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
+import { PromptTimelineRailStyle, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_ENABLED_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
 
 suite('PromptTimeline visibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -45,6 +45,30 @@ suite('PromptTimeline visibility', () => {
 			experimentalTreeStickyScroll: false,
 			inputOnTop: false,
 			otherLocation: false,
+		});
+	});
+
+	test('rail style: the Agents window uses the display setting, other windows only offer the gutter', () => {
+		const transcript = widget(ChatAgentLocation.Chat, false);
+		const config = (display: PromptTimelineRailStyle, enabled: boolean) => new TestConfigurationService({
+			[PROMPT_TIMELINE_DISPLAY_SETTING]: display,
+			[PROMPT_TIMELINE_ENABLED_SETTING]: enabled,
+		});
+
+		assert.deepStrictEqual({
+			sessionsRuler: getPromptTimelineRailStyle(transcript, config('ruler', false), true),
+			sessionsOff: getPromptTimelineRailStyle(transcript, config('off', true), true),
+			editorEnabled: getPromptTimelineRailStyle(transcript, config('ruler', true), false),
+			editorDisabled: getPromptTimelineRailStyle(transcript, config('gutter', false), false),
+			inputOnTop: getPromptTimelineRailStyle(widget(ChatAgentLocation.Chat, true), config('gutter', true), false),
+			otherLocation: getPromptTimelineRailStyle(widget(ChatAgentLocation.EditorInline, false), config('gutter', true), true),
+		}, {
+			sessionsRuler: 'ruler',
+			sessionsOff: 'off',
+			editorEnabled: 'gutter',
+			editorDisabled: 'off',
+			inputOnTop: 'off',
+			otherLocation: 'off',
 		});
 	});
 });
