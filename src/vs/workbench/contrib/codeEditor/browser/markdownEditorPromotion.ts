@@ -5,22 +5,28 @@
 
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
+import { autorun, derived, derivedOpts, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { isObject } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IBreadcrumbsService } from '../../../browser/parts/editor/breadcrumbs.js';
 import { REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { getAvailableEditorTypes } from '../../../browser/parts/editor/editorTypePicker.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorPartModalVisibleContext } from '../../../common/contextkeys.js';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { editorsAssociationsSettingId, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { editorsAssociationsSettingId, hiddenEditorTypesSettingId, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { isVisibleOnboardingTarget, registerOnboardingTargetProvider } from '../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -37,6 +43,9 @@ const MARKDOWN_SIDE_PREVIEW_VIEW_TYPE = 'mainThreadWebview-markdown.preview';
 const NUDGE_TARGET_ID = 'markdownEditor.nudge.editorTypeDropdown';
 /** Both nudges count as the same onboarding: a user sees at most one of them. */
 const NUDGE_SEEN_KEY = 'markdownEditor.nudge';
+
+/** Set while a shown nudge no longer matches the editors it is about, which ends it. */
+const NudgeOutdatedContext = new RawContextKey<boolean>('markdownEditorNudgeOutdated', false);
 
 const USED_MARKDOWN_EDITOR_STORAGE_KEY = 'markdownEditorPromotion.usedMarkdownEditor';
 
@@ -64,8 +73,6 @@ const STARTUP_GRACE_MS = 60_000;
 interface IEditorActivation {
 	readonly editor: EditorInput;
 	readonly afterStartupGrace: boolean;
-	/** Whether the user changed the file's text since. */
-	readonly edited: boolean;
 }
 
 /**
@@ -77,7 +84,8 @@ interface IMarkdownEditorNudge {
 	/** The group whose editor type dropdown is highlighted and whose editor is reopened in the Markdown Editor. */
 	readonly group: IEditorGroup;
 	readonly editor: EditorInput;
-	/** A preview opened to the side of {@link editor}; it is closed when the user tries the Markdown Editor. */
+	readonly resource: URI;
+	/** A preview of {@link resource} to the side of {@link editor}; it is closed when the user tries the Markdown Editor. */
 	readonly sidePreview?: { readonly group: IEditorGroup; readonly editor: EditorInput };
 }
 
@@ -85,8 +93,22 @@ function isSameNudge(a: IMarkdownEditorNudge | undefined, b: IMarkdownEditorNudg
 	return a === b || (!!a && !!b && a.kind === b.kind && a.group === b.group && a.editor === b.editor && a.sidePreview?.editor === b.sidePreview?.editor);
 }
 
-function isSidePreview(editor: EditorInput | undefined): boolean {
+function isSidePreview(editor: EditorInput | null | undefined): editor is WebviewInput {
 	return editor instanceof WebviewInput && editor.viewType === MARKDOWN_SIDE_PREVIEW_VIEW_TYPE;
+}
+
+/**
+ * The document a side preview shows. The Markdown preview keeps it in its webview state, which it
+ * updates whenever it follows another document.
+ */
+function sidePreviewResource(preview: WebviewInput): URI | undefined {
+	try {
+		const state: unknown = JSON.parse(preview.webview.state ?? 'null');
+		const resource = isObject(state) ? (state as { readonly resource?: unknown }).resource : undefined;
+		return typeof resource === 'string' ? URI.parse(resource) : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 /**
@@ -94,13 +116,13 @@ function isSidePreview(editor: EditorInput | undefined): boolean {
  * dropdown in the breadcrumbs, which is also where they switch back:
  * - when they work on a Markdown file in the text editor, and
  * - when they open a Markdown preview, either in place (the dropdown shows "Markdown Preview") or to
- *   the side (the dropdown of the source text editor is highlighted, and trying the Markdown Editor
- *   replaces both).
+ *   the side (the dropdown of the text editor of the previewed file is highlighted, and trying the
+ *   Markdown Editor replaces both).
  *
  * "Try Editor" reopens the file in the Markdown Editor without changing the default editor. A nudge
  * shows right when the user opens or switches to the file or preview, never for editors restored at
- * startup or while the user edits. The onboarding engine shows at most one of the nudges, once, and
- * only for users whose experiment arm enables that nudge.
+ * startup or for files edited since they were opened. The onboarding engine shows at most one of the
+ * nudges, once, and only for users whose experiment arm enables that nudge.
  */
 export class MarkdownEditorPromotion extends Disposable {
 	static readonly ID = 'workbench.contrib.markdownEditorPromotion';
@@ -114,6 +136,7 @@ export class MarkdownEditorPromotion extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -133,22 +156,29 @@ export class MarkdownEditorPromotion extends Disposable {
 			return isOnboardingDeveloperModeEnabled(configurationService, NUDGE_SCENARIO_IDS[kind]);
 		};
 
-		// Only nudge when the user opens or switches to an editor, never for editors restored at
-		// startup, and not while they edit the file.
+		// Only nudge when the user opens or switches to an editor, never for editors restored at startup.
 		const startTime = Date.now();
 		const activation = observableValue<IEditorActivation | undefined>(this, undefined);
-		const activationEditListener = this._register(new MutableDisposable());
 		this._register(editorService.onDidActiveEditorChange(() => {
 			const editor = editorService.activeEditor;
-			activationEditListener.clear();
-			activation.set(editor ? { editor, afterStartupGrace: Date.now() - startTime >= STARTUP_GRACE_MS, edited: false } : undefined, undefined);
-			const resource = EditorResourceAccessor.getOriginalUri(editor);
-			const model = resource && modelService.getModel(resource);
-			if (editor && model) {
-				activationEditListener.value = Event.once(model.onDidChangeContent)(() => {
-					activation.set({ ...activation.get()!, edited: true }, undefined);
-				});
+			activation.set(editor ? { editor, afterStartupGrace: Date.now() - startTime >= STARTUP_GRACE_MS } : undefined, undefined);
+		}));
+
+		// Documents changed since they were opened. Reloading from disk is not an edit.
+		const editedResources = new ResourceSet();
+		const editedResourcesChanged = observableSignal(this);
+		const modelListeners = this._register(new DisposableMap<ITextModel>());
+		const watchModel = (model: ITextModel) => modelListeners.set(model, model.onDidChangeContent(e => {
+			if (!e.isFlush && !editedResources.has(model.uri)) {
+				editedResources.add(model.uri);
+				editedResourcesChanged.trigger(undefined);
 			}
+		}));
+		modelService.getModels().forEach(watchModel);
+		this._register(modelService.onModelAdded(watchModel));
+		this._register(modelService.onModelRemoved(model => {
+			modelListeners.deleteAndDispose(model);
+			editedResources.delete(model.uri);
 		}));
 
 		const layoutChanged = observableSignalFromEvent(this, Event.any<unknown>(
@@ -157,74 +187,114 @@ export class MarkdownEditorPromotion extends Disposable {
 			editorGroupsService.onDidChangeActiveGroup,
 			breadcrumbsService.onDidChangeEditorTypeControl,
 			editorResolverService.onDidChangeEditorRegistrations,
-			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(editorsAssociationsSettingId)),
+			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(editorsAssociationsSettingId) || e.affectsConfiguration(hiddenEditorTypesSettingId)),
 		));
+
+		// Side previews report the document they show through their webview state.
+		const sidePreviewStateChanged = observableSignal(this);
+		this._register(autorun(reader => {
+			layoutChanged.read(reader);
+			for (const group of editorGroupsService.groups) {
+				if (isSidePreview(group.activeEditor)) {
+					reader.store.add(group.activeEditor.webview.onDidUpdateState(() => sidePreviewStateChanged.trigger(undefined)));
+				}
+			}
+		}));
 
 		const editorTypeControl = (group: IEditorGroup) => {
 			const control = breadcrumbsService.getEditorTypeControl(group.id);
 			return control && control.element.ownerDocument === mainWindow.document ? control : undefined;
 		};
 
-		/** The ID of the editor type `group` shows its Markdown file with, if the Markdown Editor could open it instead. */
-		const promotableEditorTypeOf = (group: IEditorGroup): string | undefined => {
+		/**
+		 * The editor type `group` shows its Markdown file with, if the Markdown Editor could open it
+		 * instead and the group's dropdown offers it.
+		 */
+		const promotableEditorTypeOf = (group: IEditorGroup): { readonly editorType: string; readonly resource: URI } | undefined => {
 			const editor = group.activeEditor;
 			if (!editor || !editorTypeControl(group)) {
 				return undefined;
 			}
-			const available = getAvailableEditorTypes(editor, editorResolverService, modelService);
+			const available = getAvailableEditorTypes(editor, editorResolverService, modelService, configurationService.getValue<readonly string[]>(hiddenEditorTypesSettingId));
 			const isPromotable = available
 				&& !available.isDiffEditor
 				&& available.editors.some(e => e.id === MARKDOWN_EDITOR_ID)
 				&& available.editorMatches.defaultRule.editor.id !== MARKDOWN_EDITOR_ID
 				// The Markdown Editor also opens `*.txt` files; only promote it for Markdown.
 				&& modelService.getModel(available.resource)?.getLanguageId() === 'markdown';
-			return isPromotable ? available.currentId : undefined;
+			return isPromotable ? { editorType: available.currentId, resource: available.resource } : undefined;
+		};
+
+		const textEditorOf = (resource: URI, exclude: IEditorGroup) => editorGroupsService.groups.find(group => {
+			const promotable = group !== exclude ? promotableEditorTypeOf(group) : undefined;
+			return promotable?.editorType === DEFAULT_EDITOR_ASSOCIATION.id && isEqual(promotable.resource, resource);
+		});
+		const sidePreviewOf = (resource: URI, exclude: IEditorGroup) => {
+			const group = editorGroupsService.groups.find(group => group !== exclude && isSidePreview(group.activeEditor) && isEqual(sidePreviewResource(group.activeEditor), resource));
+			return group?.activeEditor ? { group, editor: group.activeEditor } : undefined;
 		};
 
 		/** The Markdown file the user looks at, as text or as a preview, if the Markdown Editor could open it instead. */
 		const findNudge = (): IMarkdownEditorNudge | undefined => {
-			const [activeGroup, ...otherGroups] = editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-			const sidePreviewGroup = [activeGroup, ...otherGroups].find(group => isSidePreview(group?.activeEditor ?? undefined));
-			const sidePreview = sidePreviewGroup?.activeEditor ? { group: sidePreviewGroup, editor: sidePreviewGroup.activeEditor } : undefined;
-
-			// The side preview has no breadcrumbs: highlight the dropdown of its source, the most
-			// recently active Markdown text editor next to it.
-			const sourceGroup = sidePreviewGroup === activeGroup ? otherGroups.find(group => promotableEditorTypeOf(group) === DEFAULT_EDITOR_ASSOCIATION.id) : activeGroup;
-			const editorType = sourceGroup && promotableEditorTypeOf(sourceGroup);
-			if (!sourceGroup?.activeEditor || !editorType) {
+			const activeGroup = editorGroupsService.activeGroup;
+			const active = activeGroup.activeEditor;
+			if (isSidePreview(active)) {
+				// The side preview has no breadcrumbs: highlight the dropdown of the text editor of
+				// the document it shows.
+				const resource = sidePreviewResource(active);
+				const sourceGroup = resource && textEditorOf(resource, activeGroup);
+				return sourceGroup?.activeEditor && resource
+					? { kind: 'preview', group: sourceGroup, editor: sourceGroup.activeEditor, resource, sidePreview: { group: activeGroup, editor: active } }
+					: undefined;
+			}
+			const promotable = promotableEditorTypeOf(activeGroup);
+			if (!active || !promotable) {
 				return undefined;
 			}
-			if (editorType === MARKDOWN_PREVIEW_EDITOR_ID) {
-				return { kind: 'preview', group: sourceGroup, editor: sourceGroup.activeEditor };
+			if (promotable.editorType === MARKDOWN_PREVIEW_EDITOR_ID) {
+				return { kind: 'preview', group: activeGroup, editor: active, resource: promotable.resource };
 			}
-			if (editorType !== DEFAULT_EDITOR_ASSOCIATION.id) {
+			if (promotable.editorType !== DEFAULT_EDITOR_ASSOCIATION.id) {
 				return undefined;
 			}
-			return sidePreview
-				? { kind: 'preview', group: sourceGroup, editor: sourceGroup.activeEditor, sidePreview }
-				: { kind: 'textEditor', group: sourceGroup, editor: sourceGroup.activeEditor };
+			const sidePreview = sidePreviewOf(promotable.resource, activeGroup);
+			return { kind: sidePreview ? 'preview' : 'textEditor', group: activeGroup, editor: active, resource: promotable.resource, sidePreview };
 		};
 
 		const nudge = derivedOpts<IMarkdownEditorNudge | undefined>({ owner: this, equalsFn: isSameNudge }, reader => {
 			layoutChanged.read(reader);
+			sidePreviewStateChanged.read(reader);
+			editedResourcesChanged.read(reader);
 			const active = activeEditor.read(reader);
 			const currentActivation = activation.read(reader);
-			if (!active || currentActivation?.editor !== active || currentActivation.edited) {
+			if (!active || currentActivation?.editor !== active) {
 				return undefined;
 			}
 			const candidate = findNudge();
-			if (!candidate) {
+			if (!candidate || editedResources.has(candidate.resource)) {
 				return undefined;
 			}
-			const developerMode = isDeveloperMode(candidate.kind, reader);
-			if (!developerMode && (usedMarkdownEditor.read(reader) || !currentActivation.afterStartupGrace)) {
+			if (!isDeveloperMode(candidate.kind, reader) && (usedMarkdownEditor.read(reader) || !currentActivation.afterStartupGrace)) {
 				return undefined;
 			}
 			return candidate;
 		});
 
+		// A shown nudge is bound to the editors it was shown for. It ends when they change.
+		const shownNudge = observableValue<IMarkdownEditorNudge | undefined>(this, undefined);
+		const nudgeOutdated = NudgeOutdatedContext.bindTo(contextKeyService);
+		this._register(autorun(reader => {
+			layoutChanged.read(reader);
+			const shown = shownNudge.read(reader);
+			const isCurrent = !shown || (
+				shown.group.activeEditor === shown.editor
+				&& (!shown.sidePreview || shown.sidePreview.group.activeEditor === shown.sidePreview.editor)
+			);
+			nudgeOutdated.set(!isCurrent);
+		}));
+
 		this._register(registerOnboardingTargetProvider(NUDGE_TARGET_ID, scope => {
-			const group = scope === undefined ? nudge.get()?.group : undefined;
+			const group = scope === undefined ? shownNudge.get()?.group : undefined;
 			const control = group && editorTypeControl(group);
 			return control && isVisibleOnboardingTarget(mainWindow, control.element)
 				? { element: control.element, onDidActivate: control.onDidOpen }
@@ -232,16 +302,16 @@ export class MarkdownEditorPromotion extends Disposable {
 		}));
 
 		const tryMarkdownEditor = async () => {
-			const current = nudge.get();
-			if (!current) {
+			const shown = shownNudge.get();
+			if (!shown || nudgeOutdated.get()) {
 				return;
 			}
-			if (current.sidePreview) {
-				await current.sidePreview.group.closeEditor(current.sidePreview.editor);
+			if (shown.sidePreview) {
+				await shown.sidePreview.group.closeEditor(shown.sidePreview.editor);
 			}
 			await commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, MARKDOWN_EDITOR_ID, {
-				groupId: current.group.id,
-				editorIndex: current.group.getIndexOfEditor(current.editor),
+				groupId: shown.group.id,
+				editorIndex: shown.group.getIndexOfEditor(shown.editor),
 			});
 		};
 
@@ -250,6 +320,7 @@ export class MarkdownEditorPromotion extends Disposable {
 			targetId: NUDGE_TARGET_ID,
 			title,
 			description,
+			onBeforeShow: () => shownNudge.set(nudge.get(), undefined),
 			primaryAction: {
 				label: localize('markdownEditorNudge.tryEditor', "Try Editor"),
 				advance: true,
@@ -259,6 +330,7 @@ export class MarkdownEditorPromotion extends Disposable {
 			placement: 'below',
 			allowTargetInteraction: true,
 			advanceOnTargetClick: true,
+			advanceWhen: NudgeOutdatedContext.isEqualTo(true),
 			missingTarget: { kind: 'wait', timeoutMs: 1000 },
 		});
 

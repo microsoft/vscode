@@ -370,7 +370,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		if (document.uri.scheme === 'untitled' || document.getText().length === 0) {
 			return false;
 		}
-		const initialMode = vscode.workspace.getConfiguration('markdown.editor').get<'read' | 'edit'>('experimental.initialMode', 'read');
+		const initialMode = vscode.workspace.getConfiguration('markdown.editor').get<'read' | 'edit'>('initialMode', 'read');
 		return this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, initialMode !== 'edit');
 	}
 

@@ -1611,18 +1611,18 @@
             "description": "%configuration.markdown.editor.highlightActiveBlock%",
             "scope": "resource"
           },
-          "markdown.editor.experimental.initialMode": {
+          "markdown.editor.initialMode": {
             "type": "string",
             "enum": [
               "read",
               "edit"
             ],
             "enumDescriptions": [
-              "%configuration.markdown.editor.experimental.initialMode.read%",
-              "%configuration.markdown.editor.experimental.initialMode.edit%"
+              "%configuration.markdown.editor.initialMode.read%",
+              "%configuration.markdown.editor.initialMode.edit%"
             ],
             "default": "read",
-            "markdownDescription": "%configuration.markdown.editor.experimental.initialMode%",
+            "markdownDescription": "%configuration.markdown.editor.initialMode%",
             "scope": "window",
             "tags": [
               "experimental",
