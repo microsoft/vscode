@@ -1839,7 +1839,7 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsMoreActions, {
 MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsMoreActions, {
 	command: { ...AutomationCommands.showSharedByOthers, precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext) },
 	group: '1_state',
-	order: 1,
+	order: 2,
 	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.equals(`config.${CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING}`, true), AutomationsHasOthersContext),
 });
 
