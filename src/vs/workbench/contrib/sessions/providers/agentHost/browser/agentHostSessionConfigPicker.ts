@@ -15,7 +15,7 @@ import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDel
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
-import { Delayer, raceCancellationError, SequencerByKey } from '../../../../../../base/common/async.js';
+import { Delayer, raceCancellationError, SequencerByKey, timeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
@@ -1444,6 +1444,16 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			? provider.getSessionConfigCompletions(sessionId, property)
 			: undefined;
 		let branchCompletions: readonly SessionConfigValueItem[] | undefined;
+		let branchCompletionError: Error | undefined;
+		const trackedBranchCompletionsPromise = branchCompletionsPromise?.then(
+			completions => { branchCompletions = completions; },
+			error => { branchCompletionError = error instanceof Error ? error : new Error(String(error)); },
+		);
+		if (trackedBranchCompletionsPromise) {
+			// Fast local requests keep the existing open-with-items behavior. A request
+			// still pending after this turn opens with a loading row and updates in place.
+			await timeout(0);
+		}
 		let pickerItems: readonly IConfigPickerItem[] = [];
 		const isolationRecommendation = presentation === SessionConfigKey.Isolation ? this._isolationPresentation?.getRecommendation(sessionId) : undefined;
 		const isolationKey = config && getSessionWorkspaceProperties(config.schema).isolation?.key;
@@ -1471,7 +1481,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			}, getOrganizationDefaultApprovalLevel(this._configurationService)), completions);
 			return isolationRecommendation?.appendItems(optionItems) ?? optionItems;
 		};
-		let actionItems = branchCompletionsPromise
+		let actionItems = branchCompletionError
+			? [{
+				kind: ActionListItemKind.Action,
+				label: localize('agentHostSessionConfig.branchLoadFailed', "Unable to load branches"),
+				group: { title: '', icon: Codicon.warning },
+				disabled: true,
+				item: { id: 'branch-load-failed', value: '', label: localize('agentHostSessionConfig.branchLoadFailedItem', "Unable to load branches"), disabled: true },
+			}]
+			: branchCompletionsPromise && branchCompletions === undefined
 			? [{
 				kind: ActionListItemKind.Action,
 				label: localize('agentHostSessionConfig.branchLoading', "Loading branches..."),
@@ -1482,6 +1500,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			: await buildActionItems();
 		if (actionItems.length === 0) {
 			return;
+		}
+		if (branchCompletionError) {
+			this._notificationService.error(branchCompletionError);
 		}
 		const filterItems = async (query: string) => {
 			if (!this._isCurrentSession(provider, sessionId)) {
@@ -1555,7 +1576,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		trigger.setAttribute('aria-expanded', 'true');
 		repositoryConfigContainer?.setAttribute(PICKER_OPEN_ATTRIBUTE, 'true');
 		// Count the branches rather than the items, which add the default branch's remote only for worktrees.
-		const showFilter = !!branchCompletionsPromise || (pickerItems.length > 10);
+		const showFilter = (branchCompletionsPromise && branchCompletions === undefined) || (pickerItems.length > 10);
 		this._actionWidgetService.show<IConfigPickerItem>(
 			`agentHostSessionConfig.${property}`,
 			false,
@@ -1597,7 +1618,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			}
 		};
 		focusLoadedItem(actionItems);
-		if (branchCompletionsPromise) {
+		if (branchCompletionsPromise && branchCompletions === undefined && !branchCompletionError) {
 			const showBranchLoadError = (error: Error) => {
 				if (pickerOpenSequence === this._pickerOpenSequence && this._openedPickerSessionId === sessionId) {
 					this._notificationService.error(error);
@@ -1610,11 +1631,14 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					}]);
 				}
 			};
-			void branchCompletionsPromise.then(async completions => {
+			void trackedBranchCompletionsPromise!.then(async () => {
 				if (pickerOpenSequence !== this._pickerOpenSequence || this._openedPickerSessionId !== sessionId) {
 					return;
 				}
-				branchCompletions = completions;
+				if (branchCompletionError) {
+					showBranchLoadError(branchCompletionError);
+					return;
+				}
 				actionItems = await buildActionItems();
 				if (pickerOpenSequence !== this._pickerOpenSequence || this._openedPickerSessionId !== sessionId) {
 					return;

@@ -2723,11 +2723,11 @@ suite('Agent Host Session Config Picker', () => {
 
 		assert.deepStrictEqual({
 			completionQueries: services.provider.completionQueries,
-			hides: services.actionWidget.events.filter(event => event === 'hide').length,
+			opened: !!services.actionWidget.delegate,
 			updates: services.actionWidget.events.filter(event => event === 'updateItems').length,
 		}, {
 			completionQueries: [undefined],
-			hides: 1,
+			opened: false,
 			updates: 0,
 		});
 	});
