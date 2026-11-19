@@ -19,8 +19,7 @@ import { hashAsync } from '../../../../base/common/hash.js';
 const MetaModulesToLookFor = [
 	// Azure packages
 	'@azure',
-	'@azure/',
-	'@azure-rest/',
+	'@azure-rest',
 	'@azure/ai',
 	'@azure/arm',
 	'@azure/cognitiveservices',
@@ -189,18 +188,19 @@ const ModulesToLookFor = [
 	'@azure/synapse-artifacts',
 	'@azure/synapse-access-control',
 	'@azure/ai-agents',
+	'@azure/ai-content-safety',
 	'@azure/ai-content-understanding',
+	'@azure/ai-discovery',
 	'@azure/ai-metrics-advisor',
 	'@azure/ai-projects',
 	'@azure/ai-speech-transcription',
+	'@azure/ai-translation-document',
 	'@azure/ai-vision-face-ui',
 	'@azure/ai-voicelive',
 	'@azure/service-bus',
-	'@azure/identity',
 	'@azure/identity-broker',
 	'@azure/identity-cache-persistence',
 	'@azure/identity-vscode',
-	'@azure/keyvault',
 	'@azure/keyvault-common',
 	'@azure/keyvault-secrets',
 	'@azure/keyvault-keys',
@@ -225,7 +225,6 @@ const ModulesToLookFor = [
 	'@azure/abort-controller',
 	'@azure/eventgrid',
 	'@azure/storage-file-datalake',
-	'@azure/search',
 	'@azure/search-documents',
 	'@azure/storage-file',
 	'@azure/storage-datalake',
@@ -690,8 +689,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.aws-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.aws-amplify-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure-rest/" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure-rest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/ai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/arm" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -849,10 +847,13 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.@azure/synapse-artifacts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/synapse-access-control" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/ai-agents" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/ai-content-safety" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/ai-content-understanding" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/ai-discovery" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/ai-metrics-advisor" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/ai-projects" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/ai-speech-transcription" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/ai-translation-document" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/ai-vision-face-ui" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/ai-voicelive" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure-rest/ai-anomaly-detector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -939,7 +940,6 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.@azure/abort-controller" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/eventgrid" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/storage-file-datalake" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@azure/search" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/search-documents" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/storage-file" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/storage-datalake" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -1705,7 +1705,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 							tags['workspace.npm.' + dependency] = true;
 						} else {
 							for (const metaModule of MetaModulesToLookFor) {
-								if (dependency.startsWith(metaModule)) {
+								const modulePrefix = metaModule === '@azure-rest' ? `${metaModule}/` : metaModule;
+								if (dependency.startsWith(modulePrefix)) {
 									tags['workspace.npm.' + metaModule] = true;
 								}
 							}
