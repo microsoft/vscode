@@ -952,7 +952,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const unknown = (unavailableReason = localize('remotes.availabilityUnknown', "Couldn't check this environment's status. Select Connect to try.")) =>
 			this.checkingKinds.has(target.kind) || !this.checkedKinds.has(target.kind) ? { availability: 'pending' as const } : { availability: 'unknown' as const, unavailableReason };
 		switch (target.kind) {
-				// SSH hosts aren't probed: probing would open connections and leave entries in the server's logs.
+			// SSH hosts aren't probed: probing would open connections and leave entries in the server's logs.
 			case 'ssh':
 			case 'extension':
 			case 'devContainer':
