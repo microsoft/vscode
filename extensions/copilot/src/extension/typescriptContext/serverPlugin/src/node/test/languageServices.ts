@@ -10,7 +10,7 @@ import type tt from 'typescript';
 import TS from '../../common/typescript';
 const ts = TS();
 
-import { ComputeContextSession, type Logger } from '../../common/contextProvider';
+import { ComputeContextSession } from '../../common/contextProvider';
 import type { Host } from '../../common/host';
 import { LanguageServiceProxy } from './languageServerProxy';
 
@@ -233,48 +233,12 @@ export namespace LanguageServices {
 	}
 }
 
-class ConsoleLogger implements Logger {
-
-	info(s: string): void {
-		console.info(s);
-	}
-
-	msg(s: string, type?: tt.server.Msg): void {
-		type = type ?? ts.server.Msg.Info;
-		switch (type) {
-			case ts.server.Msg.Err:
-				console.error(s);
-				break;
-			case ts.server.Msg.Info:
-				console.info(s);
-				break;
-			case ts.server.Msg.Perf:
-				console.log(s);
-				break;
-			default:
-				console.error(s);
-		}
-
-	}
-
-	startGroup(): void {
-		console.group();
-	}
-
-	endGroup(): void {
-		console.groupEnd();
-	}
-}
-
 export class LanguageServicesSession extends ComputeContextSession {
 
 	private readonly languageServices: Map<string, tt.LanguageService>;
 
-	public readonly logger: Logger;
-
 	constructor(root: tt.LanguageService | string, languageServiceHost: tt.LanguageServiceHost, host: Host) {
 		super(languageServiceHost, host, true);
-		this.logger = new ConsoleLogger();
 		this.languageServices = new Map();
 		let languageService: tt.LanguageService;
 		let key: string | undefined;
@@ -290,10 +254,6 @@ export class LanguageServicesSession extends ComputeContextSession {
 		}
 		this.languageServices.set(key, languageService);
 		this.createDeep(languageService);
-	}
-
-	public override logError(error: Error, cmd: string): void {
-		console.error(`Error in ${cmd}: ${error.message}`, error);
 	}
 
 	public override getScriptVersion(_sourceFile: tt.SourceFile): string | undefined {

@@ -32,6 +32,9 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { CapturingTelemetryService } from '../common/capturingTelemetryService.js';
 
 const nullGitStateService = new class implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
@@ -132,6 +135,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			configurationService,
 			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createNullSessionDataService()),
 			new NullLogService(),
+			new AgentHostTelemetryReporter(NullTelemetryService),
 		));
 	}
 
@@ -158,6 +162,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		};
 		stateManager.setSessionMeta('agent:/session', withSessionArtifacts(undefined, [reference]));
 		await database.setMetadata(SESSION_ARTIFACTS_KEY, stringifySessionArtifacts([reference]));
+		const telemetry = new CapturingTelemetryService();
 		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
 			stateManager,
 			disposables.add(new InstantiationService()),
@@ -166,6 +171,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			new class extends mock<IAgentConfigurationService>() { }(),
 			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(database)),
 			new NullLogService(),
+			new AgentHostTelemetryReporter(telemetry),
 		));
 
 		await contribution.recordCreatedPullRequest({
@@ -194,9 +200,11 @@ suite('AgentHostPullRequestOperationContribution', () => {
 
 		const liveArtifacts = readSessionArtifacts(stateManager.getSessionState('agent:/session')?._meta);
 		const persistedArtifacts = parseSessionArtifacts(await database.getMetadata(SESSION_ARTIFACTS_KEY)).artifacts;
+		const recorded = { provider: 'copilot', agentSessionId: 'session', turnId: undefined, toolCallId: undefined, source: 'createPullRequestAction', kind: SessionArtifactType.PullRequest, category: 'artifact', isGitHub: true, batchSize: 1 };
 		assert.deepStrictEqual({
 			live: liveArtifacts.map(({ id: _id, ...artifact }) => artifact),
 			persisted: persistedArtifacts.map(({ id: _id, ...artifact }) => artifact),
+			recorded: telemetry.events.filter(event => event.eventName === 'agentHost.artifactRecorded').map(event => event.data),
 		}, {
 			live: [{
 				chat: buildDefaultChatUri('agent:/session'),
@@ -228,6 +236,11 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				link: 'https://github.com/microsoft/vscode/pull/124',
 				isGitHub: true,
 			}],
+			recorded: [
+				{ ...recorded, outcome: 'promoted' },
+				{ ...recorded, outcome: 'added' },
+				{ ...recorded, outcome: 'alreadyRecorded' },
+			],
 		});
 	});
 
@@ -273,6 +286,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			}(),
 			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(new TestSessionDatabase())),
 			new NullLogService(),
+			new AgentHostTelemetryReporter(NullTelemetryService),
 		));
 
 		await contribution.recordCreatedPullRequest({
@@ -325,6 +339,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			}(),
 			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(new TestSessionDatabase())),
 			new NullLogService(),
+			new AgentHostTelemetryReporter(NullTelemetryService),
 		));
 
 		await contribution.recordCreatedPullRequest({

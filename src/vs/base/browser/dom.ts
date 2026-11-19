@@ -1909,28 +1909,25 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	setTimeout(() => anchor.remove());
 }
 
-export function triggerUpload(): Promise<FileList | undefined> {
-	return new Promise<FileList | undefined>(resolve => {
+export async function triggerUpload(accept?: string): Promise<FileList | undefined> {
+	const input = $<HTMLInputElement>('input', { type: 'file', multiple: true });
+	input.hidden = true;
+	if (accept) {
+		input.accept = accept;
+	}
+	getActiveWindow().document.body.appendChild(input);
+	const store = new DisposableStore();
+	store.add(toDisposable(() => input.remove()));
 
-		// In order to upload to the browser, create a
-		// input element of type `file` and click it
-		// to gather the selected files
-		const activeWindow = getActiveWindow();
-		const input = document.createElement('input');
-		activeWindow.document.body.appendChild(input);
-		input.type = 'file';
-		input.multiple = true;
-
-		// Resolve once the input event has fired once
-		event.Event.once(event.Event.fromDOMEventEmitter(input, 'input'))(() => {
-			resolve(input.files ?? undefined);
+	try {
+		return await new Promise<FileList | undefined>(resolve => {
+			store.add(addDisposableListener(input, 'change', () => resolve(input.files ?? undefined)));
+			store.add(addDisposableListener(input, 'cancel', () => resolve(undefined)));
+			input.click();
 		});
-
-		input.click();
-
-		// Ensure to remove the element from DOM eventually
-		setTimeout(() => input.remove());
-	});
+	} finally {
+		store.dispose();
+	}
 }
 
 export enum DetectedFullscreenMode {

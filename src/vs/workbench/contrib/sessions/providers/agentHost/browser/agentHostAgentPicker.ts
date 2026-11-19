@@ -7,7 +7,7 @@ import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../../ba
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import * as nls from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -18,6 +18,7 @@ import { IStorageService, StorageScope } from '../../../../../../platform/storag
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { registerAgentPickerSpotlight } from '../../../../chat/browser/onboarding/agentPickerSpotlight.js';
+import { AgentsWindowUsage } from '../../../../chat/common/agentsWindowUsage.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ChatMode, IChatMode } from '../../../../chat/common/chatModes.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
@@ -50,6 +51,9 @@ const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
 	ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE),
 );
+
+/** Session-starting Agents Window requests a user must have sent before the custom agents spotlight shows, so it does not overwhelm new users. */
+const AGENT_PICKER_SPOTLIGHT_MIN_CREATED_SESSIONS = 3;
 
 // -- Agent Host Agent Picker Action --
 
@@ -127,7 +131,7 @@ export class AgentHostAgentPickerAction extends Action2 {
 				group: 'navigation',
 				order: -1,
 				when: ContextKeyExpr.and(
-					IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate(),
+					ChatContextKeys.enabled, IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate(),
 				),
 			}, {
 				id: Menus.AutomationsDialogInputToolbar,
@@ -142,7 +146,7 @@ export class AgentHostAgentPickerAction extends Action2 {
 				group: 'navigation',
 				order: 0,
 				// Hide the agent picker while a delegation (continue in) target is pending.
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, InSessionHostScopeContext, IsPhoneLayoutContext.negate(), ChatContextKeys.hasPendingDelegationTarget.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, InSessionHostScopeContext, IsPhoneLayoutContext.negate(), ChatContextKeys.hasPendingDelegationTarget.negate()),
 			}],
 		});
 	}
@@ -236,6 +240,8 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 			&& !isCustomAgentSelected(chat, reader);
 
 		if (environmentService.isSessionsWindow) {
+			const usage = new AgentsWindowUsage(storageService);
+			const hasEnoughRequests = observableFromEvent(this, usage.onDidChangeCreatedSessionCount(this._store), () => usage.createdSessionCount >= AGENT_PICKER_SPOTLIGHT_MIN_CREATED_SESSIONS);
 			const widgetsChanged = observableSignalFromEvent(this, Event.any(
 				chatWidgetService.onDidAddWidget,
 				chatWidgetService.onDidRemoveWidget,
@@ -246,6 +252,9 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 			this._register(registerAgentPickerSpotlight(derived(this, reader => {
 				widgetsChanged.read(reader);
 				configurationChanged.read(reader);
+				if (!hasEnoughRequests.read(reader)) {
+					return [];
+				}
 				const host = focusedSessionHostService.focusedHost.read(reader);
 				const session = host.session.read(reader);
 				const chat = host.chat.read(reader);
@@ -254,7 +263,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 				}
 				const widget = chat && chatWidgetService.getWidgetBySessionResource(chat.resource);
 				return widget?.visible ? [widget] : [];
-			}), productService));
+			}), productService, storageService));
 		}
 
 		const renderedPickers = new Set<{ readonly session: IObservable<ISession | undefined>; readonly item: AgentHostModePickerActionViewItem }>();
@@ -474,7 +483,7 @@ export function registerAgentHostAgentPickerActions(): IDisposable {
 	store.add(KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OPEN_AGENT_HOST_AGENT_PICKER_COMMAND_ID,
 		weight: KeybindingWeight.EditorContrib + 1,
-		when: AgentHostAgentPickerKeybindingContext,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, AgentHostAgentPickerKeybindingContext),
 		primary: KeyMod.CtrlCmd | KeyCode.Period,
 		handler: () => openActiveAgentHostAgentPicker(),
 	}));

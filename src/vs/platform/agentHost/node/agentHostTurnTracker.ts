@@ -11,7 +11,7 @@ import { StopWatch } from '../../../base/common/stopwatch.js';
 import { AgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
-import type { AgentModelCallFinishedOutcome, AgentSubagentKind, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
+import type { AgentModelCallFinishedOutcome, AgentSubagentKind, AgentSubagentTaskModelSource, IAgent, IAgentPrewarmClaim, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage, IAgentTurnInteraction } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { type AgentHostPrewarmSkipReason, type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
@@ -214,8 +214,8 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	getClientTelemetryContext(session: string, turnId: string): IAgentHostClientTelemetryContext | undefined;
 	getTelemetryContext(session: string, turnId: string): IAgentTelemetryContext | undefined;
 	setCodexModelProvider(session: string, turnId: string, provider: CodexModelProvider): void;
-	/** Records that the turn's send used a pre-warmed provider session, or, with a reason, that it discarded one. */
-	markPrewarmedSession(session: string, turnId: string, discardReason: string | undefined): void;
+	/** Records that the turn's send used a pre-warmed provider session (with how it found it), or, with a reason, that it discarded one. */
+	markPrewarmedSession(session: string, turnId: string, discardReason: string | undefined, claim?: IAgentPrewarmClaim): void;
 	/** Records why the turn's send found no pre-warmed provider session to claim or discard. */
 	markPrewarmSkipped(session: string, turnId: string, reason: AgentHostPrewarmSkipReason): void;
 	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined;
@@ -757,12 +757,20 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}
 	}
 
-	markPrewarmedSession(session: string, turnId: string, discardReason: string | undefined): void {
+	markPrewarmedSession(session: string, turnId: string, discardReason: string | undefined, claim?: IAgentPrewarmClaim): void {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		if (timing) {
+			// Relative to the turn's start, which the stopwatch measures with the same clock as `readyAt`.
+			const readyOffsetMs = claim ? Math.round(claim.readyAt - (Date.now() - timing.stopWatch.elapsed())) : undefined;
 			timing.providerTelemetryContext = Object.freeze({
 				...timing.providerTelemetryContext,
 				...(discardReason === undefined ? { usedPrewarmedSession: true } : { prewarmedSessionDiscardReason: discardReason }),
+				...(claim && readyOffsetMs !== undefined ? {
+					prewarmReadyAfterTurnStartMs: Math.max(0, readyOffsetMs),
+					prewarmReadyBeforeTurnStartMs: Math.max(0, -readyOffsetMs),
+					prewarmLaunchCount: claim.launchCount,
+					prewarmWarmUpComplete: claim.warmUpComplete,
+				} : {}),
 			});
 		}
 	}
@@ -824,6 +832,12 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		this._closeProviderStage(timing, totalTime);
 		const timeAfterHangMs = timing.lastHangStopWatch?.elapsed() ?? 0;
 		const usage = this._turnUsages.get(key);
+		let turnInteraction: IAgentTurnInteraction | undefined;
+		try {
+			turnInteraction = timing.agent.getTurnInteraction?.(timing.providerChat, turnId);
+		} catch (error) {
+			this._logService.error(`[AgentHostTurnTracker] Failed to collect turn interaction for provider=${timing.agent.id}`, error);
+		}
 		let summaries: readonly IAgentTokenUsageSummary[] | undefined;
 		if (timing.agent.getTurnTokenUsage) {
 			let snapshot: IAgentTurnTokenUsage | undefined;
@@ -840,6 +854,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		this._disposeTurn(key, timing);
 
 		const report: IAgentHostTurnCompletedReport = {
+			turnInteraction,
 			clientContext: timing.clientContext,
 			telemetryContext: timing.telemetryContext,
 			providerTelemetryContext: timing.providerTelemetryContext,

@@ -197,7 +197,7 @@ suite('SessionChatInputToolbar', () => {
 				return undefined;
 			},
 		}));
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		toolbar.setSession(session, main);
 		store.add(autorun(reader => toolbar.activityBarActions.read(reader)));
 		await timeout(0);
@@ -242,6 +242,20 @@ suite('SessionChatInputToolbar', () => {
 			await timeout(0);
 		}
 		assert.deepStrictEqual({ counts, lookups: lookups - before }, { counts: Array(10).fill(1), lookups: 0 });
+	});
+
+	test('activity bar does not repeat opener checks when a state update recreates the same links', async () => {
+		let lookups = 0;
+		const { toolbar, artifacts } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID, async () => {
+			lookups++;
+			return upcastPartial<IExternalUriOpener>({ id: 'supported' });
+		});
+		const before = lookups;
+		for (let i = 0; i < 10; i++) {
+			artifacts.set(artifacts.get().map(entry => ({ ...entry, link: entry.link && URI.parse(entry.link.toString()) })), undefined);
+			await timeout(0);
+		}
+		assert.deepStrictEqual({ actions: toolbar.activityBarActions.get().length, lookups: lookups - before }, { actions: 1, lookups: 0 });
 	});
 
 	test('activity bar retains supported PRs while opener revalidation is pending', async () => {
@@ -558,7 +572,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('keeps copied feedback stable across section refreshes', async () => {
 		const { instantiationService } = createServices();
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		const cache = Reflect.get(toolbar, '_issueCopyActions') as {
 			get(key: string, label: string, copy: () => Promise<void>): IAction;
 			retain(keys: ReadonlySet<string>): void;
@@ -899,7 +913,7 @@ suite('SessionChatInputToolbar', () => {
 						return undefined;
 					},
 				}));
-				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 				toolbar.setSession(session, chat);
 				for (const currentWorktree of [worktree, !worktree]) {
 					workspace.set(createWorkspace(currentWorktree), undefined);
@@ -997,7 +1011,7 @@ suite('SessionChatInputToolbar', () => {
 					return undefined;
 				},
 			}));
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 			toolbar.setSession(session, chat);
 			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
 			assert.ok(pill);
@@ -1025,11 +1039,10 @@ suite('SessionChatInputToolbar', () => {
 		});
 	}
 
-	test('labels and opens Session Changes from a nested chat pill while the main chat keeps Branch Changes', () => {
+	test('nested chat pills open Session Changes in the main chat\'s folder and Branch Changes elsewhere', () => {
 		const { instantiationService } = createServices();
 		const root = URI.file('/repo');
-		const worktree = URI.file('/worktrees/repo');
-		const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+		const createWorkspace = (worktree: URI, branchName: string) => constObservable(upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root,
 				name: 'repo',
@@ -1039,14 +1052,16 @@ suite('SessionChatInputToolbar', () => {
 					uri: root,
 					workTreeUri: worktree,
 					baseBranchName: 'main',
-					branchName: 'feature',
+					branchName,
 					gitHubInfo: constObservable(undefined),
 				},
 			}],
 		}));
-		const createChat = (resource: string) => upcastPartial<IChat>({
+		const workspace = createWorkspace(URI.file('/worktrees/repo'), 'feature');
+		// No changesets have loaded, so the pill must not depend on the chats' default changesets.
+		const createChat = (resource: string, chatWorkspace = workspace) => upcastPartial<IChat>({
 			resource: URI.parse(resource),
-			workspace,
+			workspace: chatWorkspace,
 			changesets: constObservable([]),
 			changes: constObservable([{
 				modifiedUri: URI.file('/chat-change.ts'),
@@ -1056,12 +1071,13 @@ suite('SessionChatInputToolbar', () => {
 		});
 		const mainChat = createChat('chat:main');
 		const nestedChat = createChat('chat:nested');
+		const ownBranchChat = createChat('chat:own-branch', createWorkspace(URI.file('/worktrees/peer'), 'peer'));
 		const session = upcastPartial<ITestSessionWithChat>({
 			loading: constObservable(false),
 			sessionId: 'provider:session',
 			capabilities: constObservable({ supportsMultipleChats: true }),
 			resource: URI.parse('session:1'),
-			chats: constObservable([mainChat, nestedChat]),
+			chats: constObservable([mainChat, nestedChat, ownBranchChat]),
 			mainChat: constObservable(mainChat),
 			workspace,
 		});
@@ -1084,7 +1100,7 @@ suite('SessionChatInputToolbar', () => {
 			},
 		}));
 		const clickPill = (chat: IChat) => {
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 			toolbar.setSession(session, chat);
 			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
 			assert.ok(pill);
@@ -1093,15 +1109,57 @@ suite('SessionChatInputToolbar', () => {
 		};
 
 		assert.deepStrictEqual({
-			labels: { main: clickPill(mainChat), nested: clickPill(nestedChat) },
+			labels: { main: clickPill(mainChat), nested: clickPill(nestedChat), ownBranch: clickPill(ownBranchChat) },
 			opened,
 		}, {
 			labels: {
 				main: 'All Changes (feature): 1 File, +10, -4',
 				nested: 'Session Changes: 1 File, +10, -4',
+				ownBranch: 'All Changes (peer): 1 File, +10, -4',
 			},
-			opened: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
+			opened: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID, BRANCH_CHANGES_CHANGESET_ID],
 		});
+	});
+
+	test('hides the Changes pill while its input shows the session\'s changes as its working set', () => {
+		const { instantiationService } = createServices();
+		const root = URI.file('/repo');
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+			folders: [{ root, name: 'repo', description: undefined, workingDirectory: root, gitRepository: undefined }],
+		}));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:main'),
+			workspace,
+			changesets: constObservable([]),
+			changes: constObservable([{ modifiedUri: URI.file('/chat-change.ts'), insertions: 10, deletions: 4 }]),
+		});
+		const session = upcastPartial<ITestSessionWithChat>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			resource: URI.parse('session:1'),
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+			workspace,
+		});
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined }));
+		instantiationService.stub(ISessionsService, 'getPaneOfHost', () => undefined);
+		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			getContainer: window => window.document.body,
+			revealEditorPartExplicitly: () => { },
+		}));
+		stubSessionsHostLayout(instantiationService);
+		const workingSetShown = observableValue('workingSetShown', false);
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, { hidden: workingSetShown }));
+		toolbar.setSession(session, chat);
+		const hasChangesPill = () => !!toolbar.element.querySelector('.chat-changes-pill-button');
+		const before = hasChangesPill();
+		workingSetShown.set(true, undefined);
+		const whileShown = hasChangesPill();
+		workingSetShown.set(false, undefined);
+
+		assert.deepStrictEqual({ before, whileShown, after: hasChangesPill() }, { before: true, whileShown: false, after: true });
 	});
 
 	test('opens the Changes editor of its own chat from a pill in a chat window', () => {
@@ -1164,7 +1222,7 @@ suite('SessionChatInputToolbar', () => {
 			},
 		}));
 		for (const chat of [nestedChat, mainChat]) {
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 			toolbar.setSession(session, chat);
 			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
 			assert.ok(pill);
@@ -1872,7 +1930,7 @@ suite('SessionChatInputToolbar', () => {
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
 		});
 		visibility.toggle(SessionChatPillKind.Subagents);
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		const read = () => ({
 			pills: Array.from(toolbar.element.querySelectorAll('.chat-pill-label, .changes-stats-files')).map(label => label.textContent),
 			visible: toolbar.visible,
@@ -1945,7 +2003,7 @@ suite('SessionChatInputToolbar', () => {
 			chats,
 			workspace,
 		});
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		document.body.appendChild(toolbar.element);
 		store.add(toDisposable(() => toolbar.element.remove()));
 		toolbar.setSession(session, chat);
@@ -2008,7 +2066,7 @@ suite('SessionChatInputToolbar', () => {
 			chats: constObservable([chat]),
 			workspace,
 		});
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		toolbar.setSession(session, chat);
 		const labels = () => toolbar.backgroundActivityPillSections.backgroundShells?.get().map(shell => shell.description);
 		const running = labels();
@@ -2091,7 +2149,7 @@ suite('SessionChatInputToolbar', () => {
 			chats: constObservable([chat]),
 			workspace,
 		});
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		document.body.appendChild(toolbar.element);
 		store.add(toDisposable(() => toolbar.element.remove()));
 		toolbar.setSession(session, chat);
@@ -2199,7 +2257,7 @@ suite('SessionChatInputToolbar', () => {
 					chats: constObservable([chat, ...subagents]),
 					workspace,
 				});
-				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 				document.body.appendChild(toolbar.element);
 				store.add(toDisposable(() => toolbar.element.remove()));
 				toolbar.setSession(session, chat);
@@ -2237,7 +2295,7 @@ suite('SessionChatInputToolbar', () => {
 
 				assert.deepStrictEqual({
 					dropdownLabels,
-					ownMenu: ownMenu.slice(0, 4).map(action => action.label),
+					ownMenu: ownMenu.map(action => action.label),
 					before,
 					filtered,
 					afterCompletion,
@@ -2247,7 +2305,7 @@ suite('SessionChatInputToolbar', () => {
 					emptyAfterRestore: toolbar.element.classList.contains('empty'),
 				}, {
 					dropdownLabels: ['Subagents: In Progress', 'Waiting', 'Running', '', 'Subagents: Completed', 'Failed', 'Finished'],
-					ownMenu: ['Hide Subagents', '', 'Subagent Options', ''],
+					ownMenu: ['Subagent Options', '', 'Hide "Subagents" Pill', 'Show Pills'],
 					before: [{ label: 'Show All', checked: true }, { label: 'Show In Progress', checked: false }],
 					filtered: [...(withChanges ? ['1 File'] : []), '2 Subagents'],
 					afterCompletion: { labels: withChanges ? ['1 File'] : [], visible: true, empty: !withChanges },
@@ -2399,10 +2457,10 @@ suite('SessionChatInputToolbar', () => {
 			ids: ['reference-a', 'reference-b', refs[2].uri.toString()],
 			removable: [true, true, false, true],
 			removeLabels: [
-				['Remove Pull Request Artifact from Session', 'Remove Artifact'],
-				['Remove Pull Request Artifact from Session', 'Remove Artifact'],
+				['Remove "#1" Artifact', 'Remove Artifact'],
+				['Remove "#1" Artifact', 'Remove Artifact'],
 				undefined,
-				['Remove Issue Artifact from Session', 'Remove Artifact'],
+				['Remove "#3" Artifact', 'Remove Artifact'],
 			],
 			toolbarLabels: [
 				['Open Pull Request Changes', 'Open Changes'],
@@ -2498,7 +2556,7 @@ suite('SessionChatInputToolbar', () => {
 				refresh: async () => { }, startPolling: () => toDisposable(() => { }),
 			})),
 		}));
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		toolbar.setSession(session, chat);
 		const presentation = () => {
 			const pill = toolbar.element.querySelector('.chat-dropdown-pill-button');
@@ -2557,7 +2615,7 @@ suite('SessionChatInputToolbar', () => {
 		instantiationService.stub(INotificationService, { error: error => { errors.push(String(error)); } });
 		let menu: readonly IAction[] = [];
 		instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		toolbar.setSession(session, chat);
 		const presentation = () => ({
 			labels: [...toolbar.element.querySelectorAll('.chat-dropdown-pill-button')].map(pill => pill.getAttribute('aria-label')),
@@ -2644,7 +2702,7 @@ suite('SessionChatInputToolbar', () => {
 				}));
 				let menu: readonly IAction[] = [];
 				instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
-				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 				toolbar.setSession(session, chat);
 				const initialModelReferenceCalls = modelReferenceCalls;
 				const recordedEntries = artifacts.get();
@@ -2675,7 +2733,7 @@ suite('SessionChatInputToolbar', () => {
 				}, isArtifact ? {
 					initial: { label: `Open ${isPullRequest ? 'Pull Request #42' : 'Issue #337297'}: Recorded title`, genericPills: 0 },
 					opened: [isPullRequest ? { pullRequest: { ...ref, createdByThisSession: true } } : { issue: ref }],
-					removeLabel: `Remove ${isPullRequest ? 'Pull Request' : 'Issue'} Artifact from Session`,
+					removeLabel: 'Remove "Recorded title" Artifact',
 					removed: [{ owningSession: true, id: 'recorded' }],
 					modelRequests: [`microsoft/vscode/${isPullRequest ? 'pull/42' : 'issues/337297'}`],
 					unrelatedArtifactModelRequests: 0,
@@ -2684,7 +2742,7 @@ suite('SessionChatInputToolbar', () => {
 					// A reference never reaches the dedicated pill, so no live GitHub model is requested for it.
 					initial: { label: 'Show 1 reference', genericPills: 0 },
 					opened: [],
-					removeLabel: 'Remove Reference Recorded title from Session',
+					removeLabel: 'Remove "Recorded title" Reference',
 					removed: [{ owningSession: true, id: 'recorded' }],
 					modelRequests: [],
 					unrelatedArtifactModelRequests: 0,
@@ -2743,7 +2801,7 @@ suite('SessionChatInputToolbar', () => {
 				artifacts.set(artifacts.get().filter(record => record.id !== id), undefined);
 			},
 		}));
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		toolbar.setSession(session, chat);
 		await timeout(0);
 		const initial = {
@@ -2852,7 +2910,7 @@ suite('SessionChatInputToolbar', () => {
 				}),
 			})),
 		}));
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		host.appendChild(toolbar.element);
 		toolbar.setSession(session, chat);
 		await timeout(0);
@@ -2928,7 +2986,7 @@ suite('SessionChatInputToolbar', () => {
 		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
 		instantiationService.stub(ISessionsService, 'setActive', () => { });
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async () => { opened++; return undefined; } }));
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		toolbar.setSession(session, chat);
 		store.add(autorun(reader => toolbar.activityBarActions.read(reader)));
 		await timeout(0);
@@ -2982,7 +3040,7 @@ suite('SessionChatInputToolbar', () => {
 			onDidChangeSessions: Event.None,
 			acquireArtifactIntegration: async () => new ImmortalReference(upcastPartial<IArtifactModel>({ snapshot: constObservable(snapshot) })),
 		}));
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		toolbar.setSession(session, chat);
 		await timeout(0);
 
@@ -3042,7 +3100,7 @@ suite('SessionChatInputToolbar', () => {
 			hide: () => { },
 		});
 		visibility.pullRequests.setShowAll(false);
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		host.appendChild(toolbar.element);
 		toolbar.setSession(session, chat);
 		await timeout(0);
@@ -3139,7 +3197,7 @@ suite('SessionChatInputToolbar', () => {
 		const opened: string[] = [];
 		instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({ open: async resource => { opened.push(resource.toString()); return true; } }));
 		artifacts.set([records[0]], undefined);
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		host.appendChild(toolbar.element);
 		toolbar.setSession(session, chat);
 		await timeout(0);
@@ -3180,8 +3238,8 @@ suite('SessionChatInputToolbar', () => {
 				{ label: 'Report', icon: 'graph', fileIcon: false },
 			],
 			controls: [
-				{ label: 'Experiment 7', ariaLabel: 'Show artifact details: Experiment 7 is running, https://experiments.test/7', actions: ['Open Recorded experiment', 'Copy Website URL', 'Pin Experiment 7', 'Remove Artifact Recorded experiment from Session'] },
-				{ label: 'Plain', ariaLabel: 'Open Plain, https://example.test/plain', actions: ['Copy Website URL', 'Pin Plain', 'Remove Artifact Plain from Session'] },
+				{ label: 'Experiment 7', ariaLabel: 'Show artifact details: Experiment 7 is running, https://experiments.test/7', actions: ['Open Recorded experiment', 'Copy Website URL', 'Pin Experiment 7', 'Remove "Recorded experiment" Artifact'] },
+				{ label: 'Plain', ariaLabel: 'Open Plain, https://example.test/plain', actions: ['Copy Website URL', 'Pin Plain', 'Remove "Plain" Artifact'] },
 			],
 			opened: ['https://experiments.test/7'],
 			details: true,
@@ -3234,7 +3292,7 @@ suite('SessionChatInputToolbar', () => {
 				}]), mainChat: constObservable(main), chats: constObservable([main, peer]),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			});
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 			const pill = () => toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label^="Open Pull Request"]')?.getAttribute('aria-label') ?? null;
 			toolbar.setSession(session, main);
 			const mainPill = pill();
@@ -3292,7 +3350,7 @@ suite('SessionChatInputToolbar', () => {
 				mainChat: constObservable(main), chats: constObservable([main, peer]),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			});
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 			store.add(autorun(reader => toolbar.activityBarActions.read(reader)));
 			const activityBarLabels: (string | null)[] = [];
 			const pill = () => {
@@ -3377,7 +3435,7 @@ suite('SessionChatInputToolbar', () => {
 		instantiationService.stub(INotificationService, { error: error => { errors.push(String(error)); } });
 		let menu: readonly IAction[] = [];
 		instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		toolbar.setSession(session, chat);
 		const removal = () => {
 			const target = toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button');
@@ -3460,7 +3518,7 @@ suite('SessionChatInputToolbar', () => {
 		}));
 		let menu: readonly IAction[] = [];
 		instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
-		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		toolbar.setSession(session, chat);
 
 		const pills = Array.from(toolbar.element.querySelectorAll<HTMLElement>(

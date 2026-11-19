@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, selectDefaultPushRemote, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Branch, EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, IRefQuery, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
@@ -81,6 +82,56 @@ suite('AgentHostGitService', () => {
 		assert.deepStrictEqual({ failed, retried: await git.getBranch(directory, 'main'), reads }, {
 			failed: [{ status: 'rejected', reason: error }, { status: 'rejected', reason: error }],
 			retried: undefined, reads: 2,
+		});
+	});
+
+	suite('getRepositoryRoot', () => {
+		// An existing directory, so lookups reach the stubbed git probe.
+		const directory = URI.file(tmpdir());
+
+		function createGitService(runGit: () => Promise<string | undefined>): AgentHostGitService {
+			return new class extends AgentHostGitService {
+				protected override _runGit(): Promise<string | undefined> {
+					return runGit();
+				}
+			}(new class extends mock<IFileService>() { }(), new class extends mock<INativeEnvironmentService>() { }(), new NullLogService());
+		}
+
+		test('concurrent forced lookups share a failed probe without caching an I/O failure', async () => {
+			const started = new DeferredPromise<void>();
+			const answer = new DeferredPromise<string | undefined>();
+			let probes = 0;
+			const git = createGitService(() => {
+				probes++;
+				void started.complete();
+				return answer.p;
+			});
+			const first = git.getRepositoryRoot(directory, { refreshIfNone: true });
+			await started.p;
+			const second = git.getRepositoryRoot(directory, { refreshIfNone: true });
+			await answer.error(new Error('Git unavailable'));
+			const roots = await Promise.all([first, second]);
+
+			assert.deepStrictEqual({ roots, probes, availability: git.hasGitRoot(directory).get() }, {
+				roots: [undefined, undefined], probes: 1, availability: undefined,
+			});
+		});
+
+		test('a forced lookup after a shared failed probe settles re-probes', async () => {
+			const answer = new DeferredPromise<string | undefined>();
+			let probes = 0;
+			const git = createGitService(() => ++probes === 1 ? answer.p : Promise.resolve(directory.fsPath));
+			const pending = Promise.all([
+				git.getRepositoryRoot(directory, { refreshIfNone: true }),
+				git.getRepositoryRoot(directory, { refreshIfNone: true }),
+			]);
+			await answer.complete(undefined);
+			const before = await pending;
+			const after = await git.getRepositoryRoot(directory, { refreshIfNone: true });
+
+			assert.deepStrictEqual({ before, after: after?.fsPath, probes }, {
+				before: [undefined, undefined], after: directory.fsPath, probes: 2,
+			});
 		});
 	});
 
@@ -361,6 +412,27 @@ suite('AgentHostGitService', () => {
 			'https://github.com/microsoft/vscode.git',
 			'https://github.com/me/vscode.git',
 		]);
+	});
+
+	test('selects the default push remote when a branch has no upstream', () => {
+		const remotes = (...entries: [name: string, url: string][]) => entries.map(([name, url]) => `${name}\t${url} (fetch)\n${name}\t${url} (push)`).join('\n');
+		assert.deepStrictEqual({
+			onlyUpstream: selectDefaultPushRemote(remotes(['upstream', 'https://github.com/microsoft/vscode.git']), undefined),
+			configuredPushRemote: selectDefaultPushRemote(remotes(['origin', 'https://github.com/me/vscode.git'], ['upstream', 'https://github.com/microsoft/vscode.git']), 'upstream'),
+			originPreferred: selectDefaultPushRemote(remotes(['fork', 'https://github.com/me/vscode.git'], ['origin', 'https://github.com/microsoft/vscode.git']), undefined),
+			gitHubRemote: selectDefaultPushRemote(remotes(['gitlab', 'https://gitlab.com/me/vscode.git'], ['upstream', 'git@github.com:microsoft/vscode.git']), undefined),
+			nonGitHubOrigin: selectDefaultPushRemote(remotes(['origin', 'https://gitlab.com/me/vscode.git'], ['other', 'https://example.com/vscode.git']), undefined),
+			onlyNonGitHub: selectDefaultPushRemote(remotes(['other', 'https://example.com/vscode.git']), undefined),
+			ambiguous: selectDefaultPushRemote(remotes(['a', 'https://example.com/a.git'], ['b', 'https://example.com/b.git']), undefined),
+		}, {
+			onlyUpstream: 'upstream',
+			configuredPushRemote: 'upstream',
+			originPreferred: 'origin',
+			gitHubRemote: 'upstream',
+			nonGitHubOrigin: 'origin',
+			onlyNonGitHub: 'other',
+			ambiguous: undefined,
+		});
 	});
 
 	suite('parseUntrackedPaths', () => {

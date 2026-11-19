@@ -9,12 +9,13 @@ import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from 
 import { DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IChatSessionItemArchiveState } from '../../chat/common/chatSessionsService.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { IExtUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
-import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, isSessionCreated, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
 import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, type ISessionReplacedEvent, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions, ISessionDraftConfiguration } from './sessionsProvider.js';
 
@@ -161,6 +162,27 @@ export interface ICreateNewChatInSessionOptions extends ICreateNewChatOptions {
 	readonly forceNew?: boolean;
 }
 
+/**
+ * The chat of `session` that `resource` names: one of its chats or its main chat, also by a former resource of the session
+ * (`previousIdentities`), which names its main chat, or with a fragment its chat of that fragment. Reads the session's chats
+ * through `reader`, so that a caller follows them.
+ */
+export function getSessionChatOfResource(session: ISession, resource: URI, extUri: IExtUri, reader?: IReader): IChat | undefined {
+	const chats = session.chats.read(reader);
+	const chat = chats.find(candidate => extUri.isEqual(candidate.resource, resource));
+	if (chat) {
+		return chat;
+	}
+	const mainChat = session.mainChat.read(reader);
+	if (extUri.isEqual(mainChat.resource, resource)) {
+		return mainChat;
+	}
+	if (session.previousIdentities?.some(previous => extUri.isEqual(previous.resource, resource.with({ fragment: '' })))) {
+		return resource.fragment ? chats.find(candidate => candidate.resource.fragment === resource.fragment) : mainChat;
+	}
+	return undefined;
+}
+
 /** A change of one session: see {@link ISessionsManagementService.onDidChangeSession}. */
 export interface ISessionChange {
 	readonly session: ISession;
@@ -261,6 +283,13 @@ export interface INewSessionRequestAcceptedEvent {
 	readonly background: boolean;
 }
 
+/** Fired by {@link ISessionsManagementService.onDidDispatchNewSessionRequest}. */
+export interface INewSessionRequestDispatchedEvent {
+	/** The session the request was sent in, after its preparation replaced the accepted draft. */
+	readonly session: ISession;
+	readonly owner: INewSessionDraftSlot;
+}
+
 /** Fired by {@link ISessionsManagementService.onDidEndNewSessionRequest}. */
 export interface INewSessionRequestEndedEvent {
 	/** The request's session, with its final id. */
@@ -283,9 +312,9 @@ export interface ISessionsManagementService {
 
 	/**
 	 * The sessions the providers list, within their listing scope: without those a provider's listing scope hides, such as
-	 * the sessions of other folders in an editor window.
+	 * the sessions of other folders in an editor window. `includeHidden` includes those sessions for cross-workspace maintenance.
 	 */
-	getSessions(): ISession[];
+	getSessions(options?: { readonly includeHidden?: boolean }): ISession[];
 
 
 	/**
@@ -480,6 +509,14 @@ export interface ISessionsManagementService {
 	readonly onDidAcceptNewSessionRequest: Event<INewSessionRequestAcceptedEvent>;
 
 	/**
+	 * Fires at most once for each request {@link onDidAcceptNewSessionRequest} fired for, before it ends: when its message
+	 * was sent, that is, when its provider forwarded the request's {@link ISendRequestOptions.onDidCreateResponse} with a
+	 * response. That can be well before the request ends, such as while the session's agent starts its tools. A provider
+	 * that does not forward it does not report it: its requests only end.
+	 */
+	readonly onDidDispatchNewSessionRequest: Event<INewSessionRequestDispatchedEvent>;
+
+	/**
 	 * Fires once for each request {@link onDidAcceptNewSessionRequest} fired for, when it started its session, failed or
 	 * was cancelled. A failure of a request from an independent slot is reported here, not as a notification.
 	 */
@@ -656,6 +693,7 @@ export interface ISessionsManagementService {
 	sessionWorktreeExists?(session: ISession, token?: CancellationToken): Promise<boolean | undefined>;
 
 	/** Reports cleanup status, optionally retrying removal without restoring or deleting session history. */
+	canCleanupWorktree?(owner: ISession | IManagedSessionWorktree): boolean;
 	canForceWorktreeCleanup?(owner: ISession | IManagedSessionWorktree): boolean;
 	sessionWorktreeCleanup?(session: ISession, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	prepareSessionWorktreeCleanup(session: ISession): Promise<void>;
@@ -743,7 +781,7 @@ export interface ISessionsManagementService {
 	listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
-	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
+	openCanvas(session: ISession, chat: IChat, canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 
 	/** Close one live canvas of a chat through its owning provider, notifying the extension that provides it. */
 	closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void>;
@@ -814,6 +852,49 @@ export function trackNewSessionRequestEnd(sessionsManagementService: ISessionsMa
 			store.dispose();
 			onEnd(event);
 		}
+	}));
+	return store;
+}
+
+/**
+ * Calls `onSent` once with the session of the new-session request of `session` from `owner` as soon as its message was sent
+ * and the session can be opened: its provider reported the request's dispatch ({@link
+ * ISessionsManagementService.onDidDispatchNewSessionRequest}), and lists the session, no longer as a draft. That can be well
+ * before the request ends, such as while the session's agent starts its tools. A session that is listed before its message
+ * is sent, such as a placeholder of a session that is still being provisioned, waits for the dispatch; a request whose
+ * provider does not report it never calls it. Register it before sending, and dispose it when the request ends; it follows
+ * the session's replacements, and disposes itself after the call.
+ */
+export function trackNewSessionRequestSent(sessionsManagementService: ISessionsManagementService, owner: INewSessionDraftSlot, session: ISession, onSent: (session: ISession) => void): IDisposable {
+	let current = session;
+	let dispatched = false;
+	const follow = ({ from, to }: { readonly from: ISession; readonly to: ISession }) => {
+		if (from.sessionId === current.sessionId) {
+			current = to;
+		}
+	};
+	const store = new DisposableStore();
+	const callIfOpenable = () => {
+		const known = sessionsManagementService.getSession(current.resource);
+		if (known && isSessionCreated(known)) {
+			store.dispose();
+			onSent(known);
+		}
+	};
+	store.add(sessionsManagementService.onDidReplaceNewDraftSession(follow));
+	store.add(sessionsManagementService.onDidReplaceSession(follow));
+	store.add(sessionsManagementService.onDidDispatchNewSessionRequest(event => {
+		if (!dispatched && event.owner === owner && event.session.sessionId === current.sessionId) {
+			dispatched = true;
+			callIfOpenable();
+		}
+	}));
+	store.add(sessionsManagementService.onDidChangeSession(changes => {
+		// An empty change asks to read every session again.
+		if (!dispatched || changes.length && !changes.some(change => change.kind !== 'removed' && change.session.sessionId === current.sessionId)) {
+			return;
+		}
+		callIfOpenable();
 	}));
 	return store;
 }

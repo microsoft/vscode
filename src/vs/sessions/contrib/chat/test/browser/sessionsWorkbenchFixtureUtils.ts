@@ -203,7 +203,9 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 		override readonly account = { status: 'unknown' as const };
 		override readonly onDidChangeAccount = Event.None;
 	}());
-	instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() { }());
+	instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+		override readonly onShow = Event.None;
+	}());
 	instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 		override readonly extUri = extUri;
 	}());

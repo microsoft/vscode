@@ -488,7 +488,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			});
 			const presentation = store.add(new SpotlightPresentation(
 				new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
-				new TestHostService(), h.context,
+				new TestHostService(), h.context, h.configuration, NullTelemetryService,
 			));
 			const shown = new DeferredPromise<void>();
 			h.setPresentation({
@@ -757,7 +757,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			h.setReveal(() => markOnboardingTarget(row, getSessionOnboardingTargetId(h.session)));
 			const presentation = store.add(new SpotlightPresentation(
 				new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
-				new TestHostService(), h.context,
+				new TestHostService(), h.context, h.configuration, NullTelemetryService,
 			));
 			let shown = false;
 			let cancelled = false;
@@ -825,7 +825,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 		SessionHarnessPickerVisibleContext.bindTo(h.context).set(true);
 		const presentation = store.add(new SpotlightPresentation(
 			new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
-			new TestHostService(), h.context,
+			new TestHostService(), h.context, h.configuration, NullTelemetryService,
 		));
 		const steps: { title: string | undefined; description: string | undefined; action: string | null; primary: boolean }[] = [];
 		h.setPresentation({
@@ -886,7 +886,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			}));
 			const presentation = store.add(new SpotlightPresentation(
 				new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
-				new TestHostService(), h.context,
+				new TestHostService(), h.context, h.configuration, NullTelemetryService,
 			));
 			const steps: { title: string | undefined; action: string | null; primary: boolean; interactive: boolean; clickable: boolean }[] = [];
 			h.setPresentation({

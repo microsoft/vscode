@@ -1576,12 +1576,6 @@ class FakeTaskApiClient implements ITaskApiClient {
 		this.createPRCalls.push({ owner, repo, taskId });
 		return this._createPRResult;
 	}
-	async archiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
-		return { id: taskId } as unknown as AgentTask;
-	}
-	async unarchiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
-		return { id: taskId } as unknown as AgentTask;
-	}
 }
 
 describe('TaskApiBackend', () => {

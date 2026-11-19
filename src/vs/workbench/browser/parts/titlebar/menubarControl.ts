@@ -214,7 +214,7 @@ export abstract class MenubarControl extends Disposable {
 		}
 	}
 
-	private get menubarHidden(): boolean {
+	protected get menubarHidden(): boolean {
 		return isMacintosh && isNative ? false : getMenuBarVisibility(this.configurationService) === 'hidden';
 	}
 
@@ -426,8 +426,12 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 	}
 
-	private get currentMenubarVisibility(): MenuBarVisibility {
+	protected get currentMenubarVisibility(): MenuBarVisibility {
 		return getMenuBarVisibility(this.configurationService);
+	}
+
+	protected override get menubarHidden(): boolean {
+		return this.currentMenubarVisibility === 'hidden';
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {
@@ -473,12 +477,13 @@ export class CustomMenubarControl extends MenubarControl {
 		return enableMenuBarMnemonics && (!isWeb || isFullscreen(mainWindow));
 	}
 
-	private get currentCompactMenuMode(): IMenuDirection | undefined {
+	/** The direction the compact menu opens in, or `undefined` for a menu bar that is not compact. */
+	protected get currentCompactMenuMode(): IMenuDirection | undefined {
 		if (this.currentMenubarVisibility !== 'compact') {
 			return undefined;
 		}
 
-		// Menu bar lives in the title bar when the activity bar is at the top or bottom
+		// Menu bar lives in the title bar when the activity bar is at the top, bottom or hidden
 		if (isCompactMenuInTitlebar(this.configurationService)) {
 			return { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below };
 		}

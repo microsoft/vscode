@@ -355,6 +355,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private readonly _onDidChangeAuxiliaryBarMaximized = this._register(new Emitter<void>());
 	readonly onDidChangeAuxiliaryBarMaximized = this._onDidChangeAuxiliaryBarMaximized.event;
+	readonly onDidChangeAuxiliaryBarMaximizeHidden = Event.None;
 
 	private readonly _onDidChangeAuxiliaryBarFloating = this._register(new Emitter<boolean>());
 	readonly onDidChangeAuxiliaryBarFloating = this._onDidChangeAuxiliaryBarFloating.event;
@@ -3019,6 +3020,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return Position.LEFT; // Always left in this layout
 	}
 
+	setChatPartAnchor(): void {
+		// This layout has no chat part
+	}
+
+	getChatPartPosition(): Position.LEFT {
+		return Position.LEFT;
+	}
+
 	getDetailsPosition(): DetailsPosition {
 		return this._detailsPosition === 'left' || this._detailsPosition === 'top' || this._detailsPosition === 'bottom' ? this._detailsPosition : 'right';
 	}
@@ -3277,6 +3286,18 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return this.workbenchGrid.isViewMaximized(this.panelPartView);
 	}
 
+	readonly onDidChangeChatPartVisibility: Event<boolean> = Event.None;
+
+	hasChatPart(): boolean {
+		return false;
+	}
+
+	isEditorHiddenByChat(): boolean {
+		return false;
+	}
+
+	setEditorHiddenByChat(_hidden: boolean): void { }
+
 	toggleMaximizedAuxiliaryBar(): void {
 		// No-op: Maximize not supported in this layout
 	}
@@ -3286,6 +3307,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	isAuxiliaryBarMaximized(): boolean {
+		return false; // Maximize not supported
+	}
+
+	hideAuxiliaryBarMaximize(): IDisposable {
+		return Disposable.None; // Maximize not supported
+	}
+
+	isAuxiliaryBarMaximizeHidden(): boolean {
 		return false; // Maximize not supported
 	}
 

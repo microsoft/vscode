@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { mergeArrayPages } from '../client/pagination.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { pathSegment, withQuery } from '../client/routing.js';
 import { parse } from '../client/schema.js';
 import { PageOptions } from '../client/types.js';
-import { accountSchema, CoreClient } from './coreClient.js';
+import { CoreClient, accountSchema } from './coreClient.js';
 import { IUsersClient, User, UserEmail } from './users.js';
 
 export class UsersClient implements IUsersClient {
 	constructor(private readonly _client: CoreClient) { }
 
-	async getAuthenticated(signal: AbortSignal, options?: ApiRequestOptions): Promise<User> {
+	async getAuthenticated(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<User> {
 		return this._client.request({
 			domain: 'users',
 			method: 'GET',
@@ -22,10 +23,10 @@ export class UsersClient implements IUsersClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseUser);
+		}, cancellationToken, parseUser);
 	}
 
-	async get(username: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<User> {
+	async get(username: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<User> {
 		return this._client.request({
 			domain: 'users',
 			method: 'GET',
@@ -33,10 +34,10 @@ export class UsersClient implements IUsersClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseUser);
+		}, cancellationToken, parseUser);
 	}
 
-	async listEmails(signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly UserEmail[]> {
+	async listEmails(cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly UserEmail[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'users',
@@ -45,7 +46,7 @@ export class UsersClient implements IUsersClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseEmails, mergeArrayPages);
+		}, cancellationToken, parseEmails, mergeArrayPages);
 	}
 }
 

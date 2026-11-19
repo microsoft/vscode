@@ -39,7 +39,7 @@ Before writing:
 
 ## Implement
 
-Create `<extension-dir>/extension.mjs`.
+Create `<extension-dir>/extension.mjs`. When the extension only contributes canvases (and native tools), also create `<extension-dir>/extension.json` so the runtime can list the canvas without starting the extension; see [Start on first use](#start-on-first-use).
 
 - Use ES modules and import `createCanvas`, `CanvasError`, and `joinSession` from `@github/copilot-sdk/extension`.
 - Do not create a `package.json` or install `@github/copilot-sdk`; the runtime resolves it automatically.
@@ -76,15 +76,59 @@ Rules:
 
 Keep `extension.mjs` focused on wiring. Put substantial HTML, CSS, client JavaScript, schemas, storage, and domain logic in sibling modules or asset files.
 
+## Start on first use
+
+An extension with a valid `extension.json` stays dormant until its canvas is first opened or one of its actions or native tools is called. Without the file, or when the runtime rejects it, the extension starts eagerly with every session.
+
+Keep the extension eager, without `extension.json`, when it registers hooks, observes session events in the background, contributes commands, or must run before anyone opens its canvas: none of these start a dormant extension.
+
+Otherwise write the canvas declarations to `extension.json`:
+
+```json
+{
+	"version": 1,
+	"initialization": "module",
+	"canvases": [{
+		"id": "contoso-release-board",
+		"displayName": "Release Board",
+		"description": "Tracks the release checklist for the current milestone.",
+		"icon": "./icon.png",
+		"actions": [{ "name": "add_item", "description": "Adds a checklist item.", "inputSchema": { "type": "object", "properties": { "title": { "type": "string" } }, "required": ["title"] } }]
+	}]
+}
+```
+
+- Each canvas entry takes the same fields as `createCanvas()` without its handlers: `id`, `displayName`, `description`, and optionally `icon`, `inputSchema`, and `actions` (`name`, and optionally `description` and `inputSchema`). Native tools go in a `tools` array, declared as for `joinSession({ tools })`.
+- Omit optional fields that have no value; never write `null`. Unknown fields, another `version`, or a file larger than 256 KiB make the runtime ignore `extension.json` and start the extension eagerly, reporting only a diagnostic.
+- `icon` is an optional PNG path relative to the entry point, inside the extension directory, such as `./icon.png`. Use a small square image. Hosts show their default icon when it is missing or unsuitable.
+- Import the same declarations in `extension.mjs` and add only handlers, so the two cannot drift. When the registered canvas differs from `extension.json`, the runtime rejects its first open and withdraws the canvas until the extensions reload.
+- Call `await joinSession(...)` and set up its listeners at the module's top level, so they finish before the module finishes loading. The runtime waits for that point before it delivers the first open, and fails the activation when `joinSession()` was not called by then.
+
+```js
+import { CanvasError, createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import declaration from './extension.json' with { type: 'json' };
+
+const actionHandlers = { add_item: async ({ instanceId, input }) => { /* ... */ } };
+
+const session = await joinSession({
+	canvases: declaration.canvases.map(canvas => createCanvas({
+		...canvas,
+		...(canvas.actions ? { actions: canvas.actions.map(action => ({ ...action, handler: actionHandlers[action.name] })) } : {}),
+		open: async ({ instanceId, input }) => { /* ... */ },
+		onClose: async ({ instanceId }) => { /* ... */ },
+	})),
+});
+```
+
 ## Validate
 
-1. Run `node --check "<extension-dir>/extension.mjs"` and the smallest relevant extension tests. For plugin scope, also validate the manifest and its extension directory.
+1. Run `node --check "<extension-dir>/extension.mjs"` and the smallest relevant extension tests. When `extension.json` exists, confirm it parses as JSON and declares exactly the canvases, actions, and tools that `extension.mjs` registers. For plugin scope, also validate the manifest and its extension directory.
 2. For plugin scope, ensure the plugin is installed or loaded from its source using the host's supported plugin workflow, with the user's approval as needed. Creating plugin files alone does not make the canvas discoverable.
-3. Call `extensions_reload` after creating or modifying the extension. This stops and restarts all extension providers; previously open canvases are rehydrated after their providers reconnect.
+3. Call `extensions_reload` after creating or modifying the extension. This restarts the extension providers that are running and leaves dormant ones stopped; canvases that were visible are reopened after their providers start again, including those of extensions that start on first use.
 4. After reload, do not claim success until the runtime confirms the canvas:
    - call `list_canvas_capabilities` for the canvas ID;
-   - call `open_canvas` with a stable `instanceId` and schema-valid input;
+   - call `open_canvas` with a stable `instanceId` and schema-valid input; for an extension with `extension.json`, this first open starts it, and an error that its contribution does not have matching metadata means `extension.json` and `extension.mjs` disagree;
    - call at least one `invoke_canvas_action` when actions exist.
 5. Call `open_canvas` again with the same `instanceId` and confirm the canvas shows the preserved state instead of starting over.
 
-Summarize the selected scope and location, files created, the canvas and action IDs, where state is stored, any plugin installation or loading steps, and the reload and runtime verification results.
+Summarize the selected scope and location, files created, whether the extension starts on first use, the canvas and action IDs, where state is stored, any plugin installation or loading steps, and the reload and runtime verification results.

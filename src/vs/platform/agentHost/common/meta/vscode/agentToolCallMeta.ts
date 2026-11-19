@@ -67,6 +67,12 @@ export interface IToolCallMeta {
 	readonly subagentChatUri?: string;
 	/** Originating MCP server name, when the call came from an MCP server. */
 	readonly mcpServerName?: string;
+	/**
+	 * User-facing label for the originating MCP server (e.g. "Slack" for a
+	 * Connector). Presentation only; {@link mcpServerName} stays the identity.
+	 * When absent, display {@link mcpServerName}.
+	 */
+	readonly 'vscode.mcpServerDisplayName'?: string;
 	/** Originating MCP tool name, when the call came from an MCP server. */
 	readonly mcpToolName?: string;
 	/** MCP App render data, when the call exposes an interactive App surface. */
@@ -89,6 +95,8 @@ const fusionPhaseStatuses = ['running', 'succeeded', 'failed', 'cancelled'] as c
 export type AgentFusionPhaseStatus = typeof fusionPhaseStatuses[number];
 const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuses);
 
+const maxMcpServerDisplayNameLength = 256;
+
 const toolCallMetaKeys = [
 	imageGenerationToolMetaKey,
 	'vscode.toolCallDurationMs',
@@ -100,6 +108,7 @@ const toolCallMetaKeys = [
 	'vscode.assistedApprovalFeedbackAccepted',
 	'vscode.terminalWorkingDirectory',
 	'vscode.terminalEnvironment',
+	'vscode.mcpServerDisplayName',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
 	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
 ] as const;
@@ -235,6 +244,9 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta.subagentAgentName === 'string') { result.subagentAgentName = meta.subagentAgentName; }
 	if (typeof meta.subagentChatUri === 'string') { result.subagentChatUri = meta.subagentChatUri; }
 	if (typeof meta.mcpServerName === 'string') { result.mcpServerName = meta.mcpServerName; }
+	const rawMcpServerDisplayName = meta['vscode.mcpServerDisplayName'];
+	const mcpServerDisplayName = typeof rawMcpServerDisplayName === 'string' ? rawMcpServerDisplayName.trim() : undefined;
+	if (mcpServerDisplayName && mcpServerDisplayName.length <= maxMcpServerDisplayNameLength) { result['vscode.mcpServerDisplayName'] = mcpServerDisplayName; }
 	if (typeof meta.mcpToolName === 'string') { result.mcpToolName = meta.mcpToolName; }
 	if (typeof meta.progressMessage === 'string') { result.progressMessage = meta.progressMessage; }
 	const imageGeneration = readImageGenerationToolMetadata(source);

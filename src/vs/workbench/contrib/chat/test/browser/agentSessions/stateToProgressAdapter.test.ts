@@ -39,7 +39,7 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ElicitationState, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, createShellAuthenticationCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, createShellAuthenticationCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, previousModelRouted, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostManagedPluginRetry.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
@@ -1701,9 +1701,8 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(response.parts.filter(part => part.kind === 'autoModeResolution'), []);
 		});
 
-		test('a model router that picks once per chat is settled after its first pick', () => {
-			const routedTurn = (id: string, router: string, firstTurnOnly?: boolean) => createTurn({ id, usage: { _meta: { modelRouted: { router, chosenModel: 'opus', ...(firstTurnOnly ? { firstTurnOnly } : {}) } } } });
-			const picked = routedTurn('turn-1', 'daily', true);
+		test('a model router is settled after its first pick for a chat', () => {
+			const picked = createTurn({ id: 'turn-1', usage: { _meta: { modelRouted: { router: 'daily', chosenModel: 'opus' } } } });
 			const selecting = (model: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: model } } });
 			// After a restart a turn's selection is the model it ran on; its usage says which router it asked for, if any.
 			const restoredUnrouted = (router: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: 'opus' } }, usage: { inputTokens: 5, outputTokens: 1, _meta: { modelRouterUnrouted: router } } });
@@ -1715,10 +1714,15 @@ suite('stateToProgressAdapter', () => {
 				afterAnotherRoutersRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('other')], 'turn-3', 'daily'),
 				afterAHandPickedModel: isModelRouterPickSettled([picked, selecting('opus')], 'turn-3', 'daily'),
 				afterAnotherRouterWasSelected: isModelRouterPickSettled([picked, selecting('model-router:other')], 'turn-3', 'daily'),
-				reroutesEveryTurn: isModelRouterPickSettled([routedTurn('turn-1', 'daily')], 'turn-2', 'daily'),
 				anotherRouter: isModelRouterPickSettled([picked], 'turn-2', 'other'),
 				notARouter: isModelRouterPickSettled([picked], 'turn-2', undefined),
-			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterItsOwnRestoredUnroutedTurn: true, afterAnotherRoutersRestoredUnroutedTurn: false, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, reroutesEveryTurn: false, anotherRouter: false, notARouter: false });
+			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterItsOwnRestoredUnroutedTurn: true, afterAnotherRoutersRestoredUnroutedTurn: false, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, anotherRouter: false, notARouter: false });
+		});
+
+		test('the routing a turn is compared with is the last one before it', () => {
+			const routedTurn = (id: string, chosenModel: string) => createTurn({ id, usage: { _meta: { modelRouted: { router: 'daily', chosenModel } } } });
+			const turns = [routedTurn('turn-1', 'haiku'), createTurn({ id: 'turn-2' }), routedTurn('turn-3', 'opus')];
+			assert.deepStrictEqual(['turn-1', 'turn-3', 'turn-4'].map(turnId => previousModelRouted(turns, turnId)?.chosenModel), [undefined, 'haiku', 'opus']);
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
@@ -2074,6 +2078,20 @@ suite('stateToProgressAdapter', () => {
 		test('preserves alt text for image tokens', () => {
 			const value = rewriteMarkdownLinks('See ![diagram](file:///a/b.png).', 'my-host');
 			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/a/b.png?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).');
+		});
+
+		test('preserves named chat links instead of rewriting them as file references', () => {
+			const links = [
+				'[Review \\[permissions\\]](ahp-chat:/11111111-1111-5111-8111-111111111111)',
+				'[Legacy child](ahp-chat://subagent/opaque-parent/spawn-id)',
+			];
+			assert.deepStrictEqual(['local', 'remote-host'].flatMap(authority => links.map(link => ({
+				markdown: rewriteMarkdownLinks(`Read agent ${link}`, authority),
+				target: rewriteAgentHostLinkTarget(link.slice(link.indexOf('](') + 2, -1), authority),
+			}))), ['local', 'remote-host'].flatMap(() => links.map(link => ({
+				markdown: `Read agent ${link}`,
+				target: link.slice(link.indexOf('](') + 2, -1),
+			}))));
 		});
 
 		test('error turn produces error details in history', () => {
@@ -2911,6 +2929,19 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual([undefined, {}, { mcpServerName: 123 }, { mcpServerName: '  ' }].map(_meta =>
 				toolCallStateToInvocation(createToolCallState({ _meta })).originMessage
 			), [undefined, undefined, undefined, undefined]);
+		});
+
+		test('MCP origin prefers the server display name and falls back to the server name', () => {
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			assert.deepStrictEqual([
+				{ mcpServerName: serverName, 'vscode.mcpServerDisplayName': 'Slack' },
+				{ mcpServerName: serverName, 'vscode.mcpServerDisplayName': '  ' },
+				{ mcpServerName: serverName },
+			].map(_meta => toolCallStateToInvocation(createToolCallState({ _meta })).originMessage), [
+				'Slack (MCP Server)',
+				`${serverName} (MCP Server)`,
+				`${serverName} (MCP Server)`,
+			]);
 		});
 
 		test('set_workspace confirmation hides implementation input', () => {

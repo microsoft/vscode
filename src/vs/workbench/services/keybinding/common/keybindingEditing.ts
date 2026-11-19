@@ -18,7 +18,7 @@ import { ITextModelService, IResolvedTextEditorModel } from '../../../../editor/
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IUserFriendlyKeybinding } from '../../../../platform/keybinding/common/keybinding.js';
+import { IKeybindingService, IUserFriendlyKeybinding } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { ITextFileService } from '../../textfile/common/textfiles.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -49,6 +49,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		this.queue = new Queue<void>();
@@ -174,21 +175,14 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private findUserKeybindingEntryIndex(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): number {
-		for (let index = 0; index < userKeybindingEntries.length; index++) {
-			const keybinding = userKeybindingEntries[index];
-			if (keybinding.command === keybindingItem.command) {
-				if (!keybinding.when && !keybindingItem.when) {
-					return index;
-				}
-				if (keybinding.when && keybindingItem.when) {
-					const contextKeyExpr = ContextKeyExpr.deserialize(keybinding.when);
-					if (contextKeyExpr && contextKeyExpr.serialize() === keybindingItem.when.serialize()) {
-						return index;
-					}
-				}
-			}
-		}
-		return -1;
+		const key = keybindingItem.resolvedKeybinding?.getUserSettingsLabel();
+		return userKeybindingEntries.findLastIndex(entry =>
+			entry.command === keybindingItem.command
+			&& ContextKeyExpr.deserialize(entry.when)?.serialize() === keybindingItem.when?.serialize()
+			&& objects.equals(entry.args ?? undefined, keybindingItem.commandArgs ?? undefined)
+			&& !!entry.systemWide === keybindingItem.systemWide
+			&& (!key || this.keybindingService.resolveUserBinding(entry.key).some(binding => binding.getUserSettingsLabel() === key))
+		);
 	}
 
 	private findUnassignedDefaultKeybindingEntryIndex(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): number[] {

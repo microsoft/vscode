@@ -900,7 +900,33 @@ export class Repository implements Disposable {
 	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
 
 	private _isHidden: boolean;
-	get isHidden(): boolean { return this._isHidden; }
+	get isHidden(): boolean { return this._isHidden || this._isWarm; }
+
+	/**
+	 * Whether the repository is kept open, hidden, at a known location of a workspace folder other
+	 * than its current one, so that switching to that location is instant. A warm repository does
+	 * not run git status, autofetch or refresh while it is warm: the changes it sees are applied
+	 * once it is shown.
+	 */
+	private _isWarm: boolean;
+	get isWarm(): boolean { return this._isWarm; }
+
+	private _parentRoot: string | undefined;
+
+	/**
+	 * The root of the repository that this repository is shown under, if any. Closing that one closes this one too.
+	 */
+	get parentRoot(): string | undefined { return this._parentRoot; }
+
+	private _onDidChangeWarm = new EventEmitter<boolean>();
+	private readonly onDidChangeWarm: Event<boolean> = this._onDidChangeWarm.event;
+
+	private didRunFirstStatus!: () => void;
+
+	/**
+	 * Resolves once git status ran for the first time.
+	 */
+	readonly whenFirstStatus = new Promise<void>(resolve => this.didRunFirstStatus = resolve);
 
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
@@ -923,8 +949,11 @@ export class Repository implements Disposable {
 		private readonly globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter,
-		private readonly repositoryCache: RepositoryCache
+		private readonly repositoryCache: RepositoryCache,
+		isWarm = false
 	) {
+		this._isWarm = isWarm;
+		this.disposables.push(this._onDidChangeWarm);
 		this._operations = new OperationManager(this.logger);
 
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
@@ -970,6 +999,7 @@ export class Repository implements Disposable {
 		const parent = parentRoot
 			? this.repositoryResolver.getRepository(parentRoot)?.sourceControl
 			: undefined;
+		this._parentRoot = parent ? parentRoot : undefined;
 
 		// Icon
 		const icon = repository.kind === 'submodule'
@@ -991,7 +1021,7 @@ export class Repository implements Disposable {
 				isCopilotWorktreeFolder(repository.root) && parent !== undefined);
 
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this.isHidden, parent);
 		this._sourceControl.contextValue = repository.kind;
 		const activeRepositoryRoot = repository.dotGit.isBare ? repository.dotGit.commonPath : parentRoot;
 		this._sourceControl.activeRepositoryName = repository.kind === 'worktree' && activeRepositoryRoot
@@ -1930,7 +1960,11 @@ export class Repository implements Disposable {
 	}
 
 	async merge(ref: string): Promise<void> {
-		await this.run(Operation.Merge, () => this.repository.merge(ref));
+		// Only pass `-S` when the setting is enabled so that git's own config applies otherwise
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const signCommit = config.get<boolean>('enableCommitSigning') === true;
+
+		await this.run(Operation.Merge, () => this.repository.merge(ref, { signCommit }));
 	}
 
 	async mergeAbort(): Promise<void> {
@@ -3076,6 +3110,7 @@ export class Repository implements Disposable {
 			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();
+			this.didRunFirstStatus();
 		}
 		catch (err) {
 			if (err instanceof CancellationError) {
@@ -3364,8 +3399,32 @@ export class Repository implements Disposable {
 		await timeout(5000);
 	}
 
+	/**
+	 * Hides or shows the repository as a warm repository, see {@link isWarm}.
+	 */
+	setWarm(isWarm: boolean): void {
+		if (this._isWarm === isWarm) {
+			return;
+		}
+
+		this.logger.trace(`[Repository][setWarm] ${isWarm ? 'Keeping repository warm' : 'Showing repository'}: ${this.root}`);
+		this._isWarm = isWarm;
+		if (!isWarm) {
+			// A repository is shown as the one of a workspace folder's current location, so even a worktree that is
+			// hidden when its main repository is open (see the constructor) is shown
+			this._isHidden = false;
+		}
+		this._sourceControl.isHidden = this.isHidden;
+		this._onDidChangeWarm.fire(isWarm);
+	}
+
 	async whenIdleAndFocused(): Promise<void> {
 		while (true) {
+			if (this._isWarm) {
+				await eventToPromise(filterEvent(this.onDidChangeWarm, isWarm => !isWarm));
+				continue;
+			}
+
 			if (!this.operations.isIdle()) {
 				await eventToPromise(this.onDidRunOperation);
 				continue;
@@ -3504,7 +3563,10 @@ export class Repository implements Disposable {
 			// Notification
 			const replaceLocalTags = l10n.t('Replace Local Tag(s)');
 			const replaceLocalTagsAlways = l10n.t('Always Replace Local Tag(s)');
-			const message = l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0}. Would you like to resolve the conflict by replacing the local tag(s)?', tags.join(', '));
+			const maxTags = 5;
+			const message = tags.length <= maxTags
+				? l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0}. Would you like to resolve the conflict by replacing the local tag(s)?', tags.join(', '))
+				: l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0} and {1} more. Would you like to resolve the conflict by replacing the local tag(s)?', tags.slice(0, maxTags).join(', '), tags.length - maxTags);
 			const choice = await window.showErrorMessage(message, { modal: true }, replaceLocalTags, replaceLocalTagsAlways);
 
 			if (choice !== replaceLocalTags && choice !== replaceLocalTagsAlways) {

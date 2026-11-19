@@ -1166,6 +1166,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				return turnId === 'missing' ? undefined : observed;
 			}
 		});
+
 		for (const turnId of ['success', 'failure', 'cancel', 'missing']) {
 			startTurn(turnId);
 			if (turnId === 'failure') {
@@ -1189,6 +1190,22 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			['cancel', 'cancelled', 'partial', 1, 0],
 			['missing', 'success', 'notReported', 0, undefined],
 		]);
+	});
+
+	test('enriches completion with observed interactions and steering origin without changing execution identity', () => {
+		setupSession();
+		Object.assign(agent, {
+			getTurnInteraction: () => ({
+				sdkSessionId: 'sdk', originalTurnId: 'original', steeredFromTurn: 'previous',
+				interactionIds: ['i1', 'i2'], interactionIdsTruncated: false,
+			}),
+		});
+		startTurn('successor');
+		fire(chatTurnComplete('successor', 100));
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return [data.turnId, data.sdkSessionId, data.originalTurnId, data.steeredFromTurn, data.interactionIds, data.interactionIdsTruncated];
+		}), [['successor', 'sdk', 'original', 'previous', '["i1","i2"]', false]]);
 	});
 
 	for (const result of ['success', 'error', 'cancelled'] as const) {

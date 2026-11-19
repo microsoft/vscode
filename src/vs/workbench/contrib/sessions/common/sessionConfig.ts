@@ -15,6 +15,9 @@ export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 export const SESSIONS_DETAILS_POSITION_SETTING = 'sessions.experimental.detailsPosition';
 export const SESSIONS_FLOATING_DETAILS_SETTING = 'sessions.experimental.floatingDetails';
 
+/** Whether side chats (`/btw`) show as tabs of the desktop Agents window's side pane instead of as chat tabs and sessions list rows. */
+export const SESSIONS_SIDE_CHATS_IN_SIDE_PANE_SETTING = 'sessions.experimental.sideChatsInSidePane';
+
 export type DetailsPosition = 'right' | 'left' | 'top' | 'bottom';
 
 /** Whether the Session Activity Bar is shown beside the active chat in the desktop Agents window. */
@@ -36,8 +39,12 @@ export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.grou
 
 export const SESSIONS_LIST_INBOX_ENABLED_SETTING = 'sessions.list.inboxEnabled';
 
+export const SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING = 'sessions.list.inboxAutoAdvance';
+
 /** When automation sessions automatically also appear in the Sessions list. */
 export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
+
+export const SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING = 'sessions.automations.showSharedByOthers';
 
 export const enum AutomationSessionsListMode {
 	/** Every automation session is listed. */
@@ -73,6 +80,17 @@ export const SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING = 'sessions.sidebar.se
  * setting cannot also be the parent of another setting.
  */
 export const SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING = 'sessions.sidebar.customizationsAtBottom';
+
+/**
+ * Which customization categories the Customizations section below the Sessions list shows.
+ */
+export const SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING = 'sessions.sidebar.customizationsCategories';
+
+export const enum SessionsSidebarCustomizationsCategories {
+	All = 'all',
+	/** Only the categories that are shown when reduced, and a More menu with the others. */
+	Reduced = 'reduced',
+}
 
 export const SESSIONS_LIST_REARRANGE_TREATMENT = 'sessions.list.rearrage';
 

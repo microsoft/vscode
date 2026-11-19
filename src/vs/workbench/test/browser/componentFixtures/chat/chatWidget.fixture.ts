@@ -301,6 +301,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				override readonly onDidRemoveWidget = Event.None;
 				override readonly onDidBackgroundSession = Event.None;
 				override readonly onDidChangeFocusedWidget = Event.None;
+				override readonly onDidChangeWidgetVisibility = Event.None;
 				override readonly onDidChangeFocusedSession = Event.None;
 				override getAllWidgets() { return widgetHolder.current ? [widgetHolder.current] : []; }
 				override getWidgetByInputUri() { return undefined; }
@@ -741,10 +742,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
 
+	const listContainer = dom.$('.interactive-list');
 	const fixtureWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = disposableStore.add(new Emitter<never>()).event;
 		override readonly viewModel = viewModel;
 		override readonly domNode = session;
+		override readonly transcriptDomNode = listContainer;
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
@@ -762,7 +765,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	options.decorateInputPart?.(inputPart, instantiationService);
 	inputPart.element.classList.toggle('chat-input-hidden', options.inputVisible === false);
 
-	const listContainer = dom.$('.interactive-list');
 	listContainer.style.flex = options.hostLayoutMode ? '0 0 auto' : '1 1 auto';
 	listContainer.style.minHeight = '0';
 	listContainer.style.position = 'relative';

@@ -188,6 +188,26 @@ suite('NewWorktreeChoice', () => {
 		assert.deepStrictEqual({ before, shown, after: state().selected }, { before: false, shown: [true], after: true });
 	});
 
+	test('tells whether the agent took the user\'s choice: not where it rejects it, nor where the isolation is read-only', async () => {
+		const taken = create({ initial: 'folder' });
+		taken.show('a');
+		taken.resolve('a');
+		const rejected = create({ deferred: true, initial: 'folder' });
+		rejected.show('b');
+		rejected.resolve('b');
+		const rejecting = rejected.choice.setSelected(true);
+		rejected.rejects.shift()!();
+		const readOnly = create({ readOnly: true });
+		readOnly.show('c');
+		readOnly.resolve('c');
+
+		assert.deepStrictEqual({
+			taken: await taken.choice.setSelected(true),
+			rejected: await rejecting,
+			readOnly: await readOnly.choice.setSelected(true),
+		}, { taken: true, rejected: false, readOnly: false });
+	});
+
 	test('undoes only the user\'s latest choice as its agent rejects it', async () => {
 		const { choice, show, resolve, writes, rejects, remember } = create({ deferred: true, initial: 'folder' });
 		show('a');

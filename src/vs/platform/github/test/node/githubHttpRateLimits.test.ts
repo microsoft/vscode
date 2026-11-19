@@ -5,15 +5,17 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
 import { FakeScheduler } from './fakeScheduler.js';
+
 
 suite('GitHub HTTP rate limits', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const account = { host: 'github.example.test', accountId: '1' };
 	const url = 'https://github.example.test/repos/owner/repo';
-	const signal = () => new AbortController().signal;
+	const cancellationToken = () => CancellationToken.None;
 	const healthyQuota = { 'x-ratelimit-remaining': '4999', 'x-ratelimit-reset': '4600' };
 	const spentQuota = { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1120' };
 
@@ -25,7 +27,7 @@ suite('GitHub HTTP rate limits', () => {
 			}, { status: 429, headers: { 'Retry-After': '5' } }), scheduler));
 			await assert.rejects(transport.restText(account, 'token', {
 				method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
-			}, signal()), { statusCode: 429 });
+			}, cancellationToken()), { statusCode: 429 });
 			const global = limitedResource !== 'sandbox' && limitedResource !== 'token_mint';
 			assert.deepStrictEqual(['agents', 'agents:sandbox', 'agents:token_mint', 'core'].map(resource => transport.rateLimits.getRequestDelay(account, resource)), [
 				global ? 5000 : 0, global || limitedResource === 'sandbox' ? 5000 : 0,
@@ -42,7 +44,7 @@ suite('GitHub HTTP rate limits', () => {
 			}, { status: 429, headers: { 'Retry-After': '5' } }), scheduler));
 			await assert.rejects(transport.restText(account, 'token', {
 				method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
-			}, signal()), { statusCode: 429 });
+			}, cancellationToken()), { statusCode: 429 });
 			const delay = code === 'not_implemented' || code === 'forbidden' ? 0 : 5000;
 			assert.deepStrictEqual(['agents', 'agents:sandbox', 'agents:token_mint'].map(resource => transport.rateLimits.getRequestDelay(account, resource)), [delay, delay, delay]);
 		});
@@ -100,11 +102,11 @@ suite('GitHub HTTP rate limits', () => {
 					return Response.json({ message: entry.message ?? 'Rate Limit Exceeded' }, { status: entry.status ?? 403, headers: entry.headers });
 				}, scheduler));
 				const request = kind === 'download'
-					? transport.download(account, 'token', { url, timeout: 1_000, maximumBytes: 1 }, signal())
+					? transport.download(account, 'token', { url, timeout: 1_000, maximumBytes: 1 }, cancellationToken())
 					: kind === 'REST read' || kind === 'REST mutation'
-						? transport.rest(account, 'token', { method: kind === 'REST read' ? 'GET' : 'POST', url }, signal())
+						? transport.rest(account, 'token', { method: kind === 'REST read' ? 'GET' : 'POST', url }, cancellationToken())
 						: transport.graphql(account, 'token', 'https://github.example.test/graphql',
-							kind === 'GraphQL read' ? 'query { viewer { login } }' : 'mutation Change { change { id } }', {}, signal());
+							kind === 'GraphQL read' ? 'query { viewer { login } }' : 'mutation Change { change { id } }', {}, cancellationToken());
 				await assert.rejects(request, { kind: entry.limit ? 'rateLimit' : 'authorization', statusCode: entry.status ?? 403 });
 				const resource = kind.startsWith('GraphQL') ? 'graphql' : 'core';
 				assert.deepStrictEqual({
@@ -146,14 +148,14 @@ suite('GitHub HTTP rate limits', () => {
 				}
 				return Response.json({}, { headers: healthyQuota });
 			}, scheduler));
-			const inFlight = transport.rest(account, 'token', { method: 'GET', url }, signal());
+			const inFlight = transport.rest(account, 'token', { method: 'GET', url }, cancellationToken());
 			await started.p;
 			transport.rateLimits.updateFromResponse(account, new Response(null, { headers: spentQuota }));
 			const initialDelay = transport.rateLimits.getDelay(account, 'core');
 			await response.complete(Response.json({}, { headers: { ...spentQuota, ...entry.headers } }));
 			await inFlight;
 			const updatedDelay = transport.rateLimits.getDelay(account, 'core');
-			const pending = transport.rest(account, 'token', { method: 'GET', url: `${url}/after` }, signal());
+			const pending = transport.rest(account, 'token', { method: 'GET', url: `${url}/after` }, cancellationToken());
 			scheduler.advanceBy(entry.delay - 1);
 			await Promise.resolve();
 			const beforeExpiry = dispatchTimes.length;
@@ -178,7 +180,7 @@ suite('GitHub HTTP rate limits', () => {
 				await started.complete();
 				return response.p;
 			}, scheduler));
-			const rejected = assert.rejects(transport.rest(account, 'token', { method: 'GET', url }, signal()), { kind: 'authorization' });
+			const rejected = assert.rejects(transport.rest(account, 'token', { method: 'GET', url }, cancellationToken()), { kind: 'authorization' });
 			await started.p;
 			transport.rateLimits.updateFromResponse(account, new Response(null, {
 				status: source === 'successful exhausted quota' ? 200 : 403,
