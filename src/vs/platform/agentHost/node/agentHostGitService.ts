@@ -238,6 +238,29 @@ export class AgentHostGitService implements IAgentHostGitService {
 		this._repositoryRoots.set(roots, undefined);
 	}
 
+	/**
+	 * Forgets the cached repository roots of a removed worktree, so lookups stop resolving to a checkout that is gone.
+	 * Entries cached under the canonical path git reported for the worktree are forgotten too.
+	 */
+	private _forgetRepositoryRoots(worktree: URI): void {
+		const roots = this._repositoryRoots.get();
+		const removedRoots = [worktree];
+		const canonicalRoot = roots.peek(extUriBiasedIgnorePathCase.getComparisonKey(worktree));
+		if (canonicalRoot) {
+			removedRoots.push(canonicalRoot);
+		}
+		const isRemoved = (resource: URI) => removedRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(resource, root));
+		// Collect the keys first: the cache throws when it is modified during iteration.
+		const keys = [...roots].filter(([key, root]) => isRemoved(URI.parse(key)) || (root !== undefined && isRemoved(root))).map(([key]) => key);
+		if (keys.length === 0) {
+			return;
+		}
+		for (const key of keys) {
+			roots.delete(key);
+		}
+		this._repositoryRoots.set(roots, undefined);
+	}
+
 	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined> {
 		if (workingDirectory.scheme !== Schemas.file) {
 			return undefined;
@@ -501,6 +524,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				if (!isRetryableWorktreeRemovalError(error)) {
 					if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 						await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
+						this._forgetRepositoryRoots(worktree);
 						return;
 					}
 					throw error;
@@ -509,6 +533,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// A zero exit is not proof of success (see the doc above), so confirm de-registration.
 			if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 				await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
+				this._forgetRepositoryRoots(worktree);
 				return;
 			}
 			if (gitCommandSucceeded) {
