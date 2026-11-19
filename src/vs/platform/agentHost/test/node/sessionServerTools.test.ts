@@ -2223,6 +2223,35 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('create_session with currentSession refuses a workspace that is not a plain local folder, and prepares nothing', async () => {
+		let preparedFolder = false;
+		let createdChat = false;
+		const accessor = createAccessor({
+			prepareChatWorkingDirectory: async (_session, directory) => {
+				preparedFolder = true;
+				return prepared(directory);
+			},
+			onCreateChat: () => { createdChat = true; },
+		});
+		const errorOf = async (workspace: string) => {
+			try {
+				await applyCreateSessionTool(accessor, { relationship: 'currentSession', workspace, prompt: 'do it there', title: 'Other Folder' }, URI.parse('copilot:/s1'));
+				return undefined;
+			} catch (error) {
+				return (error as Error).message;
+			}
+		};
+		const refusal = 'Invalid create_session input: workspace for relationship "currentSession" must be an absolute local path or file URI.';
+
+		assert.deepStrictEqual({
+			query: await errorOf('file:///workspace/other?x=1'),
+			fragment: await errorOf('file:///workspace/other#x'),
+			remote: await errorOf('vscode-remote://host/workspace/other'),
+			preparedFolder,
+			createdChat,
+		}, { query: refusal, fragment: refusal, remote: refusal, preparedFolder: false, createdChat: false });
+	});
+
 	test('create_session without a relationship creates a chat in the current session', async () => {
 		let createdSession = false;
 		const createdChatSessions: string[] = [];
@@ -2423,12 +2452,10 @@ suite('SessionServerTools', () => {
 		test('a caller with credentials reads no catalog for mistakes found without one', async () => {
 			const reads: string[] = [];
 			let depth = 0;
-			let quickChat = false;
 			const { accessor, calls } = recordingAccessor({
 				getCredentialSource: () => ({ getCredential: () => undefined }),
 				getModelsForCredentials: async () => { reads.push('scoped'); return [configured]; },
 				getSessionSpawnDepth: () => depth,
-				getSession: async () => ({ ...sessionMeta('s1', SessionStatus.InProgress, workspace), ...(quickChat ? { _meta: withSessionWorkspaceless(undefined, true) } : {}) }),
 			});
 			const messages: string[] = [];
 			const attempt = async (request: Record<string, unknown>) => {
@@ -2442,8 +2469,7 @@ suite('SessionServerTools', () => {
 			await attempt({ model: 'gpt-configured', worktree: true });
 			await attempt({ model: 'gpt-configured', reasoningEffort: 'extreme' });
 			await attempt({ harness: 'claude', contextTier: 'long_context' });
-			quickChat = true;
-			await attempt({ workspace: workspace.toString(), model: 'gpt-configured' });
+			await attempt({ workspace: `${workspace.toString()}?x=1`, model: 'gpt-configured' });
 			depth = 3;
 			await attempt({ relationship: 'independent', model: 'gpt-configured', reasoningEffort: 'high' });
 			assert.deepStrictEqual({ messages, reads, calls }, {
@@ -2451,7 +2477,7 @@ suite('SessionServerTools', () => {
 					'Invalid create_session input: worktree requires workspace.',
 					'Invalid create_session input: reasoningEffort must be one of: none, minimal, low, medium, high, xhigh, max, ultra.',
 					'Invalid create_session input: contextTier needs a model, but the new chat has no model to inherit. Pass `model` as well.',
-					'Invalid create_session input: relationship "currentSession" with "workspace" is not supported from a quick chat. Use set_workspace to attach a workspace to the quick chat first, or create an independent session.',
+					'Invalid create_session input: workspace for relationship "currentSession" must be an absolute local path or file URI.',
 					'Refusing to create a session: recursion limit reached (max spawn depth 3). This session was itself created 3 level(s) deep.',
 				],
 				reads: [],
