@@ -1757,9 +1757,10 @@ export class CopilotAgentSession extends Disposable {
 	 * configuration changes before the send. The catalog is built only after the
 	 * launch's Connector reconciliation, which would otherwise replace its MCP
 	 * servers and tools, and not once `token` is cancelled (the session was
-	 * claimed or discarded) or a turn has started.
+	 * claimed or discarded) or a turn has started. Resolves whether the tools
+	 * were initialized.
 	 */
-	async warmUp(token: CancellationToken): Promise<void> {
+	async warmUp(token: CancellationToken): Promise<boolean> {
 		const wrapper = this._wrapper;
 		await Promise.all([
 			wrapper.session.rpc.mcp.list(),
@@ -1767,9 +1768,10 @@ export class CopilotAgentSession extends Disposable {
 			this._launchConnectorReconcile ? raceCancellation(this._launchConnectorReconcile, token) : undefined,
 		]);
 		if (token.isCancellationRequested || this.isDisposed || this._wrapper !== wrapper || this.hasActiveTurn) {
-			return;
+			return false;
 		}
 		await wrapper.session.rpc.tools.initializeAndValidate();
+		return true;
 	}
 
 	/**

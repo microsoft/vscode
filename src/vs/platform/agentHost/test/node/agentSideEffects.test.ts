@@ -1064,7 +1064,7 @@ suite('AgentSideEffects', () => {
 				const sendMessage = agent.chats.sendMessage;
 				agent.chats.sendMessage = async (chat, prompt, workingDirectories, attachments, turnId, senderClientId, clientType, context) => {
 					if (outcome !== 'none' && context && !URI.isUri(context)) {
-						context.reportPrewarmedSession?.(outcome === 'discarded' ? 'modelChanged' : undefined);
+						context.reportPrewarmedSession?.(outcome === 'discarded' ? 'modelChanged' : undefined, outcome === 'used' ? { readyAt: Date.now() - 60_000, launchCount: 2, warmUpComplete: true } : undefined);
 					}
 					return sendMessage(chat, prompt, workingDirectories, attachments, turnId, senderClientId, clientType, context);
 				};
@@ -1077,11 +1077,20 @@ suite('AgentSideEffects', () => {
 					agent.chats.sendMessage = sendMessage;
 				}
 				const data = recording.events.find(event => event.eventName === 'agentHost.turnCompleted')?.data as Record<string, unknown> | undefined;
+				const readyBefore = data?.prewarmReadyBeforeTurnStartMs as number | undefined;
 
-				assert.deepStrictEqual({ completed: !!data, used: data?.usedPrewarmedSession, discardReason: data?.prewarmedSessionDiscardReason }, {
+				assert.deepStrictEqual({
+					completed: !!data, used: data?.usedPrewarmedSession, discardReason: data?.prewarmedSessionDiscardReason,
+					// The launch was ready a minute before this turn started, so the send did not wait for it.
+					readyAfter: data?.prewarmReadyAfterTurnStartMs, readyAboutAMinuteBefore: readyBefore === undefined ? undefined : readyBefore >= 59_000 && readyBefore <= 61_000,
+					launchCount: data?.prewarmLaunchCount, warmUpComplete: data?.prewarmWarmUpComplete,
+				}, {
 					completed: true,
 					used: expectedUsed,
 					discardReason: expectedDiscardReason,
+					...(outcome === 'used'
+						? { readyAfter: 0, readyAboutAMinuteBefore: true, launchCount: 2, warmUpComplete: true }
+						: { readyAfter: undefined, readyAboutAMinuteBefore: undefined, launchCount: undefined, warmUpComplete: undefined }),
 				});
 			});
 		}

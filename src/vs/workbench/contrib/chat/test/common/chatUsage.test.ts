@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatUsage } from '../../common/chatService/chatService.js';
-import { aggregateChatUsage } from '../../common/chatUsage.js';
+import { aggregateChatUsage, getLatestModelCallTokensPerSecond } from '../../common/chatUsage.js';
 
 suite('Chat usage aggregation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -74,6 +74,19 @@ suite('Chat usage aggregation', () => {
 				modelTotals: [{ model: 'Claude', inputTokens: Number.NaN, cachedTokens: 0, outputTokens: 2 }],
 			},
 		]), undefined);
+	});
+
+	test('measures output speed from the latest model call only when the provider timed it', () => {
+		const usages: (IChatUsage | undefined)[] = [
+			// A subagent's call is reported on its parent turn, whose completion tokens are the parent's own.
+			{ kind: 'usage', promptTokens: 900, completionTokens: 40, latestModelCall: { duration: 5000, outputTokens: 300 } },
+			{ kind: 'usage', promptTokens: 900, completionTokens: 120, latestModelCall: { duration: 2000 } },
+			{ kind: 'usage', promptTokens: 900, completionTokens: 120 },
+			{ kind: 'usage', promptTokens: 900, completionTokens: 120, latestModelCall: { duration: 0 } },
+			{ kind: 'usage', promptTokens: 900, completionTokens: 0, latestModelCall: { duration: 2000 } },
+			undefined,
+		];
+		assert.deepStrictEqual(usages.map(getLatestModelCallTokensPerSecond), [60, 60, undefined, undefined, undefined, undefined]);
 	});
 });
 

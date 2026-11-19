@@ -26,7 +26,7 @@ import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../services/
 import { ActiveEditorContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { createMultiDiffEditorLayoutDebugModel, isMultiDiffEditorLayoutDebugStateProvider } from './multiDiffEditorLayoutDebug.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { ActiveMultiDiffEditorHasFileListContext, isMultiDiffEditorFileListHost, MultiDiffEditorFileListAvailableContext, TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFilesViewAndPositionMenu, setMultiDiffEditorFileListPosition, setMultiDiffEditorFileListViewMode, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, isMultiDiffEditorFileListHost, MultiDiffEditorFileListAvailableContext, TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFilesViewAndPositionMenu, MultiDiffEditorFileListToggleMenu, setMultiDiffEditorFileListPosition, setMultiDiffEditorFileListViewMode, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -45,6 +45,18 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: MultiDiffEditorFilesViewAndPositionMenu,
 	title: localize('filesViewAndPosition', "Files View & Position"),
 	group: 'z_files',
+	when: filesViewWhen,
+});
+
+// Toggle Files, with a dropdown that puts the list on either side of the diffs.
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	submenu: MultiDiffEditorFileListToggleMenu,
+	title: localize('filesPosition', "Files Position"),
+	icon: Codicon.listFlat,
+	isSplitButton: { excludePrimaryActionFromDropdown: true },
+	isAlwaysShown: true,
+	group: 'navigation',
+	order: 100001,
 	when: filesViewWhen,
 });
 
@@ -233,11 +245,11 @@ export class ToggleFileListAction extends Action2 {
 			icon: Codicon.listFlat,
 			toggled: MultiDiffEditorFileListEnabledContext,
 			precondition: filesViewWhen,
+			// The primary action of the split button above.
 			menu: {
-				id: MenuId.EditorTitle,
-				when: filesViewWhen,
+				id: MultiDiffEditorFileListToggleMenu,
 				group: 'navigation',
-				order: 100001,
+				order: 1,
 			},
 			f1: true,
 		});
@@ -288,12 +300,16 @@ abstract class SetFileListPositionAction extends Action2 {
 			title,
 			toggled: MultiDiffEditorFileListPositionContext.isEqualTo(_position),
 			precondition: ActiveMultiDiffEditorHasFileListContext,
-			menu: {
+			menu: [{
 				id: MultiDiffEditorFilesViewAndPositionMenu,
 				group: '2_position',
 				order: _position === 'left' ? 1 : 2,
 				when: ActiveMultiDiffEditorHasFileListContext,
-			},
+			}, {
+				id: MultiDiffEditorFileListToggleMenu,
+				group: '2_position',
+				order: _position === 'left' ? 1 : 2,
+			}],
 		});
 	}
 
@@ -304,13 +320,13 @@ abstract class SetFileListPositionAction extends Action2 {
 
 export class PositionFileListLeftAction extends SetFileListPositionAction {
 	constructor() {
-		super('multiDiffEditor.positionFileListLeft', localize2('positionFileListLeft', 'On the Left'), 'left');
+		super('multiDiffEditor.positionFileListLeft', localize2('positionFileListLeft', 'Left'), 'left');
 	}
 }
 
 export class PositionFileListRightAction extends SetFileListPositionAction {
 	constructor() {
-		super('multiDiffEditor.positionFileListRight', localize2('positionFileListRight', 'On the Right'), 'right');
+		super('multiDiffEditor.positionFileListRight', localize2('positionFileListRight', 'Right'), 'right');
 	}
 }
 

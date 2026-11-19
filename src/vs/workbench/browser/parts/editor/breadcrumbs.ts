@@ -24,6 +24,24 @@ export interface IBreadcrumbsService {
 	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable;
 
 	getWidget(group: GroupIdentifier): BreadcrumbsWidget | undefined;
+
+	/** Fires with the group whose editor type dropdown was shown or hidden. */
+	readonly onDidChangeEditorTypeControl: Event<GroupIdentifier>;
+
+	registerEditorTypeControl(group: GroupIdentifier, control: IBreadcrumbsEditorTypeControl): IDisposable;
+
+	/** The editor type dropdown of the group's breadcrumbs, while it is shown. */
+	getEditorTypeControl(group: GroupIdentifier): IBreadcrumbsEditorTypeControl | undefined;
+}
+
+/**
+ * The dropdown at the end of the breadcrumbs that switches between the editors
+ * that can open the active file, e.g. "Text Editor" and "Markdown Editor".
+ */
+export interface IBreadcrumbsEditorTypeControl {
+	readonly element: HTMLElement;
+	/** Fires when the user opens the dropdown's menu. */
+	readonly onDidOpen: Event<void>;
 }
 
 
@@ -32,6 +50,10 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _map = new Map<number, BreadcrumbsWidget>();
+	private readonly _editorTypeControls = new Map<number, IBreadcrumbsEditorTypeControl>();
+
+	private readonly _onDidChangeEditorTypeControl = new Emitter<GroupIdentifier>();
+	readonly onDidChangeEditorTypeControl = this._onDidChangeEditorTypeControl.event;
 
 	register(group: number, widget: BreadcrumbsWidget): IDisposable {
 		if (this._map.has(group)) {
@@ -45,6 +67,23 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 
 	getWidget(group: number): BreadcrumbsWidget | undefined {
 		return this._map.get(group);
+	}
+
+	registerEditorTypeControl(group: GroupIdentifier, control: IBreadcrumbsEditorTypeControl): IDisposable {
+		this._editorTypeControls.set(group, control);
+		this._onDidChangeEditorTypeControl.fire(group);
+		return {
+			dispose: () => {
+				if (this._editorTypeControls.get(group) === control) {
+					this._editorTypeControls.delete(group);
+					this._onDidChangeEditorTypeControl.fire(group);
+				}
+			}
+		};
+	}
+
+	getEditorTypeControl(group: GroupIdentifier): IBreadcrumbsEditorTypeControl | undefined {
+		return this._editorTypeControls.get(group);
 	}
 }
 

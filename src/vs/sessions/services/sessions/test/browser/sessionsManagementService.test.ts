@@ -3950,6 +3950,46 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const end of ['archiving', 'removing'] as const) {
+		for (const focusInSession of [false, true]) {
+			test(`${end} the active session ${focusInSession ? 'moves focus out of its view into the new session' : 'leaves focus outside the grid, such as in the sessions list'}`, async () => {
+				const isArchived = observableValue('isArchived', false);
+				const session = stubSession({ sessionId: 'active', providerId: 'test', isArchived });
+				const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(true) });
+				const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+				const provider = new class extends TestSessionsProvider {
+					override readonly onDidChangeSessions = onDidChangeSessions.event;
+					override readonly supportsQuickChats = true;
+					override createQuickChat(): ISession { return draft; }
+				}(session);
+				const { view, sessionsPartService } = createSessionsManagementService(session, disposables, provider);
+				await view.openSession(session.resource);
+				sessionsPartService.focusedSessionView = focusInSession ? new class extends mock<SessionView>() { }() : undefined;
+				const focusTarget = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
+				disposables.add(toDisposable(() => focusTarget.remove()));
+				focusTarget.focus();
+				sessionsPartService.focusedSessions.length = 0;
+
+				if (end === 'archiving') {
+					isArchived.set(true, undefined);
+				} else {
+					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+				}
+				await timeout(0);
+				// As the new-session composer does once it shows: it creates its draft on its own
+				view.openQuickChat(undefined, true);
+
+				assert.deepStrictEqual({
+					active: activeSessionOf(view)?.sessionId,
+					focused: sessionsPartService.focusedSessions,
+				}, {
+					active: 'draft',
+					focused: focusInSession ? [undefined, 'draft'] : [],
+				});
+			});
+		}
+	}
+
 	test('automatic no-fallback removal stays inert during pending explicit navigation', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });
 		const target = stubSession({ sessionId: 'target', providerId: 'test' });
