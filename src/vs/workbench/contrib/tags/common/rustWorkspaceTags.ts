@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, getComparisonKey, isEqual, resolvePath } from '../../../../base/common/resources.js';
+import { dirname, getComparisonKey, isEqual, isEqualOrParent, resolvePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const RustCratesToLookFor = [
@@ -89,6 +89,7 @@ export function getCargoWorkspaceDependencies(contents: string): ReadonlyMap<str
 export async function getCargoWorkspaceDependenciesForFolder(
 	folder: URI,
 	contents: string,
+	workspaceFolders: readonly URI[],
 	readManifestContents: (folder: URI) => Promise<string | undefined>,
 	cache: Map<string, ReadonlyMap<string, string> | undefined>
 ): Promise<ReadonlyMap<string, string> | undefined> {
@@ -102,6 +103,9 @@ export async function getCargoWorkspaceDependenciesForFolder(
 	}
 	let currentFolder = manifest.workspacePath === undefined ? folder : resolvePath(folder, manifest.workspacePath);
 	while (true) {
+		if (!workspaceFolders.some(workspaceFolder => isEqualOrParent(currentFolder, workspaceFolder) || isEqualOrParent(workspaceFolder, currentFolder))) {
+			return undefined;
+		}
 		const key = getComparisonKey(currentFolder);
 		let dependencies = cache.get(key);
 		if (!cache.has(key)) {
@@ -157,7 +161,6 @@ function parseCargoDependencies(contents: string): { sections: Map<string, Cargo
 	let hasWorkspace = false;
 	let hasWorkspacePath = false;
 	let workspacePath: string | undefined;
-	const stringState: { multilineQuote?: string } = {};
 
 	const getDependencySection = (section: DependencySection): Map<string, CargoDependency> => {
 		if (section.isWorkspace) {
@@ -213,8 +216,8 @@ function parseCargoDependencies(contents: string): { sections: Map<string, Cargo
 		}
 	};
 
-	for (const rawLine of contents.split(/\r?\n/)) {
-		const line = stripTomlComment(rawLine, stringState).trim();
+	for (const rawLine of normalizeTomlMultilineStrings(contents).split(/\r?\n/)) {
+		const line = stripTomlComment(rawLine).trim();
 		if (!line) {
 			continue;
 		}
@@ -390,7 +393,7 @@ function findUnquotedCharacter(value: string, expectedCharacter: string): number
 
 function setDependencyProperty(dependency: CargoDependency, property: string, value: string): void {
 	if (property === 'package') {
-		dependency.packageName = /^["']([^"']+)["']/.exec(value)?.[1];
+		dependency.packageName = parseTomlString(value);
 	} else if (property === 'workspace') {
 		dependency.workspace = value.trim() === 'true';
 	}
@@ -449,28 +452,47 @@ function parseTomlKey(value: string): string | undefined {
 }
 
 function parseTomlString(value: string): string | undefined {
-	if (value.length < 2 || value[0] !== value[value.length - 1]) {
+	const multiline = value.startsWith('"""') || value.startsWith('\'\'\'');
+	const delimiter = multiline ? value.slice(0, 3) : value[0];
+	if ((delimiter !== '"' && delimiter !== '\'' && delimiter !== '"""' && delimiter !== '\'\'\'') || value.length < delimiter.length * 2 || !value.endsWith(delimiter)) {
 		return undefined;
+	}
+	let content = value.slice(delimiter.length, -delimiter.length);
+	if (multiline) {
+		content = content.replace(/^\r?\n/, '');
 	}
 	if (value[0] === '\'') {
-		return value.slice(1, -1);
-	}
-	if (value[0] !== '"') {
-		return undefined;
+		return content;
 	}
 	let result = '';
-	for (let i = 1; i < value.length - 1; i++) {
-		if (value[i] !== '\\') {
-			result += value[i];
+	for (let i = 0; i < content.length; i++) {
+		if (content[i] !== '\\') {
+			result += content[i];
 			continue;
 		}
-		const escaped = value[++i];
+		if (multiline) {
+			let next = i + 1;
+			while (content[next] === ' ' || content[next] === '\t') {
+				next++;
+			}
+			if (content[next] === '\r' && content[next + 1] === '\n') {
+				next++;
+			}
+			if (content[next] === '\n') {
+				while (next < content.length && /[ \t\r\n]/.test(content[next])) {
+					next++;
+				}
+				i = next - 1;
+				continue;
+			}
+		}
+		const escaped = content[++i];
 		const escapes: Record<string, string> = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', '"': '"', '\\': '\\' };
 		if (escapes[escaped] !== undefined) {
 			result += escapes[escaped];
 		} else if (escaped === 'u' || escaped === 'U') {
 			const length = escaped === 'u' ? 4 : 8;
-			const hex = value.slice(i + 1, i + 1 + length);
+			const hex = content.slice(i + 1, i + 1 + length);
 			if (hex.length !== length || !/^[0-9a-fA-F]+$/.test(hex)) {
 				return undefined;
 			}
@@ -482,6 +504,57 @@ function parseTomlString(value: string): string | undefined {
 			i += length;
 		} else {
 			return undefined;
+		}
+	}
+	return result;
+}
+
+function normalizeTomlMultilineStrings(contents: string): string {
+	let result = '';
+	let quote: '"' | '\'' | undefined;
+	let comment = false;
+	for (let i = 0; i < contents.length; i++) {
+		const character = contents[i];
+		if (comment) {
+			result += character;
+			if (character === '\n') {
+				comment = false;
+			}
+		} else if (quote) {
+			result += character;
+			if (quote === '"' && character === '\\' && i + 1 < contents.length) {
+				result += contents[++i];
+			} else if (character === quote) {
+				quote = undefined;
+			}
+		} else if (contents.startsWith('"""', i) || contents.startsWith('\'\'\'', i)) {
+			const delimiter = contents.slice(i, i + 3);
+			let end = i + 3;
+			let closed = false;
+			while (end < contents.length) {
+				if (delimiter === '"""' && contents[end] === '\\') {
+					end += 2;
+				} else if (contents.startsWith(delimiter, end)) {
+					end += 3;
+					for (let extra = 0; extra < 2 && contents[end] === character; extra++) {
+						end++;
+					}
+					closed = true;
+					break;
+				} else {
+					end++;
+				}
+			}
+			const decoded = closed ? parseTomlString(contents.slice(i, end)) : undefined;
+			result += decoded === undefined ? 'invalid' : JSON.stringify(decoded);
+			i = end - 1;
+		} else {
+			result += character;
+			if (character === '#') {
+				comment = true;
+			} else if (character === '"' || character === '\'') {
+				quote = character;
+			}
 		}
 	}
 	return result;
@@ -512,23 +585,11 @@ function countBraces(value: string): number {
 	return count;
 }
 
-function stripTomlComment(value: string, state: { multilineQuote?: string }): string {
+function stripTomlComment(value: string): string {
 	let result = '';
 	let quote: '"' | '\'' | undefined;
 	for (let i = 0; i < value.length; i++) {
 		const character = value[i];
-		if (state.multilineQuote) {
-			if (state.multilineQuote === '"""' && character === '\\') {
-				i++;
-			} else if (value.startsWith(state.multilineQuote, i)) {
-				i += 2;
-				for (let extra = 0; extra < 2 && value[i + 1] === character; extra++) {
-					i++;
-				}
-				state.multilineQuote = undefined;
-			}
-			continue;
-		}
 		if (quote) {
 			result += character;
 			if (quote === '"' && character === '\\' && i + 1 < value.length) {
@@ -536,10 +597,6 @@ function stripTomlComment(value: string, state: { multilineQuote?: string }): st
 			} else if (character === quote) {
 				quote = undefined;
 			}
-		} else if (value.startsWith('"""', i) || value.startsWith('\'\'\'', i)) {
-			state.multilineQuote = value.slice(i, i + 3);
-			result += '""';
-			i += 2;
 		} else if (character === '"' || character === '\'') {
 			quote = character;
 			result += character;

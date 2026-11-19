@@ -255,7 +255,7 @@ client.workspace = true
 			[member.path, memberContents]
 		]);
 		const foldersRead: string[] = [];
-		const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(member, memberContents, async folder => {
+		const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(member, memberContents, [member], async folder => {
 			foldersRead.push(folder.path);
 			return manifestContents.get(folder.path);
 		}, new Map<string, ReadonlyMap<string, string> | undefined>());
@@ -285,8 +285,8 @@ client.workspace = true
 			reads.push(folder.path);
 			return files.get(folder.path);
 		};
-		const dependencies = await getCargoWorkspaceDependenciesForFolder(member, contents, readManifest, new Map());
-		const missing = await getCargoWorkspaceDependenciesForFolder(member, contents.replace('../other', '../missing'), readManifest, new Map());
+		const dependencies = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], readManifest, new Map());
+		const missing = await getCargoWorkspaceDependenciesForFolder(member, contents.replace('../other', '../missing'), [root], readManifest, new Map());
 		assert.deepStrictEqual([
 			getCargoDependencyNames(contents, dependencies),
 			missing,
@@ -312,10 +312,50 @@ client.workspace = true
 		const readManifest = async (folder: URI) => folder.path === workspace.path ? '[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }' : undefined;
 		for (const form of forms) {
 			const contents = form + dependency;
-			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, readManifest, new Map());
+			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], readManifest, new Map());
 			results.push(getCargoDependencyNames(contents, resolved));
 		}
 		assert.deepStrictEqual(results, [['reqwest'], ['reqwest'], ['reqwest']]);
+	});
+
+	test('Cargo workspace reads stay within opened folders and their ancestors', async () => {
+		const root = URI.parse('test:/repo');
+		const member = URI.joinPath(root, 'member');
+		const reads: string[] = [];
+		const readManifest = async (folder: URI) => {
+			reads.push(folder.path);
+			return '[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }';
+		};
+		const paths = ['../other', '../../outside', '/net/share', '/repo/member-other', '.', 'nested', '..'];
+		const results: string[][] = [];
+		for (const path of paths) {
+			const contents = `[package]\nworkspace = "${path}"\n[dependencies]\nclient.workspace = true`;
+			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], readManifest, new Map());
+			results.push(getCargoDependencyNames(contents, resolved));
+		}
+		assert.deepStrictEqual([results, reads], [
+			[[], [], [], [], ['reqwest'], ['reqwest'], ['reqwest']],
+			[member.path, URI.joinPath(member, 'nested').path, root.path]
+		]);
+	});
+
+	test('Cargo preserves multiline workspace paths and renamed packages', async () => {
+		const root = URI.parse('test:/repo');
+		const member = URI.joinPath(root, 'member');
+		const workspace = URI.joinPath(root, 'other');
+		const paths = ['"""../other"""', '\'\'\'../other\'\'\'', '"""\n../oth\\\n  er"""', '"""../\\u006fther"""'];
+		const results: string[][] = [];
+		const readManifest = async (folder: URI) => folder.path === workspace.path ? String.raw`
+[workspace.dependencies]
+client = { package = """req\u0077est""", version = "1" }
+other.package = '''serde_json'''
+` : undefined;
+		for (const path of paths) {
+			const contents = `[package]\nworkspace = ${path}\n[dependencies]\nclient.workspace = true\nother.workspace = true\n[dev-dependencies.direct]\npackage = """\r\nany\\\r\n  how"""`;
+			const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [root], readManifest, new Map());
+			results.push(getCargoDependencyNames(contents, resolved));
+		}
+		assert.deepStrictEqual(results, Array.from({ length: paths.length }, () => ['reqwest', 'serde_json', 'anyhow']));
 	});
 
 	test('Cargo ignores dependency-like content in multiline strings', () => {

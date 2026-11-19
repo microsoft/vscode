@@ -1729,7 +1729,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				};
 				for (const manifest of cargoManifests) {
 					try {
-						const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(manifest.folder, manifest.contents, readCargoManifest, cargoWorkspaceCache);
+						const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(manifest.folder, manifest.contents, folders, readCargoManifest, cargoWorkspaceCache);
 						for (const dependency of getCargoDependencyNames(manifest.contents, workspaceDependencies)) {
 							if (RustCratesToLookFor.includes(dependency)) {
 								tags['workspace.cargo.' + dependency] = true;
