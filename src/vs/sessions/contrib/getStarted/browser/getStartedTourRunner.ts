@@ -13,6 +13,7 @@ import { waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { TEXT_DIFF_EDITOR_ID } from '../../../../workbench/common/editor.js';
@@ -36,11 +37,12 @@ import { SessionChangesEditorInput } from '../../../../workbench/contrib/session
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionChangesService } from '../../../../workbench/services/sessions/common/sessionChangesService.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID, AUTOMATIONS_TOUR_SEEN_KEY } from '../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { AUTOMATIONS_TOUR_SEEN_KEY } from '../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { SessionsList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { GetStartedItemId } from '../common/getStartedChecklist.js';
 import { createGetStartedTourSteps, GetStartedTourTarget, IGetStartedTourContext, IGetStartedTourNavigation } from './getStartedTours.js';
+import { AUTOMATIONS_MODAL_SETTING } from '../../automations/browser/automationsEditorInput.js';
 
 const SHOW_ME_SCENARIO_PREFIX = 'sessions.getStarted.showMe.';
 
@@ -81,6 +83,7 @@ export class GetStartedTourRunner extends Disposable {
 		@ICustomViewService private readonly _customViewService: ICustomViewService,
 		@ISessionsRecentWorkspacesService private readonly _recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -90,6 +93,11 @@ export class GetStartedTourRunner extends Disposable {
 	 * Asking again for the same item joins its tour, and asking for another item ends it.
 	 */
 	run(item: GetStartedItemId): Promise<OnboardingOutcome> {
+		if (item === GetStartedItemId.Automation && this._configurationService.getValue<boolean>(AUTOMATIONS_MODAL_SETTING) === true) {
+			this._current = undefined;
+			this._runStore.clear();
+			return this._commandService.executeCommand('sessionsView.manageAutomations').then(() => OnboardingOutcome.Skipped);
+		}
 		if (this._current?.item === item) {
 			return this._current.outcome;
 		}
@@ -166,7 +174,7 @@ export class GetStartedTourRunner extends Disposable {
 				}
 			},
 			showAutomations: async () => {
-				this._customViewService.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
+				await this._commandService.executeCommand('sessionsView.manageAutomations');
 			},
 		};
 		return {

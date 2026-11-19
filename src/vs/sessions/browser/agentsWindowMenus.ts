@@ -43,6 +43,13 @@ export const AgentsWindowMenus = {
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
 	AutomationsMoreActions: new MenuId('SessionsAutomationsMoreActions'),
+	/** Presentation menus owned by the alternative Automations modal. */
+	AutomationsModalToolbar: new MenuId('SessionsAutomationsModalToolbar'),
+	AutomationsModalCreate: new MenuId('SessionsAutomationsModalCreate'),
+	AutomationsModalViewOptions: new MenuId('SessionsAutomationsModalViewOptions'),
+	AutomationsModalRowContext: new MenuId('SessionsAutomationsModalRowContext'),
+	AutomationsModalHistoryItem: new MenuId('SessionsAutomationsModalHistoryItem'),
+	AutomationsModalHistoryContext: new MenuId('SessionsAutomationsModalHistoryContext'),
 	/** Header actions of the pinned canvas page. */
 	CustomViewCanvas: new MenuId('SessionsCustomViewCanvas'),
 	/** Context menu actions for an Automation definition card. */

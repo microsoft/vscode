@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
-import { Disposable, IDisposable, markAsSingleton, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
@@ -57,12 +57,12 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
-import { AutomationHistoryActionsContribution } from '../../../automations/browser/automationRunHistory.js';
+import { registerAutomationHistoryFixtureMenus } from '../../../automations/test/browser/automationsTableTestUtils.js';
 import '../../../../browser/media/style.css';
 
 const WORKSPACE = URI.parse('file:///workspaces/vscode');
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
-markAsSingleton(new AutomationHistoryActionsContribution(new TestConfigurationService()));
+registerAutomationHistoryFixtureMenus();
 
 class FixtureActionViewItemService extends Disposable implements IActionViewItemService {
 
