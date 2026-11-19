@@ -94,7 +94,7 @@ export function getRepositoryFromUrl(url: string): { owner: string; repo: string
 	// Generic SSH URI: ssh://[user@]host/owner/repo[.git]
 	match = /^ssh:\/\/(?:[^@]+@)?([^/]+)\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
 	if (match) {
-		return { owner: match[2], repo: match[3], baseUrl: `https://${match[1]}` };
+		return { owner: match[2], repo: match[3], baseUrl: `https://${new URL(url).hostname}` };
 	}
 
 	// Generic SSH SCP syntax: git@host:owner/repo[.git]
