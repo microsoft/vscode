@@ -159,15 +159,15 @@ class OpenImageInCarouselAction extends Action2 {
 registerAction2(OpenImageInCarouselAction);
 
 /**
- * Ends the markup of an image on Escape. Markups end on Escape themselves; this command keeps the modal
- * editor's Escape from closing the Images Preview instead, so that the user sees the image again.
+ * Cancels the markup of an image on Escape, like the markup's own Escape. This command keeps the modal editor's Escape
+ * from closing the Images Preview instead, so that the user sees the image again.
  */
-class FinishImageMarkUpAction extends Action2 {
+class CancelImageMarkUpAction extends Action2 {
 	constructor() {
 		super({
 			// Not a `workbench.` command, which modal editors would block.
-			id: 'imageCarousel.finishMarkUp',
-			title: localize2('imageCarousel.finishMarkUp', "Finish Marking Up Image"),
+			id: 'imageCarousel.cancelMarkUp',
+			title: localize2('imageCarousel.cancelMarkUp', "Cancel Marking Up Image"),
 			precondition: ImageCarouselMarkingUpContext,
 			keybinding: {
 				primary: KeyCode.Escape,
@@ -181,13 +181,13 @@ class FinishImageMarkUpAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		for (const editorPane of accessor.get(IEditorService).visibleEditorPanes) {
 			if (editorPane instanceof ImageCarouselEditor && editorPane.isMarkingUp) {
-				editorPane.finishMarkUp();
+				editorPane.cancelMarkUp();
 			}
 		}
 	}
 }
 
-registerAction2(FinishImageMarkUpAction);
+registerAction2(CancelImageMarkUpAction);
 
 // --- Explorer Context Menu Integration ---
 

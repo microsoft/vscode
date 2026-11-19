@@ -23,8 +23,8 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { EditorsOrder, GroupIdentifier, IEditorPane } from '../../../../common/editor.js';
-import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { EditorCloseContext, EditorsOrder, GroupIdentifier, IEditorPane } from '../../../../common/editor.js';
+import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -264,6 +264,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private _kept: IChatDraft[] | undefined;
 	/** What was typed in each composer whose tab is closing, kept once it closed: not when its close is vetoed. */
 	private readonly _closingComposerInputs = new WeakMap<EditorInput, IChatDraft>();
+	/** Its tabs as they were last active, the latest first, across its groups. */
+	private _recentInputs: EditorInput[] = [];
+	/** While it closes all its chats, what their composers kept as they closed, to keep in the order they were used. */
+	private _closingAllKept: { readonly input: EditorInput; readonly draft: IChatDraft }[] | undefined;
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
 
 	private _part: IContentPart | undefined;
@@ -481,12 +485,22 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	async closeAllChats(): Promise<void> {
+		const groups = this._part?.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE) ?? [];
+		// Its tabs, the most recently active first: as they were active, then as each group, the most recent first, orders the others
+		const recency = [...this._recentInputs, ...groups.flatMap(group => group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE))];
+		const rank = (input: EditorInput) => {
+			const index = recency.indexOf(input);
+			return index < 0 ? recency.length : index;
+		};
+		const kept: { readonly input: EditorInput; readonly draft: IChatDraft }[] = this._closingAllKept = [];
 		this._closingAll = true;
 		try {
-			// The least recently active first: in Single, the composer used last keeps its draft last, for the next to take first
-			await Promise.all((this._part?.groups ?? []).map(group => group.closeEditors([...group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)].reverse())));
+			await Promise.all(groups.map(group => group.closeAllEditors()));
 		} finally {
 			this._closingAll = false;
+			this._closingAllKept = undefined;
+			// In Single, the least recently used first: the composer used last keeps its draft last, for the next to take first
+			this._keptComposerInputs().push(...kept.sort((a, b) => rank(b.input) - rank(a.input)).map(entry => entry.draft));
 		}
 		this._hideIfEmpty();
 	}
@@ -813,6 +827,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._partStore.add(toDisposable(() => {
 			this._closingAll = true;
 			this._partClosing = true;
+			this._recentInputs = [];
 			part.forceClose();
 			this._kept = [];
 		}));
@@ -836,12 +851,19 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 						this._settleComposerTab(active, tx);
 					}
 				});
+				if (active) {
+					this._recentInputs = [active, ...this._recentInputs.filter(input => input !== active)];
+				}
 			}
 		};
 		const trackGroup = (group: IEditorGroup) => {
 			const store = new DisposableStore();
-			// Before the tab disposes, which its chat goes with
-			store.add(group.onWillCloseEditor(({ editor }) => {
+			// Before the tab disposes, which its chat goes with. A tab that moves to another of its groups stays open: it keeps its
+			// chat, its draft and when it was active
+			store.add(group.onWillCloseEditor(({ editor, context }) => {
+				if (context === EditorCloseContext.MOVE) {
+					return;
+				}
 				if (this._chats.get(editor) && !this._chats.get(editor)?.isComposer) {
 					this._closingChatTabs.set(editor, { focused: this._layoutService.hasFocus(Parts.CHAT_PART) });
 				}
@@ -851,12 +873,21 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				updateActive();
 				this._hideIfEmpty();
 			}));
-			store.add(group.onDidCloseEditor(({ editor }) => {
+			store.add(group.onDidCloseEditor(({ editor, context }) => {
+				if (context === EditorCloseContext.MOVE) {
+					updateActive();
+					return;
+				}
 				const kept = this._closingComposerInputs.get(editor);
 				if (kept) {
 					this._closingComposerInputs.delete(editor);
-					this._keptComposerInputs().push(kept);
+					if (this._closingAllKept) {
+						this._closingAllKept.push({ input: editor, draft: kept });
+					} else {
+						this._keptComposerInputs().push(kept);
+					}
 				}
+				this._recentInputs = this._recentInputs.filter(input => input !== editor);
 				const closedChat = this._closingChatTabs.get(editor);
 				this._closingChatTabs.delete(editor);
 				updateActive();

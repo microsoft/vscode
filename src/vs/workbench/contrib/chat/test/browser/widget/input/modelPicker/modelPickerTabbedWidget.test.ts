@@ -31,6 +31,7 @@ import { IContextViewDelegate, IContextViewService } from '../../../../../../../
 import { IContextKeyService } from '../../../../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IHoverService } from '../../../../../../../../platform/hover/browser/hover.js';
+import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { NullHoverService } from '../../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
@@ -241,6 +242,7 @@ suite('TabbedModelPicker', () => {
 		instantiationService.set(IContextViewService, contextView);
 		instantiationService.set(IHoverService, NullHoverService);
 		instantiationService.set(IOpenerService, NullOpenerService);
+		instantiationService.set(ILabelService, upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }));
 		const openedEditors: IResourceEditorInput[] = [];
 		instantiationService.stub(IEditorService, {}, 'openEditor', async (input: IResourceEditorInput) => {
 			openedEditors.push(input);
@@ -1576,6 +1578,34 @@ suite('TabbedModelPicker', () => {
 			});
 		});
 	}
+
+	test('a model router\'s Details show its routes, pin it and open its file', () => {
+		const resource = URI.file('/routers/daily.model-router.yaml');
+		const router: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'copilot/model-router:daily',
+			metadata: {
+				...model('Daily Driver', false).metadata, id: 'model-router:daily', detail: 'Model router', tooltip: 'First to build, Second for quick questions.',
+				detailsResource: resource, modelRouterRoutes: [{ name: 'build', model: 'First', effort: 'high' }, { model: 'Second' }],
+			},
+		};
+		const { popup, picker, openedEditors, pins } = createPicker({ models: [...models, router] });
+		openDetails(popup, 'Daily Driver');
+		const details = {
+			routes: Array.from(popup.querySelectorAll('.chat-model-card-route'), route => route.textContent),
+			file: element(popup, '.chat-model-card-definition-file a').textContent,
+			// Details used to open the file itself.
+			opened: openedEditors.length,
+			visible: picker.isVisible,
+		};
+		element(popup, '[aria-label="Pin Model"]').click();
+		element(popup, '.chat-model-card-definition-file a').click();
+		assert.deepStrictEqual({ details, pins, opened: openedEditors, visible: picker.isVisible }, {
+			details: { routes: ['build (default)FirstHigh', 'Second'], file: 'daily.model-router.yaml', opened: 0, visible: true },
+			pins: ['copilot/model-router:daily'],
+			opened: [{ resource }],
+			visible: false,
+		});
+	});
 
 	test('required models without a source still explain the restriction', () => {
 		const { popup } = createPicker({ agentModelPreferences: { models: ['First'], required: true } });

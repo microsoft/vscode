@@ -25,11 +25,6 @@ export const COPILOT_INSTRUCTIONS_PATH = '.github/copilot-instructions.md';
 export const COPILOT_PERSONAL_INSTRUCTIONS_PATH = '.copilot/copilot-instructions.md';
 
 /**
- * File extension for the reusable prompt files.
- */
-export const PROMPT_FILE_EXTENSION = '.prompt.md';
-
-/**
  * File extension for the reusable instruction files.
  */
 export const INSTRUCTION_FILE_EXTENSION = '.instructions.md';

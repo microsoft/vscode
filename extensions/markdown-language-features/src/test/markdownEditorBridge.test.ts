@@ -152,6 +152,7 @@ function createProvider(state: vscode.Memento): MarkdownEditorProvider {
 		},
 		{ trace: () => { } },
 		async () => false,
+		{ sendTelemetryEvent: () => { }, dispose: () => { } },
 	);
 }
 

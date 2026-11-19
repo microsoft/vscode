@@ -1482,6 +1482,33 @@ suite('WorkspacePicker - Environment', () => {
 		});
 	}
 
+	test('offers repositories in a remote environment only when its host offers folders or clones them', () => {
+		const environment: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Jobs', icon: Codicon.remote, providerIds: ['remote'] };
+		const actions = ['Work in Repository...', 'Issue...'].map((label, index) => ({ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, label), attachesContext: index > 0 }));
+		const offered = (host: Partial<ISessionsProvider>) => {
+			const providers = disposables.add(new MockSessionsProvidersService());
+			const execution = createMockProvider('remote');
+			providers.setProviders([
+				{ ...execution, cloneRepository: async () => execution.resolveWorkspace(URI.parse('vscode-agent-host://host/project'))!, ...host },
+				{ ...createMockProvider('github', { browseActions: actions }), supportsLocalWorkspaces: true },
+			]);
+			const picker = createTestPicker(disposables, providers, undefined, undefined, DispatchingWorkspacePicker, {}, undefined, undefined, {
+				environment: constObservable(environment), restoreFromSessions: false, configuration: {},
+			});
+			assert.ok(picker instanceof DispatchingWorkspacePicker);
+			return { items: picker.getItems().filter(item => item.item?.browseActionIndex !== undefined).map(item => item.label), offersWorkspaces: picker.offersWorkspaces(environment) };
+		};
+		assert.deepStrictEqual({
+			neither: offered({ canCloneRepository: false }),
+			clones: offered({ canCloneRepository: true }),
+			folders: offered({ canCloneRepository: false, browseActions: [makeBrowseAction('remote', SESSION_WORKSPACE_GROUP_REMOTE, 'Browse Jobs...')] }),
+		}, {
+			neither: { items: ['Issue'], offersWorkspaces: false },
+			clones: { items: ['Work in Repository', 'Issue'], offersWorkspaces: true },
+			folders: { items: ['Open Folder...', 'Work in Repository', 'Issue'], offersWorkspaces: true },
+		});
+	});
+
 	test('reports failed container checks separately from unsupported folders', async () => {
 		const expectedError = new Error('container detection failed');
 		const errors: Error[] = [];
@@ -8227,6 +8254,25 @@ suite('WorkspacePicker - Tab discovery', () => {
 			restoredNoWorkspace: true,
 			afterWorkspaceSelection: false,
 			selectedFolder: '/local/project',
+		});
+	});
+
+	test('selects Chat without remembering it until a workspace is selected', () => {
+		const storage = disposables.add(new TestStorageService());
+		providersService.setProviders([createMockProvider('local-1')]);
+		const options: IWorkspacePickerOptions = {
+			getNoWorkspaceOption: () => ({ description: 'Start without a backing workspace', isSelected: false, select: () => { } }),
+		};
+		const picker = createTestablePicker(disposables, providersService, true, options, undefined, storage);
+		picker.selectNoWorkspace(false, false);
+		const selected = picker.isNoWorkspaceSelected();
+		const remembered = createTestablePicker(disposables, providersService, true, options, undefined, storage).isNoWorkspaceSelected();
+		picker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false });
+
+		assert.deepStrictEqual({ selected, remembered, afterWorkspaceSelection: picker.isNoWorkspaceSelected() }, {
+			selected: true,
+			remembered: false,
+			afterWorkspaceSelection: false,
 		});
 	});
 

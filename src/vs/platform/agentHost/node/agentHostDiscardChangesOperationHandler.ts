@@ -134,7 +134,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken, _signal: AbortSignal): Promise<InvokeChangesetOperationResult> {
 		const parsed = parseChangesetUri(params.channel);
-		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
+		if (parsed?.kind === ChangesetKind.Turn) {
 			return this._discardTurnFile(params, parsed.ownerUri, parsed.turnId, token);
 		}
 		if (parsed?.kind === ChangesetKind.Session || parsed?.kind === ChangesetKind.WorkingSet) {
