@@ -467,7 +467,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 			if (tree !== await this.revParse(worktree, 'HEAD^{tree}')) {
 				const parent = await this.revParse(worktree, 'HEAD');
-				const commit = await this.commitTree(worktree, tree, parent, `Preserving worktree before removal: ${worktree.fsPath}`);
+				const message = `Preserving worktree before removal: ${worktree.fsPath}`;
+				let commit: string | undefined;
+				try {
+					commit = await this.commitTree(worktree, tree, parent, message);
+				} catch (error) {
+					// For example, the repository has no user identity configured.
+					this._logService.info(`[agentHostGitService] Retrying preservation commit for '${worktree.fsPath}' with the internal identity: ${error instanceof Error ? error.message : String(error)}`);
+					commit = await this.commitTree(worktree, tree, parent, message, { useInternalIdentity: true });
+				}
 				if (!commit) {
 					throw new Error(`Cannot create preservation commit for '${worktree.fsPath}'`);
 				}

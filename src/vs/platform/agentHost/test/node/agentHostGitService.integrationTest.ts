@@ -2054,8 +2054,44 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			exists: existsSync(wtPath),
 			refs: refs.length,
 			preserved: cp.execFileSync('git', ['show', `${refs[0]}:untracked.txt`], { cwd: dir, env, encoding: 'utf8' }),
+			author: cp.execFileSync('git', ['log', '-1', '--format=%ae', refs[0]], { cwd: dir, env, encoding: 'utf8' }).trim(),
 			branchHead: cp.execFileSync('git', ['rev-parse', 'agents/preserve'], { cwd: dir, env, encoding: 'utf8' }).trim(),
-		}, { exists: false, refs: 1, preserved: 'recover this work', branchHead: head });
+		}, { exists: false, refs: 1, preserved: 'recover this work', author: cp.execFileSync('git', ['config', 'user.email'], { cwd: dir, encoding: 'utf8' }).trim(), branchHead: head });
+	});
+
+	(hasGit ? test : test.skip)('forced removal preserves dirty work when the repository has no Git identity', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, 'checkout');
+		await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/no-identity', track: false });
+		writeFileSync(join(wtPath, 'untracked.txt'), 'recover this work');
+		cp.execFileSync('git', ['config', '--unset', 'user.email'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'user.useConfigOnly', 'true'], { cwd: dir, env, stdio: 'pipe' });
+		const emptyGlobalConfig = join(dir, '.git', 'empty-global.gitconfig');
+		writeFileSync(emptyGlobalConfig, '');
+		// Hide every identity source: global/system config, config injected through the environment, and identity variables.
+		const overrides: Record<string, string | undefined> = { GIT_CONFIG_GLOBAL: emptyGlobalConfig, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_COUNT: '0', GIT_CONFIG_PARAMETERS: undefined, GIT_AUTHOR_NAME: undefined, GIT_AUTHOR_EMAIL: undefined, GIT_COMMITTER_NAME: undefined, GIT_COMMITTER_EMAIL: undefined, EMAIL: undefined };
+		const saved = Object.fromEntries(Object.keys(overrides).map(key => [key, process.env[key]]));
+		const apply = (values: Record<string, string | undefined>) => {
+			for (const [key, value] of Object.entries(values)) {
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+		};
+		apply(overrides);
+		try {
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+			const refs = cp.execFileSync('git', ['for-each-ref', '--format=%(refname)', 'refs/vscode-preserved-worktrees/'], { cwd: dir, env, encoding: 'utf8' }).trim().split('\n');
+			assert.deepStrictEqual({
+				exists: existsSync(wtPath),
+				preserved: cp.execFileSync('git', ['show', `${refs[0]}:untracked.txt`], { cwd: dir, env, encoding: 'utf8' }),
+				author: cp.execFileSync('git', ['log', '-1', '--format=%ae', refs[0]], { cwd: dir, env, encoding: 'utf8' }).trim(),
+			}, { exists: false, preserved: 'recover this work', author: 'vscode@localhost' });
+		} finally {
+			apply(saved);
+		}
 	});
 
 	(hasGit ? test : test.skip)('explicit discard removes dirty work without a recovery ref and retains committed history', async () => {
