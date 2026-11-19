@@ -158,7 +158,7 @@ function parseCargoDependencies(contents: string): { sections: Map<string, Cargo
 	const workspaceDependencies = new Map<string, CargoDependency>();
 	const sections = new Map<string, Map<string, CargoDependency>>();
 	let tablePath: string[] | undefined = [];
-	let inlineTable: { path: string[]; value: string; braceDepth: number } | undefined;
+	let pendingValue: { path: string[]; value: string; depth: number } | undefined;
 	let hasWorkspace = false;
 	let hasWorkspacePath = false;
 	let workspacePath: string | undefined;
@@ -181,7 +181,7 @@ function parseCargoDependencies(contents: string): { sections: Map<string, Cargo
 			workspacePath = parseTomlString(value);
 			return;
 		}
-		if (path.length === 1 && (path[0] === 'workspace' || path[0] === 'package') && value.startsWith('{')) {
+		if (((path.length === 1 && (path[0] === 'workspace' || path[0] === 'package')) || (path[0] === 'target' && path.length <= 2)) && value.startsWith('{')) {
 			hasWorkspace ||= path[0] === 'workspace';
 			for (const entry of parseInlineTable(value)) {
 				const assignment = parseDependencyAssignment(entry);
@@ -223,12 +223,12 @@ function parseCargoDependencies(contents: string): { sections: Map<string, Cargo
 			continue;
 		}
 
-		if (inlineTable) {
-			inlineTable.value += ` ${line}`;
-			inlineTable.braceDepth += countBraces(line);
-			if (inlineTable.braceDepth <= 0) {
-				applyDependencyAssignment(inlineTable.path, inlineTable.value);
-				inlineTable = undefined;
+		if (pendingValue) {
+			pendingValue.value += ` ${line}`;
+			pendingValue.depth += countValueNesting(line);
+			if (pendingValue.depth <= 0) {
+				applyDependencyAssignment(pendingValue.path, pendingValue.value);
+				pendingValue = undefined;
 			}
 			continue;
 		}
@@ -260,8 +260,9 @@ function parseCargoDependencies(contents: string): { sections: Map<string, Cargo
 
 		const path = [...tablePath, ...assignment.keys];
 		const value = assignment.value;
-		if ((getDependencyLocation(path) || (path.length === 1 && (path[0] === 'workspace' || path[0] === 'package'))) && value.startsWith('{') && countBraces(value) > 0) {
-			inlineTable = { path, value, braceDepth: countBraces(value) };
+		const depth = countValueNesting(value);
+		if ((value.startsWith('{') || value.startsWith('[')) && depth > 0) {
+			pendingValue = { path, value, depth };
 		} else {
 			applyDependencyAssignment(path, value);
 		}
@@ -447,7 +448,7 @@ function parseInlineTable(value: string): string[] {
 function parseTomlKey(value: string): string | undefined {
 	const key = value.trim();
 	if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith('\'') && key.endsWith('\''))) {
-		return key.slice(1, -1);
+		return parseTomlString(key);
 	}
 	return /^[A-Za-z0-9_-]+$/.test(key) ? key : undefined;
 }
@@ -561,7 +562,7 @@ function normalizeTomlMultilineStrings(contents: string): string {
 	return result;
 }
 
-function countBraces(value: string): number {
+function countValueNesting(value: string): number {
 	let count = 0;
 	let quote: '"' | '\'' | undefined;
 	let escaped = false;
@@ -577,9 +578,9 @@ function countBraces(value: string): number {
 			escaped = false;
 		} else if (character === '"' || character === '\'') {
 			quote = character;
-		} else if (character === '{') {
+		} else if (character === '{' || character === '[') {
 			count++;
-		} else if (character === '}') {
+		} else if (character === '}' || character === ']') {
 			count--;
 		}
 	}

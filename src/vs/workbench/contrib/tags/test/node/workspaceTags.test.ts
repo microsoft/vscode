@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as crypto from 'crypto';
 import { extUri, extUriIgnorePathCase } from '../../../../../base/common/resources.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from '../../common/workspaceTags.js';
@@ -160,6 +161,65 @@ serde = "1"
 [target.'cfg(windows)'.build_dependencies]
 bindgen = "1"
 `).sort(), ['bindgen', 'reqwest', 'serde', 'tokio']);
+	});
+
+	test('Cargo dependencies in inline target tables', () => {
+		assert.deepStrictEqual([
+			getCargoDependencyNames(`target = { 'cfg(unix)' = { dependencies = { tokio = "1" } } }`),
+			getCargoDependencyNames(`[target]
+'cfg(unix)' = { dependencies = { client = { package = "reqwest", version = "1" } } }`),
+			getCargoDependencyNames(`[target.'cfg(unix)']
+dependencies = { serde = "1" }`),
+			getCargoDependencyNames(`[target]
+'cfg(windows)' = {
+	build-dependencies = { generator.package = "bindgen" },
+	dev-dependencies = { serde_json = "1" }
+}`)
+		], [['tokio'], ['reqwest'], ['serde'], ['bindgen', 'serde_json']]);
+	});
+
+	test('Cargo quoted keys decode basic escapes but preserve literal keys', () => {
+		const workspace = getCargoWorkspaceDependencies(String.raw`
+[workspace."depend\u0065ncies"]
+"cli\u0065nt" = { "pack\u0061ge" = "reqwest", version = "1" }
+`);
+		assert.deepStrictEqual([
+			getCargoDependencyNames(String.raw`
+["depend\u0065ncies"]
+"to\u006bio" = "1"
+'serde_json' = "1"
+'literal\u006bio' = "1"
+renamed."pack\u0061ge" = "anyhow"
+["dev-dependencies"."oth\u0065r"]
+"pack\u0061ge" = "bindgen"
+`),
+			getCargoDependencyNames(String.raw`
+[dependencies]
+"cli\u0065nt"."worksp\u0061ce" = true
+`, workspace)
+		], [['tokio', 'serde_json', 'literal\\u006bio', 'anyhow', 'bindgen'], ['reqwest']]);
+	});
+
+	test('Cargo array values cannot introduce dependency tables', () => {
+		assert.deepStrictEqual(getCargoDependencyNames(`
+[package.metadata.example]
+matrix = [
+	["dependencies"], # Not a table header
+	[["workspace", "dependencies"]],
+	[{ name = "[dev-dependencies]" }]
+]
+tokio = "1"
+settings = {
+	matrix = [
+		["build-dependencies"]
+	]
+}
+reqwest = "1"
+[dependencies]
+serde = { features = [
+	"derive", "[dependencies]"
+], version = "1" }
+`), ['serde']);
 	});
 
 	test('Cargo inline workspace table defines inherited dependencies', () => {
@@ -354,15 +414,12 @@ client.workspace = true
 		const sensitive = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUri, readManifest, new Map());
 		const outside = await getCargoWorkspaceDependenciesForFolder(member, contents.replace('../../repo', '../../repo-other'), [member], extUriIgnorePathCase, readManifest, cache);
 		const otherAuthority = await getCargoWorkspaceDependenciesForFolder(member.with({ authority: 'other' }), contents, [member], extUriIgnorePathCase, readManifest, cache);
-		const windowsMember = URI.parse('file:///c:/Repo/member');
-		const windows = await getCargoWorkspaceDependenciesForFolder(windowsMember, contents, [windowsMember], extUriIgnorePathCase, readManifest, new Map());
 		assert.deepStrictEqual([
 			getCargoDependencyNames(contents, insensitive),
 			getCargoDependencyNames(contents, cached),
 			sensitive,
 			outside,
 			otherAuthority,
-			getCargoDependencyNames(contents, windows),
 			reads
 		], [
 			['reqwest'],
@@ -370,9 +427,19 @@ client.workspace = true
 			undefined,
 			undefined,
 			undefined,
-			['reqwest'],
-			['/repo', '/c:/repo']
+			['/repo']
 		]);
+	});
+
+	(isWindows ? test : test.skip)('Cargo workspace resolution honors Windows drive-letter path casing', async () => {
+		const member = URI.file('C:\\Repo\\member');
+		const contents = '[package]\nworkspace = "../../repo"\n[dependencies]\nclient.workspace = true';
+		const reads: string[] = [];
+		const resolved = await getCargoWorkspaceDependenciesForFolder(member, contents, [member], extUriIgnorePathCase, async folder => {
+			reads.push(folder.path);
+			return '[workspace.dependencies]\nclient = { package = "reqwest", version = "1" }';
+		}, new Map());
+		assert.deepStrictEqual([getCargoDependencyNames(contents, resolved), reads], [['reqwest'], ['/C:/repo']]);
 	});
 
 	test('Cargo preserves multiline workspace paths and renamed packages', async () => {
