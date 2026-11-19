@@ -874,13 +874,10 @@ export class FileService extends Disposable implements IFileService {
 						await this.doCopyFile(sourceProvider, source, targetProvider, target, token);
 					}
 				} catch (error) {
+
+					// Report a cancellation consistently, even when the provider reported
+					// it differently. The copy already removed what it created.
 					if (token.isCancellationRequested) {
-
-						// The target did not exist before the copy started (it was either
-						// missing or deleted above for overwriting), so remove the partial
-						// result to not leave a truncated file or folder behind.
-						await this.deleteCancelledCopy(targetProvider, target);
-
 						throw new CancellationError();
 					}
 
@@ -948,17 +945,33 @@ export class FileService extends Disposable implements IFileService {
 
 		// create children in target
 		if (Array.isArray(sourceFolder.children)) {
-			await Promises.settled(sourceFolder.children.map(async sourceChild => {
-				const targetChild = this.getExtUri(targetProvider).providerExtUri.joinPath(targetFolder, sourceChild.name);
-				if (sourceChild.isDirectory) {
-					return this.doCopyFolder(sourceProvider, await this.resolve(sourceChild.resource), targetProvider, targetChild, token);
-				} else {
-					return this.doCopyFile(sourceProvider, sourceChild.resource, targetProvider, targetChild, token);
+			try {
+				await Promises.settled(sourceFolder.children.map(async sourceChild => {
+					const targetChild = this.getExtUri(targetProvider).providerExtUri.joinPath(targetFolder, sourceChild.name);
+					if (sourceChild.isDirectory) {
+						return this.doCopyFolder(sourceProvider, await this.resolve(sourceChild.resource), targetProvider, targetChild, token);
+					} else {
+						return this.doCopyFile(sourceProvider, sourceChild.resource, targetProvider, targetChild, token);
+					}
+				}));
+			} catch (error) {
+
+				// Creating the folder above fails when it exists, so this copy created
+				// it. Once all children settled, remove it with what was copied so far.
+				if (token.isCancellationRequested) {
+					await this.deleteCancelledCopy(targetProvider, targetFolder);
 				}
-			}));
+
+				throw error;
+			}
 		}
 	}
 
+	/**
+	 * Removes a file or folder that a cancelled copy created. Callers must only pass a
+	 * target that the copy created and, for files, call this from the write queue of
+	 * the target so that no other write to it can run concurrently.
+	 */
 	private async deleteCancelledCopy(provider: IFileSystemProvider, target: URI): Promise<void> {
 		try {
 			await provider.delete(target, { recursive: true, useTrash: false, atomic: false });
@@ -1471,6 +1484,7 @@ export class FileService extends Disposable implements IFileService {
 
 		let sourceHandle: number | undefined = undefined;
 		let targetHandle: number | undefined = undefined;
+		let cancelled = false;
 
 		try {
 
@@ -1503,12 +1517,23 @@ export class FileService extends Disposable implements IFileService {
 				}
 			} while (bytesRead > 0);
 		} catch (error) {
+			cancelled = token.isCancellationRequested;
+
 			throw ensureFileSystemProviderError(error);
 		} finally {
-			await Promises.settled([
-				typeof sourceHandle === 'number' ? sourceProvider.close(sourceHandle) : Promise.resolve(),
-				typeof targetHandle === 'number' ? targetProvider.close(targetHandle) : Promise.resolve(),
-			]);
+			try {
+				await Promises.settled([
+					typeof sourceHandle === 'number' ? sourceProvider.close(sourceHandle) : Promise.resolve(),
+					typeof targetHandle === 'number' ? targetProvider.close(targetHandle) : Promise.resolve(),
+				]);
+			} finally {
+
+				// Remove the partial target this copy created while still holding
+				// the write queue of the target, so that no queued write is affected
+				if (cancelled && typeof targetHandle === 'number') {
+					await this.deleteCancelledCopy(targetProvider, target);
+				}
+			}
 		}
 	}
 
@@ -1534,6 +1559,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// Open handle
 		const targetHandle = await targetProvider.open(target, { create: true, unlock: false });
+		let cancelled = false;
 
 		// Read entire buffer from source and write buffered
 		try {
@@ -1542,9 +1568,20 @@ export class FileService extends Disposable implements IFileService {
 
 			await this.doWriteBuffer(targetProvider, targetHandle, VSBuffer.wrap(buffer), buffer.byteLength, 0, 0);
 		} catch (error) {
+			cancelled = token.isCancellationRequested;
+
 			throw ensureFileSystemProviderError(error);
 		} finally {
-			await targetProvider.close(targetHandle);
+			try {
+				await targetProvider.close(targetHandle);
+			} finally {
+
+				// Remove the partial target this copy created while still holding
+				// the write queue of the target, so that no queued write is affected
+				if (cancelled) {
+					await this.deleteCancelledCopy(targetProvider, target);
+				}
+			}
 		}
 	}
 

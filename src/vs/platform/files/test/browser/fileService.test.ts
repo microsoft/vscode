@@ -627,6 +627,58 @@ suite('File Service', () => {
 		});
 	}
 
+	test('cancelling a copy that waits for another copy of the same target keeps the other copy', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const cts = disposables.add(new CancellationTokenSource());
+		const firstOpening = new DeferredPromise<void>();
+		const releaseFirst = new DeferredPromise<void>();
+		disposables.add(service.registerProvider('source', disposables.add(new class extends InMemoryFileSystemProvider {
+			override async open(resource: URI, opts: IFileOpenOptions): Promise<number> {
+				if (resource.path === '/first') {
+					firstOpening.complete();
+					await releaseFirst.p;
+				}
+				return super.open(resource, opts);
+			}
+		}())));
+		disposables.add(service.registerProvider('target', disposables.add(new InMemoryFileSystemProvider())));
+		const target = URI.parse('target:/file');
+		await service.writeFile(URI.parse('source:/first'), VSBuffer.fromString('first'));
+		await service.writeFile(URI.parse('source:/second'), VSBuffer.fromString('second'));
+
+		// The first copy holds the write queue of the target before creating it,
+		// so the second copy still finds the target missing and waits in the queue
+		const first = service.copy(URI.parse('source:/first'), target, false);
+		await firstOpening.p;
+		const second = service.copy(URI.parse('source:/second'), target, false, cts.token);
+		await timeout(0);
+		cts.cancel();
+		releaseFirst.complete();
+
+		await first;
+		await assert.rejects(second, CancellationError);
+		assert.strictEqual((await service.readFile(target)).value.toString(), 'first');
+	});
+
+	test('cancelling a folder copy across providers removes the folder it created', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+		const cts = disposables.add(new CancellationTokenSource());
+		disposables.add(service.registerProvider('source', disposables.add(new class extends InMemoryFileSystemProvider {
+			override async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+				cts.cancel();
+				return super.read(fd, pos, data, offset, length);
+			}
+		}())));
+		disposables.add(service.registerProvider('target', disposables.add(new InMemoryFileSystemProvider())));
+		for (const name of ['a', 'b']) {
+			await service.writeFile(URI.parse(`source:/folder/${name}`), VSBuffer.alloc(1024 * 1024));
+		}
+
+		await assert.rejects(service.copy(URI.parse('source:/folder'), URI.parse('target:/folder'), false, cts.token), CancellationError);
+
+		assert.strictEqual(await service.exists(URI.parse('target:/folder')), false);
+	});
+
 	test('cancelling a copy from a provider that reads whole files stops the read', async () => {
 		const service = disposables.add(new FileService(new NullLogService()));
 		const cts = disposables.add(new CancellationTokenSource());
