@@ -916,7 +916,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	/**
 	 * Removes repository hooks of folders that are not trusted in VS Code. The runtime can still report them when its own
-	 * trusted folders cover the folder, but sessions do not enable repository hooks there.
+	 * trusted folders cover the folder, but sessions do not enable repository hooks there. A repository hook reported
+	 * without a location cannot be attributed to a folder, so it is removed too.
 	 */
 	private withoutUntrustedRepositoryHooks(discovered: HooksDiscoveryResult, untrustedRoots: readonly URI[]): HooksDiscoveryResult {
 		if (untrustedRoots.length === 0) {
@@ -924,7 +925,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 		const isUntrusted = (hook: HooksDiscoveryResult['hooks'][number]) => {
 			const location = hook.projectPath ? this._pathToUri(hook.projectPath) : hook.definitionFileUri ? this._definitionUri(hook.definitionFileUri) : undefined;
-			return !!location && untrustedRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(location, root));
+			return !location || untrustedRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(location, root));
 		};
 		return { ...discovered, hooks: discovered.hooks.filter(hook => hook.origin !== 'repository' || !isUntrusted(hook)) };
 	}

@@ -444,6 +444,7 @@ suite('SessionCustomizationDiscovery', () => {
 			return {
 				hooks: [
 					{ id: 'runtime-trusted-repository', hookType: 'sessionStart', origin: 'repository', projectPath: workspace.fsPath, enabled: true },
+					{ id: 'runtime-repository-without-location', hookType: 'sessionStart', origin: 'repository', enabled: true },
 					{ id: 'user', hookType: 'sessionStart', origin: 'user', enabled: true },
 				], warnings: [], errors: [],
 			};
