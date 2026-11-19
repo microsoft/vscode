@@ -121,6 +121,7 @@ The desktop layout controller (`DesktopLayoutController`) maps the active editor
 | **Changes or any diff editor** | Branch Changes file list + Checks — shown (Changes container) while the detail is visible |
 | **Empty Files or a resource inside the active session workspace** (Explorer) | Files/Explorer tree — shown (Files container) while the detail is visible |
 | **Browser** | **Hidden** (transiently) while the Browser tab is active *and the editor area stays visible*; restored when switching back. If the editor area itself is hidden while Browser is active (e.g. via **Hide Editor**), the panel instead shows the Changes/Files fallback, since it is the only thing left on screen. |
+| **Side chat tab in a Quick Chat** (with `sessions.experimental.sideChatsInSidePane`) | **Hidden** (transiently) while the side chat tab is active *and the editor area stays visible*; restored when another tab becomes active. A Quick Chat's other tabs leave its Details as they are; in a workspace session a side chat tab is a utility editor (below). |
 | **Resource outside the workspace with the same scheme as a workspace folder** | Files/Explorer tree is available through **Toggle Details**, but hidden automatically when the editor becomes active |
 | **Utility, synthetic-resource, or other editor without a workspace-folder scheme** | **Hidden and unavailable** while the editor area stays visible |
 

@@ -37,6 +37,7 @@ import { DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../
 import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
+import { ChatEditorInput } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
@@ -1484,6 +1485,30 @@ suite('DesktopLayoutController', () => {
 			!harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
 			'the editor part must not be revealed for a quick chat'
 		);
+	});
+
+	test('[desktop] a side chat tab of a quick chat hides its Details while it is active, and only then', async () => {
+		createDesktopController({ desktopLayout: true, activateAux: true });
+		harness.activeSessionObs.set(makeSession(URI.parse('session:quick'), { isQuickChat: true }), undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		const browserEditor = Object.create(BrowserEditorInput.prototype) as BrowserEditorInput;
+		Object.defineProperty(browserEditor, 'resource', { value: URI.parse('browser://test') });
+		const sideChat = Object.create(ChatEditorInput.prototype) as ChatEditorInput;
+		Object.defineProperty(sideChat, 'resource', { value: URI.parse('chat://side') });
+		const detailsVisibleWith = async (editor: EditorInput) => {
+			harness.activeEditorInput = editor;
+			harness.onDidActiveEditorChange.fire();
+			await timeout(0);
+			return harness.partVisibility.get(Parts.AUXILIARYBAR_PART);
+		};
+
+		assert.deepStrictEqual({
+			browser: await detailsVisibleWith(browserEditor),
+			sideChat: await detailsVisibleWith(sideChat),
+			browserAfterSideChat: await detailsVisibleWith(browserEditor),
+		}, { browser: true, sideChat: false, browserAfterSideChat: true });
 	});
 
 	test('[desktop] keeps the side pane visible when a quick chat is active among multiple sessions', async () => {
