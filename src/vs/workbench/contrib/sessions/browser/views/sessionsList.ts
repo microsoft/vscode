@@ -4837,6 +4837,14 @@ function resettableValue<T>(read: () => T, write: (value: T) => void, defaultVal
 	};
 }
 
+/** The session row the user is on in a focused list, with the session rows it shows, so that it can keep their place. */
+interface IKeyboardPosition {
+	/** The id of the focused session row. */
+	readonly id: string;
+	/** The session rows the list shows, in display order, each with the id of the top-level row it is under. */
+	readonly rows: ReadonlyMap<string, { readonly session: ISession; readonly topLevelRowId: string }>;
+}
+
 export class SessionsList extends Disposable implements ISessionsList {
 	private readonly archiveDemand = this._register(new MutableDisposable());
 
@@ -6853,7 +6861,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				nextNestedSessionResources.add(session.resource.toString());
 			}
 		}
+		const keyboardPosition = this.captureKeyboardPosition();
 		this.tree.setChildren(null, attachedChildren);
+		this.restoreKeyboardPosition(keyboardPosition);
 		this.hadInboxSessions = hasInboxSessions;
 		if (inboxLayoutChanged) {
 			for (const session of this.sessions) {
@@ -7184,7 +7194,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (!chatRow) {
 			const tree = this.getTree(session);
 			if (tree.hasElement(session)) {
-				tree.setFocus([session]);
+				if (!this.keepsKeyboardPosition(tree)) {
+					tree.setFocus([session]);
+				}
 				tree.setSelection([session]);
 			}
 			return;
@@ -7201,8 +7213,88 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 		this.revealActiveItem(chatItem);
-		tree.setFocus([chatItem]);
+		if (!this.keepsKeyboardPosition(tree)) {
+			tree.setFocus([chatItem]);
+		}
 		tree.setSelection([chatItem]);
+	}
+
+	/**
+	 * Whether the list keeps the row the user is on as it follows the active session: while it has focus, the active
+	 * session's row only becomes the selected one, such as when another session opens after the user archived one from the list.
+	 */
+	private keepsKeyboardPosition(tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>): boolean {
+		return DOM.isAncestorOfActiveElement(this.listContainer) && tree.getFocus().length > 0;
+	}
+
+	/** The session rows the list shows, in display order, each with the id of the top-level row it is under: a section's own id. */
+	private getVisibleSessionRows(): Map<string, { readonly session: ISession; readonly topLevelRowId: string }> {
+		const rows = new Map<string, { readonly session: ISession; readonly topLevelRowId: string }>();
+		const collect = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>, topLevelRowId: string): void => {
+			if (!node.visible) {
+				return;
+			}
+			if (node.element && isSessionItem(node.element)) {
+				rows.set(getSessionListItemId(node.element), { session: node.element, topLevelRowId });
+			}
+			if (node.collapsed) {
+				return;
+			}
+			for (const child of node.children) {
+				collect(child, topLevelRowId);
+			}
+		};
+		for (const child of this.getRootNode().children) {
+			if (child.element) {
+				collect(child, isSessionSection(child.element) ? child.element.id : getSessionListItemId(child.element));
+			}
+		}
+		return rows;
+	}
+
+	/** The session row the user is on while the list has focus, with the session rows around it. */
+	private captureKeyboardPosition(): IKeyboardPosition | undefined {
+		if (!DOM.isAncestorOfActiveElement(this.listContainer)) {
+			return undefined;
+		}
+		const focused = this.tree.getFocus()[0];
+		if (!focused || !isSessionItem(focused)) {
+			return undefined;
+		}
+		const rows = this.getVisibleSessionRows();
+		const id = getSessionListItemId(focused);
+		return rows.has(id) ? { id, rows } : undefined;
+	}
+
+	/**
+	 * Keeps the user's place in the list when the session row they are on leaves it, such as when that session is
+	 * archived or deleted: the session row that followed it gets focus, or the one before it when it was the last.
+	 */
+	private restoreKeyboardPosition(position: IKeyboardPosition | undefined): void {
+		if (!position || !DOM.isAncestorOfActiveElement(this.listContainer)) {
+			return;
+		}
+		const rows = this.getVisibleSessionRows();
+		// A row leaves when it is no longer shown, or moves into the archived section
+		const hasLeft = (id: string): boolean => {
+			const row = rows.get(id);
+			return !row || (row.topLevelRowId === 'archived' && position.rows.get(id)?.topLevelRowId !== 'archived');
+		};
+		if (!hasLeft(position.id)) {
+			return;
+		}
+		const ids = [...position.rows.keys()];
+		const index = ids.indexOf(position.id);
+		const next = [...ids.slice(index + 1), ...ids.slice(0, index).reverse()].find(id => !hasLeft(id));
+		const session = next && rows.get(next)?.session;
+		if (!session) {
+			return;
+		}
+		const tree = this.getTree(session);
+		tree.setFocus([session]);
+		if (tree.getRelativeTop(session) === null) {
+			tree.reveal(session);
+		}
 	}
 
 	private revealActiveItem(element: SessionListItem): void {
@@ -7283,7 +7375,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 						}
 					}
 					this.revealActiveItem(session);
-					tree.setFocus([session]);
+					if (!this.keepsKeyboardPosition(tree)) {
+						tree.setFocus([session]);
+					}
 					tree.setSelection([session]);
 					return true;
 				}
@@ -7366,7 +7460,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	clearFocus(): void {
 		for (const tree of this.trees) {
-			tree.setFocus([]);
+			if (!this.keepsKeyboardPosition(tree)) {
+				tree.setFocus([]);
+			}
 			tree.setSelection([]);
 		}
 	}
