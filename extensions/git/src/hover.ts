@@ -135,8 +135,8 @@ export function escapeHtmlTags(message: string): string {
 	let fence: string | undefined;
 
 	return message.split(/\r\n|\r|\n/).map(line => {
-		// Fenced code block
-		const fenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+		// Fenced code block (a closing fence can only be followed by whitespace)
+		const fenceMatch = (fence !== undefined ? /^ {0,3}(`{3,}|~{3,})[ \t]*$/ : /^ {0,3}(`{3,}|~{3,})/).exec(line);
 		if (fence !== undefined) {
 			if (fenceMatch && fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) {
 				fence = undefined;
@@ -153,8 +153,8 @@ export function escapeHtmlTags(message: string): string {
 			return line;
 		}
 
-		// Skip code spans, and autolinks (ex: <https://example.com>, <user@example.com>)
-		return line.replace(/(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)|<(?=[a-zA-Z/!?])(?![a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\s<>]*>|[^\s<>@]+@[^\s<>]+>)/g,
+		// Skip backslash escapes (ex: \<div>), code spans, and autolinks (ex: <https://example.com>, <user@example.com>)
+		return line.replace(/\\[\s\S]|(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)|<(?=[a-zA-Z/!?])(?![a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\s<>]*>|[^\s<>@]+@[^\s<>]+>)/g,
 			match => match === '<' ? '&lt;' : match);
 	}).join('\n');
 }

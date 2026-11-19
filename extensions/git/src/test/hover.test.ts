@@ -15,7 +15,9 @@ suite('git hover', () => {
 			'Generic Foo<T> type',
 			'Use `Promise<void>` and [#1](https://github.com/o/r/issues/1)',
 			'See <https://example.com> and <a@b.com>, a < b',
-			'Body\r\n```\nArray<T>\n```\n    at Object.<anonymous> (x.js)'
+			'Body\r\n```\nArray<T>\n```\n    at Object.<anonymous> (x.js)',
+			'~~~\n~~~example\nFoo<T>\n~~~\n<b>',
+			'Fix \\<div> \\\\<b> \\\\\\<i>'
 		];
 
 		assert.deepStrictEqual(messages.map(escapeHtmlTags), [
@@ -24,7 +26,9 @@ suite('git hover', () => {
 			'Generic Foo&lt;T> type',
 			'Use `Promise<void>` and [#1](https://github.com/o/r/issues/1)',
 			'See <https://example.com> and <a@b.com>, a < b',
-			'Body\n```\nArray<T>\n```\n    at Object.<anonymous> (x.js)'
+			'Body\n```\nArray<T>\n```\n    at Object.<anonymous> (x.js)',
+			'~~~\n~~~example\nFoo<T>\n~~~\n&lt;b>',
+			'Fix \\<div> \\\\&lt;b> \\\\\\<i>'
 		]);
 	});
 });
