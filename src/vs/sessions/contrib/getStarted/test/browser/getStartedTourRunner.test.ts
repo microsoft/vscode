@@ -13,12 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { AUTOMATIONS_MODAL_SETTING, AutomationsEditorInput } from '../../../automations/browser/automationsEditorInput.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import '../../../sessions/browser/views/sessionsViewActions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IView } from '../../../../../workbench/common/views.js';
@@ -47,7 +42,6 @@ import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from 
 
 interface IRunnerScenario {
 	readonly sessions: readonly ISession[];
-	readonly modal?: boolean;
 	/** The session shown in the window, or none for the new-session view. */
 	readonly active?: ISession;
 	/** What the Changes view reports for the active session. */
@@ -95,7 +89,6 @@ suite('GetStartedTourRunner', () => {
 		}();
 
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [AUTOMATIONS_MODAL_SETTING]: scenario.modal, [CHAT_AUTOMATIONS_ENABLED_SETTING]: true }));
 		instantiationService.stub(IOnboardingScenarioService, new class extends mock<IOnboardingScenarioService>() {
 			override async runScenario(id: string): Promise<OnboardingOutcome> {
 				const registered = onboardingScenarioRegistry.getScenario(id) as IOnboardingScenario<ISpotlightPayload> | undefined;
@@ -138,19 +131,11 @@ suite('GetStartedTourRunner', () => {
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override async executeCommand<R>(id: string): Promise<R | undefined> {
 				events.push(`run ${id}`);
-				if (id === 'sessionsView.manageAutomations') {
-					await instantiationService.invokeFunction(CommandsRegistry.getCommand(id)!.handler);
-				}
 				return undefined;
 			}
 		}());
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override readonly activeEditorPane = undefined;
-			override async openEditor(): Promise<undefined> {
-				disposables.add(AutomationsEditorInput.getOrCreate());
-				events.push('open modal');
-				return undefined;
-			}
 		}());
 		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
 			override isVisible(): boolean { return true; }
@@ -280,19 +265,9 @@ suite('GetStartedTourRunner', () => {
 			repeatable = scenario.repeatable;
 		});
 		assert.deepStrictEqual({ events: result.events, seenKey, repeatable }, {
-			events: ['run sessionsView.manageAutomations', 'show sessions.customView.automations', 'run sessionsView.manageAutomations', 'show sessions.customView.automations'],
+			events: ['show sessions.customView.automations', 'show sessions.customView.automations'],
 			seenKey: AUTOMATIONS_TOUR_SEEN_KEY,
 			repeatable: true,
-		});
-	});
-
-	test('the automation entry opens the modal without registering a spotlight scenario', async () => {
-		let scenarios = 0;
-		const result = await runTour(GetStartedItemId.Automation, { sessions: [], modal: true }, () => scenarios++);
-		assert.deepStrictEqual({ events: result.events, steps: result.steps, scenarios }, {
-			events: ['run sessionsView.manageAutomations', 'open modal'],
-			steps: [],
-			scenarios: 0,
 		});
 	});
 });

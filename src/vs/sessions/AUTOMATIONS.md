@@ -51,8 +51,6 @@ The cards view and modal share command implementations and low-level button rend
 
 The modal owns separate toolbar, creation, view-options and row-context menus in [`automationsModalActions.ts`](contrib/automations/browser/automationsModalActions.ts). Those menus reuse shared command descriptors with modal-local placement and capability predicates. Gate individual options by their capabilities, not the containing submenu: a local view option must remain reachable when Cloud is disabled. Context keys are projections for menus, scoped to the invoking widget or row; the service remains authoritative for mutations. Presentation-only commands receive their owning modal context rather than looking up an arbitrary active view. The editor owns closing the modal before opening an agent draft.
 
-The modal does not participate in spotlight onboarding. Create with Agent uses the shared guarded draft-creation operation without the default view's introduction. Get Started opens the modal without running a tour or changing the default tour's seen state; the default view's onboarding remains unchanged.
-
 | Change in the modal | Owning extension point |
 |---|---|
 | Add a toolbar button, creation-dropdown item, view option or row context action | Contribute to the corresponding `AgentsWindowMenus.AutomationsModal*` menu in `automationsModalActions.ts`; reuse a shared command or register a modal presentation action. Keep destructive row actions in the final manage group. |
