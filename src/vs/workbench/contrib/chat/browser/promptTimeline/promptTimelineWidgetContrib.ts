@@ -13,7 +13,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib, ChatWidget } from '../widget/chatWidget.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
-import { MIN_RAIL_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_ENABLED_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
+import { MIN_RAIL_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { PromptTimelineModel } from './promptTimelineModel.js';
 import { PromptTimelineGutterRail } from './promptTimelineGutterRail.js';
 import { IPromptTimelineRail } from './promptTimelineRail.js';
@@ -54,18 +54,19 @@ export function isStickyPromptHeaderShown(widget: IChatWidget, configurationServ
 }
 
 /**
- * Which rail a widget shows. The Agents window offers every style through `sessions.chatTimeline.display`.
- * Elsewhere only the gutter is offered, through `chat.promptTimeline.enabled`: the ruler's content
- * reservation is built for the Agents window's centered session view.
+ * Which rail a widget shows, from `sessions.chatTimeline.display`. Outside the Agents window any
+ * enabled style shows the gutter: the ruler's content reservation is built for the Agents window's
+ * centered session view.
  */
 export function getPromptTimelineRailStyle(widget: IChatWidget, configurationService: IConfigurationService, isSessionsWindow: boolean): PromptTimelineRailStyle {
 	if (!supportsPromptTimeline(widget)) {
 		return 'off';
 	}
+	const style = configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_DISPLAY_SETTING);
 	if (isSessionsWindow) {
-		return configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_DISPLAY_SETTING);
+		return style;
 	}
-	return configurationService.getValue<boolean>(PROMPT_TIMELINE_ENABLED_SETTING) === true ? 'gutter' : 'off';
+	return style === 'ruler' || style === 'gutter' ? 'gutter' : 'off';
 }
 
 /**
@@ -95,7 +96,6 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(PROMPT_TIMELINE_DISPLAY_SETTING)
-				|| e.affectsConfiguration(PROMPT_TIMELINE_ENABLED_SETTING)
 				|| e.affectsConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING)
 				|| e.affectsConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled)) {
 				this._update();
