@@ -109,7 +109,7 @@ export class RemotesEditor extends EditorPane {
 	}
 
 	private updateWidget(): void {
-		if (!this.content || !this.thisComputerContainer || !this.tableContainer || !this.disabledMessage || !this.widgetInstantiationService || !this.input) {
+		if (!this.content || !this.scrollable || !this.thisComputerContainer || !this.tableContainer || !this.disabledMessage || !this.widgetInstantiationService || !this.input) {
 			return;
 		}
 		const managementEnabled = this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
@@ -121,6 +121,8 @@ export class RemotesEditor extends EditorPane {
 				: localize('remotes.environmentPickerDisabled', "The environment picker is disabled.")
 			: localize('remotes.managementDisabled', "Remote Environments management is disabled.");
 		this.disabledMessage.hidden = enabled;
+		// The full-height scroll viewport would otherwise push the message out of view.
+		this.scrollable.getDomNode().hidden = !enabled;
 		this.content.hidden = !enabled;
 		if (!enabled) {
 			if (this.input instanceof RemotesEditorInput) {

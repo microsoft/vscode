@@ -1335,6 +1335,7 @@ suite('RemotesEditor', () => {
 
 	test('disposes the widget when remote hosts are disabled', async () => {
 		const { editor, model, container, input, configuration } = createEditor();
+		container.style.height = '600px';
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
 		editor.setVisible(true);
 		await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
@@ -1349,8 +1350,9 @@ suite('RemotesEditor', () => {
 			disposed: model.disposed,
 			widgets: container.querySelectorAll('.remotes-widget').length,
 			disabled: !message.hidden,
+			inView: message.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
 			text: editor.getAccessibilityContent(),
-		}, { disposed: true, widgets: 0, disabled: true, text: 'Remote agent hosts are disabled.' });
+		}, { disposed: true, widgets: 0, disabled: true, inView: true, text: 'Remote agent hosts are disabled.' });
 	});
 
 	for (const setting of [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING]) {

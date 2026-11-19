@@ -1295,7 +1295,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * entries.
 	 */
 	unpublishCachedSessions(): void {
-		// Invalidate readiness before observers can sample the hidden list as an authoritative empty result.
+		// Abandon a listing in flight, so it can't mark the hidden list ready, then invalidate readiness
+		// before observers can sample the hidden list as an authoritative empty result.
+		this._cancelSessionRefreshRetry();
 		this._sessionListVersion.set(0, undefined);
 		if (this._unpublished) {
 			return;

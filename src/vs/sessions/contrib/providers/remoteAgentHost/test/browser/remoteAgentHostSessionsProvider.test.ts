@@ -2911,6 +2911,16 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('a listing that resolves after unpublishing does not mark the hidden list ready', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const pending = new DeferredPromise<IAgentSessionMetadata[]>();
+		connection.listSessions = async () => pending.p;
+		const provider = createProvider(disposables, connection);
+		provider.unpublishCachedSessions();
+		await pending.complete([createSession('listed')]);
+		await timeout(0);
+		assert.deepStrictEqual({ ready: provider.sessionListVersion.get() > 0, sessions: provider.getSessions().length }, { ready: false, sessions: 0 });
+	}));
+
 	for (const address of ['ssh:build', 'wsl:Ubuntu', 'tunnel:desktop']) {
 		test(`disconnect invalidates session list readiness before unpublishing ${address}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			connection.addSession(createSession('working', { status: ProtocolSessionStatus.InProgress }));

@@ -335,7 +335,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return session.session.accessToken || session.session.idToken;
 	}
 
-	private async startTunnel(asService: boolean, authenticationProviderId?: 'github'): Promise<ConnectionInfo | undefined> {
+	private async startTunnel(asService: boolean, authenticationProviderId?: 'github'): Promise<ConnectionInfo | 'canceled' | undefined> {
 		if (this.connectionInfo) {
 			return this.connectionInfo;
 		}
@@ -347,6 +347,10 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			tokenProblems = false;
 
 			const authenticationSession = await this.getAuthenticationSession(authenticationProviderId);
+			if (authenticationSession === 'canceled') {
+				this.logger.info('Account selection canceled, not starting tunnel');
+				return 'canceled';
+			}
 			if (authenticationSession === undefined) {
 				this.logger.info('No authentication session available, not starting tunnel');
 				return undefined;
@@ -412,7 +416,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return undefined;
 	}
 
-	private async getAuthenticationSession(authenticationProviderId?: 'github'): Promise<ExistingSessionItem | undefined> {
+	/** Resolves to `'canceled'` when the account picker is dismissed without choosing an account. */
+	private async getAuthenticationSession(authenticationProviderId?: 'github'): Promise<ExistingSessionItem | 'canceled' | undefined> {
 		if (authenticationProviderId) {
 			return this.getAuthenticationSessionForProvider(authenticationProviderId);
 		}
@@ -428,7 +433,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 		return new Promise((resolve, reject) => {
 			disposables.add(quickpick.onDidHide((e) => {
-				resolve(undefined);
+				// Accepting an item resolves first, so this only takes effect when the picker was dismissed.
+				resolve('canceled');
 				disposables.dispose();
 			}));
 
@@ -622,6 +628,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				}
 
 				const connectionInfo = await that.startTunnel(/* installAsService= */ asService, options?.authenticationProviderId);
+				if (connectionInfo === 'canceled') {
+					return 'canceled';
+				}
 
 				if (connectionInfo) {
 					if (options?.showSuccessNotification !== false) {
