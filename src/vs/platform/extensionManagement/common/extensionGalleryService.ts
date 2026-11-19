@@ -14,6 +14,7 @@ import { arch } from '../../../base/common/process.js';
 import { isBoolean, isNumber, isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from '../../../base/parts/request/common/request.js';
+import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey, IExtensionBlockingInfo, ExtensionBlockingOrigin, ExtensionBlockingScope } from './extensionManagement.js';
@@ -1992,10 +1993,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 			const statusCode = fallbackContext.res.statusCode;
 			const responseText = await this.readErrorResponseText(fallbackContext);
-			const statusText = statusCode !== undefined ? `HTTP ${statusCode}` : 'unknown HTTP status';
+			const statusText = statusCode !== undefined
+				? localize('httpStatus', "HTTP {0}", statusCode)
+				: localize('unknownHttpStatus', "unknown HTTP status");
 			const errorMessage = responseText
-				? `Failed to fetch asset '${assetType}' for extension '${extension}' (${statusText}): ${responseText}`
-				: `Failed to fetch asset '${assetType}' for extension '${extension}' (${statusText}).`;
+				? localize('failedToFetchAssetWithDetails', "Failed to fetch asset '{0}' for extension '{1}' ({2}): {3}", assetType, extension, statusText, responseText)
+				: localize('failedToFetchAsset', "Failed to fetch asset '{0}' for extension '{1}' ({2}).", assetType, extension, statusText);
 			const errorCode = isClientError(fallbackContext)
 				? ExtensionGalleryErrorCode.ClientError
 				: isServerError(fallbackContext)
