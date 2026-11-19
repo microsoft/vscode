@@ -9,7 +9,7 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import '../../../../../../../base/browser/ui/codicons/codiconStyles.js';
 import '../../../../../../browser/media/style.css';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
-import { ActionRunner, IAction, SubmenuAction } from '../../../../../../../base/common/actions.js';
+import { ActionRunner, IAction, Separator, SubmenuAction } from '../../../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { combinedDisposable, Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -3604,7 +3604,7 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual({ opened, errors }, { opened: [], errors: [error] });
 	});
 
-	test('the Dev Tunnels gear opens the same settings filter as Manage', async () => {
+	test('the Dev Tunnels settings button opens the same settings filter as Manage', async () => {
 		const { parent, settings, opened, configRequests } = createWidget();
 		parent.querySelector<HTMLElement>('[aria-label="Open Dev Tunnels Settings"]')!.click();
 		await timeout(0);
@@ -3639,7 +3639,7 @@ suite('RemotesWidget', () => {
 	test('Dev Containers appears while one can be created, guides getting started, and keeps creating available in parallel', async () => {
 		const { widget, parent, model } = createWidget();
 		const groups = () => [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(node => node.textContent);
-		const header = () => parent.querySelector<HTMLElement>('.remotes-group-row [aria-label="Create Dev Container"]');
+		const header = () => parent.querySelector<HTMLElement>('.remotes-group-row .remotes-connect-action:not([hidden])[aria-label="Create Dev Container"]');
 		const hidden = groups();
 		model.canCreateDevContainer.set(true, undefined);
 		const emptyRow = parent.querySelector<HTMLElement>('.remotes-empty-row');
@@ -3659,7 +3659,7 @@ suite('RemotesWidget', () => {
 			hidden: ['Dev Tunnels', 'SSH'],
 			shown: ['Dev Tunnels', 'SSH', 'Dev Containers'],
 			empty: { text: ['No Dev Containers yet.', 'Run sessions in an Ubuntu container that keeps its files in a Docker volume.', 'Create Dev Container'], accessible: true },
-			whileCreating: { creations: [undefined, undefined, undefined], headerDisabled: null },
+			whileCreating: { creations: [undefined, undefined, undefined], headerDisabled: 'false' },
 			created: 3,
 			headerAfterUnavailable: false,
 		});
@@ -3823,7 +3823,7 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('the Dev Tunnels gear and setup links follow table focus and support keyboard activation', async () => {
+	test('the Dev Tunnels settings button and setup links follow table focus and support keyboard activation', async () => {
 		const { widget, parent, model, configRequests, documentation, settings } = createWidget();
 		model.remotes.set([model.remotes.get()[0]], undefined);
 		model.failedKinds = ['tunnel'];
@@ -3831,21 +3831,12 @@ suite('RemotesWidget', () => {
 		await timeout(0);
 		const table = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
 		table.focus();
-		const gear = parent.querySelector<HTMLElement>('[aria-label="Open Dev Tunnels Settings"]')!;
-		const info = gear.closest('.remotes-group-row')!.querySelector<HTMLElement>('.codicon-info')!;
-		const initialInfoTabIndex = info.tabIndex;
-		info.focus();
-		info.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-		info.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
-		const gearReached = dom.getActiveElement() === gear;
-		gear.focus();
-		gear.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-		for (const type of ['keydown', 'keyup']) {
-			gear.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-		}
+		const button = () => parent.querySelector<HTMLElement>('.remotes-group-row [aria-label="Open Dev Tunnels Settings"]')!;
+		const initial = { label: button().textContent?.trim(), tabIndex: button().tabIndex };
+		button().focus();
+		button().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 		await timeout(0);
 		table.focus();
-		const currentGear = parent.querySelector<HTMLElement>('[aria-label="Open Dev Tunnels Settings"]')!;
 		const emptyRow = [...parent.querySelectorAll('.remotes-empty-row')].find(row => row.textContent?.includes('Couldn\'t refresh Dev Tunnels.'))!;
 		emptyRow.querySelector('.remotes-empty-label')!.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
 		emptyRow.querySelector('.remotes-empty-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
@@ -3854,10 +3845,10 @@ suite('RemotesWidget', () => {
 		link.focus();
 		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 		assert.deepStrictEqual({
-			initialInfoTabIndex, gearReached, focusedGearTabIndex: currentGear.tabIndex, focusedLinkTabIndex, configRequests: configRequests(), documentation, settings,
-			expanded: currentGear.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+			initial, focusedButtonTabIndex: button().tabIndex, focusedLinkTabIndex, configRequests: configRequests(), documentation, settings,
+			expanded: button().closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 		}, {
-			initialInfoTabIndex: 0, gearReached: true, focusedGearTabIndex: -1, focusedLinkTabIndex: 0, configRequests: 0,
+			initial: { label: 'Open Settings', tabIndex: 0 }, focusedButtonTabIndex: -1, focusedLinkTabIndex: 0, configRequests: 0,
 			documentation: ['https://aka.ms/vscode-agent-tunnel'], settings: [{ query: 'chat.remoteAgentHosts' }],
 			expanded: 'true',
 		});
@@ -4027,26 +4018,36 @@ suite('RemotesWidget', () => {
 		});
 	}
 
-	test('section info actions open the same setup links for populated and collapsed groups', () => {
+	test('group rows offer their main action as a text button and the setup guide in More Actions, also when collapsed', () => {
 		const { parent, model, documentation } = createWidget(OperatingSystem.Windows);
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([...model.remotes.get(), {
 			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'desktop', canRemove: false,
 			availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected,
 		}], undefined);
-		const openInfo = () => {
-			for (const action of parent.querySelectorAll<HTMLElement>('.remotes-group-row .remotes-actions-column .codicon-info')) {
-				action.click();
-			}
-		};
-		openInfo();
-		for (const action of parent.querySelectorAll<HTMLElement>('.monaco-list-row[aria-expanded="true"]')) {
-			action.click();
+		const read = () => [...parent.querySelectorAll<HTMLElement>('.remotes-group-row')].map(group => {
+			const button = group.querySelector<HTMLElement>('.remotes-connect-action')!;
+			group.querySelector<HTMLElement>('.codicon-toolbar-more')!.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
+			const menu = menus.get(parent)!().filter(action => action.id !== Separator.ID);
+			void menu.find(action => action.id === 'remotes.documentation')?.run();
+			return { name: group.querySelector('.remotes-name')?.textContent, button: button.hidden ? undefined : button.textContent?.trim(), menu: menu.map(action => action.label) };
+		});
+		const populated = read();
+		for (const row of parent.querySelectorAll<HTMLElement>('.monaco-list-row[aria-expanded="true"]')) {
+			row.click();
 		}
-		openInfo();
-		assert.deepStrictEqual(documentation, Array.from({ length: 2 }, () => [
-			'https://aka.ms/vscode-agent-environments', 'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-agent-wsl', 'https://aka.ms/vscode-agent-ssh',
-		]).flat());
+		assert.deepStrictEqual({ populated, collapsed: read(), documentation }, {
+			populated: [
+				{ name: 'GitHub Environments', button: 'Open Settings', menu: ['Open GitHub Environments Settings', 'Open Setup Guide'] },
+				{ name: 'Dev Tunnels', button: 'Open Settings', menu: ['Open Dev Tunnels Settings', 'Open Setup Guide'] },
+				{ name: 'WSL', button: undefined, menu: ['Open Setup Guide'] },
+				{ name: 'SSH', button: 'Open SSH Configuration', menu: ['Open SSH Configuration', 'Open Setup Guide'] },
+			],
+			collapsed: populated,
+			documentation: Array.from({ length: 2 }, () => [
+				'https://aka.ms/vscode-agent-environments', 'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-agent-wsl', 'https://aka.ms/vscode-agent-ssh',
+			]).flat(),
+		});
 	});
 
 	test('empty Type groups show setup guidance and working documentation links', async () => {

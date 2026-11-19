@@ -223,6 +223,15 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 			}
 		},
 	}),
+	InlineActionsGroupedByType: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: async context => {
+			await render(context, 1000, OS, false, [], true, undefined, false, { grouping: 'type' });
+			for (const row of context.container.querySelectorAll('.monaco-list-row')) {
+				row.classList.add('hovered');
+			}
+		},
+	}),
 	ConnectionError: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED build.example.com:22' }),

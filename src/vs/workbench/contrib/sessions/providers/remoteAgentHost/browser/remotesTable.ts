@@ -385,8 +385,9 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				disposables.add(connect.onDidClick(event => {
 					event?.stopPropagation();
 					if (template.column === 'actions' && template.row) {
-						if (action.enabled) {
-							void action.run();
+						const primary = template.row.entry.type === 'group' && template.row.entry.canCreate ? template.createDevContainer : action;
+						if (primary.enabled) {
+							void primary.run();
 						}
 					}
 				}));
@@ -683,7 +684,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showCopyAddress = showConnection && !!entry.remote.copyableAddress;
 				template.container.classList.toggle('remotes-cell-action-hidden', !showConfig && !showDocumentation && !showGroupCreate && !showConnection);
 				if (template.column === 'actions') {
-					const hideConnect = !showConnect || !canConnect && !pending && !problem && !signIn;
+					const hideConnect = entry.type === 'group' ? !showGroupCreate && !showConfig : !showConnect || !canConnect && !pending && !problem && !signIn;
 					if (hideConnect && template.connect.element.contains(dom.getActiveElement())) {
 						template.container.closest<HTMLElement>('.monaco-list')?.focus();
 					}
@@ -696,7 +697,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					}
 				}
 				if (template.column === 'actions' && entry.type === 'group' && entry.documentation) {
-					template.documentation.label = entry.documentation.label;
+					template.documentation.label = localize('remotes.openSetupGuide', "Open Setup Guide");
+					template.documentation.tooltip = entry.documentation.label;
 				}
 				if (showGroupCreate) {
 					// Stays enabled while a Dev Container starts, so more can be created in parallel.
@@ -773,12 +775,18 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.updateServer.label = localize('remotes.updateServer', "Update Server");
 					template.updateServer.enabled = showUpdate && !entry.busy;
 				}
+				const groupPrimary = template.column === 'actions' && entry.type === 'group'
+					? showGroupCreate ? { action: template.createDevContainer, kind: 'createDevContainer' as const } : showConfig ? { action: template.action, kind: 'configure' as const } : undefined
+					: undefined;
+				if (template.column === 'actions' && groupPrimary) {
+					// The group heading names the type, so its settings button can stay short enough for the fixed actions column.
+					template.connect.label = groupPrimary.kind === 'configure' && entry.type === 'group' && entry.kind !== 'ssh'
+						? localize('remotes.openGroupSettings', "Open Settings") : groupPrimary.action.label;
+					template.connect.iconElement.hidden = true;
+					template.connect.enabled = groupPrimary.action.enabled;
+					template.connect.element.setAttribute('aria-label', groupPrimary.action.label);
+				}
 				if (template.column === 'actions') {
-					const actions = showConnection ? [] : [
-						...(showGroupCreate ? [template.createDevContainer] : []),
-						...(showDocumentation ? [template.documentation] : []),
-						...(showConfig ? [template.action] : []),
-					];
 					// An open overflow menu must retain its environment and labels when the row template is recycled.
 					const menuAction = (action: Action, kind: RemoteRowAction) => toAction({
 						id: action.id, label: action.label, tooltip: action.tooltip, class: action.class, enabled: action.enabled,
@@ -804,20 +812,18 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							...(showUpdate ? [menuAction(template.updateServer, 'updateServer')] : []),
 							...(showDelete ? [menuAction(template.delete, 'delete')] : []),
 						],
-					) : [];
+					) : Separator.join(
+						groupPrimary ? [menuAction(groupPrimary.action, groupPrimary.kind)] : [],
+						showDocumentation ? [menuAction(template.documentation, 'documentation')] : [],
+					);
 					const actionLayout = JSON.stringify([row.id, showConfig, showDocumentation, showGroupCreate, secondary.map(action => [action.id, action.label, action.tooltip, action.class, action.enabled])]);
 					if (template.actionLayout !== actionLayout) {
 						template.actionLayout = actionLayout;
 						const activeElement = dom.getActiveElement();
 						const focusedAction = dom.isHTMLElement(activeElement) && template.container.contains(activeElement) ? template.toolbar.getItemAction(activeElement) : undefined;
-						template.toolbar.setActions(actions, secondary);
+						template.toolbar.setActions([], secondary);
 						if (focusedAction) {
-							const index = actions.findIndex(action => action === focusedAction);
-							if (index >= 0) {
-								template.toolbar.focus(index);
-							} else {
-								template.container.closest<HTMLElement>('.monaco-list')?.focus();
-							}
+							template.container.closest<HTMLElement>('.monaco-list')?.focus();
 						}
 					}
 				}
