@@ -24,6 +24,7 @@ import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isWeb, regionalLocale } from '../../../../../../base/common/platform.js';
+import { isLinuxWebKit } from '../../../../../../base/test/browser/linuxWebKit.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -94,8 +95,8 @@ import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatC
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatMarkdownAnchorService } from '../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatPlanReview, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
-import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
+import { formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseStats, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressVerbosity, ChatResponseStats, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, ChatResponseResource, ISerializedChatDataReference, isSerializableSessionData } from '../../../common/model/chatModel.js';
@@ -117,6 +118,7 @@ import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { MockChatWidgetService } from './mockChatWidget.js';
+import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mockLanguageModelToolsConfirmationService.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
@@ -979,6 +981,48 @@ suite('ChatListRenderer', () => {
 				verbose: `Completed ${completedAtText}, Elapsed time 24s, GPT-5.5 • 2 credits, ${stats?.footerAriaLabel}`,
 				omitted: 'GPT-5.5 • 2 credits',
 			});
+		});
+
+		test('ends the footer with the working time, which also shows without model details', () => {
+			const container = document.createElement('div');
+
+			renderChatResponseDetails(container, 'Claude Opus 4.8', undefined, undefined, false, undefined, '2m 43s');
+			const withDetails = { text: container.textContent, ariaLabel: container.ariaLabel };
+
+			renderChatResponseDetails(container, undefined, undefined, undefined, false, undefined, '2m 43s');
+			assert.deepStrictEqual({
+				withDetails,
+				alone: { text: container.textContent, hidden: container.classList.contains('hidden'), tabIndex: container.tabIndex },
+			}, {
+				withDetails: { text: 'Claude Opus 4.8\u20222m 43s', ariaLabel: 'Elapsed time 2m 43s, Claude Opus 4.8' },
+				alone: { text: '2m 43s', hidden: false, tabIndex: 0 },
+			});
+		});
+
+		test('formats the working time and output speed of a running response, omitting whichever is unknown', () => {
+			assert.deepStrictEqual({
+				both: formatChatResponseStats('2m 43s', 61.6),
+				slowModelWithoutElapsedTime: formatChatResponseStats(undefined, 7.46),
+				unknown: formatChatResponseStats(undefined, undefined),
+				outputTokens: formatChatResponseStats('2m 43s', undefined, 12_345),
+				noOutputTokens: formatChatResponseStats('2m 43s', undefined, 0),
+			}, {
+				both: { parts: ['2m 43s', '62 tk/s'], ariaLabel: 'Elapsed time 2m 43s, 62 tokens per second' },
+				slowModelWithoutElapsedTime: { parts: ['7.5 tk/s'], ariaLabel: '7.5 tokens per second' },
+				unknown: undefined,
+				outputTokens: { parts: ['2m 43s', '12.3k tokens'], ariaLabel: 'Elapsed time 2m 43s, 12,345 output tokens' },
+				noOutputTokens: { parts: ['2m 43s'], ariaLabel: 'Elapsed time 2m 43s' },
+			});
+		});
+
+		test('counts output tokens exactly up to 999, then abbreviated with enough digits to keep moving, never rounded up', () => {
+			const counts = [1, 2, 999, 1_000, 1_100, 9_999, 10_199, 99_999, 999_999, 1_000_000, 1_234_567, 12_345_678, 123_456_789, 999_999_999, 1_000_000_000, 12_345_678_901];
+			assert.deepStrictEqual(counts.map(count => formatChatResponseStats(undefined, undefined, count)?.parts[0]), [
+				'1 token', '2 tokens', '999 tokens',
+				'1.0k tokens', '1.1k tokens', '9.9k tokens', '10.1k tokens', '99.9k tokens', '999.9k tokens',
+				'1.000m tokens', '1.234m tokens', '12.34m tokens', '123.4m tokens', '999.9m tokens',
+				'1.000b tokens', '12.34b tokens',
+			]);
 		});
 	});
 
@@ -2638,6 +2682,75 @@ suite('ChatListRenderer', () => {
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
 		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node, createRenderer };
 	}
+
+	test('transcript notice precedes the first Agent Host response without duplicating on rerender or later turns', () => {
+		const chatWidgetService = new class extends MockChatWidgetService {
+			override getWidgetBySessionResource() { return widget; }
+		}();
+		const { disposables, instantiationService, model, viewModel, request, container, renderer, template, node } = createPersistentProgressRenderer({
+			sessionResource: URI.from({ scheme: 'agent-host-copilotcli', path: '/notice-placement' }),
+			chatWidgetService,
+		});
+		const inputUri = URI.parse('test:notice-input');
+		const widget = new class extends mock<IChatWidget>() {
+			override readonly transcriptDomNode = container;
+			override readonly input = new class extends mock<ChatInputPart>() {
+				override readonly inputUri = inputUri;
+			}();
+		}();
+		const notification: IChatInputNotification = {
+			id: 'sandbox-certificate',
+			placement: 'transcript',
+			inputUri,
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Sandbox trusted CA is not installed (optional)',
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+		};
+		instantiationService.stub(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
+			override readonly onDidChange = Event.None;
+			override getActiveNotification(filter?: (notification: IChatInputNotification) => boolean) {
+				return !filter || filter(notification) ? notification : undefined;
+			}
+			override announceRendered() { }
+		}());
+		instantiationService.stub(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+			override getChangesForRequest() { return undefined; }
+		}());
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('First reply') });
+		request.response!.complete();
+		const readFirstResponse = () => {
+			const notices = template.rowContainer.querySelectorAll('.chat-input-notification-widget');
+			return {
+				notices: Array.from(notices, notice => notice.textContent),
+				beforeContent: !!notices[0] && !!(notices[0].compareDocumentPosition(template.value) & Node.DOCUMENT_POSITION_FOLLOWING),
+				response: template.value.querySelector('.chat-markdown-part')?.textContent?.trim(),
+			};
+		};
+		renderer.renderElement(node, 1, template);
+		const firstRender = readFirstResponse();
+		renderer.renderElement(node, 1, template);
+		const rerender = readFirstResponse();
+
+		const nextRequest = model.addRequest({ text: 'Again', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(nextRequest, { kind: 'markdownContent', content: new MarkdownString('Second reply') });
+		nextRequest.response!.complete();
+		const nextResponse = viewModel.getItems().find(item => isResponseVM(item) && item.requestId === nextRequest.id);
+		assert.ok(nextResponse);
+		const nextTemplate = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(nextTemplate)));
+		renderer.renderElement({ ...node, element: nextResponse }, 3, nextTemplate);
+		const expectedFirstResponse = { notices: [notification.message], beforeContent: true, response: 'First reply' };
+		assert.deepStrictEqual({
+			firstRender,
+			rerender,
+			secondResponse: nextTemplate.value.querySelector('.chat-markdown-part')?.textContent?.trim(),
+			secondNotices: nextTemplate.rowContainer.querySelectorAll('.chat-input-notification-widget').length,
+			totalNotices: container.querySelectorAll('.chat-input-notification-widget').length,
+		}, { firstRender: expectedFirstResponse, rerender: expectedFirstResponse, secondResponse: 'Second reply', secondNotices: 0, totalNotices: 1 });
+	});
 
 	suite('deferred row height updates', () => {
 		async function createHeightFixture() {
@@ -9028,6 +9141,137 @@ suite('ChatListRenderer', () => {
 		});
 	}));
 
+	async function configureResponseStats(configurationService: TestConfigurationService, value: string): Promise<void> {
+		await configurationService.setUserConfiguration(ChatConfiguration.ResponseStats, value);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([ChatConfiguration.ResponseStats]),
+			change: { keys: [ChatConfiguration.ResponseStats], overrides: [] },
+			affectsConfiguration: section => section === ChatConfiguration.ResponseStats,
+		});
+	}
+
+	test('persistent progress leads with the response stats located there in place of a generic phrase, or ends with them after its message', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { configurationService, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		configurationService.setUserConfiguration(ChatConfiguration.ResponseStats, ChatResponseStats.Title);
+		renderer.renderElement(node, 0, template);
+		const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+		assert.ok(progress instanceof ChatWorkingProgressContentPart);
+		const shown = () => [...progress.domNode.querySelectorAll('.chat-live-response-stats, .progress-step')]
+			.filter(element => dom.getWindow(container).getComputedStyle(element).display !== 'none')
+			.map(element => element.textContent?.trim());
+		const locate = (location: ChatResponseStats) => configureResponseStats(configurationService, location);
+		const locatedInTitle = shown();
+		await locate(ChatResponseStats.Progress);
+		await timeout(2500);
+		const genericPhrase = shown();
+		progress.updateWorkingContent(new MarkdownString('Waiting for your response'));
+		const namedState = shown();
+		progress.updateWorkingContent(undefined);
+		const resumed = shown();
+		await locate(ChatResponseStats.ProgressWithMessage);
+		const afterGenericPhrase = shown();
+		progress.updateWorkingContent(new MarkdownString('Waiting for your response'));
+		const afterNamedState = shown();
+		request.response?.complete();
+
+		assert.deepStrictEqual({ locatedInTitle, genericPhrase, namedState, resumed, afterGenericPhrase, afterNamedState }, {
+			locatedInTitle: ['Working'],
+			genericPhrase: ['2s'],
+			namedState: ['2s', 'Waiting for your response'],
+			resumed: ['2s'],
+			afterGenericPhrase: ['Working', '2s'],
+			afterNamedState: ['Waiting for your response', '2s'],
+		});
+	}));
+
+	test('persistent progress shimmers its text only while the response stats do not show in it', async () => {
+		const { configurationService, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		renderer.renderElement(node, 0, template);
+		const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+		assert.ok(progress instanceof ChatWorkingProgressContentPart);
+		const shimmers = () => {
+			const label = progress.domNode.querySelector('.progress-step > p');
+			return !!label && dom.getWindow(container).getComputedStyle(label).animationName === 'chat-thinking-shimmer';
+		};
+		const byLocation: Record<string, boolean> = {};
+		for (const value of [...Object.values(ChatResponseStats), 'unknown']) {
+			await configureResponseStats(configurationService, value);
+			byLocation[value] = shimmers();
+		}
+		await configureResponseStats(configurationService, ChatResponseStats.ProgressWithMessage);
+		progress.updateWorkingContent(new MarkdownString('Waiting for your response'));
+		const namedState = shimmers();
+		progress.updateWorkingContent(undefined, false);
+		await configureResponseStats(configurationService, ChatResponseStats.Off);
+		const inactive = shimmers();
+		request.response?.complete();
+
+		assert.deepStrictEqual({ byLocation, namedState, inactive }, {
+			byLocation: { off: true, title: true, progress: false, progressWithMessage: false, unknown: true },
+			namedState: false,
+			inactive: false,
+		});
+	});
+
+	// The stats that follow the phrase tick every second.
+	test('persistent progress changes a generic phrase every twenty seconds, whatever arrives, while the response stats follow it', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 500 }, async () => {
+		const fixture = createPersistentProgressRenderer();
+		fixture.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Reviewing', 'Considering'] });
+		fixture.configurationService.setUserConfiguration(ChatConfiguration.ResponseStats, ChatResponseStats.ProgressWithMessage);
+		const part = createPersistentWorkingPart(fixture, { kind: 'working', isActive: true, progressStep: 0 });
+		const first = part.workingLabel;
+		const other = first === 'Reviewing' ? 'Considering' : 'Reviewing';
+		await timeout(5000);
+		part.updateWorkingContent(undefined, true, false, 1);
+		const newPiece = part.workingLabel;
+		// The piece neither replaced the phrase nor extended its twenty seconds.
+		await timeout(14_999);
+		const beforePeriodEnd = part.workingLabel;
+		await timeout(1);
+		const afterPeriod = part.workingLabel;
+		await timeout(12_000);
+		part.updateWorkingContent(undefined, true, false, 2);
+		await timeout(7999);
+		const beforeNextPeriodEnd = part.workingLabel;
+		await timeout(1);
+		const afterNextPeriod = part.workingLabel;
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true, 2);
+		await timeout(30_000);
+		const blocked = part.workingLabel;
+		// The phrase's period ended while the state was named, so a new one resumes.
+		part.updateWorkingContent(undefined, true, false, 2);
+		const resumed = part.workingLabel;
+		await timeout(19_999);
+		const beforeResumedPeriodEnd = part.workingLabel;
+		await timeout(1);
+		const afterResumedPeriod = part.workingLabel;
+		fixture.request.response?.complete();
+		await timeout(60_000);
+
+		assert.deepStrictEqual({
+			newPiece, beforePeriodEnd, afterPeriod, beforeNextPeriodEnd, afterNextPeriod,
+			blocked, resumed, beforeResumedPeriodEnd, afterResumedPeriod, afterCompletion: part.workingLabel,
+		}, {
+			newPiece: first, beforePeriodEnd: first, afterPeriod: other, beforeNextPeriodEnd: other, afterNextPeriod: first,
+			blocked: 'Waiting for your response', resumed: other, beforeResumedPeriodEnd: other, afterResumedPeriod: first, afterCompletion: first,
+		});
+	}));
+
+	test('a finished response\'s footer ends with its working time unless response stats are off', async () => {
+		const { configurationService, request, renderer, template, node } = createPersistentProgressRenderer();
+		request.response?.setElapsedMs(163_000);
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		const footers: Record<string, string | null> = {};
+		for (const value of [...Object.values(ChatResponseStats), 'unknown']) {
+			await configureResponseStats(configurationService, value);
+			footers[value] = template.footerDetailsContainer.textContent;
+		}
+
+		assert.deepStrictEqual(footers, { off: '', title: '2m 43s', progress: '2m 43s', progressWithMessage: '2m 43s', unknown: '' });
+	});
+
 	test('persistent progress keeps rotating generic phrases until it reports prolonged inactivity', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createPersistentProgressRenderer();
 		fixture.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Reviewing', 'Considering'] });
@@ -14911,7 +15155,8 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	suite('generated image preview loading', () => {
+	// WebKit on Linux (Playwright's port) can't decode the embedded image, unlike Chromium and WebKit on macOS
+	(isLinuxWebKit ? suite.skip : suite)('generated image preview loading', () => {
 		const imageData = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=';
 
 		function createImageTool(toolId: string, requestId: string) {
@@ -16064,7 +16309,8 @@ suite('ChatListRenderer', () => {
 		}
 
 		for (const complete of [false, true]) {
-			test(`coalesces working progress updates from a burst of tool activity (complete=${complete})`, async () => {
+			// In WebKit on Linux (Playwright's port), the burst can take two frames to coalesce, unlike Chromium and WebKit on macOS
+			(isLinuxWebKit && !complete ? test.skip : test)(`coalesces working progress updates from a burst of tool activity (complete=${complete})`, async () => {
 				let progressLookups = 0;
 				const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
 				const chatWidgetService = new class extends MockChatWidgetService {

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, getMcpSkillCustomizationUri, getMcpSkillName, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_BUILTIN_SKILL_SCHEME, AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, getMcpSkillCustomizationUri, getMcpSkillName, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../common/agentHostUri.js';
 
 suite('Agent Host customization URI', () => {
@@ -46,6 +46,14 @@ suite('Agent Host customization URI', () => {
 			{ scheme: 'mcp-resource', readable: true, wrappedReadable: true },
 			{ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, readable: false, wrappedReadable: false },
 		]);
+	});
+
+	test('host-owned skill sources are built-in and readable, including when host-wrapped', () => {
+		const resource = URI.from({ scheme: AGENT_BUILTIN_SKILL_SCHEME, path: '/troubleshoot/SKILL.md' });
+		assert.deepStrictEqual([resource, toAgentHostUri(resource, 'remote')].map(uri => ({
+			readable: hasReadableCustomizationContent(uri),
+			builtin: isAgentBuiltinCustomizationUri(uri),
+		})), [{ readable: true, builtin: true }, { readable: true, builtin: true }]);
 	});
 
 	test('MCP skill names stay a single slash token', () => {

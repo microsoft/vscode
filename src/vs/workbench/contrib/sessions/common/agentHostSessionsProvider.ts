@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -288,6 +289,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Source workspace for a container-backed provider, retained while disconnected or restored. */
 	readonly devContainerSourceWorkspace?: URI;
+	/** Address of the SSH, Tunnel, or WSL host, or `local` for this computer, that runs this provider's Dev Container environment, if it represents one. */
+	readonly devContainerEnvironmentHost?: string;
 	/** Fires when Dev Container workspace availability should be checked again. */
 	readonly onDidChangeDevContainerAvailability?: Event<void>;
 	/** Whether this workspace supports Dev Container execution. */
@@ -467,6 +470,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
 
+	/** Returns this host's current connection, or `undefined` while disconnected. */
+	getAgentConnection?(): IAgentConnection | undefined;
+
 	/** Sends a request on an `mcp://` AHP side channel of this host's connection. */
 	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
@@ -490,7 +496,7 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 }
 
-export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+export { LOCAL_AGENT_HOST_PROVIDER_ID };
 
 export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;

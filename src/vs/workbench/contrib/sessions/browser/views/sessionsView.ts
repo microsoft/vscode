@@ -38,7 +38,7 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
+import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -58,6 +58,8 @@ import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService } from '../scheduledChatsService.js';
 import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { Menus, SessionsViewShowGroup } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../mobile/mobileSortGroupSheet.js';
@@ -81,6 +83,7 @@ import { ChatConfiguration } from '../../../chat/common/constants.js';
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
+const NON_INBOX_GROUPING_STORAGE_KEY = 'sessionsViewPane.nonInboxGrouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const COMPACT_STORAGE_KEY = 'sessionsViewPane.compact';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
@@ -281,7 +284,7 @@ export interface ISessionsViewOptions extends IViewPaneOptions {
 
 	/**
 	 * The groupings it offers, and the one it shows until one of them is chosen, such as when the chosen one is not offered;
-	 * by default, {@link DEFAULT_SESSIONS_GROUPINGS}, and without a `default`, Inbox or Workspace as the Inbox setting says.
+	 * by default, {@link DEFAULT_SESSIONS_GROUPINGS}, and without a `default`, Workspace.
 	 */
 	readonly groupings?: { readonly offered: readonly SessionsGrouping[]; readonly default?: SessionsGrouping };
 
@@ -359,6 +362,8 @@ export class SessionsView extends ViewPane {
 		@ISessionDraftsService private readonly sessionDraftsService: ISessionDraftsService,
 		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
 		@ISessionsViewLocator sessionsViewLocator: ISessionsViewLocator,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(options.headerInTitle ? { ...options, titleMenuId: Menus.SidebarSessionsHeader } : options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.headerInTitle = !!options.headerInTitle;
@@ -376,7 +381,7 @@ export class SessionsView extends ViewPane {
 		// Restore persisted grouping
 		this.groupings = options.groupings;
 		this.quickChatsInTimeGrouping = !!options.quickChatsInTimeGrouping;
-		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.offeredGroupings);
+		this.initializeGrouping();
 
 		// Restore persisted sorting
 		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
@@ -390,13 +395,6 @@ export class SessionsView extends ViewPane {
 		bindSessionsViewGroupings(contextKeyService, this.offeredGroupings);
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING) && this.currentGrouping === undefined) {
-				this.groupingContextKey?.set(this.grouping);
-				this.sessionsControl?.update(true);
-				this.updateHeaderLayout();
-			}
-		}));
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
 		this.sortingContextKey.set(this.currentSorting);
 		this.compactContextKey = SessionsViewCompactContext.bindTo(contextKeyService);
@@ -481,6 +479,7 @@ export class SessionsView extends ViewPane {
 		));
 		// In the view's context, so that its keys, such as `inSessionsView`, apply in the list, also where a host embeds the view
 		const listInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		const inSessionsWindow = this.scopedContextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) === true;
 		const sessionsControl = this.sessionsControl = this._register(listInstantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
 			pendingSections: derived(this, reader => {
 				const claimedDraftIds = this.scheduledChatsService.claimedDraftIds.read(reader);
@@ -534,6 +533,9 @@ export class SessionsView extends ViewPane {
 				return this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', forceMainChat: true }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
+			offersWorktreeFilter: !inSessionsWindow,
+			// An editor window shows no chats without a workspace while it has a folder
+			listsQuickChats: listsQuickChatsIn(inSessionsWindow, this.workspaceContextService),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {
@@ -658,7 +660,8 @@ export class SessionsView extends ViewPane {
 		}));
 
 		if (filterChipsContainer) {
-			const chips = this._register(new MobileSessionFilterChips(filterChipsContainer));
+			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+			const chips = this._register(scopedInstantiationService.createInstance(MobileSessionFilterChips, filterChipsContainer));
 			this._register(chips.onDidRequestSortGroup(() => {
 				this.openSortGroupSheet();
 			}));
@@ -934,6 +937,16 @@ export class SessionsView extends ViewPane {
 	}
 
 	private registerSessionFilters(sessionsControl: SessionsList): void {
+		// The Worktrees filter, of an editor window only, whose picked folder opens a session of it once allowed to, as a click
+		// in the list does
+		const offersWorktrees = this.scopedContextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true;
+		const worktreeOpener = this._register(this.instantiationService.createInstance(SessionsWorktreeOpener,
+			this._mainWindowHost.session,
+			() => this.sessionsManagementService.getSessions().filter(session => sessionsControl.isSessionListed(session)),
+			session => this.sessionsService.canOpenSession(session),
+			session => this.sessionsService.openSession(session.resource, { preserveFocus: false, source: 'sessionsList', forceMainChat: true }).then(() => this._handleSessionOpened(session)).catch(onUnexpectedError),
+			sessionsControl.filters.onDidChange,
+		));
 		const changed = observableSignalFromEvent(this, Event.any(
 			this.sessionsManagementService.onDidChangeSessions,
 			this.sessionsManagementService.onDidChangeSessionTypes,
@@ -951,8 +964,9 @@ export class SessionsView extends ViewPane {
 				this.sessionsManagementService.getSessions(),
 				environments,
 				(session, reader) => sessionsControl.isSessionListed(session, reader),
+				this.uriIdentityService.extUri,
 				reader,
-			);
+			).filter(option => offersWorktrees || option.filter.kind !== 'worktree');
 			const environmentLabels = new Map(options
 				.filter(option => option.filter.kind === 'environment')
 				.map(option => [option.filter.id, option.label]));
@@ -965,9 +979,10 @@ export class SessionsView extends ViewPane {
 				? !sessionsControl.filters.inboxScope.environment || sessionsControl.filters.inboxScope.environment.id === id
 				: !sessionsControl.filters.isExcluded({ kind: 'environment', id });
 			const includedEnvironments = [...environmentLabels].filter(([id]) => isEnvironmentIncluded(id));
+			const selectedWorktree = sessionsControl.filters.getSelectedWorktree(new Set(options.filter(option => option.filter.kind === 'worktree').map(option => option.filter.id)));
 			const scopedOptions = options
 				.filter(option => option.filter.kind !== 'application' || isEnvironmentIncluded(option.filter.environment))
-				.map(option => ({ ...option, checked: !sessionsControl.filters.isExcluded(option.filter) }));
+				.map(option => ({ ...option, checked: option.filter.kind === 'worktree' ? option.filter.id === selectedWorktree : !sessionsControl.filters.isExcluded(option.filter) }));
 			return {
 				options: scopedOptions,
 				emptySourcesTitle: scopedOptions.some(option => option.filter.kind === 'application') ? undefined
@@ -984,6 +999,32 @@ export class SessionsView extends ViewPane {
 				group: '2_filters',
 				order: 0,
 			}));
+			// Only while sessions work in worktrees: the sessions of all folders, or of one
+			if (options.some(option => option.filter.kind === 'worktree')) {
+				reader.store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+					submenu: Menus.SessionsViewWorktree,
+					title: localize('worktrees', "Worktrees"),
+					group: '2_filters',
+					order: 3,
+				}));
+				const allWorktrees = !options.some(option => option.filter.kind === 'worktree' && option.checked);
+				const allWorktreesKey = new RawContextKey('sessionsViewPane.filter.allWorktrees', allWorktrees).bindTo(this.scopedContextKeyService);
+				allWorktreesKey.set(allWorktrees);
+				reader.store.add(toDisposable(() => allWorktreesKey.reset()));
+				reader.store.add(registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: 'sessionsViewPane.filter.allWorktrees',
+							title: localize('allWorktrees', "All Worktrees"),
+							toggled: ContextKeyExpr.equals('sessionsViewPane.filter.allWorktrees', true),
+							menu: [{ id: Menus.SessionsViewWorktree, group: '4_worktrees_0_all', order: 0 }],
+						});
+					}
+					override run() {
+						sessionsControl.filters.setSelectedWorktree(undefined);
+					}
+				}));
+			}
 			if (emptySourcesTitle) {
 				reader.store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewSource, {
 					command: {
@@ -997,7 +1038,8 @@ export class SessionsView extends ViewPane {
 			for (const [index, option] of options.entries()) {
 				const menuId = option.filter.kind === 'environment' ? Menus.SessionsViewEnvironment
 					: option.filter.kind === 'application' ? Menus.SessionsViewSource
-						: Menus.SessionsViewHarness;
+						: option.filter.kind === 'worktree' ? Menus.SessionsViewWorktree
+							: Menus.SessionsViewHarness;
 				const id = `sessionsViewPane.filter.${encodeURIComponent(sessionFilterKey(option.filter))}`;
 				const contextKey = new RawContextKey(id, option.checked).bindTo(this.scopedContextKeyService);
 				contextKey.set(option.checked);
@@ -1012,7 +1054,12 @@ export class SessionsView extends ViewPane {
 						});
 					}
 					override run() {
-						sessionsControl.filters.setExcluded(option.filter, !sessionsControl.filters.isExcluded(option.filter));
+						if (option.filter.kind === 'worktree') {
+							sessionsControl.filters.setSelectedWorktree(option.filter.id);
+							worktreeOpener.open(option.filter.id).catch(onUnexpectedError);
+						} else {
+							sessionsControl.filters.setExcluded(option.filter, !sessionsControl.filters.isExcluded(option.filter));
+						}
 					}
 				}));
 			}
@@ -1273,35 +1320,64 @@ export class SessionsView extends ViewPane {
 				group: 'group',
 			},
 		];
-		if (!this.chatEntitlementService.sentiment.hidden) {
-			items.push({
-				id: SessionsGrouping.Inbox,
-				label: localize('inboxMode', "Inbox Mode"),
-				checked: this.grouping === SessionsGrouping.Inbox,
-				group: 'group',
-			});
-		}
-
 		showMobileSortGroupSheet(this.layoutService.mainContainer, localize('sortGroupSheet.title', "Sort"), items).then(selectedId => {
 			if (!selectedId) {
 				return;
 			}
 			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
 				this.setSorting(selectedId);
-			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date || selectedId === SessionsGrouping.Inbox) {
+			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date) {
 				this.setGrouping(selectedId);
 			}
 		}).catch(onUnexpectedError);
 	}
 
 	get grouping(): SessionsGrouping {
-		return this.currentGrouping ?? this.groupings?.default ?? (this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
-			? SessionsGrouping.Inbox
-			: SessionsGrouping.Workspace);
+		return this.currentGrouping ?? this.groupings?.default ?? SessionsGrouping.Workspace;
 	}
 
 	private get offeredGroupings(): readonly SessionsGrouping[] {
 		return this.groupings?.offered ?? DEFAULT_SESSIONS_GROUPINGS;
+	}
+
+	private get nonInboxGrouping(): SessionsGrouping {
+		return getStoredSessionsGrouping(this.storageService.get(NON_INBOX_GROUPING_STORAGE_KEY, StorageScope.PROFILE),
+			this.offeredGroupings.filter(grouping => grouping !== SessionsGrouping.Inbox)) ?? this.groupings?.default ?? SessionsGrouping.Workspace;
+	}
+
+	private get inboxAvailable(): boolean {
+		return !!this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
+			&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures')
+			&& !this.chatEntitlementService.sentiment.hidden;
+	}
+
+	private initializeGrouping(): void {
+		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.offeredGroupings);
+		this.updateInboxAvailability();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING) || e.affectsConfiguration('chat.disableAIFeatures')) {
+				this.updateInboxAvailability();
+			}
+		}));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.updateInboxAvailability()));
+	}
+
+	private updateInboxAvailability(): void {
+		if (this.inboxAvailable) {
+			return;
+		}
+		const activeElement = DOM.getActiveElement();
+		const restoreFocus = DOM.isHTMLElement(activeElement) && activeElement.classList.contains('codicon-inbox') && this.element?.contains(activeElement);
+		if (this.grouping === SessionsGrouping.Inbox) {
+			this.setGrouping(this.nonInboxGrouping);
+		}
+		if (restoreFocus) {
+			this.focus();
+		}
+	}
+
+	toggleInbox(): void {
+		this.setGrouping(this.grouping === SessionsGrouping.Inbox ? this.nonInboxGrouping : SessionsGrouping.Inbox);
 	}
 
 	get sorting(): SessionsSorting {
@@ -1313,11 +1389,20 @@ export class SessionsView extends ViewPane {
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {
-		if (this.currentGrouping === grouping || !this.offeredGroupings.includes(grouping)) {
+		if (!this.offeredGroupings.includes(grouping)) {
+			return;
+		}
+		if (grouping === SessionsGrouping.Inbox && !this.inboxAvailable) {
+			throw new Error(localize('inboxUnavailable', "Enable {0} and AI features to use Inbox Mode.", SESSIONS_LIST_INBOX_ENABLED_SETTING));
+		}
+		if (this.currentGrouping === grouping) {
 			return;
 		}
 
 		const preserveCollapseState = this.grouping === SessionsGrouping.Inbox || grouping === SessionsGrouping.Inbox;
+		if (this.grouping !== SessionsGrouping.Inbox) {
+			this.storageService.store(NON_INBOX_GROUPING_STORAGE_KEY, this.grouping, StorageScope.PROFILE, StorageTarget.USER);
+		}
 		this.currentGrouping = grouping;
 		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
 		this.groupingContextKey?.set(this.currentGrouping);

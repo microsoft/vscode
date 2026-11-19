@@ -133,10 +133,11 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				}
 				item.setCompact(true);
 				this._delegate.relayout?.();
-				if (!this._fitsAvailableWidth(availableWidth)) {
-					item.setMinimal?.(true);
-					this._delegate.relayout?.();
+				if (this._fitsAvailableWidth(availableWidth)) {
+					break;
 				}
+				item.setMinimal?.(true);
+				this._delegate.relayout?.();
 			}
 		} finally {
 			this._lastLayoutKey = this._getLayoutKey(availableWidth);

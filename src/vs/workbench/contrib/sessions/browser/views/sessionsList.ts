@@ -116,7 +116,7 @@ import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../common/sessionComparis
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
-import { compareSessionEnvironments, getSessionEnvironments, ISessionsListResettableState, SessionsListFilters } from './sessionsListFilters.js';
+import { compareSessionEnvironments, getSessionEnvironments, getWorktreeFilterKeys, ISessionsListResettableState, SessionsListFilters } from './sessionsListFilters.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { clearChatReferenceDragData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -183,7 +183,7 @@ function setSessionGroupDepth(container: HTMLElement, depth: number): void {
 }
 
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
-/** The session context menu group that changes where a session is listed: Pin, then the group membership actions. */
+/** The session context menu group that changes where a session is listed: Pin, the group membership actions, then Move to Session.... */
 export const SessionItemOrganizeMenuGroup = '2_organize';
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
@@ -3267,10 +3267,14 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			let hasNonCloudWorkspace = false;
 			for (const session of element.sessions) {
 				for (const folder of session.workspace.read(reader)?.folders ?? []) {
-					if (folder.gitRepository?.gitHubInfo.read(reader) !== undefined) {
+					// Reading `gitHubInfo` keeps the session's live pull request models alive, so stop once one repository is found.
+					if (!hasGitHub && folder.gitRepository?.gitHubInfo.read(reader) !== undefined) {
 						hasGitHub = true;
 					}
 					hasNonCloudWorkspace ||= folder.root.scheme !== GITHUB_REMOTE_FILE_SCHEME;
+				}
+				if (hasGitHub && hasNonCloudWorkspace) {
+					break;
 				}
 			}
 			hasGitHubRepository.set(hasGitHub);
@@ -4689,6 +4693,13 @@ interface ISessionsListControlBaseOptions {
 	 * omitted, opens are not gated.
 	 */
 	canOpenSession?(session: ISession): Promise<boolean>;
+	/** Whether the Worktrees filter applies, as it does outside the Agents window. Defaults to `true`. */
+	readonly offersWorktreeFilter?: boolean;
+	/**
+	 * Whether it lists quick chats, which have no workspace: as the Agents window and an editor window without a folder do,
+	 * and an editor window with one does not. It lists them again, or no longer, as this changes. Defaults to listing them.
+	 */
+	readonly listsQuickChats?: IObservable<boolean>;
 	onChatOpen?(session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -5930,6 +5941,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.options.pendingSections) {
 			this._register(runOnChange(this.options.pendingSections, () => this.update()));
 		}
+		if (this.options.listsQuickChats) {
+			this._register(runOnChange(this.options.listsQuickChats, () => this.scheduleListUpdate()));
+		}
 		if (this.options.schedulingEnabled || this.options.scheduledSessions || this.options.scheduledSessionResources) {
 			this._register(autorun(reader => {
 				this.options.schedulingEnabled?.read(reader);
@@ -6092,13 +6106,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Scope to the selected host's providers; an empty set (a declared
 		// group with no members yet) matches nothing rather than everything.
-		let filtered = this.sessions.filter(session => this.isSessionListed(session));
+		// Which sessions it can list at all, which no other filter and no active session overrides
+		const listsQuickChats = this.options.listsQuickChats?.get() ?? true;
+		const isEligible = (session: ISession) => this.isSessionListed(session) && (listsQuickChats || !isQuickChatSession(session));
+		let filtered = this.sessions.filter(isEligible);
+		// The Worktrees filter is of an editor window: in the Agents window, a folder selected there selects nothing
+		const availableWorktrees = this.options.offersWorktreeFilter === false ? new Set<string>() : getWorktreeFilterKeys(filtered, () => true, this.uriIdentityService.extUri);
 		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
 		if (scopedProviderIds) {
 			const scoped = new Set(scopedProviderIds);
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
-		filtered = filtered.filter(session => this.filters.matches(session, inbox));
+		filtered = filtered.filter(session => this.filters.matches(session, inbox, availableWorktrees));
 		const scheduledOnly = this.options.schedulingEnabled?.get() && this.filters.isScheduledOnly();
 		if (scheduledOnly) {
 			filtered = filtered.filter(session => this.options.scheduledSessionResources?.get().has(session.resource.toString()));
@@ -6114,7 +6133,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Keep the active user-facing session visible even when another filter excludes it.
 		for (const revealedSession of [activeSession, onboardingSession]) {
 			if (revealedSession && !filtered.some(s => s.sessionId === revealedSession.sessionId)) {
-				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && this.isSessionListed(s));
+				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && isEligible(s));
 				if (match) {
 					filtered = [...filtered, match];
 				}
@@ -11094,6 +11113,7 @@ export class SessionsFlatList extends Disposable {
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private readonly _delegate: SessionsTreeDelegate;
+	private readonly renderedSessions = new Map<ISession, HTMLElement>();
 	private _sessions: readonly ISession[] = [];
 
 	constructor(
@@ -11137,7 +11157,17 @@ export class SessionsFlatList extends Disposable {
 		const reportExternalApplicationBadgeModeExperimentTrigger = () => logDefaultSettingExperimentTrigger(configurationService, telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING);
 		const reportExternalApplicationBadgeShowFromExperimentTrigger = () => logDefaultSettingExperimentTrigger(configurationService, telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING);
 
-		const sessionRenderer = new SessionItemRenderer(
+		const renderedSessions = this.renderedSessions;
+		const sessionRenderer = new class extends SessionItemRenderer {
+			override renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, index: number, template: ISessionItemTemplate): void {
+				super.renderElement(node, index, template);
+				const session = node.element;
+				if (isSessionItem(session)) {
+					renderedSessions.set(session, template.container);
+					template.elementDisposables.add(toDisposable(() => renderedSessions.delete(session)));
+				}
+			}
+		}(
 			{
 				grouping: () => SessionsGrouping.Date,
 				isPinned: s => this._sessionsListModelService.isSessionPinned(s),
@@ -11317,15 +11347,27 @@ export class SessionsFlatList extends Disposable {
 		this.tree.domFocus();
 	}
 
-	focusSession(session: ISession): void {
+	focusSession(session: ISession, revealInParent = false): void {
 		if (!this.tree.hasElement(session)) {
 			return;
 		}
 		this.tree.setFocus([session]);
 		this.tree.domFocus();
+		if (revealInParent) {
+			this.tree.reveal(session);
+			this.renderedSessions.get(session)?.scrollIntoView({ block: 'nearest' });
+		}
 	}
 
 	getFocusedSession(): ISession | undefined {
+		const activeElement = DOM.getActiveElement();
+		if (activeElement) {
+			for (const [session, element] of this.renderedSessions) {
+				if (element.contains(activeElement)) {
+					return session;
+				}
+			}
+		}
 		const focused = this.tree.getFocus()[0];
 		return focused && isSessionItem(focused) ? focused : undefined;
 	}

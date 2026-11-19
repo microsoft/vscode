@@ -14,27 +14,32 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
+import { IChatViewHostService, IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { parse } from '../../../../../../base/common/marshalling.js';
+import { parse, stringify } from '../../../../../../base/common/marshalling.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
-import { EditorInputWithOptions, IEditorPane } from '../../../../../common/editor.js';
+import { EditorCloseContext, EditorInputWithOptions, EditorsOrder, IEditorPane, IVisibleEditorPane } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
-import { IContentPart, ICreateEditorPartOptions, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IContentPart, ICreateEditorPartOptions, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
-import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
+import { IEditorService, IVisibleEditorsChangeEvent, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { IChatRequestVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { AgentsChatPartService, IAgentsChatPartService, restoreAgentsChatPart } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { EditorWindowMainSessionHost, EditorWindowShownChatService, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
-import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
+import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, createChatWindowComposerResource, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
+import { INewSessionTarget } from '../../../browser/parts/chatView.js';
+import { fromStoredChatDraft, toStoredChatDraft } from '../../../common/newChatDraftState.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
 import { INewSessionDraftSlot, ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
@@ -61,9 +66,9 @@ class FakeGroup {
 	activeEditor: EditorInput | null = null;
 	readonly onDidActiveEditorChangeEmitter = new Emitter<void>();
 	readonly onDidActiveEditorChange = this.onDidActiveEditorChangeEmitter.event;
-	readonly onWillCloseEditorEmitter = new Emitter<{ readonly editor: EditorInput }>();
+	readonly onWillCloseEditorEmitter = new Emitter<{ readonly editor: EditorInput; readonly context?: EditorCloseContext }>();
 	readonly onWillCloseEditor = this.onWillCloseEditorEmitter.event;
-	readonly onDidCloseEditorEmitter = new Emitter<{ readonly editor: EditorInput }>();
+	readonly onDidCloseEditorEmitter = new Emitter<{ readonly editor: EditorInput; readonly context?: EditorCloseContext }>();
 	readonly onDidCloseEditor = this.onDidCloseEditorEmitter.event;
 	get isEmpty() { return this.editors.length === 0; }
 	contains(editor: EditorInput) { return this.editors.includes(editor); }
@@ -71,26 +76,45 @@ class FakeGroup {
 	open(editor: EditorInput, inactive?: boolean): void {
 		if (!this.editors.includes(editor)) {
 			this.editors.push(editor);
+			// As a real group: an editor that opens inactive is the most recent after its active one
+			this.mru.splice(this.mru.length ? 1 : 0, 0, editor);
 		}
 		if (!inactive || !this.activeEditor) {
 			this.activeEditor = editor;
+			this.mru = [editor, ...this.mru.filter(candidate => candidate !== editor)];
 			this.onDidActiveEditorChangeEmitter.fire();
 		}
 	}
-	/** Closes `editor`, which disposes before the group tells it closed, as in a real group. */
-	async closeEditor(editor: EditorInput): Promise<boolean> {
-		this.onWillCloseEditorEmitter.fire({ editor });
+	/** Its editors most recently active first, as a real group orders them. */
+	private mru: EditorInput[] = [];
+	getEditors(order: EditorsOrder): readonly EditorInput[] {
+		return order === EditorsOrder.MOST_RECENTLY_ACTIVE ? this.mru : this.editors;
+	}
+	/**
+	 * Closes `editor`, which disposes before the group tells it closed, as in a real group; not as it moves to another group,
+	 * where it stays open.
+	 */
+	async closeEditor(editor: EditorInput, context?: EditorCloseContext): Promise<boolean> {
+		this.onWillCloseEditorEmitter.fire({ editor, context });
 		this.editors = this.editors.filter(candidate => candidate !== editor);
+		this.mru = this.mru.filter(candidate => candidate !== editor);
+		// As a real group: the most recently active one shows next
 		if (this.activeEditor === editor) {
-			this.activeEditor = this.editors.at(-1) ?? null;
+			this.activeEditor = this.mru[0] ?? null;
 		}
-		editor.dispose();
-		this.onDidCloseEditorEmitter.fire({ editor });
+		if (context !== EditorCloseContext.MOVE) {
+			editor.dispose();
+		}
+		this.onDidCloseEditorEmitter.fire({ editor, context });
 		this.onDidActiveEditorChangeEmitter.fire();
 		return true;
 	}
 	async closeAllEditors(): Promise<boolean> {
-		for (const editor of [...this.editors]) {
+		return this.closeEditors([...this.editors]);
+	}
+	/** Closes `editors` in their order: a real group closes its active editor last, which these tests close last. */
+	async closeEditors(editors: readonly EditorInput[]): Promise<boolean> {
+		for (const editor of editors) {
 			await this.closeEditor(editor);
 		}
 		return true;
@@ -106,6 +130,8 @@ class FakeGroup {
 /** The editor part of the chat part, as the chat part creates it: it starts with one group and adds more beside it. */
 class FakePart {
 	readonly groups: FakeGroup[] = [];
+	/** Its groups, most recently active first, as a real part orders them. */
+	private readonly mruGroups: FakeGroup[] = [];
 	activeGroup: FakeGroup;
 	/** The options the chat part created it with. */
 	createOptions: ICreateEditorPartOptions | undefined;
@@ -126,14 +152,26 @@ class FakePart {
 	addGroup(): FakeGroup {
 		const group = new FakeGroup();
 		this.groups.push(group);
+		this.mruGroups.push(group);
 		this.onDidAddGroupEmitter.fire(group);
 		return group;
 	}
+	getGroups(order: GroupsOrder): readonly FakeGroup[] {
+		return order === GroupsOrder.MOST_RECENTLY_ACTIVE ? this.mruGroups : this.groups;
+	}
 	activate(group: FakeGroup): void {
+		this.mruGroups.splice(this.mruGroups.indexOf(group), 1);
+		this.mruGroups.unshift(group);
 		if (this.activeGroup !== group) {
 			this.activeGroup = group;
 			this.onDidChangeActiveGroupEmitter.fire(group);
 		}
+	}
+	/** Moves `editor` from `source` to `target` as a real group does: it opens and activates there before it closes in `source`. */
+	async moveEditor(editor: EditorInput, source: FakeGroup, target: FakeGroup): Promise<void> {
+		target.open(editor);
+		this.activate(target);
+		await source.closeEditor(editor, EditorCloseContext.MOVE);
 	}
 	enforcePartOptions(options: unknown): IDisposable {
 		this.options = options;
@@ -171,7 +209,7 @@ suite('AgentsChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined>; readonly holdOpen?: () => Promise<void>; readonly delayed?: boolean; readonly chatTabs?: SessionsChatTabsMode | null }) {
+	function createService(options?: { readonly stored?: string; readonly storedComposers?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined>; readonly holdOpen?: () => Promise<void>; readonly delayed?: boolean; readonly chatTabs?: SessionsChatTabsMode | null }) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const contextKeyService = store.add(new ChangingContextKeyService());
@@ -183,14 +221,18 @@ suite('AgentsChatPartService', () => {
 		if (options?.stored !== undefined) {
 			storageService.store(CHAT_PART_EDITORS_STORAGE_KEY, options.stored, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
+		if (options?.storedComposers !== undefined) {
+			storageService.store(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, options.storedComposers, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		// Its chats as tabs, unless a test asks for Single, or for the default (null)
 		if (options?.chatTabs !== null) {
 			configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, options?.chatTabs ?? SessionsChatTabsMode.Multiple);
 		}
 
-		// The chat part, and whether the layout shows it
+		// The chat part, whether the layout shows it, and whether it has focus
 		const part = new FakePart();
+		const focus = { chatPart: false };
 		store.add(part);
 		let partVisible = !!options?.visible;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
@@ -203,14 +245,21 @@ suite('AgentsChatPartService', () => {
 					onDidChangePartVisibility.fire({ partId: Parts.CHAT_PART, visible: partVisible });
 				}
 			},
-			hasFocus: () => false,
+			hasFocus: (candidate: Parts) => candidate === Parts.CHAT_PART && focus.chatPart,
 		}));
 		// The frame has the chat part once it is created, as the real frame does
 		const content = observableValue<IAgentsChatPartService | undefined>('content', undefined);
 		instantiationService.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ part: upcastPartial<IAgentsChatPartFrame['part']>({ setContent: () => toDisposable(() => { }) }), content, contentCreated: derived(reader => !!content.read(reader)), didCreateContent: created => content.set(created, undefined) }));
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ createEditorPart: createOptions => { part.createOptions = createOptions; return part as unknown as IContentPart; }, mainPart: undefined }));
+		// The editors of the editor area that show
+		const editorArea = { panes: [] as IVisibleEditorPane[], onDidChange: store.add(new Emitter<IVisibleEditorsChangeEvent>()) };
+		// The editors it opens in its groups, and whether each takes focus
+		const opens: { readonly tab: string | null; readonly focuses: boolean }[] = [];
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+			get visibleEditorPanes() { return editorArea.panes; },
+			onDidVisibleEditorsChange: editorArea.onDidChange.event,
 			openEditor: (async (editor: EditorInput, editorOptions: IEditorOptions | undefined, group: FakeGroup) => {
+				opens.push({ tab: name(editor), focuses: !editorOptions?.preserveFocus });
 				group.open(editor, editorOptions?.inactive);
 				if (!editorOptions?.inactive) {
 					part.activate(group);
@@ -275,7 +324,10 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(ISessionGroupsService, upcastPartial<ISessionGroupsService>({ setDraftSlotGroup: () => toDisposable(() => { }), getGroupOfSession: () => undefined }));
 
 		const shownChatService = new EditorWindowShownChatService();
+		// The Chat view, as it shows a chat while no host replaces it
+		const chatView = { shown: observableValue<IChatViewHostShownSession | undefined>('chatViewShown', undefined), hosts: observableValue('chatViewHosts', true), replaced: observableValue('replaced', false) };
 		instantiationService.stub(IEditorWindowShownChatService, shownChatService);
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession: chatView.shown, chatViewHosts: chatView.hosts, replaced: chatView.replaced }));
 		const host = new EditorWindowMainSessionHost(contextKeyService, shownChatService);
 		instantiationService.stub(ISessionHost, host);
 		// Delayed, as the editor window registers it: created as something first uses it, such as an open
@@ -292,9 +344,40 @@ suite('AgentsChatPartService', () => {
 			scoped,
 			store,
 			hide: () => instantiationService.get(IWorkbenchLayoutService).setPartHidden(true, Parts.CHAT_PART),
+			chatView,
+			editorArea,
+			focus,
+			opens,
 			save: () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
 				return storageService.get(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
+			},
+			/** What was typed in the chat part's composers, as they store it. */
+			composerInputs: () => {
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+				return raw ? (parse(raw) as { readonly input?: unknown }[]).map(composer => fromStoredChatDraft(composer.input).inputText) : [];
+			},
+			lifecycle: instantiationService.get(ILifecycleService) as TestLifecycleService,
+			/** What was typed and attached in the chat part's composers, as they store them. */
+			composerDrafts: () => {
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+				return raw ? (parse(raw) as { readonly input?: unknown }[]).map(composer => fromStoredChatDraft(composer.input)).map(draft => ({ input: draft.inputText, attachments: draft.attachments.map(attachment => attachment.name) })) : [];
+			},
+			/** The attachments of the chat part's composers, as they store them: their resources. */
+			composerAttachments: () => {
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+				return raw ? (parse(raw) as { readonly input?: unknown }[]).flatMap(composer => fromStoredChatDraft(composer.input).attachments.map(attachment => URI.isUri(attachment.value) ? attachment.value.toString() : String(attachment.value))) : [];
+			},
+			/** Restores the chat part as the editor window does as it starts: not while the layout hides it. */
+			startWindow: () => restoreAgentsChatPart(instantiationService.get(IWorkbenchLayoutService), instantiationService.get(IContextKeyService), () => service),
+			/** What the chat part's composers aim at, and what was typed in them, as they store them. */
+			composerStates: () => {
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+				return raw ? (parse(raw) as { readonly target?: INewSessionTarget; readonly input?: unknown }[]).map(composer => ({ ...composer.target, folderUri: composer.target?.folderUri?.path, input: fromStoredChatDraft(composer.input).inputText })) : [];
 			},
 			/** The folders the chat part's composers aim at, as they store them. */
 			composerFolders: () => {
@@ -545,6 +628,12 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual(state(), { tabs: 0, liveSlots: 0, sessionListeners: baseline, visible: false });
 	});
 
+	/** A session that a new-session composer sent, as its slot reports it: what was typed in that composer is no draft then. */
+	function sentSession(name: string): ISession {
+		const resource = URI.parse(`test:/${name}`);
+		return upcastPartial<ISession>({ resource, status: constObservable(SessionStatus.Completed), mainChat: constObservable(upcastPartial<IChat>({ resource })) });
+	}
+
 	function replacedPeerChat() {
 		const spec = { id: 'parent', title: 'Parent', chats: [{ id: 'peer', title: 'Peer' }] };
 		const original = buildTestSession(spec);
@@ -663,6 +752,29 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ providerGone, removed: service.isShowing(peer) }, { providerGone: true, removed: false });
 	});
 
+	test('in Single, a restored chat that has not shown yet stays in its list until its session is reported removed; then it leaves the list and is not stored', async () => {
+		const [a, b, c] = ['a', 'b', 'c'].map(id => buildTestSession({ id, title: id.toUpperCase() }));
+		const chatOf = (built: typeof a) => built.mainChat.chat.resource;
+		let sessions: readonly ISession[] = [];
+		const fixture = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, sessions: () => sessions, stored: JSON.stringify({ chats: [a, b, c].map(built => chatOf(built).toString()), active: 0 }) });
+		await fixture.service.restore();
+		// Not known yet, as their provider has not loaded them: they stay
+		await timeout(0);
+		const unknown = JSON.parse(fixture.save()!).chats;
+		sessions = [a.session, b.session, c.session];
+		fixture.fireSessionsChanged([a.session, b.session, c.session]);
+		await timeout(0);
+		sessions = [a.session, c.session];
+		fixture.fireSessionsChanged([], [b.session]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ unknown, afterRemoved: JSON.parse(fixture.save()!).chats, showingB: fixture.service.isShowing(chatOf(b)) }, {
+			unknown: [a, b, c].map(built => chatOf(built).toString()),
+			afterRemoved: [a, c].map(built => chatOf(built).toString()),
+			showingB: false,
+		});
+	});
+
 	test('restoring the chat part shown restores its chats, unless chat is hidden or disabled as the window starts, which hides it', async () => {
 		const restore = async (available: boolean) => {
 			const calls: string[] = [];
@@ -765,7 +877,7 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual(asItsTabDisposes, { liveSlots: 0, reentered: 0, disposed: true });
 	});
 
-	test('closing the last chat closes the chat part, which closing a chat it does not show leaves as it is', async () => {
+	test('with tabs, closing the last chat closes the chat part, which closing a chat it does not show leaves as it is', async () => {
 		const { service, layout } = createService();
 		await service.openChat(session, chatA);
 		await service.openChat(session, chatB);
@@ -774,12 +886,47 @@ suite('AgentsChatPartService', () => {
 		await service.closeChat(chatA);
 		const oneLeft = layout();
 		await service.closeChat(chatB);
+		await timeout(0);
 
 		assert.deepStrictEqual({ oneLeft, none: layout() }, {
 			oneLeft: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
 			none: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
 		});
 	});
+
+	test('closing its last chat while it is hidden, such as as that chat moves to the Chat view, leaves it hidden and empty', async () => {
+		const { service, layout, hide } = createService();
+		await service.openChat(session, chatA);
+		hide();
+		await service.closeChat(chatA);
+		await timeout(0);
+
+		assert.deepStrictEqual(layout(), { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false });
+	});
+
+	{
+		test('in Single, it closes as an editor group does: closing the chat it shows shows the one opened before it, closing the last chat shows a new-session composer, and closing that closes the chat part', async () => {
+			const { service, part, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
+			await service.openChat(session, chatA);
+			await service.openChat(session, chatB);
+			const bothOpen = layout();
+			await service.closeChat(chatB);
+			await timeout(0);
+			const closedB = layout();
+			await service.closeChat(chatA);
+			await timeout(0);
+			const closedA = layout();
+			await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
+			await timeout(0);
+
+			assert.deepStrictEqual({ bothOpen, closedB, closedA, closedComposer: layout() }, {
+				bothOpen: { groups: [{ tabs: ['/a', '/b'], active: '/b' }], activeGroup: 0, visible: true },
+				closedB: { groups: [{ tabs: ['/a'], active: '/a' }], activeGroup: 0, visible: true },
+				closedA: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true },
+				closedComposer: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
+			});
+		});
+	}
 
 	test('closing all its chats closes every tab, in each of its groups, which closes the chat part', async () => {
 		const { service, layout } = createService();
@@ -797,23 +944,23 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
-	test('in Single, it shows one chat at a time, as a preview: a chat it opens replaces the one it showed, also an untouched composer, without tabs left behind', async () => {
+	test('in Single, it shows one chat at a time and keeps the others it opened, as an editor group does: a chat it opens replaces only an untouched composer', async () => {
 		const { service, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
 		await service.openChat(session, chatA);
 		await service.openChat(session, chatB);
-		const replaced = layout();
+		const kept = layout();
 		await service.openComposer(undefined, { newComposer: true });
 		const composer = layout();
 		await service.openChat(session, chatC);
 
-		assert.deepStrictEqual({ replaced, composer, untouchedComposerReplaced: layout() }, {
-			replaced: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
-			composer: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true },
-			untouchedComposerReplaced: { groups: [{ tabs: ['/c'], active: '/c' }], activeGroup: 0, visible: true },
+		assert.deepStrictEqual({ kept, composer, untouchedComposerReplaced: layout() }, {
+			kept: { groups: [{ tabs: ['/a', '/b'], active: '/b' }], activeGroup: 0, visible: true },
+			composer: { groups: [{ tabs: ['/a', '/b', 'composer'], active: 'composer' }], activeGroup: 0, visible: true },
+			untouchedComposerReplaced: { groups: [{ tabs: ['/a', '/b', '/c'], active: '/c' }], activeGroup: 0, visible: true },
 		});
 	});
 
-	test('in Single, an open that a later one superseded replaces nothing as it resolves after that one: the later chat stays, the only tab', async () => {
+	test('in Single, an open that a later one superseded shows nothing as it resolves after that one: the later chat stays the one it shows', async () => {
 		let held: DeferredPromise<void> | undefined;
 		const { service, layout } = createService({ chatTabs: SessionsChatTabsMode.Single, holdOpen: () => held?.p ?? Promise.resolve() });
 		await service.openChat(session, chatC);
@@ -829,8 +976,8 @@ suite('AgentsChatPartService', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ afterB, afterA: layout() }, {
-			afterB: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
-			afterA: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
+			afterB: { groups: [{ tabs: ['/c', '/a', '/b'], active: '/b' }], activeGroup: 0, visible: true },
+			afterA: { groups: [{ tabs: ['/c', '/a', '/b'], active: '/b' }], activeGroup: 0, visible: true },
 		});
 	});
 
@@ -853,12 +1000,392 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
-	test('in Single, restoring shows only the chat it showed, not the others it stored', async () => {
+	test('in Single, it stores its chats most recent first, and restoring shows them again in that order as it closes them', async () => {
+		const first = createService({ chatTabs: SessionsChatTabsMode.Single });
+		await first.service.openChat(session, chatA);
+		await first.service.openChat(session, chatB);
+		await first.service.openChat(session, chatC);
+		await first.service.openChat(session, chatA);
+		const stored = JSON.parse(first.save()!);
+
+		const second = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, stored: JSON.stringify(stored) });
+		await second.service.restore();
+		const shown = [second.layout().groups[0].active];
+		for (const chat of [chatA, chatC]) {
+			await second.service.closeChat(chat);
+			await timeout(0);
+			shown.push(second.layout().groups[0].active);
+		}
+
+		assert.deepStrictEqual({ stored, shown }, { stored: { chats: ['test:/a', 'test:/c', 'test:/b'], active: 0 }, shown: ['/a', '/c', '/b'] });
+	});
+
+	test('in Single, a new session reuses its one new-session composer that has not sent its session', async () => {
+		const { service, part, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
+		await service.openComposer(undefined, { newComposer: true });
+		const first = part.activeGroup.activeEditor;
+		await service.openComposer(undefined, { newComposer: true });
+
+		assert.deepStrictEqual({ layout: layout(), reused: part.activeGroup.activeEditor === first }, { layout: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true }, reused: true });
+	});
+
+	test('in Single, a new session reuses its unsent composer while a parked draft waits; the parked draft comes back with the next new composer, once that one sent its session, or after the text of that one as it closes', async () => {
+		const parkedD = stringify({ chats: [], active: 0, kept: [toStoredChatDraft({ inputText: 'D', attachments: [] })] });
+		const run = async (leave: 'sent' | 'closed') => {
+			const composerE = createChatWindowComposerResource();
+			const newSession = observableValue<ISession | undefined>('newSession', undefined);
+			const fixture = createService({
+				chatTabs: SessionsChatTabsMode.Single, visible: true, newSession,
+				stored: stringify({ ...parse(parkedD), chats: [composerE.toString()] }),
+				storedComposers: stringify([{ resource: composerE, input: toStoredChatDraft({ inputText: 'E', attachments: [] }) }]),
+			});
+			await fixture.service.restore();
+			// New Chat, as the user asks for it
+			await fixture.service.openComposer(undefined, { newComposer: true });
+			const reused = { tabs: fixture.layout().groups[0].tabs, drafts: fixture.composerDrafts().map(draft => draft.input) };
+			if (leave === 'sent') {
+				newSession.set(sentSession('sentE'), undefined);
+			} else {
+				await fixture.part.activeGroup.closeEditor(fixture.part.activeGroup.activeEditor!);
+			}
+			const next: string[] = [];
+			for (let i = 0; i < 2; i++) {
+				await fixture.service.openComposer(undefined, { newComposer: true });
+				next.push(fixture.composerDrafts().at(-1)!.input);
+				newSession.set(sentSession(`sent${i}`), undefined);
+			}
+			return { reused, next };
+		};
+
+		assert.deepStrictEqual({ sent: await run('sent'), closed: await run('closed') }, {
+			sent: { reused: { tabs: ['composer'], drafts: ['E'] }, next: ['D', ''] },
+			closed: { reused: { tabs: ['composer'], drafts: ['E'] }, next: ['E', 'D'] },
+		});
+	});
+
+	test('in Single, a kept draft comes back with the first new composer after a reload that starts with the chat part hidden, with its attachments, and only once', async () => {
+		const attachments = [
+			upcastPartial<IChatRequestVariableEntry>({ id: 'drive', name: 'a.ts', kind: 'file', value: URI.from({ scheme: 'file', path: '/c:/Users/me/a.ts' }) }),
+			upcastPartial<IChatRequestVariableEntry>({ id: 'unc', name: 'b.ts', kind: 'file', value: URI.from({ scheme: 'file', authority: 'server', path: '/share/b.ts' }) }),
+		];
+		const run = async (keep: 'closed' | 'parked') => {
+			const composer = createChatWindowComposerResource();
+			const first = createService({
+				chatTabs: SessionsChatTabsMode.Single, visible: true,
+				stored: JSON.stringify({ chats: [composer.toString()], active: 0 }),
+				storedComposers: stringify([{ resource: composer, input: toStoredChatDraft({ inputText: 'D', attachments }) }]),
+			});
+			await first.service.restore();
+			if (keep === 'closed') {
+				// Closing its last chat, the composer, hides the chat part
+				await first.part.activeGroup.closeEditor(first.part.activeGroup.activeEditor!);
+			} else {
+				first.service.parkComposerInput();
+				first.hide();
+			}
+			const hiddenAfterFirst = !first.layout().visible;
+
+			// The window starts again with the chat part hidden: it restores no tabs; New Chat shows it, and the draft is sent
+			const sending = observableValue<ISession | undefined>('newSession', undefined);
+			const second = createService({ chatTabs: SessionsChatTabsMode.Single, stored: first.save(), newSession: sending });
+			await second.startWindow();
+			await second.service.openComposer(undefined, { newComposer: true });
+			const restored = { drafts: second.composerDrafts().map(draft => draft.input), attachments: second.composerAttachments() };
+			sending.set(sentSession('sentD'), undefined);
+
+			const third = createService({ chatTabs: SessionsChatTabsMode.Single, stored: second.save() });
+			await third.startWindow();
+			await third.service.openComposer(undefined, { newComposer: true });
+			return { hiddenAfterFirst, restored, afterAnotherReload: third.composerDrafts().map(draft => draft.input) };
+		};
+		const expected = { hiddenAfterFirst: true, restored: { drafts: ['D'], attachments: ['file:///c%3A/Users/me/a.ts', 'file://server/share/b.ts'] }, afterAnotherReload: [''] };
+
+		assert.deepStrictEqual({ closed: await run('closed'), parked: await run('parked') }, { closed: expected, parked: expected });
+	});
+
+	test('leaving Single forgets the kept drafts it stored also while the chat part was never created, and keeps the tabs it stored', async () => {
+		const storedTabs = [chatA.toString(), chatB.toString()];
+		const keptD = [toStoredChatDraft({ inputText: 'D', attachments: [] })];
+		/** Starts hidden with what it stored, changes its mode as `modes` say, saves, and starts hidden again for a New Chat. */
+		const run = async (startMode: SessionsChatTabsMode, modes: readonly SessionsChatTabsMode[], chats: readonly string[] = []) => {
+			const first = createService({ chatTabs: startMode, stored: stringify({ chats, active: chats.length ? 1 : 0, kept: keptD }) });
+			await first.startWindow();
+			for (const mode of modes) {
+				first.setSetting(SESSIONS_CHAT_TABS_SETTING, mode);
+			}
+			const saved = first.save();
+			const second = createService({ chatTabs: SessionsChatTabsMode.Single, stored: saved });
+			await second.startWindow();
+			await second.service.openComposer(undefined, { newComposer: true });
+			const value = saved && parse(saved) as { readonly chats: readonly string[]; readonly active: number; readonly kept?: unknown };
+			return { stored: value && { chats: value.chats, active: value.active, kept: !!value.kept }, newChat: second.composerDrafts().map(draft => draft.input) };
+		};
+
+		assert.deepStrictEqual({
+			untouched: await run(SessionsChatTabsMode.Single, []),
+			leftSingle: await run(SessionsChatTabsMode.Single, [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single]),
+			leftSingleWithTabs: await run(SessionsChatTabsMode.Single, [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single], storedTabs),
+			startedInMultiple: await run(SessionsChatTabsMode.Multiple, []),
+		}, {
+			untouched: { stored: { chats: [], active: 0, kept: true }, newChat: ['D'] },
+			leftSingle: { stored: undefined, newChat: [''] },
+			leftSingleWithTabs: { stored: { chats: storedTabs, active: 1, kept: false }, newChat: [''] },
+			startedInMultiple: { stored: undefined, newChat: [''] },
+		});
+	});
+
+	test('in Single, the kept drafts it stored that are no drafts are skipped, and the others come back', async () => {
+		const { service, startWindow, composerDrafts } = createService({ chatTabs: SessionsChatTabsMode.Single, stored: stringify({ chats: [], active: 0, kept: [toStoredChatDraft({ inputText: 'D', attachments: [] }), { bogus: true }, 42] }) });
+		await startWindow();
+		await service.openComposer(undefined, { newComposer: true });
+
+		assert.deepStrictEqual(composerDrafts().map(draft => draft.input), ['D']);
+	});
+
+	test('in Single, a parked draft is stored with the chat part and restored once after a reload, with its attachments', async () => {
+		const composer = createChatWindowComposerResource();
+		const attachment = upcastPartial<IChatRequestVariableEntry>({ id: 'file-a', name: 'a.ts', kind: 'file', value: URI.file('/a.ts') });
+		const firstSending = observableValue<ISession | undefined>('newSession', undefined);
+		const first = createService({
+			chatTabs: SessionsChatTabsMode.Single, visible: true, newSession: firstSending,
+			stored: JSON.stringify({ chats: [composer.toString()], active: 0 }),
+			storedComposers: stringify([{ resource: composer, input: toStoredChatDraft({ inputText: 'D', attachments: [attachment] }) }]),
+		});
+		await first.service.restore();
+		first.service.parkComposerInput();
+		// The draft that took the composer is sent
+		firstSending.set(sentSession('sentE'), undefined);
+
+		const secondSending = observableValue<ISession | undefined>('newSession', undefined);
+		const second = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, stored: first.save(), newSession: secondSending });
+		await second.service.restore();
+		await second.service.openComposer(undefined, { newComposer: true });
+		const restored = second.composerDrafts();
+		secondSending.set(sentSession('sentD'), undefined);
+		await second.service.openComposer(undefined, { newComposer: true });
+
+		assert.deepStrictEqual({ restored, again: second.composerDrafts().at(-1) }, { restored: [{ input: 'D', attachments: ['a.ts'] }], again: { input: '', attachments: [] } });
+	});
+
+	test('in Single, its composer parks what was typed in it for a newer draft to take the composer; each new composer then takes the latest kept one, so none is lost', async () => {
+		const [older, newer] = [createChatWindowComposerResource(), createChatWindowComposerResource()];
+		const sending = observableValue<ISession | undefined>('newSession', undefined);
+		const { service, part, composerStates } = createService({
+			chatTabs: SessionsChatTabsMode.Single, visible: true, newSession: sending,
+			stored: JSON.stringify({ chats: [older.toString(), newer.toString()], active: 0 }),
+			storedComposers: stringify([older, newer].map((resource, index) => ({ resource, input: toStoredChatDraft({ inputText: index === 0 ? 'D' : 'E', attachments: [] }) }))),
+		});
+		await service.restore();
+		let sent = 0;
+		// The composer sends its session, and New Chat opens the next one
+		const nextNewChat = async () => {
+			sending.set(sentSession(`sent${sent++}`), undefined);
+			await service.openComposer(undefined, { newComposer: true });
+			return composerStates().at(-1)?.input;
+		};
+
+		// The older draft parks; the newer one, which took a composer of its own here, is closed and kept as well
+		const parked = service.parkComposerInput();
+		await part.activeGroup.closeEditor(part.activeGroup.editors.find(editor => editor !== part.activeGroup.activeEditor)!);
+
+		assert.deepStrictEqual({ parked, first: await nextNewChat(), second: await nextNewChat(), third: await nextNewChat() }, { parked: true, first: 'E', second: 'D', third: '' });
+	});
+
+	test('in Single, closing its new-session composer keeps what was typed in it for its next one, without asking, also as it closes all its chats; not an empty one, not as the window shuts down, nor one that sent its session; leaving Single forgets it', async () => {
+		const composer = createChatWindowComposerResource();
+		const sentChat = upcastPartial<IChat>({ resource: URI.parse('test:/sent') });
+		const sent = upcastPartial<ISession>({ resource: URI.parse('test:/sentSession'), status: constObservable(SessionStatus.Completed), mainChat: constObservable(sentChat) });
+		/** Restores a composer with `typed` in it, as after a reload, closes it as `close` does, and opens a new session. */
+		const run = async (typed: string, close: (fixture: ReturnType<typeof createService>) => Promise<void>, options?: { readonly newSession?: IObservable<ISession | undefined> }) => {
+			const fixture = createService({
+				chatTabs: SessionsChatTabsMode.Single, visible: true, newSession: options?.newSession,
+				stored: JSON.stringify({ chats: [composer.toString()], active: 0 }),
+				storedComposers: stringify([{ resource: composer, input: toStoredChatDraft({ inputText: typed, attachments: [] }) }]),
+			});
+			await fixture.service.restore();
+			await close(fixture);
+			await timeout(0);
+			fixture.lifecycle.willShutdown = false;
+			await fixture.service.openComposer(undefined, { newComposer: true });
+			return fixture.composerInputs();
+		};
+		const closeTab = async ({ part }: ReturnType<typeof createService>) => { await part.activeGroup.closeEditor(part.activeGroup.activeEditor!); };
+
+		assert.deepStrictEqual({
+			typed: await run('my draft', closeTab),
+			empty: await run('', closeTab),
+			closeAll: await run('my draft', ({ service }) => service.closeAllChats()),
+			shutdown: await run('my draft', async fixture => { fixture.lifecycle.willShutdown = true; await closeTab(fixture); }),
+			sentSession: await run('my draft', closeTab, { newSession: constObservable(sent) }),
+			leftSingle: await run('my draft', async fixture => {
+				await closeTab(fixture);
+				fixture.setSetting(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Multiple);
+				fixture.setSetting(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+			}),
+		}, { typed: ['my draft'], empty: [''], closeAll: ['my draft'], shutdown: [''], sentSession: [''], leftSingle: [''] });
+	});
+
+	test('Close All closes all its chats and hides the chat part, showing them as tabs or one at a time; in Single, what was typed in its unsent composers is kept and stored, each coming back once with a new composer after a reload', async () => {
+		const attachment = upcastPartial<IChatRequestVariableEntry>({ id: 'drive', name: 'a.ts', kind: 'file', value: URI.from({ scheme: 'file', path: '/c:/Users/me/a.ts' }) });
+		const run = async (chatTabs: SessionsChatTabsMode) => {
+			const [d, e] = [createChatWindowComposerResource(), createChatWindowComposerResource()];
+			const first = createService({
+				chatTabs, visible: true,
+				stored: JSON.stringify({ chats: [e.toString(), d.toString()], active: 1 }),
+				storedComposers: stringify([d, e].map((resource, index) => ({ resource, input: toStoredChatDraft({ inputText: index === 0 ? 'D' : 'E', attachments: index === 0 ? [attachment] : [] }) }))),
+			});
+			await first.service.restore();
+			await first.service.openChat(session, chatA);
+			await first.service.closeAllChats();
+			const closed = { tabs: first.layout().groups.flatMap(group => group.tabs), visible: first.layout().visible };
+
+			// The window starts again with the chat part hidden; each New Chat sends its draft before the next
+			const sending = observableValue<ISession | undefined>('newSession', undefined);
+			const second = createService({ chatTabs: SessionsChatTabsMode.Single, stored: first.save(), newSession: sending });
+			await second.startWindow();
+			const next: { readonly input: string; readonly attachments: readonly string[] }[] = [];
+			for (let i = 0; i < 3; i++) {
+				await second.service.openComposer(undefined, { newComposer: true });
+				next.push(second.composerDrafts().at(-1)!);
+				sending.set(sentSession(`sent${i}`), undefined);
+			}
+			return { closed, next: next.map(draft => `${draft.input}${draft.attachments.map(name => ` +${name}`).join('')}`) };
+		};
+
+		assert.deepStrictEqual({ single: await run(SessionsChatTabsMode.Single), multiple: await run(SessionsChatTabsMode.Multiple) }, {
+			single: { closed: { tabs: [], visible: false }, next: ['D +a.ts', 'E', ''] },
+			multiple: { closed: { tabs: [], visible: false }, next: ['', '', ''] },
+		});
+	});
+
+	test('in Single, Close All keeps the draft of the composer used last for the next to take first, also across groups side by side, when a chat shows in front of it, or after it moved to another group', async () => {
+		/** D shows in the first group; E, kept from before, comes back with a composer beside it; then `then` goes on from there. */
+		const run = async (then: (fixture: ReturnType<typeof createService>) => Promise<void>) => {
+			const d = createChatWindowComposerResource();
+			const first = createService({
+				chatTabs: SessionsChatTabsMode.Single, visible: true,
+				stored: stringify({ chats: [d.toString()], active: 0, kept: [toStoredChatDraft({ inputText: 'E', attachments: [] })] }),
+				storedComposers: stringify([{ resource: d, input: toStoredChatDraft({ inputText: 'D', attachments: [] }) }]),
+			});
+			await first.service.restore();
+			await then(first);
+			const groups = first.part.groups.map(group => group.editors.length);
+			await first.service.closeAllChats();
+
+			const sending = observableValue<ISession | undefined>('newSession', undefined);
+			const second = createService({ chatTabs: SessionsChatTabsMode.Single, stored: first.save(), newSession: sending });
+			await second.startWindow();
+			const next: string[] = [];
+			for (let i = 0; i < 3; i++) {
+				await second.service.openComposer(undefined, { newComposer: true });
+				next.push(second.composerDrafts().at(-1)!.input);
+				sending.set(sentSession(`sent${i}`), undefined);
+			}
+			return { groups, next };
+		};
+
+		assert.deepStrictEqual({
+			// The user goes back to D, in the first group
+			backToD: await run(async ({ service, part }) => {
+				await service.openComposer(undefined, { sideBySide: true });
+				part.activate(part.groups[0]);
+			}),
+			// A sent chat shows in front of D; E, beside it, is used after D; then the user picks that chat again, in front of D
+			chatInFrontOfD: await run(async ({ service }) => {
+				await service.openChat(session, chatA);
+				await service.openComposer(undefined, { sideBySide: true });
+				await service.openChat(session, chatA);
+			}),
+			// The user goes back to D and moves it beside E: it stays the composer used last, and its draft is kept once
+			movedD: await run(async ({ service, part }) => {
+				await service.openComposer(undefined, { sideBySide: true });
+				part.activate(part.groups[0]);
+				await part.moveEditor(part.groups[0].activeEditor!, part.groups[0], part.groups[1]);
+			}),
+		}, {
+			backToD: { groups: [1, 1], next: ['D', 'E', ''] },
+			chatInFrontOfD: { groups: [2, 1], next: ['E', 'D', ''] },
+			movedD: { groups: [0, 2], next: ['D', 'E', ''] },
+		});
+	});
+
+	test('a chat that the user opens in the Chat view while no host replaces it, or in an editor, leaves the chats it keeps; not one the Chat view restores, nor one it shows while a host replaces it', async () => {
+		const { service, layout, chatView, editorArea } = createService({ chatTabs: SessionsChatTabsMode.Single });
+		await service.openChat(session, chatA);
+		await service.openChat(session, chatB);
+		await service.openChat(session, chatC);
+		const tabs = () => layout().groups[0].tabs;
+		chatView.replaced.set(true, undefined);
+		chatView.shown.set({ resource: chatA, reason: 'open' }, undefined);
+		const replacedShows = tabs();
+		chatView.shown.set({ resource: chatB, reason: 'restore' }, undefined);
+		chatView.replaced.set(false, undefined);
+		const restored = tabs();
+		chatView.shown.set({ resource: chatA, reason: 'open' }, undefined);
+		await timeout(0);
+		const openedInChatView = tabs();
+		editorArea.panes = [upcastPartial<IVisibleEditorPane>({ input: upcastPartial<EditorInput>({ resource: chatB }), group: upcastPartial<IVisibleEditorPane['group']>({}) })];
+		editorArea.onDidChange.fire(upcastPartial<IVisibleEditorsChangeEvent>({}));
+		await timeout(0);
+
+		assert.deepStrictEqual({ replacedShows, restored, openedInChatView, openedInEditor: tabs() }, {
+			replacedShows: ['/a', '/b', '/c'],
+			restored: ['/a', '/b', '/c'],
+			openedInChatView: ['/b', '/c'],
+			openedInEditor: ['/c'],
+		});
+	});
+
+	test('in Single, a new session that reuses its composer aims it at all it asks for, also from a folder the user picked, keeping what was typed', async () => {
+		const composer = createChatWindowComposerResource();
+		const { service, layout, composerStates } = createService({
+			chatTabs: SessionsChatTabsMode.Single, visible: true,
+			stored: JSON.stringify({ chats: [composer.toString()], active: 0 }),
+			// The user picked its folder and its session type
+			storedComposers: stringify([{ resource: composer, target: { folderUri: URI.file('/picked'), providerId: 'claude', sessionTypeId: 'claude' }, hostFolder: null, input: toStoredChatDraft({ inputText: 'typed', attachments: [] }) }]),
+		});
+		await service.restore();
+
+		await service.openComposer({ folderUri: URI.file('/repo'), providerId: 'copilot', sessionTypeId: 'copilotcli', placement: 'worktree' }, { newComposer: true });
+
+		assert.deepStrictEqual({ tabs: layout().groups[0].tabs, composers: composerStates() }, {
+			tabs: ['composer'],
+			composers: [{ folderUri: '/repo', providerId: 'copilot', sessionTypeId: 'copilotcli', placement: 'worktree', input: 'typed' }],
+		});
+	});
+
+	test('in Single, the composer that shows as its last chat leaves takes focus only when the chat part had it: not as the chat opens elsewhere', async () => {
+		const run = async (leave: (fixture: ReturnType<typeof createService>) => Promise<void>, chatPartFocused: boolean) => {
+			// Its composer's editor resolves only later
+			const fixture = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, holdOpen: () => timeout(0) });
+			await fixture.service.openChat(session, chatA);
+			fixture.focus.chatPart = chatPartFocused;
+			fixture.opens.length = 0;
+			await leave(fixture);
+			await timeout(10);
+			return { tabs: fixture.layout().groups[0].tabs, opens: fixture.opens };
+		};
+		const openedInEditor = async ({ editorArea }: ReturnType<typeof createService>) => {
+			editorArea.panes = [upcastPartial<IVisibleEditorPane>({ input: upcastPartial<EditorInput>({ resource: chatA }), group: upcastPartial<IVisibleEditorPane['group']>({}) })];
+			editorArea.onDidChange.fire(upcastPartial<IVisibleEditorsChangeEvent>({}));
+		};
+
+		assert.deepStrictEqual({
+			openedInEditor: await run(openedInEditor, false),
+			closedInChatPart: await run(({ service }) => service.closeChat(chatA), true),
+		}, {
+			openedInEditor: { tabs: ['composer'], opens: [{ tab: 'composer', focuses: false }] },
+			closedInChatPart: { tabs: ['composer'], opens: [{ tab: 'composer', focuses: true }] },
+		});
+	});
+
+	test('in Single, restoring shows the chat it showed and keeps the others it stored, to show again as it closes', async () => {
 		const { service, layout } = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, stored: JSON.stringify({ chats: [chatA.toString(), chatB.toString(), chatC.toString()], active: 1 }) });
 
 		await service.restore();
 
-		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true });
+		// Most recent first, from the one it showed: its tabs, which it does not show, are in the order it opened them
+		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/b', '/c', '/a'], active: '/b' }], activeGroup: 0, visible: true });
 	});
 
 	test('the chat part stores its chats and the active one as the window saves, and shows them again in that order once restored', async () => {

@@ -492,12 +492,6 @@ export abstract class BaseEmbeddingsIndex<V extends { key: string; embedding?: E
 		this._isIndexLoaded = value;
 	}
 
-	public async rebuildCache() {
-		await this._embeddingsCache.clearCache();
-		this._items.clear();
-		return this.calculateEmbeddings();
-	}
-
 	/**
 	 * Finds the n closest values to a given embedding
 	 * @param queryEmbedding The embedding to find the n closest values for

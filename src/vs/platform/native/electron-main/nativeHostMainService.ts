@@ -59,6 +59,13 @@ import { GPUCompositingState } from './gpuCompositingState.js';
 import { AgentHostEditorUpdate, AgentsWindowInvitationState, IAgentHostEditorState, IAgentsWindowInvitation } from '../../chat/common/agentsWindowInvitation.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { isOnBatteryPower, isPowerSaveBlockerStarted, onDidChangeOnBatteryPower, startPowerSaveBlocker, stopPowerSaveBlocker } from './power.js';
+import { MouseMoveForwarder } from './mouseMoveForwarder.js';
+
+/**
+ * Whether a window that ignores mouse events needs a {@link MouseMoveForwarder} to receive mouse moves: on Windows, Electron 43
+ * forwards none to a window opened with `window.open`, such as an auxiliary window (electron/electron#55098, fixed in Electron 44).
+ */
+const needsMouseMoveForwarder = isWindows && parseInt(process.versions.electron, 10) < 44;
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -69,6 +76,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private readonly gpuCompositingState: GPUCompositingState;
 	private readonly agentsWindowInvitations: AgentsWindowInvitationState;
+	/** The mouse move forwarders of windows that ignore mouse events, by window ID, see {@link needsMouseMoveForwarder}. */
+	private readonly mouseMoveForwarders = this._register(new DisposableMap<number>());
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -529,7 +538,29 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async setWindowIgnoreMouseEvents(windowId: number | undefined, ignore: boolean, options?: INativeHostOptions): Promise<void> {
-		this.exactWindowById(windowId, options)?.win?.setIgnoreMouseEvents(ignore, { forward: true });
+		const win = this.exactWindowById(windowId, options)?.win;
+		if (!win) {
+			return;
+		}
+		win.setIgnoreMouseEvents(ignore, { forward: true });
+		if (!ignore) {
+			this.mouseMoveForwarders.deleteAndDispose(win.id);
+		} else if (needsMouseMoveForwarder && !this.mouseMoveForwarders.has(win.id)) {
+			this.mouseMoveForwarders.set(win.id, this.forwardMouseMoves(win));
+		}
+	}
+
+	private forwardMouseMoves(win: BrowserWindow): DisposableStore {
+		const id = win.id;
+		const store = new DisposableStore();
+		store.add(new MouseMoveForwarder({
+			onDidChangeVisibility: Event.any(Event.fromNodeEventEmitter(win, 'show'), Event.fromNodeEventEmitter(win, 'hide')),
+			isVisible: () => win.isVisible(),
+			getContentBounds: () => win.getContentBounds(),
+			sendMouseMove: (x, y) => win.webContents.sendInputEvent({ type: 'mouseMove', x, y }),
+		}, () => screen.getCursorScreenPoint()));
+		store.add(Event.fromNodeEventEmitter(win, 'closed')(() => this.mouseMoveForwarders.deleteAndDispose(id)));
+		return store;
 	}
 
 	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {

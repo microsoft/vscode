@@ -33,6 +33,7 @@ import { RemotesWidget } from '../../browser/remotesWidget.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly environmentsEnabled = observableValue(this, false);
+	readonly canCreateDevContainer = observableValue(this, false);
 	readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, undefined);
 	pendingSignIn: DeferredPromise<void> | undefined;
 	signInCalls = 0;
@@ -56,6 +57,8 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly gitHubEnvironmentChanges: { id: string; shared: boolean }[] = [];
 	readonly tunnelDeletions: string[] = [];
 	readonly sshDeletions: string[] = [];
+	readonly devContainerCreations: (string | undefined)[] = [];
+	readonly devContainerDeletions: string[] = [];
 	copyFailure: Error | undefined;
 	pendingConnection: DeferredPromise<void> | undefined;
 	pendingManagement: DeferredPromise<void> | undefined;
@@ -122,6 +125,22 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 
 	async deleteSSHHost(id: string): Promise<void> {
 		this.sshDeletions.push(id);
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
+	}
+
+	async createDevContainer(id?: string): Promise<void> {
+		this.devContainerCreations.push(id);
+		await this.pendingManagement?.p;
+		const host = id ?? 'local';
+		this.remotes.set([...this.remotes.get(), {
+			id: `devcontainer:${host}:${this.remotes.get().length}`, kind: 'devContainer', name: 'Dev Container', detail: host, description: host,
+			canRemove: false, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.connected,
+		}], undefined);
+	}
+
+	async deleteDevContainer(id: string): Promise<void> {
+		this.devContainerDeletions.push(id);
 		await this.pendingManagement?.p;
 		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 	}
@@ -1322,6 +1341,61 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual({ hidden, shown, settings, guidance, disabled: groups() }, {
 			hidden: ['Dev Tunnels', 'SSH'], shown: ['GitHub Environments', 'Dev Tunnels', 'SSH'],
 			settings: [{ query: GitHubEnvironmentsEnabledSettingId }], guidance: true, disabled: ['Dev Tunnels', 'SSH'],
+		});
+	});
+
+	test('Dev Containers appears while one can be created, guides getting started, and keeps creating available in parallel', async () => {
+		const { widget, parent, model } = createWidget();
+		const groups = () => [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(node => node.textContent);
+		const header = () => parent.querySelector<HTMLElement>('.remotes-group-row [aria-label="Create Dev Container"]');
+		const hidden = groups();
+		model.canCreateDevContainer.set(true, undefined);
+		const emptyRow = parent.querySelector<HTMLElement>('.remotes-empty-row');
+		const empty = {
+			text: [...emptyRow?.querySelectorAll('.remotes-name, .remotes-empty-description, .remotes-empty-signin .monaco-link') ?? []].map(node => node.textContent),
+			accessible: widget.getAccessibilityContent().includes('No Dev Containers yet.'),
+		};
+		model.pendingManagement = new DeferredPromise<void>();
+		header()!.click();
+		emptyRow!.querySelector<HTMLElement>('.remotes-empty-signin .monaco-link')!.click();
+		header()!.click();
+		const whileCreating = { creations: [...model.devContainerCreations], headerDisabled: header()!.getAttribute('aria-disabled') };
+		model.pendingManagement.complete();
+		await timeout(0);
+		model.canCreateDevContainer.set(false, undefined);
+		assert.deepStrictEqual({ hidden, shown: groups(), empty, whileCreating, created: model.remotes.get().filter(remote => remote.kind === 'devContainer').length, headerAfterUnavailable: !!header() }, {
+			hidden: ['Dev Tunnels', 'SSH'],
+			shown: ['Dev Tunnels', 'SSH', 'Dev Containers'],
+			empty: { text: ['No Dev Containers yet.', 'Run sessions in an Ubuntu container that keeps its files in a Docker volume.', 'Create Dev Container'], accessible: true },
+			whileCreating: { creations: [undefined, undefined, undefined], headerDisabled: null },
+			created: 3,
+			headerAfterUnavailable: false,
+		});
+	});
+
+	test('Dev Containers on this computer offer Connect, while those on remote hosts connect with their host', () => {
+		const { parent, model } = createWidget();
+		model.remotes.set([
+			{ id: 'devcontainer:local', kind: 'devContainer', name: 'Dev Container', detail: 'This Computer', description: 'This Computer', canRemove: false, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+			{ id: 'devcontainer:ssh', kind: 'devContainer', name: 'Dev Container 2', detail: 'Build server', description: 'Build server', canRemove: false, canDelete: true, connectsWithHost: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+		], undefined);
+		const actions = (id: string) => [...parent.querySelectorAll<HTMLElement>(`[data-remote-id="${id}"] .remotes-actions-column [role="button"]`)].map(action => action.getAttribute('aria-label'));
+		assert.deepStrictEqual({ local: actions('devcontainer:local'), remote: actions('devcontainer:ssh') }, {
+			local: ['Connect to Dev Container', 'Rename Dev Container...', 'Delete Dev Container'],
+			remote: ['Rename Dev Container 2...', 'Delete Dev Container 2'],
+		});
+	});
+
+	test('rows with more actions than the column fits move the rest into an overflow menu', () => {
+		const { parent, model } = createWidget();
+		const tunnel: ICustomizationRemote = { id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', canRemove: true, canDelete: true, canShareAsGitHubEnvironment: true, connectionStatus: RemoteAgentHostConnectionStatus.connected };
+		const actions = () => [...parent.querySelectorAll<HTMLElement>('[data-remote-id="tunnel:laptop"] .remotes-actions-column [role="button"]')].map(action => action.getAttribute('aria-label'));
+		model.remotes.set([tunnel], undefined);
+		const six = actions();
+		model.remotes.set([{ ...tunnel, canCreateDevContainer: true }], undefined);
+		assert.deepStrictEqual({ six, seven: actions() }, {
+			six: ['Disconnect Laptop', 'Rename Laptop...', 'Copy Address of Laptop', 'Change Preferred Agent Location for Laptop', 'Share Laptop as GitHub Environment', 'Delete Laptop'],
+			seven: ['Disconnect Laptop', 'Create Dev Container on Laptop', 'Rename Laptop...', 'Copy Address of Laptop', 'Change Preferred Agent Location for Laptop', 'More Actions...'],
 		});
 	});
 

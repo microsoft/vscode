@@ -24,7 +24,7 @@ export const sessionsListConfigurationProperties = {
 	[SESSIONS_LIST_INBOX_ENABLED_SETTING]: {
 		type: 'boolean',
 		tags: ['experimental'],
-		description: localize('sessions.list.inboxEnabled', "Uses Inbox Mode as the default Sessions list grouping when no grouping has been chosen. Inbox Mode is always available in the Grouping menu. Explicit grouping choices are preserved."),
+		description: localize('sessions.list.inboxEnabled', "Shows a toggle on the Sessions list to open Inbox Mode. Turning the toggle off restores the previous grouping. Disabling this setting also leaves Inbox Mode."),
 		default: false,
 	},
 	[SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING]: {
@@ -101,7 +101,7 @@ export const sessionsListConfigurationProperties = {
 		type: 'boolean',
 		tags: ['experimental', 'advanced'],
 		description: localize('sessions.list.indentItems', "Controls whether sessions and other rows in the sessions list are indented below their section header to show the list's hierarchy."),
-		default: false,
+		default: true,
 		experiment: { mode: 'auto' }
 	},
 	[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: {

@@ -698,6 +698,11 @@ export const AgentHostWorkspaceSnapshotEnabledConfigKey = 'workspaceSnapshotEnab
 export const AgentHostAgentOrchestrationLimitsConfigKey = 'agentOrchestrationLimits';
 export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 
+/** Root config key controlling whether agents can choose a model's reasoning effort and context size in `create_session`, and how they find the models and options. */
+export const AgentHostSessionModelOptionsConfigKey = 'sessionModelOptions';
+export const agentHostSessionModelOptionsValues = ['off', 'inline', 'tool'] as const;
+export type AgentHostSessionModelOptions = typeof agentHostSessionModelOptionsValues[number];
+
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 export const AgentHostChatResourcesConfigKey = 'chatResources';
@@ -1087,6 +1092,18 @@ export const platformRootSchema = createSchema({
 			localize('agentHost.config.agentOrchestrationLimits.off', "Do not enforce agent orchestration safety limits."),
 		],
 		default: 'on',
+	}),
+	[AgentHostSessionModelOptionsConfigKey]: schemaProperty<AgentHostSessionModelOptions>({
+		type: 'string',
+		title: localize('agentHost.config.sessionModelOptions.title', "Session Model Options"),
+		description: localize('agentHost.config.sessionModelOptions.description', "Controls whether agents can choose a model's reasoning effort and context size in `create_session`, and how they find the models and options."),
+		enum: [...agentHostSessionModelOptionsValues],
+		enumDescriptions: [
+			localize('agentHost.config.sessionModelOptions.off', "Agents choose only a model in `create_session`."),
+			localize('agentHost.config.sessionModelOptions.inline', "Agents can also choose a reasoning effort and context size, and `create_session` lists the models and their options when the agent loads it through tool search."),
+			localize('agentHost.config.sessionModelOptions.tool', "Agents can also choose a reasoning effort and context size, and list the models and their options with `list_models`."),
+		],
+		default: 'off',
 	}),
 	[AgentHostArtifactToolsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

@@ -79,6 +79,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	}
 	const model = disposableStore.add(new class extends Disposable implements IRemotesModel {
 		readonly environmentsEnabled = observableValue(this, environments);
+		readonly canCreateDevContainer = observableValue(this, false);
 		readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, signInRequired ? 'github' : undefined);
 		async signInToTunnels(): Promise<void> {
 			await pendingSignIn?.p;
@@ -126,6 +127,16 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			}
 		}
 		async deleteSSHHost(id: string) {
+			await this.remove(id);
+		}
+		async createDevContainer(id = 'local') {
+			const host = this.remotes.get().find(remote => remote.id === id);
+			this.remotes.set([...this.remotes.get(), {
+				id: `devcontainer:${id}`, kind: 'devContainer', name: 'Dev Container', detail: host?.name ?? id, description: host?.name ?? id,
+				canRemove: false, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.connected,
+			}], undefined);
+		}
+		async deleteDevContainer(id: string) {
 			await this.remove(id);
 		}
 		async remove(id: string) {

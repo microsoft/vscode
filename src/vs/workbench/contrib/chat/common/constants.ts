@@ -79,6 +79,11 @@ export enum ChatConfiguration {
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	/** Desktop only: lets chat attach a screenshot of the window of another app. */
 	AppWindowScreenshotsEnabled = 'chat.appWindowScreenshots.enabled',
+	/**
+	 * Lets an editor window with one local folder move that folder between its own location and the worktrees its agent
+	 * host sessions work in, following the chat that the user opens.
+	 */
+	EditorWindowEnableWorktree = 'chat.editorWindow.enableWorktree',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	UtilityModel = 'chat.utilityModel',
@@ -133,6 +138,8 @@ export enum ChatConfiguration {
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
+	ResponseStats = 'chat.responseStats',
+	ResponseStatsTokens = 'chat.responseStatsTokens',
 	ProgressBorder = 'chat.progressBorder.enabled',
 	PersistentProgress = 'chat.persistentProgress',
 	PersistentProgressVerbosity = 'chat.persistentProgressVerbosity',
@@ -415,6 +422,24 @@ export enum ChatProgressVerbosity {
 	Verbose = 'verbose',
 	Compact = 'compact',
 	Conversation = 'conversation',
+}
+
+/** Whether, and where, a running response's working time and output speed show. */
+export enum ChatResponseStats {
+	Off = 'off',
+	Title = 'title',
+	/** In the working progress indicator, in place of its phrase. */
+	Progress = 'progress',
+	/** In the working progress indicator, after its phrase, which then changes periodically. */
+	ProgressWithMessage = 'progressWithMessage',
+}
+
+/** How a running response's stats report its output tokens. */
+export enum ChatResponseStatsTokens {
+	/** The output speed of the latest model call. */
+	Speed = 'speed',
+	/** The output tokens of the response so far. */
+	Count = 'count',
 }
 
 export enum CollapsedToolsDisplayMode {

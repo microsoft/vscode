@@ -33,7 +33,7 @@ import { Conversation } from '../common/conversation';
 import { IToolCall, IToolCallRound } from '../common/intents';
 import { getGitHubCopilotRequestTeForRound } from '../common/toolCallRound';
 import { IDocumentContext } from './documentContext';
-import { IIntent, TelemetryData } from './intents';
+import { IIntent } from './intents';
 import { RepoInfoTelemetry } from './repoInfoTelemetry';
 import { ConversationalBaseTelemetryData, ConversationalTelemetryData, createTelemetryWithId, extendUserMessageTelemetryData, getCodeBlocks, getModeNameForTelemetry, sendModelMessageTelemetry, sendOffTopicMessageTelemetry, sendUserActionTelemetry, sendUserMessageTelemetry } from './telemetry';
 
@@ -262,9 +262,9 @@ export class ChatTelemetryBuilder {
 		this._repoInfoTelemetry = this.instantiationService.createInstance(RepoInfoTelemetry, this.baseUserTelemetry.properties.messageId);
 	}
 
-	public makeRequest(intent: IIntent, location: ChatLocation.Editor, conversation: Conversation, messages: Raw.ChatMessage[], promptTokenLength: number, references: readonly PromptReference[], endpoint: IChatEndpoint, telemetryData: readonly TelemetryData[], availableToolCount: number, toolTokenCount: number): InlineChatTelemetry;
-	public makeRequest(intent: IIntent, location: ChatLocation, conversation: Conversation, messages: Raw.ChatMessage[], promptTokenLength: number, references: readonly PromptReference[], endpoint: IChatEndpoint, telemetryData: readonly TelemetryData[], availableToolCount: number, toolTokenCount: number): PanelChatTelemetry;
-	public makeRequest(intent: IIntent, location: ChatLocation, conversation: Conversation, messages: Raw.ChatMessage[], promptTokenLength: number, references: readonly PromptReference[], endpoint: IChatEndpoint, telemetryData: readonly TelemetryData[], availableToolCount: number, toolTokenCount: number): InlineChatTelemetry | PanelChatTelemetry {
+	public makeRequest(intent: IIntent, location: ChatLocation.Editor, conversation: Conversation, messages: Raw.ChatMessage[], promptTokenLength: number, references: readonly PromptReference[], endpoint: IChatEndpoint, availableToolCount: number, toolTokenCount: number): InlineChatTelemetry;
+	public makeRequest(intent: IIntent, location: ChatLocation, conversation: Conversation, messages: Raw.ChatMessage[], promptTokenLength: number, references: readonly PromptReference[], endpoint: IChatEndpoint, availableToolCount: number, toolTokenCount: number): PanelChatTelemetry;
+	public makeRequest(intent: IIntent, location: ChatLocation, conversation: Conversation, messages: Raw.ChatMessage[], promptTokenLength: number, references: readonly PromptReference[], endpoint: IChatEndpoint, availableToolCount: number, toolTokenCount: number): InlineChatTelemetry | PanelChatTelemetry {
 
 		if (location === ChatLocation.Editor) {
 			return this.instantiationService.createInstance(InlineChatTelemetry,
@@ -280,7 +280,6 @@ export class ChatTelemetryBuilder {
 				references,
 				endpoint,
 				promptTokenLength,
-				telemetryData,
 				availableToolCount,
 				toolTokenCount,
 				this._repoInfoTelemetry
@@ -299,7 +298,6 @@ export class ChatTelemetryBuilder {
 				references,
 				endpoint,
 				promptTokenLength,
-				telemetryData,
 				availableToolCount,
 				toolTokenCount,
 				this._repoInfoTelemetry
@@ -355,7 +353,6 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 		protected readonly _references: readonly PromptReference[],
 		protected readonly _endpoint: IChatEndpoint,
 		promptTokenLength: number,
-		protected readonly _genericTelemetryData: readonly TelemetryData[],
 		protected readonly _availableToolCount: number,
 		protected readonly _toolTokenCount: number,
 		protected readonly _repoInfoTelemetry: RepoInfoTelemetry,
@@ -581,10 +578,6 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 
 	protected abstract _sendResponseInternalTelemetryEvent(responseType: ChatFetchResponseType, response: string): void;
 
-	protected _getTelemetryData<T extends TelemetryData>(ctor: new (...args: any[]) => T): T | undefined {
-		return <T>this._genericTelemetryData.find(d => d instanceof ctor);
-	}
-
 }
 
 export class PanelChatTelemetry extends ChatTelemetry<IDocumentContext | undefined> {
@@ -602,7 +595,6 @@ export class PanelChatTelemetry extends ChatTelemetry<IDocumentContext | undefin
 		references: readonly PromptReference[],
 		endpoint: IChatEndpoint,
 		promptTokenLength: number,
-		genericTelemetryData: readonly TelemetryData[],
 		availableToolCount: number,
 		toolTokenCount: number,
 		repoInfoTelemetry: RepoInfoTelemetry,
@@ -623,7 +615,6 @@ export class PanelChatTelemetry extends ChatTelemetry<IDocumentContext | undefin
 			references,
 			endpoint,
 			promptTokenLength,
-			genericTelemetryData,
 			availableToolCount,
 			toolTokenCount,
 			repoInfoTelemetry,
@@ -856,7 +847,6 @@ export class InlineChatTelemetry extends ChatTelemetry<IDocumentContext> {
 		references: readonly PromptReference[],
 		endpoint: IChatEndpoint,
 		promptTokenLength: number,
-		genericTelemetryData: readonly TelemetryData[],
 		availableToolCount: number,
 		toolTokenCount: number,
 		repoInfoTelemetry: RepoInfoTelemetry,
@@ -876,7 +866,6 @@ export class InlineChatTelemetry extends ChatTelemetry<IDocumentContext> {
 			references,
 			endpoint,
 			promptTokenLength,
-			genericTelemetryData,
 			availableToolCount,
 			toolTokenCount,
 			repoInfoTelemetry,

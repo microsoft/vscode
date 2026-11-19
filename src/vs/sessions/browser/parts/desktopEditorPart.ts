@@ -46,10 +46,9 @@ import { EmptyEditorGroupAddTab } from '../../../workbench/browser/parts/session
  * that docks and sizes the auxiliary bar inside the editor part. The header itself
  * is rendered by the editor group from the group's configured header
  * menus, supplied via {@link getGroupViewOptions}, and also hosts breadcrumbs in
- * that row for text file editors. With the editor header layout, the header of the
- * Changes tab spans the auxiliary bar docked beside the editor content; the part only
- * reacts to the title's height to reposition the auxiliary bar below that header, or
- * below the tab row otherwise.
+ * that row for text file editors. The header of the Changes tab spans the auxiliary bar
+ * docked beside the editor content; the part only reacts to the title's height to
+ * reposition the auxiliary bar below that header, or below the tab row otherwise.
  */
 export class DesktopMainEditorPart extends MainEditorPart {
 
@@ -61,11 +60,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	private readonly _tabsPresentationRelayout = this._register(new MutableDisposable());
 	private _enforcedShowTabs: 'multiple' | 'single' | undefined;
 
-	/** Whether the editor header layout is enabled, fixed at startup before the part creates its groups. */
-	private readonly _editorHeaderLayout: boolean;
-
 	protected override getGroupViewOptions(): IEditorGroupViewOptions {
-		const headerLayout = this._editorHeaderLayout;
 		return {
 			menuIds: {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
@@ -77,19 +72,19 @@ export class DesktopMainEditorPart extends MainEditorPart {
 			},
 			showHeader: true,
 			useModernUITabs: true,
-			reserveHeaderSpace: editor => (headerLayout && this._showsChangesHeader())
+			reserveHeaderSpace: editor => this._showsChangesHeader()
 				|| (editor instanceof DockedEditorInput && this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow)),
-			headerSpansContentInset: headerLayout ? () => this._showsChangesHeader() : undefined
+			headerSpansContentInset: () => this._showsChangesHeader()
 		};
 	}
 
 	/**
-	 * Whether the group shows the header of the Changes tab, which the editor header layout
-	 * reserves, also while the editor content is hidden, and spans across the auxiliary bar
-	 * docked beside the editor content, which then starts below it. It follows the editor that
-	 * the group shows rather than one it is still opening, so that the header, its changeset
-	 * picker and the auxiliary bar below change in the same frame once the editor shows. It
-	 * also holds while a session switch replaces the Changes editor, so that the layout stays.
+	 * Whether the group shows the header of the Changes tab, which is reserved also while the
+	 * editor content is hidden, and spans across the auxiliary bar docked beside the editor
+	 * content, which then starts below it. It follows the editor that the group shows rather
+	 * than one it is still opening, so that the header, its changeset picker and the auxiliary
+	 * bar below change in the same frame once the editor shows. It also holds while a session
+	 * switch replaces the Changes editor, so that the layout stays.
 	 */
 	private _showsChangesHeader(): boolean {
 		// The header queries this while the part's first group is still being created.
@@ -136,8 +131,6 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(editorPartsView, _instantiationService, themeService, configurationService, _storageService, agentWorkbenchLayoutService, hostService, contextKeyService);
-
-		this._editorHeaderLayout = agentWorkbenchLayoutService.desktopEditorHeaderLayout;
 
 		this._register(configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration('workbench.editor.showTabs')) {
@@ -240,7 +233,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 				},
 				getTabsHeight: () => (this.activeGroup as EditorGroupView).titleHeight.offset,
 				getEditorContentTop: () => (this.activeGroup as EditorGroupView).titleHeight.total,
-				headerSpansDetails: () => this._editorHeaderLayout && this._showsChangesHeader(),
+				headerSpansDetails: () => this._showsChangesHeader(),
 			},
 			{
 				isEnabled: () => layoutService.isAuxiliaryBarFloating(),
