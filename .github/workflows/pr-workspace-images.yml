@@ -210,7 +210,7 @@ jobs:
           retention-days: 2
           if-no-files-found: error
 
-  # The .deb files of the apt packages of the Linux test jobs (see .github/actions/install-linux-packages), so that
+  # The .deb files of the apt packages of the Linux test jobs and of Playwright WebKit (see .github/actions/install-linux-packages), so that
   # they install them without apt-get, whose mirrors are at times slow. The packages that a runner lacks depend on its
   # image, which changes every week or so: the key holds the image, and the jobs on a runner with an image that has no
   # entry yet use apt-get. The files only need to be recent, so they are downloaded with the daily images and on manual
@@ -219,7 +219,8 @@ jobs:
     name: Linux (apt packages)
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     runs-on: vscode-large-runners-ubuntu-8-core
-    timeout-minutes: 15
+    # WebKit's packages can take over 10 min to download from a slow apt mirror
+    timeout-minutes: 30
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -232,6 +233,12 @@ jobs:
       - name: Cache the apt packages
         uses: ./.github/actions/install-linux-packages
         with:
+          save-cache: 'true'
+
+      - name: Cache the apt packages of Playwright WebKit
+        uses: ./.github/actions/install-linux-packages
+        with:
+          list: webkit
           save-cache: 'true'
 
   # Commented out with the macOS test jobs of pr.yml, which never adopted the images (see macos-tests

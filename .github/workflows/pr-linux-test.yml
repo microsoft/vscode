@@ -407,7 +407,15 @@ jobs:
             sleep 5
           done
 
-      # No cache holds WebKit, and the runner lacks some of the system packages that it needs
+      # No cache holds WebKit. Its system packages come from the .deb files that main caches (see
+      # .github/actions/install-linux-packages), as the apt mirrors are at times too slow to download them
+      # within the timeout, so that `--with-deps` only installs what the cached files lack.
+      - name: Install the system packages of Playwright WebKit
+        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TEST_BROWSER == 'webkit' }}
+        uses: ./.github/actions/install-linux-packages
+        with:
+          list: webkit
+
       - name: Install Playwright WebKit
         if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TEST_BROWSER == 'webkit' }}
         timeout-minutes: 10
