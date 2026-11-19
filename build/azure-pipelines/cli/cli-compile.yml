@@ -18,10 +18,12 @@ parameters:
 # variables, which sccache hashes into every compile key.
 steps:
   # github.com/microsoft/dev-tunnels, the source of the `tunnels` crate (cli/Cargo.toml), returns 404 since
-  # Nov 19. Cargo fetches it with the git CLI (CARGO_NET_GIT_FETCH_WITH_CLI), so fetch the pinned rev from a
-  # fork of the same repository network instead. The rev in Cargo.lock pins the content.
-  - script: git config --global url."https://github.com/connor4312/dev-tunnels".insteadOf "https://github.com/microsoft/dev-tunnels"
-    displayName: Fetch dev-tunnels from a fork
+  # Nov 19. Cargo fetches it with the git CLI (CARGO_NET_GIT_FETCH_WITH_CLI), so fetch it from a mirror in
+  # Azure Repos, which holds its pinned rev, instead. The rev in Cargo.lock pins the content.
+  - script: |
+      git config --global url."https://dev.azure.com/monacotools/Monaco/_git/dev-tunnels-mirror".insteadOf "https://github.com/microsoft/dev-tunnels"
+      git config --global http."https://dev.azure.com/monacotools/Monaco/_git/dev-tunnels-mirror".extraheader "AUTHORIZATION: bearer $(System.AccessToken)"
+    displayName: Fetch dev-tunnels from its mirror
 
   - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
     - pwsh: Write-Host "##vso[task.setvariable variable=VSCODE_CLI_PRODUCT_JSON]$(Build.SourcesDirectory)/.build/distro/mixin/${{ parameters.VSCODE_QUALITY }}/product.json"
