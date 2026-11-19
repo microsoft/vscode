@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ipcRenderer } from '../../../../../base/parts/sandbox/electron-browser/globals.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -31,6 +33,119 @@ suite('WebContentsViewHost', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		return store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
 	}
+
+	async function setWebContentsFocus(focused: boolean): Promise<void> {
+		const changed = mainWindow.document.hasFocus() === focused
+			? undefined
+			: new Promise<void>(resolve => mainWindow.addEventListener(focused ? EventType.FOCUS : EventType.BLUR, () => resolve(), { once: true }));
+		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', focused);
+		await changed;
+	}
+
+	function createFocusHost(): { host: WebContentsViewHost; container: HTMLElement; focusCalls: string[] } {
+		const focusCalls: string[] = [];
+		let visible = false;
+		const model = upcastPartial<IBrowserViewModel>({
+			url: 'about:blank',
+			error: undefined,
+			screenshot: undefined,
+			focused: false,
+			get visible() { return visible; },
+			onDidChangeVisibility: Event.None,
+			onDidKeyCommand: Event.None,
+			onDidNavigate: Event.None,
+			onDidChangeLoadingState: Event.None,
+			onWillDispose: Event.None,
+			setVisible: async value => { visible = value; },
+			focus: async () => { focusCalls.push('focus'); },
+			captureScreenshot: () => new Promise<VSBuffer>(() => { }),
+		});
+		const host = createHost();
+		host.setModel(model);
+		host.setVisible(true);
+		const container = $('div');
+		container.tabIndex = 0;
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		// Start with the remembered active element, without requesting native focus.
+		container.focus();
+		host.onContainerCreated(container);
+		return { host, container, focusCalls };
+	}
+
+	test('does not redirect restored workbench focus to the browser', async () => {
+		await setWebContentsFocus(true);
+		const { container, focusCalls } = createFocusHost();
+		let restoredFocus: FocusEvent | undefined;
+		store.add(addDisposableListener(container, EventType.FOCUS, event => { restoredFocus = event; }));
+		try {
+			await setWebContentsFocus(false);
+			await setWebContentsFocus(true);
+			await timeout(40);
+			assert.deepStrictEqual({
+				restoredFromWindow: restoredFocus?.relatedTarget === null,
+				workbenchFocused: mainWindow.document.hasFocus(),
+				containerActive: mainWindow.document.activeElement === container,
+				focusCalls,
+			}, { restoredFromWindow: true, workbenchFocused: true, containerActive: true, focusCalls: [] });
+		} finally {
+			await setWebContentsFocus(true);
+		}
+	});
+
+	for (const backwards of [false, true]) {
+		test(`focuses the browser when ${backwards ? 'Shift+Tab' : 'Tab'} moves from a workbench control`, async () => {
+			await setWebContentsFocus(true);
+			const { container, focusCalls } = createFocusHost();
+			const input = $('input');
+			if (backwards) {
+				container.after(input);
+			} else {
+				container.before(input);
+			}
+			store.add(toDisposable(() => input.remove()));
+			input.focus();
+			await ipcRenderer.invoke('vscode:test-tab', backwards);
+			await timeout(40);
+			assert.deepStrictEqual({ containerActive: mainWindow.document.activeElement === container, focusCalls }, { containerActive: true, focusCalls: ['focus'] });
+		});
+	}
+
+	test('focuses the browser when Tab moves from an iframe', async () => {
+		await setWebContentsFocus(true);
+		const { container, focusCalls } = createFocusHost();
+		const iframe = $<HTMLIFrameElement>('iframe');
+		store.add(toDisposable(() => iframe.remove()));
+		await new Promise<void>(resolve => {
+			store.add(addDisposableListener(iframe, EventType.LOAD, () => resolve()));
+			iframe.srcdoc = '<input id="input">';
+			container.before(iframe);
+		});
+		iframe.contentDocument!.getElementById('input')!.focus();
+		await ipcRenderer.invoke('vscode:test-tab', false);
+		await timeout(40);
+		assert.deepStrictEqual({ containerActive: mainWindow.document.activeElement === container, focusCalls }, { containerActive: true, focusCalls: ['focus'] });
+	});
+
+	test('honors an explicit focus request when the container is already active', async () => {
+		await setWebContentsFocus(true);
+		const { host, container, focusCalls } = createFocusHost();
+		const handled = host.tryFocus();
+		await timeout(40);
+		assert.deepStrictEqual({ handled, containerActive: mainWindow.document.activeElement === container, focusCalls }, { handled: true, containerActive: true, focusCalls: ['focus'] });
+	});
+
+	test('cancels an explicit focus request when another control takes focus', async () => {
+		await setWebContentsFocus(true);
+		const { host, focusCalls } = createFocusHost();
+		const input = $('input');
+		mainWindow.document.body.appendChild(input);
+		store.add(toDisposable(() => input.remove()));
+		host.tryFocus();
+		input.focus();
+		await timeout(40);
+		assert.deepStrictEqual(focusCalls, []);
+	});
 
 	test('hides the page a frame after its container, unless the container itself is hidden', async () => {
 		const calls: boolean[] = [];
