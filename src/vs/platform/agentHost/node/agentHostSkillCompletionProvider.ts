@@ -34,20 +34,12 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		private readonly _getAgent: (session: URI | string) => IAgent | undefined,
 		/** The session's recorded default chat, whose customizations the completions offer, with the host-built context for it. */
 		private readonly _getDefaultChat: (session: URI) => Promise<{ readonly chat: URI; readonly context: IAgentChatContext } | undefined>,
-		/**
-		 * The owning session's last host-published customization snapshot.
-		 * Supplied by Agent Host so the provider hands it to
-		 * `getChatCustomizations` explicitly instead of the agent reading it
-		 * from shared host state. `undefined` when the host has published no
-		 * snapshot for the session yet.
-		 */
-		private readonly _getHostCustomizations: (session: URI | string) => readonly Customization[] | undefined = () => undefined,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 	}
 
-	async provideCompletionItems(params: CompletionsParams, _context: IAgentHostCompletionContext, token: CancellationToken): Promise<readonly CompletionItem[]> {
+	async provideCompletionItems(params: CompletionsParams, context: IAgentHostCompletionContext, token: CancellationToken): Promise<readonly CompletionItem[]> {
 		const leading = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
 		if (!leading) {
 			return [];
@@ -58,7 +50,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		if (!agent) {
 			return [];
 		}
-		const candidates = await this._getCandidates(agent, sessionUri);
+		const candidates = await this._getCandidates(agent, sessionUri, context.customizations);
 		if (token.isCancellationRequested || candidates.length === 0) {
 			return [];
 		}
@@ -95,12 +87,12 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			}));
 	}
 
-	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SlashCommmandCandidate[]> {
+	private async _getCandidates(agent: IAgent, session: URI, published: readonly Customization[] | undefined): Promise<readonly SlashCommmandCandidate[]> {
 		const defaultChat = await this._getDefaultChat(session);
 		if (!defaultChat) {
 			return [];
 		}
-		const customizations = await agent.getChatCustomizations(defaultChat.chat, defaultChat.context, this._getHostCustomizations(session));
+		const customizations = published ?? await agent.getChatCustomizations(defaultChat.chat, defaultChat.context);
 		const result: SlashCommmandCandidate[] = [];
 		for (const { skill, container, containerEnabled } of getSkillCustomizations(customizations)) {
 			if (containerEnabled && isSkillEligibleForUserInvocation(skill)) {

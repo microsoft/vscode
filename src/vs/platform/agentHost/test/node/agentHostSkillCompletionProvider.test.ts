@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -13,7 +14,8 @@ import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MCP_SKILLS_METADATA_KEY, type ICachedMcpSkill } from '../../node/shared/mcpSkillCache.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type McpServerCustomization, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, SessionStatus, type Customization, type McpServerCustomization, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../common/state/protocol/state.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
@@ -102,7 +104,6 @@ suite('AgentHostSkillCompletionProvider', () => {
 		return disposables.add(new AgentHostSkillCompletionProvider(
 			() => agent,
 			async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) }),
-			undefined,
 			createSessionDataService(database),
 		));
 	}
@@ -141,6 +142,24 @@ suite('AgentHostSkillCompletionProvider', () => {
 				},
 			},
 		}]);
+	});
+
+	test('offers the skills the session published without waiting for the agent to resolve them', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const session = 'mock:/session';
+		stateManager.createSession({ resource: session, provider: 'mock', title: 't', status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z', defaultChat: buildDefaultChatUri(session) });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionCustomizationsChanged, customizations: [plugin('my-plugin', [skill('review', 'Review a change')])] });
+		const agent = new MockAgent('mock');
+		const resolving = new DeferredPromise<readonly Customization[]>();
+		agent.getSessionCustomizations = () => resolving.p;
+		const completions = disposables.add(new AgentHostCompletions(logService, stateManager));
+		disposables.add(completions.registerProvider(createProvider(agent)));
+
+		const result = await raceTimeout(completions.completions({ kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1 }, CancellationToken.None), 1000);
+		resolving.complete([]);
+
+		assert.deepStrictEqual(result?.items.map(item => item.insertText), ['/my-plugin:review ']);
 	});
 
 	test('carries a skill argument hint into the completion metadata', async () => {
