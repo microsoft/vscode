@@ -179,9 +179,4 @@ suite('SSH ProxyJump service integration', () => {
 		});
 		await service.releaseRelay(connected.connectionId);
 	});
-
-	test('reachability is unknown for a host reached through a jump host', async () => {
-		const service = store.add(new JumpTestService());
-		assert.strictEqual(await service.checkReachability('work'), 'unknown');
-	});
 });

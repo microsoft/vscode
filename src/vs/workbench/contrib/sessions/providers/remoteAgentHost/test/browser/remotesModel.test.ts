@@ -19,7 +19,7 @@ import { RootState } from '../../../../../../../platform/agentHost/common/state/
 import { ExtensionRemoteAgentHostsService, IExtensionRemoteAgentHostsService } from '../../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ISSHRemoteAgentHostService, SSHHostReachability } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { PathStyle } from '../../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -124,7 +124,6 @@ suite('RemotesModel', () => {
 		const wslState: { discoveryFailure?: Error; runningFailure?: Error } = {};
 		let wslDistros: IWSLDistro[] = [{ name: 'Ubuntu', isDefault: true, isRunning: false, version: 2 }];
 		let sshDiscovery: () => Promise<string[]> = async () => ['build', 'build'];
-		let sshReachability: (host: string) => Promise<SSHHostReachability> = async () => 'unknown';
 		let tunnelDiscovery: () => Promise<ITunnelInfo[]> = async () => [tunnel];
 		let tunnelAuthentication: () => Promise<'github' | 'microsoft' | undefined> = async () => 'github';
 		instantiationService.stub(IStorageService, storage);
@@ -246,7 +245,6 @@ suite('RemotesModel', () => {
 		});
 		instantiationService.stub(ISSHRemoteAgentHostService, {
 			listSSHConfigHosts: () => sshDiscovery(),
-			checkReachability: host => sshReachability(host),
 			disconnect: async key => {
 				sshDisconnects.push(key);
 				if (connectionFailure) {
@@ -397,7 +395,6 @@ suite('RemotesModel', () => {
 			failConnection: (error: Error | undefined) => { connectionFailure = error; },
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setWSLDistros: (value: IWSLDistro[]) => { wslDistros = value; }, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
-			setSSHReachability: (check: (host: string) => Promise<SSHHostReachability>) => { sshReachability = check; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
 			environmentHosts, ownEnvironmentId, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing, extensionHosts, devContainers, devContainerPicks, telemetry,
@@ -1148,69 +1145,38 @@ suite('RemotesModel', () => {
 		});
 	});
 
-	test('saved SSH hosts are Available only after their SSH server responds', async () => {
-		const { model, storage, setSSHReachability } = setup();
+	test('SSH hosts stay connectable without a status check', async () => {
+		const { model, storage } = setup();
 		addSSHRemoteAgentHostEntry(storage, savedSSHHost);
-		const availability = () => model.remotes.get().find(remote => remote.id === 'ssh:removed')?.availability;
-		const probe = new DeferredPromise<SSHHostReachability>();
-		setSSHReachability(() => probe.p);
+		const availability = () => ['ssh:removed', 'ssh:build'].map(id => model.remotes.get().find(remote => remote.id === id)?.availability);
 		const initial = availability();
-		const refresh = model.refresh(CancellationToken.None);
-		await timeout(0);
-		const checking = availability();
-		probe.complete('reachable');
-		await refresh;
-		const reachable = availability();
-		const recheck = new DeferredPromise<SSHHostReachability>();
-		setSSHReachability(() => recheck.p);
-		const refreshAgain = model.refresh(CancellationToken.None);
-		await timeout(0);
-		const rechecking = availability();
-		recheck.complete('unreachable');
-		await refreshAgain;
-		const unreachable = availability();
-		setSSHReachability(async () => { throw new Error('probe failed'); });
 		await model.refresh(CancellationToken.None);
-		assert.deepStrictEqual({ initial, checking, reachable, rechecking, unreachable, failed: availability() }, {
-			initial: 'pending', checking: 'pending', reachable: 'online', rechecking: 'online', unreachable: 'offline', failed: 'unknown',
-		});
+		assert.deepStrictEqual({ initial, refreshed: availability() }, { initial: ['unknown', undefined], refreshed: ['unknown', 'unknown'] });
 	});
 
 	test('last seen online changes only after a fresh positive check, not cached availability or a failed recheck', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { model, setSSHReachability, setConfiguration } = setup();
-		setSSHReachability(async () => 'reachable');
+		const { model, setTunnelDiscovery, setConfiguration } = setup();
 		await model.refresh(CancellationToken.None);
-		const onlineAt = () => model.remotes.get().find(remote => remote.id === 'ssh:build')?.metadata?.lastOnlineAt;
+		const onlineAt = () => model.remotes.get().find(remote => remote.id === 'tunnel:laptop')?.metadata?.lastOnlineAt;
 		const first = Date.now();
 		const observations = [onlineAt()];
 		await timeout(60001);
 		await setConfiguration(RemoteAgentHostsEnabledSettingId, true);
 		observations.push(onlineAt());
-		const probe = new DeferredPromise<SSHHostReachability>();
-		setSSHReachability(() => probe.p);
+		const discovery = new DeferredPromise<ITunnelInfo[]>();
+		setTunnelDiscovery(() => discovery.p);
 		const refresh = model.refresh(CancellationToken.None);
 		await timeout(0);
 		observations.push(onlineAt());
-		await probe.complete('unreachable');
+		await discovery.complete([{ ...tunnel, hostConnectionCount: 0 }]);
 		await refresh;
 		observations.push(onlineAt());
 		await timeout(60001);
-		setSSHReachability(async () => 'reachable');
+		setTunnelDiscovery(async () => [tunnel]);
 		await model.refresh(CancellationToken.None);
 		observations.push(onlineAt());
 		assert.deepStrictEqual(observations, [first, first, first, first, Date.now()]);
 	}));
-
-	test('SSH discovery failure invalidates its previous reachability result without removing the row', async () => {
-		const { model, setSSHDiscovery, setSSHReachability } = setup();
-		setSSHReachability(async () => 'reachable');
-		await model.refresh(CancellationToken.None);
-		const snapshot = () => model.remotes.get().find(remote => remote.id === 'ssh:build')!.availability;
-		const online = snapshot();
-		setSSHDiscovery(async () => { throw new Error('Configuration unavailable'); });
-		await model.refresh(CancellationToken.None);
-		assert.deepStrictEqual({ online, failed: snapshot() }, { online: 'online', failed: 'unknown' });
-	});
 
 	(isWindows ? test : test.skip)('failed WSL checks cannot reuse an old offline result', async () => {
 		const { model, setWSLDistros, wslState, wslConnectionsChanged } = setup();
@@ -1683,17 +1649,6 @@ suite('RemotesModel', () => {
 		failConnection(new Error('Agent host handshake failed'));
 		await assert.rejects(model.setConnected('ssh:build', true), /handshake failed/);
 		assert.deepStrictEqual(model.remotes.get().find(remote => remote.id === 'ssh:build')?.lastConnectionError, 'Agent host handshake failed');
-	});
-
-	test('a failed SSH connection refreshes endpoint evidence rather than preserving a stale reachable result', async () => {
-		const { model, setSSHReachability, failConnection } = setup();
-		setSSHReachability(async () => 'reachable');
-		await model.refresh(CancellationToken.None);
-		failConnection(new Error('connect ECONNREFUSED'));
-		setSSHReachability(async () => 'unreachable');
-		await assert.rejects(model.setConnected('ssh:build', true), /ECONNREFUSED/);
-		const remote = model.remotes.get().find(remote => remote.id === 'ssh:build')!;
-		assert.deepStrictEqual({ availability: remote.availability, error: remote.lastConnectionError }, { availability: 'offline', error: 'connect ECONNREFUSED' });
 	});
 
 	test('connection errors propagate and disabled AI prevents connection changes', async () => {

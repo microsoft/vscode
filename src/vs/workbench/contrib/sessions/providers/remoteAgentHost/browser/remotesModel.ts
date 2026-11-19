@@ -17,7 +17,7 @@ import { readAgentHostResources } from '../../../../../../platform/agentHost/com
 import { IExtensionRemoteAgentHost, IExtensionRemoteAgentHostsService } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { computeSSHConnectionKey, ISSHRemoteAgentHostService, ISSHResolvedConfig, SSHHostReachability } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, ISSHRemoteAgentHostService, ISSHResolvedConfig } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
@@ -63,15 +63,15 @@ export interface IRemoteMetadata {
 /**
  * Whether a remote is confirmed running right now, independent of whether this computer is connected to it.
  * - `online`: a live check in this window confirmed it is running.
- * - `offline`: discovery reported no live endpoint, a direct SSH check couldn't reach it, or WSL isn't running or installed.
+ * - `offline`: discovery reported no live endpoint, or WSL isn't running or installed.
  * - `pending`: the first live check in this window hasn't finished. Later checks keep the previous result until they finish.
- * - `unknown`: it couldn't be checked, for example while signed out or when it's reached through a proxy.
+ * - `unknown`: it isn't or couldn't be checked, for example SSH hosts, which aren't probed, or while signed out.
  */
 export type RemoteAvailability = 'online' | 'offline' | 'pending' | 'unknown';
 
 /** Minimum time between persisted updates of {@link IRemoteMetadata.lastOnlineAt}. */
 const lastOnlineWriteIntervalMs = 60_000;
-const sshReachabilityConcurrency = 8;
+const sshConfigResolveConcurrency = 8;
 
 export const remoteKindLabels: Record<RemoteKind, string> = {
 	ssh: localize('remotes.ssh', "SSH"),
@@ -215,10 +215,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	/** Installed WSL distributions that were running when last checked. */
 	private runningDistros: ReadonlySet<string> | undefined;
 	private runningDistrosVersion = 0;
-	private readonly sshReachability = new Map<string, SSHHostReachability | 'pending'>();
 	/** The last settled availability of each remote, shown while a later check is still running. */
 	private readonly settledAvailability = new Map<string, Pick<ICustomizationRemote, 'availability' | 'unavailableReason' | 'startsOnConnect'>>();
-	private sshReachabilityVersion = 0;
 	private readonly connectionFailures = new Map<string, string>();
 
 	constructor(
@@ -366,8 +364,6 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				if (isCurrent() && !isCancellationError(error)) {
 					if (kind === 'ssh' && !this._store.isDisposed) {
 						this.sshConfigAddresses = undefined;
-						this.sshReachability.clear();
-						this.sshReachabilityVersion++;
 					}
 					if (kind === 'wsl' && !this._store.isDisposed) {
 						this.installedDistros = undefined;
@@ -396,7 +392,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			return undefined;
 		};
 		const errors = await Promise.all([
-			discover('ssh', () => this.discoverSSHHosts(token), () => this.checkSSHReachability(token)),
+			discover('ssh', () => this.discoverSSHHosts(token)),
 			discover('wsl', async () => isWindows ? (await this.wslService.listDistros()).map(distro => ({ kind: 'wsl', distro: distro.name, name: distro.name, running: distro.isRunning })) : []),
 			discover('tunnel', async () => {
 				const authProvider = await this.tunnelService.getAuthProvider({ silent: true });
@@ -415,7 +411,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 
 	private async discoverSSHHosts(token: CancellationToken): Promise<RemoteTarget[]> {
 		const hosts = [...new Set(await this.sshService.listSSHConfigHosts())];
-		const limiter = new Limiter<RemoteTarget>(sshReachabilityConcurrency);
+		const limiter = new Limiter<RemoteTarget>(sshConfigResolveConcurrency);
 		try {
 			return await Promise.all(hosts.map(host => limiter.queue(async () => {
 				if (token.isCancellationRequested) {
@@ -442,66 +438,6 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			})));
 		} finally {
 			limiter.dispose();
-		}
-	}
-
-	private async checkSSHReachability(token: CancellationToken): Promise<void> {
-		const service = this.sshService;
-		if (!service.checkReachability) {
-			return;
-		}
-		const version = ++this.sshReachabilityVersion;
-		const hosts: { id: string; host: string; port: number | undefined }[] = [];
-		for (const [id, target] of this.targets) {
-			if (target.kind === 'ssh' && target.entry.connection.type === RemoteAgentHostEntryType.SSH) {
-				const connection = target.entry.connection;
-				// A config alias carries its own port; a manually added host only has the address it was saved with.
-				hosts.push({ id, ...this.getSSHProbeTarget(connection) });
-				// Keep the previous result while re-checking so rows don't move on every refresh.
-				if (!this.sshReachability.has(id)) {
-					this.sshReachability.set(id, 'pending');
-				}
-			}
-		}
-		this.update();
-		const limiter = new Limiter<void>(sshReachabilityConcurrency);
-		try {
-			await Promise.all(hosts.map(({ id, host, port }) => limiter.queue(async () => {
-				if (token.isCancellationRequested || version !== this.sshReachabilityVersion || this._store.isDisposed) {
-					return;
-				}
-				const result = await this.probeSSHHost(host, port);
-				if (version === this.sshReachabilityVersion && !this._store.isDisposed) {
-					this.sshReachability.set(id, result);
-					const target = this.targets.get(id);
-					if (result === 'reachable' && !token.isCancellationRequested && target) {
-						this.recordOnlineObservation(target);
-					}
-					this.update();
-				}
-			})));
-		} finally {
-			limiter.dispose();
-			if (version === this.sshReachabilityVersion) {
-				for (const { id } of hosts) {
-					if (this.sshReachability.get(id) === 'pending') {
-						this.sshReachability.delete(id);
-					}
-				}
-			}
-		}
-	}
-
-	private getSSHProbeTarget(connection: IRemoteAgentHostSSHConnection): { host: string; port: number | undefined } {
-		return connection.sshConfigHost ? { host: connection.sshConfigHost, port: undefined } : { host: connection.hostName, port: connection.port };
-	}
-
-	private async probeSSHHost(host: string, port: number | undefined): Promise<SSHHostReachability> {
-		try {
-			return await this.sshService.checkReachability?.(host, port) ?? 'unknown';
-		} catch (error) {
-			this.logService.info(`[Remotes] Could not check whether ${host} is reachable`, error);
-			return 'unknown';
 		}
 	}
 
@@ -914,9 +850,6 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				}
 				await this.remoteAgentHostService.waitForConnection(id);
 				this.connectionFailures.delete(failureKey);
-				if (target.kind === 'ssh') {
-					this.sshReachability.set(id, 'reachable');
-				}
 			} else {
 				if (target.kind !== 'environment' && !await this.remoteSharing.confirmDisconnect(id, this._remotes.get().find(remote => remote.id === id)?.name ?? provider?.label ?? id)) {
 					return;
@@ -934,15 +867,6 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			if (connected && !isCancellationError(error) && !this._store.isDisposed && current && this.getPickerKey(current) === failureKey) {
 				this.connectionFailures.set(failureKey, toErrorMessage(error));
 				this.logService.warn(`[Remotes] Connection to ${id} failed`, error);
-				if (current.kind === 'ssh' && current.entry.connection.type === RemoteAgentHostEntryType.SSH) {
-					const version = this.sshReachabilityVersion;
-					const probe = this.getSSHProbeTarget(current.entry.connection);
-					const reachable = await this.probeSSHHost(probe.host, probe.port);
-					const retained = this.targets.get(id);
-					if (version === this.sshReachabilityVersion && !this._store.isDisposed && retained && this.getPickerKey(retained) === failureKey) {
-						this.sshReachability.set(id, reachable);
-					}
-				}
 			}
 			throw error;
 		} finally {
@@ -1015,14 +939,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const unknown = (unavailableReason = localize('remotes.availabilityUnknown', "Couldn't check this environment's status. Select Connect to try.")) =>
 			this.checkingKinds.has(target.kind) || !this.checkedKinds.has(target.kind) ? { availability: 'pending' as const } : { availability: 'unknown' as const, unavailableReason };
 		switch (target.kind) {
+				// SSH hosts aren't probed: probing would open connections and leave entries in the server's logs.
 			case 'ssh':
-				switch (this.sshReachability.get(id)) {
-					case 'reachable': return { availability: 'online' };
-					case 'unreachable': return { availability: 'offline', unavailableReason: localize('remotes.sshUnreachable', "The SSH endpoint couldn't be reached from this network. Check the SSH host, port, and network connection, then refresh.") };
-					case 'pending': return { availability: 'pending' };
-					case 'unknown': return { availability: 'unknown', unavailableReason: localize('remotes.sshUnknown', "A direct SSH status check isn't available for this host. Select Connect to try.") };
-					default: return unknown();
-				}
 			case 'extension':
 			case 'devContainer':
 				return { availability: 'unknown' };

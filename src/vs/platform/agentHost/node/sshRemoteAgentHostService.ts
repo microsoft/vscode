@@ -36,7 +36,6 @@ import {
 	type ISSHKeyboardInteractiveRequest,
 	type ISSHResolvedConfig,
 	type SSHAgentHostLifecycle,
-	type SSHHostReachability,
 	type SSHStrictHostKeyChecking,
 	SSHHostKeyDeniedError,
 	SSHAuthenticationFailedError,
@@ -81,10 +80,7 @@ import { parseSSHConfigHostEntries, parseSSHConfigIncludePaths, parseSSHGOutput 
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
 import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
-import { probeSSHServer } from './sshReachability.js';
-import { createSSHProxyJump, hasSSHProxyJump, rememberSSHProxyJump, SSHProxyJump } from './sshProxyJump.js';
-
-const SSH_REACHABILITY_TIMEOUT_MS = 5000;
+import { createSSHProxyJump, rememberSSHProxyJump, SSHProxyJump } from './sshProxyJump.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -1394,21 +1390,6 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	async resolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
 		return this._doResolveSSHConfig(host);
-	}
-
-	async checkReachability(host: string, port?: number): Promise<SSHHostReachability> {
-		let resolved: ISSHResolvedConfig;
-		try {
-			resolved = await this.resolveSSHConfig(host);
-		} catch (error) {
-			this._logService.info(`${LOG_PREFIX} Could not resolve ${host} to check reachability: ${error}`);
-			return 'unknown';
-		}
-		// A relayed connection's first hop says nothing about the target itself.
-		if (resolved.proxyCommand || hasSSHProxyJump(resolved) || !resolved.hostname) {
-			return 'unknown';
-		}
-		return probeSSHServer(resolved.hostname, port ?? resolved.port, SSH_REACHABILITY_TIMEOUT_MS);
 	}
 
 	protected async _doResolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
