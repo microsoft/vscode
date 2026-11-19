@@ -26497,7 +26497,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('does not claim or retry a canceled interactive authentication until a later challenge', async () => {
+		test('does not claim or retry a dismissed interactive authentication', async () => {
 			const tokenRef = { current: 'tok-1' };
 			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
 			commandService.result = undefined;
@@ -26506,10 +26506,10 @@ suite('AgentHostChatContribution', () => {
 				resource: 'https://api.github.com/session',
 				authorization_servers: ['https://github.com/login/oauth'],
 				scopes_supported: ['session:read'],
-				// Optional, as when the host also advertises an alternative credential.
-				required: false,
 			};
 
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
 			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
 			await timeout(0);
 			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));

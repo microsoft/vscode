@@ -13,6 +13,7 @@ import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AuthenticateTargetKind, type McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { readAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
@@ -593,6 +594,135 @@ suite('AgentHostAuthenticationRecovery', () => {
 
 		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		assert.strictEqual(commandService.calls.length, 2);
+	});
+
+	test('does not prompt again when the host still requires the credential its sign-in produced, but does when it expires', async () => {
+		const token = { value: 'tok-1' };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [{
+				id: 'session-id',
+				account: { id: 'account-1', label: 'Account 1' },
+				scopes,
+				accessToken: token.value,
+			}] : []),
+		});
+		const commandService = new TestCommandService();
+		let signIns = 0;
+		commandService.onExecute = () => { token.value = `tok-${++signIns + 1}`; };
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options, AuthRequiredReason.Required));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options, AuthRequiredReason.Required));
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options, AuthRequiredReason.Required));
+		const afterRefusedSignIn = { commandCalls: commandService.calls.length, authenticateCalls: [...authenticateCalls] };
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options, AuthRequiredReason.Expired));
+
+		assert.deepStrictEqual({
+			afterRefusedSignIn,
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			afterRefusedSignIn: { commandCalls: 1, authenticateCalls: ['tok-1', 'tok-2'] },
+			commandCalls: 2,
+			authenticateCalls: ['tok-1', 'tok-2', 'tok-3'],
+		});
+	});
+
+	test('never prompts for a resource the host only needs on demand, but still re-sends its credential', async () => {
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [{
+				id: 'session-id',
+				account: { id: 'account-1', label: 'Account 1' },
+				scopes,
+				accessToken: 'tok-1',
+			}] : []),
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com/repos',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['repo'],
+			required: false,
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		for (const reason of [AuthRequiredReason.Required, AuthRequiredReason.Required, AuthRequiredReason.Expired]) {
+			await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options, reason));
+		}
+
+		assert.deepStrictEqual({ commandCalls: commandService.calls.length, authenticateCalls }, { commandCalls: 0, authenticateCalls: ['tok-1'] });
+	});
+
+	test('keeps a dismissed sign-in closed until a sign-in replaces the credential', async () => {
+		const token = { value: 'tok-1' };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [{
+				id: 'session-id',
+				account: { id: 'account-1', label: 'Account 1' },
+				scopes,
+				accessToken: token.value,
+			}] : []),
+		});
+		const commandService = new TestCommandService();
+		commandService.result = { success: undefined, dialogSkipped: false };
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+		const recover = (reason: AuthRequiredReason) => instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options, reason));
+
+		await recover(AuthRequiredReason.Required);
+		await recover(AuthRequiredReason.Required);
+		await recover(AuthRequiredReason.Required);
+		await recover(AuthRequiredReason.Expired);
+		recovery.clear();
+		await recover(AuthRequiredReason.Expired);
+		await recover(AuthRequiredReason.Required);
+		const afterDismissal = { commandCalls: commandService.calls.length, authenticateCalls: [...authenticateCalls] };
+		token.value = 'tok-2';
+		await recover(AuthRequiredReason.Required);
+		await recover(AuthRequiredReason.Required);
+
+		assert.deepStrictEqual({
+			afterDismissal,
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			afterDismissal: { commandCalls: 1, authenticateCalls: ['tok-1', 'tok-1'] },
+			commandCalls: 2,
+			authenticateCalls: ['tok-1', 'tok-1', 'tok-2'],
+		});
 	});
 
 	test('tries a broader matching session once before prompting again', async () => {
