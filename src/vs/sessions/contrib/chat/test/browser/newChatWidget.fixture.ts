@@ -468,7 +468,7 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 		connectorIds = [connectorId],
 		tipsEnabled = true,
 		// The migration notice outranks tips below the input, connector recommendations included.
-		expectConnectorRecommendation = connectorPrompt !== undefined && connectorRecommendationsSetting && tipsEnabled && (migrationCount === 0 || ignoreMigrations),
+		expectConnectorRecommendation = !phoneLayout && connectorPrompt !== undefined && connectorRecommendationsSetting && tipsEnabled && (migrationCount === 0 || ignoreMigrations),
 		dismissConnector = false,
 		focusConnectorRecommendations = false,
 		host,
@@ -579,6 +579,7 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 					override readonly mainContainer = container;
 					override readonly activeContainer = container;
 					override readonly onDidLayoutContainer = Event.None;
+					override readonly onDidLayoutMainContainer = Event.None;
 					override getContainer() { return container; }
 				}());
 			}
@@ -657,6 +658,7 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 				override readonly activeContainer = container;
 				override readonly mainContainer = container;
 				override readonly mainContainerDimension = { width, height };
+				override readonly onDidLayoutMainContainer = Event.None;
 				override getContainer() { return container; }
 			}());
 			reg.defineInstance(ISearchService, new class extends mock<ISearchService>() { }());
@@ -952,6 +954,7 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 			override readonly mainContainer = container;
 			override readonly activeContainer = container;
 			override readonly onDidLayoutContainer = Event.None;
+			override readonly onDidLayoutMainContainer = Event.None;
 			override getContainer() { return container; }
 		}());
 		instantiationService.set(IContextViewService, disposableStore.add(instantiationService.createInstance(ContextViewService)));
@@ -1253,7 +1256,11 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 			await nextFrame();
 		}
 	}
-	if (migrationCount > 0 && !ignoreMigrations) {
+	const migrationNoticeShows = migrationCount > 0 && !ignoreMigrations && !phoneLayout;
+	if (phoneLayout) {
+		const notice = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
+		assert(!notice || !notice.checkVisibility(), 'Desktop-only customization notices must stay hidden on phones.');
+	} else if (migrationNoticeShows) {
 		const notice = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
 		const input = view.element.querySelector<HTMLElement>('.new-chat-input-container');
 		assert(!!notice && !!input && targetWindow.getComputedStyle(notice).display !== 'none');
@@ -1274,15 +1281,15 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 			view.prefillInput(connectorPrompt);
 			if (expectConnectorRecommendation) {
 				await waitForFixtureCondition(
-					() => !!view.element.querySelector('.chat-tip-widget a'),
+					() => !!view.element.querySelector('.chat-tip-widget .rendered-markdown a'),
 					'URL-triggered connector tip did not settle.',
 				);
 			}
 		}
 		const connectorTip = view.element.querySelector<HTMLElement>('.chat-tip-widget');
-		const connectorLink = connectorTip?.querySelector<HTMLAnchorElement>('a');
+		const connectorLink = connectorTip?.querySelector<HTMLAnchorElement>('.rendered-markdown a');
 		assert(!!connectorLink === expectConnectorRecommendation,
-			'A connector tip link must appear only for a recognized URL while tips and recommendations are enabled.');
+			'A connector recommendation link must appear only for a recognized URL while its desktop presentation is available.');
 		if (expectConnectorRecommendation) {
 			assert(!!connectorTip && !!connectorLink);
 			const connectorIcon = connectorTip.querySelector<HTMLImageElement>('.chat-tip-icon');
@@ -1303,7 +1310,6 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 	}
 	if (showTip) {
 		// The banners below the input show one at a time, and the migration notice outranks the tip.
-		const migrationNoticeShows = migrationCount > 0 && !ignoreMigrations;
 		const tip = view.element.querySelector<HTMLElement>('.chat-tip-widget');
 		const tipShows = !!tip && targetWindow.getComputedStyle(tip).display !== 'none' && tip.getBoundingClientRect().height > 0;
 		assert(tipShows === !migrationNoticeShows, migrationNoticeShows
@@ -1691,13 +1697,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	ConnectorRecommendationsPhone: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['On a phone-sized Agents window, the standard connector tip sits immediately above the bottom-pinned composer without horizontal scrolling.'],
+		expectedVisualDescriptions: ['On a phone-sized Agents window, desktop-only connector recommendations stay hidden above the bottom-pinned composer.'],
 		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', phoneLayout: true }),
 	}),
 	ConnectorRecommendationsPhoneWithNotices: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
-		expectedVisualDescriptions: ['On a phone-sized Agents window, only the migration notice shows immediately above the bottom-pinned composer; the contextual connector tip waits while it shows.'],
+		expectedVisualDescriptions: ['On a phone-sized Agents window, the general context tip remains above the bottom-pinned composer while desktop-only migration notices and connector recommendations stay hidden.'],
 		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, migrationCount: 4, showTip: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', welcomePhrases: true, phoneLayout: true }),
 	}),
 	NewSessionDefault: defineComponentFixture({
