@@ -57,7 +57,7 @@ import { ISessionChangesService } from '../../../../../../../workbench/contrib/s
 import { CHANGES_VIEW_ID } from '../../../../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, PickerActionViewItem } from '../../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import { IConfigPickerItem } from '../../../../../../../workbench/contrib/sessions/browser/newSessionInputPresentation.js';
@@ -182,10 +182,11 @@ function makeNoGitConfig(): ResolveSessionConfigResult {
  * provider (not the picker) owns the seeded schema, so a picker recreated by a
  * toolbar rebuild still reads the seeded chips from here.
  */
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'getSessionConfigCompletions' | 'isDevContainerEnabled'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessions' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'getSessionConfigCompletions' | 'getBranchCreationSources' | 'isDevContainerEnabled'> {
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 	readonly environment = { id: 'local', label: 'This Computer' };
 	readonly onDidChangeSessionConfig: Event<string>;
+	sessions: ISession[] = [];
 	config: ResolveSessionConfigResult = makeRepoConfig('main');
 	readonly resolving = observableValue<boolean>('resolving', false);
 	isNew = true;
@@ -207,6 +208,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 		this.onDidChangeSessionConfig = _emitter.event;
 	}
 
+	getSessions(): ISession[] { return this.sessions; }
 	getSessionConfig(): ResolveSessionConfigResult | undefined { return this.config; }
 	getCreateSessionConfig(): Record<string, unknown> | undefined { return this.isNew ? {} : undefined; }
 	isSessionConfigResolving() { return this.resolving; }
@@ -334,6 +336,7 @@ function setupServices(
 	store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>,
 	options?: {
 		createBranchSupported?: boolean;
+		createBranchConfirmation?: string;
 		checkoutDialogChoice?: 'Stash & Checkout' | 'Commit & Checkout';
 		checkoutDialogShown?: DeferredPromise<void>;
 		checkoutDialogRelease?: DeferredPromise<void>;
@@ -457,6 +460,7 @@ function setupServices(
 			label: 'Checkout',
 			scopes: [SessionChangesetOperationScope.Changeset],
 			status: SessionChangesetOperationStatus.Idle,
+			...(id === AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID && options?.createBranchConfirmation ? { confirmation: options.createBranchConfirmation } : {}),
 		})));
 		override async invokeOperation(operationId: string, _target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void> {
 			checkoutInvocations.push({ operationId, _meta });
@@ -477,6 +481,7 @@ function setupServices(
 		override readonly workspace = workspace;
 		override readonly activeChat = constObservable(activeChat);
 	}();
+	provider.sessions = [activeSession];
 	const sessionObs = observableValue<ITestSessionWithChat | undefined>('activeSession', activeSession);
 	return { instantiationService, inputPresentation, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService, notificationErrors };
 }
@@ -1171,6 +1176,14 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(services.actionWidget.items.some(item => getCreateBranchAction(item.item)), false);
 	});
 
+	test('does not offer branch creation when success cannot be observed after confirmation', async () => {
+		const services = setupServices(store, { createBranchSupported: true, createBranchConfirmation: 'Create this branch?' });
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		assert.strictEqual(services.actionWidget.items.some(item => getCreateBranchAction(item.item)), false);
+	});
+
 	test('does not offer branch creation for a fixed branch enum', async () => {
 		const services = setupServices(store, { createBranchSupported: true });
 		const { container } = renderPicker(store, services);
@@ -1199,6 +1212,32 @@ suite('Agent Host Session Config Picker', () => {
 			writes: services.provider.setSessionConfigValueCalls,
 			selection: services.provider.config.values.branch,
 		}, { invocations: 1, writes: 0, selection: 'main' });
+	});
+
+	test('selects the created branch in its captured draft after another session becomes active', async () => {
+		const created = new DeferredPromise<void>();
+		const services = setupServices(store, { createBranchSupported: true }, () => created.p);
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+			override async input() { return 'feature/new'; }
+		}());
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item))!.item!);
+		await timeout(0);
+		services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
+		created.complete();
+		await creation;
+		assert.deepStrictEqual({
+			invocations: services.checkoutInvocations.length,
+			writes: services.provider.setSessionConfigValueArguments,
+			selection: services.provider.config.values.branch,
+		}, {
+			invocations: 1,
+			writes: [{ sessionId: SESSION_ID, property: 'branch', value: 'feature/new' }],
+			selection: 'feature/new',
+		});
 	});
 
 	test('Copilot repository controls preserve target, baseBranch and new branch keys', async () => {
@@ -2624,7 +2663,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('branch picker waits for pending completions before opening', async () => {
+	test('branch picker opens immediately while pending completions load', async () => {
 		const services = setupServices(store);
 		services.provider.config = makeDynamicBranchConfig('main');
 		services.provider.completions = [{ value: 'main', label: 'main' }];
@@ -2633,17 +2672,22 @@ suite('Agent Host Session Config Picker', () => {
 		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
 		await new Promise(resolve => setTimeout(resolve));
 		const openedWhileLoading = !!services.actionWidget.delegate;
+		const itemsWhileLoading = branchRows(services.actionWidget.items);
 		barrier.complete();
 		await new Promise(resolve => setTimeout(resolve));
 
 		assert.deepStrictEqual({
 			openedWhileLoading,
+			itemsWhileLoading,
 			items: branchRows(services.actionWidget.items),
 			completionQueries: services.provider.completionQueries,
+			updates: services.actionWidget.events.filter(event => event === 'updateItems').length,
 		}, {
-			openedWhileLoading: false,
+			openedWhileLoading: true,
+			itemsWhileLoading: ['Loading branches...'],
 			items: ['main'],
 			completionQueries: [undefined],
+			updates: 1,
 		});
 	});
 
@@ -2679,10 +2723,12 @@ suite('Agent Host Session Config Picker', () => {
 
 		assert.deepStrictEqual({
 			completionQueries: services.provider.completionQueries,
-			opened: !!services.actionWidget.delegate,
+			hides: services.actionWidget.events.filter(event => event === 'hide').length,
+			updates: services.actionWidget.events.filter(event => event === 'updateItems').length,
 		}, {
 			completionQueries: [undefined],
-			opened: false,
+			hides: 1,
+			updates: 0,
 		});
 	});
 

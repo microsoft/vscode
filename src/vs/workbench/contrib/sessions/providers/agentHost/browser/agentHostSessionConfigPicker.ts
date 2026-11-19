@@ -238,8 +238,8 @@ function validateCreateBranchName(name: string, branches: readonly SessionConfig
 /** The composer state captured when branch creation started, used to detect stale requests. */
 interface ICreateBranchContext {
 	readonly property: string;
-	readonly config: ResolveSessionConfigResult;
-	readonly chat: URI | undefined;
+	readonly branchValue: unknown;
+	readonly chat: URI;
 	readonly workspaceUri: URI | undefined;
 }
 
@@ -638,6 +638,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private _container: HTMLElement | undefined;
 	private _focusableElement: HTMLElement | undefined;
 	private _openedPickerSessionId: string | undefined;
+	private _pickerOpenSequence = 0;
 	private _focusable = false;
 	private _hoverDelegate: IHoverDelegate = getDefaultHoverDelegate('element');
 
@@ -1098,9 +1099,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (!session.workspace.get()?.folders[0]?.gitRepository) {
 			return undefined;
 		}
-		return this._chat.get()?.changesets.get()?.find(changeset =>
-			changeset.id === UNCOMMITTED_CHANGES_CHANGESET_ID
-			&& changeset.operations.get().some(operation => operation.id === AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID));
+		return this._chat.get()?.changesets.get()?.find(changeset => {
+			const operation = changeset.id === UNCOMMITTED_CHANGES_CHANGESET_ID
+				? changeset.operations.get().find(operation => operation.id === AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID)
+				: undefined;
+			// A declined confirmation resolves invokeOperation without indicating that Git did not run.
+			return operation && !operation.confirmation;
+		});
 	}
 
 	/**
@@ -1116,9 +1121,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (!config || !schema || !isSessionConfigWritable(schema, true) || !this._getCreateBranchChangeset(provider, sessionId)) {
 			return;
 		}
-		const chat = this._getChat(provider, sessionId);
+		const chat = this._requireChat(provider, sessionId);
 		const workspaceUri = this._session.get()?.workspace.get()?.uri;
-		const context: ICreateBranchContext = { property, config, chat, workspaceUri };
+		const context: ICreateBranchContext = { property, branchValue: config.values[property], chat, workspaceUri };
 		const focusProperty = this._property ?? property;
 		this._propertyTriggers.get(focusProperty)?.focus();
 		const inputDisposables = new DisposableStore();
@@ -1135,7 +1140,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			inputDisposables.add(loading.onDidHide(() => cancellation.cancel()));
 			loading.show();
 			this._trackCreateBranchInputFocus(provider, sessionId, focusProperty, inputDisposables);
-			const sourceDetails = await raceCancellationError(provider.getBranchCreationSources?.(sessionId) ?? Promise.resolve(undefined), cancellation.token);
+			const sourceDetails = await raceCancellationError(provider.getBranchCreationSources(sessionId), cancellation.token);
 			// Keep any text entered while the branch lists were loading.
 			const loadingValue = loading.value;
 			if (!this._isCurrentSession(provider, sessionId)) {
@@ -1221,22 +1226,22 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	 * worktree isolation meanwhile makes {@link _getCreateBranchChangeset} return nothing.
 	 */
 	private async _runCreateBranchOperation(provider: IAgentHostSessionsProvider, sessionId: string, context: ICreateBranchContext, branchName: string, startPoint: string): Promise<void> {
-		const { property, config, chat, workspaceUri } = context;
+		const { property, branchValue, chat, workspaceUri } = context;
 		const currentConfig = this._getSessionConfig(provider, sessionId);
 		const changeset = this._getCreateBranchChangeset(provider, sessionId);
 		if (!this._isCurrentSession(provider, sessionId) || !changeset
 			|| provider.isSessionConfigResolving(sessionId, this._requireChat(provider, sessionId)).get()
 			|| !isEqual(this._getChat(provider, sessionId), chat)
 			|| !isEqual(this._session.get()?.workspace.get()?.uri, workspaceUri)
-			|| currentConfig?.values[property] !== config.values[property]) {
+			|| currentConfig?.values[property] !== branchValue) {
 			return;
 		}
 		await changeset.invokeOperation(AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, undefined, createBranchOperationMeta(branchName, startPoint));
-		if (this._isCurrentSession(provider, sessionId)
-			&& isEqual(this._getChat(provider, sessionId), chat)
-			&& isEqual(this._session.get()?.workspace.get()?.uri, workspaceUri)) {
-			// The host call is asynchronous; only select the new branch if its original session and workspace are still active.
-			await provider.setSessionConfigValue(sessionId, this._requireChat(provider, sessionId), property, branchName);
+		const session = (provider.getAllSessions?.() ?? provider.getSessions()).find(candidate => candidate.sessionId === sessionId);
+		if (session && provider.getCreateSessionConfig(sessionId) !== undefined
+			&& isEqual(session.workspace.get()?.uri, workspaceUri)) {
+			// Once Git succeeds, update the captured draft even if another session became active.
+			await provider.setSessionConfigValue(sessionId, chat, property, branchName);
 		}
 	}
 
@@ -1431,57 +1436,62 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			}
 			return;
 		}
-		const branchCompletions = presentation === SessionConfigKey.Branch && schema.enumDynamic
-			? await provider.getSessionConfigCompletions(sessionId, property)
-			: undefined;
-		const rawItems = await this._getItems(provider, sessionId, property, schema, undefined, branchCompletions);
-		if (!this._isCurrentSession(provider, sessionId)) {
-			return;
-		}
-		const { items: filteredItems, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);
-		const isolationRecommendation = presentation === SessionConfigKey.Isolation ? this._isolationPresentation?.getRecommendation(sessionId) : undefined;
-		const items = isolationRecommendation?.decorateOptions(filteredItems) ?? filteredItems;
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
 		const config = this._getSessionConfig(provider, sessionId);
 		const currentValue = config?.values[property] ?? schema.default;
-		const currentItem = items.find(i => isSelectedValue(currentValue, i.value));
 		const isBranchPicker = presentation === SessionConfigKey.Branch;
+		const branchCompletionsPromise = isBranchPicker && schema.enumDynamic
+			? provider.getSessionConfigCompletions(sessionId, property)
+			: undefined;
+		let branchCompletions: readonly SessionConfigValueItem[] | undefined;
+		let pickerItems: readonly IConfigPickerItem[] = [];
+		const isolationRecommendation = presentation === SessionConfigKey.Isolation ? this._isolationPresentation?.getRecommendation(sessionId) : undefined;
 		const isolationKey = config && getSessionWorkspaceProperties(config.schema).isolation?.key;
 		const repositoryConfigContainer = isBranchPicker
 			? trigger.closest<HTMLElement>('.new-chat-repo-config-container')
 			: undefined;
-		const repositoryState = isBranchPicker
-			? this._getRepositoryBranchState(sessionId)
-			: undefined;
 		const onShowChanges = isBranchPicker
 			? () => this._showChanges()
 			: undefined;
-		const optionItems = this._withCreateBranchAction(provider, sessionId, property, isBranchPicker, toActionItems(presentation, items, currentValue, policyRestricted, {
-			...repositoryState,
-			isWorktree: isolationKey !== undefined && config?.values[isolationKey] === 'worktree',
-			onShowChanges,
-		}, getOrganizationDefaultApprovalLevel(this._configurationService)), branchCompletions);
-		if (optionItems.length === 0) {
+		const buildActionItems = async (query?: string, completions = branchCompletions) => {
+			const rawItems = await this._getItems(provider, sessionId, property, schema, query, completions);
+			if (!this._isCurrentSession(provider, sessionId)) {
+				return [];
+			}
+			const { items: filteredItems, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);
+			pickerItems = isolationRecommendation?.decorateOptions(filteredItems) ?? filteredItems;
+			const filteredConfig = this._getSessionConfig(provider, sessionId);
+			const filteredCurrentValue = filteredConfig?.values[property] ?? schema.default;
+			const filteredRepositoryState = this._getRepositoryBranchState(sessionId);
+			const optionItems = this._withCreateBranchAction(provider, sessionId, property, isBranchPicker, toActionItems(presentation, pickerItems, filteredCurrentValue, policyRestricted, {
+				...filteredRepositoryState,
+				isWorktree: isolationKey !== undefined && filteredConfig?.values[isolationKey] === 'worktree',
+				...(query ? { query } : {}),
+				onShowChanges,
+			}, getOrganizationDefaultApprovalLevel(this._configurationService)), completions);
+			return isolationRecommendation?.appendItems(optionItems) ?? optionItems;
+		};
+		let actionItems = branchCompletionsPromise
+			? [{
+				kind: ActionListItemKind.Action,
+				label: localize('agentHostSessionConfig.branchLoading', "Loading branches..."),
+				group: { title: '', icon: Codicon.loading },
+				disabled: true,
+				item: { id: 'branch-loading', value: '', label: localize('agentHostSessionConfig.branchLoadingItem', "Loading branches..."), disabled: true },
+			}]
+			: await buildActionItems();
+		if (actionItems.length === 0) {
 			return;
 		}
-		const actionItems = isolationRecommendation?.appendItems(optionItems) ?? optionItems;
 		const filterItems = async (query: string) => {
 			if (!this._isCurrentSession(provider, sessionId)) {
 				return [];
 			}
-			const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query, branchCompletions);
+			const completions = branchCompletionsPromise ? await branchCompletionsPromise : undefined;
 			if (!this._isCurrentSession(provider, sessionId)) {
 				return [];
 			}
-			const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
-			const filteredRepositoryState = this._getRepositoryBranchState(sessionId);
-			const filteredConfig = this._getSessionConfig(provider, sessionId);
-			return this._withCreateBranchAction(provider, sessionId, property, isBranchPicker, toActionItems(presentation, filteredItems, filteredConfig?.values[property] ?? schema.default, filteredPolicyRestricted, {
-				...filteredRepositoryState,
-				isWorktree: isolationKey !== undefined && filteredConfig?.values[isolationKey] === 'worktree',
-				query,
-				onShowChanges,
-			}, getOrganizationDefaultApprovalLevel(this._configurationService)), branchCompletions);
+			return buildActionItems(query, completions);
 		};
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
@@ -1500,6 +1510,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				}
 				isolationRecommendation?.onSelect(item.value);
 
+				const currentItem = pickerItems.find(candidate => isSelectedValue(currentValue, candidate.value));
 				reportNewChatPickerClosed(this._telemetryService, {
 					id: 'NewChatAgentHostSessionConfigPicker',
 					name: `NewChatAgentHostSessionConfigPicker.${property}`,
@@ -1528,6 +1539,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? query => branchCompletions !== undefined ? filterItems(query) : this._filterDelayer.trigger(() => filterItems(query))
 				: undefined,
 			onHide: () => {
+				this._pickerOpenSequence++;
 				this._pickerPresentation.clear();
 				this._openedPickerSessionId = undefined;
 				trigger.setAttribute('aria-expanded', 'false');
@@ -1539,10 +1551,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		};
 
 		this._openedPickerSessionId = sessionId;
+		const pickerOpenSequence = ++this._pickerOpenSequence;
 		trigger.setAttribute('aria-expanded', 'true');
 		repositoryConfigContainer?.setAttribute(PICKER_OPEN_ATTRIBUTE, 'true');
 		// Count the branches rather than the items, which add the default branch's remote only for worktrees.
-		const showFilter = (branchCompletions ?? items).length > 10;
+		const showFilter = !!branchCompletionsPromise || (pickerItems.length > 10);
 		this._actionWidgetService.show<IConfigPickerItem>(
 			`agentHostSessionConfig.${property}`,
 			false,
@@ -1573,13 +1586,42 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				maxVisibleItems: isBranchPicker ? BRANCH_PICKER_MAX_VISIBLE_ITEMS : undefined,
 			},
 		);
-		this._pickerPresentation.value = isolationRecommendation?.onDidShow?.(optionItems, items => {
+		this._pickerPresentation.value = isolationRecommendation?.onDidShow?.(actionItems, items => {
 			this._actionWidgetService.updateItems(items, undefined, { preserveScrollPosition: true });
 		});
-		// Branch groups keep a fixed order, so focus the selected branch wherever it is listed.
-		const focusId = focusValue ?? (isBranchPicker && typeof currentValue === 'string' ? currentValue : undefined);
-		if (focusId !== undefined && actionItems.some(item => item.item?.id === focusId && !item.disabled)) {
-			this._actionWidgetService.focusItemById(focusId);
+		const focusLoadedItem = (items: readonly IActionListItem<IConfigPickerItem>[]) => {
+			// Branch groups keep a fixed order, so focus the selected branch wherever it is listed.
+			const focusId = focusValue ?? (isBranchPicker && typeof currentValue === 'string' ? currentValue : undefined);
+			if (focusId !== undefined && items.some(item => item.item?.id === focusId && !item.disabled)) {
+				this._actionWidgetService.focusItemById(focusId);
+			}
+		};
+		focusLoadedItem(actionItems);
+		if (branchCompletionsPromise) {
+			const showBranchLoadError = (error: Error) => {
+				if (pickerOpenSequence === this._pickerOpenSequence && this._openedPickerSessionId === sessionId) {
+					this._notificationService.error(error);
+					this._actionWidgetService.updateItems([{
+						kind: ActionListItemKind.Action,
+						label: localize('agentHostSessionConfig.branchLoadFailed', "Unable to load branches"),
+						group: { title: '', icon: Codicon.warning },
+						disabled: true,
+						item: { id: 'branch-load-failed', value: '', label: localize('agentHostSessionConfig.branchLoadFailedItem', "Unable to load branches"), disabled: true },
+					}]);
+				}
+			};
+			void branchCompletionsPromise.then(async completions => {
+				if (pickerOpenSequence !== this._pickerOpenSequence || this._openedPickerSessionId !== sessionId) {
+					return;
+				}
+				branchCompletions = completions;
+				actionItems = await buildActionItems();
+				if (pickerOpenSequence !== this._pickerOpenSequence || this._openedPickerSessionId !== sessionId) {
+					return;
+				}
+				this._actionWidgetService.updateItems(actionItems);
+				focusLoadedItem(actionItems);
+			}).catch(showBranchLoadError);
 		}
 	}
 
