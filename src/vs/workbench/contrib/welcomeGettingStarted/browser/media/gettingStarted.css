@@ -1009,8 +1009,8 @@
 	border-color: var(--vscode-welcomePage-tileBorder);
 }
 
-/* The button has the tiles' background, so on a tile surface it takes the page's background instead to stay visible. */
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown:is([data-agents-window-section-style="card"], [data-agents-window-section-style="band"]) > .footer > .agents-banner > .agents-banner-button:not(:hover) {
+/* The button has the tiles' background, so on a tile surface it takes the page's background instead to stay visible. While the surface is hidden for a pending graphic, the button keeps the tiles' background. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown:not(.agents-window-graphic-pending):is([data-agents-window-section-style="card"], [data-agents-window-section-style="band"]) > .footer > .agents-banner > .agents-banner-button:not(:hover) {
 	background: var(--vscode-editor-background);
 }
 

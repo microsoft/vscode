@@ -49,7 +49,7 @@ export class AgentsWindowGraphic extends Disposable {
 	readonly element: HTMLElement;
 
 	private readonly _shownDesign = observableValue<AgentsWindowGraphicDesign | undefined>(this, undefined);
-	/** The graphic rendered in {@link element}, or `undefined` when none is. Changes after the element has been updated. */
+	/** The graphic visible in {@link element}, or `undefined` when none is. Changes after the element has been updated. */
 	readonly shownDesign: IObservable<AgentsWindowGraphicDesign | undefined> = this._shownDesign;
 
 	private readonly _hasMultipleEditorWindows = observableValue<boolean | undefined>(this, undefined);
