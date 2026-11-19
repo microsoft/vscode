@@ -786,6 +786,7 @@ suite('cloudSandbox telemetry', () => {
 		sessions.set('other-host:/new', 'snapshot');
 		connection.onConnectionStateChange('connected');
 		connection.onConnectionStateChange('connected');
+		service.dispose();
 		const events = telemetry.events.filter(e => e.data?.operation === 'recover');
 		assert.deepStrictEqual(events.map(({ data }) => [
 			data?.outcome, data?.sessionRecoveryOutcome, data?.sessionRecoverySignal, data?.sessionRecoveryAfterReturnMs, JSON.stringify(data).includes('other-host:'),
