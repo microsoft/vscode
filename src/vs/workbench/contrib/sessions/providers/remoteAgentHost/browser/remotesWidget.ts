@@ -40,6 +40,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { WorkbenchTable } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IEditorService, MODAL_GROUP } from '../../../../../services/editor/common/editorService.js';
@@ -90,6 +91,13 @@ const scrollbarGutterWidth = 16;
 export const RemotesDetailsExpandedContext = new RawContextKey<boolean>('remotesDetailsExpanded', false);
 
 type RemoteSortField = 'availability' | 'name' | 'activity' | 'system' | 'type';
+type RemoteGrouping = 'none' | 'status' | 'type';
+
+const remoteSortFields: readonly RemoteSortField[] = ['availability', 'name', 'activity', 'system', 'type'];
+const remoteGroupings: readonly RemoteGrouping[] = ['none', 'type', 'status'];
+const sortByStorageKey = 'remotesWidget.sortBy';
+const sortDescendingStorageKey = 'remotesWidget.sortDescending';
+const groupByStorageKey = 'remotesWidget.groupBy';
 
 export class RemotesWidget extends Disposable {
 	readonly domNode: HTMLElement;
@@ -111,7 +119,7 @@ export class RemotesWidget extends Disposable {
 	private readonly filterAction: Action;
 	private readonly refreshAction: Action;
 	private readonly refreshButton: Button;
-	private readonly groupingActions: readonly { readonly grouping: 'none' | 'type' | 'status'; readonly action: Action }[];
+	private readonly groupingActions: readonly { readonly grouping: RemoteGrouping; readonly action: Action }[];
 	private readonly orderingActions: readonly { readonly field: RemoteSortField; readonly action: Action }[];
 	private sortBy: RemoteSortField = 'availability';
 	private sortDescending = false;
@@ -121,7 +129,7 @@ export class RemotesWidget extends Disposable {
 	private readonly pendingActions = new Set<string>();
 	private readonly pendingConnections = new Map<string, boolean>();
 	private readonly collapsedGroups = new Set<string>();
-	private groupBy: 'none' | 'status' | 'type' = 'none';
+	private groupBy: RemoteGrouping = 'none';
 	private kinds: readonly RemoteKind[];
 	private displayedRemotes: readonly ICustomizationRemote[] = [];
 	private rows: IRemoteTableRow[] = [];
@@ -157,9 +165,15 @@ export class RemotesWidget extends Disposable {
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly providersService: ISessionsProvidersService,
 		@INewSessionComposerService private readonly composerService: INewSessionComposerService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this._register(model);
+		const storedSortBy = storageService.get(sortByStorageKey, StorageScope.PROFILE);
+		const storedGroupBy = storageService.get(groupByStorageKey, StorageScope.PROFILE);
+		this.sortBy = remoteSortFields.find(field => field === storedSortBy) ?? this.sortBy;
+		this.sortDescending = storageService.getBoolean(sortDescendingStorageKey, StorageScope.PROFILE, this.sortDescending);
+		this.groupBy = remoteGroupings.find(grouping => grouping === storedGroupBy) ?? this.groupBy;
 		this.detailsExpanded = RemotesDetailsExpandedContext.bindTo(contextKeyService);
 		this.kinds = getVisibleRemoteKinds(operatingSystem);
 		this.domNode = dom.append(container, dom.$('.remotes-widget'));
@@ -218,6 +232,7 @@ export class RemotesWidget extends Disposable {
 				item.action.checked = item.grouping === 'none';
 			}
 			this.collapsedGroups.clear();
+			this.saveViewOptions();
 			this.updateSortHeaders();
 			this.setSearchQuery('');
 			this.updateViewOrder();
@@ -571,12 +586,20 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	setGrouping(groupBy: 'none' | 'status' | 'type'): void {
+	setGrouping(groupBy: RemoteGrouping): void {
 		this.groupBy = groupBy;
 		for (const item of this.groupingActions) {
 			item.action.checked = item.grouping === groupBy;
 		}
+		this.saveViewOptions();
 		this.render();
+	}
+
+	/** Remembers sorting and grouping for the profile, so they survive reopening the editor. */
+	private saveViewOptions(): void {
+		this.storageService.store(sortByStorageKey, this.sortBy === 'availability' ? undefined : this.sortBy, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(sortDescendingStorageKey, this.sortDescending || undefined, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(groupByStorageKey, this.groupBy === 'none' ? undefined : this.groupBy, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private updateViewOrder(): void {
@@ -733,6 +756,7 @@ export class RemotesWidget extends Disposable {
 		for (const item of this.orderingActions) {
 			item.action.checked = item.field === field;
 		}
+		this.saveViewOptions();
 		this.updateSortHeaders();
 		this.updateViewOrder();
 	}

@@ -30,6 +30,7 @@ import { MANAGE_EXTENSION_COMMAND_ID } from '../../../../../../../platform/exten
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IProgress } from '../../../../../../../platform/progress/common/progress.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
 import { getIconsStyleSheet } from '../../../../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
 import { IEditorService, MODAL_GROUP, PreferredGroup } from '../../../../../../services/editor/common/editorService.js';
@@ -192,12 +193,15 @@ suite('RemotesWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const menus = new WeakMap<HTMLElement, () => readonly IAction[]>();
 
-	function createWidget(operatingSystem = OperatingSystem.Macintosh, grouping: 'status' | 'type' | 'default' = 'type', width = 900) {
+	function createWidget(operatingSystem = OperatingSystem.Macintosh, grouping: 'status' | 'type' | 'default' = 'type', width = 900, storageService?: IStorageService) {
 		const parent = dom.append(document.body, dom.$('div'));
 		parent.style.width = `${width}px`;
 		parent.style.height = '640px';
 		store.add(toDisposable(() => parent.remove()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		if (storageService) {
+			instantiationService.stub(IStorageService, storageService);
+		}
 		let menuActions: readonly IAction[] = [];
 		instantiationService.stub(IContextMenuService, 'showContextMenu', (delegate: Parameters<IContextMenuService['showContextMenu']>[0]) => {
 			menuActions = delegate.getActions?.() ?? [];
@@ -273,7 +277,7 @@ suite('RemotesWidget', () => {
 			widget.focusFirstRow();
 		}
 		widget.layout();
-		return { widget, parent, model, errors, hoverContents, mouseHoverTargets, opened, commands, sessionActions, activeComposer, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
+		return { widget, parent, model, errors, hoverContents, mouseHoverTargets, opened, commands, sessionActions, activeComposer, documentation, settings, storageService: instantiationService.get(IStorageService), configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
 	}
 
 	function feedbackGeometry(parent: HTMLElement, selectors: readonly string[]): number[][] {
@@ -3954,6 +3958,43 @@ suite('RemotesWidget', () => {
 		}, {
 			query: '', checked: ['remotes.sort.availability', 'remotes.group.none'], groups: 0,
 			ids: ['ssh:build', 'tunnel:laptop'], sort: 'Status, sorted ascending. Sort Status descending', connections: [],
+		});
+	});
+
+	test('reopening restores sorting and grouping until Reset Filter', async () => {
+		const first = createWidget(OperatingSystem.Macintosh, 'default');
+		await organize(first.parent, 'remotes.sort.activity');
+		await organize(first.parent, 'remotes.group.status');
+		first.widget.dispose();
+		const reopen = () => {
+			const { parent } = createWidget(OperatingSystem.Macintosh, 'default', 900, first.storageService);
+			return {
+				parent,
+				state: {
+					checked: getOrganizationActions(parent).flatMap(action => action instanceof SubmenuAction ? action.actions : []).filter(action => action.checked).map(action => action.id),
+					sorted: [...parent.querySelectorAll('.remotes-sort-header')].map(button => button.getAttribute('aria-label')).filter(label => label?.includes('sorted')),
+					groups: [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent),
+				},
+			};
+		};
+		const restored = reopen();
+		await organize(restored.parent, 'remotes.resetFilters');
+		assert.deepStrictEqual({
+			restored: restored.state,
+			reset: reopen().state,
+			stored: ['remotesWidget.sortBy', 'remotesWidget.sortDescending', 'remotesWidget.groupBy'].map(key => first.storageService.get(key, StorageScope.PROFILE)),
+		}, {
+			restored: {
+				checked: ['remotes.sort.activity', 'remotes.group.status'],
+				sorted: ['Last Activity, sorted descending. Sort Last Activity ascending'],
+				groups: ['Connected', 'Available'],
+			},
+			reset: {
+				checked: ['remotes.sort.availability', 'remotes.group.none'],
+				sorted: ['Status, sorted ascending. Sort Status descending'],
+				groups: [],
+			},
+			stored: [undefined, undefined, undefined],
 		});
 	});
 
