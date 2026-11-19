@@ -6,9 +6,3 @@
 .monaco-editor .margin {
 	background-color: var(--vscode-editorGutter-background);
 }
-
-/* Set by the mouse handler where a click in the margin places the cursor, e.g. right of the folding chevron */
-.monaco-editor .margin.mouse-cursor-text,
-.monaco-editor .margin.mouse-cursor-text .cldr {
-	cursor: text;
-}

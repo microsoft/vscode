@@ -852,10 +852,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
 	}
 
-	public getDecorationsOnLine(lineNumber: number): ViewModelDecoration[] {
-		return this._decorations.getDecorationsOnLine(lineNumber).decorations;
-	}
-
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
 		return this._lines.getInjectedTextAt(viewPosition);
 	}
