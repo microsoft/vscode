@@ -754,10 +754,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		// A ref can only be passed alongside a
-		// remote; default to `origin` when a ref
-		// is given without one.
+		// remote; resolve the branch's default
+		// push remote when a ref is given without one.
 		if (options?.remote || options?.ref) {
-			args.push(options.remote ?? 'origin');
+			args.push(options.remote ?? await this._resolveDefaultPushRemote(workingDirectory, options.ref) ?? 'origin');
 
 			if (options.ref) {
 				args.push(options.ref);
@@ -765,6 +765,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		await this._runGit(workingDirectory, args, { timeout: 180_000, throwOnError: true });
+	}
+
+	private async _resolveDefaultPushRemote(workingDirectory: URI, ref: string | undefined): Promise<string | undefined> {
+		const branchName = ref?.split(':')[0];
+		const [configuredPushRemote, remotesOutput] = await Promise.all([
+			branchName ? this._getPushRemote(workingDirectory, branchName) : undefined,
+			this._runGit(workingDirectory, ['remote', '-v']),
+		]);
+		return selectDefaultPushRemote(remotesOutput, configuredPushRemote);
 	}
 
 	async computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {
@@ -2290,6 +2299,27 @@ export function parseGitHubRepoFromRemote(remotesOutput: string | undefined, rem
 		}
 	}
 	return undefined;
+}
+
+/**
+ * Selects the remote to push a branch to when the caller does not name one:
+ * the branch's configured push remote (`branch.<name>.pushRemote`,
+ * `remote.pushDefault` or `branch.<name>.remote`), else the remote the GitHub
+ * repository is resolved from (preferring `origin`), else `origin`, else the
+ * only remote.
+ *
+ * Exported for tests.
+ */
+export function selectDefaultPushRemote(remotesOutput: string | undefined, configuredPushRemote: string | undefined): string | undefined {
+	if (configuredPushRemote) {
+		return configuredPushRemote;
+	}
+	const remotes = parseFetchRemotes(remotesOutput) ?? [];
+	const origin = remotes.find(remote => remote.name === 'origin');
+	const ordered = origin ? [origin, ...remotes.filter(remote => remote !== origin)] : remotes;
+	return ordered.find(remote => parseGitHubOwnerRepoFromUrl(remote.url))?.name
+		?? origin?.name
+		?? (remotes.length === 1 ? remotes[0].name : undefined);
 }
 
 function parseGitHubHeadRepoFromRemoteSelection(remotesOutput: string | undefined, remoteSelection: string | undefined): { owner: string; repo: string } | undefined {
