@@ -72,6 +72,21 @@ body {
 	--sash-grip-transition-duration: 0.3s;
 }
 
+.monaco-workbench.vs-dark,
+.monaco-workbench.hc-black {
+	color-scheme: dark;
+}
+
+.monaco-workbench.vs,
+.monaco-workbench.hc-light {
+	color-scheme: light;
+}
+
+/* Embedded documents declare their own scheme; a mismatch with the inherited one makes Chromium paint an opaque backdrop. */
+.monaco-workbench iframe {
+	color-scheme: normal;
+}
+
 /* Disable panel/part shadows when the setting is off (preserves floating modals, notifications, etc.) */
 .monaco-workbench.no-shadows .part.titlebar,
 .monaco-workbench.no-shadows .part.activitybar,
