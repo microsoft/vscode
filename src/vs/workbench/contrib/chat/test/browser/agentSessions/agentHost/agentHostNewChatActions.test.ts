@@ -44,7 +44,7 @@ suite('Agent host New Chat entries', () => {
 
 	test('the New Chat dropdown offers New Chat in Worktree with worktree support, with or without the Sessions list, never New Chat (No Workspace), only with AI features on', () => {
 		const shown = (options: { readonly worktree: boolean; readonly sessionsList: boolean; readonly chatPart?: { readonly openInChatPart: boolean; readonly enabled: boolean; readonly visible: boolean }; readonly ai?: boolean; readonly agentHost?: boolean; readonly remote?: string; readonly sessionsWindow?: boolean }) => {
-			const configuration = new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: options.worktree, 'chat.viewSessions.sessionsList.enabled': options.sessionsList, [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.chatPart?.openInChatPart ?? false });
+			const configuration = new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: options.worktree, 'chat.viewSessions.sessionsList.enabled': options.sessionsList, [ChatConfiguration.ChatViewSessionsOpenChatIn]: options.chatPart?.openInChatPart ? 'chatArea' : 'chatPanel' });
 			// The Chat view's title in a local window with a single folder
 			const contextKeyService = store.add(new ContextKeyService(configuration));
 			contextKeyService.createKey(ChatContextKeys.enabled.key, options.ai ?? true);
