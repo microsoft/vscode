@@ -220,6 +220,7 @@ suite('Workbench layout chat part', () => {
 		Object.assign(layout, {
 			...parts,
 			_mainContainerDimension: { width: configuration.widths?.window ?? 1600, height: 900 },
+			editorGroupService: { mainPart: { count: 1 } },
 			telemetryService: NullTelemetryService,
 			// No view containers: the side bar and the panel show and hide empty
 			paneCompositeService: { getActivePaneComposite: () => undefined, getLastActivePaneCompositeId: () => undefined },
@@ -849,4 +850,36 @@ suite('Workbench layout chat part', () => {
 			});
 		}
 	}
+
+	test('editor part resizes horizontally when panel is center aligned and chat part is registered (#349163)', () => {
+		const { layout, grid, views } = createGridLayout({
+			sideBar: Position.LEFT,
+			panel: Position.BOTTOM,
+			alignment: 'center',
+			chat: { visible: false, size: 400 },
+			widths: { window: 1200, sideBar: 300, auxiliaryBar: 200 }
+		});
+		const editorBefore = grid.getViewSize(views.get(Parts.EDITOR_PART)!);
+		const sideBarBefore = grid.getViewSize(views.get(Parts.SIDEBAR_PART)!);
+		const panelBefore = grid.getViewSize(views.get(Parts.PANEL_PART)!);
+
+		layout.resizePart(Parts.EDITOR_PART, 60, 60);
+
+		const editorAfter = grid.getViewSize(views.get(Parts.EDITOR_PART)!);
+		const sideBarAfter = grid.getViewSize(views.get(Parts.SIDEBAR_PART)!);
+		const panelAfter = grid.getViewSize(views.get(Parts.PANEL_PART)!);
+
+		assert.strictEqual(editorAfter.width, editorBefore.width + 60);
+		assert.strictEqual(editorAfter.height, editorBefore.height + 60);
+		assert.strictEqual(sideBarAfter.width, sideBarBefore.width - 60);
+		assert.strictEqual(panelAfter.height, panelBefore.height - 60);
+
+		// Decreasing view size restores the dimensions
+		layout.resizePart(Parts.EDITOR_PART, -60, -60);
+
+		assert.strictEqual(grid.getViewSize(views.get(Parts.EDITOR_PART)!).width, editorBefore.width);
+		assert.strictEqual(grid.getViewSize(views.get(Parts.EDITOR_PART)!).height, editorBefore.height);
+		assert.strictEqual(grid.getViewSize(views.get(Parts.SIDEBAR_PART)!).width, sideBarBefore.width);
+		assert.strictEqual(grid.getViewSize(views.get(Parts.PANEL_PART)!).height, panelBefore.height);
+	});
 });

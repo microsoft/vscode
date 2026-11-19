@@ -2012,6 +2012,45 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					}
 				}
 
+				if (sizeChangePxWidth) {
+					const currentWidth = this.workbenchGrid.getViewSize(this.editorPartView).width;
+					const deltaWidth = currentWidth - viewSize.width;
+					if (deltaWidth !== sizeChangePxWidth) {
+						const missingWidth = sizeChangePxWidth - deltaWidth;
+						const side = this.getSideBarPosition();
+						const otherSide = side === Position.LEFT ? Position.RIGHT : Position.LEFT;
+						const neighbours = [...this.getChatPartSideNeighbours(side), ...this.getChatPartSideNeighbours(otherSide)];
+
+						if (missingWidth > 0) {
+							let remaining = missingWidth;
+							for (const neighbour of neighbours) {
+								if (remaining <= 0) {
+									break;
+								}
+								const size = this.workbenchGrid.getViewSize(neighbour);
+								const given = Math.min(remaining, size.width - neighbour.minimumWidth);
+								if (given > 0) {
+									this.workbenchGrid.resizeView(neighbour, { width: size.width - given, height: size.height });
+									remaining -= given;
+								}
+							}
+						} else if (missingWidth < 0) {
+							let toGive = -missingWidth;
+							for (const neighbour of neighbours) {
+								if (toGive <= 0) {
+									break;
+								}
+								const size = this.workbenchGrid.getViewSize(neighbour);
+								const taken = Math.min(toGive, neighbour.maximumWidth - size.width);
+								if (taken > 0) {
+									this.workbenchGrid.resizeView(neighbour, { width: size.width + taken, height: size.height });
+									toGive -= taken;
+								}
+							}
+						}
+					}
+				}
+
 				break;
 			default:
 				return; // Cannot resize other parts
