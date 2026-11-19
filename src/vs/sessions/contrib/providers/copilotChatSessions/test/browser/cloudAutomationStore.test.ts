@@ -213,11 +213,14 @@ suite('CloudAutomationStore', () => {
 			}
 		}();
 		const sentimentChanged = disposables.add(new Emitter<void>());
+		const quotaRemainingChanged = disposables.add(new Emitter<void>());
+		const usageBasedBillingChanged = disposables.add(new Emitter<void>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
 			override sentiment: IChatSentiment = {};
 			override onDidChangeSentiment = sentimentChanged.event;
 			override quotas: IChatEntitlementService['quotas'] = {};
-			override readonly onDidChangeQuotaRemaining = Event.None;
+			override readonly onDidChangeQuotaRemaining = quotaRemainingChanged.event;
+			override readonly onDidChangeUsageBasedBilling = usageBasedBillingChanged.event;
 		}();
 		const api = new TestApi();
 		const credentialLifetime = disposables.add(new CancellationTokenSource());
@@ -280,8 +283,18 @@ suite('CloudAutomationStore', () => {
 			await configuration.setUserConfiguration(key, value);
 			configuration.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set([key]), change: { keys: [key], overrides: [] }, source: ConfigurationTarget.USER });
 		};
-		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, set, instantiation, configuration, prompts, prompted };
+		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, quotaRemainingChanged, usageBasedBillingChanged, set, instantiation, configuration, prompts, prompted };
 	}
+
+	test('model changes do not fire for quota updates', () => {
+		const { provider, quotaRemainingChanged, usageBasedBillingChanged } = setup();
+		let modelChanges = 0;
+		disposables.add(provider.onDidChangeModels(() => modelChanges++));
+		quotaRemainingChanged.fire();
+		const changesAfterQuotaUpdate = modelChanges;
+		usageBasedBillingChanged.fire();
+		assert.deepStrictEqual({ changesAfterQuotaUpdate, modelChanges }, { changesAfterQuotaUpdate: 0, modelChanges: 1 });
+	});
 
 	async function waitForModels(provider: CloudAutomationStore): Promise<void> {
 		if (provider.getModelsSnapshot('requested-model').desiredModelResolution.kind === 'pending') {
@@ -291,28 +304,32 @@ suite('CloudAutomationStore', () => {
 
 	test('core model discovery is gated and preserves cloud metadata without sandbox configuration', async () => {
 		const { provider, api, set, entitlement } = setup();
-		api.models = { data: [
-			{
-				id: 'cloud-model', name: 'Cloud Model', version: '2',
-				capabilities: {
-					family: 'cloud', limits: { max_prompt_tokens: 100, max_output_tokens: 20, max_context_window_tokens: 120 },
-					supports: { vision: true, tool_calls: true, reasoning_effort: ['low', 'high'] },
+		api.models = {
+			data: [
+				{ id: 'auto', name: 'Copilot Fusion' },
+				{
+					id: 'cloud-model', name: 'Cloud Model', version: '2',
+					capabilities: {
+						family: 'cloud', limits: { max_prompt_tokens: 100, max_output_tokens: 20, max_context_window_tokens: 120 },
+						supports: { vision: true, tool_calls: true, reasoning_effort: ['low', 'high'] },
+					},
+					billing: { multiplier: 2, token_prices: { default: { input_price: 3, output_price: 5 } } },
 				},
-				billing: { multiplier: 2, token_prices: { default: { input_price: 3, output_price: 5 } } },
-			},
-			{ id: 'hidden-model', name: 'Hidden', model_picker_enabled: false },
-			{ id: 'disabled-model', name: 'Disabled', policy: { state: 'disabled' } },
-		] };
+				{ id: 'hidden-model', name: 'Hidden', model_picker_enabled: false },
+				{ id: 'disabled-model', name: 'Disabled', policy: { state: 'disabled' } },
+			]
+		};
 		const disabled = provider.getModelsSnapshot('cloud-model');
 		const callsBeforeEnablement = [...api.calls];
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await waitForModels(provider);
 		const snapshot = provider.getModelsSnapshot('cloud-model');
 		const metadata = snapshot.models.find(model => model.identifier === 'cloud-model')!.metadata;
+		const autoName = snapshot.models.find(model => model.identifier === 'auto')?.metadata.name;
 		entitlement.quotas = { usageBasedBilling: true };
 		assert.deepStrictEqual({
 			disabled: { models: disabled.models, resolution: disabled.desiredModelResolution.kind, calls: callsBeforeEnablement },
-			ids: snapshot.models.map(model => model.identifier), resolution: snapshot.desiredModelResolution.kind, target: snapshot.modelTarget,
+			ids: snapshot.models.map(model => model.identifier), autoName, resolution: snapshot.desiredModelResolution.kind, target: snapshot.modelTarget,
 			metadata: {
 				id: metadata.id, family: metadata.family, version: metadata.version, vendor: metadata.vendor,
 				maxInputTokens: metadata.maxInputTokens, maxOutputTokens: metadata.maxOutputTokens, maxContextWindowTokens: metadata.maxContextWindowTokens,
@@ -323,7 +340,7 @@ suite('CloudAutomationStore', () => {
 			modelRequests: api.calls.filter(call => call === 'models').length, mutations: { created: api.created, patch: api.patch, dispatches: api.dispatchRequests },
 		}, {
 			disabled: { models: [], resolution: 'pending', calls: [] },
-			ids: ['auto', 'cloud-model'], resolution: 'available', target: 'cloud-agent',
+			ids: ['auto', 'cloud-model'], autoName: 'Auto', resolution: 'available', target: 'cloud-agent',
 			metadata: {
 				id: 'cloud-model', family: 'cloud', version: '2', vendor: 'copilot',
 				maxInputTokens: 100, maxOutputTokens: 20, maxContextWindowTokens: 120,

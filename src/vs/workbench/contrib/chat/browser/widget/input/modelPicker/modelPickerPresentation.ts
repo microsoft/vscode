@@ -15,10 +15,11 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
-export function isPendingLegacyAutoModel(model: ILanguageModelChatMetadataAndIdentifier | undefined, languageModelsService: ILanguageModelsService): boolean {
+export function isPendingLegacyAutoModel(model: ILanguageModelChatMetadataAndIdentifier | undefined, languageModelsService: ILanguageModelsService, availableModels?: readonly ILanguageModelChatMetadataAndIdentifier[]): boolean {
 	return !!model && isAutoModel(model) && !model.metadata.autoModelFusion
 		&& !isUserProvidedModel(model, languageModelsService)
-		&& !languageModelsService.getLanguageModelIds().includes(model.identifier);
+		&& !languageModelsService.getLanguageModelIds().includes(model.identifier)
+		&& !availableModels?.some(candidate => candidate.identifier === model.identifier);
 }
 
 /**

@@ -902,7 +902,7 @@ export class ModelPickerWidget extends Disposable {
 		const comparisonBusy = !!comparisonSummary && (this._delegate.comparisonBusy?.get() ?? false);
 		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel, models) : undefined;
 		const shownModel = routingTier?.shownModel ?? this._selectedModel;
-		const pendingAutoModel = isPendingLegacyAutoModel(shownModel, this._languageModelsService);
+		const pendingAutoModel = isPendingLegacyAutoModel(shownModel, this._languageModelsService, models);
 		const displayName = shownModel && !pendingAutoModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
 		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
 		// A HydraFusion model shown as one of Fusion's tiers is named by that tier, even where the label shows only Fusion.

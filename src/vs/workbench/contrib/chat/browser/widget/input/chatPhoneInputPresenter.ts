@@ -264,8 +264,9 @@ export class MobileChatInputCombinedPickerActionItem extends BaseActionViewItem 
 			dom.append(trigger, renderIcon(getModelProviderIcon(currentModel)));
 		}
 		// An Auto offered as Copilot Fusion stands for Auto under its own name.
-		const labelText = (isPendingLegacyAutoModel(currentModel, this._languageModelsService) ? undefined : currentModel?.metadata.name)
-			?? this._modelDelegate.getModels().find(model => isAutoLanguageModel(model) && model.metadata.autoModelFusion)?.metadata.name
+		const models = this._modelDelegate.getModels();
+		const labelText = (isPendingLegacyAutoModel(currentModel, this._languageModelsService, models) ? undefined : currentModel?.metadata.name)
+			?? models.find(model => isAutoLanguageModel(model) && model.metadata.autoModelFusion)?.metadata.name
 			?? localize('chatPhoneInput.fusionLabel', "Copilot Fusion");
 		const labelSpan = dom.append(trigger, dom.$('span.chat-input-picker-label'));
 		labelSpan.textContent = labelText;

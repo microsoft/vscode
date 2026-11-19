@@ -215,8 +215,9 @@ suite('GitHubCloudAutomationStore', () => {
 					override readonly missionControlModels = new class extends mock<IModelsClient>() {
 						override async list(token: CancellationToken, options?: ApiRequestOptions): Promise<ListModelsResponse> {
 							api.modelRequests.push({ token, caller: options?.caller });
+							const models = api.models;
 							await api.modelsStarted.complete();
-							return api.models;
+							return models;
 						}
 					}();
 					override readonly repositories = upcastDeepPartial<IRepositoriesClient>({

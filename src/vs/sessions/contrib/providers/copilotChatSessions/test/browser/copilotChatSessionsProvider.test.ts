@@ -376,7 +376,7 @@ function createProviderWithConfig(
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stubInstance(CloudSandboxModels, upcastPartial<CloudSandboxModels>({ models: [], ready: true, onDidChange: Event.None, load: () => { }, dispose: () => { } }));
 	instantiationService.stub(IDefaultAccountService, opts?.defaultAccountService ?? { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
-	instantiationService.stub(IChatEntitlementService, { sentiment: {}, onDidChangeSentiment: Event.None, quotas: {}, onDidChangeQuotaRemaining: Event.None });
+	instantiationService.stub(IChatEntitlementService, { sentiment: {}, onDidChangeSentiment: Event.None, quotas: {}, onDidChangeQuotaRemaining: Event.None, onDidChangeUsageBasedBilling: Event.None });
 	instantiationService.stub(IWorkbenchGitHubService, { onDidChangeDefaultClient: Event.None });
 
 	const configService = new TestConfigurationService();
@@ -482,7 +482,7 @@ function createProviderForSendTests(
 	instantiationService.stub(ICloudSandboxDraftPreparationService, opts?.draftPreparation ?? createDraftPreparationStub());
 	const account: IDefaultAccount | null = opts?.automationModels ? { accountName: 'user', sessionId: 'auth', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } } : null;
 	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: account, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => account });
-	instantiationService.stub(IChatEntitlementService, { sentiment: {}, onDidChangeSentiment: Event.None, quotas: {}, onDidChangeQuotaRemaining: Event.None });
+	instantiationService.stub(IChatEntitlementService, { sentiment: {}, onDidChangeSentiment: Event.None, quotas: {}, onDidChangeQuotaRemaining: Event.None, onDidChangeUsageBasedBilling: Event.None });
 	instantiationService.stub(IWorkbenchGitHubService, {
 		onDidChangeDefaultClient: Event.None,
 		acquireDefaultAccountApiClient: async () => upcastPartial<IGitHubAccountClient>({

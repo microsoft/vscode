@@ -56,7 +56,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	private readonly modelsRequested = observableValue(this, false);
 	private readonly modelCatalog = derived(this, reader => this.store.read(reader)?.modelCatalog.read(reader));
 	get onDidChangeModels(): Event<void> {
-		return Event.any(Event.fromObservableLight(this.modelCatalog), this.entitlementService.onDidChangeQuotaRemaining);
+		return Event.any(Event.fromObservableLight(this.modelCatalog), this.entitlementService.onDidChangeUsageBasedBilling);
 	}
 	private readonly refreshError = observableValue<string | undefined>(this, undefined);
 	private readonly accountInitialized = observableValue(this, false);
@@ -632,7 +632,7 @@ function toAutomationModel(model: Model, usageBasedBilling: boolean): ILanguageM
 		identifier: model.id,
 		metadata: {
 			extension: new ExtensionIdentifier(''),
-			id: model.id, name: model.name, vendor: COPILOT_VENDOR_ID,
+			id: model.id, name: model.id === AUTO_RAW_MODEL_ID ? localize('cloudAutomations.autoModel', "Auto") : model.name, vendor: COPILOT_VENDOR_ID,
 			version: model.version ?? '', family: model.capabilities?.family ?? model.id,
 			tooltip: model.id === AUTO_RAW_MODEL_ID ? localize('cloudAutomations.autoModelDescription', "Automatically select the best model") : undefined,
 			maxInputTokens: model.capabilities?.limits?.max_prompt_tokens ?? 0,
