@@ -1316,10 +1316,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		undefined,
 	);
 	private readonly _entraAuthentication: CopilotEntraAuthentication | undefined;
-	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = derived(this, reader =>
-		isMicrosoftCopilotAccountContext(this._accountService.state.read(reader))
-			? this._entraAuthentication?.authenticationRequired.read(reader)
-			: this._authenticationRequired.read(reader) ?? this._entraAuthentication?.authenticationRequired.read(reader));
+	/**
+	 * The sign-in that the user's last choice of account replaced. GitHub and Microsoft are offered side by side with no way
+	 * to choose one, so a credential that arrives is taken as the choice of its account. Clients still hold the replaced
+	 * sign-in and answer any request for it, so asking for it back would undo that choice.
+	 */
+	private readonly _replacedSignIn = observableValue<'github' | 'microsoft' | undefined>(this, undefined);
+	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = derived(this, reader => {
+		const microsoft = this._entraAuthentication?.authenticationRequired.read(reader);
+		// Only a revoked Microsoft sign-in is asked for as an expired identity; what the runtime itself asks for is always published.
+		const revoked = microsoft?.resource.resource === copilotEntraDiscoveryMetadata.resource && microsoft.reason === AuthRequiredReason.Expired;
+		const replaced = this._replacedSignIn.read(reader);
+		if (isMicrosoftCopilotAccountContext(this._accountService.state.read(reader)) || replaced === 'github') {
+			// A revocation is announced just before the account leaves Microsoft, where a GitHub request may come first.
+			return revoked ? undefined : microsoft;
+		}
+		return this._authenticationRequired.read(reader) ?? (replaced === 'microsoft' && revoked ? undefined : microsoft);
+	});
 	private readonly _automationAuthenticationReady = observableValue(this, false);
 	/**
 	 * Membership channel for chats the agent spawns itself — sub-agents
@@ -4048,6 +4061,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const endpointGeneration = this._gitHubEndpointGeneration;
 		return this._authenticationSequencer.queue(async () => {
+			if (token) {
+				// Losing this token later asks for GitHub again and not for the Microsoft sign-in it replaced.
+				this._replacedSignIn.set('microsoft', undefined);
+			}
 			if (token && isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
 				await this._entraAuthentication!.authenticate({ resource: copilotEntraDiscoveryMetadata.resource, token: '' });
 			}
@@ -4191,11 +4208,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const context = this._accountService.state.get();
 		if (params.resource === copilotEntraDiscoveryMetadata.resource || context.kind === 'choiceRequired' && context.choices.some(choice => choice.resource === params.resource)) {
 			await this._authenticationSequencer.queue(async () => {
-				if (this._accountService.state.get().kind === 'legacy') {
-					this._clearLegacySessions();
-					await this._applyGitHubToken(undefined, undefined);
+				try {
+					if (this._accountService.state.get().kind === 'legacy') {
+						this._replacedSignIn.set('github', undefined);
+						this._clearLegacySessions();
+						await this._applyGitHubToken(undefined, undefined);
+					}
+					await this._accountService.authenticate(this._ensureClient(), params);
+				} finally {
+					// The account context now hides the GitHub request; a setup that is given up shows it again.
+					this._replacedSignIn.set(undefined, undefined);
 				}
-				await this._accountService.authenticate(this._ensureClient(), params);
 			});
 		}
 	}
