@@ -11,6 +11,7 @@ import { upcastPartial } from '../../../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IResourceEditorInput } from '../../../../../../../../platform/editor/common/editor.js';
 import { IAgentModelRouterRoute } from '../../../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { ModelRouterSwitching } from '../../../../../../../../platform/agentHost/common/modelRouter.js';
 import { IHoverService } from '../../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -24,7 +25,7 @@ suite('ModelRouterDetails', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const file = URI.file('/routers/daily.model-router.yaml');
 
-	function render(routes: readonly IAgentModelRouterRoute[]) {
+	function render(routes: readonly IAgentModelRouterRoute[], switching?: ModelRouterSwitching) {
 		const events: (string | IResourceEditorInput)[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.set(IHoverService, NullHoverService);
@@ -36,32 +37,33 @@ suite('ModelRouterDetails', () => {
 		});
 		const card = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 		disposables.add(toDisposable(() => card.remove()));
-		disposables.add(instantiationService.createInstance(ModelRouterDetails, card, routes, file, () => events.push('close picker')));
+		disposables.add(instantiationService.createInstance(ModelRouterDetails, card, { routes, switching, definitionFile: file, onWillOpenDefinitionFile: () => events.push('close picker') }));
 		return { card, events };
 	}
 
 	function snapshot({ card, events }: ReturnType<typeof render>) {
 		const text = (row: Element, part: string) => row.querySelector(`.chat-model-card-route-${part}`)?.textContent;
 		return {
-			sections: Array.from(card.querySelectorAll('.chat-model-card-section-title'), title => title.textContent),
+			sections: Array.from(card.querySelectorAll('.chat-model-card-section-heading'), heading => Array.from(heading.children, part => part.textContent).join(': ')),
 			routes: Array.from(card.querySelectorAll('.chat-model-card-route'), row => ({ name: text(row, 'name'), model: text(row, 'model'), settings: text(row, 'settings') })),
 			events,
 		};
 	}
 
-	test('lists each route as the picker\'s list shows a model, marks the default one, and opens the router\'s file', () => {
-		const routed = render([
+	test('lists each route as the picker\'s list shows a model, marks the default one, says whether the router switches, and opens its file', () => {
+		const routes: IAgentModelRouterRoute[] = [
 			{ name: 'build', model: 'Claude Opus 5.5', effort: 'high', contextTokens: 1_000_000 },
 			{ name: 'quick', model: 'Claude Haiku 5.5' },
 			{ model: 'GPT-6.1 Sol', effort: 'auto' },
-		]);
+		];
+		const routed = render(routes, 'auto');
 		const link = routed.card.querySelector<HTMLElement>('.chat-model-card-definition-file a');
 		link?.click();
 		// One route is not a default, and a router with errors has none to list.
 		const single = render([{ model: 'Claude Opus 5.5', effort: 'high' }]);
-		assert.deepStrictEqual({ routed: snapshot(routed), link: link?.textContent, single: snapshot(single), invalid: snapshot(render([])) }, {
+		assert.deepStrictEqual({ routed: snapshot(routed), link: link?.textContent, keepsItsRoute: snapshot(render(routes, 'first-turn')).sections, single: snapshot(single), invalid: snapshot(render([])) }, {
 			routed: {
-				sections: ['Routes'],
+				sections: ['Routes', 'Route switching: Automatic'],
 				routes: [
 					{ name: 'build (default)', model: 'Claude Opus 5.5', settings: 'High \u00b7 1M' },
 					{ name: 'quick', model: 'Claude Haiku 5.5', settings: undefined },
@@ -70,6 +72,7 @@ suite('ModelRouterDetails', () => {
 				events: ['close picker', { resource: file }],
 			},
 			link: 'daily.model-router.yaml',
+			keepsItsRoute: ['Routes', 'Route switching: Off'],
 			single: { sections: ['Routes'], routes: [{ name: undefined, model: 'Claude Opus 5.5', settings: 'High' }], events: [] },
 			invalid: { sections: [], routes: [], events: [] },
 		});
