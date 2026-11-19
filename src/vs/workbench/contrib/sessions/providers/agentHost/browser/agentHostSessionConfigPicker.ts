@@ -1490,14 +1490,14 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				item: { id: 'branch-load-failed', value: '', label: localize('agentHostSessionConfig.branchLoadFailedItem', "Unable to load branches"), disabled: true },
 			}]
 			: branchCompletionsPromise && branchCompletions === undefined
-			? [{
-				kind: ActionListItemKind.Action,
-				label: localize('agentHostSessionConfig.branchLoading', "Loading branches..."),
-				group: { title: '', icon: Codicon.loading },
-				disabled: true,
-				item: { id: 'branch-loading', value: '', label: localize('agentHostSessionConfig.branchLoadingItem', "Loading branches..."), disabled: true },
-			}]
-			: await buildActionItems();
+				? [{
+					kind: ActionListItemKind.Action,
+					label: localize('agentHostSessionConfig.branchLoading', "Loading branches..."),
+					group: { title: '', icon: Codicon.loading },
+					disabled: true,
+					item: { id: 'branch-loading', value: '', label: localize('agentHostSessionConfig.branchLoadingItem', "Loading branches..."), disabled: true },
+				}]
+				: await buildActionItems();
 		if (actionItems.length === 0) {
 			return;
 		}
