@@ -912,7 +912,7 @@ suite('AgentHostProtocolClient', () => {
 			onerror: ((event: unknown) => void) | null = null;
 			readonly sent: { type: string; group?: string; ackId?: number; data?: { kind: string; accepts?: string[]; data?: JsonRpcRequest } }[] = [];
 
-			constructor(readonly rejectAdvertisement: boolean) {
+			constructor(readonly rejectAdvertisement: boolean, readonly reconnectReplyDelayMs: number) {
 				queueMicrotask(() => this.receive({ type: 'system', event: 'connected' }));
 			}
 
@@ -931,17 +931,22 @@ suite('AgentHostProtocolClient', () => {
 					const result = request.method === 'initialize'
 						? { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] }
 						: request.method === 'reconnect' ? { type: ReconnectResultType.Replay, actions: [], missing: [] } : {};
-					queueMicrotask(() => this.receive({
+					const respond = () => this.receive({
 						type: 'message', from: 'group', group: `${prefix}.to-client`, dataType: 'json',
 						data: { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: request.id, result } },
-					}));
+					});
+					if (request.method === 'reconnect' && this.reconnectReplyDelayMs) {
+						setTimeout(respond, this.reconnectReplyDelayMs);
+					} else {
+						queueMicrotask(respond);
+					}
 				}
 			}
 
 			close(): void { }
 		}
 
-		function createRelayClient(rejectAdvertisement = false) {
+		function createRelayClient(rejectAdvertisement = false, reconnectReplyDelayMs = 0) {
 			const sockets: RelaySocket[] = [];
 			const logService = new NullLogService();
 			const factory = () => new WebPubSubRelayTransport({
@@ -950,13 +955,14 @@ suite('AgentHostProtocolClient', () => {
 				toHostGroup: `${prefix}.to-host`,
 				joinGroups: [`${prefix}.broadcast`, `${prefix}.to-client`],
 				webSocketFactory: () => {
-					const socket = new RelaySocket(rejectAdvertisement);
+					const socket = new RelaySocket(rejectAdvertisement, reconnectReplyDelayMs);
 					sockets.push(socket);
 					return socket;
 				},
 			}, logService);
 			const client = disposables.add(new AgentHostProtocolClient('relay.example', factory, {
 				clientId: 'client',
+				loadEstimator: { hasHighLoad: () => false },
 				reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
 			}, logService, createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService,
 				new TestWorkspaceTrustManagementService(), new class extends mock<IWorkspaceTrustRequestService>() { }()));
@@ -986,6 +992,19 @@ suite('AgentHostProtocolClient', () => {
 				]),
 			});
 		});
+
+		test('keeps waiting for a slow reconnect reply while the host answers pings', () => runWithFakedTimers({}, async () => {
+			const { client, sockets } = createRelayClient(false, 27_000);
+			await client.connect();
+			sockets[0].onclose?.({ code: 1006, reason: '' });
+			await timeout(26_000);
+			const waiting = client.connectionState;
+			await timeout(2000);
+			assert.deepStrictEqual({ waiting, final: client.connectionState, sockets: sockets.length }, {
+				waiting: AgentHostClientState.Reconnecting, final: AgentHostClientState.Connected, sockets: 2,
+			});
+			client.dispose();
+		}));
 
 		test('reports the initiating relay close before reconnecting and does not report disposal', async () => {
 			const { client, sockets } = createRelayClient();
