@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { dirname, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+
 export const RustCratesToLookFor = [
 	'actix-web',
 	'anyhow',
@@ -79,6 +82,43 @@ export function getCargoWorkspaceDependencies(contents: string): ReadonlyMap<str
 	return dependencies;
 }
 
+export async function getCargoWorkspaceDependenciesForFolder(
+	folder: URI,
+	contents: string,
+	readManifestContents: (folder: URI) => Promise<string | undefined>,
+	cache: Map<string, ReadonlyMap<string, string> | undefined>
+): Promise<ReadonlyMap<string, string> | undefined> {
+	const manifest = parseCargoDependencies(contents);
+	if (!manifest.sections.some(section => [...section].some(([alias, dependency]) => dependency.workspace && !manifest.workspaceDependencies.has(alias)))) {
+		return undefined;
+	}
+
+	let currentFolder = folder;
+	while (true) {
+		const key = getComparisonKey(currentFolder);
+		let dependencies = cache.get(key);
+		if (!cache.has(key)) {
+			let contents: string | undefined;
+			try {
+				contents = await readManifestContents(currentFolder);
+			} catch {
+				cache.set(key, undefined);
+				return undefined;
+			}
+			dependencies = contents === undefined ? undefined : getCargoWorkspaceDependencies(contents);
+			cache.set(key, dependencies);
+		}
+		if (dependencies) {
+			return dependencies;
+		}
+		const parent = dirname(currentFolder);
+		if (isEqual(currentFolder, parent)) {
+			return undefined;
+		}
+		currentFolder = parent;
+	}
+}
+
 function getCargoDependencyNamesFromManifest(contents: string, inheritedWorkspaceDependencies?: ReadonlyMap<string, string>): string[] {
 	const { sections, workspaceDependencies } = parseCargoDependencies(contents);
 	const names = new Set<string>();
@@ -131,6 +171,10 @@ function parseCargoDependencies(contents: string): { sections: Map<string, Cargo
 				const assignment = parseDependencyAssignment(entry);
 				if (assignment?.keys.length === 1) {
 					dependencies.set(assignment.keys[0], parseInlineDependency(assignment.value));
+				} else if (assignment?.keys.length === 2) {
+					const dependency = dependencies.get(assignment.keys[0]) ?? {};
+					setDependencyProperty(dependency, assignment.keys[1], assignment.value);
+					dependencies.set(assignment.keys[0], dependency);
 				}
 			}
 		} else if (location.property) {

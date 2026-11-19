@@ -9,14 +9,14 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { ITextFileService, ITextFileContent } from '../../../services/textfile/common/textfiles.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isEqualOrParent } from '../../../../base/common/resources.js';
+import { getComparisonKey } from '../../../../base/common/resources.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkspaceTagsService, Tags } from '../common/workspaceTags.js';
 import { getHashedRemotesFromConfig } from './workspaceTags.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, GradleDependencyCompactRegex, GradleDependencyLooseRegex, MavenGroupIdRegex, JavaLibrariesToLookFor } from '../common/javaWorkspaceTags.js';
 import { hashAsync } from '../../../../base/common/hash.js';
-import { getCargoDependencyNames, getCargoWorkspaceDependencies, RustCratesToLookFor } from '../common/rustWorkspaceTags.js';
+import { getCargoDependencyNames, getCargoWorkspaceDependenciesForFolder, RustCratesToLookFor } from '../common/rustWorkspaceTags.js';
 
 const MetaModulesToLookFor = [
 	// Azure packages
@@ -1713,17 +1713,24 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				});
 			});
 
-			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises, ...goModPromises, ...cargoTomlPromises]).then(() => {
-				const cargoWorkspaces = cargoManifests.flatMap(manifest => {
-					const dependencies = getCargoWorkspaceDependencies(manifest.contents);
-					return dependencies ? [{ folder: manifest.folder, dependencies }] : [];
-				});
+			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises, ...goModPromises, ...cargoTomlPromises]).then(async () => {
+				const cargoContentsByFolder = new Map(cargoManifests.map(manifest => [getComparisonKey(manifest.folder), manifest.contents]));
+				const cargoWorkspaceCache = new Map<string, ReadonlyMap<string, string> | undefined>();
+				const readCargoManifest = async (folder: URI): Promise<string | undefined> => {
+					const contents = cargoContentsByFolder.get(getComparisonKey(folder));
+					if (contents !== undefined) {
+						return contents;
+					}
+					const manifest = URI.joinPath(folder, 'Cargo.toml');
+					if (await this.fileService.exists(manifest)) {
+						return (await this.textFileService.read(manifest, { acceptTextOnly: true })).value;
+					}
+					return undefined;
+				};
 				for (const manifest of cargoManifests) {
 					try {
-						const workspace = cargoWorkspaces
-							.filter(candidate => isEqualOrParent(candidate.folder, manifest.folder))
-							.sort((a, b) => b.folder.path.length - a.folder.path.length)[0];
-						for (const dependency of getCargoDependencyNames(manifest.contents, workspace?.dependencies)) {
+						const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(manifest.folder, manifest.contents, readCargoManifest, cargoWorkspaceCache);
+						for (const dependency of getCargoDependencyNames(manifest.contents, workspaceDependencies)) {
 							if (RustCratesToLookFor.includes(dependency)) {
 								tags['workspace.cargo.' + dependency] = true;
 							}

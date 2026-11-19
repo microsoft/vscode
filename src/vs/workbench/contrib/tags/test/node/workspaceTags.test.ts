@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import * as crypto from 'crypto';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from '../../common/workspaceTags.js';
-import { getCargoDependencyNames, getCargoWorkspaceDependencies } from '../../common/rustWorkspaceTags.js';
+import { getCargoDependencyNames, getCargoWorkspaceDependencies, getCargoWorkspaceDependenciesForFolder } from '../../common/rustWorkspaceTags.js';
 
 function hash(value: string): string {
 	return crypto.createHash('sha256').update(value.toString()).digest('hex');
@@ -133,11 +134,15 @@ package = "tokio"
 			getCargoDependencyNames('[workspace]\ndependencies.reqwest = "0.12"'),
 			getCargoDependencyNames('[target.\'cfg(unix)\']\ndependencies.serde_json = "1"'),
 			getCargoDependencyNames('dependencies = { reqwest = "0.12" }'),
-			getCargoDependencyNames('[workspace]\ndependencies = { client = { package = "reqwest" } }')
+			getCargoDependencyNames('[workspace]\ndependencies = { client = { package = "reqwest" } }'),
+			getCargoDependencyNames('dependencies = { client.package = "reqwest", client.version = "0.12" }'),
+			getCargoDependencyNames('[workspace]\ndependencies = { client.package = "reqwest" }')
 		], [
 			['tokio'],
 			['reqwest'],
 			['serde_json'],
+			['reqwest'],
+			['reqwest'],
 			['reqwest'],
 			['reqwest']
 		]);
@@ -193,6 +198,38 @@ unknown.workspace = true
 			[['client', 'reqwest'], ['serde_json', 'serde_json']],
 			[],
 			['reqwest', 'serde_json']
+		]);
+	});
+
+	test('Cargo member finds workspace dependencies in an ancestor manifest', async () => {
+		const root = URI.file('C:\\cargo-workspace');
+		const member = URI.joinPath(root, 'crates', 'member');
+		const workspaceContents = `
+[workspace.dependencies]
+client = { package = "reqwest", version = "0.12" }
+`;
+		const memberContents = `
+[dependencies]
+client.workspace = true
+`;
+		const manifestContents = new Map([
+			[root.path, workspaceContents],
+			[member.path, memberContents]
+		]);
+		const foldersRead: string[] = [];
+		const workspaceDependencies = await getCargoWorkspaceDependenciesForFolder(member, memberContents, async folder => {
+			foldersRead.push(folder.path);
+			return manifestContents.get(folder.path);
+		}, new Map<string, ReadonlyMap<string, string> | undefined>());
+		assert.ok(workspaceDependencies);
+		assert.deepStrictEqual([
+			[...workspaceDependencies],
+			getCargoDependencyNames(memberContents, workspaceDependencies),
+			foldersRead
+		], [
+			[['client', 'reqwest']],
+			['reqwest'],
+			[member.path, URI.joinPath(root, 'crates').path, root.path]
 		]);
 	});
 
