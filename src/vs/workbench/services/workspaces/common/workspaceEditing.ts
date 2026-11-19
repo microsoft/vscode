@@ -25,9 +25,33 @@ export interface IDidEnterWorkspaceEvent {
 	join(promise: Promise<void>): void;
 }
 
+/**
+ * An event that is fired before folders the user removes, or the folder whose location the user switches, leave the workspace.
+ * What runs against these folders can ask the user to confirm.
+ */
+export interface IWillRemoveFoldersEvent {
+
+	/**
+	 * The folders about to be removed. A location switch removes the folder at its current location.
+	 */
+	readonly folders: readonly URI[];
+
+	/**
+	 * Asks the user to confirm. `reasons` are shown to the user: nothing is asked for when they are `undefined` or empty.
+	 * `stop` runs when the user confirms, before the folders are removed, to stop what the reasons are about.
+	 */
+	veto(reasons: string | readonly string[] | undefined | Promise<string | readonly string[] | undefined>, stop?: () => Promise<void>): void;
+}
+
 export interface IWorkspaceEditingService {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fired before folders leave the workspace through {@link removeFolders} or {@link updateFolders} with `userInitiated`,
+	 * or through {@link setFolderLocation}. Other removals, such as one of an extension, are not fired for.
+	 */
+	readonly onWillRemoveFolders: Event<IWillRemoveFoldersEvent>;
 
 	/**
 	 * Fired after the workspace is entered. Allows listeners to join the
@@ -44,14 +68,16 @@ export interface IWorkspaceEditingService {
 	/**
 	 * Remove folders from the existing workspace
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
+	 * When `userInitiated` is `true`, the user is asked to confirm when something runs against the folders ({@link onWillRemoveFolders}).
 	 */
-	removeFolders(folders: URI[], donotNotifyError?: boolean): Promise<void>;
+	removeFolders(folders: URI[], donotNotifyError?: boolean, userInitiated?: boolean): Promise<void>;
 
 	/**
 	 * Allows to add and remove folders to the existing workspace at once.
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
+	 * When `userInitiated` is `true`, the user is asked to confirm when something runs against the folders ({@link onWillRemoveFolders}).
 	 */
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
+	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean, userInitiated?: boolean): Promise<void>;
 
 	/**
 	 * Moves the folder to `location`; pass the `uri` of the workspace's single-folder identifier

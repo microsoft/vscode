@@ -82,46 +82,6 @@ export interface IFolderLocationChangeEvent {
 	readonly reason: FolderLocationChangeReason;
 }
 
-/**
- * Fires before the location of a folder changes, so that what is running against its current location can ask to be considered.
- */
-export interface IFolderLocationWillChangeEvent {
-
-	/**
-	 * The workspace folder whose location is about to change, as it is before the change.
-	 */
-	readonly folder: IWorkspaceFolder;
-
-	/**
-	 * The location the folder is about to move to.
-	 */
-	readonly location: URI;
-
-	readonly reason: FolderLocationChangeReason;
-
-	/**
-	 * Asks to confirm the change with the user. `reasons` are shown to the user: nothing is asked for when they are
-	 * `undefined` or empty. `stop` runs when the user confirms, before the change, to stop what the reasons are about.
-	 */
-	veto(reasons: string | readonly string[] | undefined | Promise<string | readonly string[] | undefined>, stop?: () => Promise<void>): void;
-}
-
-/**
- * What asked to confirm a change of location ({@link IFolderLocationWillChangeEvent.veto}).
- */
-export interface IFolderLocationVetoes {
-
-	/**
-	 * Why the user is asked to confirm the change, without duplicates; empty when nothing asks for it.
-	 */
-	readonly reasons: readonly string[];
-
-	/**
-	 * Stops what the reasons are about. Call it once the user confirmed the change.
-	 */
-	stop(): Promise<void>;
-}
-
 export const IWorkspaceFolderLocationService = createDecorator<IWorkspaceFolderLocationService>('workspaceFolderLocationService');
 
 export interface IWorkspaceFolderLocationService {
@@ -156,11 +116,6 @@ export interface IWorkspaceFolderLocationService {
 	readonly onDidChangeLocation: Event<IFolderLocationChangeEvent>;
 
 	/**
-	 * Fires before the location of a folder changes through `IWorkspaceEditingService.setFolderLocation`.
-	 */
-	readonly onWillChangeLocation: Event<IFolderLocationWillChangeEvent>;
-
-	/**
 	 * Fires when a provider is registered or unregistered.
 	 */
 	readonly onDidChangeProviders: Event<void>;
@@ -169,12 +124,6 @@ export interface IWorkspaceFolderLocationService {
 	 * Fires when the locations a registered provider knows may have changed, for any folder: ask {@link getLocations} again.
 	 */
 	readonly onDidChangeLocations: Event<void>;
-
-	/**
-	 * Asks the listeners of {@link onWillChangeLocation} whether `folder` can move to `location` without the user's confirmation.
-	 * Called by `IWorkspaceEditingService`; do not use it to switch locations.
-	 */
-	willChangeLocation(folder: IWorkspaceFolder, location: URI, reason: FolderLocationChangeReason): Promise<IFolderLocationVetoes>;
 
 	/**
 	 * Records the location `folder` is at. Called by `IWorkspaceEditingService`

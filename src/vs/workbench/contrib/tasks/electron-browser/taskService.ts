@@ -22,7 +22,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 import { IMarkerService } from '../../../../platform/markers/common/markers.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -100,7 +100,7 @@ export class TaskService extends AbstractTaskService {
 		@IChatService _chatService: IChatService,
 		@IChatAgentService _chatAgentService: IChatAgentService,
 		@IHostService _hostService: IHostService,
-		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService
+		@IWorkspaceEditingService workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(configurationService,
 			markerService,
@@ -141,7 +141,7 @@ export class TaskService extends AbstractTaskService {
 			_chatService,
 			_chatAgentService,
 			_hostService,
-			workspaceFolderLocationService
+			workspaceEditingService
 		);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}

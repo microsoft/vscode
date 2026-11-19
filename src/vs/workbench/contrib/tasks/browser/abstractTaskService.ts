@@ -72,7 +72,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IFolderLocationWillChangeEvent, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { IWillRemoveFoldersEvent, IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -300,10 +300,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IHostService private readonly _hostService: IHostService,
-		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService
+		@IWorkspaceEditingService workspaceEditingService: IWorkspaceEditingService
 	) {
 		super();
-		this._register(workspaceFolderLocationService.onWillChangeLocation(evt => this._vetoFolderLocationChange(evt)));
+		this._register(workspaceEditingService.onWillRemoveFolders(evt => this._vetoRemoveFolders(evt)));
 		this._whenTaskSystemReady = Event.toPromise(Event.filter(this.onDidChangeTaskSystemInfo, () => this.hasTaskSystemInfo), this._store);
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
@@ -1095,11 +1095,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._taskSystem.isActive();
 	}
 
-	private _vetoFolderLocationChange(evt: IFolderLocationWillChangeEvent): void {
+	private _vetoRemoveFolders(evt: IWillRemoveFoldersEvent): void {
+		const runningInFolders = async () => (await this.getActiveTasks()).filter(task => {
+			const folder = task.getWorkspaceFolder();
+			return folder && evt.folders.some(removed => resources.isEqual(removed, folder.uri));
+		});
 		evt.veto(
-			this.getActiveTasks().then(tasks => tasks.map(task => nls.localize('taskRunningSwitchingFolderLocation', "The task '{0}' is running.", task._label))),
+			runningInFolders().then(tasks => tasks.map(task => nls.localize('taskRunningRemovingFolder', "The task '{0}' is running.", task._label))),
 			async () => {
-				await Promise.all((await this.getActiveTasks()).map(task => this.terminate(task)));
+				await Promise.all((await runningInFolders()).map(task => this.terminate(task)));
 			});
 	}
 

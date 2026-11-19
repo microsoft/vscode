@@ -31,7 +31,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { EditorsOrder } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -115,7 +115,7 @@ export class DebugService implements IDebugService {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITestService private readonly testService: ITestService,
-		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
+		@IWorkspaceEditingService workspaceEditingService: IWorkspaceEditingService,
 	) {
 		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
@@ -215,9 +215,12 @@ export class DebugService implements IDebugService {
 			);
 		}));
 
-		this.disposables.add(workspaceFolderLocationService.onWillChangeLocation(evt => {
-			if (this.model.getSessions().length > 0) {
-				evt.veto(nls.localize('active debug session switching folder location', 'A debug session is running.'), () => this.stopSession(undefined));
+		this.disposables.add(workspaceEditingService.onWillRemoveFolders(evt => {
+			const sessions = this.model.getSessions().filter(session => session.root && evt.folders.some(folder => this.uriIdentityService.extUri.isEqual(folder, session.root!.uri)));
+			if (sessions.length > 0) {
+				evt.veto(nls.localize('active debug session removing folder', 'A debug session is running.'), async () => {
+					await Promise.all(sessions.map(session => this.stopSession(session)));
+				});
 			}
 		}));
 

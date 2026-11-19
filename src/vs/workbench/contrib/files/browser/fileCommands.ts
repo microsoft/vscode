@@ -614,7 +614,7 @@ CommandsRegistry.registerCommand({
 		}
 
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
-		return workspaceEditingService.removeFolders(resources);
+		return workspaceEditingService.removeFolders(resources, false, true);
 	}
 });
 

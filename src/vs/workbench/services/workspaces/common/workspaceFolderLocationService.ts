@@ -15,7 +15,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IFolderLocationVetoes, IFolderLocationWillChangeEvent, IFolderLocationGroup, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IFolderLocationGroup, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 interface IRegisteredProvider {
 	readonly provider: IWorkspaceFolderLocationProvider;
@@ -43,9 +43,6 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 
 	private readonly _onDidChangeLocation = this._register(new Emitter<IFolderLocationChangeEvent>());
 	readonly onDidChangeLocation = this._onDidChangeLocation.event;
-
-	private readonly _onWillChangeLocation = this._register(new Emitter<IFolderLocationWillChangeEvent>());
-	readonly onWillChangeLocation = this._onWillChangeLocation.event;
 
 	readonly onDidChangeCanSetLocation: Event<void>;
 
@@ -99,39 +96,6 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 			}
 		}
 		return result;
-	}
-
-	async willChangeLocation(folder: IWorkspaceFolder, location: URI, reason: FolderLocationChangeReason): Promise<IFolderLocationVetoes> {
-		const pending: Promise<string | readonly string[] | undefined>[] = [];
-		const stops: (() => Promise<void>)[] = [];
-		this._onWillChangeLocation.fire({
-			folder,
-			location,
-			reason,
-			veto: (reasons, stop) => {
-				pending.push(Promise.resolve(reasons).catch(error => {
-					onUnexpectedError(error);
-					return undefined;
-				}));
-				if (stop) {
-					stops.push(stop);
-				}
-			}
-		});
-
-		const reasons = new Set<string>();
-		for (const result of await Promise.all(pending)) {
-			for (const reason of result === undefined ? [] : typeof result === 'string' ? [result] : result) {
-				reasons.add(reason);
-			}
-		}
-
-		return {
-			reasons: [...reasons],
-			stop: async () => {
-				await Promise.all(stops.map(stop => stop().catch(onUnexpectedError)));
-			}
-		};
 	}
 
 	setLocation(folder: IWorkspaceFolder, location: IResolvedFolderLocation | undefined, reason: FolderLocationChangeReason = 'programmatic'): void {

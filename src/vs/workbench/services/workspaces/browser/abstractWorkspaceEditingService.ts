@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FolderLocationChangeReason, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
-import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { IDidEnterWorkspaceEvent, IWillRemoveFoldersEvent, IWorkspaceEditingService } from '../common/workspaceEditing.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -31,6 +31,7 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } fr
 import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -60,6 +61,9 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 	private readonly _onDidEnterWorkspace = this._register(new Emitter<IDidEnterWorkspaceEvent>());
 	readonly onDidEnterWorkspace: Event<IDidEnterWorkspaceEvent> = this._onDidEnterWorkspace.event;
+
+	private readonly _onWillRemoveFolders = this._register(new Emitter<IWillRemoveFoldersEvent>());
+	readonly onWillRemoveFolders: Event<IWillRemoveFoldersEvent> = this._onWillRemoveFolders.event;
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
@@ -206,7 +210,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		// What runs against the current location asks to be considered before the folder moves. The user confirms a switch they
 		// started; a programmatic one gives way instead. Without a reason (such as a return to the primary location) nothing is asked.
 		if (!this.uriIdentityService.extUri.isEqual(location, currentFolder.uri) && (reason === 'user' || reason === 'programmatic')) {
-			const vetoes = await this.workspaceFolderLocationService.willChangeLocation(currentFolder, location, reason);
+			const vetoes = await this.willRemoveFolders([currentFolder.uri]);
 			if (!isFresh()) {
 				return;
 			}
@@ -294,7 +298,68 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		});
 	}
 
-	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
+	/**
+	 * Asks what runs against `folders` ({@link onWillRemoveFolders}) whether they can leave the workspace without the user's confirmation.
+	 */
+	private async willRemoveFolders(folders: readonly URI[]): Promise<{ readonly reasons: readonly string[]; stop(): Promise<void> }> {
+		const pending: Promise<string | readonly string[] | undefined>[] = [];
+		const stops: (() => Promise<void>)[] = [];
+		this._onWillRemoveFolders.fire({
+			folders,
+			veto: (reasons, stop) => {
+				pending.push(Promise.resolve(reasons).catch(error => {
+					onUnexpectedError(error);
+					return undefined;
+				}));
+				if (stop) {
+					stops.push(stop);
+				}
+			}
+		});
+
+		const reasons = new Set<string>();
+		for (const result of await Promise.all(pending)) {
+			for (const reason of result === undefined ? [] : typeof result === 'string' ? [result] : result) {
+				reasons.add(reason);
+			}
+		}
+
+		return {
+			reasons: [...reasons],
+			stop: async () => {
+				await Promise.all(stops.map(stop => stop().catch(onUnexpectedError)));
+			}
+		};
+	}
+
+	/**
+	 * Asks the user to confirm the removal of `folders` when something runs against them, and stops what runs.
+	 * Returns whether the folders can be removed.
+	 */
+	private async confirmRemoveFolders(folders: readonly URI[]): Promise<boolean> {
+		const vetoes = await this.willRemoveFolders(folders);
+		if (vetoes.reasons.length === 0) {
+			return true;
+		}
+
+		const names = folders.map(folder => this.contextService.getWorkspaceFolder(folder)?.name ?? basename(folder));
+		const { confirmed } = await this.dialogService.confirm({
+			type: Severity.Warning,
+			message: names.length === 1
+				? localize('confirmRemoveFolder', "Remove the folder '{0}'?", names[0])
+				: localize('confirmRemoveFolders', "Remove the folders {0}?", names.join(', ')),
+			detail: localize('confirmRemoveFoldersDetail', "{0}\n\nRemoving stops them.", vetoes.reasons.join('\n')),
+			primaryButton: localize({ key: 'stopAndRemove', comment: ['&& denotes a mnemonic'] }, "&&Stop and Remove")
+		});
+		if (!confirmed) {
+			return false;
+		}
+
+		await vetoes.stop();
+		return true;
+	}
+
+	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean, userInitiated?: boolean): Promise<void> {
 		const folders = this.contextService.getWorkspace().folders;
 
 		let foldersToDelete: URI[] = [];
@@ -321,7 +386,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 		// Delete Folders
 		if (wantsToDelete && !wantsToAdd) {
-			return this.removeFolders(foldersToDelete);
+			return this.removeFolders(foldersToDelete, false, userInitiated);
 		}
 
 		// Add & Delete Folders
@@ -340,11 +405,15 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			}
 
 			// finally, update folders within the workspace
-			return this.doUpdateFolders(foldersToAdd, foldersToDelete, index, donotNotifyError);
+			return this.doUpdateFolders(foldersToAdd, foldersToDelete, index, donotNotifyError, userInitiated);
 		}
 	}
 
-	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError = false): Promise<void> {
+	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError = false, userInitiated = false): Promise<void> {
+		if (userInitiated && !await this.confirmRemoveFolders(foldersToDelete)) {
+			return;
+		}
+
 		try {
 			await this.contextService.updateFolders(foldersToAdd, foldersToDelete, index);
 		} catch (error) {
@@ -398,12 +467,16 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 	}
 
-	async removeFolders(foldersToRemove: URI[], donotNotifyError = false): Promise<void> {
+	async removeFolders(foldersToRemove: URI[], donotNotifyError = false, userInitiated = false): Promise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we create an empty workspace and enter it.
 		if (this.includesSingleFolderWorkspace(foldersToRemove)) {
 			return this.createAndEnterWorkspace([]);
+		}
+
+		if (userInitiated && !await this.confirmRemoveFolders(foldersToRemove)) {
+			return;
 		}
 
 		// Delegate removal of folders to workspace service otherwise
