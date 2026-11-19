@@ -17,7 +17,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux } from '../../../../base/common/platform.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -4331,6 +4331,27 @@ suite('CopilotSessionLauncher resume config', () => {
 			chat: /<model_router_guidance>[^]*"Team" chose its "feature" route[^]*Plan first\.[^]*<\/model_router_guidance>$/.test(await content(false)),
 			ephemeral: (await content(true)).includes('model_router_guidance'),
 		}, { chat: true, ephemeral: false });
+	});
+
+	test('leaves out the hooks of the workspace folder\'s own custom agents unless the folder is trusted', async () => {
+		const store = disposables.add(new DisposableStore());
+		const workspaceAgent = URI.file('/workspace/.github/agents/guard.agent.md');
+		const userAgent = URI.file('/home/user/.copilot/agents/helper.agent.md');
+		const snapshot: CopilotSessionLaunchPlan['snapshot'] = {
+			discoveredAgents: [workspaceAgent, userAgent].map(uri => ({ name: basename(uri), uri, customization: { type: CustomizationType.Agent, id: uri.toString(), uri: uri.toString(), name: basename(uri) } })),
+			additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {},
+		};
+		const hooksFor = async (trust: IAgentHostWorkspaceTrust) => {
+			const config = await buildResumeConfig(createLauncher(store, { [AgentHostWorkspaceTrustConfigKey]: trust }, '---\nname: agent\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody'), undefined, snapshot);
+			return Object.fromEntries([workspaceAgent, userAgent].map(uri => [basename(uri), config.agents?.definitions?.find(agent => agent.name === getSdkCustomAgentName(uri))?.hooks !== undefined]));
+		};
+		assert.deepStrictEqual({
+			trusted: await hooksFor({ enabled: true, trustedUris: [URI.file('/workspace').toString()] }),
+			untrusted: await hooksFor({ enabled: true, trustedUris: [] }),
+		}, {
+			trusted: { 'guard.agent.md': true, 'helper.agent.md': true },
+			untrusted: { 'guard.agent.md': false, 'helper.agent.md': true },
+		});
 	});
 
 	test('custom-agent tool reference remapping remains launch-only', async () => {

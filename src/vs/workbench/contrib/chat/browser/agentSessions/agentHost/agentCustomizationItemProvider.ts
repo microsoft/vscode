@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { shorten } from '../../../../../../base/common/labels.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
@@ -34,6 +34,7 @@ import { readCustomizationTeamProvided } from '../../../../../../platform/agentH
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { getAgentHookMetadata } from '../../../common/promptSyntax/hookTypes.js';
+import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
@@ -530,7 +531,47 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				userInvocable: true,
 			});
 		}
+		for (const item of await this.getCustomAgentHooks([...items.values()])) {
+			items.set(item.itemKey ?? item.uri.toString(), item);
+		}
 		return [...items.values()];
+	}
+
+	/**
+	 * Hooks declared in the `hooks` header of custom agent files. VS Code sends them with the agent, and they run
+	 * only while that agent is selected.
+	 */
+	private async getCustomAgentHooks(items: readonly ICustomizationItem[]): Promise<ICustomizationHookItem[]> {
+		// The host lists an agent file as a hook that won't run when the session leaves its hooks out, as in an untrusted folder.
+		const notRunning = new ResourceSet(items.filter(item => item.type === PromptsType.hook && item.enabled === false && item.status === 'degraded').map(item => item.uri));
+		const agents = items.filter(item => item.type === PromptsType.agent && hasReadableCustomizationContent(item.uri) && !notRunning.has(item.uri));
+		const hooks = await Promise.all(agents.map(async agent => {
+			let content: string;
+			try {
+				content = (await this._fileService.readFile(agent.uri)).value.toString();
+			} catch {
+				return [];
+			}
+			const header = new PromptFileParser().parse(agent.uri, content).header?.hooksRaw;
+			return (header?.properties ?? []).flatMap(({ key, value }) => value.type !== 'sequence' ? [] : value.items.map((_, index): ICustomizationHookItem => ({
+				itemKey: `agent-hook:${agent.uri.toString()}#${key.value}/${index}`,
+				uri: agent.uri,
+				type: PromptsType.hook,
+				name: getAgentHookMetadata(Target.GitHubCopilot, key.value)?.label ?? key.value,
+				description: localize('customAgentHookDescription', "Runs while {0} is active", agent.name),
+				isHookAction: true,
+				enabled: agent.enabled,
+				source: agent.source,
+				scope: agent.scope,
+				origin: agent.origin,
+				delivery: agent.delivery,
+				extensionId: agent.extensionId,
+				extensionLabel: agent.extensionLabel,
+				pluginUri: agent.pluginUri,
+				pluginLabel: agent.pluginLabel,
+			})));
+		}));
+		return hooks.flat();
 	}
 
 	private getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {

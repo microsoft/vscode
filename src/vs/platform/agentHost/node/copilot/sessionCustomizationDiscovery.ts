@@ -19,6 +19,7 @@ import { basename, isAbsolute, dirname as nodeDirname } from '../../../../base/c
 import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { makeMcpServerCustomization, parseAgentFile, parseSkillFile, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
+import { customAgentFileDeclaresHooks } from './copilotPluginConverters.js';
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, McpServerCustomization, PluginCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
 import { ChildCustomizationType, McpServerStatus } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
@@ -585,7 +586,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			const nestedMcpNames = new Set(pluginCustomizations.flatMap(plugin => plugin.children?.filter(child => child.type === CustomizationType.McpServer).map(child => child.name) ?? []));
 			const nestedHookIds = new Set(pluginCustomizations.flatMap(plugin => plugin.children?.filter(child => child.type === CustomizationType.Hook).map(child => child.id) ?? []));
 			const remainingHooks = hooks.discovered && { ...hooks.discovered, children: hooks.discovered.children?.filter(hook => !nestedHookIds.has(hook.id)) };
-			const untrustedHooks = this.toUntrustedHooksDirectory(hooks.untrusted);
+			const untrustedHooks = this.toUntrustedHooksDirectory([...hooks.untrusted, ...await this.discoverUntrustedAgentHookFiles(agents, token)]);
 			const isPluginChild = (customization: ChildCustomization) => readCustomizationDiscoveryMeta(customization)?.source === 'plugin';
 			const result: DirectoryCustomization[] = [];
 			await this.toDirectoryCustomizations(CustomizationType.Agent, agents.filter(agent => !isPluginChild(agent)), discoveredDirectories, result);
@@ -867,6 +868,23 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	private _untrustedHookWorkingDirectories(): readonly URI[] {
 		return this._hookWorkingDirectories.filter(root => !this._isTrusted(root));
+	}
+
+	/** Custom agent files in untrusted folders that declare hooks; sessions leave those hooks out. */
+	private async discoverUntrustedAgentHookFiles(agents: readonly AgentCustomization[], token: CancellationToken): Promise<readonly URI[]> {
+		const untrustedRoots = this._untrustedHookWorkingDirectories();
+		const candidates = agents.map(agent => URI.parse(agent.uri)).filter(uri => untrustedRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(uri, root)));
+		const declaring = await Promise.all(candidates.map(async uri => {
+			try {
+				return customAgentFileDeclaresHooks((await raceCancellationError(this._fileService.readFile(uri), token)).value.toString()) ? uri : undefined;
+			} catch (error) {
+				if (error instanceof CancellationError) {
+					throw error;
+				}
+				return undefined;
+			}
+		}));
+		return declaring.filter(uri => uri !== undefined);
 	}
 
 	private async discoverRuntimeHooks(client: CopilotClient, untrustedRoots: readonly URI[], token: CancellationToken): Promise<DirectoryCustomization | undefined> {

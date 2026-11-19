@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
-import { basename, dirname, extUri, getComparisonKey, isEqual, joinPath } from '../../../../base/common/resources.js';
+import { basename, dirname, extUri, extUriBiasedIgnorePathCase, getComparisonKey, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -1575,8 +1575,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// skills and instructions, so it is left alone.
 		// Custom agents run on the model they name, without routing, so a router is never one of their models.
 		const availableModelIds = new Set(plan.availableModels?.().filter(model => !isModelRouterModelId(model.id)).map(model => model.id));
+		// Repository hooks, including those declared by the folder's own custom agents, run only in trusted folders.
 		const repositoryHooksEnabled = plan.workspace?.kind !== 'virtual' && getCopilotWorkingDirectoryTrust(plan, this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey)) !== undefined;
-		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
+		const repositoryRoots = coalesce([plan.workingDirectory, ...plan.additionalDirectories ?? []]);
+		const includeCustomAgentHooks = (agent: ISdkCustomAgentResource) => repositoryHooksEnabled || !repositoryRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(agent.uri, root));
+		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds, undefined, includeCustomAgentHooks);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
 		const pluginDirectoriesPromise = Promise.all(coalesce((plan.workspace?.kind === 'virtual' ? [] : plugins).map(p => p.pluginDir))

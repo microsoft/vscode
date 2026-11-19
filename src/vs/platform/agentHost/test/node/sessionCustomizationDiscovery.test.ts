@@ -11,6 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { basename } from '../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -471,6 +472,17 @@ suite('SessionCustomizationDiscovery', () => {
 				},
 			],
 		});
+	});
+
+	test('lists custom agent files that declare hooks in an untrusted folder as not running', async () => {
+		setWorkspaceTrust({ enabled: true, trustedUris: [] });
+		const guard = await seed('/workspace/.github/agents/guard.agent.md', '---\nname: guard\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody');
+		const plain = await seed('/workspace/.github/agents/plain.agent.md', '---\nname: plain\n---\nBody');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async () => ({ hooks: [], warnings: [], errors: [] }));
+		client.rpc.agents.discover = async () => ({ agents: [guard, plain].map(uri => ({ id: uri.path, name: basename(uri), description: '', path: uri.fsPath, source: 'project' })) }) as unknown as Awaited<ReturnType<CopilotClient['rpc']['agents']['discover']>>;
+		const result = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual(result.find(item => item.uri.endsWith('/hooks/untrusted'))?.children?.map(child => URI.parse(child.uri).path), ['/workspace/.github/agents/guard.agent.md']);
 	});
 
 	test('rediscovers hooks when workspace trust changes', async () => {

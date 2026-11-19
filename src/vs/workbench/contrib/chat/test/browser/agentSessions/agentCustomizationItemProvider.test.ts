@@ -309,6 +309,48 @@ suite('AgentCustomizationItemProvider', () => {
 		}]);
 	});
 
+	test('lists hooks declared in custom agent files as running while that agent is active', async () => {
+		const agentUri = URI.file('/workspace/.github/agents/guard.agent.md');
+		// The client reads host files through the agent host's own file system.
+		const hostAgentUri = toAgentHostUri(agentUri, 'remote');
+		const fileService = createInMemoryFileService(disposables, hostAgentUri.scheme);
+		await fileService.writeFile(hostAgentUri, VSBuffer.fromString([
+			'---',
+			'name: Guard',
+			'hooks:',
+			'  sessionStart:',
+			'    - type: command',
+			'      bash: echo one',
+			'    - type: command',
+			'      bash: echo two',
+			'  preToolUse:',
+			'    - type: command',
+			'      bash: echo three',
+			'---',
+			'Body',
+		].join('\n')));
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getWorkingDirectories(): readonly string[] { return ['file:///workspace']; }
+			override getCustomizations(): readonly Customization[] {
+				return [{
+					type: CustomizationType.Directory, id: 'agents', uri: 'file:///workspace/.github/agents',
+					name: 'agents', contents: CustomizationType.Agent, enabled: true, writable: true,
+					children: [{ type: CustomizationType.Agent, id: 'guard', uri: agentUri.toString(), name: 'Guard' }],
+				}];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, fileService,
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		assert.deepStrictEqual(items.filter(item => item.type === PromptsType.hook).map(item => ({ name: item.name, description: item.description, source: item.source, path: item.uri.path })), [
+			{ name: 'Session Start', description: 'Runs while Guard is active', source: AICustomizationSources.local, path: hostAgentUri.path },
+			{ name: 'Session Start', description: 'Runs while Guard is active', source: AICustomizationSources.local, path: hostAgentUri.path },
+			{ name: 'Pre-Tool Use', description: 'Runs while Guard is active', source: AICustomizationSources.local, path: hostAgentUri.path },
+		]);
+	});
+
 	test('marks managed-policy hooks and organization-managed plugins as organization controlled', async () => {
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getCustomizations(): readonly Customization[] {
