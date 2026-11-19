@@ -92,7 +92,7 @@ export class ModelRouterDetails extends Disposable {
 			}
 			if (index === 0 && routes.length > 1) {
 				label.textContent = localize({ key: 'chat.modelPicker.routeDefault', comment: ['{0} is the name of a route or of a model'] }, "{0} (default)", label.textContent);
-				this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), label, localize('chat.modelPicker.routeDefaultHover', "Used when no route clearly fits.")));
+				this._explain(label, localize('chat.modelPicker.routeDefaultHover', "Used when no route clearly fits."));
 			}
 		});
 	}
@@ -106,9 +106,15 @@ export class ModelRouterDetails extends Disposable {
 		const section = renderModelCardSection(card, localize('chat.modelPicker.routeSwitching', "Route switching"), automatic
 			? localize('chat.modelPicker.routeSwitchingAutomatic', "Automatic")
 			: localize('chat.modelPicker.routeSwitchingOff', "Off"));
-		this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), section, automatic
+		this._explain(section, automatic
 			? localize('chat.modelPicker.routeSwitchingAutomaticHover', "A chat moves to another route when the work clearly changes.")
-			: localize('chat.modelPicker.routeSwitchingOffHover', "A chat keeps the route picked for its first message.")));
+			: localize('chat.modelPicker.routeSwitchingOffHover', "A chat keeps the route picked for its first message."));
+	}
+
+	/** Explains a piece of the card's text on hover, and to assistive technology, which has no hover. */
+	private _explain(element: HTMLElement, explanation: string): void {
+		element.setAttribute('aria-description', explanation);
+		this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), element, explanation));
 	}
 }
 

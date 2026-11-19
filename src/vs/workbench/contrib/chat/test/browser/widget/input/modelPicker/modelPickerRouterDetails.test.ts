@@ -46,6 +46,7 @@ suite('ModelRouterDetails', () => {
 		return {
 			sections: Array.from(card.querySelectorAll('.chat-model-card-section-heading'), heading => Array.from(heading.children, part => part.textContent).join(': ')),
 			routes: Array.from(card.querySelectorAll('.chat-model-card-route'), row => ({ name: text(row, 'name'), model: text(row, 'model'), settings: text(row, 'settings') })),
+			explanations: Array.from(card.querySelectorAll('[aria-description]'), element => element.getAttribute('aria-description')),
 			events,
 		};
 	}
@@ -61,7 +62,8 @@ suite('ModelRouterDetails', () => {
 		link?.click();
 		// One route is not a default, and a router with errors has none to list.
 		const single = render([{ model: 'Claude Opus 5.5', effort: 'high' }]);
-		assert.deepStrictEqual({ routed: snapshot(routed), link: link?.textContent, keepsItsRoute: snapshot(render(routes, 'first-turn')).sections, single: snapshot(single), invalid: snapshot(render([])) }, {
+		const keepsItsRoute = snapshot(render(routes, 'first-turn'));
+		assert.deepStrictEqual({ routed: snapshot(routed), link: link?.textContent, keepsItsRoute: { sections: keepsItsRoute.sections, explanation: keepsItsRoute.explanations.at(-1) }, single: snapshot(single), invalid: snapshot(render([])) }, {
 			routed: {
 				sections: ['Routes', 'Route switching: Automatic'],
 				routes: [
@@ -69,12 +71,13 @@ suite('ModelRouterDetails', () => {
 					{ name: 'quick', model: 'Claude Haiku 5.5', settings: undefined },
 					{ name: undefined, model: 'GPT-6.1 Sol', settings: 'Auto' },
 				],
+				explanations: ['Used when no route clearly fits.', 'A chat moves to another route when the work clearly changes.'],
 				events: ['close picker', { resource: file }],
 			},
 			link: 'daily.model-router.yaml',
-			keepsItsRoute: ['Routes', 'Route switching: Off'],
-			single: { sections: ['Routes'], routes: [{ name: undefined, model: 'Claude Opus 5.5', settings: 'High' }], events: [] },
-			invalid: { sections: [], routes: [], events: [] },
+			keepsItsRoute: { sections: ['Routes', 'Route switching: Off'], explanation: 'A chat keeps the route picked for its first message.' },
+			single: { sections: ['Routes'], routes: [{ name: undefined, model: 'Claude Opus 5.5', settings: 'High' }], explanations: [], events: [] },
+			invalid: { sections: [], routes: [], explanations: [], events: [] },
 		});
 	});
 });
