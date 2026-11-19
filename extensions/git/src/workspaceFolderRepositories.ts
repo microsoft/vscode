@@ -87,20 +87,23 @@ export class WorkspaceFolderRepositories<T extends { readonly root: string }> {
 	switchFolderLocations(switches: readonly IFolderLocationSwitch[], workspaceFolders: readonly WorkspaceFolder[], repositories: readonly T[]): IRepositoryChanges<T> {
 		const changes = createChanges<T>();
 		const targets = switches.map(s => s.to);
-		for (const { from, to } of switches) {
+
+		// Take the warm repositories of the new locations first, so that keeping the left ones warm cannot evict them
+		for (const to of targets) {
 			this.awaitingLocations.add(to);
-
-			// The new location can be a repository nested in the one that is left, which is open while the new one is not yet
-			const left = getDeepest(repositories, from.uri.fsPath);
-			if (left && this.isShown(left) && !this.isCurrent(left, workspaceFolders, repositories, targets)) {
-				this.keepWarm(left, changes);
-			}
-
 			const target = this.takeWarm(to.uri.fsPath);
 			if (target) {
 				changes.show.push(target);
 			} else {
 				changes.open.push(this.addOpening(to.uri.fsPath));
+			}
+		}
+
+		for (const { from } of switches) {
+			// The new location can be a repository nested in the one that is left, which is open while the new one is not yet
+			const left = getDeepest(repositories, from.uri.fsPath);
+			if (left && this.isShown(left) && !changes.show.includes(left) && !this.isCurrent(left, workspaceFolders, repositories, targets)) {
+				this.keepWarm(left, changes);
 			}
 		}
 		return changes;
@@ -219,6 +222,13 @@ export class WorkspaceFolderRepositories<T extends { readonly root: string }> {
 		return [...this.openings].some(o => pathEquals(o.location, fsPath));
 	}
 
+	/**
+	 * Whether `fsPath` is at or inside a location that a switch is opening the repository of.
+	 */
+	isOpeningLocationOf(fsPath: string): boolean {
+		return [...this.openings].some(o => isAtOrInside(o.location, fsPath));
+	}
+
 	private keepWarm(repository: T, changes: IRepositoryChanges<T>): void {
 		this.takeWarmRepository(repository);
 		this.warm.push(repository);
@@ -260,7 +270,14 @@ function createChanges<T>(): IRepositoryChanges<T> {
  * The deepest of `repositories` that contains `fsPath`.
  */
 function getDeepest<T extends { readonly root: string }>(repositories: readonly T[], fsPath: string): T | undefined {
-	return repositories.filter(r => isDescendant(r.root, fsPath)).sort((a, b) => b.root.length - a.root.length)[0];
+	return repositories.filter(r => isAtOrInside(r.root, fsPath)).sort((a, b) => b.root.length - a.root.length)[0];
+}
+
+/**
+ * Whether `fsPath` is `parent` or inside it, ignoring path casing where the file system does and trailing separators.
+ */
+function isAtOrInside(parent: string, fsPath: string): boolean {
+	return pathEquals(parent, fsPath) || isDescendant(parent, fsPath);
 }
 
 /**

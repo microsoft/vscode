@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import * as path from 'path';
 import { Uri, WorkspaceFolder } from 'vscode';
 import { ILocationOpening, IRepositoryChanges, WorkspaceFolderRepositories } from '../workspaceFolderRepositories';
-import { isDescendant, PendingOperations } from '../util';
+import { isDescendant, isMacintosh, isWindows, PendingOperations } from '../util';
 
 const primary = Uri.file('/repo/primary').fsPath;
 const wt1 = Uri.file('/repo/wt1').fsPath;
@@ -230,6 +230,44 @@ suite('WorkspaceFolderRepositories', () => {
 			opened: { show: [wt1], warm: [], close: [], open: [] },
 			back: { show: [primary], warm: [wt1], close: [], open: [] }
 		});
+	});
+
+	test('switching back to a warm location while the warm cache is full shows it instead of evicting it', () => {
+		const model = new WorkspaceFolderRepositories<{ root: string }>(3);
+		const repositories = [primary, wt1, wt2, wt3].map(root => ({ root }));
+		const at = (fsPath: string) => folder(fsPath, 0, knownLocations);
+		let current = primary;
+		for (const to of [wt1, wt2, wt3]) {
+			const changes = model.switchFolderLocations([{ from: at(current), to: folder(to) }], [folder(to)], repositories.slice(0, [primary, wt1, wt2, wt3].indexOf(current) + 1));
+			model.setOpenedRepository(changes.open[0], repositories.find(r => r.root === to)!);
+			model.completeOpening(changes.open[0], [folder(to)], repositories);
+			current = to;
+		}
+
+		const back = model.switchFolderLocations([{ from: at(wt3), to: folder(primary) }], [folder(primary)], repositories);
+
+		assert.deepStrictEqual({ show: back.show.map(r => r.root), warm: back.warm.map(r => r.root), close: back.close.map(r => r.root), open: back.open.length }, {
+			show: [primary], warm: [wt3], close: [], open: 0
+		});
+	});
+
+	test('a path inside a location that a switch opens is known to be opening, while the repository that contains it is open', () => {
+		const model = new WorkspaceFolderRepositories<{ root: string }>();
+		model.switchFolderLocations([{ from: folder(primary, 0, knownLocations), to: folder(nested) }], [folder(nested)], [{ root: primary }]);
+
+		assert.deepStrictEqual([path.join(nested, 'foo.txt'), nested, path.join(primary, 'foo.txt')].map(p => model.isOpeningLocationOf(p)), [true, true, false]);
+	});
+
+	(isWindows || isMacintosh ? test : test.skip)('the repository of a folder whose path differs only in casing or a trailing separator is its current one', () => {
+		const model = new WorkspaceFolderRepositories<{ root: string }>();
+		const primaryRepository = { root: primary };
+		const wt1Repository = { root: wt1 };
+		const toWt1 = folder(wt1);
+		const away = model.switchFolderLocations([{ from: folder(primary.toUpperCase(), 0, knownLocations), to: toWt1 }], [toWt1], [primaryRepository]);
+		model.setOpenedRepository(away.open[0], wt1Repository);
+		const opened = model.completeOpening(away.open[0], [folder(wt1.toUpperCase() + path.sep)], [primaryRepository, wt1Repository]);
+
+		assert.deepStrictEqual({ warm: away.warm.map(r => r.root), shown: opened.show.map(r => r.root) }, { warm: [primary], shown: [wt1] });
 	});
 
 	test('a switch to a cold location hides the location that is left at once and shows the new one once ready', async () => {

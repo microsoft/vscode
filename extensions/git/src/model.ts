@@ -524,6 +524,13 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		return this.locationOpens.settled();
 	}
 
+	/**
+	 * Whether `fsPath` is at or inside a location that a workspace folder switched to, whose repository is opening.
+	 */
+	isOpeningFolderLocationOf(fsPath: string): boolean {
+		return this.workspaceFolderRepositories.isOpeningLocationOf(fsPath);
+	}
+
 	private async onDidChangeWorkspaceFolderLocations(): Promise<void> {
 		try {
 			const keepLeftLocationsWarm = !workspace.getConfiguration('git').get<boolean>('detectWorktrees');
