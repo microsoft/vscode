@@ -191,17 +191,22 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	widget.setGrouping(options.grouping ?? (options.expandedKind ? 'type' : 'none'));
 	widget.setSearchQuery(options.query ?? '');
 	widget.setVisible(true);
-	await waitForFixtureCondition(() => refreshing
-		? content.querySelector('.remotes-header-actions .codicon-modifier-spin') !== null
-		: content.querySelector('.remotes-table-container')?.getAttribute('aria-busy') === 'false', 'Remotes refresh should reach its fixture state before capture');
+	await waitForFixtureCondition(() => content.querySelector('.remotes-table-container')?.getAttribute('aria-busy') === String(!!refreshing), 'Remotes refresh should reach its fixture state before capture');
 	if (options.expandedKind) {
 		const label = remoteKindLabels[options.expandedKind];
-		const group = [...content.querySelectorAll<HTMLElement>('.remotes-group-list-row')].find(row => row.querySelector('.remotes-name')?.textContent === label);
-		if (!group) {
+		const group = () => [...content.querySelectorAll<HTMLElement>('.remotes-group-list-row')].find(row => row.querySelector('.remotes-name')?.textContent === label);
+		const row = group();
+		if (!row) {
 			throw new Error(`Missing ${options.expandedKind} group`);
 		}
-		group.querySelector<HTMLElement>('.remotes-group-chevron')!.click();
-		await waitForFixtureCondition(() => [...content.querySelectorAll('.remotes-group-list-row[aria-expanded="true"] .remotes-name')].some(name => name.textContent === label), 'Connection-method setup should be expanded before capture');
+		const isExpanded = () => {
+			const row = group();
+			return row?.tagName === 'SUMMARY' ? row.closest('details')?.open === true : row?.getAttribute('aria-expanded') === 'true';
+		};
+		if (!isExpanded()) {
+			row.querySelector<HTMLElement>('.remotes-group-chevron')!.click();
+		}
+		await waitForFixtureCondition(isExpanded, 'Connection-method setup should be expanded before capture');
 	}
 	if (pendingSignIn) {
 		const signIn = content.querySelector<HTMLElement>('.remotes-empty-signin .monaco-link');
@@ -302,7 +307,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 		},
 	}),
 	RefreshingTunnels: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true, 'tunnel') }),
-	TunnelDiscoveryFailure: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['tunnel'], true, 'ssh') }),
+	TunnelDiscoveryFailure: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['tunnel'], true) }),
 	TunnelSignIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, true) }),
 	TunnelSigningIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, 'pending', { expandedKind: 'tunnel' }) }),
 	TunnelSignInNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, ['tunnel'], true, undefined, true) }),

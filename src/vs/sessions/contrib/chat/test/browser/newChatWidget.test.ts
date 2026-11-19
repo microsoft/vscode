@@ -5763,6 +5763,9 @@ suite('NewChatWidget', () => {
 						const target = (how === 'retargetOther' || how === 'disposeOther' || how.endsWith('Auxiliary')) && second ? second : first;
 						const expected = how === 'replaceAnchor' ? 'replacement' : how === 'disposeAnchorWithOther' ? 'second' : undefined;
 						const shownAgain = expected ? Event.toPromise(provider.onDidShowSendChoice, store) : undefined;
+						const hole = mainWindow.document.querySelector<HTMLElement>('.spotlight-hole')!;
+						// Exercise the transition even when the host prefers reduced motion.
+						hole.style.transition = 'top 0.2s ease';
 						if (how.startsWith('retarget')) {
 							// Its composer shows another draft, as the user picks another workspace
 							target.composer.session.set(upcastPartial<ISession>({ resource: other }), undefined);
@@ -5779,6 +5782,7 @@ suite('NewChatWidget', () => {
 						} else if (expected) {
 							// The callout shows again on it, once it finds its control gone
 							await Promise.race([shownAgain!, asking]);
+							await Promise.all(hole.getAnimations().map(animation => animation.finished));
 							assert.strictEqual(anchor(), expected);
 						}
 						const live = { asking: extUri.isEqual(provider.pendingSendChoice.get(), draft), anchor: anchor() };
