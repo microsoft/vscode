@@ -348,8 +348,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			// Open
 			handle = await this.open(resource, { create: true, append: opts.append, unlock: opts.unlock }, disableWriteLock);
 
-			// Write content at once
-			await this.write(handle, 0, content, 0, content.byteLength);
+			let totalBytesWritten = 0;
+			while (totalBytesWritten < content.byteLength) {
+				totalBytesWritten += await this.write(handle, totalBytesWritten, content, totalBytesWritten, content.byteLength - totalBytesWritten);
+			}
 		} catch (error) {
 			throw await this.toFileSystemProviderWriteError(resource, error);
 		} finally {
