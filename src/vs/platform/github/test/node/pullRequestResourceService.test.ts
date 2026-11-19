@@ -6,15 +6,17 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { PullRequestCore, PullRequestFragment, PullRequestRef, PullRequestSubscriptionOptions } from '../../common/githubPullRequestService.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../common/githubCredentialService.js';
+import { PullRequestCore, PullRequestFragment, PullRequestRef, PullRequestSubscriptionOptions } from '../../common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../common/githubTransport.js';
 import { IPullRequestQuery, PullRequestFragmentResult } from '../../common/pullRequestQueryService.js';
 import { PullRequestPollingPolicy, PullRequestResourceService } from '../../common/pullRequestResourceService.js';
 import { FakeScheduler } from './fakeScheduler.js';
+
 
 const account = { host: 'github.example.test', accountId: '101' };
 const ref: PullRequestRef = { ...account, owner: 'old-owner', repo: 'old-repo', number: 7 };
@@ -32,6 +34,8 @@ const policy: PullRequestPollingPolicy = {
 	checksBackstop: 500,
 	mergeabilityVisible: 20,
 	mergeabilityBackground: 200,
+	mergeQueueVisible: 15,
+	mergeQueueBackground: 150,
 	failureBackoff: { immediateRetries: 0, base: 5, maximum: 20, jitter: 0 },
 	jitter: 0,
 };
@@ -57,18 +61,18 @@ interface IQueryCall {
 	readonly fragment: PullRequestFragment;
 	readonly ref: PullRequestRef;
 	readonly options: PullRequestSubscriptionOptions;
-	readonly signal: AbortSignal;
+	readonly cancellationToken: CancellationToken;
 }
 
 class TestPullRequestQueryService implements IPullRequestQuery {
 
 	readonly calls: IQueryCall[] = [];
-	readonly promotions: { readonly signal: AbortSignal; readonly priority: PullRequestSubscriptionOptions['priority'] }[] = [];
+	readonly promotions: { readonly cancellationToken: CancellationToken; readonly priority: PullRequestSubscriptionOptions['priority'] }[] = [];
 	readonly handlers = new Map<PullRequestFragment, (call: IQueryCall) => Promise<PullRequestFragmentResult> | PullRequestFragmentResult>();
 	headSha = 'head-1';
 
-	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void {
-		this.promotions.push({ signal, priority });
+	promote(cancellationToken: CancellationToken, priority: PullRequestSubscriptionOptions['priority']): void {
+		this.promotions.push({ cancellationToken, priority });
 	}
 
 	async fetch(
@@ -77,9 +81,9 @@ class TestPullRequestQueryService implements IPullRequestQuery {
 		_core: PullRequestCore | undefined,
 		options: PullRequestSubscriptionOptions,
 		_credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 	): Promise<PullRequestFragmentResult> {
-		const call = { fragment, ref: requestRef, options: { ...options }, signal };
+		const call = { fragment, ref: requestRef, options: { ...options }, cancellationToken };
 		this.calls.push(call);
 		const handler = this.handlers.get(fragment);
 		if (handler) {
@@ -127,12 +131,12 @@ class TestGitHubCredentialService implements IGitHubCredentials {
 
 	private readonly _onDidInvalidate = new Emitter<GitHubCredentialInvalidation>();
 	readonly onDidInvalidate = this._onDidInvalidate.event;
-	private readonly _controller = new AbortController();
-	readonly credential: GitHubCredential = { account, token: 'token', generation: 1, signal: this._controller.signal };
+	private readonly _controller = new CancellationTokenSource();
+	readonly credential: GitHubCredential = { account, token: 'token', generation: 1, cancellationToken: this._controller.token };
 
-	async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
-		if (signal.aborted) {
-			throw signal.reason;
+	async getCredential(cancellationToken: CancellationToken): Promise<GitHubCredential> {
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
 		}
 		return this.credential;
 	}
@@ -140,7 +144,7 @@ class TestGitHubCredentialService implements IGitHubCredentials {
 	handleRequestError(): void { }
 
 	invalidate(reason: GitHubCredentialInvalidation['reason']): void {
-		this._controller.abort(new Error('credential invalidated'));
+		this._controller.cancel();
 		this._onDidInvalidate.fire({ credential: this.credential, reason });
 	}
 
@@ -191,7 +195,7 @@ suite('PullRequestResourceService', () => {
 				calls: queries.calls.map(call => ({ fragment: call.fragment, priority: call.options.priority })),
 				promotions: queries.promotions.map(promotion => ({
 					priority: promotion.priority,
-					matchesRequest: promotion.signal === queries.calls[0]?.signal,
+					matchesRequest: promotion.cancellationToken === queries.calls[0]?.cancellationToken,
 				})),
 			};
 			response.complete({ fragment: 'core', value: core('head-1'), complete: true });
@@ -401,7 +405,7 @@ suite('PullRequestResourceService', () => {
 		queries.handlers.set('core', async call => {
 			await started.complete();
 			await release.p;
-			assert.strictEqual(call.signal.aborted, false);
+			assert.strictEqual(call.cancellationToken.isCancellationRequested, false);
 			return { fragment: 'core', value: core('head-1'), complete: true };
 		});
 		const first = service.subscribePullRequest(ref, { priority: 'interactive' });
@@ -439,11 +443,11 @@ suite('PullRequestResourceService', () => {
 		const authoritativeStarted = new DeferredPromise<void>();
 		const releaseAuthoritativeOld = new DeferredPromise<void>();
 		let authoritativeCall = 0;
-		let authoritativeOldSignal: AbortSignal | undefined;
+		let authoritativeOldSignal: CancellationToken | undefined;
 		queries.handlers.set('checks', async call => {
 			authoritativeCall++;
 			if (authoritativeCall === 1) {
-				authoritativeOldSignal = call.signal;
+				authoritativeOldSignal = call.cancellationToken;
 				await authoritativeStarted.complete();
 				await releaseAuthoritativeOld.p;
 				return checksResult('old');
@@ -458,7 +462,7 @@ suite('PullRequestResourceService', () => {
 		await oldRefresh;
 
 		assert.deepStrictEqual({
-			oldAborted: authoritativeOldSignal?.aborted,
+			oldAborted: authoritativeOldSignal?.isCancellationRequested,
 			checkId: subscription.resource.snapshot.get().checks.value?.checks[0]?.id,
 			callCount: authoritativeCall,
 		}, {
@@ -470,11 +474,11 @@ suite('PullRequestResourceService', () => {
 		const invalidationStarted = new DeferredPromise<void>();
 		const releaseInvalidationOld = new DeferredPromise<void>();
 		let invalidationCall = 0;
-		let invalidationOldSignal: AbortSignal | undefined;
+		let invalidationOldSignal: CancellationToken | undefined;
 		queries.handlers.set('checks', async call => {
 			invalidationCall++;
 			if (invalidationCall === 1) {
-				invalidationOldSignal = call.signal;
+				invalidationOldSignal = call.cancellationToken;
 				await invalidationStarted.complete();
 				await releaseInvalidationOld.p;
 				return checksResult('stale');
@@ -485,7 +489,7 @@ suite('PullRequestResourceService', () => {
 		await invalidationStarted.p;
 		service.invalidatePullRequest(ref, ['checks']);
 		assert.deepStrictEqual({
-			oldAborted: invalidationOldSignal?.aborted,
+			oldAborted: invalidationOldSignal?.isCancellationRequested,
 			status: subscription.resource.snapshot.get().checks.status,
 			complete: subscription.resource.snapshot.get().checks.complete,
 		}, {
@@ -533,7 +537,7 @@ suite('PullRequestResourceService', () => {
 			calls: queries.calls.map(call => call.fragment),
 			core: snapshot.core.status,
 			checks: { status: snapshot.checks.status, error: snapshot.checks.error },
-			credentialAborted: credentials.credential.signal.aborted,
+			credentialAborted: credentials.credential.cancellationToken.isCancellationRequested,
 		}, {
 			calls: ['checks'],
 			core: 'ready',
@@ -816,6 +820,48 @@ suite('PullRequestResourceService', () => {
 		clock.advanceBy(policy.checksPendingBackground);
 		await flushAsync();
 		assert.deepStrictEqual(queries.calls.map(call => call.fragment), ['checks']);
+		subscription.dispose();
+	});
+
+	test('polls a queued pull request on the merge queue interval and reads core at once when it leaves the queue', async () => {
+		const { clock, queries, service } = setup();
+		let queued = true;
+		let merged = false;
+		queries.handlers.set('core', () => ({ fragment: 'core', value: { ...core('head-1'), state: merged ? 'merged' : 'open' }, complete: true }));
+		queries.handlers.set('mergeability', () => ({
+			fragment: 'mergeability',
+			value: {
+				headSha: 'head-1', baseSha: 'base', mergeable: queued ? 'UNKNOWN' : 'MERGEABLE', viewerCanUpdate: true, viewerCanMerge: true, viewerCanEnableAutoMerge: false,
+				allowedMergeMethods: ['SQUASH'], autoMergeEnabled: false, mergeQueueRequired: true, queueRequirementKnown: true,
+				...queued ? { mergeQueueEntryId: 'MQE1', mergeQueueEntryState: 'AWAITING_CHECKS' as const, mergeQueuePosition: 1 } : {},
+			},
+			complete: !queued,
+			headSha: 'head-1',
+		}));
+		const subscription = service.subscribePullRequest(ref, { priority: 'background', core: true, mergeability: true });
+		await subscription.refresh('core');
+		await subscription.refresh('mergeability');
+
+		queries.calls.length = 0;
+		clock.advanceBy(policy.mergeQueueBackground);
+		await flushAsync();
+		const whileQueued = queries.calls.map(call => call.fragment).sort();
+
+		queued = false;
+		merged = true;
+		queries.calls.length = 0;
+		await subscription.refresh('mergeability');
+		clock.advanceBy(0);
+		await flushAsync();
+		assert.deepStrictEqual({
+			whileQueued,
+			afterLeaving: queries.calls.map(call => call.fragment),
+			state: subscription.resource.snapshot.get().core.value?.state,
+		}, {
+			whileQueued: ['core', 'mergeability'],
+			afterLeaving: ['mergeability', 'core'],
+			state: 'merged',
+		});
 		subscription.dispose();
 	});
 });

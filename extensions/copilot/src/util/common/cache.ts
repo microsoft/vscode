@@ -90,22 +90,6 @@ export class LRUCache<T> {
 		return node.value;
 	}
 
-	/**
-	 * Return a copy of all the keys stored in the LRU cache, in LRU order.
-	 *
-	 * The returned array is safe to modify, as this call allocates a copy of a
-	 * private array used to represent those keys.
-	 */
-	keys(): string[] {
-		const keys: string[] = [];
-		let current = this._head.next;
-		while (current !== this._tail) {
-			keys.push(current!.key);
-			current = current!.next;
-		}
-		return keys;
-	}
-
 	getValues() {
 		const values: T[] = [];
 		let current = this._head.next;
@@ -165,23 +149,8 @@ export class DisposablesLRUCache<T extends IDisposable> implements IDisposable {
 		this.actual.clear();
 	}
 
-	deleteKey(key: string): void {
-		const value = this.actual.deleteKey(key);
-		if (value) {
-			value.dispose();
-		}
-	}
-
 	get(key: string): T | undefined {
 		return this.actual.get(key);
-	}
-
-	keys(): string[] {
-		return this.actual.keys();
-	}
-
-	getValues() {
-		return this.actual.getValues();
 	}
 
 	put(key: string, value: T): void {

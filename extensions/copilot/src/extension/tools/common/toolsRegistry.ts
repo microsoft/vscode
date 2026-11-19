@@ -104,14 +104,8 @@ export interface IModelSpecificToolCtor {
 	new(...args: never[]): ICopilotModelSpecificTool<unknown>;
 }
 
-export interface ICopilotToolExtensionCtor extends IModelSpecificToolCtor {
-	readonly toolName: ToolName;
-	new(...args: never[]): ICopilotToolExtension<unknown>;
-}
-
 export const ToolRegistry = new class {
 	private _tools: Array<ICopilotToolCtor> = [];
-	private _toolExtensions: Array<ICopilotToolExtensionCtor> = [];
 	private _modelSpecificTools = new ObservableMap<string, { definition: vscode.LanguageModelToolDefinition; tool: IModelSpecificToolCtor }>();
 	private _nonDeferredToolNames = new Set<string>();
 
@@ -134,10 +128,6 @@ export const ToolRegistry = new class {
 		return this._nonDeferredToolNames;
 	}
 
-	public registerToolExtension(tool: ICopilotToolExtensionCtor) {
-		this._toolExtensions.push(tool);
-	}
-
 	public registerModelSpecificTool(definition: vscode.LanguageModelToolDefinition, tool: IModelSpecificToolCtor): IDisposable {
 		if (this._modelSpecificTools.has(definition.name)) {
 			throw new Error(`Model specific tool for ${definition.name} is already registered`);
@@ -150,10 +140,6 @@ export const ToolRegistry = new class {
 				this._modelSpecificTools.delete(definition.name);
 			}
 		};
-	}
-
-	public getToolExtensions(): readonly ICopilotToolExtensionCtor[] {
-		return this._toolExtensions;
 	}
 }();
 

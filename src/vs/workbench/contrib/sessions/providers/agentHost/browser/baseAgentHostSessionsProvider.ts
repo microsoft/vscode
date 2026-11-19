@@ -42,7 +42,7 @@ import { supportsAgentHostArtifactRemoval, supportsAgentHostCreateChatWorkspace 
 import { supportsAgentHostSessionImport } from '../../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
 import { supportsAgentHostSessionMove } from '../../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
-import { supportsForceWorktreeCleanup } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeCleanupMeta.js';
+import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup, supportsForceWorktreeCleanup, supportsPrepareSessionWorktreeCleanup } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeCleanupMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
@@ -107,7 +107,7 @@ import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvid
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspaceWithScratchFolders, type IFolderGitHubInfoResolver, withoutScratchFolders } from '../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../common/sessionConfig.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, SessionArtifactKind, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, type SessionCanvasDefinitionSnapshot } from '../../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getNestedChatDefaultChangesetId, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, SessionArtifactKind, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, type SessionCanvasDefinitionSnapshot } from '../../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { AgentHostArtifactIntegrations, mapArtifactModelChats } from './agentHostArtifactIntegrations.js';
 import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer } from './githubPullRequestArtifactWorkspaceConfiguration.js';
@@ -1152,7 +1152,7 @@ class AdditionalChat extends Disposable {
 		return this._movable;
 	}
 
-	constructor(resource: URI, summary: AgentHostChatSummary, createdAtFallback: Date, changesets: IObservable<readonly ISessionChangeset[] | undefined>, backgroundShells: IObservable<readonly IChatBackgroundShell[]>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, allowOfflineDrafts: IObservable<boolean> = constObservable(false), sessionAgentProvider?: string) {
+	constructor(resource: URI, summary: AgentHostChatSummary, createdAtFallback: Date, createChangesets: (workspace: IObservable<ISessionWorkspace | undefined>) => IObservable<readonly ISessionChangeset[] | undefined>, backgroundShells: IObservable<readonly IChatBackgroundShell[]>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, allowOfflineDrafts: IObservable<boolean> = constObservable(false), sessionAgentProvider?: string) {
 		super();
 		this.backendUri = URI.parse(summary.resource);
 		this._origin = summary.origin;
@@ -1188,17 +1188,23 @@ class AdditionalChat extends Disposable {
 				this._isArchived.read(reader),
 			);
 		});
+		const changesets = createChangesets(workspace);
 		const interactivity = derived(reader => effectiveChatInteractivity(
 			this._isArchived.read(reader) || sessionIsArchived.read(reader),
 			applyConnectionInteractivity(this._interactivity.read(reader), sessionIsReadOnly.read(reader), allowOfflineDrafts.read(reader))));
 		const capabilities = summary.origin?.kind === ProtocolChatOriginKind.Tool
 			? constObservable<IChatCapabilities>({ canRename: false, canArchive: false, canDelete: false })
 			: derived<IChatCapabilities>(reader => ({ ...DEFAULT_CHAT_CAPABILITIES, canArchive: canArchive.read(reader) }));
+		const ownWorkingDirectories = derived(this, reader => {
+			const workingDirectories = this._workingDirectories.read(reader);
+			return workingDirectories && withoutScratchFolders(workingDirectories.map(directory => mapWorkingDirectoryUri(URI.parse(directory))), output?.scratchFolders.read(reader));
+		});
 		this.chat = {
 			resource,
 			...(this.agentProvider ? { harness: toAgentHostChatHarness(this.agentProvider) } : {}),
 			createdAt: modifiedAt ?? createdAtFallback,
 			workspace: this._withDetails(workspace),
+			ownWorkingDirectories: this._withDetails(ownWorkingDirectories),
 			title: this._withDetails(this._title),
 			updatedAt: this._withDetails(this._updatedAt),
 			status: toPresentedSessionStatus(this, status, connectionStatus),
@@ -1499,6 +1505,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _hasMultipleChats: ISettableObservable<boolean>;
 	private readonly _aggregateChatResources = new ResourceSet();
 	private readonly _defaultChatWorkingDirectories = observableValueOpts<readonly string[] | undefined>({ owner: this, debugName: 'defaultChatWorkingDirectories', equalsFn: structuralEquals }, undefined);
+	private readonly _defaultChatWorkspace: IObservable<ISessionWorkspace | undefined>;
 	/** GitHub info per folder, keyed by working-directory key and created on demand. */
 	private readonly _folderGitHubInfos = new Map<string, IObservable<IGitHubInfo | undefined>>();
 	/**
@@ -1823,7 +1830,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		const defaultChatStatus = derived(this, reader => this._defaultChatStatusOverride.read(reader) ?? this.status.read(reader));
 		const defaultChatIsRead = derived(this, reader => this._defaultChatIsReadOverride.read(reader) ?? this.isRead.read(reader));
-		const defaultChatWorkspace = derived(this, reader => {
+		const defaultChatWorkspace = this._defaultChatWorkspace = derived(this, reader => {
 			const workingDirectories = this._defaultChatWorkingDirectories.read(reader);
 			const gitState = this._getChatScopeGitState(reader, workingDirectories);
 			return buildAgentHostChatWorkspaceWithScratchFolders(
@@ -1865,6 +1872,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			harness: this.harness,
 			createdAt: this.createdAt,
 			workspace: defaultChatWorkspace,
+			ownWorkingDirectories: derived(this, reader => {
+				const workingDirectories = this._defaultChatWorkingDirectories.read(reader);
+				return workingDirectories && withoutScratchFolders(workingDirectories.map(directory => this._mapWorkingDirectory(URI.parse(directory))), this._scratchFolders.read(reader));
+			}),
 			title: this._options.useSessionTitleForDefaultChat ? this.title : derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
 			updatedAt: this._withChatDetails(this._defaultChatUpdatedAt),
 			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus),
@@ -2325,8 +2336,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			resource,
 			summary,
 			this.createdAt,
-			// Nested chats default to their own Session Changes; the main chat keeps the provider default.
-			createChatChangesets(this.backendUri, constObservable(backendUri), this._options, changesGate.subscribed, this._createChatCurrentTurnChangesObservable(constObservable(backendUri)), ChangesetKind.Session),
+			// The main chat keeps the provider default; nested chats follow getNestedChatDefaultChangesetId.
+			workspace => createChatChangesets(this.backendUri, constObservable(backendUri), this._options, changesGate.subscribed, this._createChatCurrentTurnChangesObservable(constObservable(backendUri)),
+				derived(reader => getNestedChatDefaultChangesetId(workspace.read(reader), this._defaultChatWorkspace.read(reader)) === BRANCH_CHANGES_CHANGESET_ID ? ChangesetKind.Branch : ChangesetKind.Session)),
 			this._createChatBackgroundShellsObservable(constObservable(backendUri)),
 			() => this._acquireChatDetails(this.sessionId),
 			this.workspace,
@@ -5463,8 +5475,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Maps a host working-directory URI into the owning connection's client space. */
 	protected mapWorkingDirectoryUri(uri: URI): URI { return this.connection?.resourceUris.fromAgentHost(uri) ?? uri; }
 
-	/** Maps a project URI from the session summary to a local URI. Default identity; remote overrides for `file:` paths. */
-	protected mapProjectUri(uri: URI): URI { return uri; }
+	/** Maps host filesystem projects into client space while retaining repository URLs. */
+	protected mapProjectUri(uri: URI): URI { return uri.scheme === Schemas.file ? this.mapWorkingDirectoryUri(uri) : uri; }
 
 	// -- Session listing ------------------------------------------------------
 
@@ -7941,6 +7953,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		});
 	}
 
+	getAgentConnection(): IAgentConnection | undefined {
+		return this.connection;
+	}
+
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
 		const connection = this.connection;
 		if (!connection) {
@@ -8189,8 +8205,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		for (const worktree of worktrees) {
 			try {
-				// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): worktree existence sends a client resource without connection.resourceUris.toAgentHost
-				await raceCancellationError(connection.resourceResolve({ channel: 'ahp-root://', uri: fromAgentHostUri(worktree).toString(), followSymlinks: false }), token);
+				await raceCancellationError(connection.resourceResolve({ channel: 'ahp-root://', uri: connection.resourceUris.toAgentHost(worktree).toString(), followSymlinks: false }), token);
 				return true;
 			} catch (error) {
 				if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.NotFound) {
@@ -8203,6 +8218,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async unarchiveSession(sessionId: string): Promise<void> {
 		this._setSessionArchived(sessionId, false);
+	}
+
+	get supportsWorktreeCleanup(): boolean {
+		const connection = this.connection;
+		return !!connection?.prepareSessionWorktreeCleanup && !!connection.sessionWorktreeCleanup
+			&& connection.connectionAvailable?.get() !== false
+			&& supportsPrepareSessionWorktreeCleanup(connection.initializeResult.get())
+			&& supportsAgentHostWorktreeCleanup(connection.initializeResult.get());
+	}
+
+	get supportsManagedWorktreeCleanup(): boolean {
+		const connection = this.connection;
+		return !!connection?.listManagedWorktrees && !!connection.cleanupManagedWorktree
+			&& connection.connectionAvailable?.get() !== false
+			&& supportsAgentHostManagedWorktrees(connection.initializeResult.get());
 	}
 
 	get supportsForceWorktreeCleanup(): boolean {
@@ -8232,21 +8262,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async listManagedWorktrees(knownRepositories: readonly URI[] = []): Promise<IAgentHostManagedWorktree[]> {
+		const connection = this.connection;
+		if (!connection?.listManagedWorktrees) {
+			return [];
+		}
 		const workspaces = [
 			...this.getAllSessions().flatMap(session => session.workspace.get() ?? []),
 			...this.recentWorkspacesService.getRecentWorkspaces().filter(recent => recent.providerId === this.id).map(recent => recent.workspace),
 		];
 		const repositories = new ResourceSet([
-			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): known repository roots need this.connection.resourceUris before host-side worktree listing
-			...knownRepositories.map(repository => fromAgentHostUri(repository)),
-			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): workspace repository roots need this.connection.resourceUris before host-side worktree listing
-			...workspaces.flatMap(workspace => workspace.folders.flatMap(folder => folder.gitRepository ? [fromAgentHostUri(folder.gitRepository.uri)] : [])),
-		].filter(repository => repository.scheme === Schemas.file));
-		const worktrees = await this.connection?.listManagedWorktrees?.([...repositories]) ?? [];
+			...knownRepositories,
+			...workspaces.flatMap(workspace => workspace.folders.flatMap(folder => folder.gitRepository ? [folder.gitRepository.uri] : [])),
+		].map(repository => connection.resourceUris.toAgentHost(repository)).filter(repository => repository.scheme === Schemas.file));
+		const worktrees = await connection.listManagedWorktrees([...repositories]);
 		return worktrees.map(worktree => ({
 			...worktree,
-			repository: this.mapWorkingDirectoryUri(URI.parse(worktree.repository)).toString(),
-			worktree: this.mapWorkingDirectoryUri(URI.parse(worktree.worktree)).toString(),
+			repository: connection.resourceUris.fromAgentHost(URI.parse(worktree.repository)).toString(),
+			worktree: connection.resourceUris.fromAgentHost(URI.parse(worktree.worktree)).toString(),
 		}));
 	}
 
@@ -8255,8 +8287,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!connection?.cleanupManagedWorktree) {
 			throw new Error(localize('managedWorktreeCleanupUnavailable', "Connect to this worktree's host to clean it up."));
 		}
-		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): managed-worktree cleanup bypasses the available connection.resourceUris mapper
-		await connection.cleanupManagedWorktree(fromAgentHostUri(URI.parse(worktree.repository)), fromAgentHostUri(URI.parse(worktree.worktree)), worktree.branch, force);
+		await connection.cleanupManagedWorktree(connection.resourceUris.toAgentHost(URI.parse(worktree.repository)), connection.resourceUris.toAgentHost(URI.parse(worktree.worktree)), worktree.branch, force);
 	}
 
 	async managedWorktreeExists(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined> {
@@ -8265,8 +8296,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		try {
-			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): managed-worktree existence bypasses the available connection.resourceUris mapper
-			await connection.resourceResolve({ channel: 'ahp-root://', uri: fromAgentHostUri(URI.parse(worktree.worktree)).toString(), followSymlinks: false });
+			await connection.resourceResolve({ channel: 'ahp-root://', uri: connection.resourceUris.toAgentHost(URI.parse(worktree.worktree)).toString(), followSymlinks: false });
 			return true;
 		} catch (error) {
 			if (error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound) {

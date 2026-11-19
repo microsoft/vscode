@@ -200,6 +200,7 @@ import { ChatOutlineCreator } from './chatOutlineCreator.js';
 import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatLayoutService } from './widget/chatLayoutService.js';
+import { ChatMcpAppEditor, ChatMcpAppEditorInput } from './widget/chatContentParts/toolInvocationParts/chatMcpAppEditor.js';
 import './widget/input/chatInputNoticeHub.js';
 import './widget/input/chatInputNotificationService.js';
 import { ChatInputBoxContentProvider } from './widget/input/editor/chatEditorInputContentProvider.js';
@@ -2457,7 +2458,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize({ key: 'chat.welcomePage.agentsWindowGraphic.auto', comment: ['Values surrounded by single quotes are not to be translated.'] }, "Show 'manyWindowsToOne' when more than one editor window is open, and 'windowComparison' otherwise."),
 			],
 			description: nls.localize('chat.welcomePage.agentsWindowGraphic', "Controls which graphic explains the Agents window above the Agents window button on the Welcome page."),
-			default: AgentsWindowGraphicVariant.None,
+			default: AgentsWindowGraphicVariant.WindowComparison,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -2677,6 +2678,16 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(ChatEditorInput)
+	]
+);
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		ChatMcpAppEditor,
+		ChatMcpAppEditor.ID,
+		nls.localize('chatMcpApp', "MCP App")
+	),
+	[
+		new SyncDescriptor(ChatMcpAppEditorInput)
 	]
 );
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

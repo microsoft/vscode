@@ -37,8 +37,13 @@ export function groupFolderLocations<T>(entries: readonly IFolderLocationPickerE
 		}
 	};
 	section('folder', count => count > 1 ? localize('folderLocations.folders', "Folders") : localize('folderLocations.folder', "Folder"));
-	section('worktree', () => localize('folderLocations.worktrees', "Worktrees"));
+	section('worktree', () => getWorktreesLabel());
 	return sections;
+}
+
+/** The label of the worktrees of a folder, as a section or a submenu of a picker of its locations. */
+export function getWorktreesLabel(): string {
+	return localize('folderLocations.worktrees', "Worktrees");
 }
 
 /** The description of the folder that the window's folder is at now, in a picker of {@link groupFolderLocations}. */

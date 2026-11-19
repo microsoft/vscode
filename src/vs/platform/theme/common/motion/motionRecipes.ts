@@ -67,7 +67,7 @@ export const motionRecipes: readonly MotionRecipeDefinition[] = [
 		{ property: 'transform', duration: 'motion.state.change.duration', easing: 'motion.state.change.easing' },
 	] },
 	{ id: 'motion.selection.change', purpose: localize('motion.recipe.selection', "Follow segmented selection without moving labels"), duration: 'motion.selection.change.duration', easing: 'motion.selection.change.easing', frames: [], reduced: 'instant', tracks: [
-		{ property: 'transform', duration: 'motion.selection.change.duration', easing: 'motion.selection.change.easing' },
+		{ property: 'translate', duration: 'motion.selection.change.duration', easing: 'motion.selection.change.easing' },
 		{ property: 'width', duration: 'motion.selection.change.duration', easing: 'motion.selection.change.easing' },
 		{ property: 'scale', duration: 'motion.press.change.duration', easing: 'motion.press.change.easing' },
 	] },

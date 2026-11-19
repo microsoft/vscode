@@ -1143,6 +1143,53 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.chat-model-card-routes {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+}
+
+.chat-model-card-route {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
+}
+
+/* A route's name keeps up to half the row; a long model name wraps beside it. */
+.chat-model-card-route-name {
+	flex: 0 0 auto;
+	max-width: 50%;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-model-card-route-value {
+	min-width: 0;
+	text-align: right;
+}
+
+.chat-model-card-route-model {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.chat-model-card-route-settings {
+	flex: none;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.chat-model-card-route-value .chat-model-card-route-settings {
+	margin-left: var(--vscode-spacing-size60);
+}
+
+.chat-model-card-definition-file {
+	overflow-wrap: anywhere;
+}
+
 .model-picker-comparison .chat-model-card-comparison-variant-chips {
 	display: flex;
 	flex-wrap: wrap;

@@ -39,19 +39,6 @@ export interface CreateSessionResponse {
 	agent_task_id?: string;
 }
 
-/**
- * A cloud session.
- */
-export interface CloudSession {
-	id: string;
-	state: string;
-	task_id?: string;
-	owner_id: number;
-	repo_id: number;
-	created_at: string;
-	updated_at: string;
-}
-
 // ── Session event types (CLI-compatible) ────────────────────────────────────────
 // Event format compatible with the cloud session pipeline.
 

@@ -85,7 +85,10 @@ steps:
           ${{ pair.key }}: ${{ pair.value }}
 
   - ${{ else }}:
-    - script: cargo build --config http.multiplexing=false --config net.retry=5 --release --locked --target ${{ parameters.COPILOT_SHIM_TARGET }} --bin copilot
+    # cargo build can hang on Windows until the CLI job's 90 min timeout (498225, the same failure the
+    # CLI build hit in #344111). The shim builds in about 15 s, so the script fails itself after 10 min
+    # and resets sccache, which lets the step's retry run.
+    - script: node ../build/azure-pipelines/common/runWithTimeout.ts 600 --on-timeout "sccache --stop-server" -- cargo build --config http.multiplexing=false --config net.retry=5 --release --locked --target ${{ parameters.COPILOT_SHIM_TARGET }} --bin copilot
       displayName: Compile ${{ parameters.COPILOT_SHIM_TARGET }}
       retryCountOnTaskFailure: 2
       workingDirectory: $(Build.SourcesDirectory)/copilot_shim

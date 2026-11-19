@@ -34,7 +34,6 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -74,6 +73,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { DefaultChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chat/defaultChatViewFactory.js';
+import { defaultNewSessionPresentation } from '../../../../../workbench/contrib/sessions/browser/chat/defaultNewSessionPresentation.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, getInputOnlyProgressMessage, getInputOnlyResponseState, getInputOnlyResponseText, IInputOnlyStatus, needsConversationForInput, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
 import { SessionsChatViewStateService } from '../../../../../workbench/contrib/sessions/browser/chat/chatViewStateService.js';
@@ -2666,8 +2666,7 @@ suite('Sessions - Chat View', () => {
 			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ sessionId: 'session', activeChat: constObservable(activeChat), mainChat: constObservable(activeChat), ...withCreatedStatus(constObservable(false)) }));
 		}();
 		const widget = disposables.add(new NewChatInSessionWidget(
-			{ session: sessionsService.activeSession },
-			new TestConfigurationService(),
+			{ session: sessionsService.activeSession, newSessionPresentation: defaultNewSessionPresentation },
 			instantiationService,
 			new class extends mock<ILogService>() { }(),
 			new class extends mock<INotificationService>() { }(),
@@ -2677,7 +2676,6 @@ suite('Sessions - Chat View', () => {
 			new class extends mock<ISessionsManagementService>() { }(),
 			sessionsService,
 			disposables.add(new InMemoryStorageService()),
-			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
 			new SessionsChatViewStateService(),
 			upcastPartial<ISessionHost>({}),
@@ -2716,8 +2714,7 @@ suite('Sessions - Chat View', () => {
 					readonly activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 				}();
 				const widget = disposables.add(new NewChatInSessionWidget(
-					{ session: sessionsService.activeSession },
-					new TestConfigurationService(),
+					{ session: sessionsService.activeSession, newSessionPresentation: defaultNewSessionPresentation },
 					instantiationService,
 					new class extends mock<ILogService>() { }(),
 					new class extends mock<INotificationService>() { }(),
@@ -2727,7 +2724,6 @@ suite('Sessions - Chat View', () => {
 					new class extends mock<ISessionsManagementService>() { }(),
 					sessionsService,
 					disposables.add(new InMemoryStorageService()),
-					new TestAccessibilityService(),
 					new class extends mock<IFileService>() { }(),
 					viewStateService,
 					upcastPartial<ISessionHost>({}),

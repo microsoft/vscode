@@ -29,15 +29,13 @@ import { CustomViewVisibleContext, SessionActivityBarDockedContext, SessionActiv
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 
-for (const id of [AgentsWindowMenus.TitleBarContext, Menus.SessionsEditorTitle, MenuId.MenubarAppearanceMenu]) {
-	MenuRegistry.appendMenuItem(id, {
-		title: localize('detailsPosition', "Details Position"),
-		submenu: Menus.DetailsPosition,
-		group: '3_workbench_layout_move',
-		order: 7,
-		when: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate()),
-	});
-}
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	title: localize('detailsPosition', "Details Position"),
+	submenu: Menus.DetailsPosition,
+	group: '3_workbench_layout_move',
+	order: 7,
+	when: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate()),
+});
 
 for (const [position, title, menuTitle] of [
 	['left', localize2('detailsLeft', "Move Details Left"), localize('detailsPositionLeft', "Left")],

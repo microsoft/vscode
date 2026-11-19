@@ -583,6 +583,9 @@ export interface ISessionsProvider {
 	/** Clones or reuses a repository on this provider's host, returning its ready workspace. */
 	cloneRepository?(repository: URI, token: CancellationToken): Promise<ISessionWorkspace>;
 
+	/** Whether {@link cloneRepository} can clone on the host it is connected to now. Absent when it always can. */
+	readonly canCloneRepository?: boolean;
+
 	/** An alternate creation context for New Session gestures from an existing session. */
 	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
 
@@ -804,8 +807,11 @@ export interface ISessionsProvider {
 	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
 	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
 
-	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
+	/** Whether the connected host supports preparing and scheduling session worktree cleanup. */
+	readonly supportsWorktreeCleanup?: boolean;
+	readonly supportsManagedWorktreeCleanup?: boolean;
 	readonly supportsForceWorktreeCleanup?: boolean;
+	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	prepareSessionWorktreeCleanup?(sessionId: string): Promise<void>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;

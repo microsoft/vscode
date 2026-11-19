@@ -172,7 +172,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this._isAgentModeEnabled = observableConfigValue(ChatConfiguration.AgentEnabled, true, this._configurationService);
 		this._isMcpDisabledByPolicy = observableFromEvent(this,
 			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(mcpAccessConfig)),
-			() => this._configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None);
+			() => this._configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None)
+			.recomputeInitiallyAndOnChange(this._store);
 
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
@@ -260,9 +261,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private isAllowedByPolicy(toolOrToolSet: IToolData | IToolSet, reader?: IReader): boolean {
-		return toolOrToolSet.source.type !== 'extension' || !(reader
-			? this._isMcpDisabledByPolicy.read(reader)
-			: this._configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None);
+		return toolOrToolSet.source.type !== 'extension' || !this._isMcpDisabledByPolicy.read(reader);
 	}
 
 	/** Applies enterprise policy and restricts agentic-loop tools to a read-only subset when agent mode is disabled. */

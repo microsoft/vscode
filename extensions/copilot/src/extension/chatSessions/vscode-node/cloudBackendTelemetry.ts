@@ -14,7 +14,6 @@ export type CloudBackendOperation =
 	| 'fetchSessionList'
 	| 'fetchContent'
 	| 'fetchEvents'
-	| 'pollUpdate'
 	| 'followUp'
 	| 'createPullRequest';
 
@@ -22,7 +21,6 @@ const MAX_ERROR_MESSAGE_LENGTH = 300;
 
 export interface ICloudBackendInstrumentation {
 	sessionCreated(outcome: CloudBackendOutcome, durationMs: number, error?: unknown): void;
-	sessionActivated(durationMs: number): void;
 	followUp(outcome: CloudBackendOutcome, error?: unknown): void;
 	operationFailed(operation: CloudBackendOperation, error: unknown, status?: number): void;
 }
@@ -91,18 +89,6 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 		GenAiMetrics.recordCloudOperation(this._otelService, 'createSession', outcome === 'success', durationMs);
 	}
 
-	sessionActivated(durationMs: number): void {
-		/* __GDPR__
-			"copilotcloud.chat.sessionActivated" : {
-				"owner": "osortega",
-				"comment": "Cloud agent task started producing output.",
-				"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in milliseconds from creation to activation." }
-			}
-		*/
-		this._telemetryService.sendMSFTTelemetryEvent('copilotcloud.chat.sessionActivated', {}, { durationMs });
-		GenAiMetrics.recordCloudOperation(this._otelService, 'sessionActivated', true, durationMs);
-	}
-
 	followUp(outcome: CloudBackendOutcome, error?: unknown): void {
 		if (outcome === 'failure') {
 			/* __GDPR__
@@ -156,7 +142,6 @@ export class CloudBackendInstrumentation implements ICloudBackendInstrumentation
 
 export const NullCloudBackendInstrumentation: ICloudBackendInstrumentation = {
 	sessionCreated() { },
-	sessionActivated() { },
 	followUp() { },
 	operationFailed() { },
 };

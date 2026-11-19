@@ -31,6 +31,7 @@ import { IContextViewDelegate, IContextViewService } from '../../../../../../../
 import { IContextKeyService } from '../../../../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IHoverService } from '../../../../../../../../platform/hover/browser/hover.js';
+import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { NullHoverService } from '../../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
@@ -58,6 +59,7 @@ import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../.
 import { IOnboardingScenario, OnboardingOutcome } from '../../../../../../onboarding/common/onboardingScenario.js';
 import { TestHostService, TestLayoutService } from '../../../../../../../test/browser/workbenchTestServices.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
+import { NullTelemetryService } from '../../../../../../../../platform/telemetry/common/telemetryUtils.js';
 
 function model(id: string, configurable = true): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -240,6 +242,7 @@ suite('TabbedModelPicker', () => {
 		instantiationService.set(IContextViewService, contextView);
 		instantiationService.set(IHoverService, NullHoverService);
 		instantiationService.set(IOpenerService, NullOpenerService);
+		instantiationService.set(ILabelService, upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }));
 		const openedEditors: IResourceEditorInput[] = [];
 		instantiationService.stub(IEditorService, {}, 'openEditor', async (input: IResourceEditorInput) => {
 			openedEditors.push(input);
@@ -705,7 +708,7 @@ suite('TabbedModelPicker', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return document.body; }
 			}();
-			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService));
+			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService));
 			const scenario: IOnboardingScenario<ISpotlightPayload> = {
 				id: 'test.compareModels',
 				trigger: { kind: 'auto' },
@@ -1491,6 +1494,30 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('search lists newer model versions first without reversing alphabetical order', () => {
+		const models = [
+			['gpt-5.6-sol', 'GPT-5.6 Sol'],
+			['gpt-6-sol', 'GPT-6 Sol'],
+			['gpt-6.1-sol', 'GPT-6.1 Sol'],
+			['claude-sonnet-5', 'Claude Sonnet 5'],
+		].map(([id, name]) => {
+			const entry = model(id);
+			return { ...entry, metadata: { ...entry.metadata, name } };
+		});
+		const { popup } = createPicker({ models, selectedModelId: models[2].identifier, pinnedModelIds: models.map(model => model.identifier) });
+		element(popup, '[data-id="search"]').click();
+		const input = popup.querySelector<HTMLInputElement>('input')!;
+		const results = ['', 'sol'].map(query => {
+			input.value = query;
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			return [...popup.querySelectorAll('.chat-model-picker-model .title')].map(title => title.textContent);
+		});
+		assert.deepStrictEqual(results, [
+			['Claude Sonnet 5', 'GPT-6.1 Sol', 'GPT-6 Sol', 'GPT-5.6 Sol'],
+			['GPT-6.1 Sol', 'GPT-6 Sol', 'GPT-5.6 Sol'],
+		]);
+	});
+
 	test('idempotent filtered opening focuses the exact row without selecting it', () => {
 		const a = model('same');
 		const b = { ...model('same'), identifier: 'codex/target', metadata: { ...a.metadata, vendor: 'codex', modelPickerGroup: { id: 'copilot', label: 'GitHub Copilot' } } };
@@ -1551,6 +1578,34 @@ suite('TabbedModelPicker', () => {
 			});
 		});
 	}
+
+	test('a model router\'s Details show its routes, pin it and open its file', () => {
+		const resource = URI.file('/routers/daily.model-router.yaml');
+		const router: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'copilot/model-router:daily',
+			metadata: {
+				...model('Daily Driver', false).metadata, id: 'model-router:daily', detail: 'Model router', tooltip: 'First to build, Second for quick questions.',
+				detailsResource: resource, modelRouterRoutes: [{ name: 'build', model: 'First', effort: 'high' }, { model: 'Second' }],
+			},
+		};
+		const { popup, picker, openedEditors, pins } = createPicker({ models: [...models, router] });
+		openDetails(popup, 'Daily Driver');
+		const details = {
+			routes: Array.from(popup.querySelectorAll('.chat-model-card-route'), route => route.textContent),
+			file: element(popup, '.chat-model-card-definition-file a').textContent,
+			// Details used to open the file itself.
+			opened: openedEditors.length,
+			visible: picker.isVisible,
+		};
+		element(popup, '[aria-label="Pin Model"]').click();
+		element(popup, '.chat-model-card-definition-file a').click();
+		assert.deepStrictEqual({ details, pins, opened: openedEditors, visible: picker.isVisible }, {
+			details: { routes: ['build (default)FirstHigh', 'Second'], file: 'daily.model-router.yaml', opened: 0, visible: true },
+			pins: ['copilot/model-router:daily'],
+			opened: [{ resource }],
+			visible: false,
+		});
+	});
 
 	test('required models without a source still explain the restriction', () => {
 		const { popup } = createPicker({ agentModelPreferences: { models: ['First'], required: true } });

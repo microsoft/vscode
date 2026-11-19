@@ -24,7 +24,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IChatDraft } from '../../chat/common/attachments/chatDraft.js';
@@ -41,6 +41,7 @@ import { ISessionGroupsService } from './sessionGroupsService.js';
 import { IPendingSessionSection } from './views/pendingSessions.js';
 
 const openDraftCommandId = 'sessions.drafts.open';
+const draftCreationNotificationShownKey = 'sessions.drafts.creationNotificationShown';
 
 export const ISessionDraftsService = createDecorator<ISessionDraftsService>('sessionDraftsService');
 
@@ -413,11 +414,12 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		const isNew = !this.model.drafts.get().some(draft => draft.id === composer.id);
 		const saved = this.model.save(composer.input, composer.target, composer.id);
 		this.clearPendingSave(composer);
-		if (isNew && options?.notifyCreated) {
+		if (isNew && options?.notifyCreated && !this.storageService.getBoolean(draftCreationNotificationShownKey, StorageScope.PROFILE, false)) {
 			this.notificationService.info(NotificationText.format(
 				localize('draft.created', "Created draft. {0}"),
 				NotificationText.link(localize('draft.open', "Open Draft"), createCommandUri(openDraftCommandId, saved.id).toString()),
 			));
+			this.storageService.store(draftCreationNotificationShownKey, true, StorageScope.PROFILE, StorageTarget.USER);
 		}
 		return saved;
 	}

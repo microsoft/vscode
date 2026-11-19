@@ -1082,6 +1082,51 @@ suite('VisibleSessions', () => {
 		});
 	});
 
+	suite('openInSlot', () => {
+
+		type Replaced = { readonly session: string; readonly index: number; readonly sticky: boolean; readonly by: string | undefined };
+
+		test('opens a session in place of the session of a slot, which keeps its place, and reports the replaced session with its pin', () => {
+			const replaced: Replaced[] = [];
+			const model = createModel((session, index, sticky, by) => replaced.push({ session: session.sessionId, index, sticky, by }));
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+			model.restoreGrid([{ session: A, sticky: true }, { session: B, sticky: false }], 1);
+			const slotOfA = model.getGridSlots()[0].id;
+
+			model.openInSlot(C, 'A');
+
+			assert.deepStrictEqual({ ...snapshot(model), keepsSlot: model.getGridSlots()[0].id === slotOfA, replaced }, {
+				visible: ['C', 'B'],
+				active: 'C',
+				sticky: [],
+				keepsSlot: true,
+				replaced: [{ session: 'A', index: 0, sticky: true, by: 'C' }],
+			});
+		});
+
+		test('moves a session the grid shows elsewhere into the slot, keeping its own pin', () => {
+			const replaced: Replaced[] = [];
+			const model = createModel((session, index, sticky, by) => replaced.push({ session: session.sessionId, index, sticky, by }));
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+			model.restoreGrid([{ session: A, sticky: false }, { session: B, sticky: false }, { session: C, sticky: true }], 0);
+			const slotOfA = model.getGridSlots()[0].id;
+
+			model.openInSlot(C, 'A');
+
+			assert.deepStrictEqual({ ...snapshot(model), keepsSlot: model.getGridSlots()[0].id === slotOfA, replaced }, {
+				visible: ['C', 'B'],
+				active: 'C',
+				sticky: ['C'],
+				keepsSlot: true,
+				replaced: [{ session: 'A', index: 0, sticky: false, by: 'C' }],
+			});
+		});
+	});
+
 	suite('restoreGrid', () => {
 
 		test('builds the grid in order with the correct active and sticky slots', () => {

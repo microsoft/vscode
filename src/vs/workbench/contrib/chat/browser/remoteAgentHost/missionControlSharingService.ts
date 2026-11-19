@@ -448,7 +448,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 			...(cloneRoot ? { cloneRoot } : {}),
 			live: true,
 			...(this.environmentName.get() ? { name: this.environmentName.get() } : {}),
-			...(useLocalCredentials ? { useLocalCredentials: true } : {}),
+			useLocalCredentials,
 			...(ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}),
 			...(disableRepositoryMetadata ? { disableRepositoryMetadata: true } : {}),
 		}).catch(error => {
@@ -471,6 +471,9 @@ export class MissionControlSharingService extends Disposable implements IMission
 					break;
 				case 'authorization':
 					message = localize('missionControlSharing.connectionAuthorization', "GitHub did not allow this connection. Check your account and organization settings.");
+					break;
+				case 'throttled':
+					message = localize('missionControlSharing.connectionThrottled', "GitHub is limiting requests right now. Please try again later.");
 					break;
 				case 'network':
 				case 'dns':

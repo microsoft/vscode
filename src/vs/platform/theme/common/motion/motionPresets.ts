@@ -12,7 +12,7 @@ export type MotionPresetPhase = 'change' | 'enter' | 'exit' | 'geometry' | 'cont
 
 type MotionPresetTrack =
 	| { readonly primitive: 'fade'; readonly property: 'opacity' }
-	| { readonly primitive: 'scale' | 'translate'; readonly property: 'transform' }
+	| { readonly primitive: 'scale' | 'translate'; readonly property: 'transform' | 'translate' }
 	| { readonly primitive: 'resize'; readonly property: 'width' | 'grid-template-rows' }
 	| { readonly primitive: 'color'; readonly property: 'background-color' | 'border-color' };
 
@@ -63,7 +63,7 @@ export const motionPresets = [
 		requirements: { geometry: 'component-owned', semanticState: 'immediate', focus: 'immediate', interruption: 'replace-from-current', lifecycle: 'component-owned' },
 		phases: [
 			{ phase: 'change', response: 'motion.selection.change', tracks: [
-				{ primitive: 'translate', property: 'transform' },
+				{ primitive: 'translate', property: 'translate' },
 				{ primitive: 'resize', property: 'width' },
 			] },
 		],

@@ -233,10 +233,6 @@ export function toGithubNwo(id: GithubRepoId): string {
 	return `${id.org}/${id.repo}`.toLowerCase();
 }
 
-export function toGithubWebUrl(id: GithubRepoId): string {
-	return `https://${id.host}/${id.org}/${id.repo}`;
-}
-
 /**
  * Extracts the GitHub repository name from a git fetch URL.
  * @param fetchUrl The git fetch URL to extract the repository name from.

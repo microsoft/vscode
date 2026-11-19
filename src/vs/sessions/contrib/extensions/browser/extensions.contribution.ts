@@ -18,6 +18,8 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { aiCustomizationManagementSectionRegistry } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/browser/extensionsIcons.js';
+// The Manage actions of the pages of extensions offer copying their details, like in editor windows.
+import '../../../../workbench/contrib/extensions/browser/extensionsCopyActions.js';
 import { AgentsWindowExtensionAutoEnablementExperiment } from './agentsWindowExtensionAutoEnablementExperiment.js';
 import { AgentsWindowExtensionAutoEnablementTelemetry } from './agentsWindowExtensionAutoEnablementTelemetry.js';
 import { manageExtension } from './agentsWindowExtensionManageCommand.js';

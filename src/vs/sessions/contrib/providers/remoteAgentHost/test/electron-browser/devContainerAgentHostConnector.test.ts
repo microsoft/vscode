@@ -15,7 +15,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostUserStateReport } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostUserStateReport } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { devContainerEnvironmentImage, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { devContainerSamples, devContainerSampleUri, IDevContainerSampleSource } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -32,7 +33,7 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IOutputChannel, IOutputService } from '../../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { ISessionFolder, ISessionWorkspace } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -228,6 +229,81 @@ suite('Dev Container Agent Host Connector', () => {
 			repository,
 			hostWorkspaceFolder: undefined,
 			workspace: '/workspaces/vscode-remote-try-go',
+		});
+	});
+
+	test('routes Dev Container environments on this computer to the local service without a source host', async () => {
+		const configs: IDevContainerAgentHostConfig[] = [];
+		const removed: DevContainerAgentHostSource[] = [];
+		const configuration = new TestConfigurationService({
+			[DevContainerEnvironmentsEnabledSettingId]: true,
+			[DevContainerAgentHostEnabledSettingId]: true,
+			[RemoteAgentHostsEnabledSettingId]: true,
+			[DevContainerStateVolumeEnabledSettingId]: true,
+		});
+		const service = new class extends mock<IDevContainerAgentHostMainService>() {
+			override readonly onDidOutput = Event.None;
+			override readonly onDidChangeSandboxSupport = Event.None;
+			override readonly onDidReportUserState = Event.None;
+			override readonly onDidRelayMessage = Event.None;
+			override readonly onDidRelayActivity = Event.None;
+			override readonly onDidRelayClose = Event.None;
+			override readonly onDidCloseConnection = Event.None;
+			override async isDockerAvailable() { return true; }
+			override async connect(config: IDevContainerAgentHostConfig) {
+				configs.push(config);
+				return { connectionId: config.connectionId, address: 'devcontainer:environment', name: config.name, remoteWorkspaceFolder: '/workspaces' };
+			}
+			override async disconnect() { }
+			override async removeContainer(source: DevContainerAgentHostSource) { removed.push(source); return true; }
+		}();
+		const connector = store.add(new DevContainerAgentHostConnector(
+			new class extends mock<ISharedProcessService>() {
+				override getChannel(): IChannel {
+					const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport', 'onDidReportUserState'] });
+					return {
+						listen: (event, arg) => channel.listen(undefined, event, arg),
+						call: (command, arg) => channel.call(undefined, command, arg),
+					};
+				}
+			}(),
+			store.add(new TestInstantiationService()),
+			store.add(new NullLogService()),
+			configuration,
+			new class extends mock<IEnvironmentService>() { }(),
+			new class extends mock<IOutputService>() {
+				override getChannel() {
+					return new class extends mock<IOutputChannel>() { override append() { } }();
+				}
+			}(),
+			new class extends mock<IFileService>() {
+				override async exists(): Promise<never> { throw new Error('Environments do not have a host path'); }
+			}(),
+			new class extends mock<IRemoteAgentHostService>() { override readonly configuredEntries = []; }(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IRequestService>() { }(),
+			NullTelemetryService,
+		));
+		const source = localDevContainerEnvironmentUri('environment');
+		const available = await connector.isAvailable(source);
+		const target = await connector.createConnection(source, 'devcontainer:environment', CancellationToken.None);
+		store.add(target.transportDisposable!);
+		await connector.removeContainer(source);
+		await configuration.setUserConfiguration(DevContainerEnvironmentsEnabledSettingId, false);
+		assert.deepStrictEqual({
+			available,
+			availableWhenDisabled: await connector.isAvailable(source),
+			localDocker: await connector.isLocalDockerAvailable(),
+			configs: configs.map(config => hasKey(config, { environmentId: true }) ? { environmentId: config.environmentId, image: config.image, name: config.name, persistUserState: config.persistUserState } : config),
+			removed,
+			workspace: target.workspaceUri.path,
+		}, {
+			available: true,
+			availableWhenDisabled: false,
+			localDocker: true,
+			configs: [{ environmentId: 'environment', image: devContainerEnvironmentImage, name: 'Dev Container on This Computer', persistUserState: true }],
+			removed: [{ environmentId: 'environment' }],
+			workspace: '/workspaces',
 		});
 	});
 

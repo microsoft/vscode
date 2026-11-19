@@ -85,6 +85,8 @@ export interface IChatQuestionCarouselOptions {
 	editorOverflowWidgetsDomNode?: HTMLElement;
 	/** Session the answers belong to, for hosts whose render context has no response element. */
 	sessionResource?: URI;
+	/** Whether the list should render the carousel again, such as as it is settled elsewhere, or another widget docks it. */
+	isStale?: () => boolean;
 }
 
 class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
@@ -2272,6 +2274,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (!this._isSkipped && !this.carousel.isUsed && isResponseVM(element) && element.isComplete) {
 			return false;
 		}
+		if (this._options.isStale?.()) {
+			return false;
+		}
 		return other.kind === 'questionCarousel' && other === this.carousel;
 	}
 
@@ -2280,7 +2285,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	override dispose(): void {
-		if (!this._isSkipped && !this.carousel.isUsed) {
+		// Edits are saved as they happen. A part replaced as it went stale, such as as another widget docks the carousel, keeps
+		// what it has from overwriting what the user typed since in another widget that renders it
+		if (!this._isSkipped && !this.carousel.isUsed && !this._options.isStale?.()) {
 			this.saveCurrentAnswer();
 		}
 
