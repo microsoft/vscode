@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { through, merge, mapStreamSync } from './streams.ts';
 import fs from 'fs';
 import cp from 'child_process';
 import glob from 'glob';
 import { gulp, filter, rename, buffer, vinylZip, jsonEditor } from './gulp/facade.ts';
 import path from 'path';
 import crypto from 'crypto';
-import { Stream } from 'stream';
+import { Readable, Stream } from 'stream';
 import File from 'vinyl';
 import { createStatsStream } from './stats.ts';
 import * as util2 from './util.ts';
@@ -35,7 +35,7 @@ function minifyExtensionResources(input: Stream): Stream {
 	return input
 		.pipe(jsonFilter)
 		.pipe(buffer())
-		.pipe(es.mapSync((f: File) => {
+		.pipe(mapStreamSync((f: File) => {
 			const errors: jsoncParser.ParseError[] = [];
 			const value = jsoncParser.parse(f.contents!.toString('utf8'), errors, { allowTrailingComma: true });
 			if (errors.length === 0) {
@@ -52,7 +52,7 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 	return input
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
-		.pipe(es.mapSync((f: File) => {
+		.pipe(mapStreamSync((f: File) => {
 			const data = JSON.parse(f.contents!.toString('utf8'));
 			f.contents = Buffer.from(JSON.stringify(update(data)));
 			return f;
@@ -85,7 +85,7 @@ function fromLocal(extensionPath: string, forWeb: boolean): Stream {
 	if (hasEsbuild) {
 		const isStandardEsbuild = !esbuildConfigFileName.startsWith('.');
 		input = isStandardEsbuild
-			? es.merge(
+			? merge(
 				fromLocalEsbuild(extensionPath, esbuildConfigFileName),
 				// Standard esbuild extensions need a separate type check step
 				...getBuildRootsForExtension(extensionPath).map(root => typeCheckExtensionStream(root, forWeb)),
@@ -161,7 +161,7 @@ function findPackageFolder(fromFolder: string, packageName: string): string {
 
 function fromLocalNormal(extensionPath: string): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
-	const result = es.through();
+	const result = through();
 
 	// The extension is packaged as is, without its dependencies: pnpm can hoist them out of the
 	// extension's folder, where vsce doesn't look for them.
@@ -172,7 +172,7 @@ function fromLocalNormal(extensionPath: string): Stream {
 	}
 
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None })
-		.then(fileNames => es.readArray(toVinylFiles(extensionPath, fileNames.map(fileName => ({ path: fileName, localPath: path.join(extensionPath, fileName) })))).pipe(result))
+		.then(fileNames => Readable.from(toVinylFiles(extensionPath, fileNames.map(fileName => ({ path: fileName, localPath: path.join(extensionPath, fileName) })))).pipe(result))
 		.catch(err => result.emit('error', err));
 
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
@@ -180,7 +180,7 @@ function fromLocalNormal(extensionPath: string): Stream {
 
 function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
-	const result = es.through();
+	const result = through();
 	const extensionName = path.basename(extensionPath);
 
 	// Extensions built with esbuild can still externalize runtime dependencies.
@@ -232,7 +232,7 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 			}
 		}
 
-		es.readArray(toVinylFiles(extensionPath, [...entries.values()])).pipe(result);
+		Readable.from(toVinylFiles(extensionPath, [...entries.values()])).pipe(result);
 	}).catch(err => {
 		console.error(extensionPath);
 		console.error(packagedDependencies);
@@ -280,7 +280,7 @@ export function fromVsix(vsixPath: string, { name: extensionName, version, sha25
 
 	return gulp.src(vsixPath)
 		.pipe(buffer())
-		.pipe(es.mapSync((f: File) => {
+		.pipe(mapStreamSync((f: File) => {
 			const hash = crypto.createHash('sha256');
 			hash.update(f.contents as Buffer);
 			const checksum = hash.digest('hex');
@@ -421,7 +421,7 @@ export function packageNativeLocalExtensionsStream(forWeb: boolean): Stream {
  * @returns a stream
  */
 export function packageAllLocalExtensionsStream(forWeb: boolean): Stream {
-	return es.merge([
+	return merge([
 		packageNonNativeLocalExtensionsStream(forWeb),
 		packageNativeLocalExtensionsStream(forWeb)
 	]);
@@ -448,7 +448,7 @@ function doPackageLocalExtensionsStream(forWeb: boolean, native: boolean): Strea
 	);
 
 	const localExtensionsStream = minifyExtensionResources(
-		es.merge(
+		merge(
 			...localExtensionsDescriptions.map(extension => {
 				return fromLocal(extension.path, forWeb)
 					.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
@@ -464,9 +464,9 @@ function doPackageLocalExtensionsStream(forWeb: boolean, native: boolean): Strea
 		const dependenciesStreams = getSharedExtensionDependencyFolders().map(({ folder, destination }) => getSharedExtensionDependencyStream(folder, destination));
 
 		if (dependenciesStreams.length) {
-			result = es.merge(
+			result = merge(
 				localExtensionsStream,
-				es.merge(...dependenciesStreams)
+				merge(...dependenciesStreams)
 					.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
 					.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`))));
 		} else {
@@ -546,7 +546,7 @@ function getSharedExtensionDependencyFolders(): { folder: string; destination: s
 export function getSharedExtensionDependencyStream(folder: string, destination: string): Stream {
 	return gulp.src([`${folder}/**`, `!${folder}/**/{test,tests}/**`], { base: folder })
 		.pipe(filter(file => destination !== sharedTypeScriptDestination || isPackagedTypeScriptFile(file.relative.split(path.sep).join('/'))))
-		.pipe(es.mapSync((file: File) => {
+		.pipe(mapStreamSync((file: File) => {
 			const relative = file.relative;
 			file.base = file.cwd;
 			file.path = path.join(file.cwd, destination, relative);
@@ -562,7 +562,7 @@ export function getSharedExtensionDependencyStream(folder: string, destination: 
 export function packageCopilotExtensionStream(): Stream {
 	const extensionPath = path.join(root, 'extensions', 'copilot');
 	if (!fs.existsSync(extensionPath)) {
-		return es.readArray([]);
+		return Readable.from([]);
 	}
 
 	const localExtensionsStream = minifyExtensionResources(
@@ -573,7 +573,7 @@ export function packageCopilotExtensionStream(): Stream {
 	const productionDependencies = getProductionDependencies('extensions/copilot');
 	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.source)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
-	return es.merge(
+	return merge(
 		localExtensionsStream,
 		gulp.src(dependenciesSrc, { base: '.' })
 			.pipe(toPackagedLayout(productionDependencies))
@@ -588,7 +588,7 @@ export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
 		...(forWeb ? webBuiltInExtensions : [])
 	];
 	const marketplaceExtensionsStream = minifyExtensionResources(
-		es.merge(
+		merge(
 			...marketplaceExtensionsDescriptions
 				.map(extension => {
 					const src = getExtensionStream(extension).pipe(rename(p => p.dirname = `extensions/${p.dirname}`));
@@ -762,7 +762,7 @@ function watchTypeCheckExtensionMedia(tsconfigPath: string, config: { taskName: 
 			// Always emit 'end' (even on tsgo error) so the debounce resets to idle
 			// and can process future file changes. Errors are already logged by
 			// spawnTsgo's runReporter, so swallowing the stream error is safe.
-			const result = es.through();
+			const result = through();
 			tsgoStream.on('end', () => result.emit('end'));
 			tsgoStream.on('error', () => result.emit('end'));
 			return result;

@@ -376,6 +376,9 @@ importers:
       deemon:
         specifier: ^1.13.6
         version: 1.13.6
+      duplexer:
+        specifier: 0.1.1
+        version: 0.1.1
       eslint:
         specifier: 10.8.0
         version: 10.8.0
@@ -388,9 +391,6 @@ importers:
       eslint-plugin-jsdoc:
         specifier: ^63.3.3
         version: 63.3.3(eslint@10.8.0)
-      event-stream:
-        specifier: 3.3.4
-        version: 3.3.4
       events:
         specifier: ^3.3.0
         version: 3.3.0

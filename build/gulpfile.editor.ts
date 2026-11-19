@@ -8,7 +8,7 @@ import path from 'path';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/gulp/task.ts';
-import es from 'event-stream';
+import { through, merge } from './lib/streams.ts';
 import File from 'vinyl';
 import * as i18n from './lib/i18n.ts';
 import * as standalone from './lib/standalone.ts';
@@ -130,9 +130,9 @@ function toExternalDTS(contents: string) {
 }
 
 const finalEditorResourcesTask = task.define('final-editor-resources', () => {
-	return es.merge(
+	return merge(
 		// other assets
-		es.merge(
+		merge(
 			gulp.src('build/monaco/LICENSE'),
 			gulp.src('build/monaco/ThirdPartyNotices.txt'),
 			gulp.src('src/vs/monaco.d.ts')
@@ -140,7 +140,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 
 		// place the .d.ts in the esm folder
 		gulp.src('src/vs/monaco.d.ts')
-			.pipe(es.through(function (data) {
+			.pipe(through(function (data: File.BufferFile) {
 				this.emit('data', new File({
 					path: data.path.replace(/monaco\.d\.ts/, 'editor.api.d.ts'),
 					base: data.base,
@@ -151,7 +151,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 
 		// package.json
 		gulp.src('build/monaco/package.json')
-			.pipe(es.through(function (data) {
+			.pipe(through(function (data: File.BufferFile) {
 				const json = JSON.parse(data.contents.toString());
 				json.private = false;
 
@@ -186,7 +186,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 
 		// version.txt
 		gulp.src('build/monaco/version.txt')
-			.pipe(es.through(function (data) {
+			.pipe(through(function (data) {
 				data.contents = Buffer.from(`monaco-editor-core: https://github.com/microsoft/vscode/tree/${sha1}`);
 				this.emit('data', data);
 			}))
@@ -194,7 +194,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 
 		// README.md
 		gulp.src('build/monaco/README-npm.md')
-			.pipe(es.through(function (data) {
+			.pipe(through(function (data) {
 				this.emit('data', new File({
 					path: data.path.replace(/README-npm\.md/, 'README.md'),
 					base: data.base,

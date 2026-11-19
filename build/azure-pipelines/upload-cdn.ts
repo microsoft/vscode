@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { Readable } from 'stream';
+import { through, merge } from '../lib/streams.ts';
 import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
 import { filter, gzip, azureStorage } from '../lib/gulp/facade.ts';
@@ -66,7 +67,7 @@ const MimeTypesToCompress = new Set([
 	'text/x-java-source'
 ]);
 
-function wait(stream: es.ThroughStream): Promise<void> {
+function wait(stream: NodeJS.ReadableStream): Promise<void> {
 	return new Promise<void>((c, e) => {
 		stream.on('end', () => c());
 		stream.on('error', (err) => e(err));
@@ -98,8 +99,8 @@ async function main(): Promise<void> {
 		.pipe(filter(f => !MimeTypesToCompress.has(mime.lookup(f.path))))
 		.pipe(azureStorage.upload(options(false)));
 
-	const out = es.merge(compressed, uncompressed)
-		.pipe(es.through(function (f) {
+	const out = merge(compressed, uncompressed)
+		.pipe(through(function (f) {
 			console.log('Uploaded:', f.relative);
 			files.push(f.relative);
 			this.emit('data', f);
@@ -114,7 +115,7 @@ async function main(): Promise<void> {
 		stat: new VinylStat({ mode: 0o666 })
 	});
 
-	const filesOut = es.readArray([listing])
+	const filesOut = Readable.from([listing])
 		.pipe(gzip({ append: false }))
 		.pipe(azureStorage.upload(options(true)));
 
