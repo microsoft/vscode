@@ -12,6 +12,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { supportsAgentHostDevContainerEnvironments } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { agentHostUri } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { devContainerEnvironmentUri, isDevContainerEnvironmentId, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
@@ -21,7 +22,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { resolveRemoteAgentHostEntryAuthority } from '../../../browser/openInVSCodeUtils.js';
-import { areDevContainerEnvironmentsEnabled, canUseDevContainerEnvironments, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, canUseDevContainerEnvironments, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
 import { getDevContainerSourceEntry, resolveDevContainerSourceConnection } from './devContainerSource.js';
 import type { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
@@ -119,7 +120,7 @@ export class DevContainerEnvironments extends Disposable {
 		this._reconcile();
 	}
 
-	async create(sourceAddress: string): Promise<IDevContainerEnvironment> {
+	async create(sourceAddress: string): Promise<ICreatedDevContainerEnvironment> {
 		if (!areDevContainerEnvironmentsEnabled(this._configurationService)) {
 			throw new Error(localize('devContainerEnvironment.disabled', "Dev Container environments are not enabled."));
 		}
@@ -141,7 +142,10 @@ export class DevContainerEnvironments extends Disposable {
 			}
 			throw error;
 		}
-		return this._toEnvironment(state);
+		return {
+			...this._toEnvironment(state),
+			workspaceUri: state.defaultDirectory ? agentHostUri(agentHostAuthority(state.address), state.defaultDirectory) : undefined,
+		};
 	}
 
 	async delete(address: string): Promise<void> {

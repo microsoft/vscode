@@ -24,6 +24,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostProtocolClient } from '../../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostUri } from '../../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { getEntryAddress, IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -357,7 +358,7 @@ suite('Dev Container Agent Host Service', () => {
 
 		assert.deepStrictEqual({
 			hostsWhileDisconnected,
-			environment: { sourceAddress: environment.sourceAddress, providerId: environment.providerId },
+			environment: { sourceAddress: environment.sourceAddress, providerId: environment.providerId, workspaceUri: environment.workspaceUri?.toString() },
 			providerConfig: { name: provider.config.name, host: provider.config.devContainerEnvironmentHost, canRemove: provider.config.canRemove, sourceWorkspace: provider.config.devContainerSourceWorkspaceUri },
 			stagedEntry: remoteService.stagedEntry?.connection,
 			sources: [...createdUris, ...removedUris].map(uri => findDevContainerEnvironment(uri)?.sourceAuthority),
@@ -365,7 +366,7 @@ suite('Dev Container Agent Host Service', () => {
 			deleted: { environments: service.environments.get(), providerDisposed: provider.disposed, stored: storage.get('devContainerAgentHost.environments', StorageScope.APPLICATION) },
 		}, {
 			hostsWhileDisconnected: [],
-			environment: { sourceAddress: 'ssh:build', providerId: provider.id },
+			environment: { sourceAddress: 'ssh:build', providerId: provider.id, workspaceUri: agentHostUri(agentHostAuthority(environment.address), '/workspaces').toString() },
 			providerConfig: { name: 'Dev Container', host: 'ssh:build', canRemove: false, sourceWorkspace: undefined },
 			stagedEntry: { type: RemoteAgentHostEntryType.DevContainer, address: environment.address, environmentId: findDevContainerEnvironment(createdUris[0])?.environmentId, hostAuthority: 'ssh-remote+build' },
 			sources: [agentHostAuthority('ssh:build'), agentHostAuthority('ssh:build'), agentHostAuthority('ssh:build')],

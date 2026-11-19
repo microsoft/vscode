@@ -339,7 +339,7 @@ suite('RemotesModel', () => {
 			createEnvironment: async sourceAddress => {
 				const environment = { address: `devcontainer:${sourceAddress}`, sourceAddress, providerId: `agenthost-devcontainer:${sourceAddress}` };
 				devContainers.environments.set([...devContainers.environments.get(), environment], undefined);
-				return environment;
+				return { ...environment, workspaceUri: undefined };
 			},
 			deleteEnvironment: async address => {
 				devContainers.deletions.push(address);

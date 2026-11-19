@@ -25,7 +25,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerAgentHostTarget, IDevContainerEnvironment } from '../../../common/devContainerAgentHostService.js';
+import { ICreatedDevContainerEnvironment, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerAgentHostTarget, IDevContainerEnvironment } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { resolveRemoteAgentHostEntryAuthority } from '../../../browser/openInVSCodeUtils.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from './devContainerSource.js';
@@ -281,7 +281,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		}));
 	}
 
-	createEnvironment(sourceAddress: string): Promise<IDevContainerEnvironment> {
+	createEnvironment(sourceAddress: string): Promise<ICreatedDevContainerEnvironment> {
 		return this._environments.create(sourceAddress);
 	}
 

@@ -32,6 +32,9 @@ export const DevContainerStateVolumeEnabledSettingId = 'chat.agentHost.devContai
 /** Experimental setting that enables Dev Container environments created from a base image on this computer and on SSH, Tunnel, and WSL hosts. */
 export const DevContainerEnvironmentsEnabledSettingId = 'chat.agentHost.devContainer.environments.enabled';
 
+/** Experimental setting that lets agents create Dev Container environments and continue work in them. */
+export const DevContainerHandoffEnabledSettingId = 'chat.agentHost.devContainer.handoff.enabled';
+
 /** {@link IDevContainerEnvironment.sourceAddress} of Dev Container environments on this computer. No SSH, Tunnel, or WSL host address equals it. */
 export const LocalDevContainerEnvironmentHost = 'local';
 
@@ -45,6 +48,11 @@ export function canUseDevContainerEnvironments(configurationService: IConfigurat
 /** Whether Dev Container environments can be created and are offered as remote environments. */
 export function areDevContainerEnvironmentsEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(DevContainerEnvironmentsEnabledSettingId) === true && canUseDevContainerEnvironments(configurationService);
+}
+
+/** Whether agents can create Dev Container environments, which also requires the environments themselves to be enabled. */
+export function isDevContainerHandoffEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(DevContainerHandoffEnabledSettingId) === true && areDevContainerEnvironmentsEnabled(configurationService);
 }
 
 /** Whether new sample workspaces can be selected, independently of already-created sessions. */
@@ -113,6 +121,12 @@ export interface IDevContainerEnvironment {
 	readonly providerId: string;
 }
 
+/** A Dev Container environment that was just created and connected. */
+export interface ICreatedDevContainerEnvironment extends IDevContainerEnvironment {
+	/** The container's workspace folder on its Agent Host connection, if the connection reported it. */
+	readonly workspaceUri: URI | undefined;
+}
+
 export const IDevContainerAgentHostService = createDecorator<IDevContainerAgentHostService>('devContainerAgentHostService');
 
 /** Coordinates local, SSH, Tunnel, and WSL source workspaces with persistent container-backed Sessions providers. */
@@ -138,7 +152,7 @@ export interface IDevContainerAgentHostService {
 	 */
 	readonly environmentHosts: IObservable<ReadonlySet<string>>;
 	/** Creates a Dev Container environment on a host from {@link environmentHosts} and connects to it. */
-	createEnvironment(sourceAddress: string): Promise<IDevContainerEnvironment>;
+	createEnvironment(sourceAddress: string): Promise<ICreatedDevContainerEnvironment>;
 	/** Removes an environment's container and workspace volume, or only forgets it when its host is no longer configured. */
 	deleteEnvironment(address: string): Promise<void>;
 }
