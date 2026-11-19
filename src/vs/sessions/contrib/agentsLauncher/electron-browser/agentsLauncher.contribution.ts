@@ -12,7 +12,7 @@ import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, constObservable } from '../../../../base/common/observable.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -52,12 +52,6 @@ const AGENTS_LAUNCHER_INITIAL_HEIGHT = 180;
 const AGENTS_LAUNCHER_BLUR_HIDE_DELAY = 150;
 /** How long the Agents Launcher stays transparent at most as it shows, waiting for its first frame. */
 const AGENTS_LAUNCHER_REVEAL_TIMEOUT = 150;
-/**
- * Whether the Agents Launcher's window is transparent around its card, with room for the composer's popups, and lets clicks through
- * there. Only on macOS: on Linux, transparency depends on the compositor and a window that lets clicks through receives no mouse
- * moves to stop; on Windows, some systems render transparent windows opaque black (electron/electron#40515).
- */
-const AGENTS_LAUNCHER_TRANSPARENT = isMacintosh;
 const HIDE_AGENTS_LAUNCHER_COMMAND_ID = 'workbench.action.hideAgentsLauncher';
 const AGENTS_LAUNCHER_SEND_IN_BACKGROUND_COMMAND_ID = 'workbench.action.agentsLauncher.sendInBackground';
 
@@ -164,6 +158,11 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	private _display: IAgentsLauncherDisplay | undefined;
 	private _lastLayout: IAgentsLauncherLayout | undefined;
 	private _contentHeight = AGENTS_LAUNCHER_INITIAL_HEIGHT;
+	/**
+	 * Whether the Agents Launcher's window is transparent around its card, with room for the composer's popups, and lets clicks
+	 * through there. Decided as a window is created, see {@link _canBeTransparent}.
+	 */
+	private _transparent = false;
 
 	constructor(
 		@IAuxiliaryWindowService private readonly _auxiliaryWindowService: IAuxiliaryWindowService,
@@ -206,9 +205,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		};
 
 		this._register(this._nativeHostService.onDidBlurMainOrAuxiliaryWindow(windowId => this._onWindowBlur(windowId)));
-		if (AGENTS_LAUNCHER_TRANSPARENT) {
-			this._register(this._nativeHostService.onDidChangeDisplay(() => void this._onDidChangeDisplay().catch(error => this._logService.error('[AgentsLauncher] Failed to lay out for the displays', error))));
-		}
+		this._register(this._nativeHostService.onDidChangeDisplay(() => void this._onDidChangeDisplay().catch(error => this._logService.error('[AgentsLauncher] Failed to lay out for the displays', error))));
 		this._register(this._nativeHostService.onDidFocusMainOrAuxiliaryWindow(windowId => {
 			if (windowId === this._window?.window.vscodeWindowId) {
 				this._blurHide.clear();
@@ -240,6 +237,14 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		}
 
 		const { display: bounds, workArea } = await this._nativeHostService.getCursorScreenPoint();
+		const transparent = await this._canBeTransparent();
+		if (this._window && this._transparent !== transparent) {
+			// GPU compositing changed since the window was created: this show continues with a new one.
+			this._destroyWindow(`Transparency changed to ${transparent}`, true);
+		}
+		if (!this._window && !this._windowCreation) {
+			this._transparent = transparent;
+		}
 		const display = this._display = { bounds, workArea };
 		// Created at the zoom level of the Agents window.
 		const auxiliaryWindow = await this._ensureWindow(this._computeLayout(display, getZoomFactor(mainWindow)));
@@ -306,8 +311,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		const auxiliaryWindow = this._window;
 		const surface = this._surface;
 		const inputContent = this._view?.inputContentElement;
-		// A hidden window is laid out again as it shows.
-		if (!auxiliaryWindow || !surface || !inputContent || !this._presenter.visible.get()) {
+		// A hidden window is laid out again as it shows, and an opaque one is only the card.
+		if (!auxiliaryWindow || !surface || !inputContent || !this._presenter.visible.get() || !this._transparent) {
 			return;
 		}
 		const { display: bounds, workArea } = await this._nativeHostService.getCursorScreenPoint();
@@ -320,14 +325,35 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	private _computeLayout(display: IAgentsLauncherDisplay, zoomFactor: number): IAgentsLauncherLayout {
-		return computeAgentsLauncherLayout(display.bounds, display.workArea, this._contentHeight, zoomFactor, AGENTS_LAUNCHER_TRANSPARENT);
+		return computeAgentsLauncherLayout(display.bounds, display.workArea, this._contentHeight, zoomFactor, this._transparent);
+	}
+
+	/**
+	 * Whether the Agents Launcher's window can be transparent. Not on Linux, where transparency depends on the compositor and a window
+	 * that lets clicks through receives no mouse moves to stop. On Windows, only with GPU compositing: without it, Chromium draws a
+	 * transparent window with `UpdateLayeredWindow`, which fails once the opacity it fades in with has been set with
+	 * `SetLayeredWindowAttributes`, so that the window stops updating (electron/electron#32555).
+	 */
+	private async _canBeTransparent(): Promise<boolean> {
+		if (isMacintosh) {
+			return true;
+		}
+		if (!isWindows) {
+			return false;
+		}
+		try {
+			return await this._nativeHostService.isGPUCompositingEnabled();
+		} catch (error) {
+			this._logService.warn('[AgentsLauncher] Failed to read whether GPU compositing is enabled', error);
+			return false;
+		}
 	}
 
 	/** Lays the composer out for `layout`, which is in the display's coordinates rather than the window's CSS pixels. */
 	private _layoutView(auxiliaryWindow: IAuxiliaryWindow, view: AbstractChatView, layout: IAgentsLauncherLayout): void {
 		const zoomFactor = getZoomFactor(auxiliaryWindow.window);
 		const { window, card } = layout;
-		if (AGENTS_LAUNCHER_TRANSPARENT && this._surface) {
+		if (this._transparent && this._surface) {
 			this._surface.style.left = `${(card.x - window.x) / zoomFactor}px`;
 			this._surface.style.top = `${(card.y - window.y) / zoomFactor}px`;
 			this._surface.style.width = `${card.width / zoomFactor}px`;
@@ -385,7 +411,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 	}
 
 	private async _createWindow(layout: IAgentsLauncherLayout): Promise<IAuxiliaryWindow> {
-		this._logService.trace('[AgentsLauncher] Creating auxiliary window');
+		this._logService.trace(`[AgentsLauncher] Creating auxiliary window transparent=${this._transparent}`);
 		const backgroundColor = this._themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1E1E1E';
 		const auxiliaryWindow = await this._auxiliaryWindowService.open({
 			bounds: layout.window,
@@ -398,7 +424,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			disableMaximize: true,
 			nativeTitlebar: false,
 			// A transparent window is not resized but laid out, as resizing can break its transparency, and the card draws its own shadow.
-			...(AGENTS_LAUNCHER_TRANSPARENT ? { transparent: true, notResizable: true, noShadow: true } : { backgroundColor }),
+			...(this._transparent ? { transparent: true, notResizable: true, noShadow: true } : { backgroundColor }),
 		});
 		await auxiliaryWindow.whenStylesHaveLoaded;
 
@@ -422,7 +448,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		const surface = dom.append(auxiliaryWindow.container, dom.$('.agents-launcher', { role: 'dialog', 'aria-label': title }));
 		this._windowDisposables.add(toDisposable(() => surface.remove()));
 		this._surface = surface;
-		if (AGENTS_LAUNCHER_TRANSPARENT) {
+		if (this._transparent) {
 			// An attribute rather than a class, which would follow those of the Agents window's container too.
 			auxiliaryWindow.container.setAttribute('data-agents-launcher-transparent', '');
 			this._trackClickThrough(auxiliaryWindow, surface);
@@ -463,7 +489,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		this._layoutView(auxiliaryWindow, view, layout);
 
 		this._windowDisposables.add(auxiliaryWindow.onDidLayout(dimension => {
-			if (AGENTS_LAUNCHER_TRANSPARENT) {
+			if (this._transparent) {
 				// A transparent window keeps the size it was laid out for, which it cannot be resized from and is laid out again for as
 				// displays change: a change of its zoom changes the CSS pixels of the card, and of the pointer in it.
 				this._layoutView(auxiliaryWindow, view, this._lastLayout ?? layout);
@@ -639,7 +665,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		this._auxiliaryWindow.clear();
 	}
 
-	private _destroyWindow(reason: string): void {
+	/** Closes the Agents Launcher's window. `keepShowing` for a show that creates another one, which the presenter goes on to show. */
+	private _destroyWindow(reason: string, keepShowing = false): void {
 		const auxiliaryWindow = this._window;
 		if (!auxiliaryWindow) {
 			return;
@@ -650,7 +677,9 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 		this._view = undefined;
 		this._display = undefined;
 		this._lastLayout = undefined;
-		this._presenter.reset();
+		if (!keepShowing) {
+			this._presenter.reset();
+		}
 		this._blurHide.clear();
 		this._focusRequest.clear();
 		this._windowDisposables.clear();
