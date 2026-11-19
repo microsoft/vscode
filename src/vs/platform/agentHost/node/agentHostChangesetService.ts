@@ -71,7 +71,7 @@ import { dedupeSessionFileDiffs } from './agentHostMultiRootDiff.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { reportAgentHostStaticChangesetComputed, reportAgentHostTurnChangesetComputed, type IMultiRootTurnDiffMetrics, type StaticChangesetOutcome, type TurnChangesetOutcome } from './agentHostChangesetTelemetry.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, type IAgent } from '../common/agent.js';
+import { AgentSession } from '../common/agent.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -225,21 +225,18 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._worktree = worktree;
 		this._diffComputeService = this._createDiffComputeService();
 		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._observeUncommittedRoot(owner)));
-		this._register(this._providerService.onDidRegisterProvider(provider => this._observeProviderTurnEdits(provider)));
 		this._register(this._fileEditCoordinator.onDidChangeEditing(resource => this._publishWorkingSetEditing(resource)));
-		for (const provider of this._providerService.getProviders()) {
-			this._observeProviderTurnEdits(provider);
-		}
-	}
-
-	private _observeProviderTurnEdits(provider: IAgent): void {
-		if (provider.onDidStoreTurnEdits) {
-			this._register(provider.onDidStoreTurnEdits(({ chat, turnIds }) => {
-				if (this._chatOwnership.getChatOwner(chat.toString())) {
-					this._onTrackedEditsChanged(chat.toString(), turnIds);
-				}
-			}));
-		}
+		this._register(this._fileEditCoordinator.onDidStoreFileEdit(({ chat: chatUri, turnId }) => {
+			const chat = chatUri.toString();
+			if (this._chatOwnership.getChatOwner(chat) === undefined) {
+				return;
+			}
+			if (turnId && this._stateManager.getActiveTurnId(chat) === turnId) {
+				this.onToolCallEditsApplied(chat, turnId);
+			} else {
+				this._onTrackedEditsChanged(chat, turnId ? [turnId] : []);
+			}
+		}));
 	}
 
 	/** Creates the diff-count service; overridable so tests can supply a synchronous in-process computer. */
@@ -696,9 +693,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					void this.computeUncommittedChangeset(session);
 					break;
 				case ChangesetKind.Turn:
-					if (parsed.turnId !== undefined) {
-						void this.computeTurnChangeset(session, parsed.turnId, 'fileEditTracker');
-					}
+					void this.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
 					break;
 			}
 		}
@@ -1555,9 +1550,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	onToolCallEditsApplied(session: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void {
 		this._scheduleDebouncedDiffComputation(session, turnId, clientContext);
-		// The Working Set follows each edit, so it can be reviewed while the turn runs.
-		// It only reads the tracked edits, and a computation that hasn't started yet covers later edits too.
-		this.refreshWorkingSetChangeset(session);
+		this._refreshWorkingSetChangesets(session);
 		this._scheduleChatChangesSummary(session, true);
 		// Per-turn URIs have no catalogue chip aggregates, so skip the
 		// recompute entirely when no client is observing this turn. The

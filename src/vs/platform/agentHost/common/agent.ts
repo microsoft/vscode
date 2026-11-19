@@ -2262,9 +2262,6 @@ export interface IAgent {
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
 
-	/** Native snapshots can arrive after host cancellation or steering has already ended a turn. */
-	readonly onDidStoreTurnEdits?: Event<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
-
 	/** Host-wide progress for provider setup, including work without a chat yet. */
 	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;
 

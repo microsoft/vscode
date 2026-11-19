@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Event } from '../../../../base/common/event.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,6 +23,7 @@ import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { ChangesetFileStatus, ChangesetStatus, ChatOriginKind, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { createFileEditDiscardRecord, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
 import { createFileEditAcceptRecord } from '../../node/fileEditAccept.js';
@@ -41,6 +42,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from '../../node/agentConfigurationService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
+import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
@@ -117,14 +119,11 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 	readonly provider: IAgent;
 	/** The agent chats are routed to, when a test gives chats their own agent; else the session's. */
 	readonly chatRouting: { agent: IAgent | undefined };
-	readonly storedTurnEdits: Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
 	readonly fileEditCoordinator: AgentHostFileEditCoordinator;
 
 	constructor(...args: WithoutLast<WithoutLastThree<WithoutLastThree<ConstructorParameters<typeof AgentHostChangesetService>>>>) {
 		const mirrorStore = createTestSessionStateStore(new AgentHostDatabase(':memory:'), args[2]);
-		const storedTurnEdits = new Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>();
 		const provider = new class extends mock<IAgent>() {
-			override readonly onDidStoreTurnEdits = storedTurnEdits.event;
 			override waitForTurnEdits = async (_chat: URI, _turnId: string): Promise<void> => { };
 		};
 		const fileEditCoordinator = new AgentHostFileEditCoordinator();
@@ -137,7 +136,6 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 		this.chatRouting = chatRouting;
 		this.stateStore = mirrorStore;
 		this.provider = provider;
-		this.storedTurnEdits = this._register(storedTurnEdits);
 		this.fileEditCoordinator = this._register(fileEditCoordinator);
 		settleServices.add(this);
 	}
@@ -1634,13 +1632,14 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		workingDirectories: string[];
 		git: IAgentHostGitService;
 		checkpoint: IAgentHostCheckpointService;
-		db?: TestSessionDatabase;
+		db?: ISessionDatabase;
 		log?: RecordingLogService;
 		telemetry?: ITelemetryService;
 		review?: IAgentHostReviewService;
 		subscriptions?: string[];
+		subscriptionService?: IAgentHostChangesetSubscriptionService;
 		isolation?: 'folder' | 'worktree';
-		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error; /** Recorded storage when it is not the creation-time one. */ storage?: string };
+		peer?: { resource: string; db: ISessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error; /** Recorded storage when it is not the creation-time one. */ storage?: string };
 		sessionOpenError?: Error;
 		/** Receives the resource of each session database that is opened. */
 		dbOpens?: string[];
@@ -1693,7 +1692,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			options.checkpoint,
 			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 			options.operations ?? createOperationService(),
-			createSubscriptionService(...(options.subscriptions ?? [])),
+			options.subscriptionService ?? createSubscriptionService(...(options.subscriptions ?? [])),
 			options.review ?? NULL_REVIEW_SERVICE,
 			options.telemetry ?? NullTelemetryService,
 		));
@@ -2084,7 +2083,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 	});
 
 	test('late snapshots refresh session changes without waiting for a native turn', async () => {
-		const db = new TestSessionDatabase();
+		const db = disposables.add(await SessionDatabase.open(':memory:'));
 		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
 		svc.provider.waitForTurnEdits = async () => { throw new Error('Session aggregates must not wait for native turns'); };
 		const changeset = buildSessionChangesetUri(sessionStr);
@@ -2098,16 +2097,86 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		}));
 		svc.refreshSessionChangeset(sessionStr, 'fileEditTracker');
 		await initial.p;
-		db.addEdit({
+		await svc.fileEditCoordinator.storeFileEdit(URI.parse(buildDefaultChatUri(sessionStr)), db, {
 			turnId: 'cancelled-turn', toolCallId: 'native-edit', filePath: '/repo/file.ts', kind: FileEditKind.Edit,
 			beforeContent: encodeString('before\n'), afterContent: encodeString('after\n'), addedLines: 1, removedLines: 1
 		});
-		svc.storedTurnEdits.fire({ chat: URI.parse(buildDefaultChatUri(sessionStr)), turnIds: ['cancelled-turn'] });
 		await updated.p;
 		assert.deepStrictEqual({ status: stateManager.getChangesetState(changeset)?.status, files: stateManager.getChangesetState(changeset)?.files.map(file => file.id) }, {
 			status: ChangesetStatus.Ready, files: ['file:///repo/file.ts'],
 		});
 	});
+
+	for (const editingChat of ['default', 'peer'] as const) {
+		test(`${editingChat} chat writes refresh its turn and the session aggregates during and after the turn`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const turnId = 'root-turn';
+			const defaultChat = buildDefaultChatUri(sessionStr);
+			const peer = buildChatUri(sessionStr, 'peer');
+			const chat = editingChat === 'default' ? defaultChat : peer;
+			const otherChat = editingChat === 'default' ? peer : defaultChat;
+			const chatTurn = buildTurnChangesetUri(chat, turnId);
+			const otherChatTurn = buildTurnChangesetUri(otherChat, turnId);
+			const sessionTurnAlias = buildTurnChangesetUri(sessionStr, turnId);
+			const sessionChanges = buildSessionChangesetUri(sessionStr);
+			const workingSet = buildWorkingSetChangesetUri(sessionStr);
+			const chatWorkingSet = buildWorkingSetChangesetUri(chat);
+			const refreshed = [chatTurn, chatWorkingSet, sessionChanges, workingSet];
+			const db = disposables.add(await SessionDatabase.open(':memory:'));
+			const peerDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const subscriptionService = disposables.add(new AgentHostChangesetSubscriptionService());
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE,
+				db, peer: { resource: peer, db: peerDb, turnId: 'earlier-turn' }, subscriptionService,
+			});
+			const chatDb = editingChat === 'default' ? db : peerDb;
+			const storeEdit = (toolCallId: string, filePath: string) => svc.fileEditCoordinator.storeFileEdit(URI.parse(chat), chatDb, {
+				turnId, toolCallId, filePath, kind: FileEditKind.Edit,
+				addedLines: 1, removedLines: 1,
+				beforeContent: encodeString('before\n'), afterContent: encodeString('after\n'),
+			});
+			const waitForFiles = (count: number) => waitForCondition(stateManager, () => refreshed.every(uri => {
+				const state = stateManager.getChangesetState(uri);
+				return state?.status === ChangesetStatus.Ready && state.files.length === count;
+			}));
+			const files = (uri: string) => stateManager.getChangesetState(uri)?.files.map(file => file.id).sort();
+			const snapshot = () => ({
+				activeTurn: stateManager.getActiveTurnId(chat),
+				chatTurn: files(chatTurn),
+				chatWorkingSet: files(chatWorkingSet),
+				sessionChanges: files(sessionChanges),
+				workingSet: files(workingSet),
+				otherChatTurn: files(otherChatTurn),
+				sessionTurnAlias: files(sessionTurnAlias),
+			});
+
+			stateManager.dispatchServerAction(chat, chatTurnStarted(turnId, 'Edit files', new Date(0).toISOString()));
+			subscriptionService.addSubscription(chat, chatTurn);
+			subscriptionService.addSubscription(chat, chatWorkingSet);
+			subscriptionService.addSubscription(sessionStr, sessionChanges);
+			subscriptionService.addSubscription(sessionStr, workingSet);
+			svc.recomputeSubscribedChangesets(chat);
+			svc.recomputeSubscribedChangesets(sessionStr);
+			await waitForFiles(0);
+			subscriptionService.addSubscription(otherChat, otherChatTurn);
+			// Inject stale interest below protocol admission to check that writes do not refresh the old alias.
+			subscriptionService.addSubscription(sessionStr, sessionTurnAlias);
+
+			await storeEdit('root-edit', '/repo/root.ts');
+			await waitForFiles(1);
+			const duringTurn = snapshot();
+
+			stateManager.dispatchServerAction(chat, chatTurnComplete(turnId, 1));
+			await storeEdit('child-edit', '/repo/child.ts');
+			await waitForFiles(2);
+
+			const root = ['file:///repo/root.ts'];
+			const both = ['file:///repo/child.ts', ...root];
+			assert.deepStrictEqual({ duringTurn, afterLateEdit: snapshot() }, {
+				duringTurn: { activeTurn: turnId, chatTurn: root, chatWorkingSet: root, sessionChanges: root, workingSet: root, otherChatTurn: undefined, sessionTurnAlias: undefined },
+				afterLateEdit: { activeTurn: undefined, chatTurn: both, chatWorkingSet: both, sessionChanges: both, workingSet: both, otherChatTurn: undefined, sessionTurnAlias: undefined },
+			});
+		}));
+	}
 
 	test('aggregates turn diffs across all folders of a multi-root session', async () => {
 		const git = createNoopGitService();

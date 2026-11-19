@@ -95,6 +95,7 @@ import { readAgentSandboxCertificate } from '../../common/meta/agentSandboxCerti
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
+import { computeTurnDiffs } from '../../node/sessionDiffAggregator.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { readCopilotSessionEvents } from '../../node/copilot/copilotSessionHistory.js';
 import { isCopilotJournalCorruptionError, recoverCopilotSessionHistory } from '../../node/copilot/copilotSessionHistoryRecovery.js';
@@ -1571,13 +1572,14 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	getInstalledPlugins?: () => Promise<Awaited<ReturnType<CopilotClient['rpc']['plugins']['list']>>['plugins']>;
 }): Promise<{
 	session: CopilotAgentSession;
+	stateManager: AgentHostStateManager;
 	runtime: TestCopilotSessionRuntime;
 	mockSession: MockCopilotSession;
 	signals: AgentSignal[];
 	onProgress: Event<AgentSignal>;
 	waitForSignal: (predicate: (signal: AgentSignal) => boolean) => Promise<AgentSignal>;
 	terminalManager: TestAgentHostTerminalManager;
-	storedFileContents: ReadonlyMap<string, string>;
+	storedFileContents: Map<string, string>;
 	fileWriteOptions: ReadonlyMap<string, IWriteFileOptions | undefined>;
 	dispatchedActions: readonly StateAction[];
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
@@ -2045,6 +2047,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	return {
 		session,
+		stateManager,
 		runtime,
 		mockSession,
 		signals,
@@ -24228,6 +24231,87 @@ Use the attached image as context.
 			assert.deepStrictEqual({ beforeRecording, afterRecording: fileEditCoordinator.isEditing(file) }, {
 				beforeRecording: { activeTurn: false, activeSubagents: false, editing: true },
 				afterRecording: false,
+			});
+		});
+
+		test('subagent edits appear in the latest root turn when each edit starts', async () => {
+			const database = disposables.add(await SessionDatabase.open(':memory:'));
+			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const committedEdits: { chat: URI; turnId: string }[] = [];
+			disposables.add(fileEditCoordinator.onDidStoreFileEdit(edit => committedEdits.push(edit)));
+			const workingDirectory = URI.file('/workspace');
+			const { session, stateManager, runtime, mockSession, onProgress, storedFileContents, waitForSignal } = await createAgentSession(disposables, {
+				workingDirectory,
+				sessionDatabase: database,
+				fileEditCoordinator,
+			});
+			const chat = session.chatChannelUri.toString();
+			disposables.add(onProgress(signal => {
+				if (signal.kind === 'action' && signal.parentToolCallId === undefined && signal.action.type === ActionType.ChatTurnComplete) {
+					stateManager.dispatchServerAction(chat, signal.action);
+				}
+			}));
+			const firstEdit = URI.joinPath(workingDirectory, 'first.txt');
+			const activeEdit = URI.joinPath(workingDirectory, 'active.txt');
+			const idleEdit = URI.joinPath(workingDirectory, 'idle.txt');
+			const worker = { agentId: 'worker' };
+			const nestedWorker = { agentId: 'nested-worker' };
+
+			async function captureEdit(file: URI, toolCallId: string, agent: { agentId: string }) {
+				const toolArgs = { path: file.fsPath, old_str: 'before', new_str: 'after' };
+				const hook = { ...agent, sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: workingDirectory.fsPath, toolName: 'edit', toolArgs };
+				storedFileContents.set(file.toString(), 'before\n');
+				await runtime.handlePreToolUse(hook);
+				mockSession.fire('tool.execution_start', { toolCallId, toolName: hook.toolName, arguments: toolArgs }, agent);
+				storedFileContents.set(file.toString(), 'after\n');
+				await runtime.handlePostToolUse({ ...hook, toolResult: { textResultForLlm: '', resultType: 'success' } });
+				return () => {
+					mockSession.fire('tool.execution_complete', { toolCallId, success: true }, agent);
+					return waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === toolCallId);
+				};
+			}
+
+			stateManager.dispatchServerAction(chat, chatTurnStarted('root-turn', 'Edit the files', new Date(0).toISOString()));
+			session.resetTurnState('root-turn');
+			mockSession.fire('user.message', { content: 'Edit the files' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Delegate the child file edit' } });
+			mockSession.fire('subagent.started', {
+				toolCallId: 'task', agentName: 'worker', agentDisplayName: 'Worker', agentDescription: 'Edit files', executionMode: 'background',
+			}, worker);
+			mockSession.fire('tool.execution_complete', { toolCallId: 'task', success: true });
+			const reportFirstEdit = await captureEdit(firstEdit, 'first-edit', worker);
+			mockSession.fire('session.idle', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+
+			session.resetTurnState('next-turn');
+			mockSession.fire('user.message', { content: 'Review the result' });
+			await reportFirstEdit();
+			mockSession.fire('tool.execution_start', { toolCallId: 'nested-task', toolName: 'task', arguments: { prompt: 'Edit the child file' } }, worker);
+			mockSession.fire('subagent.started', { toolCallId: 'nested-task', agentName: 'worker', agentDisplayName: 'Nested worker', agentDescription: 'Edit the child file' }, nestedWorker);
+			// The provider can start a turn before publishing it to host state.
+			const reportActiveEdit = await captureEdit(activeEdit, 'active-edit', nestedWorker);
+			stateManager.dispatchServerAction(chat, chatTurnStarted('next-turn', 'Review the result', new Date(0).toISOString()));
+			const childCompletion = await reportActiveEdit();
+			mockSession.fire('session.idle', {});
+			await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete && signal.action.turnId === 'next-turn');
+			const reportIdleEdit = await captureEdit(idleEdit, 'idle-edit', nestedWorker);
+			await reportIdleEdit();
+
+			const diffService = createZeroDiffComputeService();
+			const filesForTurn = async (turnId: string) => {
+				const diffs = await computeTurnDiffs(session.resourceUri.toString(), database, diffService, turnId, [workingDirectory]);
+				return diffs.map(diff => diff.after?.uri).sort();
+			};
+			assert.deepStrictEqual({
+				rootFiles: await filesForTurn('root-turn'),
+				nextFiles: await filesForTurn('next-turn'),
+				childResultParent: childCompletion.kind === 'action' ? childCompletion.parentToolCallId : undefined,
+				committedEdits,
+			}, {
+				rootFiles: [firstEdit.toString()],
+				nextFiles: [activeEdit.toString(), idleEdit.toString()],
+				childResultParent: 'nested-task',
+				committedEdits: ['root-turn', 'next-turn', 'next-turn'].map(turnId => ({ chat: session.chatChannelUri, turnId })),
 			});
 		});
 
