@@ -5939,12 +5939,17 @@ suite('Sessions - SessionsList', () => {
 			{ count: 1, index: 0, expected: undefined, mode: undefined, screenReader: false },
 			{ count: 3, index: 0, expected: 'reply-1', mode: 'auto', screenReader: false },
 			{ count: 3, index: 0, expected: 'reply-1', mode: 'on', screenReader: true },
+			{ count: 3, index: 0, expected: undefined, mode: 'newSession', screenReader: false },
+			{ count: 1, index: 0, expected: undefined, mode: 'newSession', screenReader: false },
+			{ count: 3, index: 0, expected: undefined, mode: 'newSession', screenReader: true },
 		]) {
 			test(`Inbox replies advance from item ${index + 1} of ${count} after acceptance (mode: ${mode}, screen reader: ${screenReader})`, async () => {
 				const built = Array.from({ length: count }, (_, i) => buildTestSession({ id: `reply-${i}`, title: `Reply ${i}`, minutesAgo: i }));
 				const source = built[index];
 				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
 				const harness = createListHarness(disposables, built.map(item => item.session));
+				const commands = sinon.stub(harness.commandService, 'executeCommand').resolves();
+				disposables.add(toDisposable(() => commands.restore()));
 				await (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, mode);
 				harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 					override isScreenReaderOptimized(): boolean { return screenReader; }
@@ -5975,26 +5980,33 @@ suite('Sessions - SessionsList', () => {
 
 				assert.deepStrictEqual({
 					opened,
+					commands: commands.args,
 					sourceSection: getSessionInboxSection(source.session, model.getInboxState(source.session)),
 					emptyInboxFocused: !!list.getItemRow({ section: SessionInboxSection.ReadyForYou })?.classList.contains('focused'),
 					treeFocused: mainWindow.document.activeElement === list.element.querySelector('.monaco-list'),
 				}, {
 					opened: expected ? [{ id: expected, preserveFocus: false }] : [],
+					commands: mode === 'newSession' ? [[NEW_SESSION_ACTION_ID]] : [],
 					sourceSection: SessionInboxSection.Working,
-					emptyInboxFocused: !expected,
-					treeFocused: !expected,
+					emptyInboxFocused: !expected && mode !== 'newSession',
+					treeFocused: !expected && mode !== 'newSession',
 				});
 			});
 		}
 
-		for (const scenario of ['hidden', 'workspace', 'new', 'background', 'otherChat', 'working', 'pinned', 'navigated', 'off', 'defaultScreenReader', 'autoScreenReader', 'settingChanged', 'screenReaderChanged', 'denied'] as const) {
-			test(`Inbox replies do not advance for ${scenario} sends`, async () => {
+		for (const { scenario, mode } of [
+			...(['hidden', 'workspace', 'new', 'background', 'otherChat', 'working', 'pinned', 'navigated', 'off', 'defaultScreenReader', 'autoScreenReader', 'settingChanged', 'screenReaderChanged', 'denied'] as const).map(scenario => ({ scenario, mode: undefined })),
+			...(['hidden', 'workspace', 'new', 'background', 'otherChat', 'working', 'pinned', 'navigated', 'settingChanged'] as const).map(scenario => ({ scenario, mode: 'newSession' })),
+		]) {
+			test(`Inbox replies do not advance for ${scenario} sends (mode: ${mode})`, async () => {
 				const source = buildTestSession({ id: 'source', title: 'Source', chats: [{ id: 'peer', title: 'Peer' }] });
 				const next = buildTestSession({ id: 'next', title: 'Next', minutesAgo: 1 });
 				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
 				const harness = createListHarness(disposables, [source.session, next.session]);
+				const commands = sinon.stub(harness.commandService, 'executeCommand').resolves();
+				disposables.add(toDisposable(() => commands.restore()));
 				const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
-				await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, scenario === 'off' ? 'off' : scenario === 'autoScreenReader' ? 'auto' : undefined);
+				await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, scenario === 'off' ? 'off' : scenario === 'autoScreenReader' ? 'auto' : mode);
 				let screenReader = scenario === 'defaultScreenReader' || scenario === 'autoScreenReader';
 				harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 					override isScreenReaderOptimized(): boolean { return screenReader; }
@@ -6045,7 +6057,7 @@ suite('Sessions - SessionsList', () => {
 					screenReader = true;
 				}
 				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
-				assert.deepStrictEqual({ opened, notifications: notifications.length }, { opened: 0, notifications: 0 });
+				assert.deepStrictEqual({ opened, commands: commands.args, notifications: notifications.length }, { opened: 0, commands: [], notifications: 0 });
 			});
 		}
 

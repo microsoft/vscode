@@ -77,11 +77,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			restoreGrouping: content.includes('restore your previous grouping, remembered across reloads'),
 			screenReaderDefault: content.includes('auto, keeps you in the current conversation when a screen reader is attached'),
 			explicitChoices: content.includes('Set it to off to always stay, or on to always advance'),
+			newSession: content.includes('Set it to newSession to open New Session and focus its chat input after a reply, even when a screen reader is attached or other Inbox sessions remain'),
 			settingsLink: content.includes('Settings link and Show Session button'),
 			persistentNotification: content.includes('notification stays visible until you dismiss it or choose Show Session'),
 			returnAction: content.includes('Choose Return to Session'),
 			dismiss: content.includes('press Escape or Got It to dismiss the spotlight'),
-		}, { toggle: true, toggleKeyboard: true, restoreGrouping: true, screenReaderDefault: true, explicitChoices: true, settingsLink: true, persistentNotification: true, returnAction: true, dismiss: true });
+		}, { toggle: true, toggleKeyboard: true, restoreGrouping: true, screenReaderDefault: true, explicitChoices: true, newSession: true, settingsLink: true, persistentNotification: true, returnAction: true, dismiss: true });
 	});
 
 	test('defers to webview Find help while the Find input is focused', () => {
