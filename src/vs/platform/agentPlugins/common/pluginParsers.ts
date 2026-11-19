@@ -1288,7 +1288,7 @@ export async function readAgentComponents(
 	return result;
 }
 
-export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; assistedApprovalInstructions?: string; userInvocable?: boolean; model?: string; models?: readonly string[]; reasoningEffort?: string; modelPolicy?: 'preferred' | 'required'; tools?: readonly string[]; disableModelInvocation?: boolean }> {
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; models?: readonly string[]; reasoningEffort?: string; modelPolicy?: 'preferred' | 'required'; tools?: readonly string[]; disableModelInvocation?: boolean }> {
 	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
 	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
@@ -1296,11 +1296,6 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const frontmatter = parseFrontMatter(content.value.toString());
 		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
 		const description = frontmatter?.getStringValue('description')?.trim();
-		// Guidance for the Assisted permissions reviewer while this agent is selected (added to the user's own).
-		// VS Code-only keys live under `vscode:`, so other harnesses can ignore them as one unknown key.
-		const vscodeHeader = frontmatter?.header?.type === 'map' ? frontmatter.header.properties.find(p => p.key.value === 'vscode')?.value : undefined;
-		const assistedApprovalNode = vscodeHeader?.type === 'map' ? vscodeHeader.properties.find(p => p.key.value === 'assisted-approval-instructions')?.value : undefined;
-		const assistedApprovalInstructions = assistedApprovalNode?.type === 'scalar' ? assistedApprovalNode.value.trim() || undefined : undefined;
 		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
 		const models = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).filter(Boolean);
 		const model = models?.[0];
@@ -1310,7 +1305,7 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
 		const infer = frontmatter?.getBooleanValue('infer');
 		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
-		return { name, description, ...(assistedApprovalInstructions ? { assistedApprovalInstructions } : {}), userInvocable, model, ...(models && models.length > 1 ? { models } : {}), ...(reasoningEffort ? { reasoningEffort } : {}), ...(modelPolicy ? { modelPolicy } : {}), tools, disableModelInvocation };
+		return { name, description, userInvocable, model, ...(models && models.length > 1 ? { models } : {}), ...(reasoningEffort ? { reasoningEffort } : {}), ...(modelPolicy ? { modelPolicy } : {}), tools, disableModelInvocation };
 	} catch {
 		return { name: nameFromFile };
 	}

@@ -33,7 +33,6 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
 import { hasKey, isDefined, isObject, isString, type Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { parseAgentFile } from '../../../agentPlugins/common/pluginParsers.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -97,7 +96,7 @@ import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotMod
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
-import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotCustomAgentUri, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentHostClientConnectionService } from '../agentHostClientConnectionService.js';
@@ -8939,8 +8938,6 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 		this._lastAppliedAgent = selection;
-		// The selected agent may bring its own guidance for the Assisted permissions judge.
-		await this._syncAssistedApprovalInstructions();
 	}
 
 	// ---- permission handling ------------------------------------------------
@@ -9524,27 +9521,22 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Applies the user's instructions for the Assisted permissions judge, followed by those of
-	 * the selected custom agent (`assisted-approval-instructions` in its agent file). The runtime
+	 * Applies the user's instructions for the Assisted permissions judge. The runtime
 	 * holds them only for the live SDK session and never persists them, so they are
-	 * reapplied after every create and resume, and whenever the selected agent changes.
+	 * reapplied after every create and resume.
 	 */
 	private _syncAssistedApprovalInstructions(): Promise<void> {
 		return this._assistedApprovalInstructionsSequencer.queue(async () => {
 			if (this._isInactiveForBackgroundConfigSync()) {
 				return;
 			}
-			const wrapper = this._wrapper;
 			const configured = this._configurationService.getRootValue(platformRootSchema, AgentHostAssistedApprovalInstructionsConfigKey) ?? '';
-			const agent = await this._readAgentAssistedApprovalInstructions(wrapper);
 			// The runtime clears the instructions for blank text, so blank and empty are equivalent.
-			const instructions = [
-				configured.trim(),
-				agent ? `Instructions from the "${agent.name}" agent the user selected for this chat:\n${agent.instructions}` : '',
-			].filter(Boolean).join('\n\n');
+			const instructions = configured.trim() ? configured : '';
 			if (instructions === this._appliedAssistedApprovalInstructions) {
 				return;
 			}
+			const wrapper = this._wrapper;
 			const result = await this._awaitControlPlaneRpc('Assisted permissions instructions', wrapper.session.rpc.permissions.configure({ assistedApprovalInstructions: instructions }));
 			if (!result.success) {
 				throw new Error('The runtime did not apply the Assisted permissions instructions.');
@@ -9554,27 +9546,6 @@ export class CopilotAgentSession extends Disposable {
 				this._appliedAssistedApprovalInstructions = instructions;
 			}
 		});
-	}
-
-	/** The selected custom agent's guidance for the Assisted permissions judge, from its agent file. */
-	private async _readAgentAssistedApprovalInstructions(wrapper: CopilotSessionWrapper): Promise<{ readonly name: string; readonly instructions: string } | undefined> {
-		const selected = this._lastAppliedAgent;
-		if (selected === null) {
-			return undefined;
-		}
-		try {
-			// Only a resumed session does not know its agent yet; the runtime restored it.
-			const current = selected === undefined ? (await this._awaitControlPlaneRpc('rpc.agent.getCurrent', wrapper.session.rpc.agent.getCurrent())).agent : undefined;
-			const sdkName = selected ?? current?.name;
-			// Agents forwarded from VS Code are registered under opaque names, and the runtime reports them without a path.
-			const uri = current?.path ? URI.file(current.path) : sdkName ? getCopilotCustomAgentUri(this._launchPlan.snapshot, sdkName) : undefined;
-			const parsed = uri ? await parseAgentFile(uri, this._fileService) : undefined;
-			return parsed?.assistedApprovalInstructions ? { name: parsed.name, instructions: parsed.assistedApprovalInstructions } : undefined;
-		} catch (error) {
-			// Without them, the judge still has the user's instructions and the conversation.
-			this._logService.warn(`[Copilot:${this.sessionId}] Could not read the selected agent's Assisted permissions instructions`, error);
-			return undefined;
-		}
 	}
 
 	/**
