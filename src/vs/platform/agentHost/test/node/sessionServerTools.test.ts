@@ -2235,7 +2235,7 @@ suite('SessionServerTools', () => {
 		});
 		const errorOf = async (workspace: string) => {
 			try {
-				await applyCreateSessionTool(accessor, { relationship: 'currentSession', workspace, prompt: 'do it there', title: 'Other Folder' }, URI.parse('copilot:/s1'));
+				await applyCreateSessionTool(accessor, { relationship: 'currentSession', workspace, prompt: 'do it there', title: 'Other Folder' }, URI.parse(buildDefaultChatUri('copilot:/s1')));
 				return undefined;
 			} catch (error) {
 				return (error as Error).message;
