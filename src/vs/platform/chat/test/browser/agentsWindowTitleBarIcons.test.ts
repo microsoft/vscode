@@ -66,7 +66,8 @@ suite('Agents window title bar icon exposure', () => {
 
 			const triggered = Event.toPromise(telemetry.onDidTrigger);
 			root.style.display = '';
-			await triggered;
+			// Revealing an unpainted element does not schedule an intersection update in headless WebKit.
+			await Promise.all([triggered, waitForObservation(icon)]);
 			configuration.onDidChangeConfigurationEmitter.fire(change);
 			await waitForObservation(icon);
 			assert.deepStrictEqual(telemetry.triggers, [`config.${setting}`]);

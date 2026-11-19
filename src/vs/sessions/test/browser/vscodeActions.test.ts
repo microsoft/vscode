@@ -245,7 +245,8 @@ suite('Open in Editor in Agents windows', () => {
 			assert.strictEqual(await waitForObservation(container), false);
 			assert.strictEqual(telemetry.triggers.length, 0);
 			root.style.display = '';
-			await triggered;
+			// Revealing an unpainted element does not schedule an intersection update in headless WebKit.
+			await Promise.all([triggered, waitForObservation(container)]);
 			assert.deepStrictEqual({
 				hasCodicon: icon?.classList.contains('codicon'),
 				triggerLogged: telemetry.triggers.includes(`config.${setting}`),
