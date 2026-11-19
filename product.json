@@ -88,9 +88,9 @@
 		},
 		{
 			"name": "nap.nap-focus",
-			"version": "0.4.2",
-			"sha256": "a738beb46497593c23f369dbd148d484950c2a3663458bc3b84a61187a2eba16",
-			"vsix": "build/builtin/nap-focus-0.4.2.vsix",
+			"version": "0.4.3",
+			"sha256": "a355abe1364f3fbe6d1b18a67ab62d52bec0e9cea6a4145c974ec7d77a9fe4b9",
+			"vsix": "build/builtin/nap-focus-0.4.3.vsix",
 			"metadata": {
 				"id": "de6577f2-e7d0-5a0d-a169-309bedbfc364",
 				"publisherId": {
