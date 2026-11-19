@@ -76,6 +76,12 @@ export class LocalDiffEmbeddingsSearch {
 		const limiter = new Limiter<readonly FileChunkWithEmbedding[] | undefined>(LocalDiffEmbeddingsSearch.maxParallelFileOps);
 		try {
 			const perFileChunks = await raceCancellationError(Promise.all(includedFiles.map(uri => limiter.queue(async () => {
+				// Content exclusions may have changed since the file entered the diff
+				if (!await this._workspaceFileIndex.shouldIndexWorkspaceFile(uri, token)) {
+					this._cache.delete(uri);
+					return [];
+				}
+
 				const file = await this._workspaceFileIndex.tryLoad(uri);
 				return file ? this.getChunksAndEmbeddings(authToken, file, batchInfo, telemetryInfo, token) : [];
 			}))), token);

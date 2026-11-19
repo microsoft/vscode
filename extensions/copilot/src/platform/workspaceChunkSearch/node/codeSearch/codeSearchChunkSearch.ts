@@ -46,7 +46,7 @@ import { AdoCodeSearchRepo, BuildIndexTriggerReason, CodeSearchRepo, CodeSearchR
 import { ExternalIngestClient } from './externalIngestClient';
 import { ExternalIngestIndex, ExternalIngestStatus } from './externalIngestIndex';
 import { LocalDiffEmbeddingsSearch } from './localDiffEmbeddingsSearch';
-import { CodeSearchRepoTracker, RepoInfo, TrackedRepoStatus } from './repoTracker';
+import { CodeSearchRepoTracker, RepoInfo, TrackedRepoState, TrackedRepoStatus } from './repoTracker';
 import { CodeSearchDiff, CodeSearchWorkspaceDiffTracker } from './workspaceDiff';
 
 export interface RepoEntry {
@@ -820,8 +820,20 @@ export class CodeSearchChunkSearch extends Disposable {
 			return files;
 		}
 
-		const gitHubRoots = this.getGitHubRepoRoots();
-		return files.filter(uri => gitHubRoots.some(root => isEqualOrParent(uri, root)));
+		return files.filter(uri => this.isInGitHubRepo(uri));
+	}
+
+	/**
+	 * Whether the most specific tracked repo containing {@linkcode uri} has a GitHub remote.
+	 */
+	private isInGitHubRepo(uri: URI): boolean {
+		let owner: TrackedRepoState | undefined;
+		for (const repo of this._repoTracker.getAllTrackedRepos()) {
+			if (isEqualOrParent(uri, repo.repo.rootUri) && (!owner || isEqualOrParent(repo.repo.rootUri, owner.repo.rootUri))) {
+				owner = repo;
+			}
+		}
+		return owner?.status === TrackedRepoStatus.Resolved && owner.resolvedRemoteInfo?.repoId.type === 'github';
 	}
 
 	private async searchLocalDiff(diffArray: LocalDiffResult, sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<DiffSearchResult | undefined> {

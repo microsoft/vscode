@@ -30,11 +30,12 @@ class TestFile extends FileRepresentation {
 	protected override async getStats() { return { size: 0, mtime: this.version }; }
 }
 
-test('ranks changed files and only recomputes files whose content changed', async () => {
+test('ranks changed files, only recomputes files whose content changed, and skips newly excluded files', async () => {
 	const files = [
 		new TestFile(URI.file('/workspace/a.ts'), 1, 0.2),
 		new TestFile(URI.file('/workspace/b.ts'), 1, 0.9),
 	];
+	const excluded = new Set<string>();
 	const computed: string[] = [];
 	const search = new LocalDiffEmbeddingsSearch(
 		embeddingType,
@@ -56,6 +57,7 @@ test('ranks changed files and only recomputes files whose content changed', asyn
 		}(),
 		new class extends mock<ILogService>() { override debug() { } }(),
 		new class extends mock<IWorkspaceFileIndex>() {
+			override async shouldIndexWorkspaceFile(uri: URI) { return !excluded.has(uri.path); }
 			override async tryLoad(uri: URI) { return files.find(f => f.uri.toString() === uri.toString()); }
 		}(),
 	);
@@ -72,11 +74,15 @@ test('ranks changed files and only recomputes files whose content changed', asyn
 	const unchanged = await doSearch();
 	files[0].version++;
 	const afterEdit = await doSearch();
+	excluded.add('/workspace/b.ts');
+	files[1].version++;
+	const afterExclusion = await doSearch();
 
-	expect({ first, unchanged, afterEdit, computed: computed.sort() }).toEqual({
+	expect({ first, unchanged, afterEdit, afterExclusion, computed: computed.sort() }).toEqual({
 		first: ['/workspace/b.ts', '/workspace/a.ts'],
 		unchanged: ['/workspace/b.ts', '/workspace/a.ts'],
 		afterEdit: ['/workspace/b.ts', '/workspace/a.ts'],
+		afterExclusion: ['/workspace/a.ts'],
 		computed: ['/workspace/a.ts', '/workspace/a.ts', '/workspace/b.ts'],
 	});
 
