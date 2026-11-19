@@ -74,6 +74,7 @@ import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from
 import { formatSchedule, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getAutomationsViewContent, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
+import { AUTOMATIONS_MODAL_SETTING } from '../../../automations/browser/automationsEditorInput.js';
 
 
 import '../../../../../workbench/contrib/sessions/browser/media/disclosure.css';
@@ -275,7 +276,7 @@ export class AutomationsCardsWidget extends Disposable {
 			historyState.textContent = message;
 			historyState.style.display = message ? '' : 'none';
 		}));
-		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.element, this.isMarkingAllRead));
+		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.element, this.isMarkingAllRead, {}));
 
 		this._register(autorun(reader => {
 			const catalogueState = this.automationService.catalogueState.read(reader);
@@ -1718,6 +1719,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 export class AutomationsCustomViewContribution extends Disposable {
 
 	static readonly ID = 'sessions.contrib.automationsCustomView';
+	private readonly viewRegistration = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		@ICustomViewService customViewService: ICustomViewService,
@@ -1743,12 +1745,27 @@ export class AutomationsCustomViewContribution extends Disposable {
 			).automations.length > 0);
 		}));
 
-		this._register(customViewService.registerCustomView({
-			id: AUTOMATIONS_CUSTOM_VIEW_ID,
-			ctor: new SyncDescriptor(AutomationsCustomView),
-			actions: { style: 'buttonBar', menuId: AgentsWindowMenus.CustomViewAutomations },
-		}, {
-			restore: contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key) === true,
+		const updateRegistration = () => {
+			if (configurationService.getValue<boolean>(AUTOMATIONS_MODAL_SETTING) === true) {
+				if (customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
+					customViewService.hideCustomView();
+				}
+				this.viewRegistration.clear();
+			} else if (!this.viewRegistration.value) {
+				this.viewRegistration.value = customViewService.registerCustomView({
+					id: AUTOMATIONS_CUSTOM_VIEW_ID,
+					ctor: new SyncDescriptor(AutomationsCustomView),
+					actions: { style: 'buttonBar', menuId: AgentsWindowMenus.CustomViewAutomations },
+				}, {
+					restore: contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key) === true,
+				});
+			}
+		};
+		updateRegistration();
+		this._register(configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(AUTOMATIONS_MODAL_SETTING)) {
+				updateRegistration();
+			}
 		}));
 
 		const automationContextKeys = new Set([ChatAutomationsEnabledContext.key]);
