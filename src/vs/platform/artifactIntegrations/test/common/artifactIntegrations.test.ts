@@ -13,7 +13,7 @@ import { constObservable, ISettableObservable, observableValue, waitForState } f
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ArtifactAction, ArtifactActionRejectedError, ArtifactAuthenticationRequiredError, ArtifactAutomationOption, ArtifactContributionView, ArtifactDetails, ArtifactPromptReceipt, ArtifactRecord, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, isArtifactRunSettled } from '../../common/artifactIntegration.js';
+import { ArtifactAction, ArtifactActionRejectedError, ArtifactActor, ArtifactAuthenticationRequiredError, ArtifactAutomationOption, ArtifactContributionView, ArtifactDetails, ArtifactPromptReceipt, ArtifactRecord, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, isArtifactRunSettled } from '../../common/artifactIntegration.js';
 import { applyArtifactAutomationSelection, disableArtifactAutomation, reconcileArtifactAutomationOptions } from '../../common/artifactAutomationConfiguration.js';
 import { formatArtifactAutomationNotice, isArtifactAutomationEnabledRules, isArtifactAutomationNoticeChanges, mergeArtifactAutomationNotices } from '../../common/artifactIntegrationNotices.js';
 import { ArtifactIntegrationRegistry } from '../../common/artifactIntegrationRegistry.js';
@@ -373,17 +373,21 @@ suite('Artifact Integrations', () => {
 		});
 	}));
 
-	test('notices say when the agent turned a rule on without the person confirming it', () => run(async store => {
+	test('notices name the agent that turned a rule on without the person confirming it only in their title', () => run(async store => {
 		const f = fixture(store);
 		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
 		await reference.object.configure('test', 0, { automatic: true }, { kind: 'agent', chat: 'agent-chat', turnId: 'agent-turn', autoApproved: true });
 		await timeout(0);
 		assert.deepStrictEqual({
 			grants: reference.object.snapshot.get().contributions[0].configuration.grants,
-			notices: f.notices.map(notice => notice.content.split('\n\n').at(-1)),
+			notices: f.notices.map(notice => notice.content.split('\n\n')),
 		}, {
 			grants: { automatic: { kind: 'agent', chat: 'agent-chat', turnId: 'agent-turn', autoApproved: true } },
-			notices: ['Turned on by the agent \\(auto-approved\\).'],
+			notices: [[
+				'The agent **enabled Automatically Act** for Example',
+				'Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.',
+				'Run Act automatically.',
+			]],
 		});
 	}));
 
@@ -1061,17 +1065,13 @@ suite('Artifact Integrations', () => {
 			notices: [{
 				kind: 'enabled', session: 'session', chat: 'origin-chat', iconId: 'link',
 				lines: [
-					'Automatically Act enabled for Example',
+					'**Automatically Act enabled** for Example',
 					'Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.',
 					'Run Act automatically.',
 				],
 			}, {
 				kind: 'disabled', session: 'session', chat: 'origin-chat', iconId: undefined,
-				lines: [
-					'Automatically Act disabled for Example',
-					'No new automatic runs will start for this rule. Pending runs will be cancelled; work already sent may still finish. Completed changes are not undone.',
-					'No automation rules remain enabled for this artifact integration.',
-				],
+				lines: ['**Automatically Act disabled** for Example'],
 			}],
 			prompts: [],
 		});
@@ -1111,9 +1111,35 @@ suite('Artifact Integrations', () => {
 			disabledReason: notice.content.includes('Attempt limit reached'),
 			remaining: notice.content.includes('Still enabled: Merge'),
 		})), [
-			{ kind: 'enabled', heading: 'Autopilot enabled for Example \\(2 rules\\)', changedMode: false, modeExplanation: false, disabledReason: false, remaining: false },
-			{ kind: 'changed', heading: 'Merge updated for Example', changedMode: true, modeExplanation: true, disabledReason: false, remaining: false },
-			{ kind: 'disabled', heading: 'Repair disabled for Example', changedMode: false, modeExplanation: false, disabledReason: true, remaining: true },
+			{ kind: 'enabled', heading: '**Autopilot enabled** for Example (2 rules)', changedMode: false, modeExplanation: false, disabledReason: false, remaining: false },
+			{ kind: 'changed', heading: '**Merge updated** for Example', changedMode: true, modeExplanation: true, disabledReason: false, remaining: false },
+			{ kind: 'disabled', heading: '**Repair disabled** for Example', changedMode: false, modeExplanation: false, disabledReason: true, remaining: true },
+		]);
+	}));
+
+	test('notices name the agent that changed automation and the kind of artifact', () => run(async store => {
+		const options: readonly ArtifactAutomationOption[] = [
+			{ id: 'repair', kind: 'boolean', label: 'Repair', description: 'Repair failures.', defaultValue: false, actionIds: ['act'], maxAttempts: 2 },
+			{ id: 'review', kind: 'boolean', label: 'Review', description: 'Address reviews.', defaultValue: false, actionIds: ['act'], maxAttempts: 2 },
+		];
+		const f = fixture(store, codeAction, new MemoryStorage(), artifact, options);
+		f.registration.dispose();
+		store.add(f.registry.register({ ...f.integration, artifactKind: 'PR' }, 'test-runtime'));
+		f.runtime.getAgentName = chat => chat === 'copilot-chat' ? 'Copilot' : undefined;
+		const copilot: ArtifactActor = { kind: 'agent', chat: 'copilot-chat', autoApproved: true };
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await reference.object.configure('test', 0, { repair: true, review: true }, copilot);
+		await reference.object.configure('test', 1, { repair: false });
+		await reference.object.configure('test', 2, { review: false }, { kind: 'agent', chat: 'unknown-chat' });
+		await reference.object.configure('test', 3, { repair: true, review: true });
+		await reference.object.configure('test', 4, { repair: false, review: false }, copilot);
+		await timeout(0);
+		assert.deepStrictEqual(f.notices.map(notice => ({ kind: notice.artifactKind, heading: notice.content.split('\n')[0] })), [
+			{ kind: 'PR', heading: 'Copilot **enabled Autopilot** for PR: Example (2 rules)' },
+			{ kind: 'PR', heading: '**Repair disabled** for PR: Example' },
+			{ kind: 'PR', heading: 'The agent **disabled Review** for PR: Example' },
+			{ kind: 'PR', heading: '**Autopilot enabled** for PR: Example (2 rules)' },
+			{ kind: 'PR', heading: 'Copilot **disabled Autopilot** for PR: Example (2 rules)' },
 		]);
 	}));
 
@@ -1138,11 +1164,11 @@ suite('Artifact Integrations', () => {
 			merged: formatArtifactAutomationNotice('Example', merged.changes, merged.enabledRules),
 			toggled: formatArtifactAutomationNotice('Example', toggled.changes, toggled.enabledRules),
 			integrations: stillEnabled(integrations),
-			disabledAcrossIntegrations: stillEnabled(disabledAcrossIntegrations),
+			disabledAcrossIntegrations: formatArtifactAutomationNotice('Example', disabledAcrossIntegrations.changes, disabledAcrossIntegrations.enabledRules).content,
 		}, {
 			merged: {
 				kind: 'changed', content: [
-					'Autopilot updated for Example \\(3 rules\\)',
+					'**Autopilot updated** for Example (3 rules)',
 					'',
 					'Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.',
 					'',
@@ -1154,20 +1180,17 @@ suite('Artifact Integrations', () => {
 					'- **Address \\*Reviews\\* disabled**\\',
 					'  Attempt limit reached',
 					'',
-					'No new automatic runs will start for the disabled rules. Pending runs will be cancelled; work already sent may still finish. Completed changes are not undone.',
-					'',
 					'Still enabled: Repair, Merge.',
 				].join('\n'),
 			},
-			toggled: {
-				kind: 'disabled', content: [
-					'Repair disabled for Example',
-					'No new automatic runs will start for this rule. Pending runs will be cancelled; work already sent may still finish. Completed changes are not undone.',
-					'No automation rules remain enabled for this artifact integration.',
-				].join('\n\n'),
-			},
+			toggled: { kind: 'disabled', content: '**Repair disabled** for Example' },
 			integrations: 'Still enabled: Repair.',
-			disabledAcrossIntegrations: 'No automation rules remain enabled for these artifact integrations.',
+			disabledAcrossIntegrations: [
+				'**Autopilot disabled** for Example (2 rules)',
+				'',
+				'- **Repair disabled**',
+				'- **Review disabled**',
+			].join('\n'),
 		});
 	});
 
@@ -1178,7 +1201,7 @@ suite('Artifact Integrations', () => {
 		], []), {
 			kind: 'changed',
 			content: [
-				'Autopilot updated for Example \\(2 rules\\)',
+				'**Autopilot updated** for Example (2 rules)',
 				'',
 				'Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.',
 				'',
@@ -1241,7 +1264,7 @@ suite('Artifact Integrations', () => {
 		await timeout(0);
 		const [title, , description] = f.notices[0].content.split('\n\n');
 		assert.deepStrictEqual([title, description], [
-			'\\*Automatically Act\\* enabled for \\[Example\\]\\(command:run\\)',
+			'**\\*Automatically Act\\* enabled** for \\[Example\\]\\(command:run\\)',
 			'Use \\[this\\]\\(command:run\\).',
 		]);
 	}));
