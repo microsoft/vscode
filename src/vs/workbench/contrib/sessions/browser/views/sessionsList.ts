@@ -8,6 +8,7 @@ import '../media/sessionsList.css';
 import '../media/disclosure.css';
 import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
 import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, ISessionSearchHint, ISessionSearchMatch, ISessionsListSearchResults, matchSessionSearch, SessionsListFindController, SessionsListSearchQuery, SessionsListSearchTelemetry, SessionSearchFieldKind, toSearchFilterData } from './sessionsListSearch.js';
+import { SessionRowIndent, setSessionRowIndentGuides } from './sessionsListIndentGuides.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
@@ -1107,11 +1108,13 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 
 		template.elementDisposables.clear();
 		template.titleToolbar.context = element;
-		setSessionGroupDepth(template.container, this.getGroupDepth(element));
+		const groupDepth = this.getGroupDepth(element);
+		setSessionGroupDepth(template.container, groupDepth);
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
 		template.container.classList.toggle('last-chat', element.isLast);
 		template.container.classList.toggle('standalone', !!element.standalone);
 		const comparisonConnectorPosition = element.standalone ? undefined : this.getComparisonConnectorPosition(element.session);
+		setSessionRowIndentGuides(template.container, groupDepth, comparisonConnectorPosition !== undefined ? SessionRowIndent.Comparison : SessionRowIndent.Item);
 		template.container.classList.toggle('session-comparison-chat', comparisonConnectorPosition !== undefined);
 		if (comparisonConnectorPosition === 'middle') {
 			const connector = DOM.append(template.container, $('span.session-comparison-chat-connector', { 'aria-hidden': 'true' }));
@@ -2037,7 +2040,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 			this.renderScheduledIndicatorHover(element, indicator, template);
 		}
-		setSessionGroupDepth(template.container, this.options.getGroupDepth?.(element) ?? 0);
+		const groupDepth = this.options.getGroupDepth?.(element) ?? 0;
+		setSessionGroupDepth(template.container, groupDepth);
 		template.container.closest('.monaco-list-row')?.classList.remove(SESSION_EXTERNAL_APPLICATION_BADGE_HOVERED_CLASS);
 		template.renderedSession.set(element, undefined);
 		template.elementDisposables.add(toDisposable(() => {
@@ -2062,6 +2066,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		} else {
 			delete template.container.dataset.sessionGroupConnector;
 		}
+		setSessionRowIndentGuides(template.container, groupDepth, groupConnectorPosition ? SessionRowIndent.Comparison : SessionRowIndent.Item);
 
 		if (this.options.inlineRename) {
 			template.elementDisposables.add(DOM.addDisposableListener(template.titleRow, DOM.EventType.DBLCLICK, (event: MouseEvent) => {
@@ -3129,7 +3134,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		template.elementDisposables.clear();
 		this.renderedSections.set(template, element);
 		template.container.closest('.monaco-list-row')?.classList.toggle('sessions-disclosure-row', collapsible);
-		setSessionGroupDepth(template.container, this.getGroupDepth(element));
+		const groupDepth = this.getGroupDepth(element);
+		setSessionGroupDepth(template.container, groupDepth);
+		setSessionRowIndentGuides(template.container, groupDepth, SessionRowIndent.Header);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
 		template.container.classList.remove('session-section-new-session');
@@ -3471,6 +3478,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		setSessionGroupDepth(template.container, element.depth);
 
 		const isComparison = element.comparison !== undefined;
+		setSessionRowIndentGuides(template.container, element.depth, isComparison ? SessionRowIndent.Comparison : SessionRowIndent.Header);
 		template.container.classList.toggle('session-comparison-group', isComparison);
 		const groupIcon: ThemeIcon = isComparison ? Codicon.layers : {
 			id: element.group.icon ?? Codicon.folderLibrary.id,
@@ -3652,7 +3660,10 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		const container = template.parentElement;
 		if (container) {
-			setSessionGroupDepth(container, this.getGroupDepth(element));
+			const groupDepth = this.getGroupDepth(element);
+			setSessionGroupDepth(container, groupDepth);
+			// The show more folders row lists sections, so it lines up with their headers.
+			setSessionRowIndentGuides(container, groupDepth, element.kind === 'sessions' ? SessionRowIndent.Item : SessionRowIndent.Header);
 		}
 		container?.classList.toggle('session-show-more-folders', element.kind !== 'sessions');
 		template.textContent = getSessionShowMoreLabel(element);
@@ -3691,7 +3702,9 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 		if (!isSessionPlaceholder(element)) {
 			return;
 		}
-		setSessionGroupDepth(template.container, this.getGroupDepth(element));
+		const groupDepth = this.getGroupDepth(element);
+		setSessionGroupDepth(template.container, groupDepth);
+		setSessionRowIndentGuides(template.container, groupDepth, SessionRowIndent.Item);
 		template.label.textContent = element.label;
 		template.hover.value = element.hover
 			? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), template.container, element.hover)
@@ -5588,7 +5601,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 					}
 				},
 				overrideStyles: this.options.overrideStyles,
-				renderIndentGuides: RenderIndentGuides.None,
 				twistieAdditionalCssClass: element => {
 					if (!isSessionItem(element) || this.getRenderedSessionListChats(element).length === 0 && !this.comparisonParentSessionIds.has(element.sessionId)) {
 						return 'force-no-twistie';
