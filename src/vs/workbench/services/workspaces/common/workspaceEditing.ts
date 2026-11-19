@@ -48,8 +48,8 @@ export interface IWorkspaceEditingService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Fired before folders leave the workspace through {@link removeFolders} or {@link updateFolders} with `userInitiated`,
-	 * or through {@link setFolderLocation}. Other removals, such as one of an extension, are not fired for.
+	 * Fired before folders leave the workspace through {@link removeFolders}, {@link updateFolders} or {@link setFolderLocation},
+	 * unless the caller forces the change. Removals that do not go through this service, such as an edit of the workspace file, are not fired for.
 	 */
 	readonly onWillRemoveFolders: Event<IWillRemoveFoldersEvent>;
 
@@ -68,16 +68,16 @@ export interface IWorkspaceEditingService {
 	/**
 	 * Remove folders from the existing workspace
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
-	 * When `userInitiated` is `true`, the user is asked to confirm when something runs against the folders ({@link onWillRemoveFolders}).
+	 * Unless `force` is `true`, the user is asked to confirm when something runs against the folders ({@link onWillRemoveFolders}). Callers that must not ask, such as an extension or an unattended request, pass `force`.
 	 */
-	removeFolders(folders: URI[], donotNotifyError?: boolean, userInitiated?: boolean): Promise<void>;
+	removeFolders(folders: URI[], donotNotifyError?: boolean, force?: boolean): Promise<void>;
 
 	/**
 	 * Allows to add and remove folders to the existing workspace at once.
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
-	 * When `userInitiated` is `true`, the user is asked to confirm when something runs against the folders ({@link onWillRemoveFolders}).
+	 * Unless `force` is `true`, the user is asked to confirm when something runs against the folders ({@link onWillRemoveFolders}). Callers that must not ask, such as an extension or an unattended request, pass `force`.
 	 */
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean, userInitiated?: boolean): Promise<void>;
+	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean, force?: boolean): Promise<void>;
 
 	/**
 	 * Moves the folder to `location`; pass the `uri` of the workspace's single-folder identifier
@@ -91,10 +91,12 @@ export interface IWorkspaceEditingService {
 	 * `options.folder` optionally names the folder to move by its current `uri`; it must match
 	 * the folder of the workspace. Multi-root workspaces are not supported yet.
 	 *
+	 * Unless `options.force` is `true`, the user is asked to confirm when something runs against the current location ({@link onWillRemoveFolders}).
+	 *
 	 * When `options.ifIdle` is `true`, the call does nothing if another switch is still in flight,
 	 * so that background callers never override a switch requested by the user.
 	 */
-	setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void>;
+	setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI; readonly force?: boolean }): Promise<void>;
 
 	/**
 	 * Enters the workspace with the provided path.

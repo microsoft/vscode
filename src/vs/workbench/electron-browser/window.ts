@@ -1063,7 +1063,7 @@ export class NativeWindow extends BaseWindow {
 		}
 
 		if (foldersToRemove.length) {
-			await this.workspaceEditingService.removeFolders(foldersToRemove);
+			await this.workspaceEditingService.removeFolders(foldersToRemove, false, true);
 		}
 	}
 

@@ -251,7 +251,7 @@ export class RemoveRootFolderAction extends Action2 {
 
 		const folder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
 		if (folder) {
-			await workspaceEditingService.removeFolders([folder.uri], false, true);
+			await workspaceEditingService.removeFolders([folder.uri]);
 		}
 	}
 }

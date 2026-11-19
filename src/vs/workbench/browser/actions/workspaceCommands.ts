@@ -84,7 +84,7 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		await workspaceEditingService.updateFolders(0, contextService.getWorkspace().folders.length, folders.map(folder => ({ uri: folder })), undefined, true);
+		await workspaceEditingService.updateFolders(0, contextService.getWorkspace().folders.length, folders.map(folder => ({ uri: folder })));
 	}
 });
 

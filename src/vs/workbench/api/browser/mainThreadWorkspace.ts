@@ -109,7 +109,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		// Indicate in status message
 		this._notificationService.status(this.getStatusMessage(extensionName, workspaceFoldersToAdd.length, deleteCount), { hideAfter: 10 * 1000 /* 10s */ });
 
-		return this._workspaceEditingService.updateFolders(index, deleteCount, workspaceFoldersToAdd, true);
+		return this._workspaceEditingService.updateFolders(index, deleteCount, workspaceFoldersToAdd, true, true);
 	}
 
 	private getStatusMessage(extensionName: string, addCount: number, removeCount: number): string {

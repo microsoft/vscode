@@ -184,14 +184,14 @@ suite('WorkspaceEditingService', () => {
 			assert.deepStrictEqual(fixture.reasons, ['user', undefined]);
 		});
 
-		test('removing folders asks only when the user started it, and stops what runs once confirmed', async () => {
+		test('removing folders asks by default unless the caller forces the change, and stops what runs once confirmed', async () => {
 			const folder = URI.file('/work/other');
 			const confirmed = createService({ current: URI.file('/work/project'), primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'], vetoConfirmed: true });
-			await confirmed.service.removeFolders([folder], false, true);
+			await confirmed.service.removeFolders([folder]);
 			const cancelled = createService({ current: URI.file('/work/project'), primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'], vetoConfirmed: false });
-			await cancelled.service.removeFolders([folder], false, true);
+			await cancelled.service.removeFolders([folder]);
 			const unattended = createService({ current: URI.file('/work/project'), primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'] });
-			await unattended.service.removeFolders([folder]);
+			await unattended.service.removeFolders([folder], false, true);
 			assert.deepStrictEqual({
 				confirmed: confirmed.events,
 				dialog: confirmed.dialogs.map(({ message, detail, primaryButton }) => ({ message, detail, primaryButton })),
@@ -208,7 +208,7 @@ suite('WorkspaceEditingService', () => {
 		test('a failure to stop what runs keeps the folder', async () => {
 			const folder = URI.file('/work/other');
 			const removal = createService({ current: URI.file('/work/project'), primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'], vetoConfirmed: true, stopFails: true });
-			await assert.rejects(() => removal.service.removeFolders([folder], false, true), /cannot stop/);
+			await assert.rejects(() => removal.service.removeFolders([folder]), /cannot stop/);
 			const switching = createService({ current: URI.file('/work/project'), primaryTrusted: true, vetoReasons: ['A debug session is running.'], vetoConfirmed: true, stopFails: true });
 			await assert.rejects(() => switching.service.setFolderLocation(URI.file('/work/alt'), { reason: 'user' }), /cannot stop/);
 			assert.deepStrictEqual({ removal: removal.events, switching: switching.events }, { removal: ['willRemove:/work/other', 'stop'], switching: ['willRemove:/work/project', 'stop'] });
@@ -217,9 +217,9 @@ suite('WorkspaceEditingService', () => {
 		test('removing or replacing the only folder asks before entering a workspace', async () => {
 			const project = URI.file('/work/project');
 			const removal = createService({ current: project, primaryTrusted: true, vetoReasons: ['A debug session is running.'], vetoConfirmed: false });
-			await removal.service.removeFolders([project], false, true);
+			await removal.service.removeFolders([project]);
 			const replacement = createService({ current: project, primaryTrusted: true, vetoReasons: ['A debug session is running.'], vetoConfirmed: true });
-			await replacement.service.updateFolders(0, 1, [{ uri: URI.file('/work/other') }], false, true);
+			await replacement.service.updateFolders(0, 1, [{ uri: URI.file('/work/other') }]);
 			assert.deepStrictEqual({ removal: removal.events, replacement: replacement.events }, {
 				removal: ['willRemove:/work/project'],
 				replacement: ['willRemove:/work/project', 'stop', 'entered']
@@ -229,9 +229,9 @@ suite('WorkspaceEditingService', () => {
 		test('an update only asks about the folders that leave the workspace', async () => {
 			const a = URI.file('/work/a');
 			const retained = createService({ current: a, primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'], vetoConfirmed: false });
-			await retained.service.updateFolders(0, 1, [{ uri: a }, { uri: URI.file('/work/c') }], false, true);
+			await retained.service.updateFolders(0, 1, [{ uri: a }, { uri: URI.file('/work/c') }]);
 			const leaving = createService({ current: a, primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'], vetoConfirmed: true });
-			await leaving.service.updateFolders(0, 1, [{ uri: URI.file('/work/c') }], false, true);
+			await leaving.service.updateFolders(0, 1, [{ uri: URI.file('/work/c') }]);
 			assert.deepStrictEqual({ retained: retained.events, leaving: leaving.events }, { retained: ['updated'], leaving: ['willRemove:/work/a', 'stop', 'updated'] });
 		});
 
@@ -257,16 +257,21 @@ suite('WorkspaceEditingService', () => {
 			assert.deepStrictEqual({ events: fixture.events, dialogs: fixture.dialogs.length }, { events: ['willRemove:/work/project', 'switch'], dialogs: 0 });
 		});
 
-		test('a programmatic switch that something vetoes gives way without asking', async () => {
-			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true, vetoReasons: ['A debug session is running.'], vetoConfirmed: true });
-			await fixture.service.setFolderLocation(URI.file('/work/alt'), { reason: 'programmatic' });
-			assert.deepStrictEqual({ events: fixture.events, dialogs: fixture.dialogs.length }, { events: ['willRemove:/work/project'], dialogs: 0 });
+		test('a switch asks by default, even without a reason, and force switches without asking', async () => {
+			const asking = createService({ current: URI.file('/work/alt'), primaryTrusted: true, vetoReasons: ['A debug session is running.'], vetoConfirmed: false });
+			await asking.service.setFolderLocation(URI.file('/work/project'));
+			const skipping = createService({ current: URI.file('/work/alt'), primaryTrusted: true, vetoReasons: ['A debug session is running.'] });
+			await skipping.service.setFolderLocation(URI.file('/work/project'), { force: true });
+			assert.deepStrictEqual({ asking: asking.events, skipping: skipping.events, dialogs: skipping.dialogs.length }, { asking: ['willRemove:/work/alt'], skipping: ['switch'], dialogs: 0 });
 		});
 
-		test('a switch without a reason, such as a return to the primary, is not vetoed', async () => {
-			const fixture = createService({ current: URI.file('/work/alt'), primaryTrusted: true, vetoReasons: ['A debug session is running.'] });
-			await fixture.service.setFolderLocation(URI.file('/work/project'));
-			assert.deepStrictEqual({ events: fixture.events, dialogs: fixture.dialogs.length }, { events: ['switch'], dialogs: 0 });
+		test('an update and a single-folder replacement skip the veto when asked to', async () => {
+			const project = URI.file('/work/project');
+			const replacement = createService({ current: project, primaryTrusted: true, vetoReasons: ['A debug session is running.'] });
+			await replacement.service.updateFolders(0, 1, [{ uri: URI.file('/work/other') }], false, true);
+			const workspace = createService({ current: project, primaryTrusted: true, state: WorkbenchState.WORKSPACE, vetoReasons: ['A debug session is running.'] });
+			await workspace.service.updateFolders(0, 1, [{ uri: URI.file('/work/other') }], false, true);
+			assert.deepStrictEqual({ replacement: replacement.events, workspace: workspace.events }, { replacement: ['entered'], workspace: ['updated'] });
 		});
 
 		test('trust is inherited from the primary, not from the current location', async () => {

@@ -135,20 +135,20 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	private folderLocationRequest = 0;
 	private pendingFolderLocationRequests = 0;
 
-	async setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void> {
+	async setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI; readonly force?: boolean }): Promise<void> {
 		if (options?.ifIdle && this.pendingFolderLocationRequests > 0) {
 			return;
 		}
 
 		this.pendingFolderLocationRequests++;
 		try {
-			await this.doSetFolderLocation(location, options?.reason, options?.folder);
+			await this.doSetFolderLocation(location, options?.reason, options?.folder, options?.force);
 		} finally {
 			this.pendingFolderLocationRequests--;
 		}
 	}
 
-	private async doSetFolderLocation(location: URI, reason?: FolderLocationChangeReason, folder?: URI): Promise<void> {
+	private async doSetFolderLocation(location: URI, reason?: FolderLocationChangeReason, folder?: URI, force?: boolean): Promise<void> {
 		const currentFolder = this.contextService.getWorkspace().folders[0];
 		if (!currentFolder || !this.workspaceFolderLocationService.canSetLocation(currentFolder)) {
 			throw new Error(localize('folderLocationLocalSingleFolderOnly', "Folder locations are only supported in local single-folder workspaces."));
@@ -206,18 +206,13 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			return true;
 		};
 
-		// What runs against the current location asks to be considered before the folder moves. The user confirms a switch they
-		// started; a programmatic one gives way instead. Without a reason (such as a return to the primary location) nothing is asked.
-		if (!this.uriIdentityService.extUri.isEqual(location, currentFolder.uri) && (reason === 'user' || reason === 'programmatic')) {
+		// What runs against the current location asks to be considered before the folder moves, unless the caller forces the change
+		if (!force && !this.uriIdentityService.extUri.isEqual(location, currentFolder.uri)) {
 			const vetoes = await this.willRemoveFolders([currentFolder.uri]);
 			if (!isFresh()) {
 				return;
 			}
 			if (vetoes.reasons.length > 0) {
-				if (reason === 'programmatic') {
-					this.logService.info(`[folderLocation] not switching to ${location.toString()}: ${vetoes.reasons.join(' ')}`);
-					return;
-				}
 				const { confirmed } = await this.dialogService.confirm({
 					type: Severity.Warning,
 					message: localize('confirmFolderLocationSwitch', "Switch the folder to '{0}'?", resolved?.label ?? basename(location)),
@@ -370,7 +365,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		return foldersToDelete.filter(folder => !foldersToAdd.some(added => this.uriIdentityService.extUri.isEqual(added.uri, folder)));
 	}
 
-	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean, userInitiated?: boolean): Promise<void> {
+	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean, force?: boolean): Promise<void> {
 		const folders = this.contextService.getWorkspace().folders;
 
 		let foldersToDelete: URI[] = [];
@@ -397,7 +392,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 		// Delete Folders
 		if (wantsToDelete && !wantsToAdd) {
-			return this.removeFolders(foldersToDelete, false, userInitiated);
+			return this.removeFolders(foldersToDelete, false, force);
 		}
 
 		// Add & Delete Folders
@@ -407,7 +402,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			// other folders, we handle this specially and just enter workspace
 			// mode with the folders that are being added.
 			if (this.includesSingleFolderWorkspace(foldersToDelete)) {
-				if (userInitiated && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
+				if (!force && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
 					return;
 				}
 				return this.createAndEnterWorkspace(foldersToAdd);
@@ -419,12 +414,12 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			}
 
 			// finally, update folders within the workspace
-			return this.doUpdateFolders(foldersToAdd, foldersToDelete, index, donotNotifyError, userInitiated);
+			return this.doUpdateFolders(foldersToAdd, foldersToDelete, index, donotNotifyError, force);
 		}
 	}
 
-	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError = false, userInitiated = false): Promise<void> {
-		if (userInitiated && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
+	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError = false, force = false): Promise<void> {
+		if (!force && !await this.confirmRemoveFolders(this.getLeavingFolders(foldersToDelete, foldersToAdd))) {
 			return;
 		}
 
@@ -481,18 +476,18 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 	}
 
-	async removeFolders(foldersToRemove: URI[], donotNotifyError = false, userInitiated = false): Promise<void> {
+	async removeFolders(foldersToRemove: URI[], donotNotifyError = false, force = false): Promise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we create an empty workspace and enter it.
 		if (this.includesSingleFolderWorkspace(foldersToRemove)) {
-			if (userInitiated && !await this.confirmRemoveFolders(foldersToRemove)) {
+			if (!force && !await this.confirmRemoveFolders(foldersToRemove)) {
 				return;
 			}
 			return this.createAndEnterWorkspace([]);
 		}
 
-		if (userInitiated && !await this.confirmRemoveFolders(foldersToRemove)) {
+		if (!force && !await this.confirmRemoveFolders(foldersToRemove)) {
 			return;
 		}
 

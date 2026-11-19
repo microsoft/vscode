@@ -139,12 +139,13 @@ suite('AgentHostWorktree', () => {
 		// Like the workspace: only its latest request applies, and an automatic one gives way to one under way
 		let latestMove = 0;
 		let movesUnderWay = 0;
-		const setFolderLocation = async (location: URI, moveOptions?: { readonly ifIdle?: boolean; readonly reason?: string }) => {
+		const setFolderLocation = async (location: URI, moveOptions?: { readonly ifIdle?: boolean; readonly reason?: string; readonly force?: boolean }) => {
 			if (moveOptions?.ifIdle && movesUnderWay > 0) {
 				moves.push(`${location.path} (gave way)`);
 				return;
 			}
-			moves.push(`${location.path}${moveOptions?.ifIdle ? ' (automatic)' : ''}`);
+			// Only a move the user asked for may ask the user about what runs in the folder
+			moves.push(`${location.path}${moveOptions?.ifIdle ? ' (automatic)' : ''}${moveOptions?.force || moveOptions?.reason === 'user' ? '' : ' (would ask)'}`);
 			const move = ++latestMove;
 			movesUnderWay++;
 			try {
