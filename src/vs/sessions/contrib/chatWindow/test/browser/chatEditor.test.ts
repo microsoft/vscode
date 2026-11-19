@@ -467,7 +467,7 @@ suite('Session chat view editor', () => {
 		view.setProvidedTitleVisible(true);
 		const aloneAgain = headerShown();
 
-		const { menuId, contextKeyService, options } = view.titleMenu;
+		const { menuId, contextKeyService, options } = view.titleMenu!;
 		assert.deepStrictEqual({ alone, withTabs, aloneAgain, menu: menuId.id, inChatEditorScope: SessionInChatEditorContext.getValue(contextKeyService), onSession: options.args?.[0] === session }, {
 			alone: true,
 			withTabs: false,
@@ -723,11 +723,11 @@ suite('Session chat view editor', () => {
 		const multipleSessions = MultipleSessionsVisibleContext.bindTo(contextKeyService);
 		const aiEnabled = ChatContextKeys.enabled.bindTo(contextKeyService);
 		// Its entry among the session header's actions, as the tab bar shows them while the header hides
-		const close = MenuRegistry.getMenuItems(view.titleMenu.menuId).filter(isIMenuItem).find(item => item.command.id === CLOSE_SESSION_COMMAND_ID && item.group === 'secondary/0_pane');
+		const close = MenuRegistry.getMenuItems(view.titleMenu!.menuId).filter(isIMenuItem).find(item => item.command.id === CLOSE_SESSION_COMMAND_ID && item.group === 'secondary/0_pane');
 		const offersClose = (multiple: boolean, ai = true) => {
 			multipleSessions.set(multiple);
 			aiEnabled.set(ai);
-			return !!close && view.titleMenu.contextKeyService.contextMatchesRules(close.when);
+			return !!close && view.titleMenu!.contextKeyService.contextMatchesRules(close.when);
 		};
 
 		const composer = { singleSession: offersClose(false), severalSessions: offersClose(true), aiHidden: offersClose(true, false) };
@@ -764,7 +764,7 @@ suite('Session chat view editor', () => {
 				shown: !!header && header.style.display !== 'none',
 				title: header?.querySelector('.chat-composite-bar-session-title-text')?.textContent,
 				status: header?.querySelector<HTMLElement>('.chat-composite-bar-session-icon')?.style.display !== 'none',
-				onSession: view.titleMenu.options.args?.[0] === draft,
+				onSession: view.titleMenu!.options.args?.[0] === draft,
 			};
 		};
 

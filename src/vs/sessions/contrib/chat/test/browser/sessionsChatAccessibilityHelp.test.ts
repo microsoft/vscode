@@ -22,6 +22,7 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
@@ -82,6 +83,28 @@ suite('SessionsChatAccessibilityHelp', () => {
 			returnAction: content.includes('Choose Return to Session'),
 			dismiss: content.includes('press Escape or Got It to dismiss the spotlight'),
 		}, { toggle: true, toggleKeyboard: true, restoreGrouping: true, screenReaderDefault: true, explicitChoices: true, settingsLink: true, persistentNotification: true, returnAction: true, dismiss: true });
+	});
+
+	test('documents side chats in the side panel, and leaves them out of the archive help, while side chats show there', () => {
+		const help = (sideChatsInSidePane: boolean) => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService();
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration, undefined, sideChatsInSidePane);
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiation.stub(ISessionsHostLayoutService, {});
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			return { sidePanel: content.includes('open as tabs of the side panel'), archiveListsSideChats: content.includes('including a /btw side chat') };
+		};
+
+		assert.deepStrictEqual([help(false), help(true)], [
+			{ sidePanel: false, archiveListsSideChats: true },
+			{ sidePanel: true, archiveListsSideChats: false },
+		]);
 	});
 
 	test('defers to webview Find help while the Find input is focused', () => {
@@ -530,7 +553,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	}
 
-	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT): void {
+	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, sideChatsInSidePane = false): void {
 		instantiationService.stub(IChatViewFactory, { newSessionInput: worktreeSuggestionInputPresentation, newSessionPresentation: defaultNewSessionPresentation });
 		instantiationService.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
@@ -538,6 +561,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: configuration.getValue('chat.disableAIFeatures') === true } });
 		const contextKeyService = store.add(new ContextKeyService(configuration));
 		SessionsListPromoteNewChatActionContext.bindTo(contextKeyService).set(promoteNewChatAction);
+		ChatContextKeys.sideChatsInSidePane.bindTo(contextKeyService).set(sideChatsInSidePane);
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	}
 

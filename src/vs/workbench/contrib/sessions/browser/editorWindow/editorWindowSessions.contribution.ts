@@ -32,7 +32,8 @@ import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } fro
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { EditorWindowAgentFeedbackService, EditorWindowAquariumService, EditorWindowAutomationService, EditorWindowCodeReviewService, EditorWindowCustomViewService, EditorWindowPinnedCanvasService } from './editorWindowNullServices.js';
+import { EditorWindowAgentFeedbackService, EditorWindowAquariumService, EditorWindowAutomationService, EditorWindowCodeReviewService, EditorWindowCustomViewService, EditorWindowPinnedCanvasService, EditorWindowSideChatPlacementService } from './editorWindowNullServices.js';
+import { ISideChatPlacementService } from '../sideChatPlacement.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from '../chat/chatViewStateService.js';
 import { ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../chatBackgroundService.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../newSessionComposerService.js';
@@ -99,6 +100,7 @@ registerEditorWindowSessionsSingleton(IAgentsWindowExtensionSuggestionsService, 
 registerEditorWindowSessionsSingleton(ICustomViewService, EditorWindowCustomViewService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IAutomationService, EditorWindowAutomationService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IPinnedCanvasService, EditorWindowPinnedCanvasService, InstantiationType.Delayed);
+registerEditorWindowSessionsSingleton(ISideChatPlacementService, EditorWindowSideChatPlacementService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IAgentFeedbackService, EditorWindowAgentFeedbackService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IAquariumService, EditorWindowAquariumService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ICodeReviewService, EditorWindowCodeReviewService, InstantiationType.Delayed);

@@ -70,6 +70,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { getRepositoryRootFromWorktree } from '../../../../../platform/agentHost/common/worktreePaths.js';
+import { isSideChat, ISideChatPlacementService } from '../sideChatPlacement.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
@@ -365,8 +366,8 @@ function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
 }
 
 /** The done chats of a session that is not done, which the Done section lists as rows of their own. */
-function getSessionDoneListChats(session: ISession, reader?: IReader): readonly IChat[] {
-	return session.isArchived.read(reader) ? [] : getSessionListChats(session, reader, true).filter(chat => chat.isArchived.read(reader));
+function getSessionDoneListChats(session: ISession, hideSideChats: boolean, reader?: IReader): readonly IChat[] {
+	return session.isArchived.read(reader) ? [] : getSessionListChats(session, reader, true, hideSideChats).filter(chat => chat.isArchived.read(reader));
 }
 
 function getChatTitle(chat: IChat, reader?: IReader): string {
@@ -381,19 +382,25 @@ export function formatSessionListTime(date: Date): string {
 	return seconds < 60 ? localize('secondsDuration', "now") : fromNow(date, true);
 }
 
-export function getSessionListChats(session: ISession, reader?: IReader, showArchived = false): readonly IChat[] {
+/**
+ * The chats a session lists below its row: its peer chats, not its main chat, subagents or hidden chats, archived chats
+ * only with `showArchived`, and its side chats only without `hideSideChats`, as while side chats show in the side pane
+ * ({@link ISideChatPlacementService.inSidePane}).
+ */
+export function getSessionListChats(session: ISession, reader?: IReader, showArchived = false, hideSideChats = false): readonly IChat[] {
 	const mainChat = session.mainChat.read(reader);
 	return session.chats.read(reader).filter(chat =>
 		!isEqual(chat.resource, mainChat.resource) &&
 		chat.origin?.kind !== ChatOriginKind.Tool &&
+		!(hideSideChats && isSideChat(chat)) &&
 		(!chat.isArchived.read(reader) || showArchived) &&
 		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
 	);
 }
 
 /** Whether a session is archived or lists archived chats, both of which the archived filter hides. */
-function hasArchivedListContent(session: ISession): boolean {
-	return session.isArchived.get() || getSessionListChats(session, undefined, true).some(chat => chat.isArchived.get());
+function hasArchivedListContent(session: ISession, hideSideChats: boolean): boolean {
+	return session.isArchived.get() || getSessionListChats(session, undefined, true, hideSideChats).some(chat => chat.isArchived.get());
 }
 
 /** Whether the chat is the open chat of the active session. */
@@ -4805,6 +4812,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly pendingListUpdate = this._register(new MutableDisposable());
 	private refreshPending = false;
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
+	/** Whether side chats show in the side pane, which the list then does not list below their sessions. */
+	private readonly _hideSideChats: IObservable<boolean>;
 	private readonly inboxObserver = this._register(new MutableDisposable());
 	/** Inbox placements computed by {@link inboxObserver}, reused while building the tree. */
 	private inboxPlacements: ReadonlyMap<string, IInboxPlacement> | undefined;
@@ -5022,8 +5031,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ILogService private readonly logService: ILogService,
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
 		@IChatService chatService: IChatService,
+		@ISideChatPlacementService sideChatPlacementService: ISideChatPlacementService,
 	) {
 		super();
+		this._hideSideChats = sideChatPlacementService.inSidePane;
 		const mainWindowHost = getMainWindowHost(sessionHostService);
 		this._mainWindowShown = derived(this, reader => shownChatOf(mainWindowHost, reader));
 		this.groupAppearancePicker = this._register(instantiationService.createInstance(SessionGroupAppearancePicker));
@@ -5996,7 +6007,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		let initialized = false;
 		this.sessionChatsObserver.value = autorun(reader => {
 			for (const session of this.sessions) {
-				getSessionListChats(session, reader, !this._excludeArchived);
+				getSessionListChats(session, reader, !this._excludeArchived, this._hideSideChats.read(reader));
 				session.isExternal?.read(reader);
 				session.application.read(reader);
 				session.workspace.read(reader);
@@ -6034,7 +6045,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const inbox = grouping === SessionsGrouping.Inbox;
 		const nextNestedSessionResources = new Set(
 			this.sessions
-				.filter(session => getSessionListChats(session).length > 0)
+				.filter(session => getSessionListChats(session, undefined, false, this._hideSideChats.get()).length > 0)
 				.map(session => session.resource.toString())
 		);
 
@@ -6057,7 +6068,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(session => this.options.scheduledSessionResources?.get().has(session.resource.toString()));
 		}
 		// The default only changes what the list shows for archived content that the other filters keep.
-		if (this._excludeArchivedIsDefault && filtered.some(session => hasArchivedListContent(session))) {
+		if (this._excludeArchivedIsDefault && filtered.some(session => hasArchivedListContent(session, this._hideSideChats.get()))) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
 		}
 		if (this._excludeArchived) {
@@ -6165,7 +6176,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// When done items are shown, the done chats of a session that is not done
 		// are listed in the Done section as rows of their own instead of under
 		// their session's row.
-		const standaloneDoneChats = this._excludeArchived ? [] : filtered.flatMap(session => getSessionDoneListChats(session).map(chat => ({ session, chat })));
+		const standaloneDoneChats = this._excludeArchived ? [] : filtered.flatMap(session => getSessionDoneListChats(session, this._hideSideChats.get()).map(chat => ({ session, chat })));
 		if ((standaloneDoneChats.length > 0 || !this._excludeArchived && this._sessionsManagementService.archivedSessionItems.get().available) && !sections.some(s => s.id === 'archived')) {
 			sections.push({ id: 'archived', label: archivedSectionLabel, sessions: [] });
 		}
@@ -6878,7 +6889,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * that is not done are listed in the Done section instead.
 	 */
 	private getRenderedSessionListChats(session: ISession): readonly IChat[] {
-		return getSessionListChats(session, undefined, !this._excludeArchived && session.isArchived.get());
+		return getSessionListChats(session, undefined, !this._excludeArchived && session.isArchived.get(), this._hideSideChats.get());
 	}
 
 	private attachComparisonsToOriginatingSessions(children: IObjectTreeElement<SessionListItem>[], inbox: boolean, renderSection: (section: ISessionSection) => IObjectTreeElement<SessionListItem>): IObjectTreeElement<SessionListItem>[] {
@@ -8178,7 +8189,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingOpenRequest !== request) {
 			return false;
 		}
-		const sessionRowRepresentsSession = getSessionListChats(session).length === 0 || this.collapsedSessionIds.get().has(session.sessionId);
+		const sessionRowRepresentsSession = getSessionListChats(session, undefined, false, this._hideSideChats.get()).length === 0 || this.collapsedSessionIds.get().has(session.sessionId);
 		if (!request.chat && sessionRowRepresentsSession && this._mainWindowShown.get()?.session.sessionId !== session.sessionId) {
 			this.markRead(session);
 		}
@@ -9080,7 +9091,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemHasUnreadNestedSessionsContext.key, selectedSessions.some(session =>
 				!session.isArchived.get()
 				&& session.capabilities.get().supportsIndependentChatReadState === true
-				&& getSessionListChats(session).some(chat => !chat.isRead.get()))],
+				&& getSessionListChats(session, undefined, false, this._hideSideChats.get()).some(chat => !chat.isRead.get()))],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
 			[SessionIsReadContext.key, element.mainChat.get().isRead.get()],
 			[SessionItemInGroupContext.key, inGroup],
