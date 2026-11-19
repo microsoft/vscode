@@ -15,7 +15,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 env:
   RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
