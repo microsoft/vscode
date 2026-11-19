@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getAzureCppSdkPackageNamesFromVcpkgManifest, usesAzureCppSdkBetaRegistry } from '../../common/cppWorkspaceTags.js';
+import { getAzureCppSdkPackageNamesFromVcpkgManifest, usesAzureCppSdkBetaRegistry, usesAzureCppSdkBetaRegistryInVcpkgManifest } from '../../common/cppWorkspaceTags.js';
 
 suite('Telemetry - C++ Workspace Tags', () => {
 
@@ -23,9 +23,21 @@ suite('Telemetry - C++ Workspace Tags', () => {
 
 		assert.deepStrictEqual(getAzureCppSdkPackageNamesFromVcpkgManifest(manifest), [
 			'azure-identity',
-			'azure-storage-blobs',
-			'azure-data-appconfiguration'
+			'azure-storage-blobs'
 		]);
+	});
+
+	test('Gets dependencies from default features only', () => {
+		const manifest = JSON.stringify({
+			'default-features': ['azure', { name: 'storage', platform: 'windows' }, 'missing', null],
+			features: {
+				azure: { dependencies: ['azure-identity-cpp', 'azure-identity-cpp'] },
+				storage: { dependencies: [{ name: 'azure-storage-blobs-cpp' }] },
+				optional: { dependencies: ['azure-data-tables-cpp'] }
+			}
+		});
+
+		assert.deepStrictEqual(getAzureCppSdkPackageNamesFromVcpkgManifest(manifest), ['azure-identity', 'azure-storage-blobs']);
 	});
 
 	test('Ignores invalid vcpkg manifests', () => {
@@ -49,6 +61,32 @@ suite('Telemetry - C++ Workspace Tags', () => {
 			})),
 			usesAzureCppSdkBetaRegistry('{ invalid')
 		], [true, false, false]);
+	});
+
+	test('Detects default and embedded Azure SDK beta registries', () => {
+		const registry = { repository: 'https://github.com/Azure/azure-sdk-vcpkg-betas' };
+		assert.deepStrictEqual([
+			usesAzureCppSdkBetaRegistry(JSON.stringify({ 'default-registry': registry })),
+			usesAzureCppSdkBetaRegistryInVcpkgManifest(JSON.stringify({ 'vcpkg-configuration': { registries: [registry] } })),
+			usesAzureCppSdkBetaRegistryInVcpkgManifest(JSON.stringify({ 'vcpkg-configuration': { 'default-registry': registry } })),
+			usesAzureCppSdkBetaRegistryInVcpkgManifest(JSON.stringify({ registries: [registry] })),
+			usesAzureCppSdkBetaRegistryInVcpkgManifest('{ invalid')
+		], [true, true, true, false, false]);
+	});
+
+	test('Matches equivalent registry URLs without matching unrelated repositories', () => {
+		const urls = [
+			'git@github.com:Azure/azure-sdk-vcpkg-betas',
+			'ssh://git@github.com/Azure/azure-sdk-vcpkg-betas.git',
+			'http://github.com/Azure/azure-sdk-vcpkg-betas',
+			'https://www.github.com/Azure/azure-sdk-vcpkg-betas/',
+			'https://github.com.evil.example/Azure/azure-sdk-vcpkg-betas',
+			'https://github.com/Azure/azure-sdk-vcpkg-betas-fork',
+			'not a URL'
+		];
+		assert.deepStrictEqual(urls.map(repository => usesAzureCppSdkBetaRegistry(JSON.stringify({
+			'default-registry': { repository }
+		}))), [true, true, true, true, false, false, false]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
