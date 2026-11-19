@@ -444,12 +444,16 @@ suite('RemotesWidget', () => {
 		const disconnected = read();
 		model.remotes.set(model.remotes.get().map(item => item.id === remote.id ? remote : item), undefined);
 		const reconnected = read();
+		model.remotes.set(model.remotes.get().map(item => item.id === remote.id ? { ...remote, pickerUnavailableReason: 'Not selectable' } : item), undefined);
+		const notSelectable = read();
+		model.remotes.set(model.remotes.get().map(item => item.id === remote.id ? remote : item), undefined);
 		runMenuAction(parent, remote.id, 'newSession');
 		await timeout(0);
-		assert.deepStrictEqual({ connected, disconnected, reconnected, sessionActions }, {
+		assert.deepStrictEqual({ connected, disconnected, reconnected, notSelectable, sessionActions }, {
 			connected: { inline: false, menu: 'New Session' },
 			disconnected: { inline: true, menu: undefined },
 			reconnected: { inline: false, menu: 'New Session' },
+			notSelectable: { inline: true, menu: undefined },
 			sessionActions: ['open', 'agenthost-remote-build'],
 		});
 	});
@@ -667,7 +671,8 @@ suite('RemotesWidget', () => {
 	});
 
 	test('grouping hides only its redundant column and keeps Status after Name otherwise', async () => {
-		const { parent, widget } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		// The Remote Environments modal editor is about this wide.
+		const { parent, widget } = createWidget(OperatingSystem.Windows, 'default', 1100);
 		const columns = () => [...parent.querySelectorAll<HTMLElement>('.monaco-table-th')]
 			.filter(cell => cell.clientWidth > 0 && dom.getWindow(cell).getComputedStyle(cell).display !== 'none')
 			.map(cell => cell.textContent).filter(Boolean);

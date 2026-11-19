@@ -282,7 +282,7 @@ export class RemotesWidget extends Disposable {
 			{ id: 'status', label: statusLabel, weight: 144, get minimumWidth() { return groupedByStatus() ? 0 : 124; }, get maximumWidth() { return groupedByStatus() ? 0 : Number.POSITIVE_INFINITY; } },
 			{ id: 'activity', label: lastActivityLabel, weight: 160, get minimumWidth() { return activityHidden() ? 0 : 136; }, get maximumWidth() { return activityHidden() ? 0 : Number.POSITIVE_INFINITY; } },
 			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 120, get minimumWidth() { return systemHidden() ? 0 : 100; }, get maximumWidth() { return systemHidden() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'type', label: typeLabel, weight: 216, get minimumWidth() { return methodHidden() || groupedByType() ? 0 : 216; }, get maximumWidth() { return methodHidden() || groupedByType() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'type', label: typeLabel, weight: 216, get minimumWidth() { return methodHidden() || groupedByType() ? 0 : 160; }, get maximumWidth() { return methodHidden() || groupedByType() ? 0 : Number.POSITIVE_INFINITY; } },
 			{ id: 'actions', label: '', weight: 0, get minimumWidth() { return compact() ? 64 : 224; }, get maximumWidth() { return this.minimumWidth; } },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
@@ -1306,7 +1306,7 @@ export class RemotesWidget extends Disposable {
 				this.table.domFocus();
 			}
 			this.tableContainer.classList.toggle('remotes-table-compact', compact);
-			this.tableContainer.classList.toggle('remotes-hide-method', width < 1120);
+			this.tableContainer.classList.toggle('remotes-hide-method', width < 1000);
 			this.tableContainer.classList.toggle('remotes-hide-activity', width < 720);
 			this.tableContainer.classList.toggle('remotes-hide-system', width < 520);
 			if (dom.isHTMLElement(activeElement) && this.tableContainer.contains(activeElement) && activeElement.classList.contains('remotes-sort-header') && !activeElement.offsetWidth) {

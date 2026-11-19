@@ -835,6 +835,19 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				if (RemoteAgentHostConnectionStatus.isConnected(connectionStatus)) {
 					return;
 				}
+				// Connecting would fail until the server is updated, so Connect offers the update instead.
+				if (provider && RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus) && connectionStatus.vscodeUpgradeMethod) {
+					const { confirmed } = await this.dialogService.confirm({
+						message: localize('remotes.updateBeforeConnect', "Update the server on '{0}' to connect?", this._remotes.get().find(remote => remote.id === id)?.name ?? provider.label),
+						detail: localize('remotes.updateBeforeConnectDetail', "{0}\n\nUpdating restarts the server and then connects to it.", connectionStatus.message),
+						primaryButton: localize('remotes.updateAndConnect', "&&Update and Connect"),
+					});
+					if (!confirmed) {
+						throw new CancellationError();
+					}
+					await upgradeRemoteHost(provider, connectionStatus.vscodeUpgradeMethod, this.remoteAgentHostService, this.notificationService, this.progressService);
+					return;
+				}
 				this.checkCanConnect(id);
 				if (provider) {
 					await reconnectRemoteHost(provider, this.remoteAgentHostService);

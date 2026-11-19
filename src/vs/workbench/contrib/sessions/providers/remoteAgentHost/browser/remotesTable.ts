@@ -666,7 +666,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
 				const showConnect = showConnection && !entry.remote.connectsWithHost;
 				// Remotes that connect with their host have no Connect action, but can still start sessions once connected.
-				const showNewSession = showConnection && RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus);
+				// Those the environment picker can't select, such as GitHub Environments, can't start sessions from here.
+				const showNewSession = showConnection && RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus) && !entry.remote.pickerUnavailableReason;
 				const pending = isConnectionPending(entry);
 				const offline = showConnection && isRemoteOffline(entry.remote);
 				const problem = showConnection && !pending ? getConnectionProblem(entry.remote) : undefined;

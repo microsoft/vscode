@@ -1092,6 +1092,33 @@ suite('RemotesModel', () => {
 		assert.deepStrictEqual(upgrades, []);
 	});
 
+	test('Connect asks to update a server that requires it and connects through the update', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, providers, upgrade, upgrades, confirmations, connectionChanges, environmentState } = setup();
+		await model.refresh(CancellationToken.None);
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['1'], ['2'], 'vendor/update'), undefined);
+		const declined = new DeferredPromise<IConfirmationResult>();
+		void declined.complete({ confirmed: false });
+		environmentState.pendingConfirmation = declined;
+		await assert.rejects(model.setConnected('tunnel:laptop', true), /Canceled/);
+		const afterDecline = { upgrades: [...upgrades], connectionChanges: [...connectionChanges] };
+		environmentState.pendingConfirmation = undefined;
+		upgrade.result = { ok: true, upgradeStarted: true, restartDelayMs: 1000 };
+		await model.setConnected('tunnel:laptop', true);
+		assert.deepStrictEqual({
+			afterDecline, upgrades, connectionChanges,
+			confirmations: confirmations.map(({ message, detail, primaryButton }) => ({ message, detail, primaryButton })),
+		}, {
+			afterDecline: { upgrades: [], connectionChanges: [] },
+			upgrades: [{ address: 'tunnel:laptop', method: 'vendor/update' }],
+			connectionChanges: [{ id: 'tunnel:laptop', connected: true }],
+			confirmations: Array(2).fill({
+				message: 'Update the server on \'Laptop\' to connect?',
+				detail: 'Unsupported protocol version\n\nUpdating restarts the server and then connects to it.',
+				primaryButton: '&&Update and Connect',
+			}),
+		});
+	}));
+
 	test('tunnel location saves without a provider and reports reconnect failures', async () => {
 		const { model, providers, locationPromptResult, locationPreferences, notifications, failConnection } = setup();
 		await model.refresh(CancellationToken.None);
