@@ -117,7 +117,7 @@ describe('ExperimentExposureTracker', () => {
 	});
 
 	it('skips reads while the unit is unknown and reports the first read once it is known', () => {
-		let context: IExposureContext | undefined;
+		let context: IExposureContext | undefined = undefined;
 		const exposures: IExperimentExposure[] = [];
 		const tracker = new ExperimentExposureTracker('vscode', () => true, () => context, exposure => exposures.push(exposure));
 
