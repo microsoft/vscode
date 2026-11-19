@@ -61,8 +61,8 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ContextKeyExpr, type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ContextKeyExpr, IContextKeyService, type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TERMINAL_AUTO_APPROVE_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { permissionGrantOptionId, PermissionGrantScope } from '../../../../../../platform/agentHost/common/permissionRules.js';
@@ -154,6 +154,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { isResourceEditorInput, ITextDiffEditorPane, IUntypedEditorInput } from '../../../../../common/editor.js';
+import { WorkspaceHasVirtualContentContext } from '../../../../../common/contextkeys.js';
 import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -162,7 +163,6 @@ import { IAgentHostFileSystemService } from '../../../../../services/agentHost/c
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { VirtualWorkspaceContext } from '../../../../../common/contextkeys.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -960,6 +960,8 @@ class MockWorkingCopyService extends mock<IWorkingCopyService>() {
 
 function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>, languageModelsServiceOverride?: Partial<ILanguageModelsService>, workspaceFolders: readonly URI[] = []) {
 	const instantiationService = disposables.add(new TestInstantiationService());
+	const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+	instantiationService.stub(IContextKeyService, contextKeyService);
 	const accessibilitySignalCalls: { signal: AccessibilitySignal; allowManyInParallel?: boolean }[] = [];
 	const accessibilitySignalService: Partial<IAccessibilitySignalService> = {
 		playSignal: async (signal, options) => {
@@ -1367,7 +1369,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 	instantiationService.stub(IEditorService, new class extends mock<IEditorService>() { });
 
-	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService, accessibilitySignalCalls, editingSessionProviders, textFileRetention };
+	return { instantiationService, contextKeyService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService, accessibilitySignalCalls, editingSessionProviders, textFileRetention };
 }
 
 function createSessionListStore(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection): AgentHostSessionListStore {
@@ -1704,14 +1706,16 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(chatAgentService.registeredAgents.get('agent-host-copilot')?.data.modes, [ChatModeKind.Agent, ChatModeKind.Ask]);
 		});
 
-		test('hides unsupported local harnesses in virtual editor workspaces only', () => {
+		test('hides unsupported local harnesses when any editor workspace folder is virtual', () => {
 			const results = [];
 			for (const { isSessionsWindow, remoteAuthority } of [
 				{ isSessionsWindow: false, remoteAuthority: undefined },
 				{ isSessionsWindow: false, remoteAuthority: 'ssh-remote+test' },
 				{ isSessionsWindow: true, remoteAuthority: undefined },
 			]) {
-				const { instantiationService, agentHostService, chatSessionContributions } = createTestServices(disposables);
+				const { instantiationService, contextKeyService, agentHostService, chatSessionContributions } = createTestServices(disposables);
+				const workspaceHasVirtualContent = WorkspaceHasVirtualContentContext.bindTo(contextKeyService);
+				workspaceHasVirtualContent.set(true);
 				instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow, remoteAuthority });
 				instantiationService.stub(ICustomizationHarnessService, {
 					activeSessionResource: constObservable(URI.parse('agent-host-copilotcli:/session')),
@@ -1722,19 +1726,26 @@ suite('AgentHostChatContribution', () => {
 					activeSessions: 0,
 				});
 				disposables.add(instantiationService.createInstance(AgentHostContribution));
-				const context = new Context(0, null);
-				const visible = ['', 'vscode-vfs'].map(scheme => {
-					context.setValue(VirtualWorkspaceContext.key, scheme);
-					return chatSessionContributions.filter(contribution => !contribution.when || ContextKeyExpr.deserialize(contribution.when)?.evaluate(context))
-						.map(contribution => contribution.type);
-				});
-				results.push({ isSessionsWindow, remoteAuthority, visible });
+				const visible = () => chatSessionContributions
+					.filter(contribution => contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(contribution.when)))
+					.map(contribution => contribution.type);
+				const availabilityChanges: string[][] = [];
+				const availabilityEvents = new Set(chatSessionContributions.map(contribution => contribution.onDidChangeAvailability));
+				for (const event of availabilityEvents) {
+					if (event) {
+						disposables.add(event(() => availabilityChanges.push(visible())));
+					}
+				}
+				const withVirtualContent = visible();
+				workspaceHasVirtualContent.set(false);
+				results.push({ isSessionsWindow, remoteAuthority, withVirtualContent, withoutVirtualContent: visible(), availabilityChanges });
 			}
 			const all = ['agent-host-copilotcli', 'agent-host-claude', 'agent-host-codex'];
+			const copilot = ['agent-host-copilotcli'];
 			assert.deepStrictEqual(results, [
-				{ isSessionsWindow: false, remoteAuthority: undefined, visible: [all, ['agent-host-copilotcli']] },
-				{ isSessionsWindow: false, remoteAuthority: 'ssh-remote+test', visible: [all, all] },
-				{ isSessionsWindow: true, remoteAuthority: undefined, visible: [all, all] },
+				{ isSessionsWindow: false, remoteAuthority: undefined, withVirtualContent: copilot, withoutVirtualContent: all, availabilityChanges: [all] },
+				{ isSessionsWindow: false, remoteAuthority: 'ssh-remote+test', withVirtualContent: all, withoutVirtualContent: all, availabilityChanges: [] },
+				{ isSessionsWindow: true, remoteAuthority: undefined, withVirtualContent: all, withoutVirtualContent: all, availabilityChanges: [] },
 			]);
 		});
 
