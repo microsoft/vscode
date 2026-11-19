@@ -1143,6 +1143,29 @@ suite('Artifact Integrations', () => {
 		]);
 	}));
 
+	test('notices only say Autopilot is off when no integration of the artifact keeps a rule on', () => run(async store => {
+		const options: readonly ArtifactAutomationOption[] = [
+			{ id: 'repair', kind: 'boolean', label: 'Repair', description: 'Repair failures.', defaultValue: false, actionIds: ['act'], maxAttempts: 2 },
+			{ id: 'review', kind: 'boolean', label: 'Review', description: 'Address reviews.', defaultValue: false, actionIds: ['act'], maxAttempts: 2 },
+		];
+		const f = fixture(store, codeAction, new MemoryStorage(), artifact, options);
+		store.add(f.registry.register({ ...f.integration, id: 'other', automationOptions: [{ ...options[0], label: 'Deploy' }, { ...options[1], label: 'Publish' }] }, 'test-runtime'));
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await reference.object.configure('test', 0, { repair: true, review: true });
+		await reference.object.configure('other', 0, { repair: true });
+		await reference.object.configure('test', 1, { repair: false, review: false });
+		await reference.object.configure('other', 1, { repair: false });
+		await reference.object.configure('test', 2, { repair: true, review: true });
+		await reference.object.configure('test', 3, { repair: false, review: false });
+		await timeout(0);
+		assert.deepStrictEqual(f.notices.slice(2).map(notice => notice.content.split('\n\n').filter(block => !block.startsWith('- '))), [
+			['**Autopilot updated** for Example (2 rules)', 'Still enabled: Deploy.'],
+			['**Deploy disabled** for Example'],
+			['**Autopilot enabled** for Example (2 rules)', 'Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.'],
+			['**Autopilot disabled** for Example (2 rules)'],
+		]);
+	}));
+
 	test('merged notices summarize several rules and keep only the latest change of each', () => {
 		const change = (integrationId: string, optionId: string, label: string, kind: ArtifactAutomationNoticeChange['kind'], ...details: string[]): ArtifactAutomationNoticeChange => ({ integrationId, optionId, label, kind, details });
 		const merged = mergeArtifactAutomationNotices(

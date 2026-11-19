@@ -73,7 +73,10 @@ export function getArtifactAutomationNotices(previous: ArtifactIntegrationState,
 			changes.push({ integrationId: binding.integrationId, optionId: option.id, label: option.label, kind: enabled ? wasEnabled ? 'changed' : 'enabled' : 'disabled', details, ...(agent ? { agent } : {}) });
 		}
 		if (changes.length) {
-			const enabledRules = [{ integrationId: binding.integrationId, labels: binding.options.filter(option => isArtifactOptionEnabled(option, binding.configuration.values[option.id])).map(option => option.label) }];
+			// Every integration of the artifact, so that the summary only says Autopilot is off when no rule of the artifact remains on.
+			const enabledRules = current.bindings
+				.filter(candidate => candidate.session === binding.session && candidate.artifact.id === binding.artifact.id)
+				.map(candidate => ({ integrationId: candidate.integrationId, labels: candidate.options.filter(option => isArtifactOptionEnabled(option, candidate.configuration.values[option.id])).map(option => option.label) }));
 			const artifactKind = labels.getArtifactKind?.(binding.integrationId);
 			notices.push({
 				session: binding.session, artifact: binding.artifact, changes, enabledRules, ...(artifactKind ? { artifactKind } : {}),
@@ -116,8 +119,8 @@ export function formatArtifactAutomationNotice(artifactLabel: string, changes: r
 		blocks.push(...[...intro, ...change.details].map(escapeMarkdownSyntaxTokens));
 	} else {
 		const enabledCount = enabledRules.reduce((count, rules) => count + rules.labels.length, 0);
-		// Every enabled rule being newly enabled means that Autopilot was off before, and no enabled rule after
-		// disabling several means that it is off now.
+		// `enabledRules` covers every integration of the artifact, so every enabled rule being newly enabled means that
+		// Autopilot was off before, and no enabled rule after disabling several means that it is off now.
 		const summary = changes.every(change => change.kind === 'enabled') && enabledCount === changes.length ? 'enabled'
 			: changes.every(change => change.kind === 'disabled') && enabledCount === 0 ? 'disabled' : 'updated';
 		blocks.push(agent

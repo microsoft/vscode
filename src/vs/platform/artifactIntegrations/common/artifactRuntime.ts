@@ -118,7 +118,7 @@ export interface ArtifactAutomationNotice {
 	readonly artifactKind?: string;
 	/** The rule changes of the notice. Only notices that carry them are rendered from them and merged with later changes. */
 	readonly changes?: readonly ArtifactAutomationNoticeChange[];
-	/** The enabled rules of each integration that `changes` belong to, after the changes. */
+	/** The enabled rules of each integration of the artifact after the changes, including the integrations that `changes` belong to. */
 	readonly enabledRules?: readonly ArtifactAutomationEnabledRules[];
 }
 
