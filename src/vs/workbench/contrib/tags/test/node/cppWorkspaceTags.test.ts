@@ -40,6 +40,27 @@ suite('Telemetry - C++ Workspace Tags', () => {
 		assert.deepStrictEqual(getAzureCppSdkPackageNamesFromVcpkgManifest(manifest), ['azure-identity', 'azure-storage-blobs']);
 	});
 
+	test('Follows feature dependencies without enabling unrelated features', () => {
+		const manifest = JSON.stringify({
+			name: 'my-app',
+			dependencies: [
+				'azure-core-cpp',
+				{ name: 'my-app', 'default-features': false, features: ['explicit'] },
+				{ name: 'other-package', features: ['unused'] }
+			],
+			'default-features': ['base'],
+			features: {
+				base: { description: 'Base feature', dependencies: [{ name: 'my-app', 'default-features': false, features: ['azure', 'missing'] }] },
+				explicit: { description: 'Explicit feature', dependencies: ['azure-data-tables-cpp'] },
+				azure: { description: 'Azure feature', dependencies: ['azure-identity-cpp', { name: 'my-app', 'default-features': false, features: ['base', { name: 'storage', platform: 'windows' }] }] },
+				storage: { description: 'Storage feature', dependencies: ['azure-storage-blobs-cpp'] },
+				unused: { description: 'Unused feature', dependencies: ['azure-storage-queues-cpp'] }
+			}
+		});
+
+		assert.deepStrictEqual(getAzureCppSdkPackageNamesFromVcpkgManifest(manifest), ['azure-core', 'azure-data-tables', 'azure-identity', 'azure-storage-blobs']);
+	});
+
 	test('Ignores invalid vcpkg manifests', () => {
 		assert.deepStrictEqual([
 			getAzureCppSdkPackageNamesFromVcpkgManifest('{}'),

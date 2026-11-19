@@ -26,11 +26,13 @@ const AzureCppSdkPackageNames = new Map([
 
 const AzureCppSdkBetaRegistry = 'github.com/azure/azure-sdk-vcpkg-betas';
 
-type VcpkgDependency = string | { name?: string };
+type VcpkgFeature = string | { name?: string };
+type VcpkgDependency = string | { name?: string; features?: VcpkgFeature[] };
 
 interface VcpkgManifest {
+	name?: string;
 	dependencies?: VcpkgDependency[];
-	'default-features'?: VcpkgDependency[];
+	'default-features'?: VcpkgFeature[];
 	features?: Record<string, { dependencies?: VcpkgDependency[] }>;
 	'vcpkg-configuration'?: VcpkgConfiguration;
 }
@@ -47,30 +49,39 @@ interface VcpkgConfiguration {
 export function getAzureCppSdkPackageNamesFromVcpkgManifest(content: string): string[] {
 	try {
 		const manifest = JSON.parse(content) as VcpkgManifest;
-		const dependencies = Array.isArray(manifest?.dependencies) ? [...manifest.dependencies] : [];
-		if (Array.isArray(manifest?.['default-features'])) {
-			for (const feature of manifest['default-features']) {
-				const featureName = typeof feature === 'string' ? feature : feature?.name;
-				if (typeof featureName === 'string' && Object.hasOwn(manifest.features ?? {}, featureName)) {
-					const featureDependencies = manifest.features?.[featureName]?.dependencies;
-					if (Array.isArray(featureDependencies)) {
-						dependencies.push(...featureDependencies);
-					}
+		const packageNames = new Set<string>();
+		const features = Array.isArray(manifest?.['default-features']) ? [...manifest['default-features']] : [];
+		const addDependencies = (dependencies: VcpkgDependency[] | undefined) => {
+			if (!Array.isArray(dependencies)) {
+				return;
+			}
+
+			for (const dependency of dependencies) {
+				const dependencyName = typeof dependency === 'string' ? dependency : dependency?.name;
+				if (typeof dependencyName !== 'string') {
+					continue;
+				}
+
+				const packageName = AzureCppSdkPackageNames.get(dependencyName);
+				if (packageName) {
+					packageNames.add(packageName);
+				}
+				if (typeof dependency !== 'string' && dependencyName === manifest?.name && Array.isArray(dependency?.features)) {
+					features.push(...dependency.features);
 				}
 			}
-		}
+		};
 
-		const packageNames = new Set<string>();
-		for (const dependency of dependencies) {
-			const dependencyName = typeof dependency === 'string' ? dependency : dependency?.name;
-			if (typeof dependencyName !== 'string') {
+		addDependencies(manifest?.dependencies);
+		const visitedFeatures = new Set<string>();
+		for (let i = 0; i < features.length; i++) {
+			const feature = features[i];
+			const featureName = typeof feature === 'string' ? feature : feature?.name;
+			if (typeof featureName !== 'string' || visitedFeatures.has(featureName) || !Object.hasOwn(manifest?.features ?? {}, featureName)) {
 				continue;
 			}
-
-			const packageName = AzureCppSdkPackageNames.get(dependencyName);
-			if (packageName) {
-				packageNames.add(packageName);
-			}
+			visitedFeatures.add(featureName);
+			addDependencies(manifest.features?.[featureName]?.dependencies);
 		}
 
 		return [...packageNames];
