@@ -473,9 +473,9 @@ registerAction2(class NewAutomationAction extends Action2 {
 });
 
 registerAction2(class CreateAutomationWithAgentAction extends Action2 {
-private showingIntroduction = false;
-constructor() { super(AutomationCommands.createWithAgent); }
-override async run(accessor: ServicesAccessor): Promise<void> {
+	private showingIntroduction = false;
+	constructor() { super(AutomationCommands.createWithAgent); }
+	override async run(accessor: ServicesAccessor): Promise<void> {
 		if (this.showingIntroduction) {
 			return;
 		}
