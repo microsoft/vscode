@@ -24,6 +24,7 @@ import { computeVoiceMicGlowBoxShadow, IVoiceGlowColors } from '../../chat/brows
 import { createVoiceGlowController, GlowThemeKind, IVoiceGlowController } from '../../chat/browser/voiceClient/voiceGlowController.js';
 
 export interface VoiceWidgetCallbacks {
+	readonly copilotIconSrc: string;
 	readonly hideDisconnect: boolean;
 	connect(): void;
 	disconnect(): void;
@@ -92,6 +93,8 @@ export interface VoiceWidgetOptions {
 	 * visible regardless, since they are important interactive context.
 	 */
 	readonly showStatusCounters?: boolean;
+	/** Show the copilot icon at the start of the header. */
+	readonly showCopilotIcon?: boolean;
 	/** Center the Connect button horizontally instead of pushing it to the right. */
 	readonly centerConnectButton?: boolean;
 	/** Optional title rendered above the header row (e.g. "VOICE CHAT"). */
@@ -131,6 +134,7 @@ const DEFAULT_OPTIONS: Required<VoiceWidgetOptions> = {
 	showExpandChevron: true,
 	showStatusText: false,
 	showStatusCounters: true,
+	showCopilotIcon: false,
 	centerConnectButton: false,
 	title: '',
 	subtitle: '',
@@ -864,6 +868,8 @@ export class AgentsVoiceWidget extends Disposable {
 			const feedbackState = this._feedbackDialogState.read(reader);
 
 			this._headerComponent.update({
+				copilotIconSrc: this.callbacks.copilotIconSrc,
+				showCopilotIcon: opts.showCopilotIcon,
 				isConnected: this._isConnected.read(reader),
 				isConnecting: this._isConnecting.read(reader),
 				isReconnecting: this._isReconnecting.read(reader),

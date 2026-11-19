@@ -9,6 +9,8 @@ import type { VoiceState } from '../../../chat/browser/voiceClient/voiceSessionC
 import { FONT_SIZE, addKeyboardActivation, isSecondaryPointerGesture } from './tokens.js';
 
 export interface HeaderProps {
+	readonly copilotIconSrc: string;
+	readonly showCopilotIcon: boolean;
 	readonly isConnected: boolean;
 	readonly isConnecting: boolean;
 	readonly isReconnecting: boolean;
@@ -54,6 +56,10 @@ export interface HeaderComponent {
 export function createHeader(): HeaderComponent {
 	const container = dom.$('div');
 	container.style.cssText = 'display:flex;align-items:center;gap:8px;height:30px;flex-shrink:0;';
+
+	// Copilot icon
+	const copilotIcon = document.createElement('img');
+	copilotIcon.style.cssText = 'width:18px;height:18px;margin-right:4px;';
 
 	// Voice mode button
 	const micBtn = dom.$('span.codicon.codicon-voice-mode');
@@ -132,12 +138,16 @@ export function createHeader(): HeaderComponent {
 		}
 	`;
 
-	container.append(micBtn, placeholderText, connIndicator, muteBtn, spacer, popoutBtn, closeBtn, connStyle);
+	container.append(copilotIcon, micBtn, placeholderText, connIndicator, muteBtn, spacer, popoutBtn, closeBtn, connStyle);
 
 	return {
 		element: container,
 		update(props: HeaderProps) {
 			container.style.cssText = `display:flex;align-items:center;gap:8px;height:30px;flex-shrink:0;${props.draggable ? '-webkit-app-region:drag;' : ''}`;
+
+			// Copilot icon
+			copilotIcon.style.display = props.showCopilotIcon ? '' : 'none';
+			copilotIcon.src = props.copilotIconSrc;
 
 			const showConnected = props.isConnected || props.isReconnecting;
 
