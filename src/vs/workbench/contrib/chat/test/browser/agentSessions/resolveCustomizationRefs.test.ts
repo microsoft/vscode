@@ -1420,75 +1420,52 @@ suite('resolveLocalCustomAgents', () => {
 		assert.deepStrictEqual(agents.map(agent => agent.uri), [agentUri.toString()]);
 	});
 
-	test('computePluginNonce reflects newer mtimes in subdirectories (#347835)', async () => {
+	test('computePluginNonce fingerprints subdirectory changes even below max mtime and returns undefined on overflow (#347835)', async () => {
 		const pluginUri = URI.file('/plugins/local-plugin');
 		const agentsDir = URI.joinPath(pluginUri, 'agents');
+		const agentA = URI.joinPath(agentsDir, 'a.md');
 		const agentB = URI.joinPath(agentsDir, 'b.md');
-		const tree = new Map<string, IFileStatWithMetadata>([
-			[pluginUri.toString(), {
-				resource: pluginUri,
-				name: 'local-plugin',
-				isDirectory: true,
-				isFile: false,
-				isSymbolicLink: false,
-				mtime: 1000,
-				ctime: 1000,
-				etag: '',
-				size: 0,
-				readonly: false,
-				locked: false,
-				children: [{
-					resource: agentsDir,
-					name: 'agents',
-					isDirectory: true,
-					isFile: false,
-					isSymbolicLink: false,
-					mtime: 2000,
-					ctime: 1000,
-					etag: '',
-					size: 0,
-					readonly: false,
-					locked: false,
-				}],
-			}],
-			[agentsDir.toString(), {
-				resource: agentsDir,
-				name: 'agents',
-				isDirectory: true,
-				isFile: false,
-				isSymbolicLink: false,
-				mtime: 2000,
-				ctime: 1000,
-				etag: '',
-				size: 0,
-				readonly: false,
-				locked: false,
-				children: [{
-					resource: agentB,
-					name: 'b.md',
-					isDirectory: false,
-					isFile: true,
-					isSymbolicLink: false,
-					mtime: 3500,
-					ctime: 3500,
-					etag: '',
-					size: 42,
-					readonly: false,
-					locked: false,
-				}],
-			}],
+		let agentAMtime = 2000;
+		const resolveOptions: unknown[] = [];
+
+		const makeEntry = (resource: URI, name: string, isDirectory: boolean, mtime: number, size: number, children?: IFileStatWithMetadata[]): IFileStatWithMetadata => ({
+			resource,
+			name,
+			isDirectory,
+			isFile: !isDirectory,
+			isSymbolicLink: false,
+			mtime,
+			ctime: 1000,
+			etag: '',
+			size,
+			readonly: false,
+			locked: false,
+			children,
+		});
+
+		const getTree = () => new Map<string, IFileStatWithMetadata>([
+			[pluginUri.toString(), makeEntry(pluginUri, 'local-plugin', true, 1000, 0, [
+				makeEntry(agentsDir, 'agents', true, 2000, 0),
+			])],
+			[agentsDir.toString(), makeEntry(agentsDir, 'agents', true, 2000, 0, [
+				makeEntry(agentA, 'a.md', false, agentAMtime, 10),
+				makeEntry(agentB, 'b.md', false, 10000, 42),
+			])],
+			[agentA.toString(), makeEntry(agentA, 'a.md', false, agentAMtime, 10)],
+			[agentB.toString(), makeEntry(agentB, 'b.md', false, 10000, 42)],
 		]);
 
 		const fileService = {
-			async resolve(resource: URI) {
-				const stat = tree.get(resource.toString());
+			async resolve(resource: URI, options?: unknown) {
+				resolveOptions.push(options);
+				const stat = getTree().get(resource.toString());
 				if (!stat) {
 					throw new Error(`missing ${resource.toString()}`);
 				}
 				return stat;
 			},
 			async stat(resource: URI) {
-				const stat = tree.get(resource.toString());
+				const stat = getTree().get(resource.toString());
 				if (!stat) {
 					throw new Error(`missing ${resource.toString()}`);
 				}
@@ -1496,6 +1473,17 @@ suite('resolveLocalCustomAgents', () => {
 			},
 		} as unknown as IFileService;
 
-		assert.strictEqual(await computePluginNonce(fileService, pluginUri), 3500);
+		const initialNonce = await computePluginNonce(fileService, pluginUri);
+		assert.ok(initialNonce);
+		assert.ok(resolveOptions.every(opt => opt === undefined));
+
+		// Updating a.md from 2000 to 3000 (still below b.md's 10000) must change the nonce.
+		agentAMtime = 3000;
+		const updatedNonce = await computePluginNonce(fileService, pluginUri);
+		assert.ok(updatedNonce);
+		assert.notStrictEqual(updatedNonce, initialNonce);
+
+		// Exceeding maxEntries returns undefined so callers re-sync instead of reusing a stale cache.
+		assert.strictEqual(await computePluginNonce(fileService, pluginUri, 2), undefined);
 	});
 });

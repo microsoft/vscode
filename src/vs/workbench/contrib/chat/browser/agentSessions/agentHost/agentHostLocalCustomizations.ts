@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { hash } from '../../../../../../base/common/hash.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -22,7 +23,7 @@ import { isContributionEnabled } from '../../../common/enablement.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { SYNCED_CUSTOMIZATION_SCHEME, type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
-import { IFileService, IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileStat } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { AgentHostMcpServerDelivery, resolveMcpServersForAgentHostDelivery } from './agentHostMcpServerSupport.js';
@@ -402,7 +403,7 @@ export async function resolveCustomizationRefs(
 		const key = plugin.uri.toString();
 		if (!pluginRefs.has(key)) {
 			const promise = (async (): Promise<ClientPluginCustomization> => {
-				let nonce: number | undefined;
+				let nonce: string | undefined;
 				try {
 					nonce = await computePluginNonce(fileService, plugin.uri);
 				} catch {
@@ -422,7 +423,7 @@ export async function resolveCustomizationRefs(
 					}),
 				};
 				if (nonce !== undefined) {
-					ref.nonce = nonce.toString(16);
+					ref.nonce = nonce;
 				}
 				return ref;
 			})();
@@ -474,42 +475,79 @@ export async function resolveCustomizationRefs(
 }
 
 const MAX_PLUGIN_NONCE_ENTRIES = 2000;
+const PLUGIN_NONCE_STAT_CONCURRENCY = 16;
 
 /**
- * Computes a cache-busting mtime nonce across a plugin directory tree so edits
- * or additions inside subdirectories invalidate the Agent Host plugin copy
- * even when the root directory's own mtime is unchanged (e.g. on Windows).
+ * Computes a content-metadata fingerprint across a plugin directory tree so
+ * edits, additions, or deletions inside subdirectories invalidate the Agent Host
+ * plugin copy even when the root directory's own mtime is unchanged (e.g. on Windows).
+ *
+ * Returns `undefined` if the directory tree exceeds `maxEntries` so callers
+ * re-sync instead of risking a stale cache hit from a truncated scan.
  */
-export async function computePluginNonce(fileService: IFileService, root: URI): Promise<number> {
+export async function computePluginNonce(fileService: IFileService, root: URI, maxEntries = MAX_PLUGIN_NONCE_ENTRIES): Promise<string | undefined> {
 	if (typeof fileService.resolve !== 'function') {
-		return (await fileService.stat(root)).mtime;
+		return (await fileService.stat(root)).mtime.toString(16);
 	}
 
-	const rootStat = await fileService.resolve(root, { resolveMetadata: true });
-	let maxMtime = rootStat.mtime;
-	const stack: IFileStatWithMetadata[] = [...(rootStat.children ?? [])];
-	let visited = 0;
+	const [rootMeta, rootStat] = await Promise.all([
+		fileService.stat(root),
+		fileService.resolve(root),
+	]);
+	const parts: string[] = [`:${rootMeta.mtime}:${rootMeta.size}`];
 
-	while (stack.length > 0 && visited < MAX_PLUGIN_NONCE_ENTRIES) {
-		const entry = stack.pop()!;
-		visited++;
-		if (entry.mtime > maxMtime) {
-			maxMtime = entry.mtime;
+	interface IPendingEntry {
+		readonly stat: IFileStat;
+		readonly relPath: string;
+	}
+
+	const queue: IPendingEntry[] = [];
+	const enqueueChildren = (children: readonly IFileStat[] | undefined, parentRelPath: string): void => {
+		if (!children) {
+			return;
 		}
-		if (entry.isDirectory && !entry.isSymbolicLink && entry.name !== '.git' && entry.name !== 'node_modules') {
-			try {
-				const dirStat = await fileService.resolve(entry.resource, { resolveMetadata: true });
-				if (dirStat.mtime > maxMtime) {
-					maxMtime = dirStat.mtime;
-				}
-				if (dirStat.children) {
-					stack.push(...dirStat.children);
-				}
-			} catch {
-				// Ignore unreadable subdirectories
+		for (const child of children) {
+			if (!child.isSymbolicLink && child.name !== '.git' && child.name !== 'node_modules') {
+				queue.push({
+					stat: child,
+					relPath: parentRelPath ? `${parentRelPath}/${child.name}` : child.name,
+				});
 			}
 		}
+	};
+
+	enqueueChildren(rootStat.children, '');
+
+	let visited = 0;
+	let queueIndex = 0;
+	while (queueIndex < queue.length) {
+		const batchSize = Math.min(PLUGIN_NONCE_STAT_CONCURRENCY, queue.length - queueIndex);
+		if (visited + batchSize > maxEntries) {
+			return undefined;
+		}
+		const batch = queue.slice(queueIndex, queueIndex + batchSize);
+		queueIndex += batchSize;
+		visited += batchSize;
+
+		const results = await Promise.all(batch.map(async entry => {
+			const meta = await fileService.stat(entry.stat.resource);
+			let children: readonly IFileStat[] | undefined;
+			if (entry.stat.isDirectory) {
+				try {
+					children = (await fileService.resolve(entry.stat.resource)).children;
+				} catch {
+					// Ignore unreadable subdirectories
+				}
+			}
+			return { entry, meta, children };
+		}));
+
+		for (const { entry, meta, children } of results) {
+			parts.push(`${entry.relPath}:${meta.mtime}:${meta.size}`);
+			enqueueChildren(children, entry.relPath);
+		}
 	}
 
-	return maxMtime;
+	parts.sort();
+	return hash(parts).toString(16);
 }
