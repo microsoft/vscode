@@ -16,6 +16,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -204,6 +205,8 @@ class MockSSHClient {
 class KeyboardInteractiveMockSSHClient {
 	ended = false;
 	connectError: Error | undefined;
+	/** Like ssh2, report a lost connection as soon as the proxy closes its output, before the proxy exits. */
+	loseConnectionWhenProxyCloses = false;
 	finishResponses: readonly string[] | undefined;
 	connectConfig: ConnectConfig | undefined;
 	readonly authMethods: string[] = [];
@@ -228,6 +231,11 @@ class KeyboardInteractiveMockSSHClient {
 		this.connectConfig = config;
 		if (this.connectError) {
 			this.fireError(this.connectError);
+			return;
+		}
+		if (this.loseConnectionWhenProxyCloses && config.sock) {
+			config.sock.on('end', () => this.fireError(new Error('Connection lost before handshake')));
+			config.sock.resume();
 			return;
 		}
 		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
@@ -1429,6 +1437,22 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			hasProxy: true,
 			authMethods: ['none', 'keyboard-interactive'],
 			ended: true,
+			proxyCount: 0,
+		});
+	});
+
+	(isWindows ? test.skip : test)('reports why a ProxyCommand dropped the connection when the SSH client notices first', async () => {
+		const proxyService = disposables.add(new KeyboardInteractiveConnectTestService(new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
+		proxyService.proxyCommand = 'printf "proxy failed" >&2; exec >&-; sleep 0.1; exit 42';
+		proxyService.client.loseConnectionWhenProxyCloses = true;
+		const error = await proxyService.connectSSHForTest(makeConfig({ host: 'sandbox.sbx' })).then(() => undefined, (error: Error) => error);
+		assert.deepStrictEqual({
+			message: error?.message,
+			ended: proxyService.client.ended,
+			proxyCount: proxyService.proxyCount,
+		}, {
+			message: 'Connection lost before handshake (SSH ProxyCommand exited (42): proxy failed)',
+			ended: false,
 			proxyCount: 0,
 		});
 	});

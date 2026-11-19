@@ -1695,7 +1695,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				resolve(client);
 			};
 
-			const rejectConnect = (err: Error, endClient: boolean) => {
+			const rejectConnect = (err: Error, endClient: boolean, describeTransport = true) => {
 				if (settled) {
 					return;
 				}
@@ -1703,20 +1703,22 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				clearDeadline();
 				cancelLiveKbiRequests();
 				cancelLiveHostKeyRequests();
-				this._proxies.deleteAndDispose(client);
 				const finish = (detail?: string) => {
 					if (detail) {
 						err.message = localize('sshJumpFailed', "{0} ({1})", err.message, detail);
 					}
+					this._proxies.deleteAndDispose(client);
 					this._jumpProxies.deleteAndDispose(client);
 					if (endClient) {
 						client.end();
 					}
 					reject(err);
 				};
-				if (jumpProxy && !(err instanceof CancellationError) && !hostKeyDenied) {
-					void jumpProxy.describeFailure().then(finish, () => {
-						this._logService.warn(`${LOG_PREFIX} Failed to collect SSH jump failure details`);
+				// The proxy process that carries the connection often knows why it was lost better than ssh2 does.
+				const transport = jumpProxy ?? this._proxies.get(client);
+				if (transport && describeTransport && !(err instanceof CancellationError) && !hostKeyDenied) {
+					void transport.describeFailure().then(finish, () => {
+						this._logService.warn(`${LOG_PREFIX} Failed to collect SSH proxy failure details`);
 						finish();
 					});
 				} else {
@@ -1756,8 +1758,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// connect promise would never settle and any outstanding host key
 			// prompt would be left on screen forever.
 			client.on('close', () => {
-				this._proxies.deleteAndDispose(client);
 				if (connected) {
+					this._proxies.deleteAndDispose(client);
 					this._jumpProxies.deleteAndDispose(client);
 				}
 				rejectConnect(
@@ -1784,7 +1786,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					this._proxies.set(client, proxy);
 					proxy.stream.on('error', error => {
 						this._logService.error(`${LOG_PREFIX} SSH ProxyCommand failed`, error);
-						rejectConnect(error, true);
+						rejectConnect(error, true, false);
 					});
 					connectConfig.sock = proxy.stream;
 				}
