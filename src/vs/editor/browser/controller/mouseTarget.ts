@@ -243,6 +243,7 @@ export class HitTestContext {
 	public readonly lineHeight: number;
 	public readonly stickyTabStops: boolean;
 	public readonly typicalHalfwidthCharacterWidth: number;
+	public readonly fontSize: number;
 	public readonly lastRenderData: PointerHandlerLastRenderData;
 
 	private readonly _context: ViewContext;
@@ -256,7 +257,9 @@ export class HitTestContext {
 		this.viewLinesGpu = viewHelper.viewLinesGpu;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
-		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
+		this.fontSize = fontInfo.fontSize;
 		this.lastRenderData = lastRenderData;
 		this._context = context;
 		this._viewHelper = viewHelper;
@@ -514,6 +517,25 @@ function createEmptyContentDataInLines(horizontalDistanceToText: number): IMouse
 	};
 }
 
+/**
+ * Whether a click in the line decorations area (between the line numbers and the text) should place
+ * the cursor like a click on the content to the left of the text, because nothing is rendered there.
+ *
+ * On lines without line decorations, the whole area is free. Otherwise, only the space to the right
+ * of the folding chevron is free. The folding control (see folding.css) is a codicon at 140% of the
+ * editor font size, centered in the area after a 2px margin, and its chevron covers the middle 10/16
+ * of the codicon.
+ *
+ * @param offsetX The horizontal offset of the click relative to the left of the line decorations area.
+ */
+export function isLineDecorationsClickBeforeContent(offsetX: number, decorationsWidth: number, fontSize: number, lineHasLineDecorations: boolean): boolean {
+	if (!lineHasLineDecorations) {
+		return true;
+	}
+	const foldingChevronRight = 2 + decorationsWidth / 2 + (1.4 * fontSize * 10 / 16) / 2;
+	return offsetX > foldingChevronRight;
+}
+
 export class MouseTargetFactory {
 
 	private readonly _context: ViewContext;
@@ -724,9 +746,30 @@ export class MouseTargetFactory {
 			offset -= ctx.layoutInfo.lineNumbersWidth;
 
 			// On the line decorations
+			if (!res.isAfterLines) {
+				const lineNumber = pos.lineNumber;
+				const lineHasLineDecorations = MouseTargetFactory._hasLineDecorations(ctx.viewModel, lineNumber);
+				if (isLineDecorationsClickBeforeContent(offset, ctx.layoutInfo.decorationsWidth, ctx.fontSize, lineHasLineDecorations)) {
+					// Nothing is rendered here, so behave like a click on the content left of the text
+					const column = ctx.isRtl(lineNumber) ? ctx.viewModel.getLineMaxColumn(lineNumber) : ctx.viewModel.getLineMinColumn(lineNumber);
+					return request.fulfillContentEmpty(new Position(lineNumber, column), { isAfterLines: false });
+				}
+			}
 			return request.fulfillMargin(MouseTargetType.GUTTER_LINE_DECORATIONS, pos, res.range, detail);
 		}
 		return null;
+	}
+
+	/**
+	 * Mirrors which decorations `LinesDecorationsOverlay` renders on a view line.
+	 */
+	private static _hasLineDecorations(viewModel: IViewModel, lineNumber: number): boolean {
+		for (const d of viewModel.getDecorationsOnLine(lineNumber)) {
+			if (d.options.linesDecorationsClassName || (d.options.firstLineDecorationClassName && d.range.startLineNumber === lineNumber)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static _hitTestViewLines(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
