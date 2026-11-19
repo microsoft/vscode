@@ -57,7 +57,7 @@ import { getFlatContextMenuActions } from '../../../../platform/actions/browser/
 import { Button, ButtonWithDescription, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { RepositoryContextKeys } from './scmViewService.js';
-import { defaultButtonStyles, defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, getCountBadgeStyle } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
@@ -434,7 +434,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 			actionRunner: this.actionRunner
 		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		const countContainer = append(element, $('.count'));
-		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
+		const count = new CountBadge(countContainer, {}, getCountBadgeStyle({ badgeBackground: undefined, badgeBorder: undefined }));
 		const disposables = combinedDisposable(actionBar, count);
 
 		return { name, count, actionBar, elementDisposables: new DisposableStore(), disposables };
@@ -609,7 +609,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		const matches = createMatches(node.filterData as FuzzyScore | undefined);
 		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
-			fileDecorations: { colors: false, badges: true },
+			fileDecorations: { colors: false, badges: true, alignBadgeLastCharacter: true },
 			fileKind,
 			matches,
 			separator: this.labelService.getSeparator(folder.uri.scheme)
@@ -658,7 +658,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		template.fileLabel.setFile(data.uri, {
 			...data.fileLabelOptions,
-			fileDecorations: { colors: false, badges: !icon },
+			fileDecorations: { colors: false, badges: !icon, alignBadgeLastCharacter: true },
 		});
 
 		if (icon) {
