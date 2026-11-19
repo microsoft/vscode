@@ -5,6 +5,7 @@
 
 import { Widget } from '../widget.js';
 import { ThemeIcon } from '../../../common/themables.js';
+import { Codicon } from '../../../common/codicons.js';
 import { Emitter } from '../../../common/event.js';
 import './radio.css';
 import { $, addDisposableListener, DisposableResizeObserver, EventHelper, EventType, getWindow } from '../../dom.js';
@@ -12,6 +13,7 @@ import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { Button } from '../button/button.js';
+import { renderIcon } from '../iconLabel/iconLabels.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 
@@ -77,6 +79,7 @@ export class Radio extends Widget {
 	private selectionIndicatorBounds: { left: number; top: number; width: number; height: number } | undefined;
 
 	private readonly buttons = this._register(new DisposableMap<Button, { item: IRadioOptionItem; dispose(): void }>());
+	private readonly cardIndicators = new WeakMap<Button, { readonly element: HTMLElement; readonly icon: HTMLElement }>();
 
 	constructor(opts: IRadioOptions) {
 		super();
@@ -255,6 +258,20 @@ export class Radio extends Widget {
 
 	private setButtonLabel(button: Button, text: string): void {
 		button.label = text;
+		if (this.domNode.classList.contains('cards')) {
+			let indicator = this.cardIndicators.get(button);
+			if (!indicator) {
+				const element = $('span.monaco-radio-indicator', { 'aria-hidden': 'true' });
+				const icon = renderIcon(Codicon.circleLarge);
+				element.appendChild(icon);
+				indicator = { element, icon };
+				this.cardIndicators.set(button, indicator);
+			}
+			indicator.icon.className = ThemeIcon.asClassName(button.element.classList.contains('active') ? Codicon.record : Codicon.circleLarge);
+			if (button.element.firstChild !== indicator.element) {
+				button.element.prepend(indicator.element);
+			}
+		}
 		if (this.domNode.classList.contains('segmented')) {
 			for (const element of button.element.children) {
 				if (!element.classList.contains('codicon')) {

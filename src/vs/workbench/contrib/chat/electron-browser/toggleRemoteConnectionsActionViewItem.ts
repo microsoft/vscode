@@ -110,6 +110,10 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const dropdown = this._dropdown;
 		dropdown.render(container);
 		this.element = dropdown.element;
+		if (this._isChatInput) {
+			container.classList.add('chat-input-picker-item');
+			this.element?.classList.add('icon-only');
+		}
 		this._updateDropdownState();
 		this._updateTabStops();
 	}

@@ -60,6 +60,16 @@ export default defineThemedFixtureGroup({
 		render: renderCountBadges,
 	}),
 
+	LabelBadges: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: ({ container }) => {
+			container.style.display = 'flex';
+			container.style.gap = 'var(--vscode-spacing-size80)';
+			container.append(...['New', 'Preview', 'Experimental'].map(text => $('span.monaco-label-badge', undefined, text)));
+		},
+	}),
+
 	ActionBar: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: renderActionBar,
@@ -225,7 +235,7 @@ function renderRadio({ container, disposableStore }: ComponentFixtureContext): v
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
 	container.style.gap = 'var(--vscode-spacing-size160)';
-	for (const [className, caption] of [[undefined, 'Default shared Radio'], ['segmented', 'Opt-in segmented Radio']] as const) {
+	for (const [className, caption] of [[undefined, 'Default shared Radio'], ['segmented', 'Opt-in segmented Radio'], ['cards', 'Card options with radio indicators']] as const) {
 		const section = $('div');
 		const label = $('p', undefined, caption);
 		label.style.margin = '0 0 var(--vscode-spacing-size80)';

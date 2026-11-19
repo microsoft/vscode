@@ -545,14 +545,17 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const secondary = dom.append(container, dom.$('.chat-secondary-toolbar'));
 		dom.append(secondary, dom.$('.chat-secondary-input-toolbar')).appendChild(toolbar);
 		container.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		container.style.setProperty('--chat-input-control-height', '22px');
 		const sibling = toolbar.querySelector<HTMLElement>('.action-label.codicon-comment-discussion')!;
+		sibling.parentElement!.classList.add('chat-input-picker-item');
+		sibling.classList.add('icon-only');
 		const read = (element: HTMLElement) => {
 			const bounds = element.getBoundingClientRect();
 			const style = dom.getWindow(element).getComputedStyle(element);
 			return { width: bounds.width, height: bounds.height, padding: style.padding, radius: style.borderRadius, fontSize: style.fontSize };
 		};
-		assert.deepStrictEqual({ antenna: read(primary), standardGlyph: primary.classList.contains('codicon-radio-tower'), nestedGlyph: !!primary.querySelector('.codicon') }, {
-			antenna: read(sibling), standardGlyph: true, nestedGlyph: false,
+		assert.deepStrictEqual({ antenna: read(primary), target: [primary.offsetWidth, primary.offsetHeight], standardGlyph: primary.classList.contains('codicon-radio-tower'), nestedGlyph: !!primary.querySelector('.codicon') }, {
+			antenna: read(sibling), target: [22, 22], standardGlyph: true, nestedGlyph: false,
 		});
 	});
 

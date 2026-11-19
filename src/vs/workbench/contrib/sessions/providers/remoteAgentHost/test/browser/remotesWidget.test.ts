@@ -208,7 +208,7 @@ suite('RemotesWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const menus = new WeakMap<HTMLElement, () => readonly IAction[]>();
 
-	function createWidget(operatingSystem = OperatingSystem.Macintosh, grouping: 'status' | 'type' | 'default' = 'type', width = 900, pendingDiagnosticSnapshot?: Promise<void>) {
+	function createWidget(operatingSystem = OperatingSystem.Macintosh, grouping: 'none' | 'status' | 'type' | 'default' = 'type', width = 900, pendingDiagnosticSnapshot?: Promise<void>) {
 		const parent = dom.append(document.body, dom.$('div'));
 		parent.style.width = `${width}px`;
 		parent.style.height = '640px';
@@ -527,7 +527,7 @@ suite('RemotesWidget', () => {
 
 	for (const operatingSystem of [OperatingSystem.Windows, OperatingSystem.Macintosh]) {
 		test(`toolbar only offers environment actions with populated, filtered and empty environments on ${operatingSystem}`, () => {
-			const { parent, model, widget } = createWidget(operatingSystem, 'default');
+			const { parent, model, widget } = createWidget(operatingSystem, 'none');
 			const actions = () => [...parent.querySelectorAll('.remotes-header-actions .monaco-button')].map(element => element.getAttribute('aria-label'));
 			const initial = actions();
 			model.environmentsEnabled.set(true, undefined);
@@ -607,7 +607,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('the plain environments heading preserves search and discovery updates', async () => {
-		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'default');
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'none');
 		parent.style.setProperty('--vscode-fontSize-heading2', '18px');
 		parent.style.setProperty('--vscode-fontWeight-semiBold', '600');
 		widget.setHeading('Other environments');
@@ -640,8 +640,29 @@ suite('RemotesWidget', () => {
 		}, { hidden: false, headingDisplay: 'none', focused: true });
 	});
 
-	test('defaults to status order and exposes consistent names for sorting and grouping table fields', async () => {
-		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'default');
+	test('defaults to Type groups and restores them on reset without connecting', async () => {
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		const read = () => ({
+			groups: [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent),
+			selected: getOrganizationActions(parent).flatMap(action => action instanceof SubmenuAction ? action.actions : []).filter(action => action.checked).map(action => action.id),
+			columns: [...parent.querySelectorAll<HTMLElement>('.monaco-table-th')].filter(cell => cell.clientWidth > 0).map(cell => cell.textContent).filter(Boolean),
+		});
+		const initial = read();
+		widget.setGrouping('none');
+		widget.setSearchQuery('build');
+		await organize(parent, 'remotes.resetFilters');
+		assert.deepStrictEqual({ initial, reset: read(), query: parent.querySelector<HTMLInputElement>('input')!.value, connections: model.connectionChanges }, {
+			initial: {
+				groups: ['Dev Tunnels', 'WSL', 'SSH'],
+				selected: ['remotes.sort.availability', 'remotes.group.type'],
+				columns: ['Name', 'Status', 'Last Activity', 'System'],
+			},
+			reset: initial, query: '', connections: [],
+		});
+	});
+
+	test('ungrouped status order exposes consistent names for sorting and grouping table fields', async () => {
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'none');
 		const remote = (id: string, kind: RemoteKind, name: string, availability: ICustomizationRemote['availability'], connectionStatus: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.disconnected): ICustomizationRemote => ({
 			id, kind, name, availability, connectionStatus, detail: id, canRemove: true,
 		});
@@ -690,12 +711,12 @@ suite('RemotesWidget', () => {
 			grouped: [],
 			newestFirst: ['ssh:unknown', 'tunnel:online', 'ssh:connected', 'tunnel:offline', 'wsl:start', 'ssh:error'],
 			statuses: ['Connected', 'Available', 'Offline'], filtered: ['tunnel:online'],
-			resetMethods: [], query: '', connects: [],
+			resetMethods: ['Dev Tunnels', 'WSL', 'SSH'], query: '', connects: [],
 		});
 	});
 
 	test('grouping hides only its redundant column and keeps Status after Name otherwise', async () => {
-		const { parent, widget } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		const { parent, widget } = createWidget(OperatingSystem.Windows, 'none', 1400);
 		const columns = () => [...parent.querySelectorAll<HTMLElement>('.monaco-table-th')]
 			.filter(cell => cell.clientWidth > 0 && dom.getWindow(cell).getComputedStyle(cell).display !== 'none')
 			.map(cell => cell.textContent).filter(Boolean);
@@ -717,7 +738,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('Type header Learn More submenu opens each supported type guide without sorting or connecting', async () => {
-		const { parent, widget, model, documentation } = createWidget(OperatingSystem.Windows, 'default', 900);
+		const { parent, widget, model, documentation } = createWidget(OperatingSystem.Windows, 'none', 900);
 		model.environmentsEnabled.set(true, undefined);
 		const base = model.remotes.get()[0];
 		model.remotes.set([...model.remotes.get(), { ...base, id: 'extension:docs', kind: 'extension' }, { ...base, id: 'devContainer:docs', kind: 'devContainer' }], undefined);
@@ -752,7 +773,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('identity and host-reported resources distinguish hosts and are searchable', () => {
-		const { parent, model, widget, hoverContents } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		const { parent, model, widget, hoverContents } = createWidget(OperatingSystem.Windows, 'none', 1400);
 		const base = model.remotes.get()[0];
 		const heightBefore = parent.querySelector('[data-remote-id]')!.getBoundingClientRect().height;
 		model.remotes.set([
@@ -770,7 +791,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('GitHub heartbeat information is visible without connecting, while opaque registration IDs are not presentation or search fields', () => {
-		const { parent, model, widget, hoverContents } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		const { parent, model, widget, hoverContents } = createWidget(OperatingSystem.Windows, 'none', 1400);
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([{
 			id: 'cloudsandbox:opaque-registration', kind: 'environment', name: 'Workstation', detail: 'opaque-registration',
@@ -983,7 +1004,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('a confirmed tunnel sign-in gate replaces Connect without adding a discovery notice or status', async () => {
-		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'default');
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'none');
 		const tunnel = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!;
 		const row = () => parent.querySelector<HTMLElement>('[data-remote-id="tunnel:laptop"]')!;
 		const action = () => row().querySelector<HTMLElement>('.remotes-connect-action')!;
@@ -1031,7 +1052,7 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	for (const grouping of ['default', 'type', 'status'] as const) {
+	for (const grouping of ['none', 'type', 'status'] as const) {
 		test(`refresh keeps rows and metadata stable without discovery spinners (${grouping})`, async () => {
 			const { parent, model, widget } = createWidget(OperatingSystem.Windows, grouping, 1400);
 			const remotes = model.remotes.get().map(remote => ({
@@ -1096,7 +1117,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('initially empty discovery waits for the full result and still honors inventory withdrawals', async () => {
-		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'default');
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'none');
 		const remotes = model.remotes.get();
 		model.remotes.set([], undefined);
 		let pending = model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
@@ -1340,7 +1361,7 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	for (const grouping of ['status', 'type'] as const) {
+	for (const grouping of ['none', 'status', 'type'] as const) {
 		test(`search misses offer search recovery, not setup or authentication (${grouping})`, async () => {
 			const { parent, model, widget } = createWidget(OperatingSystem.Windows, grouping);
 			model.tunnelAuthenticationRequired.set('github', undefined);
@@ -1392,7 +1413,7 @@ suite('RemotesWidget', () => {
 				empty: { methodGuidance: true, cards: 4, groups: ['GitHub Environments', 'Dev Tunnels', 'WSL', 'SSH'], tableHidden: false },
 				search: { methodGuidance: false, cards: 0, groups: [], tableHidden: true },
 				reset: empty,
-				populated: { cards: 0, groups: grouping === 'status' ? ['Connected'] : ['GitHub Environments', 'Dev Tunnels', 'WSL', 'SSH'], tableHidden: false },
+				populated: { cards: 0, groups: grouping === 'status' ? ['Connected'] : grouping === 'type' ? ['GitHub Environments', 'Dev Tunnels', 'WSL', 'SSH'] : [], tableHidden: false },
 			});
 		});
 	}
@@ -1640,7 +1661,7 @@ suite('RemotesWidget', () => {
 		const now = 1_800_000_000_000;
 		const clock = useFakeTimers({ now, toFake: ['Date'] });
 		store.add(toDisposable(() => clock.restore()));
-		const { parent, model, hoverContents } = createWidget(OperatingSystem.Windows, 'default');
+		const { parent, model, hoverContents } = createWidget(OperatingSystem.Windows, 'none');
 		const day = 86_400_000;
 		const base = model.remotes.get()[0];
 		const observations = [
@@ -1674,7 +1695,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('column headers reverse sorting by pointer and keyboard and keep unknown system values last', async () => {
-		const { parent, model } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		const { parent, model } = createWidget(OperatingSystem.Windows, 'none', 1400);
 		const base = model.remotes.get()[0];
 		model.remotes.set([
 			{ ...base, id: 'ssh:alpha', name: 'Alpha', metadata: { observedAt: 1, operatingSystem: OperatingSystem.Windows } },
@@ -1708,7 +1729,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('zebra rows use the table palette without painting over selected rows or group headings', () => {
-		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'default');
+		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'none');
 		const remotes = model.remotes.get();
 		model.remotes.set([...remotes, { ...remotes[0], id: 'ssh:second' }], undefined);
 		parent.style.setProperty('--vscode-keybindingTable-rowsBackground', 'rgb(40, 50, 60)');
@@ -1727,7 +1748,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('sortable headers fill their cells, align with row values, and release focus when hidden', () => {
-		const { parent, widget } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		const { parent, widget } = createWidget(OperatingSystem.Windows, 'none', 1400);
 		feedbackStyles(parent);
 		parent.style.setProperty('--vscode-spacing-size100', '10px');
 		parent.style.setProperty('--vscode-spacing-size200', '20px');
@@ -1753,7 +1774,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('status icons keep their semantic colors in focused and selected rows', () => {
-		const { parent, widget } = createWidget(OperatingSystem.Windows, 'default');
+		const { parent, widget } = createWidget(OperatingSystem.Windows, 'none');
 		feedbackStyles(parent);
 		parent.style.setProperty('--vscode-testing-iconPassed', '#228822');
 		const icon = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-indicator > .codicon')!;
@@ -1993,7 +2014,7 @@ suite('RemotesWidget', () => {
 	}
 
 	test('all columns remain allocated through resizing while metadata stays searchable', async () => {
-		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'none', 1400);
 		const remote = model.remotes.get()[0];
 		model.remotes.set([{
 			...remote,
@@ -2323,7 +2344,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('overflow targets stay aligned across mixed rows and connection changes through resizing', async () => {
-		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'none', 1400);
 		feedbackStyles(parent);
 		parent.style.font = '13px "Segoe UI", sans-serif';
 		const host = (id: string, availability: ICustomizationRemote['availability'], connectionStatus: RemoteAgentHostConnectionStatus, lastConnectionError?: string): ICustomizationRemote => ({
@@ -2533,7 +2554,7 @@ suite('RemotesWidget', () => {
 		}, { changes: [{ id: 'ssh:build', action: 'rename' }], enabled: true, name: 'Renamed remote' });
 	});
 
-	test('remote menus keep connection, management, and documentation groups consistent after refresh', async () => {
+	test('remote menus keep utilities, display, and documentation groups consistent after refresh', async () => {
 		const { parent, model, widget } = createWidget(OperatingSystem.Windows);
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([...model.remotes.get(), {
@@ -2547,16 +2568,16 @@ suite('RemotesWidget', () => {
 		await timeout(0);
 		const expected = [
 			['Connect', 'Troubleshoot', '---', 'Rename...', 'Hide from Picker', 'Remove GitHub Environment...', '---', 'Learn More about GitHub Environment (Preview)'],
-			['Connect', 'Troubleshoot', '---', 'Rename...', 'Choose How Agents Run...', 'Hide from Picker', 'Remove Dev Tunnel...', '---', 'Learn More about Dev Tunnel'],
+			['Connect', 'Troubleshoot', 'Choose How Agents Run...', '---', 'Rename...', 'Hide from Picker', 'Remove Dev Tunnel...', '---', 'Learn More about Dev Tunnel'],
 			['Connect', 'Troubleshoot', '---', 'Rename...', 'Hide from Picker', '---', 'Learn More about WSL'],
-			['New Session', 'Disconnect', 'Troubleshoot', '---', 'Rename...', 'Choose How Agents Run...', 'Open SSH Configuration', 'Copy SSH Address', 'Hide from Picker', '---', 'Learn More about SSH'],
+			['New Session', 'Disconnect', 'Troubleshoot', 'Choose How Agents Run...', 'Open SSH Configuration', 'Copy SSH Address', '---', 'Rename...', 'Hide from Picker', '---', 'Learn More about SSH'],
 		];
 		assert.deepStrictEqual({ before, after: actions(), changes: model.managementChanges }, { before: expected, after: expected, changes: [] });
 	});
 
 	for (const source of ['overflow', 'type'] as const) {
 		test(`${source} menu keeps its owner selected and actions visible after focus leaves the list and rows refresh`, () => {
-			const { parent, model, holdMenuOpen, closeMenu } = createWidget(OperatingSystem.Windows, 'default', 1400);
+			const { parent, model, holdMenuOpen, closeMenu } = createWidget(OperatingSystem.Windows, 'none', 1400);
 			holdMenuOpen();
 			const id = 'tunnel:laptop';
 			if (source === 'overflow') {
@@ -2600,7 +2621,7 @@ suite('RemotesWidget', () => {
 		}];
 		model.remotes.set(remotes, undefined);
 		assert.deepStrictEqual(remotes.map(remote => getMenuActions(parent, remote.id).map(action => action.id === 'vs.actions.separator' ? '---' : action.label)), [
-			['New Session', 'Disconnect', 'Troubleshoot', '---', 'Rename...', 'Show Job Runner Extension', 'Copy Connection Address', 'Hide from Picker', '---', 'Learn More about Extensions'],
+			['New Session', 'Disconnect', 'Troubleshoot', 'Copy Connection Address', '---', 'Rename...', 'Show Job Runner Extension', 'Hide from Picker', '---', 'Learn More about Extensions'],
 			['Troubleshoot', '---', 'Rename...', 'Hide from Picker', 'Delete Container and Files...', '---', 'Learn More about Dev Containers'],
 		]);
 	});
@@ -2702,8 +2723,8 @@ suite('RemotesWidget', () => {
 			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Version mismatch', ['1'], ['2'], 'vendor/update'),
 		}], undefined);
 		assert.deepStrictEqual(getMenuActions(parent, ssh.id).map(action => action.id === 'vs.actions.separator' ? '---' : action.label), [
-			'Connect', 'Troubleshoot', 'Update Server', '---',
-			'Rename...', 'Choose How Agents Run...', 'Open SSH Configuration', 'Copy SSH Address', 'Hide from Picker', 'Remove Saved SSH Connection...', '---',
+			'Connect', 'Troubleshoot', 'Update Server', 'Choose How Agents Run...', 'Open SSH Configuration', 'Copy SSH Address', '---',
+			'Rename...', 'Hide from Picker', 'Remove Saved SSH Connection...', '---',
 			'Learn More about SSH',
 		]);
 	});
@@ -2764,7 +2785,7 @@ suite('RemotesWidget', () => {
 			const read = () => choices.map(choice => ({
 				checked: choice.getAttribute('aria-checked'),
 				border: dom.getWindow(choice).getComputedStyle(choice).borderColor,
-				dot: dom.getWindow(choice).getComputedStyle(choice, '::after').visibility,
+				indicator: choice.querySelector('.monaco-radio-indicator > .codicon')?.className,
 			}));
 			const initial = read();
 			choices[1].click();
@@ -2772,12 +2793,12 @@ suite('RemotesWidget', () => {
 				initial, changed: read(), focused: choices.some(choice => dom.isActiveElement(choice)), saved: model.locationChanges,
 			}, {
 				initial: [
-					{ checked: 'true', border: 'rgb(0, 107, 189)', dot: 'visible' },
-					{ checked: 'false', border: 'rgb(119, 119, 119)', dot: 'hidden' },
+					{ checked: 'true', border: 'rgb(0, 107, 189)', indicator: 'codicon codicon-record' },
+					{ checked: 'false', border: 'rgb(119, 119, 119)', indicator: 'codicon codicon-circle-large' },
 				],
 				changed: [
-					{ checked: 'false', border: 'rgb(119, 119, 119)', dot: 'hidden' },
-					{ checked: 'true', border: 'rgb(0, 107, 189)', dot: 'visible' },
+					{ checked: 'false', border: 'rgb(119, 119, 119)', indicator: 'codicon codicon-circle-large' },
+					{ checked: 'true', border: 'rgb(0, 107, 189)', indicator: 'codicon codicon-record' },
 				],
 				focused: false, saved: [],
 			});
@@ -2902,7 +2923,7 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('run behavior distinguishes the saved choice from a pending selection and updates it after saving', async () => {
+	test('run behavior keeps the default badge independent of selection and saving', async () => {
 		const { parent, model, widget } = createWidget();
 		model.preferences.set('ssh:build', 'dedicated');
 		runMenuAction(parent, 'ssh:build', 'locationPreference');
@@ -2911,21 +2932,26 @@ suite('RemotesWidget', () => {
 		choices[1].click();
 		const read = () => [...choices].map(choice => ({
 			selected: choice.getAttribute('aria-checked'),
-			current: choice.querySelector<HTMLElement>('.remotes-choice-current')?.hidden ? '' : choice.querySelector('.remotes-choice-current')?.textContent,
+			badges: [...choice.querySelectorAll('.monaco-label-badge')].map(badge => badge.textContent),
+			label: choice.getAttribute('aria-label'),
 		}));
 		const readAccessible = () => {
 			const content = widget.getAccessibilityContent();
-			return { choices: content.split('\n').slice(-2), savedBadges: content.match(/Saved preference/g)?.length ?? 0 };
+			return { choices: content.split('\n').slice(-2), savedBadges: content.includes('Saved preference') };
 		};
 		const pending = read();
 		const pendingAccessible = readAccessible();
 		details.querySelector<HTMLElement>('.remotes-details-actions .monaco-button:not(.secondary)')!.click();
 		await timeout(0);
+		const expectedChoices = [
+			{ selected: 'false', badges: ['Default'], label: 'Run in the Background. For tasks you want to leave running. Agents can keep working after you close VS Code on the remote computer. Default' },
+			{ selected: 'true', badges: [], label: 'Use Remote VS Code. Uses an open VS Code window on the remote computer when available. Agents stop when that window closes.' },
+		];
 		assert.deepStrictEqual({ pending, pendingAccessible, saved: read(), savedAccessible: readAccessible(), preference: model.preferences.get('ssh:build') }, {
-			pending: [{ selected: 'false', current: 'Saved preference' }, { selected: 'true', current: '' }],
-			pendingAccessible: { choices: ['Saved choice: Run in the Background', 'Selected choice: Use Remote VS Code'], savedBadges: 1 },
-			saved: [{ selected: 'false', current: '' }, { selected: 'true', current: 'Saved preference' }],
-			savedAccessible: { choices: ['Saved choice: Use Remote VS Code', 'Selected choice: Use Remote VS Code'], savedBadges: 1 },
+			pending: expectedChoices,
+			pendingAccessible: { choices: ['Saved choice: Run in the Background', 'Selected choice: Use Remote VS Code'], savedBadges: false },
+			saved: expectedChoices,
+			savedAccessible: { choices: ['Saved choice: Use Remote VS Code', 'Selected choice: Use Remote VS Code'], savedBadges: false },
 			preference: 'editor',
 		});
 	});
@@ -2947,7 +2973,7 @@ suite('RemotesWidget', () => {
 			choices: [
 				{
 					selected: 'true', description: 'For tasks you want to leave running. Agents can keep working after you close VS Code on the remote computer.',
-					label: 'Run in the Background. For tasks you want to leave running. Agents can keep working after you close VS Code on the remote computer.',
+					label: 'Run in the Background. For tasks you want to leave running. Agents can keep working after you close VS Code on the remote computer. Default',
 				},
 				{
 					selected: 'false', description: 'Uses an open VS Code window on the remote computer when available. Agents stop when that window closes.',
@@ -3227,33 +3253,29 @@ suite('RemotesWidget', () => {
 		})));
 	});
 
-	test('first run preference save preserves layout when the saved badge wraps', async () => {
+	test('first run preference save preserves layout without adding a selection badge', async () => {
 		const { parent, model } = createWidget(OperatingSystem.Windows, 'status', 240);
 		feedbackStyles(parent);
 		const remote = model.remotes.get()[2];
 		runMenuAction(parent, remote.id, 'locationPreference');
 		const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
 		const choice = details.querySelectorAll<HTMLElement>('[role="radio"]')[1];
-		const badge = choice.querySelector<HTMLElement>('.remotes-choice-current')!;
-		const title = parent.ownerDocument.createRange();
-		title.selectNodeContents(choice.firstChild!);
 		choice.click();
 		const save = details.querySelector<HTMLElement>('.remotes-details-footer .monaco-button:not(.secondary)')!;
 		save.focus();
 		const geometry = () => feedbackGeometry(details, ['.remotes-run-choices', '.remotes-details-footer', '.remotes-run-hint']);
 		const before = geometry();
-		const initiallySaved = choice.getAttribute('aria-label')!.includes('Saved preference');
+		const badges = () => [...details.querySelectorAll('[role="radio"]')].map(element => [...element.querySelectorAll('.monaco-label-badge')].map(badge => badge.textContent));
+		const beforeBadges = badges();
 		model.pendingManagement = new DeferredPromise<void>();
 		save.click();
 		const during = geometry();
 		await model.pendingManagement.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
-			during, after: geometry(), initiallySaved,
-			saved: choice.getAttribute('aria-label')!.includes('Saved preference'),
-			badgeWraps: badge.getBoundingClientRect().top >= title.getBoundingClientRect().bottom,
+			during, after: geometry(), beforeBadges, afterBadges: badges(),
 			focused: dom.getActiveElement() === save,
-		}, { during: before, after: before, initiallySaved: false, saved: true, badgeWraps: true, focused: true });
+		}, { during: before, after: before, beforeBadges: [['Default'], []], afterBadges: [['Default'], []], focused: true });
 	});
 
 	for (const width of [900, 360]) {
@@ -4820,8 +4842,8 @@ suite('RemotesWidget', () => {
 			sort: parent.querySelector('.monaco-table-th[data-col-index="1"] .remotes-sort-header')?.getAttribute('aria-label'),
 			connections: model.connectionChanges,
 		}, {
-			query: '', checked: ['remotes.sort.availability', 'remotes.group.none'], groups: 0,
-			ids: ['ssh:build', 'tunnel:laptop'], sort: 'Status, sorted ascending. Sort Status descending', connections: [],
+			query: '', checked: ['remotes.sort.availability', 'remotes.group.type'], groups: 2,
+			ids: ['tunnel:laptop', 'ssh:build'], sort: 'Status, sorted ascending. Sort Status descending', connections: [],
 		});
 	});
 
@@ -4915,7 +4937,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('each type shares documentation between row overflow and Type context menus without connecting', async () => {
-		const { parent, model, documentation } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		const { parent, model, documentation } = createWidget(OperatingSystem.Windows, 'none', 1400);
 		model.environmentsEnabled.set(true, undefined);
 		const guides: { kind: RemoteKind; label: string; href: string }[] = [
 			{ kind: 'ssh', label: 'SSH', href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-ssh' },

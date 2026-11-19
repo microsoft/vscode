@@ -13,7 +13,6 @@ import { Color } from '../../../../../../base/common/color.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
@@ -750,6 +749,7 @@ suite('RemotesEditor', () => {
 			[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [GitHubEnvironmentsEnabledSettingId]: true,
 		});
 		container.style.setProperty('--vscode-spacing-size120', '12px');
+		container.style.setProperty('--vscode-codiconFontSize', '16px');
 		container.style.setProperty('--vscode-strokeThickness', '1px');
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
 		container.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
@@ -758,25 +758,26 @@ suite('RemotesEditor', () => {
 		const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(selector => {
 			const theme = ColorThemeData.createUnloadedTheme(selector);
 			const surface = theme.getColor('editorWidget.background')!;
-			for (const id of ['radio.activeForeground', 'radio.activeBackground', 'radio.activeBorder', 'radio.inactiveForeground', 'radio.inactiveBackground', 'radio.inactiveBorder', 'list.focusOutline', 'focusBorder']) {
+			for (const id of ['foreground', 'radio.activeForeground', 'radio.activeBackground', 'radio.activeBorder', 'radio.inactiveForeground', 'radio.inactiveBackground', 'radio.inactiveBorder', 'list.focusOutline', 'focusBorder']) {
 				container.style.setProperty(`--vscode-${id.replace('.', '-')}`, theme.getColor(id)?.toString() ?? 'transparent');
 			}
 			return choices.map(choice => {
 				choice.click();
 				const style = targetWindow.getComputedStyle(choice);
-				const ring = targetWindow.getComputedStyle(choice, '::before');
-				const dot = targetWindow.getComputedStyle(choice, '::after');
+				const marker = choice.querySelector<HTMLElement>('.monaco-radio-indicator')!;
+				const markerStyle = targetWindow.getComputedStyle(marker);
 				const background = Color.Format.CSS.parse(style.backgroundColor)!.makeOpaque(surface);
-				const indicator = Color.Format.CSS.parse(dot.backgroundColor)!.makeOpaque(background);
+				const indicator = Color.Format.CSS.parse(markerStyle.color)!.makeOpaque(background);
 				return {
-					ring: ring.content !== 'none' && parseFloat(ring.borderTopWidth) > 0,
-					selectedDot: dot.content !== 'none' && dot.visibility === 'visible' && parseFloat(dot.width) > 0,
+					ring: parseFloat(markerStyle.width) > 0 && parseFloat(markerStyle.height) > 0,
+					selectedDot: marker.firstElementChild?.classList.contains('codicon-record') === true,
 					accentBorder: Color.Format.CSS.parse(style.borderTopColor)!.toString() === theme.getColor('list.focusOutline')!.toString(),
+					accentIndicator: indicator.toString() === theme.getColor('list.focusOutline')!.toString(),
 					contrast: indicator.getContrastRatio(background) >= 3,
 				};
 			});
 		});
-		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => choices.map(() => ({ ring: true, selectedDot: true, accentBorder: true, contrast: true }))));
+		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => choices.map(() => ({ ring: true, selectedDot: true, accentBorder: true, accentIndicator: true, contrast: true }))));
 	});
 
 	test('inline sharing keeps both sections and search visible, with actions beside the section heading', async () => {
@@ -789,7 +790,7 @@ suite('RemotesEditor', () => {
 		search.value = 'build';
 		search.dispatchEvent(new InputEvent('input'));
 		const share = container.querySelector<HTMLElement>('.remotes-this-computer-share > .monaco-button')!;
-		const visibleActions = () => [...share.parentElement!.querySelectorAll<HTMLElement>('.monaco-button')].filter(button => button.getClientRects().length > 0).map(button => button.textContent);
+		const visibleActions = () => [...share.parentElement!.querySelectorAll<HTMLElement>('.monaco-button')].filter(button => button.getClientRects().length > 0 && dom.getWindow(button).getComputedStyle(button).visibility !== 'hidden').map(button => button.textContent);
 		const collapsedActions = visibleActions();
 		share.click();
 		container.querySelector<HTMLElement>('[data-sharing-method="githubEnvironment"]')!.click();
@@ -811,9 +812,9 @@ suite('RemotesEditor', () => {
 		}, {
 			disclosures: 0, tableVisible: true, nameVisible: true, name: 'My Workstation (Code - OSS)',
 			duplicateName: null, back: null, actionsInHeading: true,
-			actions: isWindows ? ['Start Sharing', 'Cancel'] : ['Cancel', 'Start Sharing'],
+			actions: ['Cancel', 'Start Sharing'],
 			collapsedActions: ['Share This Computer'],
-			visibleActions: isWindows ? ['Start Sharing', 'Cancel'] : ['Cancel', 'Start Sharing'],
+			visibleActions: ['Cancel', 'Start Sharing'],
 			search: 'build', accessibleList: true, unchanged: undefined,
 		});
 		container.querySelector<HTMLElement>('.remotes-sharing-footer .secondary')!.click();
@@ -823,6 +824,69 @@ suite('RemotesEditor', () => {
 			shareFocused: dom.getActiveElement() === container.querySelector('.remotes-this-computer-share > .monaco-button'),
 			visibleActions: visibleActions(),
 		}, { closed: true, search: 'build', shareFocused: true, visibleActions: ['Share This Computer'] });
+	});
+
+	test('Start Sharing preserves the original pointer target and button sizing through focus, borders, and resizing', async () => {
+		const { editor, container, input } = createEditor({
+			[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [GitHubEnvironmentsEnabledSettingId]: true,
+		});
+		for (const size of [40, 60, 80, 120, 160, 200, 240, 320, 360]) {
+			container.style.setProperty(`--vscode-spacing-size${size}`, `${size / 10}px`);
+		}
+		container.style.setProperty('--vscode-fontSize-heading2', '18px');
+		container.style.setProperty('--vscode-codiconFontSize', '16px');
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const share = container.querySelector<HTMLElement>('.remotes-this-computer-share > .monaco-button')!;
+		const start = container.querySelector<HTMLElement>('.remotes-sharing-footer .monaco-button:not(.secondary)')!;
+		const cancel = container.querySelector<HTMLElement>('.remotes-sharing-footer .secondary')!;
+		const title = container.querySelector<HTMLElement>('.remotes-this-computer-title')!;
+		const bounds = (element: HTMLElement) => {
+			const { x, y, width, height } = element.getBoundingClientRect();
+			return { x, y, width, height };
+		};
+		const delta = (value: ReturnType<typeof bounds>, original: ReturnType<typeof bounds>) => [
+			value.x - original.x, value.y - original.y, value.width - original.width, value.height - original.height,
+		];
+		const wide = Math.min(900, dom.getWindow(container).innerWidth - container.getBoundingClientRect().left);
+		const observations = [wide, 360, wide].map(width => {
+			container.style.width = `${width}px`;
+			editor.layout(new dom.Dimension(width, 600));
+			const original = bounds(share);
+			const heading = bounds(title);
+			share.focus();
+			const focused = bounds(share);
+			container.style.setProperty('--vscode-button-secondaryBorder', '#888888');
+			const bordered = bounds(share);
+			share.click();
+			const primary = bounds(start);
+			const secondary = cancel.getBoundingClientRect();
+			const target = container.ownerDocument.elementFromPoint(original.x + original.width / 2, original.y + original.height / 2);
+			const style = dom.getWindow(start).getComputedStyle(start);
+			const contentWidth = [...start.children].reduce((width, element) => {
+				const childStyle = dom.getWindow(start).getComputedStyle(element);
+				return width + element.getBoundingClientRect().width + parseFloat(childStyle.marginLeft) + parseFloat(childStyle.marginRight);
+			}, 0);
+			const expanded = {
+				primaryAnchor: [primary.x + primary.width - original.x - original.width, primary.y - original.y, primary.height - original.height],
+				heading: delta(bounds(title), heading),
+				gap: primary.x - secondary.right,
+				matchingHeights: primary.height === secondary.height,
+				pointerStaysOnPrimary: target !== null && start.contains(target),
+				padding: [style.paddingLeft, style.paddingRight],
+				naturalWidth: Math.abs(primary.width - contentWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth)) < 1,
+			};
+			cancel.click();
+			container.style.removeProperty('--vscode-button-secondaryBorder');
+			return {
+				deltas: [focused, bordered, bounds(share)].map(value => delta(value, original)),
+				...expanded,
+			};
+		});
+		assert.deepStrictEqual(observations, Array.from({ length: 3 }, () => ({
+			deltas: Array.from({ length: 3 }, () => [0, 0, 0, 0]), primaryAnchor: [0, 0, 0], heading: [0, 0, 0, 0], gap: 8, matchingHeights: true,
+			pointerStaysOnPrimary: true, padding: ['8px', '8px'], naturalWidth: true,
+		})));
 	});
 
 	test('the pencil renames the selected sharing method through native input before starting', async () => {

@@ -98,35 +98,30 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.monaco-custom-radio.cards > .monaco-button.active {
+.monaco-custom-radio.cards > .monaco-button.active,
+.monaco-custom-radio.cards > .monaco-button.active:hover {
+	color: var(--vscode-foreground);
+	background-color: transparent;
 	border-color: var(--vscode-list-focusOutline, var(--vscode-focusBorder));
 }
 
-.monaco-custom-radio.cards > .monaco-button::before,
-.monaco-custom-radio.cards > .monaco-button::after {
-	content: '';
+.monaco-custom-radio.cards .monaco-radio-indicator {
 	position: absolute;
 	inset-inline-start: var(--vscode-spacing-size120);
-	top: var(--vscode-spacing-size160);
-	width: var(--vscode-spacing-size120);
-	height: var(--vscode-spacing-size120);
-	box-sizing: border-box;
-	border-radius: var(--vscode-cornerRadius-circle);
+	top: calc(var(--vscode-spacing-size120) + (1.5em - var(--vscode-codiconFontSize)) / 2);
+	display: flex;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
 	pointer-events: none;
 }
 
-.monaco-custom-radio.cards > .monaco-button::before {
-	border: var(--vscode-strokeThickness) solid currentColor;
+.monaco-custom-radio.cards .monaco-radio-indicator > .codicon {
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize);
 }
 
-.monaco-custom-radio.cards > .monaco-button::after {
-	background: currentColor;
-	transform: scale(0.5);
-	visibility: hidden;
-}
-
-.monaco-custom-radio.cards > .monaco-button.active::after {
-	visibility: visible;
+.monaco-custom-radio.cards > .monaco-button.active .monaco-radio-indicator {
+	color: var(--vscode-list-focusOutline, var(--vscode-focusBorder));
 }
 
 :is(.hc-black, .hc-light) .monaco-custom-radio.cards > .monaco-button:not(.active, .disabled, :focus-visible):hover {

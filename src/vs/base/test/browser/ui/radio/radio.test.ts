@@ -38,6 +38,7 @@ suite('Radio', () => {
 			--vscode-cornerRadius-circle: 9999px;
 			--vscode-fontSize-body1: 13px;
 			--vscode-fontSize-label2: 11px;
+			--vscode-codiconFontSize: 16px;
 			--vscode-fontWeight-regular: 400;
 			--vscode-fontWeight-semiBold: 600;
 		`;
@@ -71,18 +72,20 @@ suite('Radio', () => {
 			radio.domNode.style.width = '600px';
 			radio.domNode.style.setProperty('--vscode-radio-inactiveBorder', '#777777');
 			radio.domNode.style.setProperty('--vscode-radio-activeBorder', '#888888');
+			radio.domNode.style.setProperty('--vscode-radio-activeBackground', '#ff00ff');
 			radio.domNode.style.setProperty('--vscode-radio-activeForeground', '#222222');
 			radio.domNode.style.setProperty('--vscode-radio-inactiveForeground', '#444444');
 			radio.domNode.style.setProperty('--vscode-list-focusOutline', '#006bbd');
 			const read = () => radio.optionElements.map(element => {
 				const style = getWindow(element).getComputedStyle(element);
-				const indicator = getWindow(element).getComputedStyle(element, '::after');
+				const indicator = element.querySelector<HTMLElement>('.monaco-radio-indicator')!;
 				return {
 					checked: element.getAttribute('aria-checked'),
 					borders: [style.borderLeftWidth, style.borderRightWidth],
 					borderColor: style.borderColor,
+					background: style.backgroundColor,
 					radius: style.borderRadius,
-					dot: { visibility: indicator.visibility, color: indicator.backgroundColor },
+					indicator: { icon: indicator.firstElementChild?.className, color: getWindow(element).getComputedStyle(indicator).color, hidden: indicator.getAttribute('aria-hidden') },
 				};
 			});
 			const initial = read();
@@ -93,7 +96,8 @@ suite('Radio', () => {
 			radio.domNode.style.width = '200px';
 			const option = (checked: boolean) => ({
 				checked: String(checked), borders: ['1px', '1px'], borderColor: checked ? 'rgb(0, 107, 189)' : 'rgb(119, 119, 119)', radius: '4px',
-				dot: { visibility: checked ? 'visible' : 'hidden', color: checked ? 'rgb(34, 34, 34)' : 'rgb(68, 68, 68)' },
+				background: 'rgba(0, 0, 0, 0)',
+				indicator: { icon: checked ? 'codicon codicon-record' : 'codicon codicon-circle-large', color: checked ? 'rgb(0, 107, 189)' : 'rgb(68, 68, 68)', hidden: 'true' },
 			});
 			assert.deepStrictEqual({ initial, switched, sideBySide, stacked: first.offsetTop < second.offsetTop }, {
 				initial: [option(true), option(false)], switched: [option(false), option(true)], sideBySide: true, stacked: true,
@@ -113,14 +117,14 @@ suite('Radio', () => {
 				checked: element.getAttribute('aria-checked'),
 				tabIndex: element.tabIndex,
 				focused: element === mainWindow.document.activeElement,
-				dot: getWindow(element).getComputedStyle(element, '::after').visibility,
+				indicator: element.querySelector('.monaco-radio-indicator > .codicon')?.className,
 			})),
 		}, {
 			selected: [2],
 			options: [
-				{ checked: 'false', tabIndex: -1, focused: false, dot: 'hidden' },
-				{ checked: 'false', tabIndex: -1, focused: false, dot: 'hidden' },
-				{ checked: 'true', tabIndex: 0, focused: true, dot: 'visible' },
+				{ checked: 'false', tabIndex: -1, focused: false, indicator: 'codicon codicon-circle-large' },
+				{ checked: 'false', tabIndex: -1, focused: false, indicator: 'codicon codicon-circle-large' },
+				{ checked: 'true', tabIndex: 0, focused: true, indicator: 'codicon codicon-record' },
 			],
 		});
 	});

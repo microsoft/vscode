@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import '../../../../../../base/browser/ui/countBadge/countBadge.css';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -95,7 +96,7 @@ export class RemoteEnvironmentDetails extends Disposable {
 	private busy = false;
 	private radio: Radio | undefined;
 	private selectedPreference: RemoteAgentHostLocationPreference | undefined;
-	private readonly currentChoices: { value: RemoteAgentHostLocationPreference; element: HTMLElement; label: string; detail: string; option: HTMLElement }[] = [];
+	private readonly runChoices: { value: RemoteAgentHostLocationPreference; label: string }[] = [];
 	private saveButton: Button | undefined;
 	private recoveryButton: Button | undefined;
 	private disconnectButton: Button | undefined;
@@ -189,7 +190,11 @@ export class RemoteEnvironmentDetails extends Disposable {
 		let selected = this.selectedPreference = this.model.getPreferredAgentLocation(this.remote.id) ?? choices[0].value;
 		const radio = this.radio = this.controls.add(new Radio({
 			items: choices.map(choice => ({
-				text: choice.label, ariaLabel: localize('remotes.runChoiceLabel', "{0}. {1}", choice.label, choice.detail), isActive: choice.value === selected,
+				text: choice.label,
+				ariaLabel: choice.value === 'dedicated'
+					? localize('remotes.defaultRunChoiceLabel', "{0}. {1} Default", choice.label, choice.detail)
+					: localize('remotes.runChoiceLabel', "{0}. {1}", choice.label, choice.detail),
+				isActive: choice.value === selected,
 			})), hoverDelegate: this.hoverDelegate, className: 'cards',
 		}));
 		radio.domNode.classList.add('remotes-run-choices', 'remotes-method-choices');
@@ -197,11 +202,12 @@ export class RemoteEnvironmentDetails extends Disposable {
 		radio.domNode.setAttribute('aria-describedby', description.id);
 		field.appendChild(radio.domNode);
 		for (const [index, element] of radio.optionElements.entries()) {
-			const current = dom.append(element, dom.$('span.remotes-choice-current'));
+			if (choices[index].value === 'dedicated') {
+				dom.append(element, dom.$('span.monaco-label-badge', undefined, localize('remotes.defaultRunChoice', "Default")));
+			}
 			dom.append(element, dom.$('span.remotes-choice-description', undefined, choices[index].detail));
-			this.currentChoices.push({ value: choices[index].value, element: current, label: choices[index].label, detail: choices[index].detail, option: element });
+			this.runChoices.push({ value: choices[index].value, label: choices[index].label });
 		}
-		this.updateCurrentChoice();
 		if (this.remote.kind === 'tunnel') {
 			dom.append(field, dom.$('p.remotes-run-hint', undefined,
 				localize('remotes.runTunnelLimits', "If this Dev Tunnel is shared by VS Code, keep that remote window open to stay connected.")));
@@ -296,7 +302,6 @@ export class RemoteEnvironmentDetails extends Disposable {
 			}
 		}
 		this.updateIdentity();
-		this.updateCurrentChoice();
 		this.updateSaveButton();
 		if (this.mode === 'troubleshoot' && (remote.connectionStatus.kind !== previous.connectionStatus.kind
 			|| remote.lastConnectionError !== previous.lastConnectionError || remote.unavailableReason !== previous.unavailableReason
@@ -315,15 +320,6 @@ export class RemoteEnvironmentDetails extends Disposable {
 		this.taskError = toErrorMessage(error);
 		this.feedback.textContent = localize('remotes.connectionFailureDetail', "Connection failed: {0}", sanitizeConnectionDiagnosticText(this.taskError));
 		this.renderTroubleshooting();
-	}
-
-	private updateCurrentChoice(): void {
-		const current = this.model.getPreferredAgentLocation(this.remote.id);
-		for (const choice of this.currentChoices) {
-			choice.element.textContent = localize('remotes.currentChoice', "Saved preference");
-			choice.element.hidden = choice.value !== current;
-			choice.option.setAttribute('aria-label', localize('remotes.choiceState', "{0}. {1} {2}", choice.label, choice.detail, choice.value === current ? choice.element.textContent : '').trim());
-		}
 	}
 
 	private renderTroubleshooting(): void {
@@ -536,7 +532,6 @@ export class RemoteEnvironmentDetails extends Disposable {
 				this.radio?.setEnabled(true);
 				this.buttons.forEach(button => button.enabled = enabled.get(button) ?? true);
 				if (this.mode === 'runBehavior') {
-					this.updateCurrentChoice();
 					this.updateSaveButton();
 				} else if (previousRemote.connectionStatus === this.remote.connectionStatus
 					&& previousRemote.availability === this.remote.availability
@@ -586,8 +581,8 @@ export class RemoteEnvironmentDetails extends Disposable {
 		const noChoice = localize('remotes.noRunChoice', "None");
 		return [
 			this.domNode.innerText,
-			localize('remotes.savedRunChoice', "Saved choice: {0}", this.currentChoices.find(choice => choice.value === current)?.label ?? noChoice),
-			localize('remotes.selectedRunChoice', "Selected choice: {0}", this.currentChoices.find(choice => choice.value === this.selectedPreference)?.label ?? noChoice),
+			localize('remotes.savedRunChoice', "Saved choice: {0}", this.runChoices.find(choice => choice.value === current)?.label ?? noChoice),
+			localize('remotes.selectedRunChoice', "Selected choice: {0}", this.runChoices.find(choice => choice.value === this.selectedPreference)?.label ?? noChoice),
 		].join('\n');
 	}
 }

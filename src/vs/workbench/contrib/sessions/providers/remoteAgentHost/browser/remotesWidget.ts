@@ -130,7 +130,7 @@ export class RemotesWidget extends Disposable {
 	private readonly pendingConnections = new Map<string, boolean>();
 	private readonly collapsedGroups = new Set<string>();
 	private readonly expandedGroups = new Set<string>();
-	private groupBy: 'none' | 'status' | 'type' = 'none';
+	private groupBy: 'none' | 'status' | 'type' = 'type';
 	private kinds: readonly RemoteKind[];
 	private displayedRemotes: readonly ICustomizationRemote[] = [];
 	private rows: IRemoteTableRow[] = [];
@@ -219,12 +219,12 @@ export class RemotesWidget extends Disposable {
 		const resetFilters = this._register(new Action('remotes.resetFilters', localize('remotes.resetFilters', "Reset Filter"), undefined, true, () => {
 			this.sortBy = 'availability';
 			this.sortDescending = false;
-			this.groupBy = 'none';
+			this.groupBy = 'type';
 			for (const item of this.orderingActions) {
 				item.action.checked = item.field === 'availability';
 			}
 			for (const item of this.groupingActions) {
-				item.action.checked = item.grouping === 'none';
+				item.action.checked = item.grouping === 'type';
 			}
 			this.collapsedGroups.clear();
 			this.expandedGroups.clear();
@@ -929,7 +929,7 @@ export class RemotesWidget extends Disposable {
 			}
 		}
 		this.rows = entries.map(entry => ({ id: entry.type === 'remote' ? entry.remote.id : entry.id, entry }));
-		this.filterAction.checked = !!this.query || this.groupBy !== 'none' || this.sortBy !== 'availability' || this.sortDescending;
+		this.filterAction.checked = !!this.query || this.groupBy !== 'type' || this.sortBy !== 'availability' || this.sortDescending;
 		const activeElement = dom.getActiveElement();
 		const focusedConnection = dom.isHTMLElement(activeElement) && this.tableContainer.contains(activeElement)
 			&& activeElement.classList.contains('remotes-connect-action') ? activeElement : undefined;
