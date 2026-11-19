@@ -146,7 +146,7 @@ export class ThisComputerSection extends Disposable {
 			content: localize('thisComputer.previewDetail', "GitHub Environments is in preview, so features and availability may change"),
 			style: HoverStyle.Pointer,
 		}, hoverLifecycleOptions));
-		const controls = dom.append(nameRow, dom.$('.remotes-this-computer-share'));
+		const controls = dom.append(heading, dom.$('.remotes-this-computer-share'));
 		this.shareButton = this._register(new Button(controls, { ...defaultButtonStyles, secondary: true, hoverDelegate }));
 		this.shareButton.label = localize('thisComputer.share', "Share This Computer");
 		this.shareButton.setTitle(localize('thisComputer.shareDetail', "Choose how other devices access this computer's agent sessions, tools, and files"));
@@ -184,8 +184,8 @@ export class ThisComputerSection extends Disposable {
 		this.stopButton.label = localize('thisComputer.stop', "Stop Sharing");
 		this.stopButton.setTitle(getOffDetail());
 		this.optionsButton = this.stopButton.dropdownButton;
-		this.optionsButton.setTitle(localize('thisComputer.optionsDetail', "Stop sharing, then choose another connection method"));
-		this.optionsButton.setAriaLabel(localize('thisComputer.options', "Change Connection Method"));
+		this.optionsButton.setTitle(localize('thisComputer.optionsDetail', "Stop sharing, then choose another connection type"));
+		this.optionsButton.setAriaLabel(localize('thisComputer.options', "Change Connection Type"));
 		this.details = dom.append(this.domNode, dom.$('section.remotes-sharing-details', { id: generateUuid() }));
 		this.details.setAttribute('aria-labelledby', titleId);
 		this.details.hidden = true;
@@ -202,7 +202,7 @@ export class ThisComputerSection extends Disposable {
 		const methodTitleId = generateUuid();
 		dom.append(typeField, dom.$('p.remotes-sharing-instruction', { id: methodTitleId },
 			localize('thisComputer.sharingInstruction', "Choose how to connect to this computer from another device.")));
-		this.radio = this._register(new Radio({ items: [], allowNoSelection: true, hoverDelegate }));
+		this.radio = this._register(new Radio({ items: [], hoverDelegate }));
 		this.radio.domNode.classList.add('remotes-sharing-choices', 'remotes-method-choices');
 		this.radio.domNode.setAttribute('aria-labelledby', methodTitleId);
 		typeField.appendChild(this.radio.domNode);
@@ -359,8 +359,8 @@ export class ThisComputerSection extends Disposable {
 			methods.push('githubEnvironment');
 		}
 		methods.push('devTunnel');
-		if (this.selectedMethod && !methods.includes(this.selectedMethod)) {
-			this.selectedMethod = undefined;
+		if (!this.selectedMethod || !methods.includes(this.selectedMethod) || this.selectedMethod === 'githubEnvironment' && availability !== 'enabled') {
+			this.selectedMethod = methods.find(method => method !== 'githubEnvironment' || availability === 'enabled');
 		}
 		const itemsKey = `${methods.join(',')}:${availability}:${this.isBusy}:${active}`;
 		if (itemsKey !== this.itemsKey) {
@@ -427,10 +427,12 @@ export class ThisComputerSection extends Disposable {
 		this.feedbackContainer.hidden = !this.changeFailed && !nameError;
 		this.feedbackContainer.classList.toggle('sharing-failed', this.changeFailed);
 		this.feedbackLog.hidden = !this.changeFailed;
-		this.applyButton.label = active === 'off' ? localize('thisComputer.start', "Start Sharing") : localize('thisComputer.switch', "Switch Method");
+		if (!this.applying) {
+			this.applyButton.label = active === 'off' ? localize('thisComputer.start', "Start Sharing") : localize('thisComputer.switch', "Switch Method");
+		}
 		this.applyButton.icon = this.applying ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.radioTower;
 		this.applyButton.setTitle(active === 'off'
-			? localize('thisComputer.startDetail', "Share this computer using the selected connection method and sharing name")
+			? localize('thisComputer.startDetail', "Share this computer using the selected connection type and sharing name")
 			: localize('thisComputer.switchDetail', "Stop sharing with the current method and start with the selected method"));
 		this.applyButton.enabled = !this.isBusy && !state.isConnecting && !!this.selectedMethod
 			&& this.sharing.namesLoaded && !!name && !nameError

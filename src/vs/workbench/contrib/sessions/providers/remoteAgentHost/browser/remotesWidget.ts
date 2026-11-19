@@ -6,7 +6,6 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
-import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -26,7 +25,6 @@ import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
-import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { GITHUB_ENVIRONMENTS_DOCS_URL, GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
@@ -50,15 +48,10 @@ import { ISessionsProvidersService } from '../../../browser/sessionsProvidersSer
 import { INewSessionComposerService } from '../../../browser/newSessionComposerService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
-import { getGitHubEnvironmentLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteConnectionMethodLabel, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
+import { getGitHubEnvironmentLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
 import { RemoteEnvironmentDetails, RemoteEnvironmentDetailsMode } from './remoteEnvironmentDetails.js';
 import './media/remotesWidget.css';
 import '../../../browser/media/disclosure.css';
-
-const remoteSetupOverview = {
-	label: localize('remotes.docs.overview', "Run and manage remote agent sessions"),
-	href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_make-a-host-available-for-remote-access',
-};
 
 const remoteSetup: Record<RemoteKind, { readonly label: string; readonly description: string; readonly documentation?: { readonly label: string; readonly href: string } }> = {
 	ssh: {
@@ -85,12 +78,9 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 
 const compactTableWidth = 880;
 const scrollbarGutterWidth = 16;
-const availabilityGroups = [
-	statusGroups[0], statusGroups[1],
-	{ key: undefined, label: localize('remotes.unverifiedGroup', "Not verified"), description: localize('remotes.unverifiedDescription', "Availability has not been confirmed. These environments may still accept a connection.") },
-	statusGroups[2],
-];
 export const RemotesDetailsExpandedContext = new RawContextKey<boolean>('remotesDetailsExpanded', false);
+
+type RemoteSortField = 'availability' | 'name' | 'activity' | 'system' | 'type';
 
 export class RemotesWidget extends Disposable {
 	readonly domNode: HTMLElement;
@@ -109,12 +99,14 @@ export class RemotesWidget extends Disposable {
 	private emptyStateContext = '';
 	private emptyStateContent = '';
 	private readonly searchInput: InputBox;
-	private readonly clearFilterAction: Action;
-	private readonly collapseAllAction: Action;
+	private readonly filterAction: Action;
 	private readonly refreshAction: Action;
+	private readonly refreshButton: Button;
 	private readonly groupingActions: readonly { readonly grouping: 'none' | 'type' | 'status'; readonly action: Action }[];
-	private readonly orderingActions: readonly { readonly field: 'availability' | 'name' | 'activity'; readonly action: Action }[];
-	private sortBy: 'availability' | 'name' | 'activity' = 'availability';
+	private readonly orderingActions: readonly { readonly field: RemoteSortField; readonly action: Action }[];
+	private sortBy: RemoteSortField = 'availability';
+	private sortDescending = false;
+	private readonly sortHeaders = new Map<RemoteSortField, { readonly button: Button; readonly indicator: HTMLElement; readonly label: string }>();
 	private readonly refreshRequest = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly refreshingKinds = new Set<RemoteKind>();
 	private readonly pendingActions = new Set<string>();
@@ -144,7 +136,7 @@ export class RemotesWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -167,40 +159,25 @@ export class RemotesWidget extends Disposable {
 		this.overview.classList.add('remotes-overview');
 		this.detailsContainer = dom.append(this.domNode, dom.$('.remotes-details-page'));
 		this.detailsContainer.hidden = true;
-		this.heading = dom.append(this.overview, dom.$('.remotes-heading'));
+		const overviewBody = dom.append(this.overview, dom.$('.remotes-overview-body'));
+		const searchRow = dom.append(overviewBody, dom.$('.remotes-search-row'));
+		this.heading = dom.append(searchRow, dom.$('.remotes-heading'));
 		this.heading.classList.add('remotes-heading');
 		this.heading.hidden = true;
 		this.headingTitle = dom.append(this.heading, dom.$('h2.remotes-heading-title', { id: generateUuid() }));
 		this.headingTitle.classList.add('remotes-heading-title');
-		const overviewBody = dom.append(this.overview, dom.$('.remotes-overview-body'));
-		const searchRow = dom.append(overviewBody, dom.$('.remotes-search-row'));
 		const filters = dom.append(searchRow, dom.$('.remotes-filters'));
 		const searchControls = dom.append(filters, dom.$('.remotes-search-controls'));
 		const actionHoverDelegate = this._register(createInstantHoverDelegate());
-		this.clearFilterAction = this._register(new Action('remotes.clearFilter', localize('remotes.clearFilter', "Clear Filter"), ThemeIcon.asClassName(Codicon.clearAll), false, () => this.clearFilter()));
-		this.collapseAllAction = this._register(new Action('remotes.collapseAll', localize('remotes.collapseAll', "Collapse All"), ThemeIcon.asClassName(Codicon.collapseAll), true, () => {
-			for (const row of this.rows) {
-				if (row.entry.type === 'group') {
-					this.collapsedGroups.add(row.id);
-					this.expandedGroups.delete(row.id);
-				}
-			}
-			this.render();
-		}));
-		this.searchInput = this._register(new InputBox(dom.append(searchControls, dom.$('.remotes-search-container')), contextViewService, {
-			placeholder: localize('remotes.searchPlaceholder', "Search environments"),
-			ariaLabel: localize('remotes.searchLabel', "Search environments"),
-			inputBoxStyles: defaultInputBoxStyles,
-			actions: [this.clearFilterAction, this.collapseAllAction],
-			actionViewItemProvider: (action, options) => new ActionViewItem(undefined, action, { ...options, hoverDelegate: actionHoverDelegate }),
-		}));
-		this._register(this.searchInput.onDidChange(query => this.setSearchQuery(query)));
-		this.refreshAction = this._register(new Action('remotes.refresh', localize('remotes.refresh', "Refresh"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.refresh()));
+		this.refreshAction = this._register(new Action('remotes.refresh', localize('remotes.refresh', "Refresh"), undefined, true, () => this.refresh()));
 		this.refreshAction.tooltip = localize('remotes.refreshDetail', "Refresh the list of remote environments without connecting");
+		const statusLabel = localize('remotes.statusColumn', "Status");
+		const lastActivityLabel = localize('remotes.activityColumn', "Last Activity");
+		const typeLabel = localize('remotes.typeColumn', "Type");
 		this.groupingActions = [
 			{ grouping: 'none' as const, label: localize('remotes.groupingNone', "None") },
-			{ grouping: 'type' as const, label: localize('remotes.groupingMethod', "Connection Method") },
-			{ grouping: 'status' as const, label: localize('remotes.groupingStatus', "Availability") },
+			{ grouping: 'type' as const, label: typeLabel },
+			{ grouping: 'status' as const, label: statusLabel },
 		].map(({ grouping, label }) => {
 			const action = this._register(new Action(`remotes.group.${grouping}`, label, undefined, true, () => {
 				this.setGrouping(grouping);
@@ -210,22 +187,21 @@ export class RemotesWidget extends Disposable {
 			return { grouping, action };
 		});
 		this.orderingActions = [
-			{ field: 'availability' as const, label: localize('remotes.orderingAvailability', "Availability") },
+			{ field: 'availability' as const, label: statusLabel },
 			{ field: 'name' as const, label: localize('remotes.orderingName', "Name") },
-			{ field: 'activity' as const, label: localize('remotes.orderingActivity', "Activity") },
+			{ field: 'activity' as const, label: lastActivityLabel },
+			{ field: 'system' as const, label: localize('remotes.orderingSystem', "System") },
+			{ field: 'type' as const, label: typeLabel },
 		].map(({ field, label }) => {
 			const action = this._register(new Action(`remotes.sort.${field}`, label, undefined, true, () => {
-				this.sortBy = field;
-				for (const item of this.orderingActions) {
-					item.action.checked = item.field === field;
-				}
-				this.updateViewOrder();
+				this.setSortOrder(field, field === 'activity');
 			}));
 			action.checked = field === this.sortBy;
 			return { field, action };
 		});
-		const resetFilters = this._register(new Action('remotes.resetFilters', localize('remotes.resetView', "Reset View"), undefined, true, () => {
+		const resetFilters = this._register(new Action('remotes.resetFilters', localize('remotes.resetFilters', "Reset Filter"), undefined, true, () => {
 			this.sortBy = 'availability';
+			this.sortDescending = false;
 			this.groupBy = 'none';
 			for (const item of this.orderingActions) {
 				item.action.checked = item.field === 'availability';
@@ -235,53 +211,61 @@ export class RemotesWidget extends Disposable {
 			}
 			this.collapsedGroups.clear();
 			this.expandedGroups.clear();
+			this.updateSortHeaders();
 			this.setSearchQuery('');
 			this.updateViewOrder();
 		}));
-		const organizeAction = this._register(new Action('remotes.organize', localize('remotes.viewOptions', "View Options"), ThemeIcon.asClassName(Codicon.filter)));
-		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(searchControls, dom.$('.remotes-header-actions')), {
-			ariaLabel: localize('remotes.actions', "Remote environment actions"), hoverDelegate: actionHoverDelegate,
-			actionViewItemProvider: action => action === organizeAction ? new DropdownMenuActionViewItem(action, {
+		this.filterAction = this._register(new Action('remotes.organize', localize('remotes.filter', "Filter"), ThemeIcon.asClassName(Codicon.filter)));
+		this.searchInput = this._register(new InputBox(dom.append(searchControls, dom.$('.remotes-search-container')), contextViewService, {
+			placeholder: localize('remotes.searchPlaceholder', "Search environments"),
+			ariaLabel: localize('remotes.searchLabel', "Search environments"),
+			inputBoxStyles: defaultInputBoxStyles,
+			actions: [this.filterAction],
+			actionViewItemProvider: (action, options) => new DropdownMenuActionViewItem(action, {
 				getActions: () => [
 					new SubmenuAction('remotes.ordering', localize('remotes.ordering', "Sort By"), this.orderingActions.map(item => item.action)),
 					new SubmenuAction('remotes.grouping', localize('remotes.grouping', "Group By"), this.groupingActions.map(item => item.action)),
 					new Separator(),
 					resetFilters,
 				],
-			}, contextMenuService, { classNames: action.class, hoverDelegate: actionHoverDelegate }) : undefined,
+			}, contextMenuService, { ...options, classNames: action.class, hoverDelegate: actionHoverDelegate }),
 		}));
-		toolbar.setActions([organizeAction, this.refreshAction]);
+		this._register(this.searchInput.onDidChange(query => this.setSearchQuery(query)));
+		const refreshButton = this.refreshButton = this._register(new Button(dom.append(searchControls, dom.$('.remotes-header-actions')), {
+			...defaultButtonStyles, secondary: true, hoverDelegate: actionHoverDelegate, title: this.refreshAction.tooltip,
+		}));
+		refreshButton.label = this.refreshAction.label;
+		refreshButton.setAriaLabel(this.refreshAction.tooltip);
+		this._register(refreshButton.onDidClick(() => this.refreshAction.run()));
+		this._register(this.refreshAction.onDidChange(() => refreshButton.enabled = this.refreshAction.enabled));
+		this.tableContainer = dom.append(overviewBody, dom.$('.remotes-table-container'));
+		this.tableInner = dom.append(this.tableContainer, dom.$('.remotes-table-inner'));
 		this.message = dom.append(overviewBody, dom.$('.remotes-message'));
 		this.messageText = dom.append(this.message, dom.$('span', { role: 'status' }));
 		this.emptyStateBody = dom.append(this.message, dom.$('.remotes-empty-state-body'));
-		this.tableContainer = dom.append(overviewBody, dom.$('.remotes-table-container'));
-		this.tableInner = dom.append(this.tableContainer, dom.$('.remotes-table-inner'));
 
-		let label = localize('remotes.tableLabel', "Remote environments. Name, Availability, Activity, System, Connection method, Address, and Actions. Grouped columns are shown in group headings.");
+		let label = localize('remotes.tableLabel', "Remote environments. Name, Status, Last Activity, System, Type, and Actions. Activate a column header to sort. Grouped columns are shown in group headings.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
 		}
 		const compact = () => this.tableContainer.classList.contains('remotes-table-compact');
-		const identityHidden = () => this.tableContainer.classList.contains('remotes-hide-identity');
 		const methodHidden = () => this.tableContainer.classList.contains('remotes-hide-method');
 		const activityHidden = () => this.tableContainer.classList.contains('remotes-hide-activity');
 		const systemHidden = () => this.tableContainer.classList.contains('remotes-hide-system');
-		const groupedByType = () => this.groupBy === 'type';
-		const groupedByStatus = () => this.groupBy === 'status';
-		const actionsWidth = () => this.rows.some(row => row.entry.type === 'remote' && RemoteAgentHostConnectionStatus.isConnected(row.entry.remote.connectionStatus)) ? 224 : 160;
+		const groupedByType = () => this.tableContainer.classList.contains('remotes-group-by-type');
+		const groupedByStatus = () => this.tableContainer.classList.contains('remotes-group-by-status');
 		const columnDefinitions = [
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 300, minimumWidth: 100, maximumWidth: Number.POSITIVE_INFINITY },
-			{ id: 'status', label: localize('remotes.availabilityColumn', "Availability"), weight: 144, get minimumWidth() { return groupedByStatus() ? 0 : 124; }, get maximumWidth() { return groupedByStatus() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'activity', label: localize('remotes.activityColumn', "Activity"), weight: 240, get minimumWidth() { return activityHidden() ? 0 : 192; }, get maximumWidth() { return activityHidden() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 240, get minimumWidth() { return systemHidden() ? 0 : 160; }, get maximumWidth() { return systemHidden() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'type', label: remoteConnectionMethodLabel, weight: 216, get minimumWidth() { return methodHidden() || groupedByType() ? 0 : 216; }, get maximumWidth() { return methodHidden() || groupedByType() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'identity', label: localize('remotes.addressColumn', "Address"), weight: 160, get minimumWidth() { return identityHidden() ? 0 : 160; }, get maximumWidth() { return identityHidden() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'actions', label: '', weight: 0, get minimumWidth() { return compact() ? 64 : actionsWidth(); }, get maximumWidth() { return this.minimumWidth; } },
+			{ id: 'status', label: statusLabel, weight: 144, get minimumWidth() { return groupedByStatus() ? 0 : 124; }, get maximumWidth() { return groupedByStatus() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'activity', label: lastActivityLabel, weight: 160, get minimumWidth() { return activityHidden() ? 0 : 136; }, get maximumWidth() { return activityHidden() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 120, get minimumWidth() { return systemHidden() ? 0 : 100; }, get maximumWidth() { return systemHidden() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'type', label: typeLabel, weight: 216, get minimumWidth() { return methodHidden() || groupedByType() ? 0 : 216; }, get maximumWidth() { return methodHidden() || groupedByType() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'actions', label: '', weight: 0, get minimumWidth() { return compact() ? 64 : 224; }, get maximumWidth() { return this.minimumWidth; } },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
-			instantiationService, hoverService, openerService, () => Math.max(0, this.tableContainer.clientWidth - 20 - scrollbarGutterWidth),
+			instantiationService, hoverService, openerService, () => Math.max(0, this.tableContainer.clientWidth - 24 - scrollbarGutterWidth),
 		));
 		const emptyRowMeasure = dom.$('.remotes-empty-row-measure', { 'aria-hidden': 'true', inert: '' });
 		const emptyRow = dom.append(emptyRowMeasure, dom.$('div'));
@@ -301,7 +285,6 @@ export class RemotesWidget extends Disposable {
 			...column,
 			get minimumWidth() { return column.minimumWidth; },
 			get maximumWidth() { return column.maximumWidth; },
-			tooltip: column.label,
 			templateId: renderers[index].templateId, project: (row: IRemoteTableRow) => row,
 		})), {
 			label: '', weight: 0, minimumWidth: scrollbarGutterWidth, maximumWidth: scrollbarGutterWidth,
@@ -318,7 +301,7 @@ export class RemotesWidget extends Disposable {
 					emptyRowMeasure.remove();
 					return height;
 				}
-				return row.entry.type === 'group' ? 32 : 36;
+				return row.entry.type === 'group' ? 32 : 28;
 			},
 		}, columns, [...renderers, scrollbarGutterRenderer], {
 			identityProvider: { getId: row => row.id },
@@ -350,6 +333,23 @@ export class RemotesWidget extends Disposable {
 			openOnSingleClick: true,
 			alwaysConsumeMouseWheel: false,
 		}));
+		// eslint-disable-next-line eslint-js/no-restricted-syntax -- Table does not expose a header renderer.
+		const headers = this.table.getHTMLElement().querySelectorAll<HTMLElement>('.monaco-table-th');
+		columnDefinitions.forEach((column, index) => {
+			if (column.id === 'actions') {
+				return;
+			}
+			const header = headers[index];
+			const field = column.id === 'status' ? 'availability' : column.id;
+			dom.clearNode(header);
+			const button = this._register(new Button(header, { hoverDelegate: actionHoverDelegate, supportIcons: true }));
+			button.element.classList.add('remotes-sort-header');
+			button.label = column.label;
+			const indicator = dom.append(button.element, dom.$('span.remotes-sort-indicator', { 'aria-hidden': 'true' }));
+			this.sortHeaders.set(field, { button, indicator, label: column.label });
+			this._register(button.onDidClick(() => this.setSortOrder(field, this.sortBy === field ? !this.sortDescending : field === 'activity')));
+		});
+		this.updateSortHeaders();
 		this._register(this.table.onDidChangeFocus(event => {
 			for (const renderer of renderers) {
 				renderer.setFocusedId(event.elements[0]?.id);
@@ -442,6 +442,8 @@ export class RemotesWidget extends Disposable {
 						this.notificationService.error(error);
 					}
 				}
+			} else if (action === 'signIn' && this.displayedRemotes.some(remote => remote.id === entry.remote.id && remote.requiresTunnelSignIn)) {
+				void this.signInToTunnels();
 			} else if (action === 'connect') {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
 			} else if (action === 'configure' && entry.remote.kind === 'ssh') {
@@ -605,7 +607,6 @@ export class RemotesWidget extends Disposable {
 		const changed = this.query !== normalizedQuery;
 		this.query = normalizedQuery;
 		this.searchInput.value = query;
-		this.clearFilterAction.enabled = !!query;
 		if (changed) {
 			if (this.query) {
 				this.collapsedGroups.clear();
@@ -618,7 +619,6 @@ export class RemotesWidget extends Disposable {
 		this.refreshRequest.value?.cancel();
 		this.refreshRequest.clear();
 		this.refreshAction.enabled = true;
-		this.refreshAction.class = ThemeIcon.asClassName(Codicon.refresh);
 		this.tableContainer.setAttribute('aria-busy', 'false');
 		if (this.refreshingKinds.size) {
 			this.refreshingKinds.clear();
@@ -631,7 +631,6 @@ export class RemotesWidget extends Disposable {
 		const request = new CancellationTokenSource();
 		this.refreshRequest.value = request;
 		this.refreshAction.enabled = false;
-		this.refreshAction.class = ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loading, 'spin'));
 		this.tableContainer.setAttribute('aria-busy', 'true');
 		for (const kind of this.kinds) {
 			this.refreshingKinds.add(kind);
@@ -652,7 +651,7 @@ export class RemotesWidget extends Disposable {
 				this.failedKinds = failedKinds;
 				this.hasRefreshed = true;
 				if (failedKinds.some(kind => this.kinds.includes(kind) && this.getRefreshWarning(kind))) {
-					status(localize('remotes.refreshWarnings', "Some remote locations could not be refreshed. Check the warnings on the remote groups for details."));
+					status(localize('remotes.refreshWarnings', "Some remote locations could not be refreshed. Check the discovery warnings for details."));
 				}
 			}
 		} catch (error) {
@@ -664,7 +663,6 @@ export class RemotesWidget extends Disposable {
 		} finally {
 			if (this.refreshRequest.value === request) {
 				this.refreshAction.enabled = true;
-				this.refreshAction.class = ThemeIcon.asClassName(Codicon.refresh);
 				this.refreshRequest.clear();
 				this.tableContainer.setAttribute('aria-busy', 'false');
 				this.refreshingKinds.clear();
@@ -676,32 +674,68 @@ export class RemotesWidget extends Disposable {
 
 	private getFilteredRemotes(): readonly ICustomizationRemote[] {
 		return this.displayedRemotes.filter(remote => this.kinds.includes(remote.kind)
-			&& `${remote.name} ${getRemoteAddressLabel(remote)} ${remoteKindLabels[remote.kind]} ${getRemoteTypeLabel(remote.kind)} ${getRemoteAvailabilityLabel(remote)} ${getRemoteMetadataLabel(remote, 'system')} ${getRemoteMetadataLabel(remote, 'activity')}`.toLowerCase().includes(this.query))
+			&& `${remote.name} ${getRemoteAddressLabel(remote)} ${remoteKindLabels[remote.kind]} ${getRemoteTypeLabel(remote.kind)} ${getRemoteAvailabilityLabel(remote)} ${getRemoteMetadataDetails(remote, 'system')} ${getRemoteMetadataDetails(remote, 'activity')} ${getRemoteMetadataLabel(remote, 'activity')}`.toLowerCase().includes(this.query))
 			.sort((a, b) => {
 				if (this.sortBy === 'availability') {
 					const rank = (remote: ICustomizationRemote) => {
 						const group = getRemoteStatusGroup(remote);
-						return group === 'ready' ? 0 : group === 'available' ? 1 : group === 'offline' ? 3 : 2;
+						return group === 'ready' ? 0 : group === 'available' ? 1 : group === 'offline' ? 2 : 3;
 					};
 					const difference = rank(a) - rank(b);
 					if (difference) {
-						return difference;
+						return this.sortDescending ? -difference : difference;
 					}
 				}
 				if (this.sortBy === 'activity') {
 					const aTime = getRemoteActivityTime(a);
 					const bTime = getRemoteActivityTime(b);
 					if (aTime !== bTime) {
-						return aTime === undefined ? 1 : bTime === undefined ? -1 : bTime - aTime;
+						return aTime === undefined ? 1 : bTime === undefined ? -1 : this.sortDescending ? bTime - aTime : aTime - bTime;
 					}
 				}
-				return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+				if (this.sortBy === 'system' || this.sortBy === 'type') {
+					const aLabel = this.sortBy === 'system' ? getRemoteMetadataLabel(a, 'system') : getRemoteTypeLabel(a.kind);
+					const bLabel = this.sortBy === 'system' ? getRemoteMetadataLabel(b, 'system') : getRemoteTypeLabel(b.kind);
+					if (aLabel !== bLabel) {
+						return !aLabel ? 1 : !bLabel ? -1 : (this.sortDescending ? -1 : 1) * aLabel.localeCompare(bLabel);
+					}
+				}
+				const nameOrder = a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+				return this.sortBy === 'name' && this.sortDescending ? -nameOrder : nameOrder;
 			});
 	}
 
-	private getEmptyEntry(kind: RemoteKind, hasRemotes = false): IRemoteEmptyEntry {
+	private setSortOrder(field: RemoteSortField, descending: boolean): void {
+		this.sortBy = field;
+		this.sortDescending = descending;
+		for (const item of this.orderingActions) {
+			item.action.checked = item.field === field;
+		}
+		this.updateSortHeaders();
+		this.updateViewOrder();
+	}
+
+	private updateSortHeaders(): void {
+		for (const [field, { button, indicator, label }] of this.sortHeaders) {
+			const sorted = field === this.sortBy;
+			dom.clearNode(indicator);
+			if (sorted) {
+				dom.append(indicator, renderIcon(this.sortDescending ? Codicon.arrowDown : Codicon.arrowUp));
+			}
+			const nextDescending = sorted ? !this.sortDescending : field === 'activity';
+			const description = nextDescending
+				? localize('remotes.sortDescending', "Sort {0} descending", label)
+				: localize('remotes.sortAscending', "Sort {0} ascending", label);
+			button.setAriaLabel(!sorted ? description : this.sortDescending
+				? localize('remotes.sortedDescending', "{0}, sorted descending. {1}", label, description)
+				: localize('remotes.sortedAscending', "{0}, sorted ascending. {1}", label, description));
+			button.setTitle(description);
+		}
+	}
+
+	private getEmptyEntry(kind: RemoteKind): IRemoteEmptyEntry {
 		const id = `remote-empty-${kind}`;
-		if (!hasRemotes && this.refreshingKinds.has(kind)) {
+		if (this.refreshingKinds.has(kind)) {
 			return { type: 'empty', id, label: localize('remotes.empty.checkingKind', "Looking for {0}...", remoteKindLabels[kind]) };
 		}
 		const authProvider = kind === 'tunnel' ? this.model.tunnelAuthenticationRequired.get() : undefined;
@@ -709,20 +743,15 @@ export class RemotesWidget extends Disposable {
 			const providerLabel = authProvider === 'github' ? 'GitHub' : 'Microsoft';
 			return {
 				type: 'empty', id,
-				label: hasRemotes
-					? localize('remotes.tunnels.signInToRefresh', "Sign in to refresh your tunnels.")
-					: remoteSetup.tunnel.label,
+				label: remoteSetup.tunnel.label,
 				action: {
 					label: this.signingInToTunnels
 						? localize('remotes.tunnels.signingIn', "Signing in...")
 						: localize('remotes.tunnels.signInAccount', "Sign in to {0}", providerLabel),
 					enabled: !this.signingInToTunnels,
 				},
-				// Setup guidance only helps while the group is empty; the group's info action still opens it.
-				...(hasRemotes ? {} : {
-					description: localize('remotes.tunnels.signInDescription', "Sign in to {0} with the same account you use for Remote Tunnel Access on the other computer.", providerLabel),
-					documentation: remoteSetup.tunnel.documentation,
-				}),
+				description: localize('remotes.tunnels.signInDescription', "Sign in to {0} with the same account you use for Remote Tunnel Access on the other computer.", providerLabel),
+				documentation: remoteSetup.tunnel.documentation,
 			};
 		}
 		if (this.failedKinds.includes(kind)) {
@@ -732,76 +761,65 @@ export class RemotesWidget extends Disposable {
 				documentation: remoteSetup[kind].documentation,
 			};
 		}
-		if (!hasRemotes && !this.hasRefreshed) {
+		if (!this.hasRefreshed) {
 			return { type: 'empty', id, label: localize('remotes.empty.findKind', "Refresh to look for {0}.", remoteKindLabels[kind]), documentation: remoteSetup[kind].documentation };
 		}
 		return { type: 'empty', id, ...remoteSetup[kind] };
 	}
 
+	private showSetupGroups(remotes: readonly ICustomizationRemote[]): boolean {
+		return !remotes.length && !this.query && this.hasRefreshed && !this.refreshRequest.value
+			&& !this.kinds.some(kind => this.getRefreshWarning(kind));
+	}
+
 	private render(): void {
 		const remotes = this.getFilteredRemotes();
-		this.tableContainer.classList.toggle('remotes-group-by-type', this.groupBy === 'type');
-		this.tableContainer.classList.toggle('remotes-group-by-status', this.groupBy === 'status');
+		const setup = this.showSetupGroups(remotes);
+		const grouping = setup ? 'type' : this.groupBy;
+		const tunnelWarning = grouping === 'type' ? undefined : this.getRefreshWarning('tunnel');
+		this.refreshButton.setTitle(tunnelWarning ?? this.refreshAction.tooltip);
+		this.refreshButton.element.setAttribute('aria-description', tunnelWarning ?? '');
+		this.tableContainer.classList.toggle('remotes-group-by-type', grouping === 'type');
+		this.tableContainer.classList.toggle('remotes-group-by-status', grouping === 'status');
 		const active = dom.getActiveElement();
 		const hadContentFocus = !!active && this.tableContainer.contains(active);
-		this.renderEmptyState(remotes);
+		this.renderMessages(remotes, grouping === 'type');
 		const entries: RemoteTableEntry[] = [];
 		const remoteEntry = (remote: ICustomizationRemote): RemoteTableEntry => ({
 			type: 'remote', remote,
-			busy: this.pendingActions.has(remote.id) || this.pendingConnections.has(remote.id), connecting: this.pendingConnections.get(remote.id),
+			busy: this.pendingActions.has(remote.id) || this.pendingConnections.has(remote.id) || !!remote.requiresTunnelSignIn && this.signingInToTunnels, connecting: this.pendingConnections.get(remote.id),
 		});
-		if (this.groupBy !== 'type') {
-			for (const kind of this.getDiscoveryNoticeKinds(remotes)) {
-				const id = `remote-notice-${kind}`;
-				const collapsed = this.collapsedGroups.has(id);
-				const members = remotes.filter(remote => remote.kind === kind);
-				entries.push({
-					type: 'group', id, kind, label: remoteKindLabels[kind], count: members.length, collapsed,
-					refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
-					documentation: remoteSetup[kind].documentation,
-				});
-				if (!collapsed) {
-					entries.push(this.getEmptyEntry(kind, members.length > 0));
-				}
-			}
-		}
-		if (this.groupBy === 'status') {
-			for (const group of availabilityGroups) {
+		if (grouping === 'status') {
+			for (const group of statusGroups) {
 				const members = remotes.filter(remote => getRemoteStatusGroup(remote) === group.key);
 				if (!members.length) {
 					continue;
 				}
-				const id = `remote-status-${group.key ?? 'unverified'}`;
+				const id = `remote-status-${group.key}`;
 				const collapsed = this.collapsedGroups.has(id);
 				entries.push({ type: 'group', id, label: group.label, description: group.description, count: members.length, collapsed, refreshing: false });
 				if (!collapsed) {
 					entries.push(...members.map(remoteEntry));
 				}
 			}
-		} else if (this.groupBy === 'none') {
+			entries.push(...remotes.filter(remote => getRemoteStatusGroup(remote) === undefined).map(remoteEntry));
+		} else if (grouping === 'none') {
 			entries.push(...remotes.map(remoteEntry));
 		}
-		for (const kind of this.groupBy === 'type' ? this.kinds : []) {
+		for (const kind of grouping === 'type' ? this.kinds : []) {
 			const groupRemotes = remotes.filter(remote => remote.kind === kind);
 			if (!groupRemotes.length && this.query) {
 				continue;
 			}
 			const id = `remote-group-${kind}`;
-			const collapsed = this.collapsedGroups.has(id) || !groupRemotes.length && !this.expandedGroups.has(id);
+			const collapsed = this.collapsedGroups.has(id) || !setup && !groupRemotes.length && !this.expandedGroups.has(id);
 			entries.push({
 				type: 'group', id, kind, label: remoteKindLabels[kind],
 				count: groupRemotes.length, collapsed, refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
-				description: !groupRemotes.length && collapsed && !this.refreshingKinds.has(kind) && !this.getRefreshWarning(kind)
-					&& this.hasRefreshed && !(kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get())
-					? localize('remotes.setupHint', "Expand to get started") : undefined,
 				documentation: remoteSetup[kind].documentation,
 			});
 			if (!collapsed) {
-				if (kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()) {
-					entries.push(this.getEmptyEntry(kind, groupRemotes.length > 0));
-				}
-				entries.push(...(groupRemotes.length ? groupRemotes.map(remoteEntry)
-					: kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get() ? [] : [this.getEmptyEntry(kind)]));
+				entries.push(...(groupRemotes.length ? groupRemotes.map(remoteEntry) : [this.getEmptyEntry(kind)]));
 			}
 		}
 		if (this.details.value) {
@@ -819,8 +837,7 @@ export class RemotesWidget extends Disposable {
 			}
 		}
 		this.rows = entries.map(entry => ({ id: entry.type === 'remote' ? entry.remote.id : entry.id, entry }));
-		this.clearFilterAction.enabled = !!this.query;
-		this.collapseAllAction.enabled = entries.some(entry => entry.type === 'group' && !entry.collapsed);
+		this.filterAction.checked = !!this.query || this.groupBy !== 'none' || this.sortBy !== 'availability' || this.sortDescending;
 		const activeElement = dom.getActiveElement();
 		const focusedConnection = dom.isHTMLElement(activeElement) && this.tableContainer.contains(activeElement)
 			&& activeElement.classList.contains('remotes-connect-action') ? activeElement : undefined;
@@ -846,15 +863,15 @@ export class RemotesWidget extends Disposable {
 		if (!remotes.length || this.query) {
 			return [];
 		}
-		return this.kinds.filter(kind => (
-			this.getRefreshWarning(kind)
-			|| kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get() && remotes.some(remote => remote.kind === kind)
-		));
+		return this.kinds.filter(kind => kind !== 'tunnel' && this.getRefreshWarning(kind));
 	}
 
-	private renderEmptyState(remotes: readonly ICustomizationRemote[]): void {
-		const show = !remotes.length && (this.groupBy !== 'type' || !!this.query);
-		this.message.hidden = !show;
+	private renderMessages(remotes: readonly ICustomizationRemote[], groupedByType: boolean): void {
+		const show = !remotes.length && (!groupedByType || !!this.query);
+		const notices = groupedByType ? [] : this.getDiscoveryNoticeKinds(remotes).map(kind => this.getEmptyEntry(kind));
+		this.message.hidden = !show && !notices.length;
+		this.message.classList.toggle('remotes-discovery-notices', !show && notices.length > 0);
+		this.messageText.hidden = !show;
 		this.tableContainer.hidden = show;
 		const kinds = this.kinds;
 		const loading = kinds.some(kind => this.refreshingKinds.has(kind));
@@ -875,11 +892,11 @@ export class RemotesWidget extends Disposable {
 		}
 		this.messageText.textContent = title;
 		this.emptyStateContent = [title, ...this.emptyStateContent.split('\n').slice(1)].join('\n');
-		if (show && loading && this.emptyStateContext === context && this.emptyStateBody.childElementCount) {
+		if (show && loading && this.emptyStateContext === context && this.emptyStateActions.has('refresh')) {
 			return;
 		}
 		this.emptyStateContext = context;
-		const key = JSON.stringify([show, this.query, failed]);
+		const key = JSON.stringify([show, this.query, failed, loading, notices]);
 		if (key === this.emptyStateKey) {
 			return;
 		}
@@ -903,22 +920,8 @@ export class RemotesWidget extends Disposable {
 		};
 		const addClearFilter = (container: HTMLElement): void => {
 			if (filtered) {
-				addButton(container, 'clearFilter', this.clearFilterAction.label, () => this.clearFilter());
+				addButton(container, 'clearFilter', localize('remotes.clearFilter', "Clear Filter"), () => this.clearFilter());
 			}
-		};
-		const addDocumentation = (container: HTMLElement, id: string, documentation: NonNullable<IRemoteEmptyEntry['documentation']>): void => {
-			const documentationRow = dom.append(container, dom.$('p'));
-			const link = dom.append(documentationRow, dom.$('a.monaco-link.remotes-empty-state-documentation', {
-				href: documentation.href, target: '_blank', rel: 'noopener noreferrer', 'data-empty-action': id,
-				'aria-label': localize('remotes.docs.external', "{0} (opens in browser)", documentation.label),
-			}, dom.$('span', undefined, documentation.label)));
-			dom.append(link, renderIcon(Codicon.linkExternal)).setAttribute('aria-hidden', 'true');
-			this.emptyStateActions.set(id, { element: link, enabled: true });
-			this.emptyStateDisposables.add(dom.addDisposableListener(link, dom.EventType.CLICK, event => {
-				dom.EventHelper.stop(event, true);
-				void this.openDocumentation(documentation.href);
-			}));
-			content.push(documentation.label, documentation.href);
 		};
 		if (show) {
 			const card = dom.append(this.emptyStateBody, dom.$('.remotes-empty-state-search'));
@@ -926,14 +929,20 @@ export class RemotesWidget extends Disposable {
 				const guidance = localize('remotes.empty.retryGuidance', "Check your connection and try refreshing.");
 				dom.append(card, dom.$('p.remotes-empty-state-description', undefined, guidance));
 				content.push(guidance);
-			} else if (!filtered) {
-				addDocumentation(card, 'documentation', remoteSetupOverview);
 			}
 			const actions = dom.append(card, dom.$('.remotes-empty-state-actions'));
 			addClearFilter(actions);
 			if (failed && !filtered) {
 				addButton(actions, 'refresh', this.refreshAction.label, () => void this.refresh(), this.refreshAction.enabled);
 			}
+		}
+		for (const entry of notices) {
+			const notice = dom.append(this.emptyStateBody, dom.$('.remotes-discovery-notice'));
+			const label = dom.append(notice, dom.$('span.remotes-discovery-notice-label', undefined, entry.label));
+			if (entry.description) {
+				this.emptyStateDisposables.add(this.hoverService.setupDelayedHover(label, { content: entry.description }));
+			}
+			content.push(entry.label);
 		}
 		this.emptyStateContent = content.join('\n');
 		if (restoreFocus) {
@@ -1096,12 +1105,15 @@ export class RemotesWidget extends Disposable {
 			availability ? localize('remotes.accessibleRow', "{0}. Status: {1}.", name, availability) : localize('remotes.accessibleRowWithoutStatus', "{0}.", name),
 		];
 		const metadata = (['activity', 'system'] as const).map(column => {
-			return getRemoteMetadataLabel(remote, column);
+			return getRemoteMetadataDetails(remote, column);
 		}).filter(Boolean);
 		if (metadata.length) {
 			sentences.push(localize('remotes.accessibleMetadata', "Last known details: {0}.", metadata.join(', ')));
 		}
-		sentences.push(localize('remotes.accessibleConnectionMethod', "Connection method: {0}.", getRemoteTypeLabel(remote.kind)));
+		sentences.push(localize('remotes.accessibleConnectionType', "Connection type: {0}.", getRemoteTypeLabel(remote.kind)));
+		if (remote.requiresTunnelSignIn) {
+			sentences.push(localize('remotes.signIn', "Sign In"));
+		}
 		const address = getRemoteAddressLabel(remote);
 		if (address && address !== remote.name) {
 			sentences.push(localize('remotes.accessibleIdentity', "Address: {0}.", address));
@@ -1129,7 +1141,7 @@ export class RemotesWidget extends Disposable {
 	}
 
 	/**
-	 * Shows a section heading before the search field and names the widget as a region after it,
+	 * Shows a section heading beside the search controls and names the widget as a region after it,
 	 * or removes both when `label` is undefined. Call {@link layout} afterwards.
 	 */
 	setHeading(label: string | undefined): void {
@@ -1155,24 +1167,29 @@ export class RemotesWidget extends Disposable {
 
 	private getRemotesAccessibilityContent(): string {
 		const remotes = this.getFilteredRemotes();
-		if (!this.message.hidden) {
+		if (this.tableContainer.hidden) {
 			return this.emptyStateContent;
 		}
-		if (this.groupBy === 'none') {
+		const grouping = this.showSetupGroups(remotes) ? 'type' : this.groupBy;
+		if (grouping === 'none') {
+			const tunnelWarning = this.getRefreshWarning('tunnel');
 			return [
 				...remotes.map(remote => this.getRemoteAriaLabel(remote)),
+				...(tunnelWarning ? [tunnelWarning] : []),
 				...this.getDiscoveryNoticeKinds(remotes).flatMap(kind => {
-					const entry = this.getEmptyEntry(kind, remotes.some(remote => remote.kind === kind));
+					const entry = this.getEmptyEntry(kind);
 					return [remoteKindLabels[kind], entry.label, entry.description ?? '', entry.action?.label ?? ''];
 				}),
 			].join('\n');
 		}
-		if (this.groupBy === 'status') {
-			return [...availabilityGroups.flatMap(group => {
+		if (grouping === 'status') {
+			const tunnelWarning = this.getRefreshWarning('tunnel');
+			return [...statusGroups.flatMap(group => {
 				const members = remotes.filter(remote => getRemoteStatusGroup(remote) === group.key);
 				return members.length ? [group.label, group.description, ...members.map(remote => this.getRemoteAriaLabel(remote))] : [];
-			}), ...this.getDiscoveryNoticeKinds(remotes).flatMap(kind => {
-				const entry = this.getEmptyEntry(kind, remotes.some(remote => remote.kind === kind));
+			}), ...remotes.filter(remote => getRemoteStatusGroup(remote) === undefined).map(remote => this.getRemoteAriaLabel(remote)),
+			...(tunnelWarning ? [tunnelWarning] : []), ...this.getDiscoveryNoticeKinds(remotes).flatMap(kind => {
+				const entry = this.getEmptyEntry(kind);
 				return [remoteKindLabels[kind], entry.label, entry.description ?? '', entry.action?.label ?? ''];
 			})].join('\n');
 		}
@@ -1182,8 +1199,7 @@ export class RemotesWidget extends Disposable {
 			if (!entries.length && this.query) {
 				return [];
 			}
-			const empty = kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()
-				? this.getEmptyEntry(kind, entries.length > 0) : entries.length ? undefined : this.getEmptyEntry(kind);
+			const empty = entries.length ? undefined : this.getEmptyEntry(kind);
 			const documentation = remoteSetup[kind].documentation;
 			return [
 				remoteKindLabels[kind],
@@ -1214,8 +1230,7 @@ export class RemotesWidget extends Disposable {
 			return;
 		}
 		if (this.domNode.clientWidth > 0 && this.domNode.clientHeight > 0) {
-			const contentOffset = Math.max(0, this.tableContainer.getBoundingClientRect().top - this.domNode.getBoundingClientRect().top);
-			const height = Math.max(0, this.domNode.clientHeight - contentOffset);
+			const height = this.tableContainer.clientHeight;
 			const width = this.tableContainer.clientWidth;
 			const compact = width < compactTableWidth;
 			const activeElement = dom.getActiveElement();
@@ -1223,11 +1238,12 @@ export class RemotesWidget extends Disposable {
 				this.table.domFocus();
 			}
 			this.tableContainer.classList.toggle('remotes-table-compact', compact);
-			this.tableContainer.classList.toggle('remotes-hide-identity', width < 1320 || !this.rows.some(row => row.entry.type === 'remote' && getRemoteAddressLabel(row.entry.remote)));
 			this.tableContainer.classList.toggle('remotes-hide-method', width < 1120);
 			this.tableContainer.classList.toggle('remotes-hide-activity', width < 720);
 			this.tableContainer.classList.toggle('remotes-hide-system', width < 520);
-			this.tableContainer.style.height = `${height}px`;
+			if (dom.isHTMLElement(activeElement) && this.tableContainer.contains(activeElement) && activeElement.classList.contains('remotes-sort-header') && !activeElement.offsetWidth) {
+				this.table.domFocus();
+			}
 			this.tableInner.style.height = `${height}px`;
 			this.tableInner.style.width = `${width}px`;
 			if (this.emptyRowWidth !== this.tableContainer.clientWidth) {

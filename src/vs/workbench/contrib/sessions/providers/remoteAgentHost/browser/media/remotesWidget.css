@@ -8,8 +8,14 @@
 	height: 100%;
 	max-width: 1400px;
 	margin-inline: auto;
-	padding: var(--vscode-spacing-size240);
 	overflow: hidden;
+}
+
+.remotes-editor-content {
+	box-sizing: border-box;
+	/* Keep the content gutter inside the scroll viewport so focus outlines can use it. */
+	padding: var(--vscode-spacing-size240);
+	padding-block-start: var(--vscode-spacing-size80);
 }
 
 .remotes-editor-content,
@@ -47,6 +53,7 @@
 }
 
 .remotes-editor-disabled {
+	margin: var(--vscode-spacing-size240);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -119,12 +126,12 @@
 	gap: var(--vscode-spacing-size120);
 	flex-shrink: 0;
 	margin-bottom: var(--vscode-spacing-size120);
-	margin-inline-end: var(--vscode-spacing-size160);
 }
 
 .remotes-widget .remotes-filters {
 	display: flex;
-	flex: 1 1 600px;
+	flex: 1 1 380px;
+	justify-content: flex-end;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--vscode-spacing-size120);
@@ -133,8 +140,9 @@
 
 .remotes-widget .remotes-search-controls {
 	display: flex;
-	flex: 0 1 320px;
+	flex: 0 1 380px;
 	align-items: center;
+	justify-content: flex-end;
 	gap: var(--vscode-spacing-size80);
 	min-width: min(100%, 220px);
 }
@@ -143,6 +151,15 @@
 	flex: 1;
 	min-width: 0;
 	max-width: 300px;
+}
+
+.remotes-widget .remotes-header-actions {
+	flex-shrink: 0;
+}
+
+.remotes-widget .remotes-header-actions > .monaco-button {
+	width: auto;
+	white-space: nowrap;
 }
 
 .remotes-widget .remotes-group-by-type .remotes-type-column,
@@ -173,13 +190,15 @@
 }
 
 .remotes-widget .remotes-heading:not([hidden]) {
-	margin-bottom: var(--vscode-spacing-size120);
+	flex: 0 1 auto;
+	min-width: 0;
 }
 
 .remotes-widget .remotes-heading-title {
 	margin: 0;
-	font-size: var(--vscode-fontSize-heading3);
+	font-size: var(--vscode-fontSize-heading2);
 	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
 }
 
 .remotes-widget .remotes-search-container .monaco-action-bar {
@@ -199,8 +218,35 @@
 	padding: var(--vscode-spacing-size160);
 }
 
-.remotes-widget .remotes-message > [role="status"],
-.remotes-widget .remotes-empty-state-kind h3 {
+.remotes-widget .remotes-message.remotes-discovery-notices:not([hidden]) {
+	flex-shrink: 0;
+	gap: 0;
+	padding: var(--vscode-spacing-size80) 0 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.remotes-widget .remotes-discovery-notices .remotes-empty-state-body {
+	gap: var(--vscode-spacing-size40);
+}
+
+.remotes-widget .remotes-discovery-notice {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.remotes-widget .remotes-discovery-notice-label {
+	overflow-wrap: anywhere;
+}
+
+.remotes-widget .remotes-discovery-notice > .monaco-button {
+	width: auto;
+	max-width: 100%;
+}
+
+.remotes-widget .remotes-message > [role="status"] {
 	margin: 0;
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
@@ -212,7 +258,6 @@
 	gap: var(--vscode-spacing-size240);
 }
 
-.remotes-widget .remotes-empty-state-kind,
 .remotes-widget .remotes-empty-state-search {
 	display: flex;
 	flex-direction: column;
@@ -220,7 +265,6 @@
 	gap: var(--vscode-spacing-size80);
 }
 
-.remotes-widget .remotes-empty-state-kind p,
 .remotes-widget .remotes-empty-state-search p {
 	margin: 0;
 	overflow-wrap: anywhere;
@@ -238,23 +282,13 @@
 	max-width: 100%;
 }
 
-.remotes-widget .remotes-empty-state-documentation {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	max-width: 100%;
-}
-
-.remotes-widget .remotes-empty-state-documentation .codicon {
-	flex-shrink: 0;
-}
-
 .remotes-widget .remotes-message[hidden],
 .remotes-widget .remotes-table-container[hidden] {
 	display: none;
 }
 
 .remotes-widget .remotes-table-container {
+	flex: 1;
 	width: 100%;
 	min-height: 0;
 	overflow: hidden;
@@ -273,9 +307,7 @@
 .remotes-widget .remotes-hide-activity .remotes-activity-column,
 .remotes-widget .remotes-hide-activity .monaco-table-th[data-col-index='2'],
 .remotes-widget .remotes-hide-system .remotes-system-column,
-.remotes-widget .remotes-hide-system .monaco-table-th[data-col-index='3'],
-.remotes-widget .remotes-hide-identity .remotes-identity-column,
-.remotes-widget .remotes-hide-identity .monaco-table-th[data-col-index='5'] {
+.remotes-widget .remotes-hide-system .monaco-table-th[data-col-index='3'] {
 	display: none;
 }
 
@@ -293,7 +325,7 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
-	padding-inline: var(--vscode-spacing-size100);
+	padding-inline: var(--vscode-spacing-size120);
 }
 
 .remotes-widget .monaco-table-td.remotes-scrollbar-gutter {
@@ -301,9 +333,39 @@
 }
 
 .remotes-widget .monaco-table-th {
-	padding-inline: var(--vscode-spacing-size100);
+	padding-inline: 0;
 	font-weight: var(--vscode-fontWeight-semiBold);
 	background-color: var(--vscode-keybindingTable-headerBackground);
+}
+
+.remotes-widget .monaco-table-th > .remotes-sort-header {
+	box-sizing: border-box;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size40);
+	width: calc(100% - var(--vscode-spacing-size80));
+	height: calc(100% - var(--vscode-spacing-size80));
+	margin: var(--vscode-spacing-size40);
+	padding: 0 var(--vscode-spacing-size80);
+	border: none;
+	border-radius: 0;
+	color: inherit;
+	font: inherit;
+}
+
+.remotes-widget .remotes-sort-header > span:first-child {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.remotes-widget .remotes-sort-indicator {
+	display: flex;
+	flex-shrink: 0;
+}
+
+.remotes-widget .remotes-sort-header:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .remotes-widget .monaco-table-tr {
@@ -399,8 +461,14 @@
 	max-width: 100%;
 }
 
-.remotes-widget .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover):not(.hovered) .monaco-table-tr:not(.remotes-group-row) {
-	background-color: var(--vscode-editor-background);
+.remotes-widget .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover):not(.hovered) .monaco-table-tr,
+.remotes-widget .monaco-list:not(:focus-within) .monaco-list-row[data-parity=odd]:not(.selected):not(:hover):not(.hovered) .monaco-table-tr {
+	background-color: var(--vscode-keybindingTable-rowsBackground);
+
+	&.remotes-group-row,
+	&.remotes-empty-row {
+		background-color: transparent;
+	}
 }
 
 .remotes-widget .remotes-name,
@@ -441,8 +509,8 @@
 	padding-inline-start: var(--vscode-spacing-size200, 20px);
 }
 
-.remotes-widget .monaco-table-th[data-col-index='0'] {
-	padding-inline-start: calc(var(--vscode-spacing-size100, 10px) + var(--vscode-spacing-size200, 20px));
+.remotes-widget .monaco-table-th[data-col-index='0'] > .remotes-sort-header {
+	padding-inline-start: calc(var(--vscode-spacing-size80, 8px) + var(--vscode-spacing-size200, 20px));
 }
 
 .remotes-widget .remotes-name-row > .remotes-name {
@@ -746,13 +814,28 @@
 
 .remotes-widget .remotes-actions-column {
 	padding-inline: var(--vscode-spacing-size40);
-	justify-content: flex-start;
+	justify-content: flex-end;
 	gap: var(--vscode-spacing-size80);
 	opacity: 0;
 }
 
+.remotes-widget .remotes-actions-column > .monaco-toolbar {
+	flex-shrink: 0;
+}
+
+.remotes-widget .remotes-actions-column .monaco-action-bar .action-label {
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
 .remotes-widget .remotes-actions-column > .monaco-button {
 	width: auto;
+	padding-block: var(--vscode-spacing-size20);
 }
 
 .remotes-widget .remotes-actions-column > .monaco-button[hidden] {
@@ -762,6 +845,7 @@
 .remotes-widget .monaco-list-row:is(:hover, .hovered, :focus-within) .remotes-actions-column,
 .remotes-widget .monaco-list:focus-within .monaco-list-row.focused .remotes-actions-column,
 .remotes-widget .monaco-table .remotes-actions-column.remotes-connection-failed,
+.remotes-widget .remotes-actions-column.remotes-sign-in-required,
 .remotes-widget .remotes-actions-column.remotes-connection-pending {
 	opacity: 1;
 	pointer-events: auto;

@@ -36,7 +36,7 @@ import { defaultButtonStyles } from '../../../../../../platform/theme/browser/de
 import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICustomizationRemote, IRemotesModel, RemoteKind } from './remotesModel.js';
-import { getConnectionLabel, getRemoteMetadataLabel, getRemoteTypeLabel, remoteAgentRunBehaviorDescription, remoteConnectionMethodLabel, renderConnectionStatus } from './remotesTable.js';
+import { getConnectionLabel, getRemoteMetadataLabel, getRemoteTypeLabel, remoteAgentRunBehaviorDescription, renderConnectionStatus } from './remotesTable.js';
 
 export type RemoteEnvironmentDetailsMode = 'runBehavior' | 'troubleshoot';
 
@@ -186,11 +186,11 @@ export class RemoteEnvironmentDetails extends Disposable {
 		const fieldTitle = dom.append(field, dom.$('h3.remotes-run-question', { id: generateUuid() },
 			localize('remotes.runPreference', "Preferred run behavior")));
 		const choices = orderRemoteAgentHostLocationOptions('VS Code', undefined).map(choice => ({ value: choice.preference, label: choice.label, detail: choice.detail }));
-		let selected = this.selectedPreference = this.model.getPreferredAgentLocation(this.remote.id);
+		let selected = this.selectedPreference = this.model.getPreferredAgentLocation(this.remote.id) ?? choices[0].value;
 		const radio = this.radio = this.controls.add(new Radio({
 			items: choices.map(choice => ({
 				text: choice.label, ariaLabel: localize('remotes.runChoiceLabel', "{0}. {1}", choice.label, choice.detail), isActive: choice.value === selected,
-			})), allowNoSelection: selected === undefined, hoverDelegate: this.hoverDelegate,
+			})), hoverDelegate: this.hoverDelegate,
 		}));
 		radio.domNode.classList.add('remotes-run-choices', 'remotes-method-choices');
 		radio.domNode.setAttribute('aria-labelledby', fieldTitle.id);
@@ -265,7 +265,7 @@ export class RemoteEnvironmentDetails extends Disposable {
 		const remote = this.taskError ? { ...this.remote, lastConnectionError: this.taskError } : this.remote;
 		renderConnectionStatus(indicator, remote, this.connectionProgress ? true : undefined);
 		dom.append(connection, dom.$('span', undefined, this.connectionProgress ?? getConnectionLabel(remote)));
-		field(remoteConnectionMethodLabel, getRemoteTypeLabel(this.remote.kind));
+		field(localize('remotes.connectionType', "Connection type"), getRemoteTypeLabel(this.remote.kind));
 		const system = getRemoteMetadataLabel(this.remote, 'system');
 		if (system) {
 			field(localize('remotes.operatingSystem', "Operating system"), system);

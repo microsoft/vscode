@@ -11,13 +11,19 @@
 }
 
 .remotes-this-computer-heading {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
 	margin-bottom: var(--vscode-spacing-size120);
 }
 
 .remotes-this-computer-title {
 	margin: 0;
-	font-size: var(--vscode-fontSize-heading3);
+	font-size: var(--vscode-fontSize-heading2);
 	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
 }
 
 .remotes-this-computer-header {
@@ -26,7 +32,6 @@
 	gap: var(--vscode-spacing-size120);
 	flex-shrink: 0;
 	min-width: 0;
-	padding-inline-end: var(--vscode-spacing-size160);
 }
 
 .remotes-this-computer-summary {
@@ -39,14 +44,14 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	min-width: 0;
-	min-height: 28px;
+	min-height: 24px;
 }
 
 .remotes-this-computer-name {
 	margin: 0;
 	flex: 0 1 auto;
-	font-size: var(--vscode-fontSize-heading2);
-	font-weight: var(--vscode-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
 	line-height: 1.5;
 }
 
@@ -130,9 +135,8 @@
 
 .remotes-sharing-status-icon[hidden],
 .remotes-this-computer-rename[hidden],
-.remotes-this-computer-header .monaco-button[hidden],
+.remotes-this-computer-share .monaco-button[hidden],
 .remotes-this-computer-share .monaco-button-dropdown[hidden],
-.remotes-sharing-footer .monaco-button[hidden],
 .remotes-sharing-details[hidden] {
 	display: none;
 }
@@ -160,7 +164,6 @@
 
 .remotes-sharing-details {
 	margin-top: var(--vscode-spacing-size160);
-	padding-inline-end: var(--vscode-spacing-size160);
 }
 
 .remotes-sharing-body {

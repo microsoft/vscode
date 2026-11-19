@@ -10,13 +10,16 @@ import { localize } from '../../../nls.js';
 
 export const ITunnelAgentHostService = createDecorator<ITunnelAgentHostService>('tunnelAgentHostService');
 
-/** Silent discovery has no usable token for a configured authentication provider. */
+/** Discovery has no usable token for a configured authentication provider. */
 export class TunnelAuthenticationRequiredError extends Error {
 	constructor(readonly authProvider: 'github' | 'microsoft') {
 		super(localize('tunnelAgentHost.authenticationRequired', "Sign in to allow access to your tunnels."));
 		this.name = 'TunnelAuthenticationRequiredError';
 	}
 }
+
+// IPC preserves Error.name, but not custom properties or prototypes.
+export const TUNNEL_DISCOVERY_UNAUTHORIZED = 'TunnelDiscoveryUnauthorized';
 
 /**
  * IPC channel name for the shared-process tunnel service.

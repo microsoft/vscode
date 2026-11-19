@@ -257,17 +257,19 @@ suite('RemotesEditor', () => {
 		section.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
 		const page = container.querySelector<HTMLElement>('.remotes-sharing-details')!;
 		const table = container.querySelector<HTMLElement>('.remotes-editor-table')!;
+		const defaultChoice = page.querySelector('[aria-checked="true"]')?.getAttribute('data-sharing-method');
 		page.querySelector<HTMLElement>('[data-sharing-method="devTunnel"]')!.click();
 		const before = { commands: commands.length, pageVisible: !page.hidden, tableHidden: table.hidden };
 		container.querySelector<HTMLElement>('.remotes-sharing-footer .monaco-button:not(.secondary)')!.click();
 		await timeout(0);
 		assert.deepStrictEqual({
-			before, commands, pageHidden: page.hidden, tableVisible: !table.hidden,
+			before, defaultChoice, commands, pageHidden: page.hidden, tableVisible: !table.hidden,
 			status: section.querySelector('.remotes-this-computer-status [role="status"]')?.textContent,
 			focusRestored: dom.getActiveElement() === section.querySelector('.remotes-this-computer-share .monaco-dropdown-button'),
 			descriptions: page.querySelectorAll('.remotes-sharing-choice-description').length,
 		}, {
 			before: { commands: 0, pageVisible: true, tableHidden: false },
+			defaultChoice: 'githubEnvironment',
 			commands: [TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID],
 			pageHidden: true, tableVisible: true, status: 'Sharing via Dev Tunnel', focusRestored: true, descriptions: 2,
 		});
@@ -282,8 +284,8 @@ suite('RemotesEditor', () => {
 		instantiation.stub(ICommandService, {
 			executeCommand: async (id: string) => {
 				commands.push(id);
-				await release.p;
 				tunnel.fireStatus(connected);
+				await release.p;
 				return undefined;
 			},
 		});
@@ -292,7 +294,6 @@ suite('RemotesEditor', () => {
 		const section = container.querySelector<HTMLElement>('.remotes-this-computer')!;
 		section.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
 		const page = container.querySelector<HTMLElement>('.remotes-sharing-details')!;
-		page.querySelector<HTMLElement>('[data-sharing-method="devTunnel"]')!.click();
 		const apply = container.querySelector<HTMLElement>('.remotes-sharing-footer .monaco-button:not(.secondary)')!;
 		apply.click();
 		apply.click();
@@ -302,11 +303,12 @@ suite('RemotesEditor', () => {
 			commands: commands.length, busy: page.getAttribute('aria-busy'),
 			selected: page.querySelector('[aria-checked="true"]')?.getAttribute('data-sharing-method'),
 			cancelDisabled: container.querySelector('.remotes-sharing-footer .secondary')?.getAttribute('aria-disabled'),
+			label: apply.textContent,
 		};
 		await release.complete();
 		await timeout(0);
 		assert.deepStrictEqual({ pending, closed: page.hidden, commands: commands.length }, {
-			pending: { commands: 1, busy: 'true', selected: 'devTunnel', cancelDisabled: 'true' },
+			pending: { commands: 1, busy: 'true', selected: 'devTunnel', cancelDisabled: 'true', label: 'Start Sharing' },
 			closed: true, commands: 1,
 		});
 	});
@@ -316,6 +318,7 @@ suite('RemotesEditor', () => {
 		const commands: string[] = [];
 		instantiation.stub(ICommandService, { executeCommand: async (id: string) => { commands.push(id); return undefined; } });
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
 		const share = container.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!;
 		const page = container.querySelector<HTMLElement>('.remotes-sharing-details')!;
 		const states: { selected: number; enabled: string | null; label: string | null; shareHidden: boolean; off: boolean; bullets: number }[] = [];
@@ -339,8 +342,8 @@ suite('RemotesEditor', () => {
 		assert.deepStrictEqual({ commands, states, restored: !share.hidden && dom.getActiveElement() === share }, {
 			commands: [],
 			states: [
-				{ selected: 0, enabled: 'true', label: 'Start Sharing', shareHidden: true, off: false, bullets: 2 },
-				{ selected: 0, enabled: 'true', label: 'Start Sharing', shareHidden: true, off: false, bullets: 2 },
+				{ selected: 1, enabled: 'false', label: 'Start Sharing', shareHidden: true, off: false, bullets: 2 },
+				{ selected: 1, enabled: 'false', label: 'Start Sharing', shareHidden: true, off: false, bullets: 2 },
 			],
 			restored: true,
 		});
@@ -660,7 +663,7 @@ suite('RemotesEditor', () => {
 		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => choices.map(() => ({ ring: true, selectedDot: true, contrast: true }))));
 	});
 
-	test('inline sharing keeps both sections and search visible, with actions in the summary', async () => {
+	test('inline sharing keeps both sections and search visible, with actions beside the section heading', async () => {
 		const { editor, container, input, configuration } = createEditor({
 			[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [GitHubEnvironmentsEnabledSettingId]: true,
 		});
@@ -669,7 +672,10 @@ suite('RemotesEditor', () => {
 		const search = container.querySelector<HTMLInputElement>('.remotes-search-row input')!;
 		search.value = 'build';
 		search.dispatchEvent(new InputEvent('input'));
-		container.querySelector<HTMLElement>('.remotes-this-computer-share > .monaco-button')!.click();
+		const share = container.querySelector<HTMLElement>('.remotes-this-computer-share > .monaco-button')!;
+		const visibleActions = () => [...share.parentElement!.querySelectorAll<HTMLElement>('.monaco-button')].filter(button => button.getClientRects().length > 0).map(button => button.textContent);
+		const collapsedActions = visibleActions();
+		share.click();
 		container.querySelector<HTMLElement>('[data-sharing-method="githubEnvironment"]')!.click();
 		const start = container.querySelector<HTMLElement>('.remotes-sharing-footer .monaco-button:not(.secondary)')!;
 		assert.deepStrictEqual({
@@ -679,15 +685,19 @@ suite('RemotesEditor', () => {
 			name: container.querySelector('.remotes-this-computer-name')?.textContent,
 			duplicateName: container.querySelector('.remotes-sharing-name-field'),
 			back: container.querySelector('.remotes-task-navigation'),
-			actionsInSummary: !!start.closest('.remotes-this-computer-name-row'),
+			actionsInHeading: !!start.closest('.remotes-this-computer-heading'),
 			actions: [...start.parentElement!.children].map(element => element.textContent),
+			collapsedActions,
+			visibleActions: visibleActions(),
 			search: search.value,
 			accessibleList: editor.getAccessibilityContent().includes('Build server'),
 			unchanged: configuration.getValue(AgentHostRemoteConnectionsSettingId),
 		}, {
 			disclosures: 0, tableVisible: true, nameVisible: true, name: 'My Workstation (Code - OSS)',
-			duplicateName: null, back: null, actionsInSummary: true,
+			duplicateName: null, back: null, actionsInHeading: true,
 			actions: isWindows ? ['Start Sharing', 'Cancel'] : ['Cancel', 'Start Sharing'],
+			collapsedActions: ['Share This Computer'],
+			visibleActions: isWindows ? ['Start Sharing', 'Cancel'] : ['Cancel', 'Start Sharing'],
 			search: 'build', accessibleList: true, unchanged: undefined,
 		});
 		container.querySelector<HTMLElement>('.remotes-sharing-footer .secondary')!.click();
@@ -695,7 +705,8 @@ suite('RemotesEditor', () => {
 			closed: container.querySelector<HTMLElement>('.remotes-sharing-details')!.hidden,
 			search: search.value,
 			shareFocused: dom.getActiveElement() === container.querySelector('.remotes-this-computer-share > .monaco-button'),
-		}, { closed: true, search: 'build', shareFocused: true });
+			visibleActions: visibleActions(),
+		}, { closed: true, search: 'build', shareFocused: true, visibleActions: ['Share This Computer'] });
 	});
 
 	test('the pencil renames the selected sharing method through native input before starting', async () => {
@@ -746,6 +757,63 @@ suite('RemotesEditor', () => {
 			error: 'The name must only consist of letters, numbers, underscore and dash. It must not start with a dash.', pencilEnabled: true,
 		});
 	});
+	test('section typography, controls, and table edges stay consistent at wide and narrow sizes', async () => {
+		const { editor, container, input } = createEditor({ [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true });
+		for (const size of [40, 60, 80, 100, 120, 160, 200, 240]) {
+			container.style.setProperty(`--vscode-spacing-size${size}`, `${size / 10}px`);
+		}
+		container.style.setProperty('--vscode-fontSize-heading2', '18px');
+		container.style.setProperty('--vscode-fontSize-body1', '13px');
+		container.style.setProperty('--vscode-fontWeight-semiBold', '600');
+		container.style.setProperty('--vscode-fontWeight-regular', '400');
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const observations = [900, 360, 900].map(width => {
+			container.style.width = `${width}px`;
+			editor.layout(new dom.Dimension(width, 600));
+			const table = container.querySelector('.remotes-table-container')!.getBoundingClientRect();
+			const share = container.querySelector('.remotes-this-computer-share')!.getBoundingClientRect();
+			const search = container.querySelector('.remotes-search-row')!.getBoundingClientRect();
+			const refresh = container.querySelector('.remotes-header-actions .monaco-button')!.getBoundingClientRect();
+			const row = container.querySelector('[data-remote-id]')!.getBoundingClientRect();
+			const title = container.querySelector<HTMLElement>('.remotes-this-computer-title')!;
+			const otherTitle = container.querySelector<HTMLElement>('.remotes-heading-title')!;
+			const name = container.querySelector<HTMLElement>('.remotes-this-computer-name')!;
+			const titleStyle = dom.getWindow(title).getComputedStyle(title);
+			const otherTitleStyle = dom.getWindow(otherTitle).getComputedStyle(otherTitle);
+			const nameStyle = dom.getWindow(name).getComputedStyle(name);
+			const titleBounds = title.getBoundingClientRect();
+			const focusRingsFit = [...container.querySelectorAll<HTMLElement>('.remotes-this-computer-share > .monaco-button:not([hidden]), .remotes-header-actions .monaco-button')].every(button => {
+				button.focus();
+				const style = dom.getWindow(button).getComputedStyle(button);
+				const extent = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+				const bounds = button.getBoundingClientRect();
+				if (!(extent > 0)) {
+					return false;
+				}
+				for (let ancestor = button.parentElement; ancestor && container.contains(ancestor); ancestor = ancestor.parentElement) {
+					const clip = ancestor.getBoundingClientRect();
+					const overflow = dom.getWindow(ancestor).getComputedStyle(ancestor);
+					if (overflow.overflowX !== 'visible' && (bounds.left - extent < clip.left || bounds.right + extent > clip.right)
+						|| overflow.overflowY !== 'visible' && (bounds.top - extent < clip.top || bounds.bottom + extent > clip.bottom)) {
+						return false;
+					}
+				}
+				return true;
+			});
+			return {
+				focusRingsFit,
+				rightAligned: [share.right, search.right, refresh.right, row.right].every(right => Math.abs(right - table.right) < 1),
+				leftAligned: Math.abs(row.left - table.left) < 1,
+				refreshFits: refresh.width > 0 && refresh.left >= table.left,
+				shareBesideHeading: Math.abs(share.top + share.height / 2 - titleBounds.top - titleBounds.height / 2) < 1,
+				sectionHierarchy: titleStyle.fontSize === otherTitleStyle.fontSize && titleStyle.fontWeight === otherTitleStyle.fontWeight
+					&& parseFloat(titleStyle.fontSize) > parseFloat(nameStyle.fontSize) && parseInt(titleStyle.fontWeight) > parseInt(nameStyle.fontWeight),
+			};
+		});
+		assert.deepStrictEqual(observations, Array.from({ length: 3 }, () => ({ focusRingsFit: true, rightAligned: true, leftAligned: true, refreshFits: true, shareBesideHeading: true, sectionHierarchy: true })));
+	});
+
 	test('inline choices keep summary actions aligned and the environment list reachable in a short narrow editor', async () => {
 		const { editor, container, input } = createEditor({
 			[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [GitHubEnvironmentsEnabledSettingId]: true,
@@ -795,6 +863,7 @@ suite('RemotesEditor', () => {
 				labelsChoices: container.querySelector('.remotes-sharing-choices')?.getAttribute('aria-labelledby') === instruction.id,
 			},
 			actionsAligned: Math.abs(initial.x + initial.width - search.right) < 1,
+			choicesRightAligned: [...container.querySelectorAll('.remotes-sharing-choices [role="radio"]')].every(card => Math.abs(card.getBoundingClientRect().right - search.right) < 1),
 			scrolls: content.scrollTop > 0,
 			searchReachable: search.top >= host.top && search.bottom <= host.bottom,
 			noHorizontalOverflow: content.scrollWidth <= content.clientWidth,
@@ -802,6 +871,7 @@ suite('RemotesEditor', () => {
 			selections: [initial, initial, initial], cardsAligned: true,
 			instruction: { element: 'P', fontSize: '13px', fontWeight: '400', labelsChoices: true },
 			actionsAligned: true,
+			choicesRightAligned: true,
 			scrolls: true, searchReachable: true, noHorizontalOverflow: true,
 		});
 	});
@@ -888,6 +958,7 @@ suite('RemotesEditor', () => {
 			text: policy.textContent,
 			describes: radio.getAttribute('aria-describedby')?.split(' ').includes(policy.id),
 			githubDisabled: github.getAttribute('aria-disabled'),
+			selected: radio.querySelector('[aria-checked="true"]')?.getAttribute('data-sharing-method'),
 			linkFocusable: link.tabIndex,
 			opened,
 			accessible: editor.getAccessibilityContent().includes('Sharing through GitHub Environments is disabled by your organization. Contact your administrator.'),
@@ -896,6 +967,7 @@ suite('RemotesEditor', () => {
 			text: 'Sharing through GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
 			describes: true,
 			githubDisabled: 'true',
+			selected: 'devTunnel',
 			linkFocusable: 0,
 			opened: [{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }],
 			accessible: true,

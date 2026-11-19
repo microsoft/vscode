@@ -90,6 +90,7 @@ export interface ICustomizationRemote {
 	readonly availability: RemoteAvailability;
 	/** Explains why the remote isn't confirmed online; set whenever {@link availability} is `offline` or `unknown`. */
 	readonly unavailableReason?: string;
+	readonly requiresTunnelSignIn?: boolean;
 	/** Connecting starts this offline remote (for example a stopped WSL distribution), so Connect stays enabled. */
 	readonly startsOnConnect?: boolean;
 	readonly hidden?: boolean;
@@ -106,7 +107,7 @@ export interface ICustomizationRemote {
 }
 
 export function canConnectToRemote(remote: ICustomizationRemote): boolean {
-	return RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus) || remote.availability !== 'offline' || !!remote.startsOnConnect;
+	return RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus) || !remote.requiresTunnelSignIn && (remote.availability !== 'offline' || !!remote.startsOnConnect);
 }
 
 export type IRemoteRefreshProgress =
@@ -1164,6 +1165,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				this.connectionFailures.delete(failureKey);
 			}
 			const lastConnectionError = connectionErrors.get(id) ?? this.connectionFailures.get(failureKey);
+			const tunnelAuth = this._tunnelAuthenticationRequired.get();
+			const requiresTunnelSignIn = target.kind === 'tunnel' && !!tunnelAuth && (!target.authProvider || target.authProvider === tunnelAuth)
+				&& RemoteAgentHostConnectionStatus.isDisconnected(connectionStatus);
 			// Starting a connection is not evidence that the remote is online.
 			const availability = RemoteAgentHostConnectionStatus.isConnected(connectionStatus)
 				|| RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus)
@@ -1180,6 +1184,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
 			remotes.push({
 				id, kind: target.kind, name, detail, canRemove, ...availability,
+				...(requiresTunnelSignIn ? { requiresTunnelSignIn } : {}),
 				...(target.kind === 'environment' ? {
 					lastHeartbeatAt: target.host.lastHeartbeatAt, reportedSessionCount: target.host.reportedSessionCount,
 				} : {}),
