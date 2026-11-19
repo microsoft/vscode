@@ -14,7 +14,7 @@ The separately installed [design-system explorer](https://github.com/chryw/vscod
 
 ## Read and contribute
 
-Open the **Visual Studio Code Design System** canvas, or use its headless `documents`, `read-document`, and topic commands. Use **Back** and **Forward** to return from cross-topic references, **Topic files** for a chapter's guidance and implementation files, and **Checkout** to choose the content worktree. A topic can draw from several files, and one file can serve several topics. Headless document discovery includes Markdown in the configured scopes, even without a curated chapter; the raw Source library is not a curated-book navigation destination.
+Open the **Visual Studio Code Design System** canvas, or use its headless `documents`, `read-document`, and topic commands. Use **Back** and **Forward** to return from cross-topic references, **Topic files** for a chapter's guidance and implementation files, and the chevron beside **Refresh** to choose the content worktree. A topic can draw from several files, and one file can serve several topics. Headless document discovery includes Markdown in the configured scopes, even without a curated chapter; the raw Source library is not a curated-book navigation destination.
 
 Edit the owning document once. Pages reference its sections through `$text` or `guidance` bindings; browser, CLI, canvas actions, and portable exports use the same projections. No launcher skill or viewer-source edit is needed to add guidance within an existing scope. Guidance edits refresh live; structural catalog or fixture-binding changes require reopening the provider.
 
@@ -57,7 +57,7 @@ node /absolute/path/to/vscode-design-system/scripts/book.mjs serve \
   --root /absolute/path/to/vscode-checkout
 ```
 
-Stop it with Ctrl+C. For the actual canvas, install or update the independent viewer through the native plugin manager and reuse the worktree's existing canvas in its owning chat. Use **Checkout** to browse another clone or worktree in that same panel, or **Reload checkout** to reread its saved content, topic catalog, and examples; neither action pulls or switches Git branches. Do not create a new instance for another branch or validation pass. Follow the viewer's [setup and migration guidance](https://github.com/chryw/vscode-design-system/blob/main/docs/setup.md) if a legacy workspace installation exists.
+Stop it with Ctrl+C. For the actual canvas, install or update the independent viewer through the native plugin manager and reuse the worktree's existing canvas in its owning chat. Use the chevron beside **Refresh** to browse another clone or worktree in that same panel, or the main **Refresh** action to reread its saved content, topic catalog, and examples; neither action pulls or switches Git branches. Do not create a new instance for another branch or validation pass. Follow the viewer's [setup and migration guidance](https://github.com/chryw/vscode-design-system/blob/main/docs/setup.md) if a legacy workspace installation exists.
 
 This is a portable-rendering smoke check, not pixel comparison or native canvas-host validation. It does not cover live-server refresh, every theme or fixture variant, lazy examples that were not started, keyboard behavior, or visual quality. Inspect the affected chapter and exercise changed interactions before pushing. Viewer implementation tests belong in the viewer repository; this checkout's installed copy does not include that test suite.
 

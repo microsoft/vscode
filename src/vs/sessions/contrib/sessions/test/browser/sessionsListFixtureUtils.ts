@@ -689,6 +689,10 @@ interface ISessionsListFixtureServices {
 	readonly resolve: (row: SessionsListFixtureRow) => SessionsListItemReference;
 	readonly approvalModel: AgentSessionApprovalModel;
 	readonly groupIds: Map<string, string>;
+	readonly sessionsManagement: FixtureSessionsManagementService;
+	readonly notifications: NotificationsModel | undefined;
+	clearNotifications(): void;
+	setReducedMotion(reduced: boolean): void;
 }
 
 async function createSessionsListFixtureServices(context: ComponentFixtureContext, state: ISessionsListFixtureState): Promise<ISessionsListFixtureServices> {
@@ -929,7 +933,16 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 		return { session: session.session.resource, chat: chat.chat.resource };
 	};
 
-	return { instantiationService, sessions, getSession, resolve, approvalModel, groupIds };
+	return {
+		instantiationService, sessions, getSession, resolve, approvalModel, groupIds,
+		sessionsManagement, notifications, clearNotifications,
+		setReducedMotion: reduced => {
+			if (reducedMotion !== reduced) {
+				reducedMotion = reduced;
+				reducedMotionEmitter.fire();
+			}
+		},
+	};
 }
 
 export async function renderSessionsListFixture(context: ComponentFixtureContext, state: ISessionsListFixtureState): Promise<ISessionsListFixture> {
@@ -937,7 +950,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	const view = state.view ?? {};
 	const header = state.header;
 	const interaction = state.interaction ?? {};
-	const { instantiationService, sessions, getSession, resolve, approvalModel, groupIds } = await createSessionsListFixtureServices(context, state);
+	const { instantiationService, sessions, getSession, resolve, approvalModel, groupIds, sessionsManagement, notifications, clearNotifications, setReducedMotion } = await createSessionsListFixtureServices(context, state);
 	const contextKeyService = instantiationService.get(IContextKeyService);
 
 	const width = view.width ?? 340;
@@ -1072,12 +1085,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		setArchiveOutcome: outcome => { sessionsManagement.archiveOutcome = outcome; },
 		cancelPendingArchives: () => sessionsManagement.cancelPendingArchives(),
 		clearNotifications,
-		setReducedMotion: reduced => {
-			if (reducedMotion !== reduced) {
-				reducedMotion = reduced;
-				reducedMotionEmitter.fire();
-			}
-		},
+		setReducedMotion,
 	};
 }
 

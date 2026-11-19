@@ -17,7 +17,7 @@ interface MotionFrameDefinition {
 }
 
 interface MotionTrack {
-	readonly property: 'background-color' | 'border-color' | 'left' | 'transform' | 'width' | 'scale' | 'opacity' | 'grid-template-rows' | 'visibility';
+	readonly property: 'background-color' | 'border-color' | 'left' | 'transform' | 'translate' | 'width' | 'scale' | 'opacity' | 'grid-template-rows' | 'visibility';
 	readonly duration: string;
 	readonly easing: string;
 	readonly delay?: string;

@@ -63,7 +63,7 @@ suite('Motion recipes', () => {
 		}, {
 			control: 'background-color var(--vscode-motion-state-change-duration) var(--vscode-motion-state-change-easing), border-color var(--vscode-motion-state-change-duration) var(--vscode-motion-state-change-easing)',
 			controlPosition: 'transform var(--vscode-motion-state-change-duration) var(--vscode-motion-state-change-easing)',
-			selection: 'transform var(--vscode-motion-selection-change-duration) var(--vscode-motion-selection-change-easing), width var(--vscode-motion-selection-change-duration) var(--vscode-motion-selection-change-easing), scale var(--vscode-motion-press-change-duration) var(--vscode-motion-press-change-easing)',
+			selection: 'translate var(--vscode-motion-selection-change-duration) var(--vscode-motion-selection-change-easing), width var(--vscode-motion-selection-change-duration) var(--vscode-motion-selection-change-easing), scale var(--vscode-motion-press-change-duration) var(--vscode-motion-press-change-easing)',
 			disclosure: 'grid-template-rows var(--vscode-motion-disclosure-geometry-duration) var(--vscode-motion-disclosure-geometry-easing), opacity var(--vscode-motion-disclosure-content-duration) var(--vscode-motion-disclosure-content-easing), visibility var(--vscode-motion-duration-none) var(--vscode-motion-easing-linear) var(--vscode-motion-disclosure-geometry-duration)',
 		});
 	});
