@@ -14,7 +14,7 @@ The separately installed [design-system explorer](https://github.com/chryw/vscod
 
 ## Read and contribute
 
-Open the **Visual Studio Code Design System** canvas, or use its headless `documents`, `read-document`, and topic commands. Use **Back** and **Forward** to return from cross-topic references, **Topic files** for a chapter's guidance and implementation files, and the chevron beside **Refresh** to choose the content worktree. A topic can draw from several files, and one file can serve several topics. Headless document discovery includes Markdown in the configured scopes, even without a curated chapter; the raw Source library is not a curated-book navigation destination.
+Open the **Visual Studio Code Design System** canvas, or use its headless `documents`, `read-document`, and topic commands. Use **Back** and **Forward** to return from cross-topic references, the optional **Contributor resources** at the end of a topic for its guidance and implementation files, and the chevron beside **Refresh** to choose the content worktree. A topic can draw from several files, and one file can serve several topics. Headless document discovery includes Markdown in the configured scopes, even without a curated chapter; the raw Source library is not a curated-book navigation destination.
 
 Edit the owning document once. Pages reference its sections through `$text` or `guidance` bindings; browser, CLI, canvas actions, and portable exports use the same projections. No launcher skill or viewer-source edit is needed to add guidance within an existing scope. Guidance edits refresh live; structural catalog or fixture-binding changes require reopening the provider.
 
