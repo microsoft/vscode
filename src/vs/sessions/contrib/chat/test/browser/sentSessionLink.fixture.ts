@@ -88,6 +88,7 @@ async function renderSentSessionLink(context: ComponentFixtureContext): Promise<
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SentSessionLink: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: renderSentSessionLink,
 	}),
 });
