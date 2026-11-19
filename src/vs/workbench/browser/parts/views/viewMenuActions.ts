@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from '../../../../base/common/actions.js';
+import { IAction, Separator } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { getActionBarActions, PrimaryAndSecondaryActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuId, IMenuActionOptions, IMenuService, IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -32,16 +32,42 @@ export class ViewMenuActions extends Disposable {
 	) {
 		super();
 		this.menu = this._register(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
-		this._register(this.menu.onDidChange(() => {
-			this.actions = undefined;
-			this._onDidChange.fire();
-		}));
+		this._register(this.menu.onDidChange(() => this.didChange()));
+	}
+
+	private readonly sources: ViewMenuActions[] = [];
+
+	/** Shows the actions of `source` after its own, until the returned disposable is disposed, such as those of a list that a view embeds. */
+	addActions(source: ViewMenuActions): IDisposable {
+		const listener = source.onDidChange(() => this.didChange());
+		this.sources.push(source);
+		this.didChange();
+		return toDisposable(() => {
+			listener.dispose();
+			this.sources.splice(this.sources.indexOf(source), 1);
+			this.didChange();
+		});
+	}
+
+	private didChange(): void {
+		this.actions = undefined;
+		this._onDidChange.fire();
 	}
 
 	private actions: PrimaryAndSecondaryActions | undefined;
 	private getActions(): PrimaryAndSecondaryActions {
 		if (!this.actions) {
-			this.actions = getActionBarActions(this.menu.getActions(this.options), group => this.isPrimaryActionGroup(group), undefined, true);
+			const own = getActionBarActions(this.menu.getActions(this.options), group => this.isPrimaryActionGroup(group), undefined, true);
+			const primary = [...own.primary];
+			const secondary = [...own.secondary];
+			for (const source of this.sources) {
+				primary.push(...source.getPrimaryActions());
+				const sourceSecondary = source.getSecondaryActions();
+				if (sourceSecondary.length) {
+					secondary.push(...(secondary.length ? [new Separator()] : []), ...sourceSecondary);
+				}
+			}
+			this.actions = { primary, secondary };
 		}
 		return this.actions;
 	}

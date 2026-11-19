@@ -980,6 +980,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const store = new DisposableStore();
 			clearNode(sessionsControlContainer);
 			const provided = this.chatViewHostService.sessionsList.get()?.create(sessionsControlContainer, this.instantiationService, { overrideStyles: this.getLocationBasedColors().listOverrideStyles });
+			// The provided list is still to register: no list shows until it does, instead of one it replaces
+			if (!provided && this.chatViewHostService.sessionsListExpected.get()) {
+				setVisibility(false, sessionsTitleContainer);
+				setVisibility(false, newSessionButtonContainer);
+				this.sessionsControl = undefined;
+				this.setSessionsListTitleActive(true);
+				return { sessionsControl: undefined, store };
+			}
+			// The actions of a list that has none of its own header are those of the Chat view's title, with its own
+			const titleActions = provided?.control.titleActions;
+			if (titleActions) {
+				store.add(this.menuActions.addActions(titleActions));
+			}
+			this.setSessionsListTitleActive(!!titleActions);
 			// A list of its own header and actions, in place of those of the Chat view's list
 			setVisibility(!provided || !provided.hasHeader, sessionsTitleContainer);
 			setVisibility(!provided, newSessionButtonContainer);
@@ -1023,13 +1037,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			sessionsList.clear();
 			const { sessionsControl, store } = createSessionsList();
 			sessionsList.value = store;
-			sessionsControl.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
+			sessionsControl?.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
 			this.updateSessionsControlVisibility();
 			this.relayout();
 			// Whether the list shows once the layout settled, which can show it, such as switching to side by side
 			if (hadFocus) {
 				if (this.sessionsViewerVisible) {
-					sessionsControl.focus();
+					sessionsControl?.focus();
 				} else {
 					this.focusInput();
 				}
@@ -1297,7 +1311,29 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (action.id === AICustomizationManagementCommands.OpenEditor && action instanceof MenuItemAction) {
 			return this.instantiationService.createInstance(ChatCustomizationsActionViewItem, action, options, this.instantiationService.createInstance(ChatCustomizationsHover), 'chatToolbar', this.customizationMigrationsAvailable, false, undefined);
 		}
-		return super.createActionViewItem(action, options);
+		return this.sessionsControl?.createActionViewItem?.(action, options) ?? super.createActionViewItem(action, options);
+	}
+
+	/** Whether the title is that of the sessions list that a provider gives or is to give, such as "Sessions", rather than the Chat view's own. */
+	private sessionsListTitleActive = false;
+	private chatTitle: string | undefined;
+
+	override get singleViewPaneContainerTitle(): string | undefined {
+		return this.sessionsListTitleActive ? this.sessionsListTitle : super.singleViewPaneContainerTitle;
+	}
+
+	private get sessionsListTitle(): string {
+		return localize('chatViewSessionsListTitle', "Sessions");
+	}
+
+	private setSessionsListTitleActive(active: boolean): void {
+		if (this.sessionsListTitleActive === active) {
+			return;
+		}
+		this.sessionsListTitleActive = active;
+		this.chatTitle ??= this.title;
+		this.updateTitle(active ? this.sessionsListTitle : this.chatTitle);
+		this.updateActions();
 	}
 
 	private createChatTitleControl(parent: HTMLElement): void {

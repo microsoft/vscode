@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IActionViewItem } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { IAction } from '../../../../../base/common/actions.js';
+import { ViewMenuActions } from '../../../../browser/parts/views/viewMenuActions.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -49,6 +53,8 @@ class ChatViewSessionsListControl implements IChatViewSessionsListControl {
 	/** The sessions of the Chat view's own list that have focus: none of those here. */
 	getFocus(): IAgentSession[] { return []; }
 	openFind(): void { this._view.openFind(); }
+	get titleActions(): ViewMenuActions { return this._view.menuActions; }
+	createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined { return this._view.createActionViewItem(action, options); }
 	dispose(): void {
 		this._helpHint?.dispose();
 		this._view.dispose();
@@ -67,9 +73,9 @@ export class ChatViewSessionsListProvider implements IChatViewSessionsListProvid
 	) { }
 
 	create(container: HTMLElement, instantiationService: IInstantiationService, _options: { readonly overrideStyles: IStyleOverride<IListStyles> }): IChatViewSessionsList {
-		// The Sessions view of an editor window, as the Agents viewlet shows it, with its header as a section of the Chat view:
-		// embedded in the Chat view, whose id it takes, and found by the actions of the list through the locator it registers with
-		const view = instantiationService.createInstance(createEditorWindowSessionsView(createEditorWindowSessionsScope(this, this._workspaceContextService), 'section'), {
+		// The Sessions view of an editor window, as the Agents viewlet shows it, with the actions of its header in the title of the
+		// Chat view: embedded in the Chat view, whose id it takes, and found by the actions of the list through the locator it registers with
+		const view = instantiationService.createInstance(createEditorWindowSessionsView(createEditorWindowSessionsScope(this, this._workspaceContextService), 'title'), {
 			id: ChatViewId,
 			title: localize('chatViewSessions.title', "Sessions"),
 			expanded: true,

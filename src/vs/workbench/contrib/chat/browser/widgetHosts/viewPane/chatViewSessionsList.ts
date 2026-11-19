@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from '../../../../../../base/common/actions.js';
+import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { IDropdownMenuActionViewItemOptions } from '../../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IListStyles } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { ViewMenuActions } from '../../../../../browser/parts/views/viewMenuActions.js';
 import { AgentSessionRefreshReason, IAgentSession } from '../../agentSessions/agentSessionsModel.js';
 
 /** The sessions list that the Chat view shows in its sessions section: its own, or one that a provider gives it. */
@@ -26,12 +30,16 @@ export interface IChatViewSessionsListControl extends IDisposable {
 	getFocus(): IAgentSession[];
 	/** Opens the list's find, as Find of the Chat view's sessions toolbar does, which a list without a header of its own keeps. */
 	openFind(): void;
+	/** The actions of the list's header, which the Chat view shows in its title with its own, in place of a header row of the list. */
+	readonly titleActions?: ViewMenuActions;
+	/** The widget of one of the {@link titleActions} in the Chat view's title, where the list needs one of its own. */
+	createActionViewItem?(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined;
 }
 
 /** A sessions list of the Chat view, with how the Chat view shows it. */
 export interface IChatViewSessionsList {
 	readonly control: IChatViewSessionsListControl;
-	/** Whether it shows its own header, with its title and its actions: the Chat view then shows none above it. */
+	/** Whether it has its own header, with its title and its actions: the Chat view then shows none above it. */
 	readonly hasHeader: boolean;
 }
 

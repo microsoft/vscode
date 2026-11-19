@@ -12,9 +12,11 @@ import { autorun, constObservable, IObservable, observableValue, transaction } f
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
+import { stubChatViewHostServiceDependencies } from '../../../common/chatViewSessionsListServiceTestUtils.js';
 import { ChatViewHostService } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { ViewMenuActions } from '../../../../../../browser/parts/views/viewMenuActions.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -44,6 +46,11 @@ import { AgentSessionsViewerOrientation } from '../../../../browser/agentSession
 import { IWorkbenchLayoutService, Position } from '../../../../../../services/layout/browser/layoutService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../../common/views.js';
 
+function createChatViewHost(instantiationService: TestInstantiationService): ChatViewHostService {
+	stubChatViewHostServiceDependencies(instantiationService);
+	return instantiationService.createInstance(ChatViewHostService);
+}
+
 /**
  * What the Chat view reads of its seam (IChatViewHostService): the sessions list it shows, and whether it shows only its
  * sessions, which a feature's contribution changes together, as it registers and as it goes.
@@ -51,6 +58,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../../..
 function createSeam() {
 	const sessionsList = observableValue<IChatViewSessionsListProvider | undefined>('sessionsList', undefined);
 	const sessionsOnly = observableValue('sessionsOnly', false);
+	const sessionsListExpected = observableValue('sessionsListExpected', false);
 	const set = (provider: IChatViewSessionsListProvider | undefined, only: boolean) => transaction(tx => {
 		sessionsList.set(provider, tx);
 		sessionsOnly.set(only, tx);
@@ -59,7 +67,7 @@ function createSeam() {
 		set(provider, only);
 		return toDisposable(() => set(undefined, false));
 	};
-	return { sessionsList, sessionsOnly, provide };
+	return { sessionsList, sessionsOnly, sessionsListExpected, provide };
 }
 
 suite('ChatViewPane sessions refresh', () => {
@@ -154,6 +162,7 @@ suite('ChatViewPane sessions refresh', () => {
 		};
 		const host = {
 			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			setSessionsListTitleActive: () => { },
 			instantiationService: {
 				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar) => ctor === AgentSessionsFilter ? filter : Object.assign(toDisposable(() => { }), { context: undefined, setVisible: () => { } }),
 			},
@@ -220,11 +229,14 @@ suite('ChatViewPane sessions refresh', () => {
 			relayout: () => { },
 			sessionsControl: undefined as unknown,
 			sessionsTitleContainer: undefined as HTMLElement | undefined,
+			titleActive: false,
+			setSessionsListTitleActive: (active: boolean) => { host.titleActive = active; },
+			menuActions: { addActions: () => toDisposable(() => { }) },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
 		createControl.call(host, document.createElement('div'));
-		const providedControl = control('provided');
-		const state = () => ({ control: host.sessionsControl === providedControl ? 'provided' : `own ${ownLists}`, sessionsOnly: seam.sessionsOnly.get(), sessionsOnlyClass: viewPaneContainer.classList.contains('sessions-only'), title: host.sessionsTitleContainer?.style.display !== 'none', disposed: disposed.splice(0) });
+		const providedControl = Object.assign(control('provided'), { titleActions: upcastPartial<ViewMenuActions>({}) });
+		const state = () => ({ control: host.sessionsControl === providedControl ? 'provided' : `own ${ownLists}`, sessionsOnly: seam.sessionsOnly.get(), sessionsOnlyClass: viewPaneContainer.classList.contains('sessions-only'), title: host.sessionsTitleContainer?.style.display !== 'none', titleActive: host.titleActive, disposed: disposed.splice(0) });
 		const steps = [state()];
 
 		const registration = seam.provide(upcastPartial<IChatViewSessionsListProvider>({
@@ -235,9 +247,57 @@ suite('ChatViewPane sessions refresh', () => {
 		steps.push(state());
 
 		assert.deepStrictEqual(steps, [
-			{ control: 'own 1', sessionsOnly: false, sessionsOnlyClass: false, title: true, disposed: [] },
-			{ control: 'provided', sessionsOnly: true, sessionsOnlyClass: true, title: false, disposed: ['own 1'] },
-			{ control: 'own 2', sessionsOnly: false, sessionsOnlyClass: false, title: true, disposed: ['provided'] },
+			{ control: 'own 1', sessionsOnly: false, sessionsOnlyClass: false, title: true, titleActive: false, disposed: [] },
+			{ control: 'provided', sessionsOnly: true, sessionsOnlyClass: true, title: false, titleActive: true, disposed: ['own 1'] },
+			{ control: 'own 2', sessionsOnly: false, sessionsOnlyClass: false, title: true, titleActive: false, disposed: ['provided'] },
+		]);
+	});
+
+	test('while a provided sessions list is expected but not registered yet, the Chat view creates no list of its own, so none shows that the provided one replaces', () => {
+		const seam = createSeam();
+		seam.sessionsListExpected.set(true, undefined);
+		let ownLists = 0;
+		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
+		const providedControl = Object.assign(upcastPartial<AgentSessionsControl>({ dispose: () => { }, setVisible: () => { } }), { titleActions: upcastPartial<ViewMenuActions>({}) });
+		const host = {
+			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			instantiationService: {
+				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar) => {
+					if (ctor === AgentSessionsControl) {
+						ownLists++;
+						return upcastPartial<AgentSessionsControl>({ dispose: () => { }, setVisible: () => { } });
+					}
+					return ctor === AgentSessionsFilter ? filter : Object.assign(toDisposable(() => { }), { context: undefined });
+				},
+			},
+			hostService: { onDidChangeFocus: Event.None },
+			chatViewHostService: seam,
+			configurationService: new TestConfigurationService(),
+			onDidChangeBodyVisibility: Event.None,
+			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
+			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			viewPaneContainer: document.createElement('div'),
+			isBodyVisible: () => true,
+			sessionsViewerVisible: true,
+			updateSessionsControlVisibility: () => ({ changed: false, visible: true }),
+			relayout: () => { },
+			sessionsControl: undefined as unknown,
+			sessionsTitleContainer: undefined as HTMLElement | undefined,
+			titleActive: false,
+			setSessionsListTitleActive: (active: boolean) => { host.titleActive = active; },
+			menuActions: { addActions: () => toDisposable(() => { }) },
+		};
+		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
+		createControl.call(host, document.createElement('div'));
+		const steps = [{ ownLists, control: host.sessionsControl, titleActive: host.titleActive }];
+
+		store.add(seam.provide(upcastPartial<IChatViewSessionsListProvider>({ create: () => ({ control: providedControl, hasHeader: true }) }), true));
+		seam.sessionsListExpected.set(false, undefined);
+		steps.push({ ownLists, control: host.sessionsControl, titleActive: host.titleActive });
+
+		assert.deepStrictEqual(steps, [
+			{ ownLists: 0, control: undefined, titleActive: true },
+			{ ownLists: 0, control: providedControl, titleActive: true },
 		]);
 	});
 
@@ -256,6 +316,7 @@ suite('ChatViewPane sessions refresh', () => {
 		};
 		const host = {
 			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			setSessionsListTitleActive: () => { },
 			instantiationService: {
 				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar, container?: HTMLElement) => {
 					if (ctor === AgentSessionsControl) {
@@ -389,6 +450,7 @@ suite('ChatViewPane sessions refresh', () => {
 		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
 		const host = {
 			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			setSessionsListTitleActive: () => { },
 			instantiationService: {
 				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar) => {
 					if (ctor === AgentSessionsControl) {
@@ -398,7 +460,7 @@ suite('ChatViewPane sessions refresh', () => {
 				},
 			},
 			hostService: { onDidChangeFocus: focusChanged.event },
-			chatViewHostService: { sessionsList: constObservable(undefined), sessionsOnly: constObservable(false) },
+			chatViewHostService: { sessionsList: constObservable(undefined), sessionsOnly: constObservable(false), sessionsListExpected: constObservable(false) },
 			configurationService: new TestConfigurationService(),
 			onDidChangeBodyVisibility: Event.None,
 			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
@@ -656,7 +718,7 @@ suite('ChatViewPane session transitions', () => {
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
-		const host = store.add(instantiationService.createInstance(ChatViewHostService));
+		const host = store.add(createChatViewHost(instantiationService));
 		const stream: string[] = [];
 		store.add(autorun(reader => {
 			const shown = rig.pane.shownSession.read(reader);
@@ -703,7 +765,7 @@ suite('ChatViewPane session transitions', () => {
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
-		const host = store.add(instantiationService.createInstance(ChatViewHostService));
+		const host = store.add(createChatViewHost(instantiationService));
 		const shown = () => { const value = host.shownSession.get(); return value ? `${value.resource.path} ${value.reason}` : 'none'; };
 
 		// New Chat of its own waits for its new chat, and meanwhile the user opens a chat
@@ -745,7 +807,7 @@ suite('ChatViewPane session transitions', () => {
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
-		const host = store.add(instantiationService.createInstance(ChatViewHostService));
+		const host = store.add(createChatViewHost(instantiationService));
 		const shown = () => { const value = host.shownSession.get(); return value ? `${value.resource.path} ${value.reason}` : 'none'; };
 
 		// The later New Chat starts while the Chat view acquires the earlier one's new chat
@@ -787,7 +849,7 @@ suite('ChatViewPane session transitions', () => {
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
-		const host = store.add(instantiationService.createInstance(ChatViewHostService));
+		const host = store.add(createChatViewHost(instantiationService));
 		await host.openSession(chat, { preserveFocus: true });
 		const stream: string[] = [];
 		store.add(autorun(reader => {
@@ -824,7 +886,7 @@ suite('ChatViewPane session transitions', () => {
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
-		const host = store.add(instantiationService.createInstance(ChatViewHostService));
+		const host = store.add(createChatViewHost(instantiationService));
 		const start = await host.startSession(untitled, { local: false, importingConversation: false });
 		const stream: string[] = [];
 		store.add(autorun(reader => {
