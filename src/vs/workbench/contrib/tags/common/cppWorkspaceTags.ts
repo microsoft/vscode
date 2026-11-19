@@ -112,7 +112,9 @@ function isAzureCppSdkBetaRegistry(repository: string): boolean {
 	}
 
 	const parsed = new URL(url);
-	if (!['https:', 'http:', 'ssh:', 'git:'].includes(parsed.protocol) || parsed.port || parsed.search || parsed.hash) {
+	if (!['https:', 'http:', 'ssh:', 'git:'].includes(parsed.protocol)
+		|| (parsed.port && !(parsed.protocol === 'ssh:' && parsed.port === '22'))
+		|| parsed.search || parsed.hash) {
 		return false;
 	}
 	const host = parsed.hostname.toLowerCase().replace(/^www\./, '');

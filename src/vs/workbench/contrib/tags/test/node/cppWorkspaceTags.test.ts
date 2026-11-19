@@ -78,15 +78,17 @@ suite('Telemetry - C++ Workspace Tags', () => {
 		const urls = [
 			'git@github.com:Azure/azure-sdk-vcpkg-betas',
 			'ssh://git@github.com/Azure/azure-sdk-vcpkg-betas.git',
+			'ssh://git@github.com:22/Azure/azure-sdk-vcpkg-betas.git',
 			'http://github.com/Azure/azure-sdk-vcpkg-betas',
 			'https://www.github.com/Azure/azure-sdk-vcpkg-betas/',
+			'ssh://git@github.com:2222/Azure/azure-sdk-vcpkg-betas.git',
 			'https://github.com.evil.example/Azure/azure-sdk-vcpkg-betas',
 			'https://github.com/Azure/azure-sdk-vcpkg-betas-fork',
 			'not a URL'
 		];
 		assert.deepStrictEqual(urls.map(repository => usesAzureCppSdkBetaRegistry(JSON.stringify({
 			'default-registry': { repository }
-		}))), [true, true, true, true, false, false, false]);
+		}))), [true, true, true, true, true, false, false, false, false]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
