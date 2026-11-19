@@ -112,12 +112,13 @@ function isAzureCppSdkBetaRegistry(repository: string): boolean {
 	}
 
 	const parsed = new URL(url);
+	const isGitHubSshOverHttps = parsed.protocol === 'ssh:' && parsed.hostname.toLowerCase() === 'ssh.github.com' && parsed.port === '443';
 	if (!['https:', 'http:', 'ssh:', 'git:'].includes(parsed.protocol)
-		|| (parsed.port && !(parsed.protocol === 'ssh:' && parsed.port === '22'))
+		|| (parsed.port && !(parsed.protocol === 'ssh:' && parsed.port === '22') && !isGitHubSshOverHttps)
 		|| parsed.search || parsed.hash) {
 		return false;
 	}
-	const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+	const host = isGitHubSshOverHttps ? 'github.com' : parsed.hostname.toLowerCase().replace(/^www\./, '');
 	const path = parsed.pathname.toLowerCase().replace(/\/+$/, '').replace(/\.git$/, '');
 	return `${host}${path}` === AzureCppSdkBetaRegistry;
 }
