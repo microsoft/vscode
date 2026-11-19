@@ -6,8 +6,10 @@
 import { isObject } from '../../../../../base/common/types.js';
 import type { SessionModelInfo } from '../../state/protocol/state.js';
 import type { IAgentModelInfo } from '../../agent.js';
+import type { ModelRouterSwitching } from '../../modelRouter.js';
 
 const VSCODE_MODEL_ROUTER_ROUTES_META_KEY = 'vscode.chat.modelRouterRoutes';
+const VSCODE_MODEL_ROUTER_SWITCHING_META_KEY = 'vscode.chat.modelRouterSwitching';
 
 /** One route of a model router, as the router's row in the model picker describes it. */
 export interface IAgentModelRouterRoute {
@@ -47,4 +49,18 @@ export function readAgentModelRouterRoutesMeta(model: IAgentModelInfo | SessionM
 			...(typeof contextTokens === 'number' && Number.isFinite(contextTokens) && contextTokens > 0 ? { contextTokens } : {}),
 		}];
 	});
+}
+
+/**
+ * Adds to a model router's row whether a chat on it can move to another route after its first
+ * message. Left out when the router has nothing to switch between.
+ */
+export function withAgentModelRouterSwitchingMeta(meta: Record<string, unknown> | undefined, switching: ModelRouterSwitching | undefined): Record<string, unknown> | undefined {
+	return switching ? { ...meta, [VSCODE_MODEL_ROUTER_SWITCHING_META_KEY]: switching } : meta;
+}
+
+/** Whether a chat on a model router's row can move to another route. `undefined` for other models, and for a host that does not say. */
+export function readAgentModelRouterSwitchingMeta(model: IAgentModelInfo | SessionModelInfo): ModelRouterSwitching | undefined {
+	const value = model._meta?.[VSCODE_MODEL_ROUTER_SWITCHING_META_KEY];
+	return value === 'auto' || value === 'first-turn' ? value : undefined;
 }

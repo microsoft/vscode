@@ -16,7 +16,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
-import { IsNewChatSessionContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsNewChatSessionContext, IsPhoneLayoutContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { canStartNewSessionLike, getNewSessionSources, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupIsComparisonContext, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
@@ -423,12 +423,12 @@ registerAction2(class OpenSessionCustomizationsAction extends Action2 {
 			id: 'sessionsViewPane.openCustomizations',
 			title: localize2('openSessionCustomizations', "Open Customizations"),
 			icon: Codicon.extensions,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), SessionItemIsMultiSelectionContext.negate()),
 			menu: {
 				id: Menus.SessionItemContextMenu,
 				group: 'navigation',
 				order: 6,
-				when: ChatContextKeys.enabled,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			},
 		});
 	}
