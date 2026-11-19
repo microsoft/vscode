@@ -6629,6 +6629,40 @@ suite('ChatService', () => {
 			});
 		});
 
+		test('keeps the working time of a restored remote turn unknown unless its history records when it ended', async () => {
+			const timestamp = Date.now() - 24 * 60 * 60 * 1000;
+			const response = (completedAt: number | undefined, isCanceled: boolean): IChatSessionHistoryItem => ({ type: 'response', parts: [], participant: remoteScheme, completedAt, ...(isCanceled ? { isCanceled } : {}) });
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ type: 'request', prompt: 'completed', participant: remoteScheme, timestamp },
+					response(timestamp + 3_000, false),
+					{ type: 'request', prompt: 'completed without time', participant: remoteScheme, timestamp: timestamp + 4_000 },
+					response(undefined, false),
+					{ type: 'request', prompt: 'cancelled without time', participant: remoteScheme, timestamp: timestamp + 8_000 },
+					response(undefined, true),
+				],
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const exported = ref.object.toJSON().requests;
+			const log = new ChatSessionOperationLog();
+			const stored = log.read(log.createInitial(ref.object)).requests;
+			assert.deepStrictEqual(ref.object.getRequests().map((request, index) => ({
+				prompt: request.message.text,
+				elapsedMs: request.response?.elapsedMs,
+				exported: exported[index].elapsedMs,
+				stored: stored[index].elapsedMs,
+			})), [
+				{ prompt: 'completed', elapsedMs: 3_000, exported: 3_000, stored: 3_000 },
+				{ prompt: 'completed without time', elapsedMs: undefined, exported: undefined, stored: undefined },
+				{ prompt: 'cancelled without time', elapsedMs: undefined, exported: undefined, stored: undefined },
+			]);
+		});
+
 		test('restores cancelled remote turns as cancelled at their recorded time', async () => {
 			const timestamp = 1_752_012_321_000;
 			const response = (completedAt: number | undefined, isCanceled: boolean): IChatSessionHistoryItem => ({ type: 'response', parts: [], participant: remoteScheme, completedAt, ...(isCanceled ? { isCanceled } : {}) });

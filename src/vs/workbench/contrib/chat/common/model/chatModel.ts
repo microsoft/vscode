@@ -1982,7 +1982,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			this._response.clear();
 		}
 		// Compute elapsed generation time before setting terminal state
-		this._elapsedMs ??= Math.max(0, completedAt - this.confirmationAdjustedTimestamp.get());
+		this._recordElapsedMs(completionTimestamp);
 
 		// Canceled sessions can be considered 'Complete'
 		const state = !!this._result?.errorDetails && this._result.errorDetails.code !== 'canceled' ? ResponseModelState.Failed : ResponseModelState.Complete;
@@ -2016,10 +2016,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			}
 		}
 
-		this._elapsedMs ??= Math.max(0, completedAt - this.confirmationAdjustedTimestamp.get());
+		this._recordElapsedMs(completionTimestamp);
 		this._completionTimestamp = completionTimestamp;
 		this._modelState.set({ value: ResponseModelState.Cancelled, completedAt }, undefined);
 		this._onDidChange.fire({ reason: 'completedRequest' });
+	}
+
+	/** Records the working time up to a known completion. Without one it stays unknown: counting up to now would add the time since. */
+	private _recordElapsedMs(completionTimestamp: number | undefined): void {
+		if (completionTimestamp !== undefined) {
+			this._elapsedMs ??= Math.max(0, completionTimestamp - this.confirmationAdjustedTimestamp.get());
+		}
 	}
 
 	setFollowups(followups: IChatFollowup[] | undefined): void {
@@ -2092,7 +2099,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			modelTotals: this.usage?.modelTotals,
 			sessionCopilotCredits: this.usage?.sessionCopilotCredits,
 			sessionCopilotCreditsStatus: this.usage?.sessionCopilotCreditsStatus,
-			elapsedMs: this.elapsedMs ?? (this.completedAt ? Math.max(0, this.completedAt - this.confirmationAdjustedTimestamp.get()) : undefined),
+			elapsedMs: this.elapsedMs ?? (this.completionTimestamp ? Math.max(0, this.completionTimestamp - this.confirmationAdjustedTimestamp.get()) : undefined),
 		} satisfies WithDefinedProps<Omit<ISerializableChatResponseData, 'timestamp' | 'latestModelCall' | 'contextUsage'>> & Pick<ISerializableChatResponseData, 'latestModelCall' | 'contextUsage'>;
 	}
 }

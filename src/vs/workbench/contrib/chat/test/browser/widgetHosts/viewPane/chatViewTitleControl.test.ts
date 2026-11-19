@@ -214,6 +214,7 @@ suite('ChatViewTitleControl', () => {
 		root.style.width = '400px';
 		// The harness and the stats are set smaller than the title, on a taller line.
 		root.style.font = '11px/20px sans-serif';
+		root.style.setProperty('--vscode-spacing-size40', '4px');
 		const inner = append(append(root, $('.chat-view-title-container.visible')), $('.chat-view-title-inner'));
 		// The navigation toolbar as its action bar renders the title.
 		const navigationToolbar = append(inner, $('.chat-view-title-navigation-toolbar'));
@@ -245,12 +246,19 @@ suite('ChatViewTitleControl', () => {
 
 		const shortTitle = layout('Short');
 		const sharedBaseline = [harness, stats].every(element => Math.abs(baseline(element) - baseline(title)) < 0.25);
+		// Only the title clips its overflow, so it keeps the room below its baseline that the tallest line has, while the label's content stays as tall.
+		const height = (element: HTMLElement) => element.getBoundingClientRect().height;
+		const excess = (value: number, limit: number) => Math.max(0, Math.round((value - limit) * 10) / 10);
+		const labelStyle = mainWindow.getComputedStyle(label);
+		const labelContentHeight = height(label) - parseFloat(labelStyle.paddingTop) - parseFloat(labelStyle.paddingBottom);
+		const descenderRoom = { titleShorterThanHarnessBy: excess(height(harness), height(title)), labelTallerThanHarnessBy: excess(labelContentHeight, height(harness)) };
 		const statsSeparator = mainWindow.getComputedStyle(stats, '::before').content;
 		const longTitle = layout('A title that is much too long to fit next to the stats and the actions of the chat');
 		stats.hidden = true;
-		assert.deepStrictEqual({ shortTitle, sharedBaseline, statsSeparator, longTitle, withoutStats: layout('Short') }, {
+		assert.deepStrictEqual({ shortTitle, sharedBaseline, descenderRoom, statsSeparator, longTitle, withoutStats: layout('Short') }, {
 			shortTitle: { statsFollowTitle: true, titleTruncated: false, actionsAtEnd: true },
 			sharedBaseline: true,
+			descenderRoom: { titleShorterThanHarnessBy: 0, labelTallerThanHarnessBy: 0 },
 			statsSeparator: '"\u00b7"',
 			longTitle: { statsFollowTitle: true, titleTruncated: true, actionsAtEnd: true },
 			withoutStats: { statsFollowTitle: undefined, titleTruncated: false, actionsAtEnd: true },

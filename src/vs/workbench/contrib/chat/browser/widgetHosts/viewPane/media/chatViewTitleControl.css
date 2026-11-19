@@ -28,7 +28,6 @@
 
 				.chat-view-title-label-container {
 					display: flex;
-					/* The harness and the title differ in size and line height, so only their baselines line up. */
 					align-items: baseline;
 					gap: var(--vscode-spacing-size40);
 					min-width: 0;
@@ -55,6 +54,9 @@
 			font-size: var(--vscode-fontSize-label2);
 			font-weight: var(--vscode-fontWeight-semiBold);
 			line-height: 16px;
+			/* Aligned on the baseline, the title is only as tall as its line: keep room below it for descenders */
+			padding-bottom: var(--vscode-spacing-size40);
+			margin-bottom: calc(-1 * var(--vscode-spacing-size40));
 			display: block;
 			overflow: hidden;
 			white-space: nowrap;
