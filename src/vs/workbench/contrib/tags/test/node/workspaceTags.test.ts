@@ -95,6 +95,131 @@ not-a-dependency = "1"
 		]);
 	});
 
+	test('Cargo quoted dependency headers and target conditions containing dots', () => {
+		assert.deepStrictEqual(getCargoDependencyNames(`
+["dependencies"]
+tokio = "1"
+[workspace."dependencies"]
+serde = "1"
+[target.'cfg(feature = "x.dependencies.y")'.dependencies]
+reqwest = "1"
+[target."cfg(feature = 'x.build-dependencies.y')"."build-dependencies"."generator"]
+package = "bindgen"
+["dev-dependencies"."json"]
+package = "serde_json"
+`).sort(), ['bindgen', 'reqwest', 'serde', 'serde_json', 'tokio']);
+	});
+
+	test('Cargo aliases remain local to each dependency section', () => {
+		assert.deepStrictEqual(getCargoDependencyNames(`
+[dependencies]
+client = { package = "reqwest", version = "1" }
+[dev-dependencies]
+client = "1"
+[build-dependencies]
+client.package = "bindgen"
+client.version = "1"
+[target.'cfg(unix)'.dependencies.client]
+package = "rustls"
+[target.'cfg(windows)'.dependencies.client]
+package = "tokio"
+`).sort(), ['bindgen', 'client', 'reqwest', 'rustls', 'tokio']);
+	});
+
+	test('Cargo workspace renames resolve before or after inherited declarations', () => {
+		const workspaces = [`
+[workspace.dependencies]
+client = { package = "reqwest", version = "1" }
+`, `
+[workspace.dependencies.client]
+package = "reqwest"
+version = "1"
+`, `
+[workspace.dependencies]
+client.package = "reqwest"
+client.version = "1"
+`];
+		const inherited = `
+[dependencies]
+client = { workspace = true }
+[dev-dependencies.client]
+workspace = true
+[build-dependencies]
+client.workspace = true
+`;
+		for (const workspace of workspaces) {
+			assert.deepStrictEqual([
+				getCargoDependencyNames(workspace + inherited),
+				getCargoDependencyNames(inherited + workspace)
+			], [['reqwest'], ['reqwest']]);
+		}
+	});
+
+	test('Cargo ignores dependency-like content in multiline strings', () => {
+		for (const delimiter of ['"""', '\'\'\'']) {
+			assert.deepStrictEqual(getCargoDependencyNames(`
+[package]
+description = ${delimiter}
+# Not a TOML comment inside a string
+[dependencies]
+tokio = "1"
+${delimiter}
+[dependencies]
+serde = "1"
+notes = { version = "1", description = ${delimiter}
+[dependencies.fake]
+package = "reqwest"
+${delimiter} }
+actual = { package = "anyhow", version = "1" }
+`).sort(), ['anyhow', 'notes', 'serde']);
+		}
+	});
+
+	test('Cargo handles escaped multiline delimiters and trailing quotes', () => {
+		assert.deepStrictEqual(getCargoDependencyNames(String.raw`
+[package]
+description = """
+Escaped delimiter: \"""
+[dependencies]
+tokio = "1"
+"""""
+readme = '''
+[dependencies]
+reqwest = "1"
+'''''
+[dependencies]
+serde = "1"
+`), ['serde']);
+	});
+
+	test('Cargo inline dependency properties ignore quoted and nested lookalikes', () => {
+		assert.deepStrictEqual(getCargoDependencyNames(`
+[dependencies]
+client = {
+	features = [
+		", package = 'tokio'", ", workspace = true"
+	],
+	package = "reqwest",
+	version = "1"
+}
+serde = { features = ["derive", ", package = 'tokio'"], version = "1" }
+`).sort(), ['reqwest', 'serde']);
+	});
+
+	test('Cargo pathological headers complete without backtracking', function () {
+		this.timeout(1000);
+		assert.deepStrictEqual(getCargoDependencyNames(`
+[target.${' '.repeat(5000)}.x]
+tokio = "1"
+[${' '.repeat(5000)}x
+reqwest = "1"
+[[package.metadata.examples]]
+serde = "1"
+[dependencies]
+anyhow = "1"
+`), ['anyhow']);
+	});
+
 	function remote(url: string): string {
 		return `[remote "origin"]
 	url = ${url}

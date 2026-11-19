@@ -56,58 +56,29 @@ export const RustCratesToLookFor = [
 	'azure_storage_sas'
 ];
 
-const dependencySectionPattern = /^(?:workspace\s*\.\s*)?(?:dependencies|dev-dependencies|build-dependencies)$/;
-const targetDependencySectionPattern = /^target\s*\.\s*.+\s*\.\s*(?:dependencies|dev-dependencies|build-dependencies)$/;
-const dependencyTablePattern = /^(?:(?:workspace\s*\.\s*)?(?:dependencies|dev-dependencies|build-dependencies)|target\s*\.\s*.+\s*\.\s*(?:dependencies|dev-dependencies|build-dependencies))\s*\.\s*(.+)$/;
-const packagePattern = /(?:^|[,{]\s*)package\s*=\s*["']([^"']+)["']/;
+interface CargoDependency {
+	packageName?: string;
+	workspace?: boolean;
+}
 
 export function getCargoDependencyNames(contents: string): string[] {
-	const dependencies = new Map<string, string>();
-	let dependencySection = false;
-	let dependencyTable: { alias: string; packageName?: string } | undefined;
+	const workspaceDependencies = new Map<string, CargoDependency>();
+	const sections: Map<string, CargoDependency>[] = [workspaceDependencies];
+	let dependencies: Map<string, CargoDependency> | undefined;
+	let dependencyTable: CargoDependency | undefined;
 	let inlineDependency: { alias: string; value: string; braceDepth: number } | undefined;
-
-	const finishDependencyTable = () => {
-		if (dependencyTable) {
-			dependencies.set(dependencyTable.alias, dependencyTable.packageName ?? dependencyTable.alias);
-			dependencyTable = undefined;
-		}
-	};
+	const stringState: { multilineQuote?: string } = {};
 
 	const finishInlineDependency = () => {
-		if (inlineDependency) {
-			dependencies.set(inlineDependency.alias, getPackageName(inlineDependency.value) ?? inlineDependency.alias);
+		if (inlineDependency && dependencies) {
+			dependencies.set(inlineDependency.alias, parseInlineDependency(inlineDependency.value));
 			inlineDependency = undefined;
 		}
 	};
 
 	for (const rawLine of contents.split(/\r?\n/)) {
-		const line = stripTomlComment(rawLine).trim();
+		const line = stripTomlComment(rawLine, stringState).trim();
 		if (!line) {
-			continue;
-		}
-
-		const sectionMatch = /^\[\s*(.+?)\s*\]$/.exec(line);
-		if (sectionMatch) {
-			finishInlineDependency();
-			finishDependencyTable();
-
-			const section = sectionMatch[1];
-			const dependencyTableMatch = dependencyTablePattern.exec(section);
-			if (dependencyTableMatch) {
-				dependencyTable = { alias: parseTomlKey(dependencyTableMatch[1]) };
-				dependencySection = false;
-			} else {
-				dependencySection = dependencySectionPattern.test(section) || targetDependencySectionPattern.test(section);
-			}
-			continue;
-		}
-
-		if (dependencyTable) {
-			const packageMatch = /^package\s*=\s*["']([^"']+)["']/.exec(line);
-			if (packageMatch) {
-				dependencyTable.packageName = packageMatch[1];
-			}
 			continue;
 		}
 
@@ -120,7 +91,39 @@ export function getCargoDependencyNames(contents: string): string[] {
 			continue;
 		}
 
-		if (!dependencySection) {
+		if (line.startsWith('[')) {
+			dependencyTable = undefined;
+			dependencies = undefined;
+
+			const section = line.endsWith(']') ? splitTomlDottedKey(line.slice(1, -1)) : undefined;
+			if (!section) {
+				continue;
+			}
+			const dependencyIndex = section[0] === 'workspace' ? 1 : section[0] === 'target' ? 2 : 0;
+			if (!['dependencies', 'dev-dependencies', 'build-dependencies'].includes(section[dependencyIndex]) ||
+				(section.length !== dependencyIndex + 1 && section.length !== dependencyIndex + 2)) {
+				continue;
+			}
+			dependencies = section[0] === 'workspace' ? workspaceDependencies : new Map<string, CargoDependency>();
+			if (dependencies !== workspaceDependencies) {
+				sections.push(dependencies);
+			}
+			if (section.length === dependencyIndex + 2) {
+				dependencyTable = {};
+				dependencies.set(section[dependencyIndex + 1], dependencyTable);
+			}
+			continue;
+		}
+
+		if (dependencyTable) {
+			const assignment = parseDependencyAssignment(line);
+			if (assignment && !assignment.property) {
+				setDependencyProperty(dependencyTable, assignment.alias, assignment.value);
+			}
+			continue;
+		}
+
+		if (!dependencies) {
 			continue;
 		}
 
@@ -131,8 +134,9 @@ export function getCargoDependencyNames(contents: string): string[] {
 
 		const { alias, property, value } = dependency;
 		if (property) {
-			const packageName = property === 'package' ? /^["']([^"']+)["']/.exec(value)?.[1] : undefined;
-			dependencies.set(alias, packageName ?? dependencies.get(alias) ?? alias);
+			const entry = dependencies.get(alias) ?? {};
+			setDependencyProperty(entry, property, value);
+			dependencies.set(alias, entry);
 			continue;
 		}
 
@@ -140,13 +144,18 @@ export function getCargoDependencyNames(contents: string): string[] {
 		if (value.trimStart().startsWith('{') && braceDepth > 0) {
 			inlineDependency = { alias, value, braceDepth };
 		} else {
-			dependencies.set(alias, getPackageName(value) ?? alias);
+			dependencies.set(alias, parseInlineDependency(value));
 		}
 	}
 
 	finishInlineDependency();
-	finishDependencyTable();
-	return [...dependencies.values()];
+	const names = new Set<string>();
+	for (const section of sections) {
+		for (const [alias, dependency] of section) {
+			names.add(dependency.packageName ?? (dependency.workspace ? workspaceDependencies.get(alias)?.packageName : undefined) ?? alias);
+		}
+	}
+	return [...names];
 }
 
 function parseDependencyAssignment(line: string): { alias: string; property?: string; value: string } | undefined {
@@ -188,7 +197,7 @@ function splitTomlDottedKey(value: string): string[] | undefined {
 			quote = character;
 		} else if (character === '.') {
 			const key = parseTomlKey(value.slice(start, i));
-			if (!isTomlKey(key)) {
+			if (key === undefined) {
 				return undefined;
 			}
 			keys.push(key);
@@ -201,7 +210,7 @@ function splitTomlDottedKey(value: string): string[] | undefined {
 	}
 
 	const key = parseTomlKey(value.slice(start));
-	if (!isTomlKey(key)) {
+	if (key === undefined) {
 		return undefined;
 	}
 	keys.push(key);
@@ -233,20 +242,53 @@ function findUnquotedCharacter(value: string, expectedCharacter: string): number
 	return -1;
 }
 
-function isTomlKey(value: string): boolean {
-	return value.length > 0 && /^[A-Za-z0-9_.-]+$/.test(value);
+function setDependencyProperty(dependency: CargoDependency, property: string, value: string): void {
+	if (property === 'package') {
+		dependency.packageName = /^["']([^"']+)["']/.exec(value)?.[1];
+	} else if (property === 'workspace') {
+		dependency.workspace = value.trim() === 'true';
+	}
 }
 
-function getPackageName(value: string): string | undefined {
-	return packagePattern.exec(value)?.[1];
+function parseInlineDependency(value: string): CargoDependency {
+	const dependency: CargoDependency = {};
+	if (!value.startsWith('{')) {
+		return dependency;
+	}
+	let start = 1;
+	let depth = 0;
+	let quote: '"' | '\'' | undefined;
+	for (let i = start; i < value.length; i++) {
+		const character = value[i];
+		if (quote) {
+			if (quote === '"' && character === '\\') {
+				i++;
+			} else if (character === quote) {
+				quote = undefined;
+			}
+		} else if (character === '"' || character === '\'') {
+			quote = character;
+		} else if (character === '{' || character === '[') {
+			depth++;
+		} else if (depth === 0 && (character === ',' || character === '}')) {
+			const assignment = parseDependencyAssignment(value.slice(start, i));
+			if (assignment && !assignment.property) {
+				setDependencyProperty(dependency, assignment.alias, assignment.value);
+			}
+			start = i + 1;
+		} else if (character === '}' || character === ']') {
+			depth--;
+		}
+	}
+	return dependency;
 }
 
-function parseTomlKey(value: string): string {
+function parseTomlKey(value: string): string | undefined {
 	const key = value.trim();
 	if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith('\'') && key.endsWith('\''))) {
 		return key.slice(1, -1);
 	}
-	return key;
+	return /^[A-Za-z0-9_-]+$/.test(key) ? key : undefined;
 }
 
 function countBraces(value: string): number {
@@ -274,25 +316,42 @@ function countBraces(value: string): number {
 	return count;
 }
 
-function stripTomlComment(value: string): string {
+function stripTomlComment(value: string, state: { multilineQuote?: string }): string {
+	let result = '';
 	let quote: '"' | '\'' | undefined;
-	let escaped = false;
 	for (let i = 0; i < value.length; i++) {
 		const character = value[i];
-		if (quote) {
-			if (quote === '"' && character === '\\' && !escaped) {
-				escaped = true;
-				continue;
+		if (state.multilineQuote) {
+			if (state.multilineQuote === '"""' && character === '\\') {
+				i++;
+			} else if (value.startsWith(state.multilineQuote, i)) {
+				i += 2;
+				for (let extra = 0; extra < 2 && value[i + 1] === character; extra++) {
+					i++;
+				}
+				state.multilineQuote = undefined;
 			}
-			if (character === quote && !escaped) {
+			continue;
+		}
+		if (quote) {
+			result += character;
+			if (quote === '"' && character === '\\' && i + 1 < value.length) {
+				result += value[++i];
+			} else if (character === quote) {
 				quote = undefined;
 			}
-			escaped = false;
+		} else if (value.startsWith('"""', i) || value.startsWith('\'\'\'', i)) {
+			state.multilineQuote = value.slice(i, i + 3);
+			result += '""';
+			i += 2;
 		} else if (character === '"' || character === '\'') {
 			quote = character;
+			result += character;
 		} else if (character === '#') {
-			return value.slice(0, i);
+			break;
+		} else {
+			result += character;
 		}
 	}
-	return value;
+	return result;
 }
