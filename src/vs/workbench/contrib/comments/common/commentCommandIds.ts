@@ -16,6 +16,7 @@ export const enum CommentCommandId {
 	Submit = 'editor.action.submitComment',
 	Hide = 'workbench.action.hideComment',
 	CollapseAll = 'workbench.action.collapseAllComments',
+	CollapseVisible = 'workbench.action.collapseVisibleComments',
 	ExpandAll = 'workbench.action.expandAllComments',
 	ExpandUnresolved = 'workbench.action.expandUnresolvedComments'
 }

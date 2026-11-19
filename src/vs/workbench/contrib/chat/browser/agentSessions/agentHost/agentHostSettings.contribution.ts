@@ -11,6 +11,7 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -72,6 +73,17 @@ registerAction2(class OpenAgentHostSettingsAction extends Action2 {
 				when: ContextKeyExpr.and(
 					agentHostSettingsPrecondition,
 					ContextKeyExpr.regex(ChatContextKeys.agentSessionType.key, LOCAL_AGENT_HOST_SESSION_TYPE_RE),
+				),
+			}, {
+				// The Agents window offers this in its own settings submenu.
+				id: MenuId.SessionItemContextMenu,
+				group: '4_manage',
+				order: 2.5,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext.negate(),
+					agentHostSettingsPrecondition,
+					// Settings commands target the local host only, not remote or container providers.
+					ContextKeyExpr.equals('sessionProviderId', 'local-agent-host'),
 				),
 			}],
 		});

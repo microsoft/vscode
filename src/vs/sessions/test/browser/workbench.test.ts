@@ -747,6 +747,30 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('draws the compact separator between the cards and the Session Activity Bar column', () => {
+		const root = append(document.body, $('div'));
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-agentsPanel-border: rgb(1, 2, 3); --vscode-agentsActivityBar-border: transparent;';
+		const activityBar = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
+		const strip = append(activityBar, $('.menu-activity-bar.session-activity-bar.docked'));
+		store.add(toDisposable(() => root.remove()));
+		const separator = (classes: string) => {
+			root.className = `monaco-workbench agent-sessions-workbench ${classes}`;
+			return mainWindow.getComputedStyle(strip).borderLeft;
+		};
+
+		assert.deepStrictEqual({
+			compact: separator('modern-ui-compact'),
+			compactHighContrastDark: separator('modern-ui-compact hc-black'),
+			compactHighContrastLight: separator('modern-ui-compact hc-light'),
+			defaultDensity: separator(''),
+		}, {
+			compact: '1px solid rgb(1, 2, 3)',
+			compactHighContrastDark: '1px solid rgba(0, 0, 0, 0)',
+			compactHighContrastLight: '1px solid rgba(0, 0, 0, 0)',
+			defaultDensity: '1px solid rgba(0, 0, 0, 0)',
+		});
+	});
+
 	test('keeps Agents window corner geometry native-only and zoom-aware', () => {
 		const root = document.createElement('div');
 		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px;';
@@ -2720,68 +2744,24 @@ suite('Sessions - Workbench', () => {
 		// and the editor content only in the desktop Agents Window. The mobile
 		// editor part must keep its default (below-tabs) placement.
 		const getOptions = Reflect.get(DesktopMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
-		const snapshot = (editorHeaderLayout: boolean) => {
-			const options = getOptions.call({ _editorHeaderLayout: editorHeaderLayout });
-			return {
-				showHeader: options.showHeader,
-				useModernUITabs: options.useModernUITabs,
-				headerPrimary: options.menuIds?.headerPrimary,
-				headerSecondary: options.menuIds?.headerSecondary,
-				headerLayout: options.menuIds?.headerLayout,
-				spansHeaderForSomeEditors: options.headerSpansContentInset !== undefined,
-			};
-		};
-		const common = {
+		const options = getOptions.call({});
+
+		assert.deepStrictEqual({
+			showHeader: options.showHeader,
+			useModernUITabs: options.useModernUITabs,
+			headerPrimary: options.menuIds?.headerPrimary,
+			headerSecondary: options.menuIds?.headerSecondary,
+			headerLayout: options.menuIds?.headerLayout,
+		}, {
 			showHeader: true,
 			useModernUITabs: true,
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
 			headerSecondary: Menus.SessionsEditorHeaderSecondary,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
-		};
-
-		assert.deepStrictEqual({ classic: snapshot(false), editorHeaderLayout: snapshot(true) }, {
-			classic: { ...common, spansHeaderForSomeEditors: false },
-			editorHeaderLayout: { ...common, spansHeaderForSomeEditors: true },
 		});
 	});
 
-	test('desktop reserves the header only for the visible docked tabs without the editor header layout', () => {
-		const getOptions = Reflect.get(DesktopMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
-		const store = new DisposableStore();
-		try {
-			let editorVisible = true;
-			const options = getOptions.call({
-				_editorHeaderLayout: false,
-				agentWorkbenchLayoutService: {
-					isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART || part === Parts.EDITOR_PART && editorVisible,
-				},
-			});
-			const editors = {
-				docked: store.add(new TestDockedEditorInput()),
-				ordinary: store.add(new class extends EditorInput {
-					override get typeId(): string { return 'test.ordinaryEditor'; }
-					override get resource(): undefined { return undefined; }
-				}()),
-				empty: undefined,
-			};
-			const snapshot = () => Object.fromEntries(Object.entries(editors).map(([name, editor]) => [name, options.reserveHeaderSpace?.(editor)]));
-
-			const editorShown = snapshot();
-			editorVisible = false;
-			const editorHidden = snapshot();
-			editorVisible = true;
-
-			assert.deepStrictEqual({ editorShown, editorHidden, reopened: snapshot() }, {
-				editorShown: { docked: true, ordinary: false, empty: false },
-				editorHidden: { docked: false, ordinary: false, empty: false },
-				reopened: { docked: true, ordinary: false, empty: false },
-			});
-		} finally {
-			store.dispose();
-		}
-	});
-
-	test('desktop editor header layout reserves and spans the header only while the group shows the Changes tab', () => {
+	test('desktop reserves the header for the visible docked tabs and spans it only while the group shows the Changes tab', () => {
 		const getOptions = Reflect.get(DesktopMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
 		const store = new DisposableStore();
 		try {
@@ -2801,7 +2781,6 @@ suite('Sessions - Workbench', () => {
 			const transition = DesktopChangesEditorTransitionContext.bindTo(groupContextKeyService);
 			const createOptions = (activeGroup: { scopedContextKeyService: MockContextKeyService; editors: EditorInput[] } | undefined) => getOptions.call({
 				activeGroup,
-				_editorHeaderLayout: true,
 				agentWorkbenchLayoutService: {
 					isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART || part === Parts.EDITOR_PART && editorVisible,
 				},
@@ -2835,7 +2814,7 @@ suite('Sessions - Workbench', () => {
 			const duringChangesTransition = header(undefined, undefined);
 			const beforeActiveGroup = createOptions(undefined).reserveHeaderSpace?.(undefined);
 
-			// Other tabs keep the header rules of the layout without the editor header layout.
+			// Other docked tabs, such as Files, reserve the header only while the editor content is visible, and don't span it.
 			assert.deepStrictEqual({ editorShown, editorHidden, duringChangesTransition, beforeActiveGroup }, {
 				editorShown: {
 					changes: { reserved: true, spans: true },

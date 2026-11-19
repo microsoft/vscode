@@ -11,8 +11,12 @@ export function stripSSHComment(s: string): string {
 	return idx !== -1 ? s.substring(0, idx).trim() : s;
 }
 
+/** GitHub's SSH endpoints only serve Git operations and cannot host shell connections. */
+const gitOnlySSHHosts = new Set(['github.com', 'ssh.github.com']);
+
 /**
- * Extract Host aliases from SSH config content (without following Includes).
+ * Extract connectable Host aliases from SSH config content (without following Includes).
+ * Patterns and GitHub's Git-only endpoints are skipped.
  */
 export function parseSSHConfigHostEntries(content: string): string[] {
 	const hosts: string[] = [];
@@ -25,7 +29,7 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 		if (hostMatch) {
 			const hostValue = stripSSHComment(hostMatch[1]);
 			for (const h of hostValue.split(/\s+/)) {
-				if (!h.includes('*') && !h.includes('?') && !h.startsWith('!')) {
+				if (!h.includes('*') && !h.includes('?') && !h.startsWith('!') && !gitOnlySSHHosts.has(h.toLowerCase())) {
 					hosts.push(h);
 				}
 			}

@@ -192,12 +192,7 @@
 	flex-shrink: 0;
 }
 
-/* The composer is one surface with one row of controls, and that row has one
- * tier: every control is a 36px round visual inside a 44px target, filled with
- * the quiet control tint so it reads as a button and not as a glyph floating in
- * the corner. Send is the single accent. The same grammar applies to the
- * session composer (`.chat-input-container`) and the Home composer
- * (`.new-chat-input-area`), which are different widgets on the desktop. */
+/* Composer controls share touch-sized targets and quiet chrome; Send remains the single accent. */
 
 /* Screen inset: 16px on a phone. Desktop centers its content at 32px; Home's
  * phone shell uses 8px. Both become the one phone inset. */
@@ -231,6 +226,14 @@
 
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .actions-container {
 	gap: 0;
+}
+
+/* Each voice cell owns its target; the housing adds a 1px border on each side. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .chat-voice-input-mode-item {
+	--segmented-icon-toggle-cell-width: var(--mobile-target);
+	--segmented-icon-toggle-single-width: calc(2 * var(--mobile-target));
+	--segmented-icon-toggle-width: calc(2 * var(--mobile-target) + 2px);
+	--segmented-icon-toggle-height: calc(var(--mobile-target) + 2px);
 }
 
 /* Icon controls: Add Context, dictation, Send. */
