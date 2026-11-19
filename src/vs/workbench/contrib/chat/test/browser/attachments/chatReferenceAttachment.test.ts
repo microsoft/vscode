@@ -17,6 +17,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { AGENT_HOST_CHAT_OWNER_TIMEOUT_MS, resolveAgentHostChatOwner } from '../../../browser/agentSessions/agentHost/agentHostChatOwner.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus, StateComponents, type ComponentToState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { createChatReferenceVariableEntry, IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -206,6 +207,7 @@ suite('ChatReferenceAttachment', () => {
 				new class extends mock<IPathService>() { }(),
 				connections,
 				new TestConfigurationService(),
+				new TestNotificationService(),
 			));
 			const links: string[] = [];
 			instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({
@@ -264,11 +266,13 @@ suite('ChatReferenceAttachment', () => {
 				const opened: string[] = [];
 				const state = upcastPartial<SessionState>({ defaultChat: recordedDefault, chats: [recordedDefault, defaultIdPeer, peer].map(resource => ({ resource, title: '', status: SessionStatus.Idle, modifiedAt: '' })) });
 				const local = upcastPartial<IAgentConnection>({
+					resourceUris: identityAgentHostResourceUriMapper,
 					getActiveSubscriptions: () => [{ resource: URI.parse(owner), kind: StateComponents.Session, refCount: 1, holders: [], status: 'snapshot' }],
 					getSubscriptionUnmanaged: <T extends StateComponents>() => upcastPartial<IAgentSubscription<ComponentToState[T]>>({ value: state as ComponentToState[T] }),
 					listSessions: async () => [],
 				});
 				instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+					ambientConnection: local,
 					resolveSessionResourceIdentity: resource => resource === localSessionResource ? { connectionAuthority: 'local', backendSession: URI.parse('copilotcli:/containing') } : undefined,
 					getConnectionByAuthority: authority => authority === 'local' ? local : undefined,
 				}));

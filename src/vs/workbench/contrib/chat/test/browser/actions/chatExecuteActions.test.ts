@@ -718,7 +718,9 @@ suite('ChatSubmitAction', () => {
 			acceptInputOptions: { cancelCurrentRequest: true },
 		});
 
-		assert.deepStrictEqual(acceptedOptions, { cancelCurrentRequest: true });
+		assert.deepStrictEqual(acceptedOptions, { cancelCurrentRequest: true, isComposerSubmission: true });
+		await runCommandAsync<void>(handler, instantiationService, { widget: widget as IChatWidget, inputValue: 'from command arguments' });
+		assert.deepStrictEqual(acceptedOptions, { isComposerSubmission: false });
 	});
 });
 

@@ -8,7 +8,7 @@ import type { IDisposable } from '../../../base/common/lifecycle.js';
 import type { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
-import { isSessionDefaultChatId, StateComponents } from './state/sessionState.js';
+import { getAgentHostChatId, getSessionChatResource, StateComponents } from './state/sessionState.js';
 import type { DefaultChangesetKind } from './changesetUri.js';
 
 /**
@@ -200,17 +200,26 @@ export interface IAgentHostConnectionsService {
  * knows the session.
  */
 export async function isDefaultChatLinkId(connection: IAgentConnection, backendSession: URI, chatId: string): Promise<boolean> {
+	return await resolveChatLinkFragment(connection, backendSession, chatId) === '';
+}
+
+/** Returns the advertised peer's client fragment, the empty main fragment, or undefined for a missing chat. */
+export async function resolveChatLinkFragment(connection: IAgentConnection, backendSession: URI, chatId: string): Promise<string | undefined> {
+	function fragment(chats: readonly { readonly resource: string }[], defaultChat: string | undefined) {
+		const resource = getSessionChatResource({ chats }, chatId, defaultChat);
+		return resource === undefined ? undefined : resource === defaultChat ? '' : getAgentHostChatId(resource);
+	}
 	const state = connection.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
 	if (state && !(state instanceof Error)) {
-		return isSessionDefaultChatId(state, chatId, state.defaultChat);
+		return fragment(state.chats, state.defaultChat);
 	}
 	let listing;
 	try {
 		listing = await connection.listSessions();
 	} catch {
-		return false;
+		return undefined;
 	}
 	const chats = listing.find(item => item.session.toString() === backendSession.toString())?.chats;
 	const defaultChat = chats?.find(chat => chat.kind === 'default')?.chat.toString();
-	return !!chats && isSessionDefaultChatId({ chats: chats.map(chat => ({ resource: chat.chat.toString() })) }, chatId, defaultChat);
+	return chats && fragment(chats.map(chat => ({ resource: chat.chat.toString() })), defaultChat);
 }

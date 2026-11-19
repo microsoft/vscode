@@ -108,11 +108,11 @@ export class ChatQueueMessageAction extends Action2 {
 
 		// If no request is in progress, send as a normal message instead of queuing
 		if (!widget.viewModel.model.requestInProgress.get()) {
-			widget.acceptInput();
+			widget.acceptInput(undefined, { isComposerSubmission: true });
 			return;
 		}
 
-		widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Queued });
+		widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Queued, isComposerSubmission: true });
 	}
 }
 
@@ -162,11 +162,12 @@ export class ChatSteerWithMessageAction extends Action2 {
 
 		// If no request is in progress, send as a normal message instead of steering
 		if (!widget.viewModel.model.requestInProgress.get()) {
-			widget.acceptInput();
+			widget.acceptInput(undefined, { isComposerSubmission: true });
 			return;
 		}
 
 		widget.acceptInput(undefined, {
+			isComposerSubmission: true,
 			queue: widget.viewModel.model.lastRequest?.isHiddenFromTranscript
 				? ChatRequestQueueKind.Queued
 				: ChatRequestQueueKind.Steering
@@ -201,7 +202,8 @@ export class ChatAskInSideChatAction extends Action2 {
 			return;
 		}
 
-		const query = widget.getInput().trim();
+		const userSubmittedText = widget.getInput();
+		const query = userSubmittedText.trim();
 		if (!query) {
 			return;
 		}
@@ -217,7 +219,7 @@ export class ChatAskInSideChatAction extends Action2 {
 		// actions; the text is restored below if the side chat cannot be created.
 		widget.setInput('');
 		try {
-			await sideChatService.askInSideChat(sessionResource, query, selection);
+			await sideChatService.askInSideChat(sessionResource, query, selection, { userSubmittedText });
 		} catch (err) {
 			logService.error('[askInSideChat] Failed to create side chat', err);
 			notificationService.error(localize('chat.askInSideChat.createFailed', "The side chat could not be created."));

@@ -189,7 +189,7 @@ export class NewChatInSessionWidget extends Disposable {
 			inputEditorOptions: options.inputEditorOptions,
 			session: this._session,
 			chat: this._chat,
-			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
+			sendRequest: async ({ query, attachments, background, userInteraction, userSubmittedText }) => this._send(query, attachments, background, userInteraction, userSubmittedText),
 			inputVisible: options.inputVisible,
 			hostVisible: options.hostVisible,
 			canSendRequest,
@@ -452,7 +452,7 @@ export class NewChatInSessionWidget extends Disposable {
 
 	// --- Send ---
 
-	protected async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
+	protected async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction, userSubmittedText?: string): Promise<boolean> {
 		// The picker already shows a picked harness while its chat is being opened: sending now would
 		// reach the draft being replaced (and then deleted), so wait until the picked chat is active.
 		if (this._harnessSwitch) {
@@ -498,7 +498,7 @@ export class NewChatInSessionWidget extends Disposable {
 
 			userInteraction?.handoff(activeSession, activeChat);
 			await this.sessionsManagementService.sendRequest(activeSession, activeChat, {
-				query, attachedContext, background,
+				query, attachedContext, background, userSubmittedText,
 				...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
 			});
 			this._appliedWorkspace = undefined;

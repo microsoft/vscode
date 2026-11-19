@@ -115,7 +115,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 	}
 
 	function createSend(h: ReturnType<typeof createHarness>, newSession: boolean, dispatch: (options: ISendRequestOptions) => Promise<void>) {
-		type Send = (query: string, attachments?: IChatRequestVariableEntry[], background?: boolean, interaction?: NewChatUserInteraction) => Promise<boolean>;
+		type Send = (query: string, attachments?: IChatRequestVariableEntry[], background?: boolean, interaction?: NewChatUserInteraction, userSubmittedText?: string) => Promise<boolean>;
 		const owner = {
 			send: Reflect.get(newSession ? NewChatWidget.prototype : NewChatInSessionWidget.prototype, '_send') as Send,
 			_session: constObservable(h.session),
@@ -137,7 +137,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			notificationService: { error: () => { } },
 			logService: { error: () => { } },
 		};
-		return (request: INewChatInputSendRequest) => owner.send(request.query, request.attachments, request.background, request.userInteraction);
+		return (request: INewChatInputSendRequest) => owner.send(request.query, request.attachments, request.background, request.userInteraction, request.userSubmittedText);
 	}
 
 	for (const newSession of [true, false]) {
@@ -170,12 +170,13 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 				void providerStarted.complete();
 				await provider.p;
 			}), () => handler.p);
-			const send = input.submit();
+			const send = input.submit(false, true);
 			assert.deepStrictEqual({ started: h.starts.length, sent: sentOptions }, { started: 1, sent: undefined });
 			const id = h.starts[0];
 			h.setTime(175);
 			await handler.complete(false);
 			await providerStarted.p;
+			assert.strictEqual(sentOptions!.userSubmittedText, 'test request');
 			const unrelated = h.createResponse();
 			h.addWidget(unrelated.response);
 			unrelated.progress();

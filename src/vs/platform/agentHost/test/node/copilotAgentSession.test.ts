@@ -18595,7 +18595,7 @@ suite('CopilotAgentSession', () => {
 			assert.ok(turnStarted, 'should start a new turn for the steering message');
 			assert.notStrictEqual(turnStarted.turnId, 'turn-original');
 			assert.deepStrictEqual(turnStarted.message, { text: 'focus on tests', origin: { kind: MessageKind.User } });
-			assert.strictEqual(turnStarted.queuedMessageId, 'steer-1');
+			assert.deepStrictEqual([turnStarted.queuedMessageId, turnStarted.turnId], ['steer-1', 'steer-1']);
 		});
 
 		test('records the original turn across repeated steering without extending execution routing lifetime', async () => {

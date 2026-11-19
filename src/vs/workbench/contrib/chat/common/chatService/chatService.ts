@@ -2098,6 +2098,8 @@ export interface IRemotePendingRequest {
 }
 
 export interface IChatSendRequestOptions {
+	/** Unexpanded draft from an explicit composer submit. Never infer this from request text. */
+	readonly userSubmittedText?: string;
 	/**
 	 * Invoked after a silent slash command has completed successfully. This is
 	 * intentionally not called when command execution throws.
@@ -2202,6 +2204,9 @@ export interface IChatRequestSubmittedEvent {
 
 /** A new submission accepted for sending or queuing, not a retry or a queue drain. */
 export interface IChatRequestAcceptedEvent {
+	/** Present only for explicit, nonblank composer submissions; for a queue entry this is its pending ID. */
+	readonly userSubmission?: { readonly text: string; readonly requestId: string };
+	/** The target chat at acceptance (after first-send materialization). A provider committing later reports onDidCommitSession. */
 	readonly chatSessionResource: URI;
 	readonly isNewSession: boolean;
 	/** The mode (agent) the submission was sent with, if the sender chose one. */
@@ -2218,6 +2223,8 @@ export interface IChatService {
 
 	readonly onDidSubmitRequest: Event<IChatRequestSubmittedEvent>;
 	readonly onDidAcceptRequest: Event<IChatRequestAcceptedEvent>;
+	/** A pending message became part of a turn with a different ID. This is not a new submission. */
+	readonly onDidResolvePendingRequest: Event<{ readonly chatSessionResource: URI; readonly pendingRequestId: string; readonly requestId: string }>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 

@@ -9,6 +9,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService, IAgentHostSessionIdentity } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -16,6 +19,7 @@ import { IListService } from '../../../../../../platform/list/browser/listServic
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { CopyChatSessionLinkAction } from '../../../browser/actions/chatCopyActions.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ChatEditorInput } from '../../../browser/widgetHosts/editor/chatEditorInput.js';
@@ -37,6 +41,7 @@ suite('Chat editor Copy Link', () => {
 		const written: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.set(IEditorService, upcastPartial<IEditorService>({}));
+		instantiationService.set(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({}));
 		instantiationService.set(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
 			activeGroup: group,
 			getGroup: () => group,
@@ -46,6 +51,7 @@ suite('Chat editor Copy Link', () => {
 			writeText: async text => { written.push(text); },
 		}));
 		instantiationService.set(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+			ambientConnection: upcastPartial<IAgentConnection>({ resourceUris: identityAgentHostResourceUriMapper }),
 			resolveSessionResourceIdentity: resource => identities[resources.indexOf(resource)],
 		}));
 		instantiationService.set(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
@@ -71,7 +77,7 @@ suite('Chat editor Copy Link', () => {
 			connectionAuthority: 'server', backendSession: URI.parse('ahp-session://provider/session?tenant=one'),
 		}]);
 		await new CopyChatSessionLinkAction().run(services.instantiationService, { groupId: 1, editorIndex: 0 });
-		assert.deepStrictEqual(services.written, ['agent-host-session://ahp-session/session?connectionAuthority=server&session=ahp-session%3A%2F%2Fprovider%2Fsession%3Ftenant%253Done&chat=peer%20chat']);
+		assert.deepStrictEqual(services.written.map(link => [parseOpenSessionLinkConnectionAuthority(link), parseOpenSessionLinkUri(link)?.query, parseOpenSessionLinkChatId(link)]), [['server', 'tenant=one', 'peer chat']]);
 	});
 
 	test('waits for the provisional backend instead of copying the untitled UI identity', async () => {

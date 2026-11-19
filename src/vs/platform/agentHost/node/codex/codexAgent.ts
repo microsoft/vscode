@@ -3507,7 +3507,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (previousHostTurnId) {
 			actions.push({ type: ActionType.ChatTurnComplete, turnId: previousHostTurnId, duration: this._clearTurnStopWatch(session) });
 		}
-		const newHostTurnId = generateUuid();
+		const newHostTurnId = steering.id;
 		if (appTurnId) {
 			this._turnDiffs.get(session)?.split(appTurnId, newHostTurnId);
 			session.hostTurnIdByAppTurnId.set(appTurnId, newHostTurnId);

@@ -96,6 +96,7 @@ export function getLabeledPickerResponsiveItems(container: HTMLElement): IChatIn
  * the input.
  */
 export interface INewChatInputSendRequest {
+	readonly userSubmittedText?: string;
 	readonly query: string;
 	readonly attachments?: IChatRequestVariableEntry[];
 	readonly background?: boolean;

@@ -626,7 +626,7 @@ export class NewChatWidget extends Disposable {
 				: this._workspacePicker.selectionSnapshot,
 			onDidChangeWorkspaceSelection: Event.any(this._workspacePicker.onDidChangeSelection, Event.fromObservableLight(this._isQuickChatComposer)),
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
-			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
+			sendRequest: async ({ query, attachments, background, userInteraction, userSubmittedText }) => this._send(query, attachments, background, userInteraction, userSubmittedText),
 			inputSnapshot: this._draftHost?.input,
 			getSavedDraftId: () => this._savedDraftComposer && this.sessionDraftsService.getDraftRevision(this._savedDraftComposer) ? this._savedDraftComposer.id : undefined,
 			onDidChangeDraft: this._savedDraftComposer ? input => this._savedDraftComposer!.updateInput(input) : undefined,
@@ -3090,7 +3090,7 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
+	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction, userSubmittedText?: string): Promise<boolean> {
 		const requestedInBackground = !!background;
 		background = this._backgroundSend || background;
 		// A composer of a host of its own, such as a chat window's, shows the status of its background sends.
@@ -3150,6 +3150,7 @@ export class NewChatWidget extends Disposable {
 		const reseedFolderUri = background ? folderUri : undefined;
 		const sendOptions = {
 			query: request,
+			userSubmittedText,
 			attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined,
 			background,
 			...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),

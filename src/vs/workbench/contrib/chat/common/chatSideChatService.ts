@@ -35,6 +35,8 @@ export interface IChatSideChatOrigin {
 }
 
 export interface IChatSideChatRequestOptions {
+	/** Only provided when the side chat takes its question directly from the composer. */
+	readonly userSubmittedText?: string;
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly token?: CancellationToken;
 	/** Branch from this source request instead of the latest request. */

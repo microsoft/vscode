@@ -75,7 +75,7 @@ import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
-import { buildOpenSessionLinkForChat } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { buildOpenSessionLinkForChat, getSessionLinkAuthority } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_CHAT_OWNER_TIMEOUT_MS, resolveAgentHostChatOwner } from '../agentSessions/agentHost/agentHostChatOwner.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
@@ -1428,7 +1428,7 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 		if (this._store.isDisposed) {
 			return;
 		}
-		const link = owner && buildOpenSessionLinkForChat(owner.session, chatResource, owner.defaultChat, owner.connectionAuthority);
+		const link = owner && buildOpenSessionLinkForChat(owner.session, chatResource, owner.defaultChat, getSessionLinkAuthority(this._connectionsService, connectionAuthority));
 		if (!link) {
 			this._logService.trace(`[ChatReferenceAttachmentWidget] ${connectionAuthority} does not list the referenced chat ${chatResource.toString()}`);
 			return;

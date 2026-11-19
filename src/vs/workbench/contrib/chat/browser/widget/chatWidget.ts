@@ -4097,7 +4097,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 				savedBeforeSend = true;
 				const attachedContext = this.input.getAttachedContext().asArray();
-				const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext, options.isVoiceModeInput);
+				const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext, options.isVoiceModeInput, options.isComposerSubmission);
 				if (handled) {
 					return;
 				}
@@ -4355,6 +4355,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.viewOptions.validateInput?.(inputValue);
 			}
 			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
+				userSubmittedText: options.isComposerSubmission ? inputValue : undefined,
 				onDidCreateResponse,
 				onDidExecuteSlashCommand: forkPromptSourceInput?.clear,
 				...selectedModelRequestOptions,

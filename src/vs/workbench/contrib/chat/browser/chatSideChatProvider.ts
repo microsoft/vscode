@@ -71,6 +71,7 @@ export class EditorSideChatProviderContribution extends Disposable implements IC
 			location: ChatAgentLocation.Chat,
 			agentIdSilent: getChatSessionType(sideChat.resource),
 			attachedContext: options?.attachedContext,
+			userSubmittedText: options?.userSubmittedText,
 		});
 		if (result.kind === 'rejected') {
 			throw new Error(result.reason);

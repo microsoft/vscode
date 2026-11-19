@@ -42,7 +42,8 @@ import { getNonArchivedSessionListCount } from '../../../../workbench/contrib/se
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
 import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
-import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat } from '../browser/chatLinkRouting.js';
+import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat, revealLinkedChatTurn } from '../browser/chatLinkRouting.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { AgentsWindowWorkspaceHandoff } from '../browser/agentsWindowWorkspaceHandoff.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sessionsWorkspaceSelectionTelemetry.js';
@@ -116,6 +117,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IRemoteWorkspaceHandoffService private readonly remoteWorkspaceHandoffService: IRemoteWorkspaceHandoffService,
 		@IChatWindowService private readonly chatWindowService: IChatWindowService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		// Session providers register in contributions instantiated after restore.
@@ -346,14 +348,22 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		if (token.isCancellationRequested) {
 			return;
 		}
+		if (!chatResource) {
+			this.notificationService.warn(localize('agentsHandoff.chatNotFound', "The linked chat is unavailable. Check that its agent host is connected and the chat still exists."));
+			return;
+		}
 		this.logService.info(`[AgentsHandoff] linked session available; opening ${chatResource.toString()}`);
-		if (linkSource && await openLinkedChatInChatWindow(this.chatWindowService, linkSource, session, chatResource, false)) {
-			return;
+		if (!linkSource || !await openLinkedChatInChatWindow(this.chatWindowService, linkSource, session, chatResource, false)) {
+			if (token.isCancellationRequested) {
+				return;
+			}
+			await this.sessionsService.openChat(session, chatResource, { source: 'link' });
 		}
-		if (token.isCancellationRequested) {
-			return;
+		try {
+			await revealLinkedChatTurn(this.chatWidgetService, chatResource, parseOpenSessionLinkTurnId(sessionLink), token);
+		} catch (error) {
+			this.notificationService.error(error);
 		}
-		await this.sessionsService.openChat(session, chatResource, { source: 'link' });
 	}
 
 	private waitForSessionLinkAvailable(backendSession: URI, token: CancellationToken, timeoutMs = 15_000, connectionAuthority?: string): Promise<ReturnType<typeof findSessionForOpenSessionLink>> {

@@ -341,8 +341,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 					beginSubmit: () => this.options.inputSnapshot?.beginSubmit() ?? Disposable.None,
 					labelOnly: this.options.sendButtonLabelOnly,
 				},
-				submitHandler: async (query, _mode, attachedContext) => {
-					await this._send(query, attachedContext ?? [], false);
+				submitHandler: async (query, _mode, attachedContext, _voice, isComposerSubmission) => {
+					await this._send(query, attachedContext ?? [], false, isComposerSubmission);
 					// The host sends; the widget's own model must never receive the request.
 					return true;
 				},
@@ -1050,8 +1050,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	// #region Sending
 
-	submit(background = false): Promise<boolean> {
-		return this._send(this.getInputValue(), [...(this._widget?.input.getAttachedContext().asArray() ?? [])], background);
+	submit(background = false, isComposerSubmission = false): Promise<boolean> {
+		return this._send(this.getInputValue(), [...(this._widget?.input.getAttachedContext().asArray() ?? [])], background, isComposerSubmission);
 	}
 
 	async sendQuery(text: string): Promise<boolean> {
@@ -1084,16 +1084,16 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	/** Sends the input, marked as submitting from here on, before any check or wait, so its host doesn't retarget it meanwhile. */
-	private async _send(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean): Promise<boolean> {
+	private async _send(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean, isComposerSubmission?: boolean): Promise<boolean> {
 		const submitting = this.options.inputSnapshot?.beginSubmit();
 		try {
-			return await this._doSend(rawQuery, attachments, background);
+			return await this._doSend(rawQuery, attachments, background, isComposerSubmission);
 		} finally {
 			submitting?.dispose();
 		}
 	}
 
-	private async _doSend(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean): Promise<boolean> {
+	private async _doSend(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean, isComposerSubmission?: boolean): Promise<boolean> {
 		if (this.options.submitOverride) {
 			try {
 				const overridden = await this.options.submitOverride(this._widget?.input.executeToolbarElement);
@@ -1281,7 +1281,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			const sentAttachments = attachments.map(entry => entry.range && queryOffset
 				? { ...entry, range: { start: entry.range.start - queryOffset, endExclusive: entry.range.endExclusive - queryOffset } }
 				: entry);
-			const accepted = await this.options.sendRequest({ query, attachments: sentAttachments.length > 0 ? sentAttachments : undefined, background, userInteraction, attemptId });
+			const accepted = await this.options.sendRequest({ query, userSubmittedText: isComposerSubmission ? rawQuery : undefined, attachments: sentAttachments.length > 0 ? sentAttachments : undefined, background, userInteraction, attemptId });
 			if (!accepted) {
 				userInteraction?.cancel('notDispatched');
 				restoreInput();

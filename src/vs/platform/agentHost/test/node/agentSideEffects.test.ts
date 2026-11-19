@@ -5284,7 +5284,8 @@ suite('AgentSideEffects', () => {
 
 			const turnStarted = envelopes.find(e => e.action.type === ActionType.ChatTurnStarted);
 			assert.ok(turnStarted, 'should dispatch session/turnStarted for queued message');
-			assert.strictEqual((turnStarted!.action as { queuedMessageId?: string }).queuedMessageId, 'q-auto');
+			assert.ok(turnStarted.action.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual([turnStarted.action.queuedMessageId, turnStarted.action.turnId], ['q-auto', 'q-auto']);
 
 			await waitForSendMessageCalls(1);
 			assert.strictEqual(agent.sendMessageCalls.length, 1);
