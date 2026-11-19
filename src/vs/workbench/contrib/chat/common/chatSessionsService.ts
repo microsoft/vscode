@@ -589,6 +589,12 @@ export interface IChatSession extends IDisposable {
 	readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 	/** Updates model and usage decoration in place for otherwise unchanged turns with stable request IDs. */
 	readonly preserveHistoryItemIdentity?: boolean;
+	/**
+	 * Prototype, behind `chat.copilotCli.handoffPrototype`: requests sent from this window follow the history once it
+	 * reports them, so a history that replaces the turns, such as of a session taken back from Copilot CLI, removes
+	 * them instead of leaving them beside their replacements.
+	 */
+	readonly historyOwnsSentRequests?: boolean;
 
 	readonly options?: ReadonlyChatSessionOptionsMap;
 

@@ -2595,6 +2595,11 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async importSession(session: URI, options?: IAgentImportSessionOptions): Promise<URI> {
+		const { reveal, ...importOptions } = options ?? {};
+		const existingSession = this._orchestratorDatabase.toRuntimeSession(session.toString());
+		if (reveal && this._stateManager.hasActiveTurn(existingSession)) {
+			throw new ProtocolError(AhpErrorCodes.Conflict, 'The session is still running. Wait for its work to finish before changing surfaces.');
+		}
 		// A session the host already has loaded may lack turns another client ran since it was loaded.
 		const loaded = !!this._stateManager.getSessionState(this._orchestratorDatabase.toRuntimeSession(session.toString()));
 		await this._registerSessionForImport(session);
@@ -2604,7 +2609,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const provider = this._providerService.getProviderForSession(session);
 		if (provider?.importChat) {
 			const chat = URI.parse(this._requireDefaultChat(runtimeSession));
-			const imported = await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)), { ...options, ...(loaded ? { reloadIfStale: true } : {}) });
+			const imported = await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)), { ...importOptions, ...(loaded ? { reloadIfStale: true } : {}) });
 			if (imported) {
 				if (imported.reloaded) {
 					await this._replaceReloadedChatTurns(provider, chat);
@@ -2612,10 +2617,33 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._offerImportedChatSelection(runtimeSession, chat, imported);
 			}
 		}
-		if (!await this._sessionRegistry.adoptExternalSession(session)) {
+		// Prototype: adopted at its runtime address, the session's live state stops counting it as external, so it is
+		// listed whatever `showExternalSessions` says. Adopted at the address it was imported from, only its registration does.
+		if (!await this._sessionRegistry.adoptExternalSession(reveal ? runtimeSession : session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
 		}
 		return runtimeSession;
+	}
+
+	/**
+	 * Prototype: releases a loaded session's runtime, as idle eviction does, but keeps its state loaded for the clients
+	 * that show it. The provider resumes the runtime when the session is next used.
+	 */
+	async releaseSession(session: URI): Promise<void> {
+		const runtimeSession = URI.parse(this._orchestratorDatabase.toRuntimeSession(session.toString()));
+		const provider = this._providerService.getProviderForSession(runtimeSession);
+		if (!provider) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
+		}
+		const chats = this._getSessionChatsInTeardownOrder(runtimeSession);
+		if (this._stateManager.hasActiveTurn(runtimeSession.toString()) || !await this._canReleaseSession(provider, runtimeSession, chats) || this._stateManager.hasActiveTurn(runtimeSession.toString())) {
+			throw new ProtocolError(AhpErrorCodes.Conflict, 'The session is busy. Wait for its turn and background work to finish, then try again.');
+		}
+		await this._releaseSession(provider, runtimeSession, chats, undefined, 'handoff');
+		if (this._stateManager.hasActiveTurn(runtimeSession.toString()) || !await this._canReleaseSession(provider, runtimeSession, chats)) {
+			throw new ProtocolError(AhpErrorCodes.Conflict, 'The session started working before it could be released. Wait for its work to finish, then try again.');
+		}
+		this._logService.info(`[AgentService] Released the runtime of session ${runtimeSession.toString()} on request`);
 	}
 
 	/**
@@ -10807,7 +10835,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return true;
 	}
 
-	private async _releaseSession(sessionProvider: IAgent, session: URI, chats: readonly URI[], canContinue?: () => boolean): Promise<void> {
+	private async _releaseSession(sessionProvider: IAgent, session: URI, chats: readonly URI[], canContinue?: () => boolean, reason?: AgentChatReleaseReason): Promise<void> {
 		await this._defaultChatBackingWrites.get(session.toString())?.catch(() => { });
 		// Still release every catalog chat if one rejects; otherwise an idle-evicted
 		// session could leave a chat resident indefinitely.
@@ -10823,7 +10851,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			try {
 				await provider.chats.releaseChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)), {
-					reason: () => this._chatReleaseReason(session, chat, canContinue),
+					reason: () => reason ?? this._chatReleaseReason(session, chat, canContinue),
 					canContinue,
 				});
 			} catch (err) {

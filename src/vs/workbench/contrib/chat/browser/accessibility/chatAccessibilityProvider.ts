@@ -16,7 +16,8 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { getTerminalExecutionTargetDescription, migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { getExplicitFileOrImageAttachmentSummary } from '../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation } from '../../common/chatService/chatService.js';
-import { IChatResponseViewModel, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
+import { IChatResponseViewModel, isHandoffVM, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
+import { getCopilotCliHandoffHistoryLabel } from '../../common/copilotCliHandoff.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
@@ -117,6 +118,9 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	}
 
 	getAriaLabel(element: ChatTreeItem): string {
+		if (isHandoffVM(element)) {
+			return getCopilotCliHandoffHistoryLabel(element.entry);
+		}
 		if (isScheduledRequestVM(element)) {
 			return getChatScheduledRequestAccessibleText(element);
 		}

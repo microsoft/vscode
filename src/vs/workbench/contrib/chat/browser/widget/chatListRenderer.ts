@@ -14,7 +14,7 @@ import { HoverStyle, IManagedHover } from '../../../../../base/browser/ui/hover/
 import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
 import { IStickyScrollNodeSourceRange } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
-import { ActionRunner, IAction, toAction } from '../../../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, toAction } from '../../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -69,8 +69,9 @@ import { ChatQuestionCarouselData, maskPasswordAnswers } from '../../common/mode
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart, IChatScheduledRequestViewModel, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
+import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatHandoffViewModel, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isHandoffVM, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart, IChatScheduledRequestViewModel, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
+import { COPILOT_CLI_BACK_TO_TERMINAL_COMMAND_ID, COPILOT_CLI_TAKE_BACK_COMMAND_ID, getCopilotCliHandoffHistoryLabel, observeCopilotCliHandoffInputPaused } from '../../common/copilotCliHandoff.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { getConfiguredProgressAnimation } from './chatWorkingLogo.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime } from '../../common/chatProgressFormatting.js';
@@ -1961,7 +1962,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.renderedParts = undefined;
 			templateData.renderedContent = undefined;
 			dom.clearNode(templateData.value);
-		} else if (isPendingDividerVM(templateData.currentElement) || isScheduledRequestVM(templateData.currentElement)) {
+		} else if (isPendingDividerVM(templateData.currentElement) || isScheduledRequestVM(templateData.currentElement) || isHandoffVM(templateData.currentElement)) {
 			dom.clearNode(templateData.value);
 		}
 		templateData.stickyScrollSource = undefined;
@@ -2051,6 +2052,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		if (isScheduledRequestVM(element)) {
 			this.renderScheduledRequest(element, templateData, element.editing ? !wasScheduledEditing || hadScheduledFocus : hadScheduledFocus);
+			return;
+		}
+		if (isHandoffVM(element)) {
+			this.renderHandoff(element, templateData);
 			return;
 		}
 
@@ -2555,6 +2560,31 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.value.appendChild(dividerContent);
+	}
+
+	private renderHandoff(element: IChatHandoffViewModel, templateData: IChatListItemTemplate): void {
+		this.preparePendingItem(templateData);
+		templateData.rowContainer.classList.remove('pending-item');
+		const store = templateData.scheduledRequestDisposables;
+		const actions: IAction[] = [];
+		if (element.isLatest && !this.rendererOptions.readOnly) {
+			const paused = observeCopilotCliHandoffInputPaused(element.sessionResource);
+			const action = store.add(new Action('chat.handoff.changeOwner', '', ThemeIcon.asClassName(Codicon.arrowLeft), true, () =>
+				this.commandService.executeCommand(paused.get() ? COPILOT_CLI_TAKE_BACK_COMMAND_ID : COPILOT_CLI_BACK_TO_TERMINAL_COMMAND_ID, element.sessionResource)));
+			store.add(autorun(reader => {
+				action.label = paused.read(reader) ? localize('chat.handoff.takeBack', "Take It Back") : localize('chat.handoff.backToTerminal', "Back to Terminal");
+			}));
+			actions.push(action);
+		}
+		const part = store.add(this.instantiationService.createInstance(ChatSystemNotificationContentPart, {
+			kind: 'systemNotification',
+			content: new MarkdownString(getCopilotCliHandoffHistoryLabel(element.entry)),
+			presentation: 'workspaceTransition',
+			icon: Codicon.terminal,
+		}, this.chatContentMarkdownRenderer, element.sessionResource.toString()));
+		part.setTransitionActions(actions);
+		templateData.value.appendChild(part.domNode);
+		this._onDidRerender.fire(templateData);
 	}
 
 	private renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {

@@ -1053,6 +1053,12 @@ export interface IAgentService {
 	acknowledgeAutomationDeletion?(requestId: string): Promise<void>;
 	/** Permanently adopts an external session without sending a message, and resolves to the session's exact resource. */
 	importSession?(session: URI, options?: IAgentImportSessionOptions): Promise<URI | void>;
+	/**
+	 * Prototype: lets go of a loaded session's runtime, which releases the runtime's in-use lock so another client can
+	 * continue the session without a warning. Nothing is deleted: the host keeps the session's state and resumes its
+	 * runtime when it is next used. Rejects while a turn or background work is running.
+	 */
+	releaseSession?(session: URI): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence, and resolves to the entry it removed, if any. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<ISessionArtifact | undefined>;
 	/** Stops a chat's background work entry. Resolves false when it had already finished or is not tracked. */
@@ -1369,7 +1375,13 @@ export interface IAgentService {
 }
 
 /** Options for {@link IAgentService.importSession}. Whether to reload a loaded chat is the host's decision. */
-export type IAgentImportSessionOptions = Pick<IAgentImportChatOptions, 'takeOver'>;
+export type IAgentImportSessionOptions = Pick<IAgentImportChatOptions, 'takeOver'> & {
+	/**
+	 * Prototype, for the Copilot CLI handoff: list the session whatever `showExternalSessions` says. The host adopts it at
+	 * the address it keeps the session's live state under, which can differ from the address it was imported from.
+	 */
+	readonly reveal?: boolean;
+};
 
 /**
  * Consumer-facing connection to an agent host. Session handlers, terminal
@@ -1491,6 +1503,8 @@ export interface IAgentConnection {
 	 * nothing.
 	 */
 	importSession?(session: URI, options?: IAgentImportSessionOptions): Promise<URI | void>;
+	/** Prototype: see {@link IAgentService.releaseSession}. Hosts that don't know the request reject it. */
+	releaseSession?(session: URI): Promise<void>;
 	/**
 	 * Moves a session whose only chat is its default chat under `destination` (placed after `after`, `undefined`:
 	 * first) and resolves to `destination`. Rejects with `AgentHostSessionMoveUnsupportedError`, without a request,

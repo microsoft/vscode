@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { extractChatSessionToOpen, getMacOSWindowControlsPosition, isValidCopilotCliSessionId, parseExternalAgentsWindowNewSessionLinkUri } from '../../common/window.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING, COPILOT_CLI_HANDOFF_PROTOTYPE_TARGET_SETTING, extractChatSessionToOpen, getCopilotCliHandoffPrototypeTarget, getMacOSWindowControlsPosition, isValidCopilotCliSessionId, parseExternalAgentsWindowNewSessionLinkUri } from '../../common/window.js';
 
 suite('window', () => {
 
@@ -135,6 +136,17 @@ suite('window', () => {
 		assert.deepStrictEqual(
 			['0b6f9a4e-1c2d-4e5f-8a9b-0c1d2e3f4a5b', 'my_session-1', '', 'a/b', 'a.b', 'a b', 'é', 'a'.repeat(256), 'a'.repeat(257)].map(isValidCopilotCliSessionId),
 			[true, true, false, false, false, false, false, true, false],
+		);
+	});
+
+	test('defaults Copilot CLI handoffs to the editor while allowing an explicit Agents window target', () => {
+		const target = (handoffPrototype: unknown, handoffPrototypeTarget?: unknown) => getCopilotCliHandoffPrototypeTarget(new TestConfigurationService({
+			[COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING]: handoffPrototype,
+			[COPILOT_CLI_HANDOFF_PROTOTYPE_TARGET_SETTING]: handoffPrototypeTarget,
+		}));
+		assert.deepStrictEqual(
+			[target(undefined), target(false, 'agents'), target('true', 'agents'), target(true), target(true, 'agents'), target(true, 'editor'), target(true, 'other')],
+			[undefined, undefined, undefined, 'editor', 'agents', 'editor', 'editor'],
 		);
 	});
 });

@@ -29378,6 +29378,30 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		for (const scenario of ['subagent', 'turnStartsDuringCheck'] as const) {
+			test(`handoff release preserves active work (${scenario})`, async () => {
+				const agent = createTestAgent(disposables);
+				afterTest(() => disposeAgent(agent));
+				const session = AgentSession.uri('copilotcli', `handoff-${scenario}`);
+				const chat = URI.parse(buildChatUri(session, 'peer'));
+				let activeTurn = false;
+				let destroyed = false;
+				setPeerChatStub(agent, chat, {
+					get hasActiveTurn() { return activeTurn; },
+					hasActiveSubagents: scenario === 'subagent',
+					hasRunningDetachedShells: async () => {
+						activeTurn = true;
+						return false;
+					},
+					destroySession: async () => { destroyed = true; },
+					dispose: () => { },
+				}, `sdk-${scenario}`);
+				const releasable = await agent.chats.canReleaseChat!(chat, exactChatContext(session, chat));
+				await agent.chats.releaseChat(chat, exactChatContext(session, chat));
+				assert.deepStrictEqual({ releasable, destroyed }, { releasable: false, destroyed: false });
+			});
+		}
+
 		test('releaseChat releases only the addressed live chat', async () => {
 			const agent = createTestAgent(disposables);
 			afterTest(() => disposeAgent(agent));
@@ -29401,6 +29425,23 @@ suite('CopilotAgent', () => {
 				peerLive: false,
 				peerBacking: { sdkSessionId: 'sdk-' + peerChat.toString() },
 			});
+		});
+
+		test('handoff release preserves the live backing when SDK disconnection fails', async () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'handoff-disconnect-failure');
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			let disposed = false;
+			setPeerChatStub(agent, chat, {
+				hasActiveTurn: false,
+				hasActiveSubagents: false,
+				hasRunningDetachedShells: async () => false,
+				destroySession: async () => { throw new Error('SDK disconnection failed'); },
+				dispose: () => { disposed = true; },
+			}, 'sdk-disconnect-failure');
+			await assert.rejects(() => agent.chats.releaseChat(chat, exactChatContext(session, chat), { reason: () => 'handoff' }), /SDK disconnection failed/);
+			assert.deepStrictEqual({ retained: hasLiveChat(agent, chat), disposed }, { retained: true, disposed: false });
 		});
 
 		test('idle release retains source-less canvas continuity and republishes it on observation', async () => {

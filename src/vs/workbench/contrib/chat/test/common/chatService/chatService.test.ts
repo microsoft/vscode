@@ -4588,6 +4588,7 @@ suite('ChatService', () => {
 			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 			readonly history?: readonly IChatSessionHistoryItem[];
 			readonly preserveHistoryItemIdentity?: boolean;
+			readonly historyOwnsSentRequests?: boolean;
 			readonly transferredState?: IChatSession['transferredState'];
 			readonly onDidDisposeSession?: () => void;
 		}
@@ -4619,6 +4620,7 @@ suite('ChatService', () => {
 				// Like the agent host provider, update the history before announcing the change.
 				onDidChangeHistory: onDidChangeHistory && Event.map(onDidChangeHistory, next => history = next, testDisposables),
 				preserveHistoryItemIdentity: opts.preserveHistoryItemIdentity,
+				historyOwnsSentRequests: opts.historyOwnsSentRequests,
 				transferredState: opts.transferredState,
 				dispose: () => opts.onDidDisposeSession?.(),
 			};
@@ -5393,6 +5395,31 @@ suite('ChatService', () => {
 				],
 				runningToolStartedAt: undefined,
 			});
+		});
+
+		test('a sent request that the history reported gives way to the turns replacing it when the history owns sent requests', async () => {
+			const reply = (content: string): IChatSessionHistoryItem => ({ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(content) }], participant: remoteScheme });
+			const imported: IChatSessionHistoryItem[] = [{ type: 'request', id: 'stored-0', prompt: 'From CLI', participant: remoteScheme }, reply('cli')];
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const { resource } = setupRemoteProvider({ history: imported, onDidChangeHistory: changes.event, historyOwnsSentRequests: true });
+			const service = createChatService();
+			instantiationService.stub(IChatService, service);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const sent = await service.sendRequest(resource, 'From window');
+			assert.strictEqual(sent.kind, 'sent');
+			await sent.data.responseCompletePromise;
+			const sentId = ref.object.getRequests()[1].id;
+
+			// The host reports the sent turn under the id it was sent with.
+			changes.fire([...imported, { type: 'request', id: sentId, prompt: 'From window', participant: remoteScheme }, reply('window')]);
+			await timeout(0);
+			// Taken back from Copilot CLI: the host reloads every turn from storage, under its own ids.
+			changes.fire([...imported, { type: 'request', id: 'stored-1', prompt: 'From window', participant: remoteScheme }, reply('window'), { type: 'request', id: 'stored-2', prompt: 'From terminal', participant: remoteScheme }, reply('terminal')]);
+			await waitForResponse(ref.object, 'stored-2', 'terminal');
+
+			assert.deepStrictEqual(ref.object.getRequests().map(request => `${request.id} ${request.message.text}`), ['stored-0 From CLI', 'stored-1 From window', 'stored-2 From terminal']);
 		});
 
 		test('send waits for a sliced live history refresh while preserving the model', async () => {

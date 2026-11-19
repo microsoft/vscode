@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -26,7 +27,8 @@ import { ChatRequestQueueKind, IChatSendRequestOptions, IChatService } from '../
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { MockChatEditingSession } from '../mockChatEditingSession.js';
 import { ChatModel, ChatRequestModel, ChatResponseModelChangeReason, IChatRequestDisablement, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ChatResponseViewModel, ChatViewModel, getStickyScrollTargetItem, IChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
+import { ChatResponseViewModel, ChatViewModel, getStickyScrollTargetItem, IChatViewModel, isHandoffVM, isPendingDividerVM, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
+import { ICopilotCliHandoffHistoryEntry, setCopilotCliHandoffHistory } from '../../../common/copilotCliHandoff.js';
 
 interface ITestChatViewModelItem {
 	readonly id: string;
@@ -102,6 +104,56 @@ suite('ChatViewModel', () => {
 		function add(model: ChatModel, id: string, hidden = false, requestHidden = false) {
 			return model.addRequest({ text: id, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, id, undefined, undefined, undefined, undefined, undefined, hidden, undefined, requestHidden);
 		}
+
+		test('CLI handoffs stay in order after the next message and reopening the view without adding assistant turns', () => {
+			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			store.add(toDisposable(() => setCopilotCliHandoffHistory(model.sessionResource, [])));
+			const first = add(model, 'first');
+			model.acceptResponseProgress(first, { kind: 'markdownContent', content: new MarkdownString('First response') });
+			first.response?.complete();
+			const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const history: ICopilotCliHandoffHistoryEntry[] = [
+				{ id: 'arrival', kind: 'arrival', afterRequestId: first.id, timestamp: first.timestamp + 1, returnCommand: '/code' },
+				{ id: 'departure', kind: 'departure', afterRequestId: first.id, timestamp: first.timestamp + 2, returnCommand: '/code' },
+				{ id: 'return', kind: 'takeBack', afterRequestId: first.id, timestamp: first.timestamp + 3, returnCommand: '/code' },
+			];
+			const snapshot = (view: ChatViewModel) => view.getItems().map(item => isHandoffVM(item)
+				? `${item.entry.kind}:${item.isLatest}`
+				: isRequestVM(item) ? `request:${item.id}` : isResponseVM(item) ? `response:${item.requestId}` : item.id);
+			setCopilotCliHandoffHistory(model.sessionResource, history);
+			const beforeMessage = snapshot(viewModel);
+			add(model, 'next');
+			const afterMessage = snapshot(viewModel);
+			viewModel.dispose();
+			const reopened = store.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const preview = store.add(instantiationService.createInstance(ChatViewModel, model, { latestRequestOnly: true }));
+			assert.deepStrictEqual({
+				beforeMessage, afterMessage, reopened: snapshot(reopened), preview: snapshot(preview),
+				requests: model.getRequests().map(request => request.id),
+				stickyTarget: getStickyScrollTargetItem(reopened.getItems())?.id === reopened.getItems().at(-1)?.id,
+			}, {
+				beforeMessage: ['request:first', 'response:first', 'arrival:false', 'departure:false', 'takeBack:true'],
+				afterMessage: ['request:first', 'response:first', 'arrival:false', 'departure:false', 'takeBack:true', 'request:next', 'response:next'],
+				reopened: ['request:first', 'response:first', 'arrival:false', 'departure:false', 'takeBack:true', 'request:next', 'response:next'],
+				preview: ['request:next', 'response:next'],
+				requests: ['first', 'next'],
+				stickyTarget: true,
+			});
+		});
+
+		test('CLI handoffs keep their chronology when re-import replaces an earlier request id', () => {
+			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			store.add(toDisposable(() => setCopilotCliHandoffHistory(model.sessionResource, [])));
+			const request = add(model, 'imported-request-id');
+			const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			setCopilotCliHandoffHistory(model.sessionResource, [
+				{ id: 'departure', kind: 'departure', timestamp: request.timestamp + 1, afterRequestId: 'previous-request-id', returnCommand: '/code' },
+				{ id: 'takeBack', kind: 'takeBack', timestamp: request.timestamp + 2, afterRequestId: request.id, returnCommand: '/code' },
+			]);
+			assert.deepStrictEqual(viewModel.getItems().map(item => isHandoffVM(item) ? item.entry.kind : isResponseVM(item) ? 'response' : 'request'), [
+				'request', 'response', 'departure', 'takeBack',
+			]);
+		});
 
 		test('latest request preview includes queued and steering requests without older or hidden turns', () => {
 			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));

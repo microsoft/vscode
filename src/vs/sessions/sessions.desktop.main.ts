@@ -243,6 +243,9 @@ import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelp
 // Chat: attach a screenshot of the window of another app
 import '../workbench/contrib/chat/electron-browser/actions/chatAppWindowScreenshotActions.js';
 
+// Chat: prototype of the Copilot CLI handoff, behind `chat.copilotCli.handoffPrototype`
+import '../workbench/contrib/chat/electron-browser/copilotCliHandoff.contribution.js';
+
 //#endregion
 
 
@@ -276,6 +279,7 @@ import './contrib/providers/remoteAgentHost/browser/cloudSandboxAgentHost.contri
 // Chat
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';
+import './contrib/chat/electron-browser/copilotCliHandoff.contribution.js';
 
 // Local Agent Host
 import './contrib/providers/agentHost/browser/localAgentHost.contribution.js';

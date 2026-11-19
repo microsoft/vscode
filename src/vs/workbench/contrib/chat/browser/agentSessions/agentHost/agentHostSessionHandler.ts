@@ -168,6 +168,8 @@ import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider, resolveTurnChangesetUri } from './agentHostResponseFileChanges.js';
 import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { AgentHostChatInputState, codexWriterLockMessage } from './agentHostChatInputState.js';
+import { observeCopilotCliHandoffInputPaused } from '../../../common/copilotCliHandoff.js';
+import { COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING } from '../../../../../../platform/window/common/window.js';
 import { readChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { AgentHostSandboxNotification } from './agentHostSandboxNotification.js';
 import type { IAgentHostManagedPluginRetryTarget } from './agentHostManagedPluginRetry.js';
@@ -819,6 +821,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	private readonly _onDidChangeHistory = this._register(new Emitter<readonly IChatSessionHistoryItem[]>());
 	readonly onDidChangeHistory = this._onDidChangeHistory.event;
 	get history(): readonly IChatSessionHistoryItem[] { return this._history; }
+	get historyOwnsSentRequests(): boolean { return this._configurationService.getValue<unknown>(COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING) === true; }
 
 	updateHistory(history: readonly IChatSessionHistoryItem[]): void {
 		this._history = history;
@@ -862,6 +865,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		private readonly _supportsSideChat: () => boolean,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -886,7 +890,9 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			return session && chat && !((session.status | chat.status) & SessionStatus.IsArchived) ? readChatInputState(session, chat.resource) : undefined;
 		});
 		this._inputState = refreshChat ? this._register(this._instantiationService.createInstance(AgentHostChatInputState, sessionResource, providerInputState, refreshChat)) : undefined;
-		this.isInputBlocked = this._inputState?.isInputBlocked ?? constObservable(false);
+		const providerInputBlocked = this._inputState?.isInputBlocked ?? constObservable(false);
+		const handoffInputPaused = observeCopilotCliHandoffInputPaused(sessionResource);
+		this.isInputBlocked = derived(this, reader => providerInputBlocked.read(reader) || handoffInputPaused.read(reader));
 		this.retryInput = this._inputState ? () => this._inputState!.retry() : undefined;
 		this.isReadOnly = derived(this, reader => {
 			if (this._disposed.read(reader)) {
@@ -3054,7 +3060,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 		disposables.add(chatSub.onDidChange(refreshHistory));
 		disposables.add(chatSub.onDidApplyAction(envelope => {
-			if (envelope.action.type === ActionType.ChatTurnsLoaded) {
+			// Prototype: a history refresh as each turn completes reports the turns sent from this window under their
+			// ids, so a session taken back from Copilot CLI, whose turns the host reloads, doesn't show them twice.
+			if (envelope.action.type === ActionType.ChatTurnsLoaded
+				|| (envelope.action.type === ActionType.ChatTurnComplete && this._configurationService.getValue<unknown>(COPILOT_CLI_HANDOFF_PROTOTYPE_SETTING) === true)) {
 				historyRefreshPending = true;
 				refreshHistory();
 			}

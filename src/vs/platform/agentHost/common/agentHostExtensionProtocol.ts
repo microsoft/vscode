@@ -110,6 +110,8 @@ export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDisk
 export const measureWorktreeDiskUsageParamsValidator = vObj({ uri: vString(), requestId: vString(), session: vOptionalProp(vString()) });
 export const cancelWorktreeDiskUsageParamsValidator = vObj({ requestId: vString() });
 export const ImportSessionExtensionMethod = 'vscode/importSession';
+/** Prototype: lets go of a loaded session's runtime, and with it the runtime's in-use lock, without deleting anything. */
+export const ReleaseSessionExtensionMethod = 'vscode/releaseSession';
 /**
  * Registers the host as a live GitHub environment owned by the client's GitHub account, so other GitHub
  * environment clients can reach it. Gated by `vscode.githubEnvironment`; only direct (non-relayed) clients may call it.
@@ -274,7 +276,9 @@ export const answerShellAuthenticationParamsValidator = vObj({
 	answer: vOptionalProp(vString()),
 });
 
-export const importSessionParamsValidator = vObj({ session: vString(), takeOver: vOptionalProp(vBoolean()) });
+export const importSessionParamsValidator = vObj({ session: vString(), takeOver: vOptionalProp(vBoolean()), reveal: vOptionalProp(vBoolean()) });
+
+export const releaseSessionParamsValidator = vObj({ session: vString() });
 
 /** `workspace` has the shape of the `vscode.chatWorkspace` `createChat` `_meta` value. */
 export const setChatWorkspaceParamsValidator = vObj({ chat: vString(), workspace: chatWorkspaceValueValidator });
@@ -388,6 +392,7 @@ export interface IAgentHostExtensionCommandMap {
 	 * admitted session differently from its provider backing. Hosts that predate this resolve to nothing.
 	 */
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: { readonly session?: string } | null | undefined };
+	[ReleaseSessionExtensionMethod]: { params: ValidatorType<typeof releaseSessionParamsValidator>; result: void };
 	[MoveAgentHostSessionExtensionMethod]: { params: ValidatorType<typeof moveSessionParamsValidator>; result: { session: string } };
 	[SetChatWorkspaceExtensionMethod]: { params: ValidatorType<typeof setChatWorkspaceParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };

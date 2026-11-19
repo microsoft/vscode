@@ -484,6 +484,13 @@ export class RemoteChatSessionRestorer extends Disposable {
 		yield* this._completeLastResponseSteps();
 		this._restoredTurns = turns;
 		this._restoredHistory = history;
+		if (this._session.historyOwnsSentRequests) {
+			for (const id of incomingIds) {
+				if (id !== undefined) {
+					this._localRequestIds.delete(id);
+				}
+			}
+		}
 	}
 
 	/**
