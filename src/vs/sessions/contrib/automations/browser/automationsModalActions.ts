@@ -17,6 +17,9 @@ import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext }
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { AutomationHeaderButtonActionViewItem, AutomationHeaderSplitButtonActionViewItem } from './automationActionViewItems.js';
 import { AutomationCommands } from './automationCommands.js';
+import { SessionItemIsAutomationContext, SessionItemIsInSessionsListContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionIsArchivedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 
 export const AutomationsModalContext = new RawContextKey<boolean>('automationsModal', false);
 export const AutomationsModalHasOthersContext = new RawContextKey<boolean>('automationsModalHasOthers', false);
@@ -32,6 +35,17 @@ export interface IAutomationsModalActionContext {
 
 const modalEnabled = ContextKeyExpr.and(AutomationsModalContext, ChatContextKeys.enabled, ChatAutomationsEnabledContext);
 const cloudEnabled = ContextKeyExpr.and(modalEnabled, ContextKeyExpr.equals(`config.${CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING}`, true));
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalHistoryContext, {
+	command: { id: SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, title: localize2('automations.modal.showSession', "Show in Sessions List") },
+	group: '2_organize', order: 1,
+	when: ContextKeyExpr.and(modalEnabled, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext.negate(), SessionIsArchivedContext.negate()),
+});
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalHistoryContext, {
+	command: { id: HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, title: localize2('automations.modal.hideSession', "Hide from Sessions List") },
+	group: '2_organize', order: 2,
+	when: ContextKeyExpr.and(modalEnabled, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext),
+});
 
 export const AutomationsModalCommands = {
 	createWithAgent: {
@@ -56,7 +70,7 @@ registerAction2(class extends Action2 {
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalRowContext, {
 	command: { ...AutomationCommands.edit, precondition: ContextKeyExpr.and(modalEnabled, AutomationModalRowCanUpdateContext) },
-	group: 'navigation', order: 1, when: modalEnabled,
+	group: '4_manage', order: 0, when: modalEnabled,
 });
 MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsModalRowContext, {
 	command: { ...AutomationCommands.run, precondition: ContextKeyExpr.and(modalEnabled, AutomationModalRowCanRunContext) },

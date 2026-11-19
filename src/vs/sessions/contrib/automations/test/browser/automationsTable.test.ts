@@ -9,6 +9,8 @@ import { getFlatActionBarActions } from '../../../../../platform/actions/browser
 import { IMenuService, isIMenuItem, MenuRegistry, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { Event as BaseEvent } from '../../../../../base/common/event.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { useFakeTimers } from 'sinon';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -29,7 +31,7 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTIN
 import { IAutomationDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationService, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { IAutomationRunner, IAutomationRunDispatch, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
@@ -39,6 +41,9 @@ import { AutomationsModalWidget } from '../../browser/automationsModalWidget.js'
 import { TableAutomationService, TableEnvironmentService, TableRemoteService, tableAutomation, setupModalHistoryServices } from './automationsTableTestUtils.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { SessionItemIsAutomationContext, SessionItemIsInSessionsListContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionIsArchivedContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 
 suite('Automations modal table', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,6 +67,7 @@ suite('Automations modal table', () => {
 		const updates: { id: string; patch: IUpdateAutomationOptions; expected: IAutomationDescriptor }[] = [];
 		const automations = new class extends TableAutomationService {
 			override readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
+			override readonly isRefreshing = observableValue(this, false);
 			conflict = false;
 			override async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, guard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
 				guard?.();
@@ -79,9 +85,14 @@ suite('Automations modal table', () => {
 		}());
 		services.stub(IAutomationService, automations);
 		const editDialogs: IShowAutomationDialogOptions[] = [];
+		const failures = { edit: false };
 		services.stub(IAutomationDialogService, new class extends mock<IAutomationDialogService>() {
 			override async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<undefined> {
 				editDialogs.push(options);
+				if (failures.edit) {
+					await Promise.resolve();
+					throw new Error('Edit failed asynchronously');
+				}
 				return undefined;
 			}
 		}());
@@ -91,10 +102,11 @@ suite('Automations modal table', () => {
 			override async info(message: string): Promise<void> { errors.push(message); }
 		}());
 		const runs: IAutomationDescriptor[] = [];
+		const dispatch: { result: Promise<IAutomationRunDispatch> } = { result: Promise.resolve({ kind: 'accepted' }) };
 		services.stub(IAutomationRunner, new class extends mock<IAutomationRunner>() {
 			override runOnce(automation: IAutomationDescriptor): IAutomationRunOperation {
 				runs.push(automation);
-				return { whenDispatched: Promise.resolve({ kind: 'accepted' }), whenCompleted: Promise.resolve() };
+				return { whenDispatched: dispatch.result, whenCompleted: Promise.resolve() };
 			}
 		}());
 		services.stub(IRemoteAgentHostService, new TableRemoteService());
@@ -145,7 +157,7 @@ suite('Automations modal table', () => {
 				getActions: () => getFlatActionBarActions(menuService.getMenuActions(contextMenu.menuId!, contextMenu.contextKeyService!, contextMenu.menuActionOptions)),
 			};
 		};
-		return { container, widget, automations, commands, configurationService, contextKeyService, menuService, editDialogs, updates, errors, runs, click, names, openContextMenu, historyServices, openedRuns, agentDrafts: () => agentDrafts };
+		return { container, widget, automations, commands, configurationService, contextKeyService, menuService, editDialogs, updates, errors, runs, click, names, openContextMenu, historyServices, openedRuns, failures, dispatch, agentDrafts: () => agentDrafts };
 	}
 
 	test('row context menu deletes the clicked automation through the existing guarded command', async () => {
@@ -162,7 +174,7 @@ suite('Automations modal table', () => {
 			focused: container.querySelector('.monaco-list-row.focused')?.textContent?.includes('Bravo daily'),
 			definitions: automations.automations.get().length,
 		}, {
-			actions: [{ id: AutomationCommands.edit.id, enabled: true }, { id: AutomationCommands.run.id, enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: 'sessions.automations.disable', enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: 'sessions.automations.delete', enabled: true }],
+			actions: [{ id: AutomationCommands.run.id, enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: 'sessions.automations.disable', enabled: true }, { id: 'vs.actions.separator', enabled: false }, { id: AutomationCommands.edit.id, enabled: true }, { id: 'sessions.automations.delete', enabled: true }],
 			command: 'sessions.automations.delete', automation: 'bravo', focused: true, definitions: 3,
 		});
 	});
@@ -173,9 +185,9 @@ suite('Automations modal table', () => {
 		automations.runnable = false;
 		const actions = await openContextMenu(2).getActions();
 		assert.deepStrictEqual(actions.filter(action => action.id !== 'vs.actions.separator').map(action => ({ id: action.id, enabled: action.enabled })), [
-			{ id: AutomationCommands.edit.id, enabled: false },
 			{ id: AutomationCommands.run.id, enabled: false },
 			{ id: 'sessions.automations.enable', enabled: false },
+			{ id: AutomationCommands.edit.id, enabled: false },
 			{ id: 'sessions.automations.delete', enabled: false },
 		]);
 	});
@@ -237,7 +249,7 @@ suite('Automations modal table', () => {
 		}, { firstScope: ['Alpha run'], secondScope: ['Bravo run'], openedRuns: [other.resource.toString()], accessibleSelected: true, accessibleOther: false, globalMarkAllRead: null, historyRemoved: true, focusRestored: true });
 	});
 
-	test('selected history reveals pages reactively and resets when details reopen', () => {
+	test('selected history reveals pages reactively and resets when switching or reopening details', () => {
 		const { container, automations, historyServices, click, widget } = setup();
 		const sessions = Array.from({ length: 31 }, (_, index) => createTestSession(`Alpha ${index}`, {
 			resourceId: `modal-history-${index}`, status: SessionStatus.Completed,
@@ -255,13 +267,77 @@ suite('Automations modal table', () => {
 		const more = container.querySelector<HTMLElement>('.automations-modal-history .automations-history-show-more')!;
 		more.click();
 		const secondPage = rows();
-		more.click();
-		const lastPage = { count: rows(), moreHidden: more.style.display === 'none' };
+		container.querySelectorAll<HTMLElement>('.automations-modal-table .monaco-list-row')[1].click();
+		open();
+		const afterSwitch = rows();
+		container.querySelector<HTMLElement>('.automations-modal-history .automations-history-show-more')!.click();
+		const currentMore = container.querySelector<HTMLElement>('.automations-modal-history .automations-history-show-more')!;
+		currentMore.click();
+		const lastPage = { count: rows(), moreHidden: currentMore.style.display === 'none' };
 		click('Close Details');
 		open();
-		assert.deepStrictEqual({ initial, secondPage, lastPage, reopened: rows(), includesOlderAccessibleHistory }, {
-			initial: 10, secondPage: 30, lastPage: { count: 31, moreHidden: true }, reopened: 10, includesOlderAccessibleHistory: true,
+		assert.deepStrictEqual({ initial, secondPage, afterSwitch, lastPage, reopened: rows(), includesOlderAccessibleHistory }, {
+			initial: 10, secondPage: 30, afterSwitch: 10, lastPage: { count: 31, moreHidden: true }, reopened: 10, includesOlderAccessibleHistory: true,
 		});
+	});
+
+	test('selected details expose the prompt and read-only reason in Accessible View', () => {
+		const { container, widget, click } = setup(false, [tableAutomation('alpha', 'Alpha', { prompt: 'Selected instructions', readOnlyReason: 'Provider disconnected' })]);
+		container.querySelector<HTMLElement>('.automations-modal-table .monaco-list-row')!.click();
+		const selected = widget.getAccessibilityContent();
+		click('Close Details');
+		assert.deepStrictEqual({
+			prompt: selected.includes('Selected instructions'), reason: selected.includes('Provider disconnected'),
+			closed: widget.getAccessibilityContent().includes('Selected instructions'),
+		}, { prompt: true, reason: true, closed: false });
+	});
+
+	test('asynchronous edit failures retain the original error', async () => {
+		const { failures, errors, openContextMenu } = setup();
+		failures.edit = true;
+		await openContextMenu(0).getActions().find(action => action.id === AutomationCommands.edit.id)!.run();
+		assert.deepStrictEqual(errors, ['Failed to update automation. Edit failed asynchronously']);
+	});
+
+	test('repeated Run is guarded until dispatch settles and permits retry after failure', async () => {
+		const { dispatch, runs, errors, openContextMenu } = setup();
+		const pending = new DeferredPromise<IAutomationRunDispatch>();
+		dispatch.result = pending.p;
+		const action = openContextMenu(0).getActions().find(action => action.id === AutomationCommands.run.id)!;
+		const first = action.run();
+		await action.run();
+		const pendingRequests = runs.length;
+		await pending.error(new Error('Dispatch failed asynchronously'));
+		await first;
+		dispatch.result = Promise.resolve({ kind: 'accepted' });
+		await action.run();
+		assert.deepStrictEqual({ pendingRequests, total: runs.length, errors }, {
+			pendingRequests: 1, total: 2, errors: ['Failed to run automation. Dispatch failed asynchronously'],
+		});
+	});
+
+	test('catalogue refresh repeats while visible, waits for in-flight work and stops on disposal', async () => {
+		const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			const { automations, widget } = setup();
+			await clock.tickAsync(0);
+			const initial = automations.refreshCalls;
+			await clock.tickAsync(60_000);
+			const periodic = automations.refreshCalls;
+			automations.isRefreshing.set(true, undefined);
+			await clock.tickAsync(120_000);
+			const whileRefreshing = automations.refreshCalls;
+			automations.isRefreshing.set(false, undefined);
+			await clock.tickAsync(60_000);
+			const resumed = automations.refreshCalls;
+			widget.dispose();
+			await clock.tickAsync(120_000);
+			assert.deepStrictEqual({ initial, periodic, whileRefreshing, resumed, disposed: automations.refreshCalls }, {
+				initial: 1, periodic: 2, whileRefreshing: 2, resumed: 3, disposed: 3,
+			});
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('history updates when its session hydrates and is disposed when details close', () => {
@@ -390,6 +466,11 @@ suite('Automations modal table', () => {
 			{ lastRun: 'Unknown', never: false, canChange: true },
 			{ lastRun: 'Never', never: true, canChange: true },
 		]);
+		const incompleteCatalogue = (['error', 'loading', 'unavailable'] as const).map(state => {
+			automations.catalogueState.set(state, undefined);
+			return container.querySelectorAll('.automations-modal-table .automations-modal-cell')[3].textContent;
+		});
+		assert.deepStrictEqual(incompleteCatalogue, ['Unknown', 'Unknown', 'Unknown']);
 	});
 
 	test('enabled ordering uses state rather than translated labels', () => {
@@ -434,6 +515,23 @@ suite('Automations modal table', () => {
 			cardsHaveAction: MenuRegistry.getMenuItems(AgentsWindowMenus.AutomationCardContext).some(item => isIMenuItem(item) && item.command.id === 'test.modalAction'),
 		}, { modalHasAction: true, buttonCommand: 'test.modalButton', deleteIsLast: 'sessions.automations.delete', cardsHaveAction: false });
 		extra.dispose();
+	});
+
+	test('history exposes existing session-list visibility actions under the same predicates', () => {
+		const { openContextMenu, menuService } = setup();
+		const context = openContextMenu(0).contextKeyService!;
+		const actions = (listed: boolean, archived: boolean, automation: boolean) => {
+			const row = context.createOverlay([
+				[SessionItemIsAutomationContext.key, automation],
+				[SessionItemIsInSessionsListContext.key, listed],
+				[SessionIsArchivedContext.key, archived],
+			]);
+			return menuService.getMenuActions(AgentsWindowMenus.AutomationsModalHistoryContext, row)
+				.flatMap(([, items]) => items).filter(item => [SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID].includes(item.id)).map(item => item.id);
+		};
+		assert.deepStrictEqual([actions(false, false, true), actions(true, false, true), actions(false, true, true), actions(false, false, false)], [
+			[SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID], [HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID], [], [],
+		]);
 	});
 
 	test('view-options discovery and row capabilities stay scoped to their modal', () => {
@@ -598,6 +696,11 @@ suite('Automations modal table', () => {
 		const header = [...container.querySelectorAll<HTMLElement>('.monaco-table-th')].at(-1);
 		const cell = container.querySelector<HTMLElement>('.monaco-list-row .monaco-table-td:last-child');
 		assert.ok(viewport && header && cell);
+		let bubbled = false;
+		const listener = store.add(dom.addDisposableListener(viewport, 'wheel', () => { bubbled = true; }));
+		cell.dispatchEvent(new WheelEvent('wheel', { deltaX: 120, bubbles: true, cancelable: true }));
+		listener.dispose();
+		assert.ok(bubbled);
 		viewport.scrollLeft = viewport.scrollWidth;
 		const narrow = {
 			scrolled: viewport.scrollLeft > 0,

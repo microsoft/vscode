@@ -12,6 +12,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ActionRunner } from '../../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -209,6 +210,7 @@ export class AutomationsModalWidget extends Disposable {
 			multipleSelectionSupport: false,
 			openOnSingleClick: true,
 			horizontalScrolling: false,
+			alwaysConsumeMouseWheel: false,
 		}));
 		this.detail = dom.append(this.domNode, dom.$('section.automations-modal-detail', { 'aria-label': localize('automations.modal.details', "Automation details") }));
 		this.detail.hidden = true;
@@ -295,7 +297,7 @@ export class AutomationsModalWidget extends Disposable {
 					schedule: automationTriggerSummary(automation.cloudTrigger?.triggers ?? {}, true) ?? formatSchedule(automation.schedule),
 					target: automation.targetDisplay?.label ?? provider?.label ?? (automation.target.kind === 'workspace' ? basename(automation.target.folderUri) : localize('automations.modal.chat', "Chat")),
 					lastRun: time ? localize('automations.modal.runAt', "{0} {1}", label, new Date(time).toLocaleString()).trim()
-						: historyState === 'ready' ? localize('automations.modal.never', "Never") : localize('automations.modal.unknownRun', "Unknown"),
+						: historyState === 'ready' && catalogueState === 'ready' ? localize('automations.modal.never', "Never") : localize('automations.modal.unknownRun', "Unknown"),
 					lastRunTime: time,
 					enabled: automation.enabled ? localize('automations.modal.enabled', "Enabled") : localize('automations.modal.disabled', "Disabled"),
 					canUpdate: automationService.canUpdateAutomation(automation.id),
@@ -320,7 +322,24 @@ export class AutomationsModalWidget extends Disposable {
 			this.warnings.classList.toggle('has-warning', hasWarning);
 			this.renderRows();
 		}));
-		void this.refresh();
+		const refreshScheduler = this._register(new RunOnceScheduler(() => {
+			void refresh();
+		}, 60_000));
+		const refresh = async (): Promise<void> => {
+			refreshScheduler.cancel();
+			await this.refresh();
+			if (!this._store.isDisposed && !this.automationService.isRefreshing?.get()) {
+				refreshScheduler.schedule();
+			}
+		};
+		this._register(autorun(reader => {
+			if (this.automationService.isRefreshing?.read(reader)) {
+				refreshScheduler.cancel();
+			} else {
+				refreshScheduler.schedule();
+			}
+		}));
+		void refresh();
 	}
 
 	private async refresh(): Promise<void> {
@@ -409,6 +428,9 @@ export class AutomationsModalWidget extends Disposable {
 	}
 
 	private showDetails(automation: IAutomationDescriptor): void {
+		if (this.selectedId !== automation.id) {
+			this.history.clear();
+		}
 		this.selectedId = automation.id;
 		this.renderDetail();
 	}
@@ -443,7 +465,10 @@ export class AutomationsModalWidget extends Disposable {
 	}
 
 	getAccessibilityContent(): string {
-		return [this.heading.textContent, this.warnings.textContent, this.message.textContent, ...this.rows.map(row => this.rowSummary(row)), this.history.value?.getAccessibilityContent()].filter(Boolean).join('\n');
+		const selected = this.rows.find(row => row.automation.id === this.selectedId);
+		return [this.heading.textContent, this.warnings.textContent, this.message.textContent, ...this.rows.map(row => this.rowSummary(row)),
+		...(!this.detail.hidden && selected ? [selected.automation.prompt, selected.automation.readOnlyReason] : []),
+		this.history.value?.getAccessibilityContent()].filter(Boolean).join('\n');
 	}
 
 	focus(): void {

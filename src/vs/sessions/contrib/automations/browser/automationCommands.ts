@@ -168,6 +168,7 @@ registerAction2(class EditAutomationAction extends Action2 {
 			return;
 		}
 		const automationService = accessor.get(IAutomationService);
+		const logService = accessor.get(ILogService);
 		try {
 			const current = automationService.getAutomation(automation.id);
 			if (!current || !automationService.canUpdateAutomation(automation.id)) {
@@ -178,13 +179,14 @@ registerAction2(class EditAutomationAction extends Action2 {
 				status(localize('automationUpdatedStatus', "Updated automation {0}", current.name));
 			}
 		} catch (error) {
-			accessor.get(ILogService).error('[Automations] Failed to update automation', error);
+			logService.error('[Automations] Failed to update automation', error);
 			await dialogService.error(localize('automationUpdateFailed', "Failed to update automation."), getErrorMessage(error));
 		}
 	}
 });
 
 registerAction2(class RunAutomationNowAction extends Action2 {
+	private readonly pending = new Set<string>();
 	constructor() {
 		super(AutomationCommands.run);
 	}
@@ -201,6 +203,12 @@ registerAction2(class RunAutomationNowAction extends Action2 {
 			return;
 		}
 		const automationService = accessor.get(IAutomationService);
+		const logService = accessor.get(ILogService);
+		if (this.pending.has(automation.id)) {
+			status(localize('automationDispatchPending', "A run request for {0} is already pending.", automation.name));
+			return;
+		}
+		this.pending.add(automation.id);
 		try {
 			const current = automationService.getAutomation(automation.id);
 			if (!current || !automationService.canRunAutomation(automation.id)) {
@@ -228,8 +236,10 @@ registerAction2(class RunAutomationNowAction extends Action2 {
 					break;
 			}
 		} catch (error) {
-			accessor.get(ILogService).error('[Automations] Failed to run automation', error);
+			logService.error('[Automations] Failed to run automation', error);
 			await dialogService.error(localize('automationRunActionFailed', "Failed to run automation."), getErrorMessage(error));
+		} finally {
+			this.pending.delete(automation.id);
 		}
 	}
 });
