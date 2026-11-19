@@ -1,0 +1,17 @@
+{
+	"version": 1,
+	"id": "designing-for-ai",
+	"renderer": "guidance",
+	"source": ".github/design-system/designing-for-ai.design.md",
+	"content": {},
+	"guidance": [
+		{
+			"id": "designing-for-ai-questions",
+			"heading": "Questions to explore"
+		},
+		{
+			"id": "designing-for-ai-contribute",
+			"heading": "Contribute an example"
+		}
+	]
+}

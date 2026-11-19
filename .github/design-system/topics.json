@@ -65,6 +65,13 @@
 	},
 	"defaultTopic": "principles",
 	"references": {
+		"designing-for-ai": [
+			{
+				"title": "Microsoft HAX: Guidelines for Human-AI Interaction",
+				"url": "https://www.microsoft.com/en-us/haxtoolkit/ai-guidelines/",
+				"description": "A research-backed starting point for discussing AI experiences across initial use, ongoing interaction, errors, and changes over time."
+			}
+		],
 		"typography": [
 			{
 				"title": "WCAG 2.2: Text Spacing",
@@ -178,6 +185,22 @@
 			"page": "content/topics/content.json",
 			"kind": "foundation",
 			"design": ".github/design-system/content.design.md"
+		},
+		{
+			"id": "designing-for-ai",
+			"title": "Designing for AI",
+			"group": "Foundations",
+			"section": "designing-for-ai",
+			"aliases": [
+				"AI design",
+				"human-AI interaction"
+			],
+			"compare": true,
+			"fixture": false,
+			"renderer": "guidance",
+			"page": "content/topics/designing-for-ai.json",
+			"kind": "foundation",
+			"design": ".github/design-system/designing-for-ai.design.md"
 		},
 		{
 			"id": "tokens",

@@ -80,6 +80,7 @@ Read the relevant specifications before building or updating UI. No canvas insta
 | Topic | Authored design guidance | Definitions or workflow |
 | --- | --- | --- |
 | Component usage and pitfalls | The component directory's lowercase-kebab `*.design.md`, such as [Button](../../src/vs/base/browser/ui/button/button.design.md), [InputBox](../../src/vs/base/browser/ui/inputbox/input-box.design.md), or [Dialog](../../src/vs/base/browser/ui/dialog/dialog.design.md) | The same directory's implementation and tests |
+| Designing for AI | [Designing for AI](./designing-for-ai.design.md) (working draft) | Shared questions, examples, and research for AI-assisted experiences; starts from the Microsoft HAX guidelines |
 | Typography | [Typography](./typography.design.md) | [Size registrations](../../src/vs/platform/theme/common/sizes/baseSizes.ts) |
 | Spacing | [Spacing](./spacing.design.md) | [CSS token instructions](../instructions/design-tokens.instructions.md#spacing) |
 | Shape, size, and stroke | [Shape](./shape.design.md), [size](./size.design.md), [stroke](./stroke.design.md) | [Size registrations](../../src/vs/platform/theme/common/sizes/baseSizes.ts) |
