@@ -115,7 +115,7 @@ suite('Resource labels - text badges', () => {
 		const label = labels.create(container);
 		label.setFile(resource, { fileDecorations: { colors: false, badges: true, alignBadgeLastCharacter: true } });
 		const results = [];
-		for (const text of ['تم', '2, تم', 'تم, M', 'कक', 'fi', '↓M', '↓M, M', '2, M', 'M']) {
+		for (const text of ['تم', '2, تم', 'تم, M', '١, ٢', '\u202E1, M', 'कक', 'fi', '↓M', '↓M, M', '2, M', 'M']) {
 			const rendered = Event.toPromise(label.onDidRender);
 			letter = text;
 			changes.fire([resource]);
@@ -129,6 +129,8 @@ suite('Resource labels - text badges', () => {
 			{ generatedContent: '"تم"', text: undefined },
 			{ generatedContent: '"2, تم"', text: undefined },
 			{ generatedContent: '"تم, M"', text: undefined },
+			{ generatedContent: '"١, ٢"', text: undefined },
+			{ generatedContent: '"\u202E1, M"', text: undefined },
 			{ generatedContent: '"कक"', text: undefined },
 			{ generatedContent: '"fi"', text: undefined },
 			{ generatedContent: 'none', text: '↓M' },

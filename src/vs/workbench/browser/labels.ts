@@ -735,7 +735,7 @@ class ResourceLabelWidget extends IconLabel {
 					const badgeText = this.options.fileDecorations.alignBadgeLastCharacter ? decoration.badgeText : undefined;
 					const prefix = badgeText?.slice(0, badgeText.length - prevCharLength(badgeText, badgeText.length));
 					// Keep text that may require contextual shaping or bidirectional layout together.
-					if (badgeText && prefix !== undefined && !containsRTL(badgeText)
+					if (badgeText && prefix !== undefined && !containsRTL(badgeText) && !/[\p{Bidi_Control}\u0660-\u0669\u06F0-\u06F9]/u.test(badgeText)
 						&& (prefix.length === 0 || prefix.endsWith(', ') || /[\p{P}\p{S}]$/u.test(prefix))) {
 						textDecoration = decoration;
 					} else {
