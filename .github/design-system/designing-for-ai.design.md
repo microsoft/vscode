@@ -2,7 +2,7 @@
 
 ## Introduction
 
-**Working draft:** use this chapter to apply established AI interaction guidance to developer workflows through VS Code's design system. This proposed approach is not approved product-wide guidance.
+Design AI experiences that help developers understand what is happening, stay in control, and recover from mistakes. Adapt established interaction patterns to VS Code's workflows and design system.
 
 ## Choose the guidance
 
