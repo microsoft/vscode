@@ -61,6 +61,7 @@ import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMcpGalleryServiceUrlConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from './copilotEntraAuthentication.js';
+import { selectCopilotAuthenticationRequirement, type CopilotReplacedSignIn } from './copilotAuthenticationRequirement.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
 import { isMicrosoftCopilotAccountContext, type CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
@@ -1316,23 +1317,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		undefined,
 	);
 	private readonly _entraAuthentication: CopilotEntraAuthentication | undefined;
-	/**
-	 * The sign-in that the user's last choice of account replaced. GitHub and Microsoft are offered side by side with no way
-	 * to choose one, so a credential that arrives is taken as the choice of its account. Clients still hold the replaced
-	 * sign-in and answer any request for it, so asking for it back would undo that choice.
-	 */
-	private readonly _replacedSignIn = observableValue<'github' | 'microsoft' | undefined>(this, undefined);
-	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = derived(this, reader => {
-		const microsoft = this._entraAuthentication?.authenticationRequired.read(reader);
-		// Only a revoked Microsoft sign-in is asked for as an expired identity; what the runtime itself asks for is always published.
-		const revoked = microsoft?.resource.resource === copilotEntraDiscoveryMetadata.resource && microsoft.reason === AuthRequiredReason.Expired;
-		const replaced = this._replacedSignIn.read(reader);
-		if (isMicrosoftCopilotAccountContext(this._accountService.state.read(reader)) || replaced === 'github') {
-			// A revocation is announced just before the account leaves Microsoft, where a GitHub request may come first.
-			return revoked ? undefined : microsoft;
-		}
-		return this._authenticationRequired.read(reader) ?? (replaced === 'microsoft' && revoked ? undefined : microsoft);
-	});
+	/** Set when the credential of the other account arrives, which the host takes as the choice of that account; see {@link selectCopilotAuthenticationRequirement}. */
+	private readonly _replacedSignIn = observableValue<CopilotReplacedSignIn | undefined>(this, undefined);
+	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = derived(this, reader => selectCopilotAuthenticationRequirement({
+		account: this._accountService.state.read(reader),
+		replacedSignIn: this._replacedSignIn.read(reader),
+		github: this._authenticationRequired.read(reader),
+		microsoft: this._entraAuthentication?.authenticationRequired.read(reader),
+	}));
 	private readonly _automationAuthenticationReady = observableValue(this, false);
 	/**
 	 * Membership channel for chats the agent spawns itself — sub-agents

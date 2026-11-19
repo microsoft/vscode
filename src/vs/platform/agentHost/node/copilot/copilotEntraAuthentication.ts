@@ -40,6 +40,11 @@ export const copilotEntraDiscoveryMetadata: ProtectedResourceMetadata = {
 	required: false,
 };
 
+/** Whether a requirement asks for the sign-in a client revoked: only that is asked for as an expired identity. */
+export function isRevokedEntraSignIn(requirement: Omit<AuthRequiredParams, 'channel'> | undefined): boolean {
+	return requirement?.resource.resource === copilotEntraDiscoveryResource && requirement.reason === AuthRequiredReason.Expired;
+}
+
 /** Reads credentials supplied through AHP without waiting for a client to acquire them. */
 export class CopilotEntraAuthentication extends Disposable {
 	private readonly _onDidRevoke = this._register(new Emitter<void>());
@@ -152,7 +157,7 @@ export class CopilotEntraAuthentication extends Disposable {
 			return;
 		}
 		this.clearAuthority();
-		// Like a cleared GitHub token, advertise the loss so a client that still holds the credential can re-supply it.
+		// Like a cleared GitHub token, advertise the loss so a client that still holds the credential can re-supply it; see isRevokedEntraSignIn.
 		this.requireCredential(copilotEntraDiscoveryMetadata, AuthRequiredReason.Expired);
 		this._onDidRevoke.fire();
 	}
