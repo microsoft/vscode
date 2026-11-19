@@ -4931,7 +4931,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _groupRenderer!: SessionGroupRenderer;
 	private readonly groupAppearancePicker: SessionGroupAppearancePicker;
 	private _sectionRenderer!: SessionSectionRenderer;
-	private _sessionsProvidersService!: ISessionsProvidersService;
 	private _dropTargetHeader: ISessionDropTargetHeader | undefined;
 	/** Current comparison placement, shared by rendering and unfiltered bulk actions. */
 	private readonly comparisonSectionIds = new Map<string, string>();
@@ -5000,7 +4999,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IAutomationService private readonly automationService: IAutomationService,
-		@IVoicePlaybackService private readonly _listVoicePlaybackService: IVoicePlaybackService,
+		@IVoicePlaybackService private readonly voicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -5017,6 +5016,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
 		@IChatService chatService: IChatService,
 		@ISideChatPlacementService sideChatPlacementService: ISideChatPlacementService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
+		@IHoverService hoverService: IHoverService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 		this._hideSideChats = sideChatPlacementService.inSidePane;
@@ -5069,10 +5071,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const approvalModel = this.options.approvalModel ?? this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		this._approvalModel = approvalModel;
-		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
-		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
-		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
-		this._sessionsProvidersService = sessionsProvidersService;
 		// Re-render so the always-visible "Chats" section appears/disappears when a
 		// quick-chat-capable provider is (de)registered (e.g. agent host toggled),
 		// or when a registered provider toggles a capability at runtime (e.g. its
@@ -5080,14 +5078,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const providerCapabilityListeners = this._register(new DisposableStore());
 		const subscribeProviderCapabilities = () => {
 			providerCapabilityListeners.clear();
-			for (const provider of sessionsProvidersService.getProviders()) {
+			for (const provider of this._sessionsProvidersService.getProviders()) {
 				if (provider.onDidChangeCapabilities) {
 					providerCapabilityListeners.add(provider.onDidChangeCapabilities(() => this.update()));
 				}
 			}
 		};
 		subscribeProviderCapabilities();
-		this._register(sessionsProvidersService.onDidChangeProviders(() => {
+		this._register(this._sessionsProvidersService.onDidChangeProviders(() => {
 			subscribeProviderCapabilities();
 			this.scheduleListUpdate();
 		}));
@@ -5104,7 +5102,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
-		const voicePlaybackService = instantiationService.invokeFunction(accessor => accessor.get(IVoicePlaybackService));
 		const externalApplicationBadgeMode = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Off, this.configurationService);
 		const externalApplicationBadgeShowFrom = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, false, this.configurationService);
 		const reportExternalApplicationBadgeModeExperimentTrigger = () => logDefaultSettingExperimentTrigger(this.configurationService, this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING);
@@ -5180,13 +5177,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.configurationService,
 			markdownRendererService,
 			hoverService,
-			sessionsProvidersService,
+			this._sessionsProvidersService,
 			this._sessionsManagementService,
 			this.agentHostConnectionsService,
 			this.openerService,
 			this.labelService,
 			agentSessionsService,
-			voicePlaybackService,
+			this.voicePlaybackService,
 			this.notificationService,
 		);
 		this._sessionRenderer = sessionRenderer;
@@ -5207,7 +5204,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			() => this.tree.domFocus(),
 			item => withSessionsListHoverPresentation(createSessionSummaryHover(
 				item.session,
-				getChatSummaryHoverData(item.session, item.chat, sessionsProvidersService, this.openerService, this.labelService, getCreatorHoverData(item.session, this._sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.isCompact()),
+				getChatSummaryHoverData(item.session, item.chat, this._sessionsProvidersService, this.openerService, this.labelService, getCreatorHoverData(item.session, this._sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.isCompact()),
 				this.openerService,
 			)),
 			() => this.isCompact(),
@@ -5225,7 +5222,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.activeGuideSessionIds,
 			item => this.getRowGroupDepth(item),
 			session => this.renderedComparisonParticipantConnectorPositions.get(session.sessionId),
-			item => getSessionAgentMergeConfigurationObservable(item.session, sessionsProvidersService, this.configurationService, item.chat),
+			item => getSessionAgentMergeConfigurationObservable(item.session, this._sessionsProvidersService, this.configurationService, item.chat),
 			getSearchHint,
 			(session, chat) => this.getComparisonAttemptLabel(session, chat),
 			sessionRenderer.scheduledIndicatorRenderer,
@@ -5398,7 +5395,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					getTriageDescription: (session, reader) => this.getInboxDescription(session, reader),
 					grouping: this.options.grouping,
 					isWorkspaceScoped: () => this.filters.hasInboxWorkspaceScope,
-					getChatHarnessLabel: (session, chat, reader) => getDistinctChatHarnessLabel(session, chat, sessionsProvidersService, reader),
+					getChatHarnessLabel: (session, chat, reader) => getDistinctChatHarnessLabel(session, chat, this._sessionsProvidersService, reader),
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
 					getComparisonAttemptLabel: (session, chat) => this.getComparisonAttemptLabel(session, chat),
@@ -5689,7 +5686,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				// change the active-session observable (it can already be the active
 				// session, just not focused), so the voice controller would never
 				// re-activate it. Ask it to narrate the pending item explicitly.
-				if (this._listVoicePlaybackService.hasPendingResponse(element.resource)) {
+				if (this.voicePlaybackService.hasPendingResponse(element.resource)) {
 					this.commandService.executeCommand('_chat.voice.activateSession', element.resource.toString());
 				}
 			}
