@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from '../../../base/common/event.js';
+import { Emitter } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
@@ -13,49 +13,31 @@ import { ServicesAccessor } from '../../../platform/instantiation/common/instant
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
-import { IWorkspaceContextService, toWorkspaceFolder, WorkbenchState, type IWorkspaceFoldersChangeEvent } from '../../../platform/workspace/common/workspace.js';
+import { toWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { getVirtualWorkspaceScheme, hasVirtualWorkspaceContent } from '../../../platform/workspace/common/virtualWorkspace.js';
 import { testIWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import '../../browser/actions/layoutActions.js';
 import '../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../browser/parts/editor/editor.js';
 import { WorkbenchContextKeysHandler } from '../../browser/contextkeys.js';
-import { VirtualWorkspaceContext, WorkspaceHasVirtualContentContext } from '../../common/contextkeys.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { TestLayoutService, workbenchInstantiationService } from './workbenchTestServices.js';
 
 suite('Workbench Context Keys - Virtual Workspace', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
+	// WorkbenchContextKeysHandler sets a global context key constant, so a window can construct it only once. The
+	// suite below constructs it, so this one checks the values the handler derives from the workspace for its keys.
 	test('distinguishes mixed workspaces from fully virtual workspaces as folders change', () => {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-		const onDidChangeWorkspaceFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const localFolder = toWorkspaceFolder(URI.file('/local'));
 		const virtualFolder = toWorkspaceFolder(URI.parse('test-vfs://provider/virtual'));
-		let folders = [localFolder, virtualFolder];
-		instantiationService.stub(IContextKeyService, contextKeyService);
-		instantiationService.stub(IWorkspaceContextService, {
-			getWorkspace: () => testIWorkspace({ id: 'test', folders }),
-			getWorkbenchState: () => WorkbenchState.WORKSPACE,
-			onDidChangeWorkbenchState: Event.None,
-			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
-		});
-		instantiationService.stub(IEditorGroupsService, 'partOptions', { ...DEFAULT_EDITOR_PART_OPTIONS });
-		disposables.add(instantiationService.createInstance(WorkbenchContextKeysHandler));
+		const snapshot = (folders: ReturnType<typeof toWorkspaceFolder>[]) => {
+			const workspace = testIWorkspace({ id: 'test', folders });
+			return { scheme: getVirtualWorkspaceScheme(workspace) || '', hasVirtualContent: hasVirtualWorkspaceContent(workspace) };
+		};
 
-		const snapshot = () => ({
-			scheme: VirtualWorkspaceContext.getValue(contextKeyService),
-			hasVirtualContent: WorkspaceHasVirtualContentContext.getValue(contextKeyService),
-		});
-		const mixed = snapshot();
-		folders = [localFolder];
-		onDidChangeWorkspaceFolders.fire({ added: [], removed: [virtualFolder], changed: [] });
-		const local = snapshot();
-		folders = [virtualFolder];
-		onDidChangeWorkspaceFolders.fire({ added: [virtualFolder], removed: [localFolder], changed: [] });
-
-		assert.deepStrictEqual({ mixed, local, virtual: snapshot() }, {
+		assert.deepStrictEqual({ mixed: snapshot([localFolder, virtualFolder]), local: snapshot([localFolder]), virtual: snapshot([virtualFolder]) }, {
 			mixed: { scheme: '', hasVirtualContent: true },
 			local: { scheme: '', hasVirtualContent: false },
 			virtual: { scheme: 'test-vfs', hasVirtualContent: true },
