@@ -25,6 +25,35 @@ export const devContainerVolumeNameLabel = 'vsc.devcontainer.volume.name';
 export const devContainerVolumeFolderLabel = 'vsc.devcontainer.volume.folder';
 /** Where the volume is mounted, so its folders are under /workspaces, as for New Dev Container. */
 const volumeTarget = '/workspaces';
+/** Smoke tests point the Agent Host in an environment's container at their mock server with this JSON configuration. */
+const testConfigurationEnvironmentKey = 'VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG';
+
+/** Container settings that smoke tests add to every environment's configuration. */
+export interface IDevContainerEnvironmentTestConfiguration {
+	readonly containerEnv?: Readonly<Record<string, string>>;
+	readonly runArgs?: readonly string[];
+}
+
+/** Reads the configuration that smoke tests set in {@link testConfigurationEnvironmentKey}, if any. */
+export function readDevContainerEnvironmentTestConfiguration(environment: NodeJS.ProcessEnv): IDevContainerEnvironmentTestConfiguration | undefined {
+	const value = environment[testConfigurationEnvironmentKey];
+	if (!value) {
+		return undefined;
+	}
+	const configuration: unknown = JSON.parse(value);
+	const containerEnv = isRecord(configuration) ? configuration.containerEnv : undefined;
+	const runArgs = isRecord(configuration) ? configuration.runArgs : undefined;
+	if (!isRecord(configuration)
+		|| Object.keys(configuration).some(key => key !== 'containerEnv' && key !== 'runArgs')
+		|| (containerEnv !== undefined && (!isRecord(containerEnv) || Object.values(containerEnv).some(entry => typeof entry !== 'string')))
+		|| (runArgs !== undefined && (!Array.isArray(runArgs) || runArgs.some(arg => typeof arg !== 'string')))) {
+		throw new Error(`${testConfigurationEnvironmentKey} must be a JSON object with optional containerEnv strings and runArgs.`);
+	}
+	return {
+		...(containerEnv ? { containerEnv: containerEnv as Record<string, string> } : {}),
+		...(runArgs ? { runArgs: runArgs as string[] } : {}),
+	};
+}
 
 type DockerCommand = (args: readonly string[]) => Promise<ICommandResult>;
 
@@ -40,6 +69,8 @@ interface IEnvironmentCommands {
 	readonly linkUserState?: (containerId: string, remoteUser: string, selectorArgs: readonly string[], keepExistingFolders: boolean) => Promise<void>;
 	/** Reports that the state volume was added, or the error adding it. */
 	readonly reportUserStateMount?: (error?: unknown) => void;
+	/** Container settings that smoke tests add, see {@link readDevContainerEnvironmentTestConfiguration}. */
+	readonly testConfiguration?: IDevContainerEnvironmentTestConfiguration;
 }
 
 export interface IPreparedDevContainerEnvironment {
@@ -124,12 +155,14 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 	const keepExistingFolders = containerStates.some(isDevContainerRunning);
 
 	const configPath = join(cacheDirectory, 'devcontainer.json');
+	const runArgs = [...sandboxEnabled ? devContainerSandboxRunArgs : [], ...commands.testConfiguration?.runArgs ?? []];
 	await writeAtomic(configPath, JSON.stringify({
 		image: source.image,
 		workspaceFolder: workspace,
 		workspaceMount: `type=volume,source=${volumeName},target=${volumeTarget}`,
 		updateRemoteUserUID: false,
-		...(sandboxEnabled ? { runArgs: devContainerSandboxRunArgs } : {}),
+		...(runArgs.length ? { runArgs } : {}),
+		...(commands.testConfiguration?.containerEnv ? { containerEnv: commands.testConfiguration.containerEnv } : {}),
 	}));
 	const cliArgs = ['--override-config', configPath, ...idLabels.flatMap(label => ['--id-label', label])];
 	// Lifecycle commands run after linking user state, so their changes to it persist.

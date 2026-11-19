@@ -18,7 +18,7 @@ import { IRequestService } from '../../../request/common/request.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { devContainerEnvironmentImage, devContainerEnvironmentUri, findDevContainerEnvironment } from '../../common/devContainerEnvironments.js';
 import { DevContainerAgentHostMainService } from '../../node/devContainerAgentHostService.js';
-import { devContainerEnvironmentLabel, devContainerVolumeLabel, getDevContainerEnvironmentVolumeName, prepareDevContainerEnvironment, removeDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
+import { devContainerEnvironmentLabel, devContainerVolumeLabel, getDevContainerEnvironmentVolumeName, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
 import { devContainerStateIdLabel, getDevContainerId, getDevContainerStateVolumeName } from '../../node/devContainerState.js';
 
 suite('Dev Container environments', () => {
@@ -117,6 +117,31 @@ suite('Dev Container environments', () => {
 			],
 			reports: ['added'],
 		});
+	});
+
+	test('adds the container settings that smoke tests configure, and rejects malformed ones', async () => {
+		const testConfiguration = readDevContainerEnvironmentTestConfiguration({
+			VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({ containerEnv: { COPILOT_API_URL: 'http://vscode-smoke.test:1234' }, runArgs: ['--add-host=vscode-smoke.test:host-gateway'] }),
+		});
+		await prepareDevContainerEnvironment({ environmentId, image: devContainerEnvironmentImage }, cacheDirectory, {
+			onContainerStarted: () => { },
+			docker: async args => ({ stdout: args[1] === 'inspect' ? JSON.stringify({ [devContainerEnvironmentLabel]: environmentId }) : '', stderr: '', code: 0 }),
+			devcontainer: async () => ({ stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: `/workspaces/${volumeName}` }), stderr: '', code: 0 }),
+			testConfiguration,
+		}, true);
+		const { runArgs, containerEnv } = JSON.parse(await readFile(join(cacheDirectory, 'devcontainer.json'), 'utf8'));
+		assert.deepStrictEqual({
+			unset: readDevContainerEnvironmentTestConfiguration({}),
+			runArgs: runArgs.slice(-1),
+			keepsSandboxArgs: runArgs.length > 1,
+			containerEnv,
+		}, {
+			unset: undefined,
+			runArgs: ['--add-host=vscode-smoke.test:host-gateway'],
+			keepsSandboxArgs: true,
+			containerEnv: { COPILOT_API_URL: 'http://vscode-smoke.test:1234' },
+		});
+		assert.throws(() => readDevContainerEnvironmentTestConfiguration({ VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({ image: 'other' }) }), /must be a JSON object/);
 	});
 
 	test('rejects unsupported images and volumes of other owners before starting a container', async () => {
