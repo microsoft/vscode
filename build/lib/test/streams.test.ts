@@ -28,4 +28,18 @@ suite('gulp streams', () => {
 		}));
 		assert.deepStrictEqual(await collectStream(result), [1, 3]);
 	});
+
+	test('bounds concurrent mappings and emits results in input order', async () => {
+		const input = Array.from({ length: 20 }, (_, i) => i);
+		let inFlight = 0;
+		let peak = 0;
+		const output = Readable.from(input).pipe(mapStream((item: number, done) => {
+			peak = Math.max(peak, ++inFlight);
+			// Let later items finish before the first.
+			const finish = () => { inFlight--; done(undefined, item); };
+			setImmediate(item === 0 ? () => setImmediate(finish) : finish);
+		}));
+		assert.deepStrictEqual(await collectStream(output), input);
+		assert.strictEqual(peak, 8);
+	});
 });

@@ -9,7 +9,7 @@ import log from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import crypto from 'crypto';
 import through2 from 'through2';
-import { Readable, Stream, type Transform } from 'stream';
+import { Readable, Stream, type Duplex } from 'stream';
 
 export interface IFetchOptions {
 	base?: string;
@@ -25,7 +25,7 @@ export interface IFetchOptions {
 
 const defaultIdleTimeout = 30 * 1000;
 
-export function fetchUrls(urls: string[] | string, options: IFetchOptions): Transform {
+export function fetchUrls(urls: string[] | string, options: IFetchOptions): Duplex {
 	if (options === undefined) {
 		options = {};
 	}

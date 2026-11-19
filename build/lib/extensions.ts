@@ -138,7 +138,7 @@ interface IExtensionFile {
 }
 
 function toVinylFiles(extensionPath: string, entries: readonly IExtensionFile[]): File[] {
-	return entrimapStream(entry => new File({
+	return entries.map(entry => new File({
 		path: path.join(extensionPath, entry.path),
 		stat: fs.statSync(entry.localPath),
 		base: extensionPath,
@@ -175,7 +175,7 @@ function fromLocalNormal(extensionPath: string): Stream {
 	}
 
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None })
-		.then(fileNames => Readable.from(toVinylFiles(extensionPath, fileNammapStream(fileName => ({ path: fileName, localPath: path.join(extensionPath, fileName) })))).pipe(result))
+		.then(fileNames => Readable.from(toVinylFiles(extensionPath, fileNames.map(fileName => ({ path: fileName, localPath: path.join(extensionPath, fileName) })))).pipe(result))
 		.catch(err => result.emit('error', err));
 
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
@@ -239,7 +239,7 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string, 
 		// After esbuild completes, collect all files using vsce
 		return vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None });
 	}).then(fileNames => {
-		const entries = new Map<string, IExtensionFile>(fileNammapStream(fileName => [fileName, { path: fileName, localPath: path.join(extensionPath, fileName) }]));
+		const entries = new Map<string, IExtensionFile>(fileNames.map(fileName => [fileName, { path: fileName, localPath: path.join(extensionPath, fileName) }]));
 		// Like `vsce package`, which packages the files of the dependencies that the `.vscodeignore` selects.
 		const isPackaged = createVscodeignoreFilter(extensionPath);
 		for (const dependency of packagedDependencies) {

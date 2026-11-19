@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Transform, type Stream } from 'stream';
+import { Duplex, Readable, Transform, type Stream } from 'stream';
 import createThrough from 'through';
 import mergeStream from 'merge-stream';
 import type File from 'vinyl';
@@ -22,19 +22,28 @@ export function merge(...inputs: (Stream | Stream[])[]): Transform {
 	return output.resume();
 }
 
-export function mapStream<I, O>(map: (item: I, done: (err?: Error | null, result?: O) => void) => void): Transform {
-	return new Transform({
-		objectMode: true,
-		transform(item: I, _encoding, done) {
-			try {
-				map(item, done);
-			} catch (err) {
-				done(err);
+export function mapStream<I, O>(map: (item: I, done: (err?: Error | null, result?: O) => void) => void): Duplex {
+	return Duplex.from(async function* (source: AsyncIterable<I>) {
+		const results = Readable.from(source).map(item => new Promise<O | undefined>((resolve, reject) => {
+			map(item, (err, result) => err ? reject(err) : resolve(result));
+		}), { concurrency: 8 });
+		for await (const result of results) {
+			if (result !== undefined) {
+				yield result;
 			}
 		}
 	});
 }
 
 export function mapStreamSync<I, O>(map: (item: I) => O): Transform {
-	return mapStream<I, O>((item, done) => done(undefined, map(item)));
+	return new Transform({
+		objectMode: true,
+		transform(item: I, _encoding, done) {
+			try {
+				done(undefined, map(item));
+			} catch (err) {
+				done(err);
+			}
+		}
+	});
 }
