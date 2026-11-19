@@ -1272,9 +1272,9 @@ suite('RemotesModel', () => {
 				pending: {
 					cached: 1, disconnects: [], confirmations: [{
 						type: 'warning',
-						message: 'Forget saved SSH connection \'Saved host\'?',
-						detail: 'This forgets the saved connection and disconnects this client. Your SSH configuration, the remote computer, and its files are kept.',
-						primaryButton: '&&Forget',
+						message: 'Remove saved SSH connection \'Saved host\'?',
+						detail: 'This removes the saved connection and disconnects this client. Your SSH configuration, the remote computer, and its files are kept.',
+						primaryButton: '&&Remove',
 					}],
 				},
 				cached: confirmed ? [] : [savedSSHHost],
@@ -2022,9 +2022,9 @@ suite('RemotesModel', () => {
 				before: {
 					confirmations: [{
 						type: 'warning',
-						message: 'Delete Dev Tunnel \'My test tunnel\'?',
+						message: 'Remove Dev Tunnel \'My test tunnel\'?',
 						detail: 'This removes the tunnel registration and disconnects all its clients. The remote computer and its files stay available. The tunnel returns when sharing restarts on that computer.',
-						primaryButton: '&&Delete',
+						primaryButton: '&&Remove',
 					}],
 					deletedTunnels: [],
 				},
@@ -2157,7 +2157,7 @@ suite('RemotesModel', () => {
 			}, {
 				confirmations: [{
 					type: 'warning',
-					message: 'Remove environment \'Office desktop\'?',
+					message: 'Remove GitHub Environment \'Office desktop\'?',
 					detail: 'This removes the environment registration and disconnects this client. The remote computer and its files are kept. The environment may reappear if its owning application registers it again.',
 					primaryButton: '&&Remove',
 				}],

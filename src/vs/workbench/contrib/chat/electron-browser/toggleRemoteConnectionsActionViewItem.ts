@@ -13,6 +13,7 @@ import { Action, IAction, IActionRunner, toAction } from '../../../../base/commo
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -39,9 +40,7 @@ export interface IRemoteConnectionsActionViewItemOptions {
 
 class RemoteConnectionsDropdownActionViewItem extends ActionWidgetDropdownActionViewItem {
 	protected override renderLabel(element: HTMLElement) {
-		element.classList.add('tunnel-host-toggle');
-		const icon = dom.append(element, dom.$('span.tunnel-host-icon', { 'aria-hidden': 'true' }));
-		icon.append(...renderLabelWithIcons(`$(${Codicon.radioTower.id})`));
+		element.classList.add('tunnel-host-toggle', ...ThemeIcon.asClassNameArray(Codicon.radioTower));
 		return super.renderLabel(element);
 	}
 
@@ -289,30 +288,32 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 			...explain(getDevTunnelsDetail()),
 		});
 		const usesGitHubEnvironment = this._sharing.usesGitHubEnvironment;
-		const management = this._options.getManagementAction?.() ?? toAction({
+		const management = this._options.getManagementAction?.() ?? (this._isChatInput ? undefined : toAction({
 			id: 'remoteConnections.rename',
 			label: localize('remoteConnections.renameComputer', "Change Sharing Name..."),
 			enabled: this.isEnabled() && !!this._sharing.name && !this._sharing.getState().isConnecting,
 			run: () => this._rename(usesGitHubEnvironment),
-		});
-		for (const method of methods) {
-			method.category = { label: 'methods', order: 0 };
+		}));
+		if (management) {
+			for (const method of methods) {
+				method.category = { label: 'methods', order: 0 };
+			}
+			methods.push({
+				...toAction({
+					id: management.id,
+					label: management.label,
+					tooltip: management.tooltip,
+					enabled: management.enabled,
+					run: () => management.run(),
+				}),
+				...(compact
+					? { hover: { content: management.tooltip || management.label }, ariaDescription: management.tooltip || management.label }
+					: { labelIcon: Codicon.settingsGear }),
+				// Keeps the label aligned with the checkable connection methods.
+				icon: Codicon.blank,
+				category: { label: 'management', order: 1 },
+			});
 		}
-		methods.push({
-			...toAction({
-				id: management.id,
-				label: management.label,
-				tooltip: management.tooltip,
-				enabled: management.enabled,
-				run: () => management.run(),
-			}),
-			...(compact
-				? { hover: { content: management.tooltip || management.label }, ariaDescription: management.tooltip || management.label }
-				: { labelIcon: Codicon.settingsGear }),
-			// Keeps the label aligned with the checkable connection methods.
-			icon: Codicon.blank,
-			category: { label: 'management', order: 1 },
-		});
 		return methods;
 	}
 

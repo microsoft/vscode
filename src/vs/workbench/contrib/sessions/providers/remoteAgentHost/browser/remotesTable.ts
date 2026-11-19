@@ -57,6 +57,7 @@ export type RemoteTableEntry =
 	| {
 		readonly type: 'remote';
 		readonly remote: ICustomizationRemote;
+		readonly documentation?: IRemoteEmptyEntry['documentation'];
 		readonly busy: boolean;
 		readonly connecting?: boolean;
 		readonly ungrouped?: boolean;
@@ -323,6 +324,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 	constructor(
 		private readonly column: RemoteColumn,
 		private readonly onAction: (entry: RemoteTableEntry, action: RemoteRowAction) => void,
+		private readonly onOpenMenu: (row: IRemoteTableRow) => void,
 		private readonly actionHoverDelegate: IHoverDelegate,
 		private readonly instantiationService: IInstantiationService,
 		private readonly hoverService: IHoverService,
@@ -392,6 +394,18 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
 					ariaLabel: localize('remotes.rowActions', "Remote actions"), hoverDelegate: this.actionHoverDelegate,
 				}));
+				disposables.add(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, event => {
+					const button = dom.isHTMLElement(event.target) ? event.target.closest<HTMLElement>('[aria-haspopup="true"]') : undefined;
+					if (event.button === 0 && button && template.row) {
+						this.onOpenMenu(template.row);
+						button.focus();
+					}
+				}, true));
+				disposables.add(toolbar.onDidChangeDropdownVisibility(visible => {
+					if (visible && template.row) {
+						this.onOpenMenu(template.row);
+					}
+				}));
 				toolbar.setActions([action]);
 				const newSession = disposables.add(new ButtonWithIcon(container, {
 					...defaultButtonStyles, hoverDelegate: this.actionHoverDelegate, title: false,
@@ -421,7 +435,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					}
 				}));
 				const documentation = disposables.add(new Action('remotes.documentation', '', ThemeIcon.asClassName(Codicon.info), true, async () => {
-					if (template.row?.entry.type === 'group') {
+					if (template.row?.entry.type === 'group' || template.row?.entry.type === 'remote') {
 						this.onAction(template.row.entry, 'documentation');
 					}
 				}));
@@ -440,7 +454,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						this.onAction(template.row.entry, 'locationPreference');
 					}
 				}));
-				const troubleshoot = disposables.add(new Action('remotes.troubleshoot', localize('remotes.troubleshootAction', "Troubleshoot Connection"), ThemeIcon.asClassName(Codicon.tools), true, async () => {
+				const troubleshoot = disposables.add(new Action('remotes.troubleshoot', localize('remotes.troubleshootAction', "Troubleshoot"), ThemeIcon.asClassName(Codicon.tools), true, async () => {
 					if (template.row?.entry.type === 'remote') {
 						this.onAction(template.row.entry, 'troubleshoot');
 					}
@@ -664,13 +678,12 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			}
 			case 'actions': {
 				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
-				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
+				const showDocumentation = !!entry.documentation;
 				const showGroupCreate = template.column === 'actions' && entry.type === 'group' && !!entry.canCreate;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
 				const showConnect = showConnection && !entry.remote.connectsWithHost;
 				const showNewSession = showConnect && RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus);
 				const pending = isConnectionPending(entry);
-				const offline = showConnection && isRemoteOffline(entry.remote);
 				const error = getConnectionProblem(entry);
 				const troubleshoot = !!error;
 				const canConnect = showConnect && canConnectToRemote(entry.remote);
@@ -700,7 +713,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						template.newSession.element.setAttribute('aria-label', label);
 					}
 				}
-				if (template.column === 'actions' && entry.type === 'group' && entry.documentation) {
+				if (entry.documentation) {
 					template.documentation.label = entry.documentation.label;
 				}
 				if (showGroupCreate) {
@@ -746,8 +759,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					}, { groupId: this.hoverGroupId }));
 					template.visibility.enabled = !entry.remote.pickerUnavailableReason;
 					template.visibility.label = entry.remote.pickerUnavailableReason || entry.remote.hidden
-						? localize('remotes.showInPicker', "Show in Environment Picker")
-						: localize('remotes.hideFromPicker', "Hide from Environment Picker");
+						? localize('remotes.showInPicker', "Show in Picker")
+						: localize('remotes.hideFromPicker', "Hide from Picker");
 					template.visibility.tooltip = entry.remote.pickerUnavailableReason ?? (entry.remote.hidden
 						? localize('remotes.showInPickerDetail', "Show this environment when choosing where to run a session")
 						: localize('remotes.hideFromPickerDetail', "Hide this environment from the environment picker. It stays in Remote Environments."));
@@ -756,25 +769,32 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.rename.enabled = !entry.busy;
 					template.createDevContainer.label = localize('remotes.createDevContainer', "Create Dev Container on {0}", entry.remote.name);
 					template.createDevContainer.enabled = showCreateDevContainer && !entry.busy;
-					template.copyAddress.label = localize('remotes.copyAddress', "Copy Address");
-					template.locationPreference.label = localize('remotes.locationPreference', "Configure Agent Run Behavior...");
+					template.copyAddress.label = entry.remote.kind === 'ssh'
+						? localize('remotes.copySSHAddress', "Copy SSH Address") : localize('remotes.copyAddress', "Copy Connection Address");
+					template.copyAddress.tooltip = entry.remote.copyableAddress ?? '';
+					template.locationPreference.label = localize('remotes.locationPreference', "Choose How Agents Run...");
 					template.locationPreference.tooltip = remoteAgentRunBehaviorDescription;
 					template.locationPreference.enabled = !entry.busy
 						&& !RemoteAgentHostConnectionStatus.isConnecting(entry.remote.connectionStatus)
 						&& !RemoteAgentHostConnectionStatus.isReconnecting(entry.remote.connectionStatus);
 					const share = entry.remote.gitHubEnvironment;
-					template.gitHubEnvironment.label = share?.state === 'connecting' || share?.state === 'unavailable'
-						? getGitHubEnvironmentLabel(entry.remote) ?? ''
+					template.gitHubEnvironment.label = share?.state === 'connecting'
+						? localize('remotes.sharingAsGitHubEnvironment', "Sharing as GitHub Environment...")
+						: share?.state === 'unavailable'
+							? share.unavailableReason === 'host'
+								? localize('remotes.sharedByRemote', "Shared by Remote Computer")
+								: localize('remotes.sharedByAnotherAccount', "Shared by Another Account")
 						: share
-							? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing {0} as GitHub Environment", entry.remote.name)
-							: localize('remotes.shareAsGitHubEnvironment', "Share {0} as GitHub Environment", entry.remote.name);
+							? localize('remotes.stopSharingAsGitHubEnvironment', "Stop Sharing as GitHub Environment")
+							: localize('remotes.shareAsGitHubEnvironment', "Share as GitHub Environment");
+					template.gitHubEnvironment.tooltip = getGitHubEnvironmentLabel(entry.remote) ?? '';
 					template.gitHubEnvironment.enabled = showGitHubEnvironment && !entry.busy && share?.state !== 'connecting' && share?.state !== 'unavailable';
 					template.gitHubEnvironment.class = ThemeIcon.asClassName(share?.state === 'connecting' ? connectionProgressIcon : Codicon.github);
 					template.showExtension.label = entry.remote.contributedBy ? localize('remotes.showExtension', "Show {0} Extension", entry.remote.contributedBy.displayName) : '';
-					template.delete.label = entry.remote.kind === 'tunnel' ? localize('remotes.deleteTunnel', "Delete Dev Tunnel...")
-						: entry.remote.kind === 'ssh' ? localize('remotes.forgetSSH', "Forget SSH Connection...")
-							: entry.remote.kind === 'devContainer' ? localize('remotes.deleteDevContainer', "Delete Dev Container...")
-								: localize('remotes.removeEnvironment', "Remove Environment...");
+					template.delete.label = entry.remote.kind === 'tunnel' ? localize('remotes.removeTunnel', "Remove Dev Tunnel...")
+						: entry.remote.kind === 'ssh' ? localize('remotes.removeSSH', "Remove Saved SSH Connection...")
+							: entry.remote.kind === 'devContainer' ? localize('remotes.deleteDevContainer', "Delete Container and Files...")
+								: localize('remotes.removeEnvironment', "Remove GitHub Environment...");
 					template.delete.enabled = showDelete && !entry.busy;
 					template.updateServer.label = localize('remotes.updateServer', "Update Server");
 					template.updateServer.enabled = showUpdate && !entry.busy;
@@ -782,7 +802,6 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				if (template.column === 'actions') {
 					const actions = showConnection ? [] : [
 						...(showGroupCreate ? [template.createDevContainer] : []),
-						...(showDocumentation ? [template.documentation] : []),
 						...(showConfig ? [template.action] : []),
 					];
 					// An open overflow menu must retain its environment and labels when the row template is recycled.
@@ -796,24 +815,29 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							...(showConnect && canConnect ? [menuAction(template.action, 'connect')] : []),
 							menuAction(template.troubleshoot, 'troubleshoot'),
 						]),
+						...(showUpdate ? [menuAction(template.updateServer, 'updateServer')] : []),
+						...(showGitHubEnvironment ? [menuAction(template.gitHubEnvironment, 'githubEnvironment')] : []),
 						...(showCreateDevContainer ? [menuAction(template.createDevContainer, 'createDevContainer')] : [])],
-						showGitHubEnvironment ? [menuAction(template.gitHubEnvironment, 'githubEnvironment')] : [],
-						[menuAction(template.visibility, 'toggleVisibility')],
-						showCopyAddress ? [menuAction(template.copyAddress, 'copyAddress')] : [],
 						[
 							menuAction(template.rename, 'rename'),
-							...(offline && entry.remote.kind === 'ssh' ? [toAction({
+							...(showLocationPreference ? [menuAction(template.locationPreference, 'locationPreference')] : []),
+							...(entry.remote.kind === 'ssh' ? [toAction({
 								id: 'remotes.configureSSH',
 								label: localize('remotes.openSSHConfiguration', "Open SSH Configuration"),
 								enabled: !entry.busy,
 								run: () => this.onAction(entry, 'configure'),
 							})] : []),
-							...(showLocationPreference ? [menuAction(template.locationPreference, 'locationPreference')] : []),
 							...(showExtension ? [menuAction(template.showExtension, 'showExtension')] : []),
-							...(showUpdate ? [menuAction(template.updateServer, 'updateServer')] : []),
+							...(showCopyAddress ? [menuAction(template.copyAddress, 'copyAddress')] : []),
+							menuAction(template.visibility, 'toggleVisibility'),
 							...(showDelete ? [menuAction(template.delete, 'delete')] : []),
 						],
-					) : [];
+						showDocumentation ? [menuAction(template.documentation, 'documentation')] : [],
+					) : Separator.join(
+						showGroupCreate ? [menuAction(template.createDevContainer, 'createDevContainer')] : [],
+						showConfig ? [menuAction(template.action, 'configure')] : [],
+						showDocumentation ? [menuAction(template.documentation, 'documentation')] : [],
+					);
 					const actionLayout = JSON.stringify([row.id, showConfig, showDocumentation, showGroupCreate, secondary.map(action => [action.id, action.label, action.tooltip, action.class, action.enabled])]);
 					if (template.actionLayout !== actionLayout) {
 						template.actionLayout = actionLayout;

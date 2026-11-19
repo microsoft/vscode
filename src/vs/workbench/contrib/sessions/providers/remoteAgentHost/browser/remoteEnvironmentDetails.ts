@@ -135,7 +135,7 @@ export class RemoteEnvironmentDetails extends Disposable {
 		this.backToolbar.setActions([this.backAction]);
 		const heading = dom.append(navigation, dom.$('.remotes-task-heading'));
 		this.title = dom.append(heading, dom.$('h2.remotes-task-title', { id: generateUuid() },
-			mode === 'runBehavior' ? localize('remotes.runBehavior', "Agent run behavior") : localize('remotes.troubleshoot', "Troubleshoot connection")));
+			mode === 'runBehavior' ? localize('remotes.runBehavior', "How agents run") : localize('remotes.troubleshoot', "Troubleshoot connection")));
 		this.owner = dom.$('dd.remotes-details-owner', { id: generateUuid() }, remote.name);
 		this.identityDetail = dom.$('dl.remotes-task-identity-detail');
 		this.updateIdentity();
@@ -184,13 +184,13 @@ export class RemoteEnvironmentDetails extends Disposable {
 		this.body.appendChild(this.identityDetail);
 		const field = dom.append(this.body, dom.$('section.remotes-run-field'));
 		const fieldTitle = dom.append(field, dom.$('h3.remotes-run-question', { id: generateUuid() },
-			localize('remotes.runPreference', "Preferred run behavior")));
+			localize('remotes.runPreference', "Preferred run mode")));
 		const choices = orderRemoteAgentHostLocationOptions('VS Code', undefined).map(choice => ({ value: choice.preference, label: choice.label, detail: choice.detail }));
 		let selected = this.selectedPreference = this.model.getPreferredAgentLocation(this.remote.id) ?? choices[0].value;
 		const radio = this.radio = this.controls.add(new Radio({
 			items: choices.map(choice => ({
 				text: choice.label, ariaLabel: localize('remotes.runChoiceLabel', "{0}. {1}", choice.label, choice.detail), isActive: choice.value === selected,
-			})), hoverDelegate: this.hoverDelegate,
+			})), hoverDelegate: this.hoverDelegate, className: 'cards',
 		}));
 		radio.domNode.classList.add('remotes-run-choices', 'remotes-method-choices');
 		radio.domNode.setAttribute('aria-labelledby', fieldTitle.id);
@@ -521,7 +521,7 @@ export class RemoteEnvironmentDetails extends Disposable {
 				} else if (operation === 'update') {
 					feedback.textContent = localize('remotes.updateFailed', "Couldn't update the server. Try again, or open the diagnostic report for details.");
 				} else if (this.mode === 'runBehavior' && this.selectedPreference !== undefined && this.model.getPreferredAgentLocation(this.remote.id) === this.selectedPreference) {
-					feedback.textContent = localize('remotes.runBehaviorFailed', "Your choice was saved, but reconnection failed. Go back and select Troubleshoot Connection.");
+					feedback.textContent = localize('remotes.runBehaviorFailed', "Your choice was saved, but reconnection failed. Go back and select Troubleshoot.");
 				} else {
 					feedback.textContent = localize('remotes.runBehaviorSaveFailed', "Couldn't save your choice. Try again.");
 				}

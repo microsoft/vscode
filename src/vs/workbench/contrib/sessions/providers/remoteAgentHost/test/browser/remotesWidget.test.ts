@@ -8,6 +8,7 @@ import { useFakeTimers } from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import '../../../../../../../base/browser/ui/codicons/codiconStyles.js';
 import '../../../../../../browser/media/style.css';
+import { unthemedListStyles } from '../../../../../../../base/browser/ui/list/listWidget.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { ActionRunner, IAction, SubmenuAction } from '../../../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
@@ -186,6 +187,18 @@ class TestRemotesWidget extends RemotesWidget {
 		this.table.focusFirst();
 	}
 
+	clearRowFocusAndSelection(): void {
+		this.table.setFocus([]);
+		this.table.setSelection([]);
+	}
+
+	focusAndSelectFirstRow(): void {
+		this.table.style({ ...unthemedListStyles, listActiveSelectionIconForeground: '#ffffff', listInactiveSelectionIconForeground: '#000000' });
+		this.table.setFocus([0]);
+		this.table.setSelection([0]);
+		this.table.domFocus();
+	}
+
 	scrollToBottom(): void {
 		this.table.scrollTop = this.table.scrollHeight;
 	}
@@ -202,10 +215,19 @@ suite('RemotesWidget', () => {
 		store.add(toDisposable(() => parent.remove()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		let menuActions: readonly IAction[] = [];
+		let holdMenuOpen = false;
+		let hideMenu: (() => void) | undefined;
 		instantiationService.stub(IContextMenuService, 'showContextMenu', (delegate: Parameters<IContextMenuService['showContextMenu']>[0]) => {
 			menuActions = delegate.getActions?.() ?? [];
-			delegate.onHide?.(true);
+			hideMenu = () => {
+				hideMenu = undefined;
+				delegate.onHide?.(true);
+			};
+			if (!holdMenuOpen) {
+				hideMenu();
+			}
 		});
+		store.add(toDisposable(() => hideMenu?.()));
 		menus.set(parent, () => menuActions);
 		const errors: Parameters<INotificationService['error']>[0][] = [];
 		const hoverContents = new Map<HTMLElement, string>();
@@ -298,7 +320,7 @@ suite('RemotesWidget', () => {
 			widget.focusFirstRow();
 		}
 		widget.layout();
-		return { widget, parent, model, errors, hoverContents, mouseHoverTargets, opened, copied, commands, sessionActions, activeComposer, documentation, settings, snapshots: () => snapshots, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; }, failDiagnosticCopy: (error: Error | undefined) => { diagnosticCopyFailure = error; }, deferDiagnosticCopy: (pending: DeferredPromise<void>) => { pendingDiagnosticCopy = pending; } };
+		return { widget, parent, model, errors, hoverContents, mouseHoverTargets, opened, copied, commands, sessionActions, activeComposer, documentation, settings, snapshots: () => snapshots, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; }, failDiagnosticCopy: (error: Error | undefined) => { diagnosticCopyFailure = error; }, deferDiagnosticCopy: (pending: DeferredPromise<void>) => { pendingDiagnosticCopy = pending; }, holdMenuOpen: () => { holdMenuOpen = true; }, closeMenu: () => hideMenu?.() };
 	}
 
 	function feedbackGeometry(parent: HTMLElement, selectors: readonly string[]): number[][] {
@@ -694,6 +716,41 @@ suite('RemotesWidget', () => {
 		});
 	});
 
+	test('Type header Learn More submenu opens each supported type guide without sorting or connecting', async () => {
+		const { parent, widget, model, documentation } = createWidget(OperatingSystem.Windows, 'default', 900);
+		model.environmentsEnabled.set(true, undefined);
+		const base = model.remotes.get()[0];
+		model.remotes.set([...model.remotes.get(), { ...base, id: 'extension:docs', kind: 'extension' }, { ...base, id: 'devContainer:docs', kind: 'devContainer' }], undefined);
+		const header = parent.querySelector<HTMLElement>('.monaco-table-th[data-col-index="4"]')!;
+		const order = [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row => row.dataset.remoteId);
+		header.querySelector('span')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const menu = menus.get(parent)!()[0];
+		assert.ok(menu instanceof SubmenuAction);
+		for (const action of menu.actions) {
+			await store.add(new ActionRunner()).run(action);
+		}
+		const afterMenuOrder = [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row => row.dataset.remoteId);
+		widget.setGrouping('type');
+		assert.deepStrictEqual({
+			menu: menu.label, types: menu.actions.map(action => action.label), documentation,
+			order: afterMenuOrder,
+			groupedTypeHidden: dom.getWindow(header).getComputedStyle(header).display === 'none',
+			connections: model.connectionChanges,
+		}, {
+			menu: 'Learn More',
+			types: ['GitHub Environment (Preview)', 'Dev Tunnel', 'WSL', 'SSH', 'Extensions', 'Dev Containers'],
+			documentation: [
+				'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_github-environments', 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-dev-tunnel',
+				'https://code.visualstudio.com/docs/remote/wsl', 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-ssh',
+				'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions', 'https://code.visualstudio.com/docs/devcontainers/containers',
+			],
+			order,
+			groupedTypeHidden: true, connections: [],
+		});
+		widget.setGrouping('none');
+		assert.deepStrictEqual([...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row => row.dataset.remoteId), order);
+	});
+
 	test('identity and host-reported resources distinguish hosts and are searchable', () => {
 		const { parent, model, widget, hoverContents } = createWidget(OperatingSystem.Windows, 'default', 1400);
 		const base = model.remotes.get()[0];
@@ -945,7 +1002,7 @@ suite('RemotesWidget', () => {
 			action: action().textContent,
 			available: row().textContent?.includes('Available'),
 			offline: row().classList.contains('remotes-offline-row'),
-			menu: getMenuActions(parent, tunnel.id).filter(item => item.label === 'Sign In' || item.label === 'Connect' || item.label === 'Troubleshoot Connection').map(item => item.label),
+			menu: getMenuActions(parent, tunnel.id).filter(item => item.label === 'Sign In' || item.label === 'Connect' || item.label === 'Troubleshoot').map(item => item.label),
 			notice: !!parent.querySelector('.remotes-discovery-notice'),
 		};
 		model.pendingSignIn = new DeferredPromise<void>();
@@ -1089,7 +1146,7 @@ suite('RemotesWidget', () => {
 			groups: ['GitHub Environments', 'Dev Tunnels', 'WSL', 'SSH'],
 			rows: 4,
 			opened: [{ input: { resource: URI.file('/home/test/.ssh/config'), options: { pinned: true } }, group: MODAL_GROUP }],
-			documentation: ['https://aka.ms/vscode-agent-ssh'],
+			documentation: ['https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-ssh'],
 			accessible: true,
 		});
 	});
@@ -1130,12 +1187,12 @@ suite('RemotesWidget', () => {
 					description: `Sign in to ${providerLabel} with the same account you use for Remote Tunnel Access on the other computer.`,
 					controls: [`Sign in to ${providerLabel}`],
 					detachedActions: 0,
-					guide: { tag: 'A', role: 'button', href: 'https://aka.ms/vscode-agent-tunnel', externalIcon: false },
+					guide: { tag: 'A', role: 'button', href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-dev-tunnel', externalIcon: false },
 					guideBelowActions: true,
 					guideLeftAligned: true,
 				},
 				focusRetained: true,
-				documentation: ['https://aka.ms/vscode-agent-tunnel'],
+				documentation: ['https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-dev-tunnel'],
 			});
 		});
 	}
@@ -1414,7 +1471,7 @@ suite('RemotesWidget', () => {
 	});
 
 	test('shows only availability while connection failures remain in troubleshooting', () => {
-		const { parent, model, hoverContents } = createWidget(OperatingSystem.Windows);
+		const { parent, model, widget, hoverContents } = createWidget(OperatingSystem.Windows);
 		feedbackStyles(parent);
 		parent.style.setProperty('--vscode-testing-iconPassed', '#228822');
 		parent.style.setProperty('--vscode-charts-blue', '#2266cc');
@@ -1423,6 +1480,7 @@ suite('RemotesWidget', () => {
 		const base = { ...model.remotes.get()[0], connectionStatus: RemoteAgentHostConnectionStatus.disconnected };
 		model.remotes.set([base], undefined);
 		runMenuAction(parent, base.id, 'troubleshoot');
+		widget.clearRowFocusAndSelection();
 		const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
 		const states: ICustomizationRemote[] = [
 			{ ...base, connectionStatus: RemoteAgentHostConnectionStatus.connected },
@@ -1668,7 +1726,7 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('sortable headers have inner spacing aligned with row values and release focus when hidden', () => {
+	test('sortable headers fill their cells, align with row values, and release focus when hidden', () => {
 		const { parent, widget } = createWidget(OperatingSystem.Windows, 'default', 1400);
 		feedbackStyles(parent);
 		parent.style.setProperty('--vscode-spacing-size100', '10px');
@@ -1678,9 +1736,11 @@ suite('RemotesWidget', () => {
 		const cell = parent.querySelector<HTMLElement>('[data-remote-id] .remotes-system-column')!;
 		const label = header.firstElementChild!.getBoundingClientRect();
 		const bounds = header.getBoundingClientRect();
+		const headerCellBounds = header.parentElement!.getBoundingClientRect();
 		const cellBounds = cell.getBoundingClientRect();
 		const cellStyle = dom.getWindow(cell).getComputedStyle(cell);
 		const spacing = {
+			fillsCell: bounds.left === headerCellBounds.left && bounds.top === headerCellBounds.top && bounds.width === headerCellBounds.width && bounds.height === headerCellBounds.height,
 			insideHover: label.left > bounds.left && label.right < bounds.right,
 			aligned: label.left === cellBounds.left + parseFloat(cellStyle.paddingLeft),
 			paddedBothSides: parseFloat(cellStyle.paddingLeft) >= 12 && cellStyle.paddingLeft === cellStyle.paddingRight,
@@ -1689,7 +1749,22 @@ suite('RemotesWidget', () => {
 		parent.style.width = '500px';
 		widget.layout();
 		const focusedList = dom.getActiveElement()?.classList.contains('monaco-list');
-		assert.deepStrictEqual({ ...spacing, focusedList }, { insideHover: true, aligned: true, paddedBothSides: true, focusedList: true });
+		assert.deepStrictEqual({ ...spacing, focusedList }, { fillsCell: true, insideHover: true, aligned: true, paddedBothSides: true, focusedList: true });
+	});
+
+	test('status icons keep their semantic colors in focused and selected rows', () => {
+		const { parent, widget } = createWidget(OperatingSystem.Windows, 'default');
+		feedbackStyles(parent);
+		parent.style.setProperty('--vscode-testing-iconPassed', '#228822');
+		const icon = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-indicator > .codicon')!;
+		const color = () => dom.getWindow(icon).getComputedStyle(icon).color;
+		const idle = color();
+		widget.focusAndSelectFirstRow();
+		const selected = color();
+		parent.querySelector<HTMLElement>('.remotes-sort-header')!.focus();
+		assert.deepStrictEqual({ idle, selected, inactive: color() }, {
+			idle: 'rgb(34, 136, 34)', selected: 'rgb(34, 136, 34)', inactive: 'rgb(34, 136, 34)',
+		});
 	});
 
 	test('status groups use consistent icons and compact chevron spacing without dimming offline names', () => {
@@ -1768,7 +1843,7 @@ suite('RemotesWidget', () => {
 		child.querySelector<HTMLElement>('.remotes-details-actions .secondary')!.click();
 		assert.deepStrictEqual({ badges, expanded, restored: !parent.querySelector<HTMLElement>('.remotes-overview')!.hidden }, {
 			badges: [{ count: '1', compact: true, rounded: '11px', background: 'rgb(51, 51, 51)' }, { count: '12', compact: true, rounded: '11px', background: 'rgb(51, 51, 51)' }],
-			expanded: { owner: remote.name, inTable: false, overviewHidden: true, title: 'Agent run behavior', noDeviceIcon: true }, restored: true,
+			expanded: { owner: remote.name, inTable: false, overviewHidden: true, title: 'How agents run', noDeviceIcon: true }, restored: true,
 		});
 	});
 
@@ -1881,7 +1956,7 @@ suite('RemotesWidget', () => {
 	});
 
 	for (const width of [360, 879, 880, 900, 1400]) {
-		test(`fits readable columns without horizontal scrolling from startup through resizing at width ${width}`, () => {
+		test(`retains readable columns with horizontal scrolling when needed at width ${width}`, () => {
 			const { parent, widget } = createWidget(OperatingSystem.Windows, 'status', width);
 			parent.style.setProperty('--vscode-spacing-size100', '10px');
 			parent.style.setProperty('--vscode-fontWeight-semiBold', '600');
@@ -1897,22 +1972,27 @@ suite('RemotesWidget', () => {
 					return range.getBoundingClientRect().width > header.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
 				}).map(header => header.textContent);
 				const container = parent.querySelector<HTMLElement>('.remotes-table-container')!;
+				const viewport = parent.querySelector<HTMLElement>('.remotes-table-viewport')!;
 				const table = container.querySelector<HTMLElement>('.monaco-table')!;
 				const row = table.querySelector<HTMLElement>('[data-remote-id]')!;
+				viewport.scrollLeft = viewport.scrollWidth;
+				const actionsReachable = row.querySelector<HTMLElement>('.remotes-actions-column')!.getBoundingClientRect().right <= viewport.getBoundingClientRect().right;
+				viewport.scrollLeft = 0;
 				return {
 					clippedHeaders,
-					fitsViewport: table.getBoundingClientRect().width === container.clientWidth,
-					noHorizontalOverflow: container.scrollWidth === container.clientWidth && row.scrollWidth === row.clientWidth,
-					actionsReachable: row.querySelector<HTMLElement>('.remotes-actions-column')!.getBoundingClientRect().right <= container.getBoundingClientRect().right,
+					fitsViewport: viewport.clientWidth === container.clientWidth,
+					scrolls: table.getBoundingClientRect().width > viewport.clientWidth,
+					noOuterOverflow: container.scrollWidth === container.clientWidth && row.scrollWidth === row.clientWidth,
+					actionsReachable,
 				};
 			});
-			assert.deepStrictEqual(layouts, Array.from({ length: 4 }, () => ({
-				clippedHeaders: [], fitsViewport: true, noHorizontalOverflow: true, actionsReachable: true,
+			assert.deepStrictEqual(layouts, [width, 360, 1400, width].map(layoutWidth => ({
+				clippedHeaders: [], fitsViewport: true, scrolls: layoutWidth === 360, noOuterOverflow: true, actionsReachable: true,
 			})));
 		});
 	}
 
-	test('task context outlasts secondary connection columns through resizing while hidden fields stay usable', async () => {
+	test('all columns remain allocated through resizing while metadata stays searchable', async () => {
 		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'default', 1400);
 		const remote = model.remotes.get()[0];
 		model.remotes.set([{
@@ -1950,10 +2030,10 @@ suite('RemotesWidget', () => {
 			layouts: [
 				['Name', 'Status', 'Last Activity', 'System', 'Type'],
 				['Name', 'Status', 'Last Activity', 'System', 'Type'],
-				['Name', 'Status', 'Last Activity', 'System'],
-				['Name', 'Status', 'System'],
-				['Name', 'Status'],
-				['Name', 'Status', 'Last Activity', 'System'],
+				['Name', 'Status', 'Last Activity', 'System', 'Type'],
+				['Name', 'Status', 'Last Activity', 'System', 'Type'],
+				['Name', 'Status', 'Last Activity', 'System', 'Type'],
+				['Name', 'Status', 'Last Activity', 'System', 'Type'],
 				['Name', 'Status', 'Last Activity', 'System', 'Type'],
 			].map(columns => ({ columns, fits: true, height: 28 })),
 			matches: [1, 1, 1], copies: [remote.id], connections: [], accessibleOrder: true,
@@ -2088,7 +2168,7 @@ suite('RemotesWidget', () => {
 			visibleAtRest: dom.getWindow(warning).getComputedStyle(warning.parentElement!).opacity,
 		}, {
 			label: 'Troubleshoot', hover: 'Troubleshoot the connection to Build server.', aria: 'Build server. Status: Available. Connection type: SSH. Address: build.example.com.',
-			actionAria: 'Troubleshoot Connection', accessible: false, nameActions: 0, visibleAtRest: '1',
+			actionAria: 'Troubleshoot', accessible: false, nameActions: 0, visibleAtRest: '1',
 		});
 		warning.click();
 		assert.deepStrictEqual({
@@ -2119,7 +2199,7 @@ suite('RemotesWidget', () => {
 			label: action.textContent?.trim(), hover: hoverContents.get(action), actionAria: action.getAttribute('aria-label'),
 			visibleAtRest: dom.getWindow(action).getComputedStyle(action.parentElement!).opacity,
 		}, {
-			label: 'Troubleshoot', hover: 'Troubleshoot the connection to Build server.', actionAria: 'Troubleshoot Connection', visibleAtRest: '1',
+			label: 'Troubleshoot', hover: 'Troubleshoot the connection to Build server.', actionAria: 'Troubleshoot', visibleAtRest: '1',
 		});
 		action.click();
 		assert.strictEqual(parent.querySelector('.remotes-task-title')?.textContent, 'Troubleshoot connection');
@@ -2267,6 +2347,8 @@ suite('RemotesWidget', () => {
 		for (const width of [wideWidth, 360, wideWidth]) {
 			parent.style.width = `${width}px`;
 			widget.layout();
+			const viewport = parent.querySelector<HTMLElement>('.remotes-table-viewport')!;
+			viewport.scrollLeft = viewport.scrollWidth;
 			const targets = () => [...parent.querySelectorAll<HTMLElement>('[data-remote-id] .codicon-toolbar-more')].map(button => button.getBoundingClientRect());
 			const before = targets();
 			const columns = columnGeometry();
@@ -2325,8 +2407,8 @@ suite('RemotesWidget', () => {
 				restored: model.remotes.get().find(remote => remote.id === 'ssh:build')?.hidden,
 				visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges, managementChanges: model.managementChanges,
 			}, {
-				before: 'Hide from Environment Picker',
-				hidden: { label: 'Show in Environment Picker', dimmed: true, connection: state === 'offline' ? 'Offline' : state === 'connected' ? 'Connected' : 'Available', accessible: true },
+				before: 'Hide from Picker',
+				hidden: { label: 'Show in Picker', dimmed: true, connection: state === 'offline' ? 'Offline' : state === 'connected' ? 'Connected' : 'Available', accessible: true },
 				retained: 1, restored: false,
 				visibilityChanges: [{ id: 'ssh:build', hidden: true }, { id: 'ssh:build', hidden: false }],
 				connectionChanges: [], managementChanges: [],
@@ -2347,13 +2429,13 @@ suite('RemotesWidget', () => {
 			connectionChanges: model.connectionChanges,
 			managementChanges: model.managementChanges,
 		}, {
-			label: 'Hide from Environment Picker',
+			label: 'Hide from Picker',
 			visibilityChanges: [{ id: remote.id, hidden: true }],
 			connectionChanges: [], managementChanges: [],
 		});
 	});
 
-	test('row actions expose only the connection button and overflow, with deletion last in the menu', () => {
+	test('row actions expose only the connection button and overflow, with removal last before documentation', () => {
 		const { parent, model } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([{
@@ -2367,7 +2449,7 @@ suite('RemotesWidget', () => {
 			visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,
 		}, {
 			buttons: ['Connect', ''],
-			menu: ['remotes.actions', 'remotes.troubleshoot', 'vs.actions.separator', 'remotes.visibility', 'vs.actions.separator', 'remotes.rename', 'remotes.delete'],
+			menu: ['remotes.actions', 'remotes.troubleshoot', 'vs.actions.separator', 'remotes.rename', 'remotes.visibility', 'remotes.delete', 'vs.actions.separator', 'remotes.documentation'],
 			visibilityChanges: [], connectionChanges: [],
 		});
 	});
@@ -2399,12 +2481,12 @@ suite('RemotesWidget', () => {
 				visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,
 			}, {
 				unavailable: {
-					label: 'Show in Environment Picker',
+					label: 'Show in Picker',
 					tooltip: 'This remote can\'t appear as a separate entry in the environment picker.',
 					disabled: true, accessible: true,
 				},
 				restored: {
-					label: hidden ? 'Show in Environment Picker' : 'Hide from Environment Picker',
+					label: hidden ? 'Show in Picker' : 'Hide from Picker',
 					disabled: false, unavailableClass: false,
 				},
 				visibilityChanges: [], connectionChanges: [],
@@ -2451,7 +2533,7 @@ suite('RemotesWidget', () => {
 		}, { changes: [{ id: 'ssh:build', action: 'rename' }], enabled: true, name: 'Renamed remote' });
 	});
 
-	test('remote menus keep connection, organization, copy, and management groups consistent after refresh', async () => {
+	test('remote menus keep connection, management, and documentation groups consistent after refresh', async () => {
 		const { parent, model, widget } = createWidget(OperatingSystem.Windows);
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([...model.remotes.get(), {
@@ -2464,12 +2546,63 @@ suite('RemotesWidget', () => {
 		widget.setVisible(true);
 		await timeout(0);
 		const expected = [
-			['Connect', 'Troubleshoot Connection', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Remove Environment...'],
-			['Connect', 'Troubleshoot Connection', '---', 'Hide from Environment Picker', '---', 'Rename...', 'Configure Agent Run Behavior...', 'Delete Dev Tunnel...'],
-			['Connect', 'Troubleshoot Connection', '---', 'Hide from Environment Picker', '---', 'Rename...'],
-			['New Session', 'Disconnect', 'Troubleshoot Connection', '---', 'Hide from Environment Picker', '---', 'Copy Address', '---', 'Rename...', 'Configure Agent Run Behavior...'],
+			['Connect', 'Troubleshoot', '---', 'Rename...', 'Hide from Picker', 'Remove GitHub Environment...', '---', 'Learn More about GitHub Environment (Preview)'],
+			['Connect', 'Troubleshoot', '---', 'Rename...', 'Choose How Agents Run...', 'Hide from Picker', 'Remove Dev Tunnel...', '---', 'Learn More about Dev Tunnel'],
+			['Connect', 'Troubleshoot', '---', 'Rename...', 'Hide from Picker', '---', 'Learn More about WSL'],
+			['New Session', 'Disconnect', 'Troubleshoot', '---', 'Rename...', 'Choose How Agents Run...', 'Open SSH Configuration', 'Copy SSH Address', 'Hide from Picker', '---', 'Learn More about SSH'],
 		];
 		assert.deepStrictEqual({ before, after: actions(), changes: model.managementChanges }, { before: expected, after: expected, changes: [] });
+	});
+
+	for (const source of ['overflow', 'type'] as const) {
+		test(`${source} menu keeps its owner selected and actions visible after focus leaves the list and rows refresh`, () => {
+			const { parent, model, holdMenuOpen, closeMenu } = createWidget(OperatingSystem.Windows, 'default', 1400);
+			holdMenuOpen();
+			const id = 'tunnel:laptop';
+			if (source === 'overflow') {
+				getMenuActions(parent, id);
+			} else {
+				parent.querySelector(`[data-remote-id="${id}"] .remotes-type-column span`)!
+					.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			}
+			const focusBeforeMenu = source === 'overflow'
+				? parent.querySelector(`[data-remote-id="${id}"] .codicon-toolbar-more`)
+				: parent.querySelector('.monaco-table .monaco-list');
+			const focusedOwner = dom.getActiveElement() === focusBeforeMenu;
+			parent.querySelector<HTMLInputElement>('input')!.focus();
+			const selected = () => [...parent.querySelectorAll<HTMLElement>('.monaco-list-row.selected [data-remote-id]')].map(row => row.dataset.remoteId);
+			const state = () => ({
+				selected: selected(),
+				opacity: dom.getWindow(parent).getComputedStyle(parent.querySelector(`[data-remote-id="${id}"] .remotes-actions-column`)!).opacity,
+			});
+			const opened = state();
+			model.remotes.set(model.remotes.get().map(remote => ({ ...remote, name: `${remote.name} refreshed` })), undefined);
+			const refreshed = state();
+			closeMenu();
+			const closed = state();
+			model.remotes.set(model.remotes.get().filter(remote => remote.id !== id), undefined);
+			const expected = { selected: [id], opacity: '1' };
+			assert.deepStrictEqual({ focusedOwner, opened, refreshed, closed, afterRemoval: selected() }, {
+				focusedOwner: true, opened: expected, refreshed: expected, closed: expected, afterRemoval: [],
+			});
+		});
+	}
+
+	test('extension and nested container menus expose only supported actions and distinguish deleting files', () => {
+		const { parent, model } = createWidget();
+		const remotes: ICustomizationRemote[] = [{
+			id: 'extension:jobs', kind: 'extension', name: 'Jobs', detail: 'jobs', copyableAddress: 'localhost:8445',
+			contributedBy: { extensionId: 'publisher.jobs', displayName: 'Job Runner' },
+			canRemove: false, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected,
+		}, {
+			id: 'devContainer:build', kind: 'devContainer', name: 'Build container', detail: 'build', connectsWithHost: true,
+			canRemove: false, canDelete: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected,
+		}];
+		model.remotes.set(remotes, undefined);
+		assert.deepStrictEqual(remotes.map(remote => getMenuActions(parent, remote.id).map(action => action.id === 'vs.actions.separator' ? '---' : action.label)), [
+			['New Session', 'Disconnect', 'Troubleshoot', '---', 'Rename...', 'Show Job Runner Extension', 'Copy Connection Address', 'Hide from Picker', '---', 'Learn More about Extensions'],
+			['Troubleshoot', '---', 'Rename...', 'Hide from Picker', 'Delete Container and Files...', '---', 'Learn More about Dev Containers'],
+		]);
 	});
 
 	test('Delete works offline, prevents duplicate actions and restores keyboard focus', async () => {
@@ -2569,10 +2702,9 @@ suite('RemotesWidget', () => {
 			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Version mismatch', ['1'], ['2'], 'vendor/update'),
 		}], undefined);
 		assert.deepStrictEqual(getMenuActions(parent, ssh.id).map(action => action.id === 'vs.actions.separator' ? '---' : action.label), [
-			'Connect', 'Troubleshoot Connection', '---',
-			'Hide from Environment Picker', '---',
-			'Copy Address', '---',
-			'Rename...', 'Configure Agent Run Behavior...', 'Update Server', 'Forget SSH Connection...',
+			'Connect', 'Troubleshoot', 'Update Server', '---',
+			'Rename...', 'Choose How Agents Run...', 'Open SSH Configuration', 'Copy SSH Address', 'Hide from Picker', 'Remove Saved SSH Connection...', '---',
+			'Learn More about SSH',
 		]);
 	});
 
@@ -2621,6 +2753,36 @@ suite('RemotesWidget', () => {
 	});
 
 	for (const id of ['ssh:build', 'tunnel:laptop']) {
+		test(`${id} run behavior uses the shared card accent for unsaved selections without focus`, () => {
+			const { parent, model } = createWidget();
+			parent.style.setProperty('--vscode-list-focusOutline', '#006bbd');
+			parent.style.setProperty('--vscode-radio-activeBorder', '#888888');
+			parent.style.setProperty('--vscode-radio-inactiveBorder', '#777777');
+			parent.style.setProperty('--vscode-strokeThickness', '1px');
+			runMenuAction(parent, id, 'locationPreference');
+			const choices = [...parent.querySelectorAll<HTMLElement>('.remotes-run-choices [role="radio"]')];
+			const read = () => choices.map(choice => ({
+				checked: choice.getAttribute('aria-checked'),
+				border: dom.getWindow(choice).getComputedStyle(choice).borderColor,
+				dot: dom.getWindow(choice).getComputedStyle(choice, '::after').visibility,
+			}));
+			const initial = read();
+			choices[1].click();
+			assert.deepStrictEqual({
+				initial, changed: read(), focused: choices.some(choice => dom.isActiveElement(choice)), saved: model.locationChanges,
+			}, {
+				initial: [
+					{ checked: 'true', border: 'rgb(0, 107, 189)', dot: 'visible' },
+					{ checked: 'false', border: 'rgb(119, 119, 119)', dot: 'hidden' },
+				],
+				changed: [
+					{ checked: 'false', border: 'rgb(119, 119, 119)', dot: 'hidden' },
+					{ checked: 'true', border: 'rgb(0, 107, 189)', dot: 'visible' },
+				],
+				focused: false, saved: [],
+			});
+		});
+
 		test(`${id} run behavior opens a task page and saves an explicit choice once`, async () => {
 			const { parent, model } = createWidget();
 			model.pendingManagement = new DeferredPromise<void>();
@@ -2696,7 +2858,7 @@ suite('RemotesWidget', () => {
 			}, {
 				technicalDetails: false,
 				message: saved
-					? 'Your choice was saved, but reconnection failed. Go back and select Troubleshoot Connection.'
+					? 'Your choice was saved, but reconnection failed. Go back and select Troubleshoot.'
 					: 'Couldn\'t save your choice. Try again.',
 				retryDisabled: String(saved),
 				backNavigated: true,
@@ -2719,7 +2881,7 @@ suite('RemotesWidget', () => {
 			query: parent.querySelector<HTMLInputElement>('.remotes-search-row input')!.value,
 			ids: [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row => row.dataset.remoteId),
 			focus: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
-			scopedContent: visibleContent.includes('Agent run behavior') && !visibleContent.includes('Ready to use'),
+			scopedContent: visibleContent.includes('How agents run') && !visibleContent.includes('Ready to use'),
 		}, { pageVisible: false, overviewHidden: false, query: 'build', ids: ['ssh:build'], focus: true, scopedContent: true });
 	});
 
@@ -2829,7 +2991,7 @@ suite('RemotesWidget', () => {
 			}, {
 				scope: 'Choose how agents run on this remote computer. Keep it awake and online while they work.',
 				radioDescribedByScope: true,
-				fieldLabel: 'Preferred run behavior',
+				fieldLabel: 'Preferred run mode',
 				radioLabelledByField: true,
 				flow: ['remotes-task-description remotes-run-description', 'remotes-task-identity-detail', 'remotes-run-field', 'remotes-run-actions'],
 				saveLabel: id === 'ssh:build' ? 'Save and Reconnect' : 'Save',
@@ -2954,8 +3116,8 @@ suite('RemotesWidget', () => {
 				...remote, name: 'Renamed server', detail: 'new.example.com',
 			} : remote), undefined);
 			assert.deepStrictEqual({ before, after: read() }, {
-				before: { title: action === 'locationPreference' ? 'Agent run behavior' : 'Troubleshoot connection', name: 'Build server', detail: ['Environment', 'Build server', 'Status', 'Connected', 'Connection type', 'SSH', 'Host address', 'build.example.com'], taskInBody: false, metadataInBody: true, healthCard: false },
-				after: { title: action === 'locationPreference' ? 'Agent run behavior' : 'Troubleshoot connection', name: 'Renamed server', detail: ['Environment', 'Renamed server', 'Status', 'Connected', 'Connection type', 'SSH', 'Host address', 'new.example.com'], taskInBody: false, metadataInBody: true, healthCard: false },
+				before: { title: action === 'locationPreference' ? 'How agents run' : 'Troubleshoot connection', name: 'Build server', detail: ['Environment', 'Build server', 'Status', 'Connected', 'Connection type', 'SSH', 'Host address', 'build.example.com'], taskInBody: false, metadataInBody: true, healthCard: false },
+				after: { title: action === 'locationPreference' ? 'How agents run' : 'Troubleshoot connection', name: 'Renamed server', detail: ['Environment', 'Renamed server', 'Status', 'Connected', 'Connection type', 'SSH', 'Host address', 'new.example.com'], taskInBody: false, metadataInBody: true, healthCard: false },
 			});
 		});
 	}
@@ -3671,12 +3833,12 @@ suite('RemotesWidget', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ states, changes: model.gitHubEnvironmentChanges }, {
 			states: [
-				{ label: 'Share Build server as GitHub Environment', enabled: true },
-				{ label: 'Stop Sharing Build server as GitHub Environment', enabled: true },
-				{ label: 'Sharing Build server as a GitHub environment...', enabled: false },
-				{ label: 'Stop Sharing Build server as GitHub Environment', enabled: true },
-				{ label: 'Share Build server as GitHub Environment', enabled: true },
-				{ label: 'Build server is shared as a GitHub environment by another GitHub account.', enabled: false },
+				{ label: 'Share as GitHub Environment', enabled: true },
+				{ label: 'Stop Sharing as GitHub Environment', enabled: true },
+				{ label: 'Sharing as GitHub Environment...', enabled: false },
+				{ label: 'Stop Sharing as GitHub Environment', enabled: true },
+				{ label: 'Share as GitHub Environment', enabled: true },
+				{ label: 'Shared by Another Account', enabled: false },
 			],
 			changes: [{ id: 'ssh:build', shared: true }, { id: 'ssh:build', shared: false }],
 		});
@@ -3695,10 +3857,11 @@ suite('RemotesWidget', () => {
 		runMenuAction(parent, 'ssh:build', 'copyAddress');
 		await model.pendingManagement.complete();
 		await timeout(0);
+		const focused = dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list');
 		assert.deepStrictEqual({
 			busy, updates: model.serverUpdates, copies: model.copiedAddresses,
 			present: !!findMenuAction(parent, 'ssh:build', 'updateServer'),
-			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
+			focused,
 		}, { busy: true, updates: ['ssh:build'], copies: ['ssh:build'], present: false, focused: true });
 	});
 
@@ -3918,7 +4081,7 @@ suite('RemotesWidget', () => {
 				{ status: undefined, action: 'Connect to Build server', disabled: false },
 				{ status: undefined, action: 'Connecting: Build server', disabled: true },
 				{ status: undefined, action: 'Reconnecting: Build server', disabled: true },
-				{ status: undefined, action: 'Troubleshoot Connection', disabled: false },
+				{ status: undefined, action: 'Troubleshoot', disabled: false },
 			],
 			accessible: false,
 		});
@@ -3941,12 +4104,14 @@ suite('RemotesWidget', () => {
 		};
 		action.click();
 		runMenuAction(parent, 'tunnel:laptop', 'rename');
+		action.focus();
 		await model.pendingConnection.complete();
 		await timeout(0);
+		const focused = dom.getActiveElement() === action;
 		assert.deepStrictEqual({
 			tabIndex, busy, connectionChanges: model.connectionChanges, managementChanges: model.managementChanges,
 			action: action.getAttribute('aria-label'), renameDisabled: !getMenuAction(parent, 'tunnel:laptop', 'rename').enabled,
-			sameControl: getConnectionAction(parent, 'tunnel:laptop') === action, focused: dom.getActiveElement() === action,
+			sameControl: getConnectionAction(parent, 'tunnel:laptop') === action, focused,
 		}, {
 			tabIndex: 0, busy: { actionDisabled: 'true', renameDisabled: true, state: 'Connecting' },
 			connectionChanges: [{ id: 'tunnel:laptop', connected: true }], managementChanges: [],
@@ -4365,8 +4530,8 @@ suite('RemotesWidget', () => {
 		const remote = actions('devcontainer:ssh');
 		runMenuAction(parent, 'devcontainer:local', 'troubleshoot');
 		assert.deepStrictEqual({ local, remote, help: parent.querySelector<HTMLAnchorElement>('.remotes-recovery-links a')?.getAttribute('href') }, {
-			local: { connectHidden: false, rename: true, delete: 'Delete Dev Container...' },
-			remote: { connectHidden: true, rename: true, delete: 'Delete Dev Container...' },
+			local: { connectHidden: false, rename: true, delete: 'Delete Container and Files...' },
+			remote: { connectHidden: true, rename: true, delete: 'Delete Container and Files...' },
 			help: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_troubleshoot-remote-sessions',
 		});
 	});
@@ -4387,8 +4552,8 @@ suite('RemotesWidget', () => {
 		runMenuAction(parent, tunnel.id, 'createDevContainer');
 		await timeout(0);
 		assert.deepStrictEqual({ before, after, creations: model.devContainerCreations }, {
-			before: { connect: 'Disconnect Laptop', create: undefined, copy: 'Copy Address', delete: 'Delete Dev Tunnel...' },
-			after: { connect: 'Disconnect Laptop', create: 'Create Dev Container on Laptop', copy: 'Copy Address', delete: 'Delete Dev Tunnel...' },
+			before: { connect: 'Disconnect Laptop', create: undefined, copy: 'Copy Connection Address', delete: 'Remove Dev Tunnel...' },
+			after: { connect: 'Disconnect Laptop', create: 'Create Dev Container on Laptop', copy: 'Copy Connection Address', delete: 'Remove Dev Tunnel...' },
 			creations: [tunnel.id],
 		});
 	});
@@ -4511,7 +4676,7 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('the Dev Tunnels gear and setup links follow table focus and support keyboard activation', async () => {
+	test('the Dev Tunnels header menu, gear and setup links follow table focus and support keyboard activation', async () => {
 		const { widget, parent, model, configRequests, documentation, settings } = createWidget();
 		model.remotes.set([model.remotes.get()[0]], undefined);
 		model.failedKinds = ['tunnel'];
@@ -4520,12 +4685,17 @@ suite('RemotesWidget', () => {
 		const table = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
 		table.focus();
 		const gear = parent.querySelector<HTMLElement>('[aria-label="Open Dev Tunnels Settings"]')!;
-		const info = gear.closest('.remotes-group-row')!.querySelector<HTMLElement>('.codicon-info')!;
-		const initialInfoTabIndex = info.tabIndex;
-		info.focus();
-		info.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-		info.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
-		const gearReached = dom.getActiveElement() === gear;
+		const overflow = gear.closest('.remotes-group-row')!.querySelector<HTMLElement>('.codicon-toolbar-more')!;
+		const initialMenuTabIndex = overflow.tabIndex;
+		gear.focus();
+		gear.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		gear.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		const menuReached = dom.getActiveElement() === overflow;
+		for (const type of ['keydown', 'keyup']) {
+			overflow.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		const documentationAction = menus.get(parent)!().find(action => action.id === 'remotes.documentation')!;
+		await store.add(new ActionRunner()).run(documentationAction);
 		gear.focus();
 		gear.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
 		for (const type of ['keydown', 'keyup']) {
@@ -4543,11 +4713,11 @@ suite('RemotesWidget', () => {
 		link.focus();
 		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 		assert.deepStrictEqual({
-			initialInfoTabIndex, gearReached, focusedGearTabIndex: currentGear.tabIndex, focusedLinkTabIndex, configRequests: configRequests(), documentation, settings,
+			initialMenuTabIndex, menuReached, focusedGearTabIndex: currentGear.tabIndex, focusedLinkTabIndex, configRequests: configRequests(), documentation, settings,
 			expanded: currentGear.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 		}, {
-			initialInfoTabIndex: 0, gearReached: true, focusedGearTabIndex: -1, focusedLinkTabIndex: 0, configRequests: 0,
-			documentation: ['https://aka.ms/vscode-agent-tunnel'], settings: [{ query: 'chat.remoteAgentHosts' }],
+			initialMenuTabIndex: 0, menuReached: true, focusedGearTabIndex: -1, focusedLinkTabIndex: 0, configRequests: 0,
+			documentation: ['https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-dev-tunnel', 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-dev-tunnel'], settings: [{ query: 'chat.remoteAgentHosts' }],
 			expanded: 'true',
 		});
 	});
@@ -4717,26 +4887,67 @@ suite('RemotesWidget', () => {
 		});
 	}
 
-	test('section info actions open the same setup links for populated and collapsed groups', () => {
+	test('type-group overflow menus open documentation for populated and collapsed groups without toggling them', () => {
 		const { parent, model, documentation } = createWidget(OperatingSystem.Windows);
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([...model.remotes.get(), {
 			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'desktop', canRemove: false,
 			availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected,
 		}], undefined);
-		const openInfo = () => {
-			for (const action of parent.querySelectorAll<HTMLElement>('.remotes-group-row .remotes-actions-column .codicon-info')) {
-				action.click();
+		const openDocumentation = () => {
+			for (const overflow of parent.querySelectorAll<HTMLElement>('.remotes-group-row .remotes-actions-column .codicon-toolbar-more')) {
+				const group = overflow.closest('.monaco-list-row')!;
+				const expanded = group.getAttribute('aria-expanded');
+				overflow.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
+				const action = menus.get(parent)!().find(action => action.id === 'remotes.documentation')!;
+				void store.add(new ActionRunner()).run(action);
+				assert.strictEqual(group.getAttribute('aria-expanded'), expanded);
 			}
 		};
-		openInfo();
+		openDocumentation();
 		for (const action of parent.querySelectorAll<HTMLElement>('.monaco-list-row[aria-expanded="true"]')) {
 			action.click();
 		}
-		openInfo();
+		openDocumentation();
 		assert.deepStrictEqual(documentation, Array.from({ length: 2 }, () => [
-			'https://aka.ms/vscode-agent-environments', 'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-agent-wsl', 'https://aka.ms/vscode-agent-ssh',
+			'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_github-environments', 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-dev-tunnel', 'https://code.visualstudio.com/docs/remote/wsl', 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-ssh',
 		]).flat());
+	});
+
+	test('each type shares documentation between row overflow and Type context menus without connecting', async () => {
+		const { parent, model, documentation } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		model.environmentsEnabled.set(true, undefined);
+		const guides: { kind: RemoteKind; label: string; href: string }[] = [
+			{ kind: 'ssh', label: 'SSH', href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-ssh' },
+			{ kind: 'wsl', label: 'WSL', href: 'https://code.visualstudio.com/docs/remote/wsl' },
+			{ kind: 'tunnel', label: 'Dev Tunnel', href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-dev-tunnel' },
+			{ kind: 'environment', label: 'GitHub Environment (Preview)', href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_github-environments' },
+			{ kind: 'extension', label: 'Extensions', href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions' },
+			{ kind: 'devContainer', label: 'Dev Containers', href: 'https://code.visualstudio.com/docs/devcontainers/containers' },
+		];
+		const labels = guides.map(({ kind }) => {
+			const remote: ICustomizationRemote = {
+				id: `${kind}:docs`, kind, name: kind, detail: kind, canRemove: false,
+				availability: 'offline', connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
+			};
+			model.remotes.set([remote], undefined);
+			const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
+			const overflowAction = getMenuAction(parent, remote.id, 'documentation');
+			void store.add(new ActionRunner()).run(overflowAction);
+			row.querySelector('.remotes-type-column span')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			const contextActions = menus.get(parent)!();
+			const contextAction = contextActions[0];
+			model.remotes.set([], undefined);
+			void store.add(new ActionRunner()).run(contextAction);
+			return { overflow: overflowAction.label, context: contextActions.map(action => action.label) };
+		});
+		await timeout(0);
+		assert.deepStrictEqual({
+			labels, documentation, connections: model.connectionChanges,
+		}, {
+			labels: guides.map(({ label }) => ({ overflow: `Learn More about ${label}`, context: [`Learn More about ${label}`] })),
+			documentation: guides.flatMap(({ href }) => [href, href]), connections: [],
+		});
 	});
 
 	test('empty Type groups show setup guidance and working documentation links', async () => {
@@ -4752,14 +4963,14 @@ suite('RemotesWidget', () => {
 			labels,
 			counts: [...parent.querySelectorAll('.remotes-group-count:not([hidden])')].map(element => element.textContent),
 			documentation,
-			accessibleGuidance: widget.getAccessibilityContent().includes('SSH setup guide: https://aka.ms/vscode-agent-ssh'),
+			accessibleGuidance: widget.getAccessibilityContent().includes('SSH setup guide: https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-ssh'),
 		}, {
 			labels: ['Connect to another computer with a Dev Tunnel', 'No WSL 2 distributions found.', 'No SSH hosts configured.'],
 			counts: ['0', '0', '0'],
 			documentation: [
-				'https://aka.ms/vscode-agent-tunnel',
-				'https://aka.ms/vscode-agent-wsl',
-				'https://aka.ms/vscode-agent-ssh',
+				'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-dev-tunnel',
+				'https://code.visualstudio.com/docs/remote/wsl',
+				'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_connect-via-ssh',
 			],
 			accessibleGuidance: true,
 		});

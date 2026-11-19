@@ -95,19 +95,20 @@ suite('remoteHostOptions', () => {
 			{ name: 'Tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'laptop', clusterId: 'usw2' } },
 			undefined,
 		];
-		const hasCopy = (copyableAddress: string | undefined) => buildRemoteHostOptionItems({ address: 'any', copyableAddress, isConnected: true, canRemove: false, disconnectLabel: 'Disconnect' }).some(item => item.id === 'copy');
 		assert.deepStrictEqual(entries.map(entry => {
 			const address = getCopyableRemoteAddress(entry);
-			return { address, copy: hasCopy(address) };
+			const preferenceKey = entry?.connection.type === RemoteAgentHostEntryType.SSH ? 'ssh:build' : undefined;
+			const copy = buildRemoteHostOptionItems({ address: 'localhost:4321', preferenceKey, copyableAddress: address, isConnected: true, canRemove: false, disconnectLabel: 'Disconnect' }).find(item => item.id === 'copy')?.label;
+			return { address, copy };
 		}), [
-			{ address: 'build', copy: true },
-			{ address: 'user@host.example.com:2222', copy: true },
-			{ address: 'user@host.example.com', copy: true },
-			{ address: 'host.example.com', copy: true },
-			{ address: '10.0.0.5:8089', copy: true },
-			{ address: undefined, copy: false },
-			{ address: undefined, copy: false },
-			{ address: undefined, copy: false },
+			{ address: 'build', copy: '$(copy) Copy SSH Address' },
+			{ address: 'user@host.example.com:2222', copy: '$(copy) Copy SSH Address' },
+			{ address: 'user@host.example.com', copy: '$(copy) Copy SSH Address' },
+			{ address: 'host.example.com', copy: '$(copy) Copy SSH Address' },
+			{ address: '10.0.0.5:8089', copy: '$(copy) Copy Connection Address' },
+			{ address: undefined, copy: undefined },
+			{ address: undefined, copy: undefined },
+			{ address: undefined, copy: undefined },
 		]);
 	});
 

@@ -23,6 +23,7 @@ import { AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId
 import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -198,9 +199,9 @@ suite('RemotesEditor', () => {
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'remotes' && implementation.type === AccessibleViewType.Help)!;
 		const content = store.add(help.getProvider(instantiation)!).provideContent();
 		assert.deepStrictEqual({
-			runBehavior: content.includes('Configure Agent Run Behavior'),
+			runBehavior: content.includes('Choose How Agents Run'),
 			runBehaviorExplained: ['tasks you want to leave running', 'when available', 'If a Dev Tunnel is shared', 'Existing sessions are not moved'].every(explanation => content.includes(explanation)),
-			removalActions: ['Remove Environment', 'Forget SSH Connection', 'Delete Dev Tunnel'].every(label => content.includes(label)),
+			removalActions: ['Remove GitHub Environment', 'Remove Saved SSH Connection', 'Remove Dev Tunnel'].every(label => content.includes(label)),
 			diagnostics: content.includes('Open Diagnostic Report'),
 			oldGroupSettings: content.includes('The Dev Tunnels group has an Open Dev Tunnels Settings action.'),
 		}, { runBehavior: true, runBehaviorExplained: true, removalActions: true, diagnostics: true, oldGroupSettings: false });
@@ -393,11 +394,13 @@ suite('RemotesEditor', () => {
 	});
 
 	for (const method of ['devTunnel', 'githubEnvironment'] as const) {
-		test(`sharing offers rename without an unusable copy action (${method})`, async () => {
-			const { editor, container, input, tunnel, sharing } = createEditor({
+		test(`copies the current sharing name without changing sharing (${method})`, async () => {
+			const { editor, container, input, tunnel, sharing, instantiation } = createEditor({
 				[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true,
 				[AgentHostRemoteConnectionsSettingId]: method,
 			});
+			const copied: string[] = [];
+			instantiation.stub(IClipboardService, { writeText: async text => { copied.push(text); } });
 			await editor.setInput(input, undefined, {}, CancellationToken.None);
 			await timeout(0);
 			const toolbar = container.querySelector<HTMLElement>('.remotes-this-computer-rename')!;
@@ -408,10 +411,13 @@ suite('RemotesEditor', () => {
 				tunnel.fireStatus({ type: 'connected', info: { tunnelName: 'shared-computer', isAttached: false }, serviceInstallFailed: false });
 			}
 			await timeout(0);
+			toolbar.querySelector<HTMLElement>('.action-label.codicon-copy')!.click();
+			await timeout(0);
 			assert.deepStrictEqual({
 				visible: !toolbar.hidden,
 				actions: [...toolbar.querySelectorAll('.action-label')].map(element => element.getAttribute('aria-label')),
-			}, { visible: true, actions: ['Change Sharing Name'] });
+				copied,
+			}, { visible: true, actions: ['Change Sharing Name', 'Copy Sharing Name'], copied: [method === 'githubEnvironment' ? 'Shared computer' : 'shared-computer'] });
 		});
 	}
 
@@ -752,7 +758,7 @@ suite('RemotesEditor', () => {
 		const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(selector => {
 			const theme = ColorThemeData.createUnloadedTheme(selector);
 			const surface = theme.getColor('editorWidget.background')!;
-			for (const id of ['radio.activeForeground', 'radio.activeBackground', 'radio.activeBorder', 'radio.inactiveForeground', 'radio.inactiveBackground', 'radio.inactiveBorder']) {
+			for (const id of ['radio.activeForeground', 'radio.activeBackground', 'radio.activeBorder', 'radio.inactiveForeground', 'radio.inactiveBackground', 'radio.inactiveBorder', 'list.focusOutline', 'focusBorder']) {
 				container.style.setProperty(`--vscode-${id.replace('.', '-')}`, theme.getColor(id)?.toString() ?? 'transparent');
 			}
 			return choices.map(choice => {
@@ -765,11 +771,12 @@ suite('RemotesEditor', () => {
 				return {
 					ring: ring.content !== 'none' && parseFloat(ring.borderTopWidth) > 0,
 					selectedDot: dot.content !== 'none' && dot.visibility === 'visible' && parseFloat(dot.width) > 0,
+					accentBorder: Color.Format.CSS.parse(style.borderTopColor)!.toString() === theme.getColor('list.focusOutline')!.toString(),
 					contrast: indicator.getContrastRatio(background) >= 3,
 				};
 			});
 		});
-		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => choices.map(() => ({ ring: true, selectedDot: true, contrast: true }))));
+		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => choices.map(() => ({ ring: true, selectedDot: true, accentBorder: true, contrast: true }))));
 	});
 
 	test('inline sharing keeps both sections and search visible, with actions beside the section heading', async () => {
@@ -884,6 +891,7 @@ suite('RemotesEditor', () => {
 			const share = container.querySelector('.remotes-this-computer-share')!.getBoundingClientRect();
 			const search = container.querySelector('.remotes-search-row')!.getBoundingClientRect();
 			const refresh = container.querySelector('.remotes-header-actions .monaco-button')!.getBoundingClientRect();
+			const viewport = container.querySelector('.remotes-table-viewport')!.getBoundingClientRect();
 			const row = container.querySelector('[data-remote-id]')!.getBoundingClientRect();
 			const title = container.querySelector<HTMLElement>('.remotes-this-computer-title')!;
 			const otherTitle = container.querySelector<HTMLElement>('.remotes-heading-title')!;
@@ -912,7 +920,7 @@ suite('RemotesEditor', () => {
 			});
 			return {
 				focusRingsFit,
-				rightAligned: [share.right, search.right, refresh.right, row.right].every(right => Math.abs(right - table.right) < 1),
+				rightAligned: [share.right, search.right, refresh.right, viewport.right].every(right => Math.abs(right - table.right) < 1),
 				leftAligned: Math.abs(row.left - table.left) < 1,
 				refreshFits: refresh.width > 0 && refresh.left >= table.left,
 				shareBesideHeading: Math.abs(share.top + share.height / 2 - titleBounds.top - titleBounds.height / 2) < 1,

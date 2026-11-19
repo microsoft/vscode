@@ -23,6 +23,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -63,6 +64,7 @@ export class ThisComputerSection extends Disposable {
 	private readonly sharing: RemoteConnectionsSharing;
 	private readonly name: HTMLElement;
 	private readonly rename: Action;
+	private readonly copyName: Action;
 	private readonly renameToolbar: WorkbenchToolBar;
 	private readonly renameContainer: HTMLElement;
 	private readonly shareButton: Button;
@@ -105,6 +107,7 @@ export class ThisComputerSection extends Disposable {
 		@IHoverService hoverService: IHoverService,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IClipboardService clipboardService: IClipboardService,
 	) {
 		super();
 		const state = this._register(instantiationService.createInstance(RemoteConnectionsState));
@@ -126,11 +129,18 @@ export class ThisComputerSection extends Disposable {
 		this._register(hoverService.setupDelayedHover(this.name, () => ({ content: this.sharingName ?? '', style: HoverStyle.Pointer }), hoverLifecycleOptions));
 		this.renameContainer = dom.append(nameRow, dom.$('.remotes-this-computer-rename'));
 		this.rename = this._register(new Action('remotes.renameThisComputer', localize('thisComputer.rename', "Change Sharing Name"), ThemeIcon.asClassName(Codicon.edit), true, () => this.renameComputer()));
+		this.copyName = this._register(new Action('remotes.copySharingName', localize('thisComputer.copyName', "Copy Sharing Name"), ThemeIcon.asClassName(Codicon.copy), true, async () => {
+			const name = this.sharingName;
+			if (name) {
+				await clipboardService.writeText(name);
+				status(localize('thisComputer.nameCopied', "Sharing name copied"));
+			}
+		}));
 		this.renameToolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, this.renameContainer, {
 			ariaLabel: localize('thisComputer.nameActions', "Sharing name actions"),
 			hoverDelegate,
 		}));
-		this.renameToolbar.setActions([this.rename]);
+		this.renameToolbar.setActions([this.rename, this.copyName]);
 		const statusContainer = dom.append(summary, dom.$('.remotes-this-computer-status'));
 		dom.append(statusContainer, dom.$('span.remotes-this-computer-system', undefined, system));
 		this.statusIcon = dom.append(statusContainer, dom.$('span.remotes-sharing-status-icon', { 'aria-hidden': 'true' }));
@@ -204,7 +214,7 @@ export class ThisComputerSection extends Disposable {
 		const methodTitleId = generateUuid();
 		dom.append(typeField, dom.$('p.remotes-sharing-instruction', { id: methodTitleId },
 			localize('thisComputer.sharingInstruction', "Choose how to connect to this computer from another device.")));
-		this.radio = this._register(new Radio({ items: [], hoverDelegate }));
+		this.radio = this._register(new Radio({ items: [], hoverDelegate, className: 'cards' }));
 		this.radio.domNode.classList.add('remotes-sharing-choices', 'remotes-method-choices');
 		this.radio.domNode.setAttribute('aria-labelledby', methodTitleId);
 		typeField.appendChild(this.radio.domNode);
@@ -425,6 +435,7 @@ export class ThisComputerSection extends Disposable {
 		this.name.hidden = !name;
 		this.renameContainer.hidden = !name;
 		this.rename.enabled = !!name && !state.isConnecting && !this.isBusy;
+		this.copyName.enabled = !!name;
 		this.details.hidden = !this.showingOptions;
 		this.applyButton.element.parentElement!.hidden = !this.showingOptions;
 		this.domNode.classList.toggle('sharing-expanded', this.showingOptions);

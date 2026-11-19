@@ -71,9 +71,9 @@ export async function disconnectSSHEntry(
 export async function confirmTunnelDeletion(dialogService: IDialogService, name: string): Promise<boolean> {
 	const { confirmed } = await dialogService.confirm({
 		type: 'warning',
-		message: localize('tunnelDeleteConfirmation', "Delete Dev Tunnel '{0}'?", name),
+		message: localize('tunnelDeleteConfirmation', "Remove Dev Tunnel '{0}'?", name),
 		detail: localize('tunnelForgetDetail', "This removes the tunnel registration and disconnects all its clients. The remote computer and its files stay available. The tunnel returns when sharing restarts on that computer."),
-		primaryButton: localize('tunnelDeleteButton', "&&Delete"),
+		primaryButton: localize('tunnelDeleteButton', "&&Remove"),
 	});
 	return confirmed;
 }
@@ -410,7 +410,9 @@ export function buildRemoteHostOptionItems(options: IBuildRemoteHostOptionItemsO
 		items.push({ label: '$(debug-disconnect) ' + options.disconnectLabel, id: 'disconnect' });
 	}
 	if (options.copyableAddress) {
-		items.push({ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' });
+		const copyLabel = (options.preferenceKey ?? options.address).startsWith('ssh:')
+			? localize('workspacePicker.copySSHAddress', "Copy SSH Address") : localize('workspacePicker.copyAddress', "Copy Connection Address");
+		items.push({ label: '$(copy) ' + copyLabel, id: 'copy' });
 	}
 	items.push({ label: '$(edit) ' + localize('workspacePicker.renameRemote', "Rename..."), id: 'rename' });
 	// An SSH host aliased in `~/.ssh/config` is authored there, not in
@@ -419,7 +421,7 @@ export function buildRemoteHostOptionItems(options: IBuildRemoteHostOptionItemsO
 		? { label: '$(settings-gear) ' + localize('workspacePicker.openSSHConfig', "Open SSH Configuration"), id: 'sshConfig' }
 		: { label: '$(settings-gear) ' + localize('workspacePicker.openSettings', "Open Settings"), id: 'settings' });
 	if (supportsRemoteAgentHostLocationPreference(options.preferenceKey ?? options.address, options.isWebPlatform ?? isWeb)) {
-		items.push({ label: '$(server-process) ' + localize('workspacePicker.changeLocationPreference', "Configure Agent Run Behavior..."), id: 'locationPreference' });
+		items.push({ label: '$(server-process) ' + localize('workspacePicker.changeLocationPreference', "Choose How Agents Run..."), id: 'locationPreference' });
 	}
 	if (options.upgradeMethod) {
 		items.push({ label: '$(cloud-download) ' + localize('workspacePicker.updateServer', "Update Server"), id: 'upgrade' });

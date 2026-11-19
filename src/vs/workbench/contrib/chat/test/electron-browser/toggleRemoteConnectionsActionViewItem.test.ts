@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import '../../browser/widget/media/chat.css';
+import '../../../../browser/media/style.css';
 import { restore, stub } from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -51,6 +53,7 @@ import { NullOpenerService } from '../../../../../platform/opener/test/common/nu
 import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ManagedSettingValue } from '../../../../../base/common/policy.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 	stops = 0;
@@ -258,7 +261,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		store.add(toDisposable(() => container.remove()));
 		const actionBar = store.add(new ActionBar(container, { actionViewItemProvider: candidate => candidate === action ? viewItem : undefined }));
 		if (options.precedingAction) {
-			actionBar.push(store.add(new Action('test.preceding', 'Preceding Action')));
+			actionBar.push(store.add(new Action('test.preceding', 'Preceding Action', ThemeIcon.asClassName(Codicon.commentDiscussion))), { icon: true, label: false });
 		}
 		actionBar.push(action);
 		const primary = container.querySelector<HTMLElement>('.tunnel-host-toggle');
@@ -513,6 +516,43 @@ suite('RemoteConnectionsActionViewItem', () => {
 			description: 'Disabled by your organization. Contact your administrator to enable GitHub Environments.',
 			hover: 'Disabled by your organization. Contact your administrator to enable GitHub Environments.',
 			icon: Codicon.briefcase,
+		});
+	});
+
+	test('the editor menu follows the shared compact setting without management or rename entries', async () => {
+		const { configuration, openMenu, closeMenu, menuItems, listOptions } = fixture('devTunnel', { isChatInput: true, compactMenu: false });
+		openMenu();
+		const expanded = { labels: menuItems().map(item => item.label), details: menuItems().every(item => !!item.detail), wrap: listOptions()?.wrapDetails };
+		closeMenu();
+		await configuration.updateValue(RemoteConnectionsCompactMenuSettingId, true);
+		const actions = openMenu();
+		assert.deepStrictEqual({
+			expanded,
+			labels: menuItems().map(item => item.label),
+			details: menuItems().map(item => item.detail),
+			explanations: actions.every(action => !!action.ariaDescription && action.hover?.content === action.ariaDescription),
+			wrap: listOptions()?.wrapDetails,
+		}, {
+			expanded: { labels: ['Off', 'GitHub Environments', 'Dev Tunnels'], details: true, wrap: true },
+			labels: ['Off', 'GitHub Environment', 'Dev Tunnel'], details: [undefined, undefined, undefined], explanations: true, wrap: false,
+		});
+	});
+
+	test('the editor antenna uses the same standard icon action as its toolbar siblings', () => {
+		const { container, primary } = fixture('devTunnel', { isChatInput: true, precedingAction: true });
+		container.classList.add('monaco-workbench', 'interactive-session');
+		const toolbar = container.firstElementChild!;
+		const secondary = dom.append(container, dom.$('.chat-secondary-toolbar'));
+		dom.append(secondary, dom.$('.chat-secondary-input-toolbar')).appendChild(toolbar);
+		container.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const sibling = toolbar.querySelector<HTMLElement>('.action-label.codicon-comment-discussion')!;
+		const read = (element: HTMLElement) => {
+			const bounds = element.getBoundingClientRect();
+			const style = dom.getWindow(element).getComputedStyle(element);
+			return { width: bounds.width, height: bounds.height, padding: style.padding, radius: style.borderRadius, fontSize: style.fontSize };
+		};
+		assert.deepStrictEqual({ antenna: read(primary), standardGlyph: primary.classList.contains('codicon-radio-tower'), nestedGlyph: !!primary.querySelector('.codicon') }, {
+			antenna: read(sibling), standardGlyph: true, nestedGlyph: false,
 		});
 	});
 
