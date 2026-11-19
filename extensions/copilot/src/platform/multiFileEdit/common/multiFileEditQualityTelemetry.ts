@@ -10,6 +10,7 @@ import { ResourceMap } from '../../../util/vs/base/common/map';
 import { IChatSessionService } from '../../chat/common/chatSessionService';
 import { IGitService } from '../../git/common/gitService';
 import { ILogService } from '../../log/common/logService';
+import { gitHubCopilotRequestTeProperty } from '../../networking/common/fetch';
 import { IAlternativeNotebookContentService } from '../../notebook/common/alternativeContent';
 import { INotebookService } from '../../notebook/common/notebookService';
 import { resolveWorkspaceOTelMetadata } from '../../otel/common/workspaceOTelMetadata';
@@ -32,6 +33,8 @@ export interface IMultiFileEditTelemetry {
 	readonly chatSessionId?: string;
 	readonly chatRequestId: string;
 	readonly speculationRequestId: string;
+	/** Raw `X-GitHub-Copilot-Request-Te` value of the speculation model call, when known. */
+	readonly gitHubCopilotRequestTe?: string;
 }
 
 export const IMultiFileEditInternalTelemetryService = createServiceIdentifier<IMultiFileEditInternalTelemetryService>('IMultiFileEditInternalTelemetryService');
@@ -170,6 +173,7 @@ export class MultiFileEditInternalTelemetryService extends Disposable implements
 			const workspace = resolveWorkspaceOTelMetadata(this.gitService, uri);
 			void multiplexProperties({
 				headerRequestId: edit.speculationRequestId,
+				...gitHubCopilotRequestTeProperty(edit.gitHubCopilotRequestTe),
 				providerId: edit.mapper,
 				languageId: languageId,
 				messageText: edit.prompt,

@@ -98,6 +98,7 @@ export class NodeVersionManager extends Disposable {
 		const dismiss = vscode.l10n.t("Not now");
 
 		const result = await vscode.window.showInformationMessage(vscode.l10n.t("This workspace wants to use the Node installation at '{0}' to run TS Server. Would you like to use it?", workspaceVersion),
+			{ notificationId: 'typescript.workspaceNode' },
 			allow,
 			disallow,
 			dismiss,

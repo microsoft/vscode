@@ -6,7 +6,7 @@
 import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS, migrateThemeSettingsId } from '../common/workbenchThemeService.js';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS, migrateThemeSettingsId, IColorMap } from '../common/workbenchThemeService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -16,7 +16,7 @@ import { ColorThemeData } from '../common/colorThemeData.js';
 import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry } from '../../../../platform/theme/common/themeService.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { registerFileIconThemeSchemas } from '../common/fileIconThemeSchema.js';
-import { IDisposable, Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IDisposable, Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { FileIconThemeData, FileIconThemeLoader } from './fileIconThemeData.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
@@ -46,6 +46,8 @@ import { generateColorThemeCSS } from './colorThemeCss.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IHostService } from '../../host/browser/host.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
+import './workbenchSizeService.js';
 
 // implementation
 
@@ -87,6 +89,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	private readonly colorThemeWatcher: ThemeFileWatcher;
 	private colorThemingParticipantChangeListener: IDisposable | undefined;
 	private readonly colorThemeSequencer: Sequencer;
+	private readonly colorThemeOverlays = new Set<{ getColors: (theme: IWorkbenchColorTheme) => IColorMap }>();
 
 	private readonly fileIconThemeRegistry: ThemeRegistry<FileIconThemeData>;
 	private currentFileIconTheme: FileIconThemeData;
@@ -115,7 +118,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@ISizeService private readonly sizeService: ISizeService,
 	) {
 		super();
 		this.container = layoutService.mainContainer;
@@ -165,6 +169,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		}
 		themeData.setCustomizations(this.settings);
 		this.applyTheme(themeData, undefined, true);
+		this._register(sizeService.onDidChangeSizes(() => this.updateDynamicCSSRules(this.currentColorTheme)));
 
 		const fileIconData = FileIconThemeData.fromStorageData(this.storageService);
 		if (fileIconData) {
@@ -370,6 +375,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 					hasColorChanges = true;
 				}
 				if (hasColorChanges) {
+					this.applyColorThemeOverlays(this.currentColorTheme);
 					this.updateDynamicCSSRules(this.currentColorTheme);
 					this.onColorThemeChange.fire(this.currentColorTheme);
 				}
@@ -488,6 +494,40 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		return this.onColorThemeChange.event;
 	}
 
+	public registerColorThemeOverlay(getColors: (theme: IWorkbenchColorTheme) => IColorMap): IDisposable {
+		const overlay = { getColors };
+		this.colorThemeOverlays.add(overlay);
+		this.refreshColorThemeOverlays();
+		return toDisposable(() => {
+			if (this.colorThemeOverlays.delete(overlay) && !this._store.isDisposed) {
+				this.refreshColorThemeOverlays();
+			}
+		});
+	}
+
+	public getBaseColorTheme(): IWorkbenchColorTheme {
+		return this.currentColorTheme.getBaseTheme();
+	}
+
+	private refreshColorThemeOverlays(): void {
+		this.applyColorThemeOverlays(this.currentColorTheme);
+		this.updateDynamicCSSRules(this.currentColorTheme);
+		this.onColorThemeChange.fire(this.currentColorTheme);
+	}
+
+	private applyColorThemeOverlays(theme: ColorThemeData): void {
+		if (this.colorThemeOverlays.size) {
+			const baseTheme = theme.getBaseTheme();
+			const colors: IColorMap = {};
+			for (const overlay of this.colorThemeOverlays) {
+				Object.assign(colors, overlay.getColors(baseTheme));
+			}
+			theme.setTransientColors(colors);
+		} else {
+			theme.setTransientColors(undefined);
+		}
+	}
+
 	public setColorTheme(themeIdOrTheme: string | undefined | IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null> {
 		return this.colorThemeSequencer.queue(async () => {
 			return this.internalSetColorTheme(themeIdOrTheme, settingsTarget);
@@ -560,12 +600,14 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			themeData,
 			'.monaco-workbench',
 			themingRegistry.getThemingParticipants(),
-			this.environmentService
+			this.environmentService,
+			this.sizeService,
 		);
 		_applyRules(css.code, colorThemeRulesClassName);
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ThemeSettingTarget, silent = false): Promise<IWorkbenchColorTheme | null> {
+		this.applyColorThemeOverlays(newTheme);
 		this.updateDynamicCSSRules(newTheme);
 
 		if (this.currentColorTheme.id) {
@@ -876,7 +918,7 @@ class ThemeFileWatcher {
 }
 
 function _applyRules(styleSheetContent: string, rulesClassName: string) {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	const themeStyles = mainWindow.document.head.getElementsByClassName(rulesClassName);
 	if (themeStyles.length === 0) {
 		const elStyle = createStyleSheet();

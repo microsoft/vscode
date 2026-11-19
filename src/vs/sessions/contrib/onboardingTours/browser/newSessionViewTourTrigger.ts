@@ -7,29 +7,34 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, autorun, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
+import { SessionWorkspacePickerVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { isSessionCreated, ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 const MAX_REQUESTS_FOR_TOUR = 1;
 /** Drives a new-session view tour using the V2 eligibility and readiness criteria. */
 export class NewSessionViewTourTrigger extends Disposable {
+	private readonly _usage: AgentsWindowUsage;
 	private readonly _trigger = observableValue<boolean>(this, false);
 	readonly signal: IObservable<boolean> = this._trigger;
 
 	constructor(
 		private readonly _tourId: string,
 		private readonly _onboardingScenarioService: IOnboardingScenarioService,
-		private readonly _sessionsService: ISessionsService,
-		private readonly _storageService: IStorageService,
+		private readonly _sessionsService: Pick<ISessionsService, 'initialRestoreComplete'>,
+		/** The session the main window shows, whose new-session view the tour guides through. */
+		private readonly _mainWindowSession: IObservable<ISession | undefined>,
+		storageService: IStorageService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _contextKeyService: IContextKeyService,
 		private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
+		this._usage = new AgentsWindowUsage(storageService);
 
 		if (!this._isEligibleUser()) {
 			return;
@@ -42,8 +47,8 @@ export class NewSessionViewTourTrigger extends Disposable {
 			if (this._isTriggeredOrShown()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.read(reader);
-			const newSessionViewOpen = !activeSession || !activeSession.isCreated.read(reader);
+			const activeSession = this._mainWindowSession.read(reader);
+			const newSessionViewOpen = !activeSession || !isSessionCreated(activeSession, reader);
 			const loggedIn = this._chatEntitlementService.entitlementObs.read(reader) !== ChatEntitlement.Unknown;
 			if (!newSessionViewOpen || !loggedIn) {
 				return;
@@ -58,7 +63,7 @@ export class NewSessionViewTourTrigger extends Disposable {
 		if (isOnboardingDeveloperModeEnabled(this._configurationService, this._tourId)) {
 			return true;
 		}
-		const requestsSent = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
+		const requestsSent = this._usage.createdSessionCount;
 		return requestsSent <= MAX_REQUESTS_FOR_TOUR;
 	}
 
@@ -67,8 +72,8 @@ export class NewSessionViewTourTrigger extends Disposable {
 	}
 
 	private _isReady(): boolean {
-		const activeSession = this._sessionsService.activeSession.get();
-		const newSessionViewOpen = !activeSession || !activeSession.isCreated.get();
+		const activeSession = this._mainWindowSession.get();
+		const newSessionViewOpen = !activeSession || !isSessionCreated(activeSession);
 		return this._sessionsService.initialRestoreComplete.get()
 			&& newSessionViewOpen
 			&& this._chatEntitlementService.entitlement !== ChatEntitlement.Unknown

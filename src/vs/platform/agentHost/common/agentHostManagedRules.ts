@@ -3,6 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { matchesDomainPattern, normalizeDomainPattern } from '../../networkFilter/common/domainMatcher.js';
+import { ILogService } from '../../log/common/log.js';
+
+/** Constructs only hostname boundaries expressible by both the legacy filter and the runtime. */
+export function buildManagedDomainBoundary(patterns: readonly string[], logService: ILogService): string[] {
+	const rules = new Set<string>();
+	for (const pattern of patterns) {
+		const domain = typeof pattern === 'string' ? normalizeDomainPattern(pattern) : undefined;
+		const rule = domain === '*' ? 'Domain' : domain ? buildManagedRule(ManagedRuleFamily.Domain, domain) : undefined;
+		if (!rule) {
+			logService.warn('[AgentHost] Ignoring an unsupported managed network allow-list entry.');
+			continue;
+		}
+		rules.add(rule);
+	}
+	return rules.has('Domain') ? ['Domain'] : [...rules].sort();
+}
+
+/** Validates the bridge's canonical hostname subset, not arbitrary runtime-managed rule syntax. */
+export function isManagedDomainBoundaryRule(rule: string): boolean {
+	if (rule === 'Domain') {
+		return true;
+	}
+	if (!rule.startsWith('Domain(') || !rule.endsWith(')')) {
+		return false;
+	}
+	const argument = rule.slice(7, -1);
+	return argument !== '*' && normalizeDomainPattern(argument) === argument
+		&& buildManagedRule(ManagedRuleFamily.Domain, argument) === rule;
+}
+
+/** Each connected client's boundary must admit a host; omission is neutral and [] is deny-all. */
+export function intersectManagedDomainBoundaries(left: readonly string[] | undefined, right: readonly string[] | undefined): string[] | undefined {
+	if (left === undefined || right === undefined) {
+		const present = left ?? right;
+		return present === undefined ? undefined : [...new Set(present)].sort();
+	}
+	const isSubset = (a: string, b: string): boolean => a === b || b === 'Domain'
+		|| (a !== 'Domain' && b.startsWith('Domain(*.') && matchesDomainPattern(a.slice(7, -1).replace(/^\*\./, ''), b.slice(7, -1)));
+	const result = new Set<string>();
+	for (const a of left) {
+		for (const b of right) {
+			if (isSubset(a, b)) {
+				result.add(a);
+			} else if (isSubset(b, a)) {
+				result.add(b);
+			}
+		}
+	}
+	return [...result].sort();
+}
+
 /**
  * Construction and validation of Copilot SDK managed permission rules.
  *

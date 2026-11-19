@@ -106,12 +106,3 @@ function assertNoHighPriorityCommentOrBug(comments: ReviewComment[]) {
 	const bugs = comments.filter(d => d.kind === 'bug');
 	assert.strictEqual(bugs.length, 0, `Expected no bug comment`);
 }
-
-export function logComments(comments: ReviewComment[]) {
-	console.log(JSON.stringify(comments.map(c => ({
-		line: c.range.start.line,
-		content: typeof c.body === 'string' ? c.body : c.body.value,
-		severity: c.severity,
-		kind: c.kind
-	})), null, 2));
-}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from '../../../../base/browser/dom.js';
+import { Dimension, getWindow } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -12,7 +12,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { ImageCarouselEditor } from '../../../contrib/imageCarousel/browser/imageCarouselEditor.js';
 import { ImageCarouselEditorInput } from '../../../contrib/imageCarousel/browser/imageCarouselEditorInput.js';
 import { ICarouselImage, IImageCarouselCollection } from '../../../contrib/imageCarousel/browser/imageCarouselTypes.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
 import '../../../contrib/imageCarousel/browser/media/imageCarousel.css';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { NullFileSystemProvider } from '../../../../platform/files/test/common/nullFileSystemProvider.js';
@@ -20,6 +20,9 @@ import { FileService } from '../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IWebviewService } from '../../../contrib/webview/browser/webview.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
 
 function createSolidPng(r: number, g: number, b: number, width: number = 64, height: number = 64): VSBuffer {
 	const canvas = mainWindow.document.createElement('canvas');
@@ -58,12 +61,17 @@ async function renderCarousel(context: ComponentFixtureContext, collection: IIma
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
-		additionalServices: ({ defineInstance }) => {
+		additionalServices: registration => {
+			registerWorkbenchServices(registration);
+			const { defineInstance } = registration;
 			const fileService = new FileService(new NullLogService());
 			disposableStore.add(fileService.registerProvider(Schemas.file, new NullFileSystemProvider()));
 			disposableStore.add(fileService);
 			defineInstance(IFileService, fileService);
 			defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
+			defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
+			defineInstance(ISharedWebContentExtractorService, new NullSharedWebContentExtractorService());
+			defineInstance(IWebWorkerService, new class extends mock<IWebWorkerService>() { }());
 		},
 	});
 
@@ -75,6 +83,20 @@ async function renderCarousel(context: ComponentFixtureContext, collection: IIma
 
 	const input = disposableStore.add(new ImageCarouselEditorInput(collection, startIndex));
 	await editor.setInput(input, undefined, {}, CancellationToken.None);
+
+	const expectedImageCount = 1 + collection.sections.reduce((count, section) => count + section.images.length, 0);
+	for (let frame = 0; frame < 120; frame++) {
+		if (container.querySelector('.thumbnail.broken')) {
+			throw new Error('The carousel fixture failed to load a thumbnail');
+		}
+		const images = [...container.querySelectorAll('img')];
+		if (images.length === expectedImageCount && images.every(image => image.hasAttribute('src'))) {
+			await Promise.all(images.map(image => image.decode()));
+			return;
+		}
+		await new Promise<void>(resolve => getWindow(container).requestAnimationFrame(() => resolve()));
+	}
+	throw new Error(`The carousel fixture did not load all ${expectedImageCount} images`);
 }
 
 function singleSectionCollection(): IImageCarouselCollection {
@@ -109,15 +131,23 @@ function singleImageCollection(): IImageCarouselCollection {
 
 export default defineThemedFixtureGroup({ path: 'imageCarousel/' }, {
 	SingleSection: defineComponentFixture({
+		deferPaint: true,
+		virtualTime: { enabled: false },
 		render: ctx => renderCarousel(ctx, singleSectionCollection()),
 	}),
 	SingleSectionMiddleImage: defineComponentFixture({
+		deferPaint: true,
+		virtualTime: { enabled: false },
 		render: ctx => renderCarousel(ctx, singleSectionCollection(), 2),
 	}),
 	MultipleSections: defineComponentFixture({
+		deferPaint: true,
+		virtualTime: { enabled: false },
 		render: ctx => renderCarousel(ctx, multiSectionCollection()),
 	}),
 	SingleImage: defineComponentFixture({
+		deferPaint: true,
+		virtualTime: { enabled: false },
 		render: ctx => renderCarousel(ctx, singleImageCollection()),
 	}),
 });

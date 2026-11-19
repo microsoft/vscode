@@ -17,7 +17,6 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { NotebookProviderInfoStore } from '../../browser/services/notebookServiceImpl.js';
 import { INotebookEditorModelResolverService } from '../../common/notebookEditorModelResolverService.js';
 import { NotebookProviderInfo } from '../../common/notebookProvider.js';
-import { registerBuiltinNotebookType } from '../../common/notebookTypeRegistry.js';
 import { EditorResolverService } from '../../../../services/editor/browser/editorResolverService.js';
 import { RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
@@ -26,13 +25,13 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 suite('NotebookProviderInfoStore', function () {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite() as Pick<DisposableStore, 'add'>;
 
-	function createStore(memento: { editors?: NotebookProviderInfo[] } = {}): NotebookProviderInfoStore {
+	test('Can\'t open untitled notebooks in test #119363', function () {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		return disposables.add(new NotebookProviderInfoStore(
+		const store = new NotebookProviderInfoStore(
 			new class extends mock<IStorageService>() {
 				override get() { return ''; }
 				override store() { }
-				override getObject() { return memento; }
+				override getObject() { return {}; }
 			},
 			new class extends mock<IExtensionService>() {
 				override onDidRegisterExtensions = Event.None;
@@ -48,11 +47,8 @@ suite('NotebookProviderInfoStore', function () {
 			},
 			new class extends mock<INotebookEditorModelResolverService>() { },
 			new class extends mock<IUriIdentityService>() { }
-		));
-	}
-
-	test('Can\'t open untitled notebooks in test #119363', function () {
-		const store = createStore();
+		);
+		disposables.add(store);
 
 		const fooInfo = new NotebookProviderInfo({
 			extension: nullExtensionDescription.identifier,
@@ -94,40 +90,6 @@ suite('NotebookProviderInfoStore', function () {
 		providers = store.getContributedNotebook(URI.parse('untitled:///test/nb.bar'));
 		assert.strictEqual(providers.length, 1);
 		assert.strictEqual(providers[0] === barInfo, true);
-	});
-
-	test('declarative built-in notebook types take precedence over stale memento entries', function () {
-		disposables.add(registerBuiltinNotebookType('test.builtinNotebook', {
-			providerDisplayName: 'Built-in Notebook',
-			displayName: 'Built-in Notebook',
-			filenamePattern: ['*.builtinNotebook'],
-			priority: RegisteredEditorPriority.builtin
-		}));
-
-		const store = createStore({
-			editors: [new NotebookProviderInfo({
-				id: 'test.builtinNotebook',
-				displayName: 'Stale Notebook',
-				providerDisplayName: 'Stale Notebook',
-				priority: RegisteredEditorPriority.default,
-				selectors: [{ filenamePattern: '*.staleNotebook' }]
-			})]
-		});
-		const info = store.get('test.builtinNotebook');
-
-		assert.deepStrictEqual({
-			id: info?.id,
-			displayName: info?.displayName,
-			providerDisplayName: info?.providerDisplayName,
-			priority: info?.priority,
-			selectors: info?.selectors
-		}, {
-			id: 'test.builtinNotebook',
-			displayName: 'Built-in Notebook',
-			providerDisplayName: 'Built-in Notebook',
-			priority: RegisteredEditorPriority.builtin,
-			selectors: ['*.builtinNotebook']
-		});
 	});
 
 });

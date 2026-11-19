@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert, beforeAll, expect, suite, test } from 'vitest';
+import { Raw } from '@vscode/prompt-tsx';
+import { assert, beforeAll, expect, suite, test, vi } from 'vitest';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { ILogService } from '../../../log/common/logService';
 import { IResponseDelta } from '../../../networking/common/fetch';
-import { FinishedCompletionReason } from '../../../networking/common/openai';
+import { ChatCompletion, FinishedCompletionReason } from '../../../networking/common/openai';
 import { FinishedCompletion, SSEProcessor } from '../../../networking/node/stream';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
+import { TelemetryData } from '../../../telemetry/common/telemetryData';
+import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
 import { isEncryptedThinkingDelta } from '../../../thinking/common/thinking';
+import { defaultChatResponseProcessor } from '../../node/chatEndpoint';
 
 async function getAll<T>(iter: AsyncIterable<T>): Promise<T[]> {
 	const result: T[] = [];
@@ -68,60 +73,173 @@ suite('SSEProcessor', () => {
 		assert.deepStrictEqual(simplifiedActual, splifiedExpected);
 	}
 
-	test('empty response yields no results', async function () {
-		const processor = await SSEProcessor.create(
+	function createProcessor(response: Parameters<typeof createFakeStreamResponse>[0], expectedNumChoices = 1) {
+		return SSEProcessor.create(
 			logService,
 			telemetryService,
-			1,
-			createFakeStreamResponse(''),
+			expectedNumChoices,
+			createFakeStreamResponse(response),
 		);
+	}
+
+	test('empty response yields no results', async function() {
+		const processor = await createProcessor('');
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {});
 	});
 
-	test('done response yields no results', async function () {
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse('data: [DONE]\n'),
+	test('preserves separate reasoning fields in telemetry without adding them to returned text', async () => {
+		const service = new SpyingTelemetryService();
+		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
+		const response = [
+			{ choices: [{ index: 0, delta: { reasoning_text: 'First ' } }] },
+			{ choices: [{ index: 0, delta: { reasoning_text: 'second', reasoning_opaque: 'opaque' } }] },
+			{ choices: [{ index: 0, delta: { content: 'Answer' }, finish_reason: 'stop' }] },
+		].map(chunk => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n';
+		const stream = await defaultChatResponseProcessor(
+			service, logService, createFakeStreamResponse(response), 1, async () => undefined, TelemetryData.createAndMarkAsIssued(),
 		);
+		const [completion] = await getAll(stream);
+		await vi.waitFor(() => expect(service.getEvents().telemetryServiceEvents.filter(event => event.eventName === 'engine.messages')).toHaveLength(1));
+		const event = enhanced.mock.calls.find(([name]) => name === 'engine.messages')!;
+		expect({
+			content: completion.message.content,
+			telemetry: JSON.parse(String(event[1]?.messagesJson)),
+		}).toEqual({
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Answer' }],
+			telemetry: [{
+				role: 'assistant', content: 'Answer', reasoning_text: 'First second', reasoning_opaque: 'opaque',
+				content_metadata: [
+					{ path: '/content', purpose: 'assistant_response', visibility: 'unknown', format: 'text' },
+					{ path: '/reasoning_text', purpose: 'reasoning', visibility: 'unknown', format: 'text' },
+					{ path: '/reasoning_opaque', purpose: 'reasoning', visibility: 'opaque', format: 'opaque' },
+				],
+			}],
+		});
+	});
+
+	test('done response yields no results', async function() {
+		const processor = await createProcessor('data: [DONE]\n');
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {});
 	});
 
-	test('broken JSON response is skipped', async function () {
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse('data: {\n'),
+	test.each([
+		{ expectedNumChoices: 1, finishReason: 'stop' },
+		{ expectedNumChoices: 1, finishReason: 'tool_calls' },
+		{ expectedNumChoices: 2, finishReason: 'stop' },
+	])('retains trailing reasoning after $finishReason with $expectedNumChoices choices', async ({ expectedNumChoices, finishReason }) => {
+		const service = new SpyingTelemetryService();
+		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
+		const { collection, finishedCb } = createSpyingFinishedCb();
+		const text = finishReason === 'tool_calls' ? '' : 'Answer';
+		const chunks = [
+			{ choices: [{ index: 0, delta: { cot_summary: 'First ' } }] },
+			{
+				choices: [{
+					index: 0, delta: finishReason === 'tool_calls'
+						? { tool_calls: [{ index: 0, id: 'call-1', type: 'function', function: { name: 'read_file', arguments: '{}' } }] }
+						: { content: text }
+				}]
+			},
+			{ choices: [{ index: 0, delta: {}, finish_reason: finishReason }] },
+			...(expectedNumChoices === 2 ? [{ choices: [{ index: 1, delta: { content: 'Second answer' }, finish_reason: 'stop' }] }] : []),
+			{ choices: [{ index: 0, delta: { cot_summary: 'second', cot_id: 'trailing-id' } }] },
+		];
+		const response = chunks.map(chunk => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n';
+		const stream = await defaultChatResponseProcessor(
+			service, logService, createFakeStreamResponse(response), expectedNumChoices, finishedCb,
+			TelemetryData.createAndMarkAsIssued({ modelCallId: 'trailing-reasoning' }),
 		);
+		const completions = await getAll(stream);
+		await vi.waitFor(() => expect(enhanced.mock.calls.filter(([name]) => name === 'engine.messages')).toHaveLength(expectedNumChoices));
+		const events = enhanced.mock.calls.filter(([name]) => name === 'engine.messages');
+		expect({
+			completions: completions.map(completion => ({ content: completion.message.content, finishReason: completion.finishReason })),
+			thinking: collection.filter(item => item.delta.thinking?.text || item.delta.thinking?.id).map(item => item.delta.thinking),
+			telemetry: events.flatMap(([, properties]) => JSON.parse(String(properties?.messagesJson))),
+		}).toEqual({
+			completions: [
+				{ content: [{ type: Raw.ChatCompletionContentPartKind.Text, text }], finishReason },
+				...(expectedNumChoices === 2 ? [{ content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Second answer' }], finishReason: 'stop' }] : []),
+			],
+			thinking: [{ text: 'First ' }, { text: 'second', id: 'trailing-id' }],
+			telemetry: [
+				{
+					role: 'assistant', content: text, cot_summary: 'First second', cot_id: 'trailing-id',
+					content_metadata: [
+						{ path: '/content', purpose: 'assistant_response', visibility: 'unknown', format: 'text' },
+						{ path: '/cot_summary', purpose: 'reasoning_summary', visibility: 'unknown', format: 'text' },
+						{ path: '/cot_id', purpose: 'reasoning', visibility: 'opaque', format: 'opaque' },
+					],
+				},
+				...(expectedNumChoices === 2 ? [{
+					role: 'assistant', content: 'Second answer',
+					content_metadata: [{ path: '/content', purpose: 'assistant_response', visibility: 'unknown', format: 'text' }],
+				}] : []),
+			],
+		});
+	});
+
+	test('broken JSON response is skipped', async function() {
+		const processor = await createProcessor('data: {\n');
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {});
 	});
 
-	test('empty JSON response is skipped', async function () {
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse('data: {}\n'),
+	test('delivers finished choices before trailing reasoning finishes', async () => {
+		const service = new SpyingTelemetryService();
+		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
+		const trailingReceived = new DeferredPromise<void>();
+		const releaseTrailing = new DeferredPromise<void>();
+		const firstDelivered = vi.fn((result: IteratorResult<ChatCompletion, undefined>) => result);
+		const response = [
+			{ choices: [{ index: 0, delta: { content: 'Answer' }, finish_reason: 'stop' }] },
+			{ choices: [{ index: 0, delta: { cot_id: 'trailing-id' } }] },
+			{ choices: [{ index: 1, delta: { content: 'Second answer' }, finish_reason: 'stop' }] },
+		].map(chunk => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n';
+		const stream = await defaultChatResponseProcessor(
+			service, logService, createFakeStreamResponse(response), 2,
+			async (_text, _index, delta) => {
+				if (delta.thinking?.id === 'trailing-id') {
+					await trailingReceived.complete();
+					await releaseTrailing.p;
+				}
+				return undefined;
+			},
+			TelemetryData.createAndMarkAsIssued({ modelCallId: 'immediate-completion' }),
 		);
+		const iterator = stream[Symbol.asyncIterator]();
+		const first = iterator.next().then(result => firstDelivered(result));
+		try {
+			await trailingReceived.p;
+			await vi.waitFor(() => expect(firstDelivered).toHaveBeenCalledOnce());
+			expect({
+				content: firstDelivered.mock.calls[0][0].value?.message.content,
+				contentEvents: enhanced.mock.calls.filter(([name]) => name === 'engine.messages'),
+			}).toEqual({
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Answer' }],
+				contentEvents: [],
+			});
+		} finally {
+			await releaseTrailing.complete();
+			await first;
+			await getAll(stream);
+		}
+		await vi.waitFor(() => expect(enhanced.mock.calls.filter(([name]) => name === 'engine.messages')).toHaveLength(2));
+	});
+
+	test('empty JSON response is skipped', async function() {
+		const processor = await createProcessor('data: {}\n');
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {});
 	});
 
-	test('1 text token response yields 1 result', async function () {
+	test('1 text token response yields 1 result', async function() {
 		const response = `data: {"choices":[{"text":"foo","index":0,"finish_reason":"stop"}]}
 data: [DONE]
 `;
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -131,16 +249,11 @@ data: [DONE]
 		});
 	});
 
-	test('1 delta token response yields 1 result', async function () {
+	test('1 delta token response yields 1 result', async function() {
 		const response = `data: {"choices":[{"delta":{"content":"foo"},"index":0,"finish_reason":"stop"}]}
 data: [DONE]
 `;
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -151,18 +264,13 @@ data: [DONE]
 	});
 
 	// Regression for https://github.com/microsoft/vscode/issues/329963
-	test('delta content is preserved when tool_calls is empty', async function () {
+	test('delta content is preserved when tool_calls is empty', async function() {
 		const response = `data: {"choices":[{"delta":{"content":" I","tool_calls":[]},"index":0,"finish_reason":null}]}
 data: {"choices":[{"delta":{"content":" am","tool_calls":[]},"index":0,"finish_reason":null}]}
 data: {"choices":[{"delta":{},"index":0,"finish_reason":"stop"}]}
 data: [DONE]
 `;
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -172,18 +280,13 @@ data: [DONE]
 		});
 	});
 
-	test('response with text and without finish_reason yields "DONE" result', async function () {
+	test('response with text and without finish_reason yields "DONE" result', async function() {
 		// This is not an expected case, since the OpenAI API should always
 		// include a finish_reason, but we handle it anyway.
 		const response = `data: {"choices":[{"text":"foo","index":0,"finish_reason":null}]}
 data: [DONE]
 `;
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -193,19 +296,14 @@ data: [DONE]
 		});
 	});
 
-	test('response with delta and without finish_reason yields "DONE" result', async function () {
+	test('response with delta and without finish_reason yields "DONE" result', async function() {
 		// This is not an expected case, since the OpenAI API should always
 		// include a finish_reason, but we handle it anyway.
 		const response = [
 			`data: {"choices":[{"delta":{"content":"foo"},"index":0,"finish_reason":null}]}\n`,
 			`data: [DONE]\n`
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -215,16 +313,11 @@ data: [DONE]
 		});
 	});
 
-	test('response with text and without finish_reason or "[DONE]" yields "Iteration Done" result', async function () {
+	test('response with text and without finish_reason or "[DONE]" yields "Iteration Done" result', async function() {
 		// This is not an expected case, since the OpenAI API should always
 		// include a finish_reason, but we handle it anyway.
 		const response = `data: {"choices":[{"text":"foo","index":0,"finish_reason":null}]}\n`;
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -234,16 +327,11 @@ data: [DONE]
 		});
 	});
 
-	test('response with delta and without finish_reason or "[DONE]" yields "Iteration Done" result', async function () {
+	test('response with delta and without finish_reason or "[DONE]" yields "Iteration Done" result', async function() {
 		// This is not an expected case, since the OpenAI API should always
 		// include a finish_reason, but we handle it anyway.
 		const response = `data: {"choices":[{"delta":{"content":"foo"},"index":0,"finish_reason":null}]}\n`;
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -253,18 +341,13 @@ data: [DONE]
 		});
 	});
 
-	test('2 token text response with 1 index yields 1 result', async function () {
+	test('2 token text response with 1 index yields 1 result', async function() {
 		const response = [
 			`data: {"choices":[{"text":"foo","index":0,"finish_reason":null}]}\n`,
 			`data: {"choices":[{"text":"bar","index":0,"finish_reason":"stop"}]}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -274,18 +357,13 @@ data: [DONE]
 		});
 	});
 
-	test('2 token delta response with 1 index yields 1 result', async function () {
+	test('2 token delta response with 1 index yields 1 result', async function() {
 		const response = [
 			`data: {"choices":[{"delta":{"content":"foo"},"index":0,"finish_reason":null}]}\n`,
 			`data: {"choices":[{"delta":{"content":"bar"},"index":0,"finish_reason":"stop"}]}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -295,18 +373,13 @@ data: [DONE]
 		});
 	});
 
-	test('2 text token response with 2 indexes yields 2 results', async function () {
+	test('2 text token response with 2 indexes yields 2 results', async function() {
 		const response = [
 			`data: {"choices":[{"text":"foo","index":0,"finish_reason":"stop"}]}\n`,
 			`data: {"choices":[{"text":"bar","index":1,"finish_reason":"stop"}]}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			2,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response, 2);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -320,18 +393,13 @@ data: [DONE]
 		});
 	});
 
-	test('2 delta token response with 2 indexes yields 2 results', async function () {
+	test('2 delta token response with 2 indexes yields 2 results', async function() {
 		const response = [
 			`data: {"choices":[{"delta":{"content":"foo"},"index":0,"finish_reason":"stop"}]}\n`,
 			`data: {"choices":[{"delta":{"content":"bar"},"index":1,"finish_reason":"stop"}]}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			2,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response, 2);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -345,18 +413,13 @@ data: [DONE]
 		});
 	});
 
-	test('text completions that finish with "content_filter" are returned', async function () {
+	test('text completions that finish with "content_filter" are returned', async function() {
 		const response = [
 			`data: {"choices":[{"text":"foo","index":0,"finish_reason":null}]}\n`,
 			`data: {"choices":[{"text":"bar","index":0,"finish_reason":"content_filter"}]}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -366,18 +429,13 @@ data: [DONE]
 		});
 	});
 
-	test('delta completions that finish with "content_filter" are returned, when drop completion reasons are empty', async function () {
+	test('delta completions that finish with "content_filter" are returned, when drop completion reasons are empty', async function() {
 		const response = [
 			`data: {"choices":[{"delta":{"content":"foo"},"index":0,"finish_reason":null}]}\n`,
 			`data: {"choices":[{"delta":{"content":"bar"},"index":0,"finish_reason":"content_filter"}]}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -387,18 +445,13 @@ data: [DONE]
 		});
 	});
 
-	test('n=1 text completion is truncated with finishedCb', async function () {
+	test('n=1 text completion is truncated with finishedCb', async function() {
 		const response = [
 			`data: {"choices":[{"text":"foo\\n","index":0,"finish_reason":null}]}\n`,
 			`data: {"choices":[{"text":"bar","index":0,"finish_reason":"stop"}]}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE(async () => 0));
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -408,18 +461,13 @@ data: [DONE]
 		});
 	});
 
-	test('n=1 delta completion is truncated with finishedCb', async function () {
+	test('n=1 delta completion is truncated with finishedCb', async function() {
 		const response = [
 			`data: { "choices": [{ "delta": { "content": "foo\\n" }, "index": 0, "finish_reason": null }] }\n`,
 			`data: { "choices": [{ "delta": { "content": "bar" }, "index": 0, "finish_reason": "stop" }] }\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE(async () => 0));
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -429,7 +477,7 @@ data: [DONE]
 		});
 	});
 
-	test('n=2 text completion is truncated with finishedCb', async function () {
+	test('n=2 text completion is truncated with finishedCb', async function() {
 		const response = [
 			`data: {"choices":[{"text":"foo\\n","index":0,"finish_reason":null}]}\n`,
 			`data: {"choices":[{"text":"baz\\n","index":1,"finish_reason":null}]}\n`,
@@ -437,12 +485,7 @@ data: [DONE]
 			`data: {"choices":[{"text":"quux","index":1,"finish_reason":"stop"}]}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			2,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response, 2);
 		const results = await getAll(processor.processSSE(async () => 0));
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -456,7 +499,7 @@ data: [DONE]
 		});
 	});
 
-	test('n=2 delta completion is truncated with finishedCb', async function () {
+	test('n=2 delta completion is truncated with finishedCb', async function() {
 		const response = [
 			`data: {"choices":[{"delta":{"content":"foo\\n"},"index":0,"finish_reason":null}]}\n`,
 			`data: {"choices":[{"delta":{"content":"baz\\n"},"index":1,"finish_reason":null}]}\n`,
@@ -464,12 +507,7 @@ data: [DONE]
 			`data: {"choices":[{"delta":{"content":"quux"},"index":1,"finish_reason":"stop"}]}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			2,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response, 2);
 		const results = await getAll(processor.processSSE(async () => 0));
 		assertSimplifiedResultsEqual(results, {
 			0: {
@@ -483,7 +521,7 @@ data: [DONE]
 		});
 	});
 
-	test('issue #3331: finishedCb is invoked even without newline', async function () {
+	test('issue #3331: finishedCb is invoked even without newline', async function() {
 		const response = [
 			`data: {"choices":[{"delta":{"content":"foo"},"index":0,"finish_reason":null}]}\n`,
 			`data: {"choices":[{"delta":{"content":"baz"},"index":1,"finish_reason":null}]}\n`,
@@ -492,12 +530,7 @@ data: [DONE]
 			`data: [DONE]\n`
 		];
 		let callCount = 0;
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			2,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response, 2);
 		const results = await getAll(processor.processSSE(async () => {
 			callCount++;
 			return undefined;
@@ -515,18 +548,13 @@ data: [DONE]
 		});
 	});
 
-	test('usage should be properly reported for text completions', async function () {
+	test('usage should be properly reported for text completions', async function() {
 		const response = [
 			`data: {"choices":[{"text":"foo","index":0,"finish_reason":null}]}\n`,
 			`data: {"choices":[{"text":"bar","index":0,"finish_reason":"stop"}],"usage":{"completion_tokens":2,"prompt_tokens":358,"total_tokens":360}}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assert.ok(results[0].usage);
 		assert.strictEqual(results[0]?.usage?.completion_tokens, 2);
@@ -534,7 +562,7 @@ data: [DONE]
 		assert.strictEqual(results[0]?.usage?.total_tokens, 360);
 	});
 
-	test('gracefully handle cancellation - do not emit completion without its usage', async function () {
+	test('gracefully handle cancellation - do not emit completion without its usage', async function() {
 		const response = [
 			{ shouldCancelStream: false, chunk: 'data: {"choices":[{"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"delta":{"content":"hello"},"finish_reason":null,"index":0,"logprobs":null}],"created":1749821284,"id":"chatcmpl-BhyjslTwN48eOEj3LT3jsieMDRgRl","model":"gpt-4o-mini-2024-07-18","object":"chat.completion.chunk","system_fingerprint":"fp_57db37749c","usage":null}\n' },
 			{ shouldCancelStream: false, chunk: 'data: {"choices":[{"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"delta":{"content":"world"},"finish_reason":null,"index":0,"logprobs":null}],"created":1749821284,"id":"chatcmpl-BhyjslTwN48eOEj3LT3jsieMDRgRl","model":"gpt-4o-mini-2024-07-18","object":"chat.completion.chunk","system_fingerprint":"fp_57db37749c","usage":null}\n' },
@@ -555,19 +583,14 @@ data: [DONE]
 		expect(results).toMatchInlineSnapshot(`[]`);
 	});
 
-	test('usage as a separate chunk should propery be reported for text completions', async function () {
+	test('usage as a separate chunk should propery be reported for text completions', async function() {
 		const response = [
 			`data: {"choices":[{"text":"foo","index":0,"finish_reason":null}]}\n`,
 			`data: {"choices":[{"text":"bar","index":0,"finish_reason":"stop"}]}\n`,
 			`data: {"choices": [], "usage":{"completion_tokens":2,"prompt_tokens":358,"total_tokens":360}}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		assert.ok(results[0].usage);
 		assert.strictEqual(results[0]?.usage?.completion_tokens, 2);
@@ -575,7 +598,7 @@ data: [DONE]
 		assert.strictEqual(results[0]?.usage?.total_tokens, 360);
 	});
 
-	test('stream containing cot_summary and cot_id', async function () {
+	test('stream containing cot_summary and cot_id', async function() {
 		const response = [
 			`data: {"choices":[],"created":0,"id":"","model":"","object":"","prompt_filter_results":[{"prompt_index":0,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}}}]}\n`,
 			`data: {"choices":[{"content_filter_results":{},"delta":{"cot_summary":" "},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp_ef29a3520f","usage":null}\n`,
@@ -588,12 +611,7 @@ data: [DONE]
 			`data: {"choices":[{"content_filter_results":{},"delta":{"cot_id":"cot_a3074ac0-a8e8-4a55-bb5b-65cbb1648dcf"},"index":0}],"created":1751050807,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp_ef29a3520f","usage":null}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 
 		let thinkingText: string | string[] | undefined = undefined;
 		let thinkingId: string | undefined = undefined;
@@ -624,7 +642,7 @@ data: [DONE]
 		expect(metadata).toEqual({ toolId: 'call_bNK0HIaqlEFyZK6wEz8bXDXJ' });
 	});
 
-	test('stream containing only cot_id', async function () {
+	test('stream containing only cot_id', async function() {
 		const response = [
 			`data: {"choices":[],"created":0,"id":"","model":"","object":"","prompt_filter_results":[{"prompt_index":0,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}}}]}\n`,
 			`data: {"choices":[{"content_filter_results":{},"delta":{"content":null,"refusal":null,"role":"assistant","tool_calls":[{"function":{"arguments":"","name":"read_file"},"id":"call_bNK0HIaqlEFyZK6wEz8bXDXJ","index":0,"type":"function"}]},"finish_reason":null,"index":0,"logprobs":null}],"created":1751242659,"id":"chatcmpl-BnAIAsJndIJEfDlso8pzFD55XYEbc","model":"","object":"chat.completion.chunk","system_fingerprint":"fp_ef29a3520f","usage":null}\n`,
@@ -634,13 +652,7 @@ data: [DONE]
 			`data: {"choices":[{"content_filter_results":{},"delta":{"cot_id":"cot_a3074ac0-a8e8-4a55-bb5b-65cbb1648dcf"},"index":0}],"created":1751050807,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp_ef29a3520f","usage":null}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-
-		);
+		const processor = await createProcessor(response);
 
 		let thinkingText: string | string[] | undefined = undefined;
 		let thinkingId: string | undefined = undefined;
@@ -672,18 +684,13 @@ data: [DONE]
 
 	// Regression for https://github.com/microsoft/vscode/issues/312746
 	// DeepSeek / Moonshot (Kimi) / Minimax stream reasoning under `reasoning_content`.
-	test('stream containing reasoning_content (DeepSeek/Kimi/Moonshot)', async function () {
+	test('stream containing reasoning_content (DeepSeek/Kimi/Moonshot)', async function() {
 		const response = [
 			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning_content":"Analy"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
 			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning_content":"zing"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 
 		let thinkingText: string | string[] | undefined = undefined;
 		const thinkingDeltas: string[] = [];
@@ -708,18 +715,13 @@ data: [DONE]
 
 	// Regression for https://github.com/microsoft/vscode/issues/312746
 	// OpenRouter streams reasoning under `reasoning`.
-	test('stream containing reasoning (OpenRouter)', async function () {
+	test('stream containing reasoning (OpenRouter)', async function() {
 		const response = [
 			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning":"Analy"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
 			`data: {"choices":[{"content_filter_results":{},"delta":{"reasoning":"zing"},"index":0}],"created":1751057335,"id":"","model":"","object":"chat.completion.chunk","system_fingerprint":"fp","usage":null}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 
 		let thinkingText: string | string[] | undefined = undefined;
 
@@ -740,13 +742,7 @@ data: [DONE]
 
 		async function processResponse(response: string[], expectedNumChoices = 1) {
 			const { collection, finishedCb } = createSpyingFinishedCb();
-			const processor = await SSEProcessor.create(
-				logService,
-				telemetryService,
-				expectedNumChoices,
-				createFakeStreamResponse(response),
-
-			);
+			const processor = await createProcessor(response, expectedNumChoices);
 			const results = await getAll(processor.processSSE(finishedCb));
 			return { collection, results };
 		}
@@ -799,7 +795,7 @@ data: [DONE]
 			expect(JSON.stringify(results, null, '\t')).toMatchSnapshot('completion results');
 		});
 
-		test('single function call', async function () {
+		test('single function call', async function() {
 			const response = [
 				`data: {"choices":[],"created":0,"id":"","prompt_filter_results":[{"content_filter_results":{"error":{"code":"","message":""},"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"prompt_index":0}]}\n`,
 				`data: {"choices":[{"index":0,"delta":{"content":null,"role":"assistant","function_call":{"arguments":"","name":"get_current_weather"}}}],"created":1717591770,"id":"chatcmpl-9WkN0MexQZVb1yEgTn8jqMX24oHej"}\n`,
@@ -821,7 +817,7 @@ data: [DONE]
 			expect(JSON.stringify(results, null, '\t')).toMatchSnapshot('completion results');
 		});
 
-		test('single tool call', async function () {
+		test('single tool call', async function() {
 			const response = [
 				`data: {"choices":[],"created":0,"id":"","prompt_filter_results":[{"content_filter_results":{"error":{"code":"","message":""},"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"prompt_index":0}]}\n`,
 				`data: {"choices":[{"index":0,"delta":{"content":null,"role":"assistant","tool_calls":[{"function":{"arguments":"","name":"copilot_searchCodebase"},"id":"call_ZQkSp6hzLvcGcH2L2CmaBkXM","index":0,"type":"function"}]}}],"created":1725925767,"id":"chatcmpl-A5iQJExrRR9lZjObeHBzjesQ5HvT1","model":"gpt-4o-2024-05-13","system_fingerprint":"fp_80a1bad4c7"}\n`,
@@ -840,7 +836,7 @@ data: [DONE]
 			expect(JSON.stringify(results, null, '\t')).toMatchSnapshot('completion results');
 		});
 
-		test('single tool call with annotations attached', async function () {
+		test('single tool call with annotations attached', async function() {
 			const response = [
 				`data: {"choices":[],"created":0,"id":"","prompt_filter_results":[{"content_filter_results":{"error":{"code":"","message":""},"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"prompt_index":0}]}\n`,
 				`data: {"choices":[{ "index": 0, "delta":{"content":null,"tool_calls":[{"function":{"arguments":"","name":"insert_edit_into_file"},"id":"call_YEMsUraDh71gogljRLa7vyGP","index":0,"type":"function"}],"annotations":{"CodeVulnerability":[{"id":0,"start_offset":20930,"end_offset":20930,"details":{"type":"general"},"citations":{}}]},"copilot_annotations":{"CodeVulnerability":[{"id":0,"start_offset":20930,"end_offset":20930,"details":{"type":"general"},"citations":{}}]}}}],"created":1725925767,"id":"chatcmpl-A5iQJExrRR9lZjObeHBzjesQ5HvT1","model":"gpt-4o-2024-05-13","system_fingerprint":"fp_80a1bad4c7"}\n`,
@@ -900,7 +896,7 @@ data: [DONE]
 			expect(JSON.stringify(results, null, '\t')).toMatchSnapshot('completion results');
 		});
 
-		test('multiple tool calls', async function () {
+		test('multiple tool calls', async function() {
 			const response = [
 				`data: {"choices":[{"index":0,"delta":{"content":"I","role":"assistant"}}],"created":1741911507,"id":"ba49856c-7de2-485b-87cd-6ff61c58407e","model":"claude-3.5-sonnet"}\n`,
 				`data: {"choices":[{"index":0,"content_filter_offsets":{"check_offset":0,"start_offset":0,"end_offset":132},"content_filter_results":{"error":{"code":"","message":""},"hate":{"filtered":false,"severity":"0"},"self_harm":{"filtered":false,"severity":"0"},"sexual":{"filtered":false,"severity":"0"},"violence":{"filtered":false,"severity":"0"}},"delta":{"content":"'ll make two changes:","role":"assistant"}}],"created":1741911507,"id":"ba49856c-7de2-485b-87cd-6ff61c58407e","model":"claude-3.5-sonnet"}\n`,
@@ -1052,7 +1048,7 @@ data: [DONE]
 			expect(JSON.stringify(results, null, '\t')).toMatchSnapshot('completion results');
 		});
 
-		test('stream from @github (bing-search skill)', async function () {
+		test('stream from @github (bing-search skill)', async function() {
 			const response = [
 				`data: {"choices":[{"delta":{"content":null,"function_call":{"arguments":"","name":"bing-search"},"role":"assistant"},"index":0}],"created":1717665636,"id":"chatcmpl-9X3aOY9DtjweQLHsmnLgzQYg36KpW"}\n`,
 				`data: {"choices":[{"delta":{"content":null,"function_call":{"arguments":"{\\n"},"role":null},"index":0}],"created":1717665636,"id":"chatcmpl-9X3aOY9DtjweQLHsmnLgzQYg36KpW"}\n`,
@@ -1183,18 +1179,13 @@ data: [DONE]
 		});
 	});
 
-	test('copilot_usage.total_nano_aiu is attached to usage on the completion', async function () {
+	test('copilot_usage.total_nano_aiu is attached to usage on the completion', async function() {
 		const response = [
 			`data: {"choices":[{"delta":{"content":"hello"},"index":0,"finish_reason":null}]}\n`,
 			`data: {"choices":[{"delta":{},"index":0,"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":50,"total_tokens":150},"copilot_usage":{"total_nano_aiu":500000000,"token_details":[]}}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		const completions = results.filter((r): r is FinishedCompletion => 'solution' in r);
 		expect(completions).toHaveLength(1);
@@ -1202,17 +1193,12 @@ data: [DONE]
 		expect(completions[0].usage!.copilot_usage).toEqual({ total_nano_aiu: 500000000, token_details: [] });
 	});
 
-	test('copilot_usage is undefined when not present in response', async function () {
+	test('copilot_usage is undefined when not present in response', async function() {
 		const response = [
 			`data: {"choices":[{"delta":{"content":"hello"},"index":0,"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":50,"total_tokens":150}}\n`,
 			`data: [DONE]\n`,
 		];
-		const processor = await SSEProcessor.create(
-			logService,
-			telemetryService,
-			1,
-			createFakeStreamResponse(response),
-		);
+		const processor = await createProcessor(response);
 		const results = await getAll(processor.processSSE());
 		const completions = results.filter((r): r is FinishedCompletion => 'solution' in r);
 		expect(completions).toHaveLength(1);

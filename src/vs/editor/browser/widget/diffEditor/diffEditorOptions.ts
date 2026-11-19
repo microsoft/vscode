@@ -12,6 +12,8 @@ import { LineRangeMapping } from '../../../common/diff/rangeMapping.js';
 import { allowsTrueInlineDiffRendering } from './components/diffEditorViewZones/diffEditorViewZones.js';
 import { DiffEditorViewModel, DiffState } from './diffEditorViewModel.js';
 
+export type DiffEditorVariant = 'default' | 'compact';
+
 export class DiffEditorOptions {
 	private readonly _options: ISettableObservable<IEditorOptions & Required<IDiffEditorBaseOptions>, { changedOptions: IDiffEditorOptions }>;
 

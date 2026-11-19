@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
 /**
  * Disallows untyped access to the agent host protocol's open `_meta` bag.
@@ -24,9 +23,9 @@ import { TSESTree } from '@typescript-eslint/utils';
  * identifier. Capturing a non-protocol `_meta` (for example, a vendored SDK's
  * own typed metadata) in a local also keeps that distinction explicit.
  */
-export default new class NoUntypedMetaAccess implements eslint.Rule.RuleModule {
+export default new class NoUntypedMetaAccess implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			noMetaFieldAccess: 'Do not read fields off `_meta` directly. Use a validating reader declared under `common/meta` (e.g. `readToolCallMeta(toolCall)`).',
 			noMetaCast: 'Do not cast `_meta` to an interface. Read well-known keys through a validating reader that takes the parent object (e.g. `readToolCallMeta(toolCall)`) declared in a common module.',
@@ -34,13 +33,13 @@ export default new class NoUntypedMetaAccess implements eslint.Rule.RuleModule {
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
-		function unwrap(node: TSESTree.Node | null | undefined): TSESTree.Node | null | undefined {
+		function unwrap(node: ESTree.Node | null | undefined): ESTree.Node | null | undefined {
 			return node?.type === 'ChainExpression' ? node.expression : node;
 		}
 
-		function isMetaAccess(node: TSESTree.Node | null | undefined): boolean {
+		function isMetaAccess(node: ESTree.Node | null | undefined): boolean {
 			const n = unwrap(node);
 			if (!n || n.type !== 'MemberExpression') {
 				return false;
@@ -55,12 +54,12 @@ export default new class NoUntypedMetaAccess implements eslint.Rule.RuleModule {
 		}
 
 		return {
-			'MemberExpression': (node: TSESTree.MemberExpression) => {
+			'MemberExpression': (node: ESTree.MemberExpression) => {
 				if (isMetaAccess(node.object)) {
 					context.report({ node, messageId: 'noMetaFieldAccess' });
 				}
 			},
-			'TSAsExpression, TSTypeAssertion': (node: TSESTree.TSAsExpression | TSESTree.TSTypeAssertion) => {
+			'TSAsExpression, TSTypeAssertion': (node: ESTree.TSAsExpression | ESTree.TSTypeAssertion) => {
 				if (isMetaAccess(node.expression)) {
 					context.report({ node, messageId: 'noMetaCast' });
 				}

@@ -321,7 +321,9 @@ Orchestrates the start and end of each chat request turn, coordinating worktree 
 
 - **Steering mode**: When a session is already busy (`InProgress` or `NeedsInput`), use `send({ mode: 'immediate' })` to inject messages into the running conversation instead of starting a new request.
 
-- **External sessions are never listed**: `isExternalSession()` in `node/copilotcliSessionService.ts` filters out every session whose `IChatSessionMetadataStore` origin is not `vscode` (e.g. started from the terminal CLI). It is applied on *all* listing paths — `shouldShowSession()` (disk), `getSessionItemImpl()` (targeted refresh), and the in-progress wrapper fallback in `_getAllSessions()` — because `getSession()` can load an external session into `_sessionWrappers` without changing its origin. There is no setting for this — the Agent Host owns external session visibility via `chat.agentSessions.showExternalAgentSessions`.
+- **External sessions are never listed**: `isExternalSession()` in `node/copilotcliSessionService.ts` filters out every session whose `IChatSessionMetadataStore` origin is not `vscode` (e.g. started from the terminal CLI). It is applied on *all* listing paths — `_getAllSessions()` (disk, before any SDK detail read), `getSessionItemImpl()` (targeted refresh), and the in-progress wrapper fallback in `_getAllSessions()` — because `getSession()` can load an external session into `_sessionWrappers` without changing its origin. There is no setting for this — the Agent Host owns external session visibility via `chat.agentSessions.showExternalAgentSessions`.
+
+- **Session listing must stay O(VS Code sessions), not O(all sessions)**: `~/.copilot/session-state` can hold tens of thousands of terminal/`copilot -p` sessions. `_getAllSessions()` calls `listSessions({ metadataLimit: 0, includeDetached: false })` (ids and times only; with `includeDetached` on, the SDK reads every event log at once regardless of `metadataLimit`), drops agent-host-owned ids and external sessions, and only then reads details via `enrichSessionMetadata` under a `Limiter`. Never call `listSessions()` without options. Details are cached per session and reused while the SDK `modifiedTime` (`events.jsonl`) and the `workspace.yaml` mtime are unchanged; agent-host ownership (`agentSessionData/<id>`) is re-read on every listing and checked first, so an adopted legacy session drops out on the next refresh. `copilotCLISDKUpgrade.spec.ts` guards these SDK semantics. Working directories are recorded only for listed VS Code sessions; `getSessionWorkingDirectory()` resolves any other session on demand.
 
 ## Commands & Slash Commands
 
@@ -350,7 +352,6 @@ The integration respects these VS Code settings (all under `github.copilot.chat.
 | `isolationOption.enabled` | `true` | Show worktree isolation option in session UI |
 | `autoCommit.enabled` | `true` | Auto-commit worktree changes at end of each turn |
 | `sessionController.enabled` | `false` | Use session controller API (V2) |
-| `thinkingEffort.enabled` | `true` | Show thinking effort control per model |
 | `sessionControllerForSessionsApp.enabled` | `false` | Use session controller for Sessions window |
 | `terminalLinks.enabled` | `true` | Enable terminal link detection |
 

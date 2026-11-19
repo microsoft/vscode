@@ -35,7 +35,6 @@ import { ILanguageConfigurationService } from '../../../../../editor/common/lang
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { TestTreeSitterLibraryService } from '../../../../../editor/test/common/services/testTreeSitterLibraryService.js';
@@ -75,15 +74,11 @@ suite('EditorModel', () => {
 	let instantiationService: TestInstantiationService;
 	let languageService: ILanguageService;
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		languageService = instantiationService.stub(ILanguageService, LanguageService);
-	});
-
-	teardown(() => {
-		disposables.clear();
 	});
 
 	test('basics', async () => {
@@ -114,5 +109,4 @@ suite('EditorModel', () => {
 		assert.strictEqual(model.isResolved(), true);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

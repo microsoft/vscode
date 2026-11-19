@@ -1,381 +1,238 @@
 # Automations architecture
 
-> **Specification change gate:** Do not update this document for individual bugs, UI details, telemetry fields, retry constants, or implementation chronology. Update it only when Automation ownership, routing, authority transition, persistence, or lifecycle invariants intentionally change.
+> **Specification change gate:** Update this document only when Automation ownership, routing, persistence, or lifecycle invariants intentionally change. Concrete behavior belongs in focused tests.
 
-## Scope
+## Scope and authority
 
-Automations schedule or manually start agent sessions against a selected Sessions provider. They are presented through one provider-neutral service, but definitions and runs are owned by the concrete provider or Agent Host selected by each automation target.
+Automations schedule or manually start agent sessions through their selected provider. Local and remote Agent Hosts execute through AHP; the opt-in Copilot Cloud provider dispatches user-owned and repository-owned GitHub automations through the Copilot gateway.
 
-This specification defines:
-
-- component and service ownership;
-- multi-host identity and routing;
-- durable storage and execution authority;
-- legacy-to-provider and provider-to-Agent-Host migration;
-- run lifecycle, recovery, and history invariants.
-
-It does not define card or history-row rendering, dialog layout, telemetry fields, cron parsing algorithms, or provider-specific transport behavior.
-
-## Architecture
+The Agents Window manages definitions, requests manual execution, and observes authoritative state. It does not evaluate schedules, elect a window leader, claim runs in browser storage, create run sessions, send their first prompts, or recover their lifecycle. An unavailable or unsupported provider never falls back to browser execution or to another provider.
 
 ```mermaid
 flowchart TD
-	UI["Automations UI and tools"] --> Service["IAutomationService<br/>ProviderAutomationService<br/>aggregate and route"]
-	Service --> GlobalLegacy["Global legacy AutomationStore"]
-	Service --> Providers["ISessionsProvider.automations<br/>one per provider or host"]
-	Providers --> Reconnectable["ReconnectableAgentHostAutomationStore<br/>connection and capability boundary"]
-	Reconnectable --> ProviderLegacy["Provider legacy AutomationStore"]
-	Reconnectable --> Projection["AgentHostAutomationStore<br/>AHP projection and migration"]
+	UI["Automations UI, blueprints, and tools"] --> Service["IAutomationService<br/>ProviderAutomationService"]
+	Service --> Providers["ISessionsProvider.automations<br/>one per concrete Agent Host"]
+	Providers --> Connection["ReconnectableAgentHostAutomationStore<br/>connection and capability boundary"]
+	Providers --> Cloud["CloudAutomationStore<br/>account and feature boundary"]
+	Cloud --> CloudStore["GitHubCloudAutomationStore<br/>repository cache and operation coordination"]
+	CloudStore --> GitHub["GitHub cloud execution authority"]
+	Connection --> Projection["AgentHostAutomationStore<br/>AHP dispatch and state projection"]
 	Projection --> Authority["AgentHostAutomationService<br/>durable execution authority"]
+	Archive["Read-only historical run archive"] --> Projection
 ```
 
-The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-provider contributions consume `IAutomationService` and provider-neutral Automation data. Agent Host-specific adaptation stays under `contrib/providers/agentHost`.
+The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-provider contributions consume provider-neutral Automation contracts. AHP adaptation stays under `contrib/providers/agentHost`.
 
 ## Ownership
 
 | Concern | Owner |
 |---|---|
-| Unified Automation catalogue exposed to UI and tools | `ProviderAutomationService` |
-| Selection of the store for a create, update, run, or delete | `ProviderAutomationService` |
-| Legacy VS Code definitions, runs, and compare-and-swap persistence | `AutomationStore` |
-| Connection and capability transitions for one Agent Host provider | `ReconnectableAgentHostAutomationStore` |
-| Projection between AHP state and provider-neutral Automation objects | `AgentHostAutomationStore` |
-| Import of one provider's legacy definitions into its Agent Host | `AgentHostAutomationStore` |
-| Host-owned definitions, scheduling, execution, and run lifecycle | `AgentHostAutomationService` |
-| Portable Automation blueprint format and validation | Workbench Automation common code |
-| Plugin Automation blueprint discovery and enablement | `IAgentPluginService` |
-| Explicit blueprint review and materialization | Automations contributions and `IAutomationService` |
-| Card, dialog, and history presentation | Automations contributions |
+| Shared catalogue and command contract | [`IAutomationStore`](../workbench/contrib/chat/common/automations/automationService.ts) |
+| One provider's Automation interface and observable capabilities | [`ISessionsProviderAutomations`](../workbench/contrib/sessions/common/sessionsProvider.ts) |
+| Injected, multi-provider Automation API | [`IAutomationService`](../workbench/contrib/chat/common/automations/automationService.ts) |
+| Unified catalogue and concrete-provider routing | [`ProviderAutomationService`](contrib/automations/browser/providerAutomationService.ts) |
+| Cloud gate, shared-contract adaptation, and account-scoped identity | [`CloudAutomationStore`](../workbench/contrib/sessions/providers/copilotChatSessions/browser/cloudAutomationStore.ts) |
+| Cloud repository discovery, mutation serialization, and bounded history reads | [`GitHubCloudAutomationStore`](../workbench/contrib/sessions/providers/copilotChatSessions/browser/githubCloudAutomationStore.ts) |
+| Connection, feature enablement, and negotiated capability | [`ReconnectableAgentHostAutomationStore`](../workbench/contrib/sessions/providers/agentHost/browser/reconnectableAgentHostAutomationStore.ts) |
+| Definition commands, manual dispatch, and AHP state projection | [`AgentHostAutomationStore`](../workbench/contrib/sessions/providers/agentHost/browser/agentHostAutomationStore.ts) |
+| Manual invocation feedback and observation | [`IAutomationRunner`](../workbench/contrib/chat/common/automations/automationRunner.ts), implemented by [`AutomationRunner`](contrib/automations/browser/automationRunner.ts) |
+| Definitions, schedules, run claims, sessions, lifecycle, history, and recovery | [`IAgentHostAutomationService` / `AgentHostAutomationService`](../platform/agentHost/node/agentHostAutomationService.ts) |
+| Portable blueprint format and validation | Workbench Automation common code |
+| Inert plugin blueprint discovery and enablement | `IAgentPluginService` |
+| Definition review, draft configuration, cards, and history presentation | Automations contributions |
 
-`ProviderAutomationService` is an aggregate and router, not a global execution authority. Each store remains responsible for the data it owns.
+The provider-neutral store exposes definition mutations and a manual run request, not run-claim or lifecycle-write APIs. The manual runner has no Sessions session-creation dependency.
 
-## Domain model
+History completeness is exposed separately from definition readiness through optional `historyState`. Full catalogue refresh activity, including its history read but excluding independent history polling, is exposed through optional `isRefreshing`, without making a ready cached catalogue unavailable during a background reload. Background catalogue refresh preserves checked workspace eligibility so open configuration drafts are not recreated; explicit refresh and account changes still invalidate eligibility. A failed history read retains the last history without disabling otherwise available definition mutations. The cloud adapter periodically refreshes active history and performs bounded discovery after dispatch, stop acknowledgements, or a local follow-up through the central GitHub client. The visible Automations view refreshes definitions on entry and periodically; full-refresh activity postpones its next poll until completion, its refresh timer is disposed when hidden, and window focus changes do not trigger refresh. Account or client changes and explicit refresh also reload definitions.
 
-### Shareable blueprint
+Cloud history retains the authoritative task ID as its native session resource. Opening or locally archiving a run may resolve that exact task through the extension provider; it never matches by title or chooses a recent task. External rows remain usable through GitHub when native resolution is unavailable. Hydrated runs use provider-owned archive and read state, while Stop remains a remote cancellation request. Automation provenance excludes these sessions from the primary sidebar until the user shows them there (see [Sessions list](SESSIONS_LIST.md#inputs)), without changing external-session ownership. Newer local conversation progress takes precedence over stale history, and a conversation hidden behind Automations is not automatically marked read.
 
-`IAutomationBlueprint` is a versioned, portable definition containing a stable contributor-scoped identifier, display metadata, prompt, and schedule. It is not an Automation execution authority and intentionally excludes the runtime Automation identifier, target provider, workspace URI, session template, enabled state, timestamps, and run history.
+`IAutomationService` and `ISessionsProviderAutomations` each extend `IAutomationStore`; neither extends the other. The provider contract describes one host's catalogue and observable creation eligibility, while the injected service adds provider lists and creation checks by provider ID. The common interfaces live in Workbench, and the provider specialization lives in Sessions, preserving the layer direction.
 
-Blueprint schedules are manual-only, a relative hourly cadence, or a five-field cron expression interpreted in the importing user's local time zone for daily and weekly schedules. Import rejects recurrence or time-zone semantics the current Automation editor cannot preserve rather than degrading them to a different schedule.
+`ProviderAutomationService` aggregates the objects exposed by `ISessionsProvider.automations`. For AHP providers, that object is a stable `ReconnectableAgentHostAutomationStore`; its inner `AgentHostAutomationStore` lasts only for one usable connection. Neither client-side object is the host-process `AgentHostAutomationService`, which owns execution and durable storage.
 
-Standalone `.automation.md` files and plugins use the same blueprint format. Plugin discovery exposes blueprints as inert template contributions and follows the plugin's effective enablement; discovering, installing, or updating a plugin must not create, enable, update, or delete a persisted Automation.
+`AutomationMutationGuard` is a caller-supplied pre-dispatch check for transient client conditions. Throwing stops a definition mutation before it is sent; the callback neither performs host authorization nor rolls back an already-dispatched request. Guarded editable-state comparison is a separate concern.
 
-A blueprint becomes an `IAutomationDescriptor` only after the user reviews it in the Automation dialog and the result flows through `IAutomationService`. File imports and plugin templates start disabled, and target and provider-owned session configuration are resolved locally during review. Export projects only portable state and therefore does not transfer execution authority or run history.
+Manual invocation also has two result boundaries: `IAutomationRunRequestResult` describes the provider's response to a host request, while `IAutomationRunOperation` separates user-facing dispatch feedback from ongoing observation. Queue admission into an existing conversation has a distinct `queued` dispatch outcome without session ownership. A host-handled request need not create a session successfully, and terminal observation does not imply a successful run.
 
-### Automation
+## Definitions and session configuration
 
-`IAutomationDescriptor` contains:
+Sessions management marks Automation configuration drafts with `isAutomationDraft` independently of their initial configuration. Providers use that purpose to preserve the Automation backend's configuration contract: scheduled Cloud drafts use the scheduled-Cloud model catalogue even when ordinary Cloud sessions use the sandbox experiment.
 
-- immutable Automation identity;
-- editable name and prompt;
-- schedule;
-- execution target;
-- optional provider-owned session template;
-- enabled state;
-- runtime timestamps.
+`IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
-### Target identity
+One-time Automations use an absolute UTC `runAt` and require the separately negotiated `automations.oneTime` capability. Initial creation eligibility is restricted to the local desktop Agent Host, not remote or Cloud providers. The existing host scheduler atomically persists the one-time run receipt before dispatch, including Send Now before the due time. Missed instants catch up once after host availability and wake readiness return; failure never rearms the occurrence. Updates after admission are rejected. Cancellation or editing back to a draft first disables the pending definition through an authoritative update; deleting completed history is not cancellation.
 
-An `AutomationTarget` identifies both where and how a session is created:
+Agent-authored one-time requests use the same `ScheduledChatsService` handoff journal and submission path as Send Later, without reading or claiming a composer. `configureAutomation` defaults one-time creation to the authoritative originating chat; its explicit `currentSession` target retains new-session environment semantics. Tool-call identity is scoped to the originating chat and retained through a compact operation-to-automation receipt after dispatch, recovery, or definition removal, so replay cannot recreate a completed or cancelled request without retaining its body in the handoff journal. Catalogue reconciliation durably records acceptance, including after a lost creation acknowledgement. Discovery reports unresolved handoffs separately from definitions and exposes negotiated scheduling support separately from feature-gated creation availability. Existing-chat sends inherit execution-time configuration; new-session configuration snapshots remain provider-owned and are captured only for a new handoff, never on replay. Editing a captured request updates both its prompt and recovery text, and unknown acknowledgements never authorize a replacement creation.
 
-- `providerId` identifies a concrete Sessions provider and therefore a concrete compute location or Agent Host;
-- `sessionTypeId` identifies the agent exposed by that provider;
-- workspace targets also carry the workspace URI and isolation choice.
+For `scheduledChat`, an acknowledged disable is terminal: the host removes Update and Run, rejecting stale re-enable and Send Now requests even after restart. Ordinary Automation pause/resume behavior is unchanged. `oneTimeRunId` is the same provider-scoped identity as the corresponding run's `id` and proves admission only. A one-time Automation has only one run, because later Send Now requests reuse it, so its run state is never evicted from history. `oneTimeDispatchedAt` is derived from that run: a new-session run counts as dispatched once it is linked to its session, which happens just before its message is sent, and an existing-chat run counts once it completes on queue acceptance. A run that is `running` before it has a session, or that failed after it had one, remains an uncertain outcome, never permission to retry automatically.
 
-The same logical agent may be available from multiple providers. Consumers must not infer provider identity from `sessionTypeId`.
+An optional provider-neutral `conversation: { sessionResource, chatResource }` names an existing conversation in client URI space while `target` continues to describe provider routing and workspace display. The adapter resolves both identities through its owning provider, preserving opaque advertised backend URIs as `conversation: { session, chat }` in the definition's `vscode.scheduledChat` `_meta` entry. Creation requires the host's `vscode.scheduledChatExistingConversation` initialize `_meta` flag and the provider's `supportsExistingChatAutomation`; initial eligibility is local Agent Host only. Existing targets are immutable, valid only for one-time scheduled chats, and never fall back to a newly created conversation.
 
-Workspace targets may omit `providerId` and `sessionTypeId`. Such definitions use global legacy routing and cannot migrate to a provider until their target identifies one. Quick-chat targets always identify both.
+Existing-conversation runs restore and revalidate the exact original owner and chat, then submit to its ordinary queued-message path without steering or cancelling another turn. They apply neither a captured session template nor message model/agent overrides: current conversation configuration and runtime authorization remain authoritative. Their run completes when the queue accepts the request, not when another conversation turn finishes. Such runs acquire no session ownership, add no Automation session provenance, and deleting or cancelling their definition/history never deletes or cancels the existing conversation.
 
-### Session template
+`oneTimeDispatchRejectedAt` is derived from a new-session run that failed before it had a session, so its message was never sent. It permits explicit recovery as editable input; other failures do not. Interrupted or uncertain submissions retain the consumed occurrence without this rejection receipt. An unresolved original conversation is projected read-only and must not be recovered into a new-session draft.
 
-`IAutomationSessionTemplate` is the canonical session configuration for new definitions. It contains an optional model, optional custom agent, and opaque provider-owned configuration. Shared Automation code preserves this data but does not interpret provider Mode or Approvals vocabularies.
+Scheduled-chat creation accepts a client-generated UUID `creationId`, persisted by the caller before handoff. The adapter uses it for the client-chosen host definition identity and exposes the exact provider-scoped descriptor ID through `onWillCreate` before dispatch so the caller can persist it with the handoff. Recovery reconciles by provider and that opaque ID without requiring private metadata or interpreting arbitrary advertised URIs; an optional `creationId` receipt supports older handoffs. Repeated creation must receive an authoritative acknowledgement; matching requests reuse the definition, conflicting requests fail, and the host retains one-time identity receipts after deletion so a stale handoff cannot recreate a cancelled or completed request. Recovery never matches by title.
 
-Target identity remains separate from the template. The target owns provider selection, workspace, isolation, and branch. The template owns model, custom agent, Mode, Approvals, and other provider-defined session configuration.
+`purpose: 'scheduledChat'` identifies a captured user request, independently of general one-time Automations. AHP standardizes only the one-time trigger, so VS Code marks scheduled chats in definition and run `_meta` (`vscode.scheduledChat`), records the admitted run in entry `_meta` (`vscode.oneTimeRun`), and carries the purpose on the session origin as a VS Code extension member. Hosts migrate these fields from their earlier top-level form when loading stored Automations. The descriptor preserves its complete request and session template, and the host copies purpose to the run and durable session origin. Resource attachments cross the owning host's URI boundary once. Embedded content and explicit simple representations are captured; host-file references retain normal send semantics. Unsupported or client-dependent attachments, including uncaptured selections, are rejected before acceptance. Workbench feature gates do not change accepted jobs or introduce another host execution switch.
 
-Saved template values are preferences, not durable permission grants. The owning provider resolves them against its current model and agent availability, configuration schema, feature enablement, and managed policy whenever a draft or run session is created. Policy may change the effective value without rewriting the saved preference.
+Providers project durable scheduled-chat provenance through `ISession.isScheduledChat`, allowing ordinary session listing without an additional user reply or retained Automation catalogue. While Send Later is enabled, pending definitions annotate their target session and appear as display-only scheduled messages in that exact chat. New-session schedules appear in Drafts until host dispatch creates the session, without becoming editable saved-draft copies. Both presentations derive from the same authoritative definitions and recovery handoffs, without a separate Scheduled sidebar section or client-side execution timer. Definitions remain manageable in Automations when Send Later is disabled. The recurring Automation editor presents one-time definitions read-only, preserving captured context and the absolute instant.
 
-Legacy `modelId`, `mode`, and `permissionLevel` fields remain decode and input aliases for older ledgers and callers. New dialog and AHP projections write the session template. Compatibility aliases are translated at the owning store or provider boundary and have no authority to replace an explicit template.
+Agent Host Cron schedules use the existing five-field [AHP grammar](../platform/agentHost/common/state/protocol/channels-automation/state.ts): wildcards, lists, ascending ranges, and positive steps on a wildcard or range only. Validation, execution, and human-readable explanations share the host parser and do not accept syntax outside the protocol contract. The month limits both day alternatives; restricted day-of-month and weekday fields match with inclusive OR. Weekdays use 0-7, with both 0 and 7 representing Sunday. The editor defaults to local time and the host evaluates the saved IANA time zone.
 
-### Run
+The Agent Host adapter persists an explicitly chosen CRON editing form in definition metadata without changing trigger semantics. Definitions without this preference keep their existing preset projection.
 
-`IAutomationRun` records one execution attempt. `pending` and `running` are non-terminal; `completed` and `failed` are terminal. A run may expose the created session resource once that session is committed.
+Cloud ownership is separate from the execution target and creator: `user` (Only me) or `repository`, defaulting to `user` for legacy responses. Ownership is accepted only on creation, never in updates. The create API is authoritative for repository ownership support, and providers translate its known unsupported-ownership rejection into product-facing feedback. The repository Automation capability must allow management for cloud mutations. Providers project whether the signed-in user created a definition independently of management permissions. The Automations view applies the user's shared-creator visibility preference consistently to cards, run history, bulk mark-read, and accessible content. The cloud provider skips history requests for hidden definitions and excludes their cached runs from its published run list, including sidebar attention indicators. Preference changes refresh history; in-flight responses cannot republish hidden runs. The complete definition catalogue remains available to agent tools and visibility discovery, and filtering never changes execution or authorization.
 
-At most one non-terminal run may occupy an Automation's active-run slot within one authority.
+An `AutomationTarget` separates concrete provider identity (`providerId`) from its agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider.
 
-### Catalogue availability
+Cloud definitions retain UTC schedule semantics and their raw event configuration separately from the schedule projection. Unsupported triggers project as a custom schedule rather than a manual schedule. Unrelated updates omit triggers, since the cloud API replaces a supplied trigger map as a whole. The editable-state conflict check includes raw triggers and actor-write permission. Portable local-time blueprints and AHP mutations reject cloud schedules they cannot preserve.
 
-Every Automation store exposes whether its complete catalogue is `loading`, `ready`, `unavailable`, or in `error`. An empty catalogue is authoritative only in the `ready` state. `loading` is reserved for initial provider discovery and authoritative snapshots that are still in flight. `unavailable` means a known provider catalogue cannot currently be reached without treating that condition as storage or migration failure.
+Cloud schedule presentation uses local wall-clock values without changing canonical UTC definitions. The dialog captures the local UTC offset when opened and uses it for both load and save; provider changes do not convert the form fields again. Daily and weekly schedules remain fixed UTC recurrences on GitHub, so their displayed local time can shift across daylight-saving changes.
 
-Provider stores map their connection and persistence lifecycle into this provider-neutral state. Agent Host stores become ready when an authoritative catalogue snapshot and every source still participating in the projection are readable, independently of migration authority. Known disconnect, disabled capability, and unsupported capability are unavailable rather than perpetually loading.
+Projected definition and run identifiers are opaque, concrete-provider-scoped identities containing the complete host resource URI. Equal resource URIs on different hosts, or equal final path segments within one host, do not share identity. Commands resolve the scoped identity to the original host resource; they never reconstruct a host resource from a displayed ID. Historical archive rows use the same definition identity and a distinct provider-scoped history identity.
 
-`ProviderAutomationService` keeps the initial aggregate loading until all AfterRestored workbench contributions have completed provider registration. A provider-less window then settles to its legacy-store state, so a legacy-only empty catalogue can be authoritative. After provider settlement, the aggregate reports `error` when any current store fails, otherwise `loading` while any store is loading, `unavailable` while any store is unavailable, and `ready` only when all current stores are ready.
+`IAutomationSessionTemplate` contains an optional model and model preferences, optional custom agent, and opaque provider-owned configuration. Working directory, isolation, and branch belong to the target, not the template. Shared Automation code does not interpret provider Mode or Approvals vocabularies.
 
-## Multi-host routing
+Saved configuration is a preference, not a durable permission grant. Providers resolve it against current models, agents, schema, feature enablement, and managed policy for each configuration draft and run. Same-target edits preserve unknown or temporarily unavailable template values unless explicitly changed. Selecting another agent does not carry the previous agent's template into the new one.
 
-VS Code may register one local Agent Host provider and multiple remote Agent Host providers at the same time. A remote connection has its own provider identity, Automation store, AHP catalogue, and migration state.
+Compatibility decoding for configuration values in existing AHP definitions is separate from definition ownership. Flat configuration input aliases may be translated at the provider boundary but cannot override an explicit session template.
 
-The AHP Automation catalogue is singleton within one Agent Host. It is not shared across every host connected to a VS Code window.
+### Captured customizations
 
-### Create routing
+When the host advertises `automations.customizations`, the client sends its enabled plugins for the target's harness and workspace in the AHP session template on creation and when the target changes. Ordinary edits resubmit the saved entries unchanged. The client keeps the customization scope alive until the host accepts or rejects the mutation.
 
-For a new Automation:
+The automation dialog's Advanced section lets the user choose which of those plugins to sync. When editing, it marks saved entries whose local `nonce` changed as outdated. Saving always sends the selection, so outdated entries are refreshed, and saved entries that are no longer available locally keep their copy while selected. The dialog stays open with progress until the host accepts the mutation, and shows a rejection inline.
 
-1. the dialog or tool produces a complete `AutomationTarget`;
-2. `ProviderAutomationService` resolves `target.providerId`;
-3. when that provider exposes an Automation store, creation is delegated to it;
-4. otherwise creation falls back to the global legacy store.
+The host copies each new or changed entry from the dispatching client into an immutable host-owned directory, and reuses the existing copy for entries whose `id`, `uri`, and `nonce` are unchanged. Any capture failure rejects the mutation. The catalogue reports the copies in `AutomationEntry.customizations`.
 
-An Agent Host provider may itself use provider-scoped legacy storage while its host is disconnected, unsupported, disabled, or not yet migrated.
+For a local VS Code window connected through MessagePort, `file:` plugins are parsed and used at their original host paths instead of copied; edits to their contents on disk take effect in later runs. Virtual bundles and plugins from remote clients are still copied, and garbage collection only removes host-owned copies, never these in-place paths.
 
-A destination store that explicitly cannot preserve imported run history is not eligible for destructive source removal. The source remains as the durable history owner.
+A run session receives the copies as a static, host-owned active client created with the session, so providers load them through the same path as any other client plugin, without contacting the originating client. That client's plugin URIs use the `vscode-agent-host-file:` scheme, which tells the plugin manager to use the host directory in place; a `file:` URI always names a client resource. That client contributes no tools and is not re-attached when a session is restored. A selected custom agent inside a captured plugin is remapped to the copy.
 
-### Existing-object routing
+After each create, update, or removal, the host deletes copies that no automation references, including those of a rejected capture. Copies used by a run session stay until the host restarts, because that session keeps using them in place for follow-up turns.
 
-Existing definitions and runs route by immutable identifier to the store that currently contains them. Aggregate observables deduplicate overlapping source and destination snapshots during migration.
+### MCP authentication in runs
 
-Changing `target.providerId` changes durable ownership. It therefore performs a guarded store transfer rather than only updating metadata.
+When an MCP server in a run session reports that it requires authentication, the host sends a `vscode/requestMcpAuthentication` extension request to connected clients one at a time until one succeeds. A client never prompts: it supplies a token only if the user already signed in to and allowed that MCP server, pushes it through the regular `authenticate` command, and then reports success. The host asks once per session, server, and challenge. If no client can supply a token, the run continues without that server. Host-owned MCP authentication will replace this.
 
-## Persistence topology
+### Blueprints and templates
 
-| Persistence | Purpose |
-|---|---|
-| Global legacy ledger | Definitions not yet assigned to an available provider store |
-| Provider-scoped legacy ledger | Compatibility source for one provider before Agent Host authority is active |
-| Agent Host Automation storage | Canonical definitions, trigger cursors, manual request IDs, and run state after activation |
-| Provider-scoped legacy run archive | Read-only historical runs retained because AHP has no history-import command |
+`IAutomationBlueprint` is a versioned portable name, prompt, schedule, and optional `disableConditions`. It excludes runtime identity, target provider, workspace, session configuration, enabled state, timestamps, and history.
 
-The legacy run archive is not an execution authority. Every archived row must already be terminal.
+Version 2 adds `disableConditions`. Version 1 remains readable with its original strict schema; exports without conditions omit the field and use version 1, while exports containing conditions use version 2.
 
-## Execution authority
+Standalone `.automation.md` files and plugins use the same blueprint format. Plugin discovery exposes inert templates and follows effective plugin enablement; discovery, installation, and updates never mutate saved Automations.
 
-### Legacy authority
+Import, duplication, and templates open the same review dialog and use the same AHP-only creation path. File imports and plugin templates start disabled. The user selects an available host and provider-owned configuration locally. Export transfers only portable state, not execution authority or history.
 
-Before Agent Host authority is activated, the legacy store owns:
+Blueprint schedules are manual, hourly, or five-field cron schedules interpreted in the importing user's local time zone. Import rejects schedule semantics the editor cannot preserve rather than silently changing their meaning.
 
-- run claims;
-- schedule advancement;
-- session creation through Sessions;
-- session-resource linkage;
-- terminal lifecycle updates.
+## Availability and routing
 
-The browser runner passes the complete saved session template into provider draft creation. Providers explicitly advertise support for restoring and capturing this configuration; execution fails rather than silently using defaults when a canonical template reaches an unsupported provider. Deprecated flat aliases also flow through ordinary model, mode, and permission operations for older providers. Workspace isolation and branch remain target-owned and are configured separately.
+A store's catalogue is `loading`, `ready`, `unavailable`, or in `error`. Only `ready` makes an empty catalogue authoritative.
 
-Renderer-window leader election prevents duplicate scheduled execution across windows.
+- `loading` means initial provider discovery, capability negotiation, or an authoritative snapshot is still in flight.
+- `unavailable` means a known host is disconnected, disabled, or does not advertise Automations.
+- `error` means an authoritative catalogue could not be read.
 
-### Agent Host authority
+The aggregate waits for AfterRestored provider registration. A window without an Automation-capable provider then settles to unavailable, not loading or empty-ready. Across providers, errors take precedence, followed by loading, unavailability, and finally ready. Available hosts remain usable even while another host is unavailable.
 
-After durable host migration completes, `AgentHostAutomationService` owns:
+Providers may expose observable enablement. Disabled providers are excluded from every aggregate and command route, not represented as unavailable hosts. Cloud enablement requires the cloud experiment setting, parent Automations enablement, and visible AI features; account changes or disabling the feature dispose pending requests and clear projected definitions and history. Disabling client access does not stop schedules already owned by GitHub.
 
-- manual and scheduled run claims;
-- trigger cursors and misfire handling;
-- session creation;
-- run/session membership and primary-session selection;
-- cancellation and timeout;
-- terminal lifecycle;
-- restart recovery.
+Cloud dialog configuration is supplied by the enabled provider through the shared Automation contract. Repository selection reuses the New Chat repository search, excludes public repositories, validates general Automation management, and defaults to Cloud while retaining a matching local checkout. Session types follow workspace capabilities; selecting another supported provider changes execution without changing the displayed workspace. Provider-owned model/tool drafts, UTC scheduling, and immutable-target guidance follow the selected provider. The cloud provider loads its selectable tools from the Mission Control tool catalog once per account session; new definitions select every catalog tool, and saved tool IDs outside the catalog are preserved unchanged. Target eligibility is advisory UI state; mutations still revalidate the capability at the provider boundary.
 
-The browser runner becomes a bridge for manual invocation: it requests host execution and observes the resulting authoritative run instead of creating a duplicate session.
+Repository search submits privacy checks in bounded batches. Successful privacy results are cached for the account lifetime; failed checks use a separate bounded short-lived retry delay, are cleared by explicit refresh or account changes, and never become authoritative eligibility state.
 
-The browser scheduler skips an Automation when its provider reports that scheduling is host-owned.
+Cloud event authoring is dialog-only and uses an explicitly supported subset of the account's trigger catalog. Trigger sections that cannot be faithfully represented remain read-only with Open on GitHub, while other fields remain editable. Event changes retain opaque settings; unchanged sections omit the trigger map entirely. Supported event automations do not offer eventless manual execution. Duplication of event configurations is declined in favor of GitHub, and portable export remains restricted.
 
-### Authority transition
+Agent-facing tools consume that same provider configuration. Listing refreshes enabled cloud catalogues and loads selectable tools, returning a serializable snapshot with explicit tool-catalog readiness or errors. It exposes known active runs and the provider's history readiness separately from definition readiness; a missing active run does not establish an uncertain request's outcome. Configure preserves UTC schedules and provider-owned partial-update semantics. Run distinguishes accepted, started, already-running, uncertain, and not-started outcomes; providers translate uncertain mutations into the shared `AutomationMutationUncertainError` without inviting an automatic retry.
 
-Authority changes only after durable source removal and host activation. Existing source-owned runs remain writable by their source until they become terminal or are recovered. Migration must never move a non-terminal run into read-only history.
+Cloud discovery includes the authenticated user's definitions and repository-owned definitions in known and recent private/internal GitHub.com repositories. Agent-facing tools consume the same returned catalogue as the human UI. Mutations revalidate repository eligibility and updates compare the latest editable state before dispatch; REST does not provide atomic compare-and-swap. An uncertain mutation blocks further writes until refresh reconciles the catalogue. Cloud run requests return acceptance without a correlated run or completion promise. History remains a bounded server-owned window, with external links and no synthesized native session resource.
 
-New-run admission during the transition must preserve the same single-authority invariant. Concrete admission policy is enforced by the owning store and scheduler rather than inferred by presentation code.
+Creation availability is observable and comes from the negotiated AHP create capability and authoritative catalogue readiness. Forms and tools use the same capability. Definition-specific Run, Update, and Remove actions come from the host's operations; clients do not infer permission from a locally retained definition.
 
-## Compatibility states
+Editing an existing definition requires its `Update` operation, not host-level `create`. The edit dialog offers its owning host and permits configuration drafts on a ready AHP catalogue even when new definitions cannot be created. New definitions, templates, imports, and duplicates still require `create`.
 
-`ReconnectableAgentHostAutomationStore` represents one provider's host-capability lifecycle:
+Local and remote providers have independent connections and catalogues. Disconnecting disposes the connection's projection and pending observations, without changing host definitions or run state. Reconnect projects the host's current state; it performs no browser-ledger import or activation handshake.
 
-```mermaid
-stateDiagram-v2
-	[*] --> Disconnected
-	Disconnected --> Initializing: set connection
-	Initializing --> Disabled: feature disabled
-	Initializing --> Unsupported: capability absent
-	Initializing --> Supported: capability available
-	Initializing --> Disconnected: connection cleared
-	Disabled --> Initializing: enabled before capabilities resolve
-	Disabled --> Unsupported: enabled without capability
-	Disabled --> Supported: enabled with capability
-	Disabled --> Disconnected: connection cleared
-	Unsupported --> Initializing: capabilities become unresolved
-	Unsupported --> Disabled: feature disabled
-	Unsupported --> Supported: capability becomes available
-	Unsupported --> Disconnected: connection cleared
-	Supported --> Initializing: capabilities become unresolved or connection rebound
-	Supported --> Unsupported: capability removed
-	Supported --> Disabled: feature disabled
-	Supported --> Disconnected: connection cleared
+The AHP-only client additionally requires the `vscode.autonomousAutomations` initialize metadata capability. Older hosts advertise the same baseline AHP catalogue while requiring client-driven activation; they are unavailable with upgrade guidance rather than accepting definitions that cannot run. The metadata capability distinguishes this host implementation contract without changing the standardized AHP protocol.
 
-	state Disconnected {
-		[*] --> NoActiveConnection
-	}
-	state Initializing {
-		[*] --> CapabilitiesUnresolved
-	}
-	state Unsupported {
-		[*] --> NoAutomationsCapability
-	}
-	state Disabled {
-		[*] --> AutomationsDisabled
-	}
-	state Supported {
-		[*] --> ProjectHostCatalogue
-	}
-```
+### Editing and host identity
 
-Every non-supported state exposes the provider-scoped legacy fallback when it contains data. Capability initialization is not treated as migration failure. Local and remote providers transition independently.
+Existing definitions and runs route to their owning provider. Same-host agent, workspace, schedule, configuration, and enablement edits remain supported.
 
-After legacy data has migrated and its source is drained, disconnecting or disabling the provider does not create a second authority. The host retains durable definitions; its projection becomes available again after reconnect or re-enable.
+An edit cannot transfer a definition between concrete Agent Hosts: AHP does not provide a history-preserving transfer command. Ordinary and guarded edits reject a host change before any mutation. A stale guarded edit still reports its conflict before transfer eligibility is checked.
 
-## Migration
+To use a different host, explicitly duplicate the definition there. The original definition and history remain with the original host, and an enabled original continues scheduling until explicitly disabled. Duplication never disables or deletes the source.
 
-Migration has two ownership boundaries:
+## Host lifecycle
 
-1. global legacy storage to the target provider store;
-2. provider-scoped legacy storage to that provider's Agent Host.
+`AgentHostAutomationService` is authoritative as soon as durable host storage is readable. Execution is gated by host feature enablement and current provider availability, not renderer startup or migration flags. Host configuration restores saved Automation enablement before authority initialization, without restoring client-owned approval grants.
 
-Both boundaries preserve data with snapshot comparison and guarded removal.
+Providers may expose model-dependent readiness for unattended execution. While required credentials are missing, the host leaves due schedule cursors unchanged and resumes scheduling when readiness changes. Copilot's readiness covers initially missing credentials and preserves explicitly selected BYOK models when signed-out operation is supported; it does not persist credentials or bypass runtime authorization.
 
-### Global legacy to provider
+The host likewise leaves due schedules and pending scheduled runs waiting while the machine is not fully awake, because work started during sleep or a background (macOS dark) wake stalls when the machine sleeps again. The VS Code main process reports macOS sleep and full wakes to its local host; on a full wake, missed occurrences follow the trigger's misfire policy. After a full wake, scheduled work also waits about 15 seconds for the network to reconnect, and longer while Electron's `net.isOnline()` reports the network offline, but no more than 2 minutes after the wake so an offline machine still runs and fails visibly. The host logs `Scheduled work held after wake` and `released` transitions with their reason. Run Now is never held. Hosts without a wake reporter, such as remote hosts, treat the machine as always fully awake and ready.
 
-`ProviderAutomationService`:
+The host owns:
 
-1. verifies that the global legacy ledger is readable;
-2. reads a definition-and-runs snapshot from the global legacy store;
-3. resolves the target provider from `providerId`;
-4. imports the snapshot into that provider's store;
-5. removes the source only if its current snapshot still matches;
-6. acknowledges the import after durable source removal.
+- durable manual request IDs and active-run reuse for manual requests;
+- schedule cursors, due-trigger evaluation, and misfire handling;
+- session creation, Automation prompt provenance, membership, and primary-session linkage;
+- cancellation and terminal outcomes;
+- restart recovery and paginated run history.
 
-When the provider is unavailable, the source remains authoritative. Conflicts retain the source rather than overwriting divergent destination data.
+Definitions and run mutations are persisted before corresponding AHP state is published. An unreadable or unsupported host storage format must not be replaced with an empty writable catalogue.
 
-### Provider legacy to Agent Host
+Every due schedule occurrence creates its own run, even while earlier runs of the same Automation are non-terminal, so a stalled run cannot block later occurrences. The host imposes no run duration limit: a run ends when its linked session completes, fails, or is cancelled; when that session is deleted; or when restart recovery interrupts it. If a run's turn fails with a resumable error after the machine slept during the run, the run stays `running` and the host resumes that turn once, at least 10 seconds after the next full wake and once scheduled work is ready; cancelling the run while it waits ends it immediately. `pending` and `running` are non-terminal; `completed` and `failed` are terminal in the Sessions projection. AHP cancellation projects as failed with its cancellation reason. A run exposes its session resource only once the host links that session.
 
-For an AHP-capable host, `AgentHostAutomationStore`:
+An Agent Host Automation can opt in to Same Chat: the AHP `previousSession` target, offered when the host advertises `targets.previousSession`. Each run still gets its own run, but continues the session of the Automation's latest run that has one, when that session still has the template's provider, isn't archived, has a default chat, and was created from the same folders, persistent configuration (such as mode, approvals, sandbox, isolation and branch) and model presence as the current template, which the host records per session it creates. Otherwise the run creates a new session, which later runs continue, so editing those settings, or archiving or deleting the session, starts over. If the host can't check the session, such as when restoring it fails, the run fails instead, and the next run tries the same session again. Runs of one Automation resolve their session one at a time, in the order they start, so overlapping runs share one session. The run links that session without a creation journal, so recovery never deletes it, gives it the Automation's current customizations as its Automation active client, which a restored session lacks, and adds its message, with the template's model and agent, to the default chat as a queued message whose id is the run. The run stays `pending` until a turn starts from that message, becomes `running`, and ends only with that turn. Withdrawing the message cancels the run, cancelling the run removes the message or cancels only its turn, and archiving or deleting the session before the turn starts fails the run.
 
-1. preflights the provider's legacy catalogue for non-terminal runs;
-2. verifies that the legacy source is readable;
-3. for each definition:
-   1. creates or updates the host definition with legacy-import metadata;
-   2. waits for authoritative AHP catalogue state;
-   3. archives terminal legacy run history;
-   4. guarded-removes the matching legacy snapshot;
-   5. clears the pending-import marker after source removal;
-4. verifies that no provider legacy definitions remain;
-5. sends the complete expected resource set to the host;
-6. waits for durable host migration completion;
-7. verifies again that no provider legacy definitions appeared during the host round-trip;
-8. drains any stranded pending-import markers;
-9. publishes the host projection as ready.
+Run Now submits a manual request to this authority and observes dispatch and completion. If the Automation already has an active run, the newest active run is reported without creating another session. Pre-dispatch cancellation prevents the request; supported in-flight cancellation is forwarded to the host. Observation failure or window closure cannot synthesize a terminal run or move execution elsewhere.
 
-If any source run is non-terminal, migration defers before importing the first definition. A run that becomes active during item migration also defers the attempt and leaves current source state to be reconciled on retry.
+Disabling scheduled execution on a definition preserves manual Run Now. Disabling the Automations feature removes new-run authority without deleting definitions or automatically terminating sessions already running. On restart or re-enablement, the host applies its existing recovery and misfire rules without requiring an Agents Window.
 
-Items complete independently inside the per-definition loop. If a later item fails, definitions already transferred remain durable while untouched or conflicting definitions stay in their source store for retry.
+### Automatic disable conditions
 
-### Pending-import authority
+The local host accepts `disableConditions` as an optional array with at most one `afterDate` condition (`date`, an ISO 8601 timestamp). The existing AHP update action replaces the entire array; omission preserves it, and `[]` clears it without re-enabling scheduling. No separate capability, clear flag, or disable-reason state is used. The local host does not implement run-count scheduling. One-time requests do not support end dates; their send time and catch-up-once semantics remain independent of recurring automation cutoffs.
 
-A host definition imported from legacy remains marked pending until its source is durably removed. While pending, the host withholds `Run` and `Remove` authority. This prevents the source and destination from independently executing or deleting the same Automation.
+Remote host definitions may contain standard AHP run-count conditions. The client preserves these in its catalogue and keeps supported operations available, but does not author or change them. Client end-date edits retain other host conditions when constructing the full AHP replacement array; exports reject conditions the portable end-date schema cannot represent instead of silently dropping them.
 
-### Host activation
+The host evaluates the final date against admission time, including catch-up runs, and wakes at the cutoff independently of provider readiness or an active run. Expiry processing respects the host's wake/reconnect gate: when scheduled work resumes, overdue dates disable scheduling before any catch-up admission. At or after the cutoff it disables scheduling without cancelling an admitted run. Conditions stay in the definition; clients warn before enabling an expired date.
 
-On completion, `AgentHostAutomationService`:
+Cloud automations have no end-date support; the cloud provider rejects non-empty `disableConditions` on create and update instead of dropping them.
 
-1. verifies every expected Automation resource exists;
-2. durably writes the migration-completion marker;
-3. grants operations allowed by enabled and pending-import state;
-4. publishes the complete authoritative catalogue;
-5. recovers interrupted host-owned runs;
-6. starts schedule evaluation.
+## Persistence and retained history
 
-Host scheduling uses persisted trigger cursors. Due triggers apply their configured misfire policy after activation.
+Canonical definitions, schedule cursors, manual request IDs, and run state live in Agent Host storage. Before session creation, the host journals the allocated backend URI and resolved provider. It durably links the session before sending the initial prompt. Interrupted creation is recovered or cleaned up using that recorded identity; recovery never resends the prompt and retries failed cleanup when providers return.
 
-### Retry and recovery
+Restoration removes obsolete run-count conditions and their usage counters, retaining end dates and history. Previously capped automations are disabled rather than silently becoming unlimited; users must explicitly re-enable them.
 
-Migration is idempotent and retryable. Provider registration and timed retry re-enter migration. Cancellation caused by disconnect or disposal does not become a durable failure.
+Automation sessions carry the standard typed `SessionOriginKind.Automation` origin. It is stored as central-only session metadata so an absent older-build mirror cannot erase it, and forwarded through catalog/list/restore, notifications, and provider caches. Sidebar visibility uses this origin, not the currently loaded run-history page. Retained legacy run membership supplies missing origins without replacing other session metadata or deriving provider identity from a URI scheme.
 
-Stale-run recovery is scoped to the active browser-scheduler leader. `ProviderAutomationService` applies recovery before and after migration so providers registered during the leadership period are included.
+Hosts advertising `vscode.automationHistory` support explicit keep/delete-history choices. Keeping history replaces the executable definition and customization references with a minimal inert owner containing its identity, name, and history metadata. Retained history exposes a later delete action, while interrupted deletion exposes retry. Deleting history journals cleanup of every retained member, including sessions beyond the published history page; backend I/O runs outside the shared mutation queue and short queued checkpoints preserve progress without delaying unrelated Automations. Older AHP hosts and Cloud retain their existing deletion contracts.
 
-Expected active-run deferrals remain distinct from storage, protocol, or corruption failures. A mixed batch containing a genuine failure remains a failure.
+Already-migrated historical runs may also exist in a provider-scoped `agentHostAutomation.legacyRunArchive.*` value. The projection reads these archives solely for history, merging them with authoritative host runs. An explicit history deletion may remove recognized rows only when the host response acknowledges deletion of their exact advertised backend sessions. The client persists the request before dispatch, and the host durably receipts cumulative acknowledgements until the client confirms it persisted them, so response loss and partial failure remain recoverable across restart. Catalog absence alone is not an acknowledgement: an interrupted request preserves uncertain rows. Unknown or unresolved rows and unreadable archives are also preserved. Historical rows never claim an active-run slot or dispatch execution; malformed non-terminal archive rows are represented as interrupted history, not active host runs.
 
-## Legacy history archive
+Obsolete global and provider browser definition ledgers are outside the supported runtime contract. They are not read, imported, executed, or rewritten. Their persisted values are left untouched rather than destructively removed. There is no browser definition migration, interruption recovery, pending-import acknowledgement, or window-leadership path.
 
-Historical legacy runs are archived locally because AHP intentionally has no command to import old run state.
-
-Archive invariants:
-
-- only terminal rows are valid;
-- imports reject non-terminal snapshots before host mutation;
-- terminalization of previously invalid rows is deterministic and idempotent;
-- existing completion timestamps and errors are preserved;
-- when completion time is absent, `startedAt` is reused because the true interruption time is unknowable;
-- repair uses a dedicated compare-and-swap loop and never overwrites a newer terminal row;
-- generic archive writes normalize at the serialization boundary as a defensive backstop.
-
-The archive is merged with projected host runs for presentation, but archived rows never participate in host execution.
-
-## Updates and ownership transfer
-
-Updates use canonical editable-state comparison. Guarded updates return conflicts before enforcing transfer eligibility, allowing callers to refresh stale state.
-
-When an update changes provider ownership:
-
-1. acquire the actual pre-update state through guarded compare-and-swap;
-2. reject a transfer when an active run already exists;
-3. recheck before destination upsert;
-4. import the complete definition-and-history snapshot;
-5. guarded-remove the source;
-6. roll back only when the destination still matches the imported snapshot.
-
-If a run starts after the initial check, the update is rejected and the complete prior editable state is restored without overwriting newer concurrent edits.
-
-Updates that do not change the target remain allowed while an active run delays opportunistic store migration.
+Existing AHP definitions and history are not deleted because an obsolete migration marker is absent or remains in persisted metadata. Such markers do not control host activation or operations.
 
 ## Cross-component invariants
 
-1. A definition has one operational authority at a time.
-2. Provider identity determines host ownership; session type alone does not.
-3. Source data is removed only after destination state is durable and verified.
-4. Pending imports cannot run or be removed by the host.
-5. Non-terminal runs remain owned by a lifecycle executor.
-6. Read-only archive rows are terminal and deterministic.
-7. A newer terminal run state wins over stale repair.
-8. Migration and retargeting preserve concurrent edits through snapshot comparison.
-9. Mixed expected deferrals and real failures are reported as failures.
-10. Provider-specific state stays behind `ISessionsProviderAutomations`; UI and tools consume provider-neutral models.
-11. Same-target edits preserve unknown template values unless the user explicitly changes them.
-12. Retargeting does not carry a previous provider's template into the new authority.
-13. Runtime policy and provider schema are revalidated for every run without treating saved configuration as a grant.
-14. Consumers distinguish a confirmed empty catalogue from loading, unavailability, and failure through the provider-neutral catalogue state.
-
-## Concrete behavior
-
-Focused tests own concrete migration, retry, repair, conflict, and execution behavior:
-
-- `contrib/automations/test/browser/automationService.test.ts`;
-- `contrib/automations/test/browser/automationRunner.test.ts`;
-- `contrib/automations/test/browser/automationTools.test.ts`;
-- `contrib/automations/test/browser/providerAutomationService.test.ts`;
-- `contrib/automations/test/browser/automationScheduler.test.ts`;
-- `contrib/providers/agentHost/test/browser/agentHostAutomationStore.test.ts`.
-
-## Change policy
-
-Update this specification only when changing:
-
-- Automation service or provider ownership;
-- multi-host routing identity;
-- execution-authority transitions;
-- migration or persistence contracts;
-- run lifecycle or recovery invariants;
-- cross-component concurrency guarantees.
-
-Put UI behavior, copy, telemetry fields, algorithms, timing constants, individual races, and incident analysis in code, focused tests, issues, or pull requests.
+1. The selected Agent Host is the only execution and lifecycle authority.
+2. Concrete provider identity determines ownership; agent type alone does not.
+3. Missing capability or connection fails closed without creating local definitions or sessions.
+4. Browser startup, clocks, and window leadership cannot dispatch an Automation run.
+5. UI, tools, imports, templates, and duplication share the same AHP capability and mutation boundaries.
+6. Saved configuration is revalidated under current provider schema and policy, never treated as a grant.
+7. Retained historical archives are read-only presentation data, not execution state.
+8. Cross-host edit rejection preserves the original definition and history without partial writes.
 
 ## Related specifications
 
 - [Sessions architecture](SESSIONS.md)
 - [Sessions list](SESSIONS_LIST.md)
-- [Agent Host sessions provider](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md)
-- [Remote Agent Host sessions provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md)
+- [Agent Host sessions provider](../workbench/contrib/sessions/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md)
+- [Remote Agent Host sessions provider](../workbench/contrib/sessions/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md)

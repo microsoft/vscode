@@ -29,7 +29,7 @@ import { KeybindingWeight } from '../../../platform/keybinding/common/keybinding
 import { isMacintosh } from '../../../base/common/platform.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window.js';
-import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
 import { isAuxiliaryWindow, mainWindow } from '../../../base/browser/window.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 
@@ -300,7 +300,8 @@ abstract class BaseSwitchWindow extends Action2 {
 				windowId: window.id,
 				label: window.title,
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
-				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
+				iconPath: window.iconPath ? { dark: window.iconPath } : undefined,
+				iconClasses: window.iconPath ? undefined : getIconClasses(modelService, languageService, resource, fileKind),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
 				buttons: window.dirty ? [this.closeDirtyWindowAction] : currentWindowId === window.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 			};
@@ -496,18 +497,12 @@ export class ToggleWindowAlwaysOnTopAction extends Action2 {
 		super({
 			id: ToggleWindowAlwaysOnTopAction.ID,
 			title: localize2('toggleWindowAlwaysOnTop', "Toggle Window Always on Top"),
-			f1: true,
-			precondition: IsAuxiliaryWindowFocusedContext
+			f1: true
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
-
-		const targetWindow = getActiveWindow();
-		if (!isAuxiliaryWindow(targetWindow.window)) {
-			return; // Currently, we only support toggling always on top for auxiliary windows
-		}
 
 		return nativeHostService.toggleWindowAlwaysOnTop({ targetWindowId: getActiveWindow().vscodeWindowId });
 	}

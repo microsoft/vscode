@@ -39,7 +39,8 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		clientId: string,
 		clientSecret: string | undefined,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: any[] }>,
-		initialTokens: any[]
+		initialTokens: any[],
+		providerId?: string
 	) {
 		super(
 			extHostWindow,
@@ -54,7 +55,8 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			clientId,
 			clientSecret,
 			onDidDynamicAuthProviderTokensChange,
-			initialTokens
+			initialTokens,
+			providerId
 		);
 
 		// Prepend Node-specific flows to the existing flows
@@ -104,12 +106,14 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		authorizationUrl.searchParams.append('code_challenge', codeChallenge);
 		authorizationUrl.searchParams.append('code_challenge_method', 'S256');
 		const scopeString = scopes.join(' ');
-		if (scopeString) {
-			authorizationUrl.searchParams.append('scope', scopeString);
+		const requestScopeString = this._getRequestScopes(scopes).join(' ');
+		if (requestScopeString) {
+			authorizationUrl.searchParams.append('scope', requestScopeString);
 		}
-		if (this._resourceMetadata?.resource) {
+		const resource = this._resourceIndicator;
+		if (resource) {
 			// If a resource is specified, include it in the request
-			authorizationUrl.searchParams.append('resource', this._resourceMetadata.resource);
+			authorizationUrl.searchParams.append('resource', resource);
 		}
 
 		// Create and start the loopback server
@@ -185,12 +189,14 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		// Step 1: Request device and user codes
 		const deviceCodeRequest = new URLSearchParams();
 		deviceCodeRequest.append('client_id', this._clientId);
-		if (scopeString) {
-			deviceCodeRequest.append('scope', scopeString);
+		const requestScopeString = this._getRequestScopes(scopes).join(' ');
+		if (requestScopeString) {
+			deviceCodeRequest.append('scope', requestScopeString);
 		}
-		if (this._resourceMetadata?.resource) {
+		const resource = this._resourceIndicator;
+		if (resource) {
 			// If a resource is specified, include it in the request
-			deviceCodeRequest.append('resource', this._resourceMetadata.resource);
+			deviceCodeRequest.append('resource', resource);
 		}
 
 		let deviceCodeResponse: Response;
@@ -257,8 +263,8 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			tokenRequest.append('client_id', this._clientId);
 
 			// Add resource indicator if available (RFC 8707)
-			if (this._resourceMetadata?.resource) {
-				tokenRequest.append('resource', this._resourceMetadata.resource);
+			if (resource) {
+				tokenRequest.append('resource', resource);
 			}
 
 			try {

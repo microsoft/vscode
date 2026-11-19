@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { browserZoomDefaultIndex, BrowserViewStorageScope, IBrowserViewAudience, IBrowserViewService, IBrowserViewState } from '../../../../../platform/browserView/common/browserView.js';
@@ -14,7 +15,7 @@ import { IAgentNetworkFilterService } from '../../../../../platform/networkFilte
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
-import { BrowserViewModel, BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BrowserViewModel, BrowserViewSharingState, createBrowserViewEventEmitters, IBrowserViewWorkbenchService, normalizeBrowserViewUrl } from '../../common/browserView.js';
 
 suite('BrowserViewModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,20 +23,6 @@ suite('BrowserViewModel', () => {
 	test('only blocks disallowed pages that cannot be shared directly', () => {
 		const browserViewService = upcastPartial<IBrowserViewService>({
 			destroyBrowserView: async () => { },
-			onDynamicDidChangePermissions: () => Event.None,
-			onDynamicDidNavigate: () => Event.None,
-			onDynamicDidChangeLoadingState: () => Event.None,
-			onDynamicDidChangeDevToolsState: () => Event.None,
-			onDynamicDidChangeTitle: () => Event.None,
-			onDynamicDidChangeFavicon: () => Event.None,
-			onDynamicDidChangeOwner: () => Event.None,
-			onDynamicDidChangeFocus: () => Event.None,
-			onDynamicDidChangeVisibility: () => Event.None,
-			onDynamicDidChangeDeviceEmulation: () => Event.None,
-			onDynamicDidChangeElementSelectionState: () => Event.None,
-			onDynamicDidChangeAreaSelectionActive: () => Event.None,
-			onDynamicDidChangeAudiences: () => Event.None,
-			onDynamicDidChangeRemoteStatus: () => Event.None,
 		});
 		const browserViewWorkbenchService = upcastPartial<IBrowserViewWorkbenchService>({
 			isSharingAvailable: true,
@@ -58,6 +45,7 @@ suite('BrowserViewModel', () => {
 			undefined,
 			createInitialState(storageScope, audiences),
 			browserViewService,
+			createBrowserViewEventEmitters(store.add(new DisposableStore())),
 			browserViewWorkbenchService,
 			upcastPartial<ITelemetryService>({}),
 			upcastPartial<IDialogService>({}),
@@ -77,6 +65,50 @@ suite('BrowserViewModel', () => {
 			unsharedAgent: BrowserViewSharingState.Available,
 		});
 	});
+
+	test('mirrors workbench-owned events before notifying local consumers without subscribing to IPC', () => {
+		const eventStore = store.add(new DisposableStore());
+		const emitters = createBrowserViewEventEmitters(eventStore);
+		const model = store.add(new BrowserViewModel(
+			'page', { windowId: 1 }, { type: 'user' }, undefined,
+			createInitialState(BrowserViewStorageScope.Global, []),
+			upcastPartial<IBrowserViewService>({
+				destroyBrowserView: async () => { },
+				setBrowserZoomIndex: async () => { },
+			}),
+			emitters,
+			upcastPartial<IBrowserViewWorkbenchService>({ isSharingAvailable: true, onDidChangeSharingAvailable: Event.None }),
+			upcastPartial<ITelemetryService>({}),
+			upcastPartial<IDialogService>({}),
+			upcastPartial<IStorageService>({}),
+			upcastPartial<IBrowserZoomService>({ getEffectiveZoomIndex: () => browserZoomDefaultIndex, onDidChangeZoom: Event.None }),
+			upcastPartial<IAgentNetworkFilterService>({ isEnabled: () => false, onDidChange: Event.None }),
+			upcastPartial<ILogService>({}),
+		));
+		eventStore.add(Event.once(model.onWillDispose)(() => eventStore.dispose()));
+		const received: string[] = [];
+		const removed = store.add(model.onDidChangeTitle(() => received.push('removed')));
+		removed.dispose();
+		store.add(model.onDidNavigate(() => received.push(model.url)));
+		store.add(model.onDidChangeTitle(() => received.push(model.title)));
+		store.add(model.onDidChangeLoadingState(() => received.push(`loading:${model.loading}`)));
+		store.add(model.onDidClose(() => received.push('closed')));
+		store.add(model.onDidChangeFocus(() => received.push('unexpected focus')));
+		store.add(model.onDidPickArea(() => received.push('unexpected area')));
+		emitters.onDidNavigate.fire({
+			url: 'https://example.com/', title: 'initial', canGoBack: true, canGoForward: false, certificateError: undefined
+		});
+		emitters.onDidChangeTitle.fire({ title: 'Example' });
+		emitters.onDidChangeLoadingState.fire({ loading: false });
+		emitters.onDidClose.fire();
+		model.dispose();
+		emitters.onDidChangeTitle.fire({ title: 'after model disposal' });
+		assert.deepStrictEqual({ received, canGoBack: model.canGoBack, titleAfterDisposal: model.title }, {
+			received: ['https://example.com/', 'Example', 'loading:false', 'closed'],
+			canGoBack: true,
+			titleAfterDisposal: 'Example'
+		});
+	});
 });
 
 function createInitialState(storageScope: BrowserViewStorageScope, audiences: IBrowserViewAudience[]): IBrowserViewState {
@@ -93,14 +125,53 @@ function createInitialState(storageScope: BrowserViewStorageScope, audiences: IB
 		lastFavicon: undefined,
 		lastError: undefined,
 		certificateError: undefined,
-		storageScope,
+		session: { scope: storageScope },
 		storageKeys: {},
 		permissions: { origins: {} },
 		browserZoomIndex: browserZoomDefaultIndex,
 		elementSelectionState: { active: false, options: {} },
-		isRemoteSession: false,
 		isAreaSelectionActive: false,
 		device: undefined,
 		audiences,
 	};
 }
+
+suite('normalizeBrowserViewUrl', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('decodes only the drive-letter colon in file URLs', () => {
+		assert.deepStrictEqual(
+			[
+				'file:///c%3A/docs/x.html',
+				'file:///C%3a/docs/x.html',
+				'file:///c%3A/docs/a%20b%231.html?q=%3A#h%3A',
+				'file:///c%3A/docs/report%2520final.html',
+				'file:///c%3A/docs/dir%3Afile.html',
+				'file:///c:/docs/x.html',
+				'file:///home/u/c%3A/x.html',
+				'file:///home/u/x.html',
+			].map(url => normalizeBrowserViewUrl(url, true)),
+			[
+				'file:///c:/docs/x.html',
+				'file:///C:/docs/x.html',
+				'file:///c:/docs/a%20b%231.html?q=%3A#h%3A',
+				'file:///c:/docs/report%2520final.html',
+				'file:///c:/docs/dir%3Afile.html',
+				'file:///c:/docs/x.html',
+				'file:///home/u/c%3A/x.html',
+				'file:///home/u/x.html',
+			]);
+	});
+
+	test('leaves file URLs unchanged outside Windows', () => {
+		assert.deepStrictEqual(
+			['file:///c%3A/docs/x.html', 'file:///c:/docs/x.html'].map(url => normalizeBrowserViewUrl(url, false)),
+			['file:///c%3A/docs/x.html', 'file:///c:/docs/x.html']);
+	});
+
+	test('keeps defaulting the scheme', () => {
+		assert.deepStrictEqual(
+			['localhost:3000', 'example.com', 'https://example.com'].map(url => normalizeBrowserViewUrl(url)),
+			['http://localhost:3000', 'http://example.com', 'https://example.com']);
+	});
+});

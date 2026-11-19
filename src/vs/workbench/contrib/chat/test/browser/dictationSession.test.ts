@@ -9,6 +9,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -93,6 +94,16 @@ suite('DictationSession', () => {
 			.map(decoration => Range.lift(decoration.range).toString());
 	}
 
+	test('does not restore the previous session’s sandbox placeholder after switching sessions', async () => {
+		const { service } = createService('', true);
+		const editor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
+		editor.updateOptions({ placeholder: 'Session A (sandbox enabled)' });
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		editor.updateOptions({ placeholder: 'Session B' });
+		await stopDictation();
+		assert.strictEqual(editor.getOption(EditorOption.placeholder), 'Session B');
+	});
+
 	test('does not restore dictated text deleted before stopping', async () => {
 		const transcript = 'hello world';
 		const { service, onDidUpdateTranscript } = createService(transcript, true);
@@ -142,6 +153,26 @@ suite('DictationSession', () => {
 		} finally {
 			clock.restore();
 		}
+	});
+
+	test('clears the active editor when startup ends without recording', async () => {
+		const { service } = createService('', true);
+		const editor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
+		let starts = 0;
+		service.start = async () => { starts++; };
+
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		await startDictation(service, editor, mainWindow, new NullLogService());
+
+		assert.deepStrictEqual({
+			starts,
+			isDictating: isDictating(),
+			isActiveForEditor: isDictationActiveForEditor(editor),
+		}, {
+			starts: 2,
+			isDictating: false,
+			isActiveForEditor: false,
+		});
 	});
 
 	test('stops only when the submitted editor owns dictation', async () => {

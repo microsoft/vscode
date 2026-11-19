@@ -10,15 +10,14 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { IOpenEditorOptions } from '../../../../../../platform/editor/browser/editor.js';
-import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IChatExternalEdit } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
-import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
+import { ChatEditPillElement } from './chatEditPillElement.js';
+import { IChatEditPresentationService } from './chatEditPresentation.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { IChatContentPart, IChatContentPartDiffData, IChatContentPartRenderContext } from './chatContentParts.js';
 
 /**
@@ -50,6 +49,9 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 	 * `ChatThinkingContentPart.appendItem`) still receive the initial value.
 	 */
 	readonly onDidChangeDiff: Event<IChatContentPartDiffData> = this._onDidChangeDiff.event;
+	private _diffData: IChatContentPartDiffData | undefined;
+	/** The static diff data, readable before the deferred change event fires. */
+	get diffData(): IChatContentPartDiffData | undefined { return this._diffData; }
 
 	get domNode(): HTMLElement { return this.element; }
 
@@ -60,13 +62,14 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
 		@IHoverService hoverService: IHoverService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ITextModelService private readonly textModelService: ITextModelService,
+		@IChatEditPresentationService editPresentationService: IChatEditPresentationService,
 	) {
 		super(labelService, modelService, languageService, hoverService);
 
 		this.render(edit);
-		this._register(this.onDidClick(opts => this.openEdit(opts)));
+		this._register(this.onDidClick(opts => {
+			void editPresentationService.openExternalEdit(this.edit, opts).catch(onUnexpectedError);
+		}));
 	}
 
 	private render(edit: IChatExternalEdit): void {
@@ -87,54 +90,27 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 				? localize('chat.codeblock.deletions.one', "1 deletion")
 				: localize('chat.codeblock.deletions', "{0} deletions", edit.diff.removed);
 			this.setAriaLabel(localize('summary', 'Edited {0}, {1}, {2}', fileName, insertionsFragment, deletionsFragment));
-			// Fire the aggregated stats event on the next microtask so
-			// listeners attached immediately after construction (the
-			// `ChatThinkingContentPart.appendItem` path subscribes after
-			// `createInstance` returns) still observe the value. The
-			// `Emitter` is not replayable on subscribe, so a synchronous
-			// fire would drop the initial stats on the floor.
+			// The stats are readable via `diffData` right away; the event is still fired on the next
+			// microtask so listeners attached immediately after construction observe the value too.
 			const diff = edit.diff;
+			this._diffData = {
+				added: diff.added,
+				removed: diff.removed,
+				resources: [{
+					resource: edit.uri,
+					originalURI: edit.beforeContentUri,
+					modifiedURI: edit.editKind === 'delete' ? undefined : edit.afterContentUri ?? edit.uri,
+				}],
+			};
 			queueMicrotask(() => {
-				if (this._store.isDisposed) {
+				if (this._store.isDisposed || !this._diffData) {
 					return;
 				}
-				this._onDidChangeDiff.fire({
-					added: diff.added,
-					removed: diff.removed,
-					resources: [{
-						resource: edit.uri,
-						originalURI: edit.beforeContentUri,
-						modifiedURI: edit.editKind === 'delete' ? undefined : edit.afterContentUri ?? edit.uri,
-					}],
-				});
+				this._onDidChangeDiff.fire(this._diffData);
 			});
 		} else {
 			this.setDiff(undefined);
 			this.setAriaLabel(`${label} ${this.labelService.getUriBasenameLabel(edit.uri)}`);
-		}
-	}
-
-	private async openEdit({ editorOptions: options, openToSide }: IOpenEditorOptions): Promise<void> {
-		const group = openToSide ? SIDE_GROUP : undefined;
-		if (this.edit.beforeContentUri && this.edit.afterContentUri) {
-			// If the change is a pure addition into a file whose original version did not
-			// exist or was empty, there is nothing meaningful to diff against. Open the
-			// resulting file in a normal editor instead of a diff editor.
-			if (this.edit.editKind === 'edit' && (this.edit.diff?.removed ?? 0) === 0 && await isResourceContentEmpty(this.textModelService, this.edit.beforeContentUri)) {
-				this.editorService.openEditor({ resource: this.edit.uri, options }, group);
-				return;
-			}
-			this.editorService.openEditor({
-				original: { resource: this.edit.beforeContentUri },
-				modified: { resource: this.edit.afterContentUri },
-				options,
-			}, group);
-		} else if (this.edit.editKind === 'delete' && this.edit.beforeContentUri) {
-			// The file no longer exists on disk; show the pre-deletion
-			// content from the snapshot instead of opening the missing URI.
-			this.editorService.openEditor({ resource: this.edit.beforeContentUri, options }, group);
-		} else if (this.edit.editKind !== 'delete') {
-			this.editorService.openEditor({ resource: this.edit.uri, options }, group);
 		}
 	}
 
@@ -143,6 +119,7 @@ export class ChatExternalEditContentPart extends ChatEditPillElement implements 
 			return false;
 		}
 		return (
+			other.subAgentInvocationId === this.edit.subAgentInvocationId &&
 			isEqual(other.uri, this.edit.uri) &&
 			other.editKind === this.edit.editKind &&
 			(other.diff?.added ?? 0) === (this.edit.diff?.added ?? 0) &&

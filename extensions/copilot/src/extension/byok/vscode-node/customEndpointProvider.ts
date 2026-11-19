@@ -107,6 +107,7 @@ interface _CustomEndpointModelConfig {
 	requestHeaders?: Record<string, string>;
 	modelOptions?: IChatModelRequestOptions;
 	zeroDataRetentionEnabled?: boolean;
+	statefulResponses?: boolean;
 	supportsReasoningEffort?: string[];
 	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
@@ -173,6 +174,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			requestHeaders: modelConfiguration?.requestHeaders,
 			modelOptions: modelConfiguration?.modelOptions,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
+			statefulResponses: modelConfiguration?.statefulResponses,
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
 		};
@@ -206,6 +208,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
  *    conflicting credentials.
  * 4. Omits the Responses API `store` property when Zero Data Retention was not
  *    explicitly configured, allowing custom implementations to use their own default.
+ * 5. Chains Responses requests via `previous_response_id` per the Open Responses spec,
+ *    unless the user marks the server stateless with `statefulResponses: false`.
  */
 export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	/**
@@ -254,6 +258,14 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 
 	protected override get useMessagesApi(): boolean {
 		return !!this.modelMetadata.supported_endpoints?.includes(ModelSupportedEndpoint.Messages);
+	}
+
+	/**
+	 * Spec-compliant Responses servers honor `previous_response_id`, but some (e.g. DeepSeek)
+	 * silently ignore it, so users can opt out with `statefulResponses: false`.
+	 */
+	protected override get supportsStatefulResponses(): boolean {
+		return this.modelMetadata.statefulResponses !== false;
 	}
 
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {

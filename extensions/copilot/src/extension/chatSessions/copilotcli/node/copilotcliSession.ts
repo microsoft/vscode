@@ -1809,12 +1809,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		if (modelId) {
 			if (modelId !== currentModel) {
 				this._lastUsedModel = modelId;
-				if (this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
-					await raceCancellation(this._sdkSession.setSelectedModel(modelId, reasoningEffort), token);
-				} else {
-					await raceCancellation(this._sdkSession.setSelectedModel(modelId), token);
-				}
-			} else if (reasoningEffort && this._sdkSession.getReasoningEffort() !== reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
+				await raceCancellation(this._sdkSession.setSelectedModel(modelId, reasoningEffort), token);
+			} else if (reasoningEffort && this._sdkSession.getReasoningEffort() !== reasoningEffort) {
 				await raceCancellation(this._sdkSession.setSelectedModel(modelId, reasoningEffort), token);
 			}
 		}

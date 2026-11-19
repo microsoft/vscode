@@ -21,6 +21,7 @@ import { CellPartsCollection } from './cellPart.js';
 import { CellViewModel, NotebookViewModel } from '../viewModel/notebookViewModelImpl.js';
 import { ICellRange } from '../../common/notebookRange.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
+import { CellEditorOverflowWidgets } from './cellParts/cellEditorOverflowWidgets.js';
 
 
 export interface INotebookCellList extends ICoordinatesConverter {
@@ -105,6 +106,7 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
+	readonly editorOverflowWidgets: CellEditorOverflowWidgets;
 	outputContainer: FastDomNode<HTMLElement>;
 	cellOutputCollapsedContainer: HTMLElement;
 	outputShowMoreContainer: FastDomNode<HTMLElement>;

@@ -13,6 +13,7 @@ import { transaction } from '../../../../../base/common/observable.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import type { MultiDiffEditorVariant } from '../../../../../editor/common/multiDiffEditor.js';
 import { DocumentSymbol, SymbolKind } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
@@ -49,6 +50,7 @@ const chatInputChangeData = z.object({
 interface IMultiDiffVisualFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
+	readonly variant: MultiDiffEditorVariant;
 	readonly renderSideBySide?: boolean;
 	readonly diffEditorOptions?: IDiffEditorOptions;
 	readonly collapsed?: readonly number[];
@@ -56,6 +58,7 @@ interface IMultiDiffVisualFixtureOptions {
 	readonly scrollLeft?: number;
 	readonly paddingBottom?: number;
 	readonly waitForDocumentSymbols?: boolean;
+	readonly focusFirstEditor?: boolean;
 	readonly createDocuments: (
 		instantiationService: ReturnType<typeof createMultiDiffEditorFixtureServices>,
 		textModels: DisposableStore
@@ -76,6 +79,7 @@ async function renderMultiDiffVisualFixture(context: ComponentFixtureContext, op
 		instantiationService,
 		container,
 		options.diffEditorOptions,
+		options.variant,
 	));
 	widget.setRenderSideBySide(options.renderSideBySide ?? true);
 	if (options.paddingBottom !== undefined) {
@@ -102,6 +106,9 @@ async function renderMultiDiffVisualFixture(context: ComponentFixtureContext, op
 		widget.setViewState({
 			scrollState: { top: options.scrollTop ?? 0, left: options.scrollLeft ?? 0 },
 		});
+	}
+	if (options.focusFirstEditor) {
+		context.focus(widget);
 	}
 }
 
@@ -429,18 +436,29 @@ function createWorkspaceSyncCoordinatorSymbols(model: ITextModel): DocumentSymbo
 	];
 }
 
-function createNoCardsFixtures() {
+function createVariantFixtures(variant: 'cards' | 'noCards') {
 	const fixtureOptions = {
 		themes: ['dark'],
 	} as const;
-	const treatment = 'Headers and editors flush to both viewport edges.';
+	const representativeThemeOptions = variant === 'cards' ? {
+		themes: ['dark', 'light'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+	} as const : fixtureOptions;
+	const focusedThemeOptions = variant === 'cards' ? {
+		themes: ['dark'],
+		additionalThemes: ['darkHighContrast'],
+	} as const : fixtureOptions;
+	const treatment = variant === 'cards'
+		? 'Inset cards with aligned header and editor side borders.'
+		: 'Headers and editors flush to both viewport edges.';
 	return defineThemedFixtureGroup({
 		ChatInputChanges: defineComponentFixture({
-			...fixtureOptions,
+			...representativeThemeOptions,
 			labels: { kind: 'screenshot' },
 			expectedVisualDescriptions: [treatment, 'Five realistic VS Code source changes match the Git changes editor order and breadcrumb treatment.'],
 			render: context => renderMultiDiffVisualFixture(context, {
 				height: 720,
+				variant,
 				renderSideBySide: false,
 				diffEditorOptions: {
 					hideUnchangedRegions: { enabled: true },
@@ -450,11 +468,13 @@ function createNoCardsFixtures() {
 			}),
 		}),
 		MultiFile: defineComponentFixture({
-			...fixtureOptions,
+			...focusedThemeOptions,
 			labels: { kind: 'screenshot' },
 			expectedVisualDescriptions: [treatment, 'Three side-by-side file diffs; the middle entry is collapsed and the first and last are expanded.'],
 			render: context => renderMultiDiffVisualFixture(context, {
+				variant,
 				collapsed: [1],
+				focusFirstEditor: variant === 'cards',
 				createDocuments: createStandardDocuments,
 			}),
 		}),
@@ -465,29 +485,59 @@ function createNoCardsFixtures() {
 			render: context => renderMultiDiffVisualFixture(context, {
 				width: 420,
 				height: 500,
+				variant,
 				renderSideBySide: false,
 				createDocuments: createLongPathDocuments,
 			}),
 		}),
-		StickyHorizontalOverflow: defineComponentFixture({
+		NarrowInlineOriginalLineNumbers: defineComponentFixture({
 			...fixtureOptions,
+			labels: { kind: 'screenshot' },
+			expectedVisualDescriptions: [treatment, 'Narrow inline diffs with original-side line numbers shown by an explicit setting override.'],
+			render: context => renderMultiDiffVisualFixture(context, {
+				width: 420,
+				height: 500,
+				variant,
+				renderSideBySide: false,
+				diffEditorOptions: { hideOriginalLineNumbers: false },
+				createDocuments: createLongPathDocuments,
+			}),
+		}),
+		StickyHorizontalOverflow: defineComponentFixture({
+			...representativeThemeOptions,
 			labels: { kind: 'screenshot' },
 			expectedVisualDescriptions: [treatment, 'A sticky file header above vertically and horizontally scrolled code; the beginnings of the long unwrapped lines are out of view.'],
 			render: context => renderMultiDiffVisualFixture(context, {
 				width: 680,
 				height: 480,
+				variant,
 				diffEditorOptions: { diffWordWrap: 'off' },
 				scrollTop: 420,
 				scrollLeft: 180,
 				createDocuments: createTallDocuments,
 			}),
 		}),
+		...(variant === 'cards' ? {
+			StickyHorizontalOverflowAtTop: defineComponentFixture({
+				...representativeThemeOptions,
+				labels: { kind: 'screenshot' },
+				expectedVisualDescriptions: [treatment, 'The same long unwrapped file at its real top, where the card header retains its rounded top edge.'],
+				render: context => renderMultiDiffVisualFixture(context, {
+					width: 680,
+					height: 480,
+					variant,
+					diffEditorOptions: { diffWordWrap: 'off' },
+					createDocuments: createTallDocuments,
+				}),
+			}),
+		} : {}),
 		AddedDeletedBinary: defineComponentFixture({
 			...fixtureOptions,
 			labels: { kind: 'screenshot' },
 			expectedVisualDescriptions: [treatment, 'Added and deleted file diffs followed by a binary file placeholder.'],
 			render: context => renderMultiDiffVisualFixture(context, {
 				height: 520,
+				variant,
 				createDocuments: createFileStateDocuments,
 			}),
 		}),
@@ -498,6 +548,7 @@ function createNoCardsFixtures() {
 			render: context => renderMultiDiffVisualFixture(context, {
 				width: 420,
 				height: 500,
+				variant,
 				renderSideBySide: false,
 				diffEditorOptions: {
 					hideUnchangedRegions: { enabled: true },
@@ -513,6 +564,7 @@ function createNoCardsFixtures() {
 			render: context => renderMultiDiffVisualFixture(context, {
 				width: 620,
 				height: 720,
+				variant,
 				renderSideBySide: false,
 				diffEditorOptions: {
 					hideUnchangedRegions: { enabled: true },
@@ -527,6 +579,7 @@ function createNoCardsFixtures() {
 
 export default defineThemedFixtureGroup({ path: 'editor/multiDiffEditor' }, {
 	variants: defineThemedFixtureGroup({
-		noCards: createNoCardsFixtures(),
+		cards: createVariantFixtures('cards'),
+		noCards: createVariantFixtures('noCards'),
 	}),
 });

@@ -3,52 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../../browser/media/sidebarActionButton.css';
-import './media/customizationsToolbar.css';
+import '../../../../workbench/contrib/sessions/browser/media/sidebarActionButton.css';
+import '../../../../workbench/contrib/sessions/browser/media/customizationsToolbar.css';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
-import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
+import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
-import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAgentHostToolSetEnablementService, isCopilotCliSessionType } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-
-export interface ICustomizationItemConfig {
-	readonly id: string;
-	readonly label: string;
-	readonly icon: ThemeIcon;
-	readonly section?: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
-	/** If set, count comes from `IAICustomizationItemsModel.getCount(modelSection)`. */
-	readonly modelSection?: ItemsModelSection;
-	readonly isMcp?: boolean;
-	readonly isPlugins?: boolean;
-	readonly isTools?: boolean;
-	/** Additional `when` clause beyond the standard harness-visibility gate. */
-	readonly when?: ContextKeyExpression;
-}
+import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountService } from '../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../../../workbench/contrib/sessions/browser/customizationsConstants.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ICustomizationItemConfig, readCustomizationCount, CUSTOMIZATION_ITEMS } from '../../../../workbench/contrib/sessions/browser/customizationItems.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatCustomizationsLocation, ChatCustomizationsLocationContext, resolveChatCustomizationsLocation } from '../../../../workbench/contrib/chat/common/customizationsLocation.js';
+import { SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SessionsSidebarCustomizationsCategories } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ChatCustomizationsActionViewItem, ChatCustomizationsHover } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsHover.js';
+import { observeVisibleSectionBadge, observeVisibleSectionsBadge } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationSectionBadges.js';
+import { ChatCustomizationsTelemetry } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
+import { ICustomizationMigrationService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { getIgnoredCustomizationMigrationGroups } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 /**
  * Per-section context key indicating whether the active harness exposes
@@ -60,92 +63,77 @@ function customizationSectionVisibleKey(section: string): string {
 	return `sessionsCustomizationSectionVisible.${section}`;
 }
 
+/**
+ * Offers a customization item, and its command, if any, where AI features are
+ * enabled and the active harness exposes the item's section.
+ */
+function customizationItemWhen(config: ICustomizationItemConfig, section: string): ContextKeyExpression | undefined {
+	const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
+	return config.when
+		? ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen, config.when)
+		: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen);
+}
+
 const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
-	id: 'sessions.customization.overview',
+	id: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
 	label: localize('overview', "Overview"),
 	icon: Codicon.home,
 };
 
-export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
-	{
-		id: 'sessions.customization.plugins',
-		label: localize('plugins', "Plugins"),
-		icon: pluginIcon,
-		section: AICustomizationManagementSection.Plugins,
-		isPlugins: true,
-	},
-	{
-		id: 'sessions.customization.mcpServers',
-		label: localize('mcpServers', "MCP Servers"),
-		icon: mcpServerIcon,
-		section: AICustomizationManagementSection.McpServers,
-		isMcp: true,
-	},
-	{
-		id: 'sessions.customization.skills',
-		label: localize('skills', "Skills"),
-		icon: skillIcon,
-		section: AICustomizationManagementSection.Skills,
-		modelSection: AICustomizationManagementSection.Skills,
-	},
-	{
-		id: 'sessions.customization.instructions',
-		label: localize('instructions', "Instructions"),
-		icon: instructionsIcon,
-		section: AICustomizationManagementSection.Instructions,
-		modelSection: AICustomizationManagementSection.Instructions,
-	},
-	{
-		id: 'sessions.customization.agents',
-		label: localize('agents', "Agents"),
-		icon: agentIcon,
-		section: AICustomizationManagementSection.Agents,
-		modelSection: AICustomizationManagementSection.Agents,
-	},
-	{
-		id: 'sessions.customization.hooks',
-		label: localize('hooks', "Hooks"),
-		icon: hookIcon,
-		section: AICustomizationManagementSection.Hooks,
-		modelSection: AICustomizationManagementSection.Hooks,
-	},
-	{
-		id: 'sessions.customization.tools',
-		label: localize('tools', "Tools"),
-		icon: toolsIcon,
-		section: AICustomizationManagementSection.Tools,
-		isTools: true,
-	},
-	{
-		id: 'sessions.customization.harnessSettings',
-		label: localize('harnessSettings', "Codex"),
-		icon: Codicon.openai,
-		section: AICustomizationManagementSection.HarnessSettings,
-	},
-];
+const CUSTOMIZATIONS_REDUCED = ContextKeyExpr.equals(`config.${SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING}`, SessionsSidebarCustomizationsCategories.Reduced);
 
-async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
-	const session = sessionsService.activeSession.get();
-	if (session) {
-		harnessService.setActiveSession(session.resource);
+/** Whether the reduced Customizations section shows the categories that it hides by default. */
+const CUSTOMIZATIONS_SHOW_MORE_STORAGE_KEY = 'agentSessions.customizationsShortcuts.showMore';
+const CustomizationsShowMoreContext = new RawContextKey<boolean>('sessionsCustomizationsShowMore', false);
+/** Whether any of the categories that the reduced Customizations section hides by default is available. */
+const CustomizationsMoreAvailableContext = new RawContextKey<boolean>('sessionsCustomizationsMoreAvailable', false);
+
+export const SHOW_MORE_CUSTOMIZATIONS_COMMAND_ID = 'sessions.customizations.showMore';
+export const SHOW_LESS_CUSTOMIZATIONS_COMMAND_ID = 'sessions.customizations.showLess';
+
+// More shows the categories after those that the reduced section always shows, followed by Less.
+const MORE_CUSTOMIZATIONS_ORDER = CUSTOMIZATION_ITEMS.length + 1;
+const SHOW_MORE_OR_LESS_ORDER = 2 * MORE_CUSTOMIZATIONS_ORDER;
+
+async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, workspaceService: IAICustomizationWorkspaceService, options?: IOpenAICustomizationsCommandOptions, targetSession?: ISession, targetResource?: URI): Promise<void> {
+	const session = targetSession ?? (targetResource ? undefined : focusedSessionHostService.focusedHost.get().session.get());
+	const resource = targetResource ?? session?.resource;
+	if (resource) {
+		harnessService.setActiveSession(resource);
 	}
+	workspaceService.setActiveSessionResource?.(targetResource);
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
-	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
+	const targetLabels = workspaceService.activeTargetLabels?.get();
+	input.setTargetLabels(
+		targetLabels?.harness ?? harnessService.getActiveDescriptor().label,
+		targetLabels?.workspace ?? workspaceService.activeProjectLabel.get(),
+		targetLabels?.environment,
+	);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
-		pane.showWelcomePage();
+		if (options?.migration) {
+			await pane.startCustomizationMigration();
+		} else {
+			pane.showWelcomePage();
+		}
 	}
 }
 
-async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
-	const session = sessionsService.activeSession.get();
+async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, workspaceService: IAICustomizationWorkspaceService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
+	const session = focusedSessionHostService.focusedHost.get().session.get();
 	if (session) {
 		harnessService.setActiveSession(session.resource);
 	}
+	workspaceService.setActiveSessionResource?.(undefined);
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
-	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
+	const targetLabels = workspaceService.activeTargetLabels?.get();
+	input.setTargetLabels(
+		targetLabels?.harness ?? harnessService.getActiveDescriptor().label,
+		targetLabels?.workspace ?? workspaceService.activeProjectLabel.get(),
+		targetLabels?.environment,
+	);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.selectSectionById(section);
@@ -158,10 +146,10 @@ async function openCustomizationSectionPage(editorService: IEditorService, harne
  * observables that feed the customizations editor — so the badge always
  * matches the editor's count exactly.
  */
-export class CustomizationLinkViewItem extends ActionViewItem {
+export class CustomizationLinkViewItem extends BaseActionViewItem {
 
 	private readonly _viewItemDisposables: DisposableStore;
-	private _button: Button | undefined;
+	protected _button: Button | undefined;
 	private _countContainer: HTMLElement | undefined;
 
 	constructor(
@@ -169,11 +157,13 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		options: IBaseActionViewItemOptions,
 		private readonly _config: ICustomizationItemConfig,
 		@IAICustomizationItemsModel private readonly _itemsModel: IAICustomizationItemsModel,
-		@IMcpService private readonly _mcpService: IMcpService,
+		@IAICustomizationMcpServerCountService private readonly _mcpServerCountService: IAICustomizationMcpServerCountService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
-		super(undefined, action, { ...options, icon: false, label: false });
+		super(undefined, action, options);
 		this._viewItemDisposables = this._register(new DisposableStore());
 	}
 
@@ -181,8 +171,31 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		return undefined;
 	}
 
+	/**
+	 * The categories whose customizations the item counts.
+	 */
+	protected getCountedConfigs(): readonly ICustomizationItemConfig[] {
+		return [this._config];
+	}
+
+	/**
+	 * The description of the item's suggestion badge while it has one.
+	 */
+	protected observeBadge(): IObservable<string | undefined> | undefined {
+		const section = this._config.section;
+		return section && this.instantiationService.invokeFunction(accessor => observeVisibleSectionBadge(accessor, section));
+	}
+
+	protected onButtonClick(): void {
+		if (this._config.id === CUSTOMIZATION_OVERVIEW_ITEM.id) {
+			this.instantiationService.createInstance(ChatCustomizationsTelemetry).logInteraction('buttonClicked', 'sidebar');
+		}
+		this.actionRunner.run(this._action, this._context);
+	}
+
 	override render(container: HTMLElement): void {
-		super.render(container);
+		this._viewItemDisposables.clear();
+		this.element = container;
 		container.classList.add('customization-link-widget', 'sidebar-action');
 
 		// Button (left) - uses supportIcons to render codicon in label
@@ -199,38 +212,71 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		}));
 		this._button.element.classList.add('customization-link-button', 'sidebar-action-button');
 		this._button.label = `$(${this._config.icon.id}) ${this._config.label}`;
+		this.updateEnabled();
 
-		this._viewItemDisposables.add(this._button.onDidClick(() => {
-			this._action.run();
-		}));
+		this._viewItemDisposables.add(this._button.onDidClick(() => this.onButtonClick()));
 
 		// Count container (inside button, floating right)
 		this._countContainer = append(this._button.element, $('span.customization-link-counts'));
 
+		const countedConfigs = this.getCountedConfigs();
 		this._viewItemDisposables.add(autorun(reader => {
-			const count = this._readCount(reader);
+			let count = 0;
+			for (const config of countedConfigs) {
+				count += readCustomizationCount(config, reader, this._itemsModel, this._mcpServerCountService, this._toolsService, this._toolEnablementService);
+			}
 			if (this._countContainer) {
 				this._renderTotalCount(this._countContainer, count);
 			}
 		}));
+
+		const badge = this.observeBadge();
+		if (badge) {
+			this._renderBadge(this._button, badge);
+		}
 	}
 
-	private _readCount(reader: Parameters<Parameters<typeof autorun>[0]>[0]): number {
-		if (this._config.modelSection) {
-			return this._itemsModel.getCount(this._config.modelSection).read(reader);
+	private _renderBadge(button: Button, description: IObservable<string | undefined>): void {
+		const badge = append(button.element, $('span.ai-customization-suggestion-badge.hidden', { role: 'img' }));
+		this._viewItemDisposables.add(autorun(reader => {
+			const content = description.read(reader);
+			badge.classList.toggle('hidden', content === undefined);
+			if (content !== undefined) {
+				badge.setAttribute('aria-label', content);
+				reader.store.add(this._hoverService.setupDelayedHover(button.element, { content }));
+			} else {
+				badge.removeAttribute('aria-label');
+			}
+		}));
+	}
+
+	override focus(): void {
+		if (this._button) {
+			this._button.element.tabIndex = 0;
+			this._button.focus();
 		}
-		if (this._config.isMcp) {
-			return this._mcpService.servers.read(reader).length;
+	}
+
+	override blur(): void {
+		if (this._button) {
+			this._button.element.blur();
+			this._button.element.tabIndex = -1;
 		}
-		if (this._config.isPlugins) {
-			return this._itemsModel.getPluginCount().read(reader);
+	}
+
+	override setFocusable(focusable: boolean): void {
+		if (this.element) {
+			this.element.tabIndex = -1;
 		}
-		if (this._config.isTools) {
-			const state = this._toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
-			const toolSets = this._toolsService.toolSets.read(reader);
-			return countEnabledCustomizationTools(toolSets, state, reader);
+		if (this._button) {
+			this._button.element.tabIndex = focusable ? 0 : -1;
 		}
-		return 0;
+	}
+
+	protected override updateEnabled(): void {
+		if (this._button) {
+			this._button.enabled = this._action.enabled;
+		}
 	}
 
 	private _renderTotalCount(container: HTMLElement, count: number): void {
@@ -241,6 +287,60 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			const num = append(badge, $('span.source-count-num'));
 			num.textContent = `${count}`;
 		}
+	}
+}
+
+/**
+ * The More or Less row of the reduced Customizations section, which shows or hides in place the categories that the
+ * section hides by default. More counts the customizations of those that are available, and shows the badge of the
+ * first of them that has one.
+ */
+export class CustomizationsMoreViewItem extends CustomizationLinkViewItem {
+
+	constructor(
+		action: IAction,
+		options: IBaseActionViewItemOptions,
+		private readonly _expanded: boolean,
+		private readonly _moreConfigs: readonly ICustomizationItemConfig[],
+		@IAICustomizationItemsModel itemsModel: IAICustomizationItemsModel,
+		@IAICustomizationMcpServerCountService mcpServerCountService: IAICustomizationMcpServerCountService,
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@IAgentHostToolSetEnablementService toolEnablementService: IAgentHostToolSetEnablementService,
+		@IHoverService hoverService: IHoverService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(action, options, { id: action.id, label: action.label, icon: _expanded ? Codicon.chevronUp : Codicon.ellipsis }, itemsModel, mcpServerCountService, toolsService, toolEnablementService, hoverService, instantiationService);
+	}
+
+	protected override getCountedConfigs(): readonly ICustomizationItemConfig[] {
+		return this._expanded ? [] : this._moreConfigs;
+	}
+
+	protected override observeBadge(): IObservable<string | undefined> | undefined {
+		if (this._expanded) {
+			return undefined;
+		}
+		const sections = new Set(this._moreConfigs.flatMap(config => config.section ? [config.section] : []));
+		return this.instantiationService.invokeFunction(accessor => observeVisibleSectionsBadge(accessor, sections));
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this._button?.element.setAttribute('aria-expanded', String(this._expanded));
+	}
+}
+
+class SessionsCustomizationsActionViewItemFactory {
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) { }
+
+	create(action: MenuItemAction, options: IActionViewItemOptions, location: 'sidebar' | 'chatToolbar' | 'chatInput'): ChatCustomizationsActionViewItem {
+		return this.instantiationService.createInstance(
+			ChatCustomizationsActionViewItem, action, options,
+			this.instantiationService.createInstance(ChatCustomizationsHover),
+			location, undefined, location === 'sidebar', this.instantiationService.invokeFunction(observeVisibleSectionsBadge),
+		);
 	}
 }
 
@@ -255,8 +355,67 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
+
+		const location = ChatCustomizationsLocationContext.bindTo(contextKeyService);
+		const updateLocation = () => location.set(resolveChatCustomizationsLocation(
+			configurationService.getValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation),
+			true,
+			configurationService.getValue<boolean>(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING) && !configurationService.getValue<boolean>(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING),
+		));
+		updateLocation();
+		this._register(configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsLocation) || event.affectsConfiguration(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING) || event.affectsConfiguration(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING)) {
+				updateLocation();
+			}
+		}));
+		const openCustomizations = 'sessions.openCustomizationsAtLocation';
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: openCustomizations,
+					title: localize('customizationsEntryPoint', "Customizations"),
+					precondition: ChatContextKeys.enabled,
+				});
+			}
+			async run(accessor: ServicesAccessor, context?: unknown): Promise<void> {
+				const hostService = accessor.get(IFocusedSessionHostService);
+				const editorService = accessor.get(IEditorService);
+				const harnessService = accessor.get(ICustomizationHarnessService);
+				const workspaceService = accessor.get(IAICustomizationWorkspaceService);
+				const sessionsService = accessor.get(ISessionsManagementService);
+				const hover = accessor.get(IInstantiationService).createInstance(ChatCustomizationsHover);
+				const explicitResource = hover.getExplicitSessionResource(context);
+				const resource = explicitResource ?? hover.getSessionResource();
+				const target = sessionsService.getSession(resource) ?? sessionsService.getSessionForChatResource(resource)?.session;
+				const ignored = getIgnoredCustomizationMigrationGroups(accessor.get(IStorageService), getChatSessionType(resource), hover.getProjectRoot(resource));
+				const hint = await accessor.get(ICustomizationMigrationService).computeMigrationHint(resource, CancellationToken.None, ignored);
+				await openCustomizationOverviewPage(editorService, harnessService, hostService, workspaceService, { migration: !!hint }, target, explicitResource);
+			}
+		}));
+		for (const menu of [Menus.SessionBarToolbar, Menus.NewSessionGlobalToolbar, Menus.SidebarCustomizationsEntryPoint, MenuId.ChatExecute]) {
+			const sidebar = menu === Menus.SidebarCustomizationsEntryPoint;
+			const input = menu === MenuId.ChatExecute;
+			const when = ContextKeyExpr.and(ChatContextKeys.enabled, ChatCustomizationsLocationContext.isEqualTo(input ? 'chatInput' : sidebar ? 'sidebar' : 'chatToolbar'));
+			this._register(MenuRegistry.appendMenuItem(menu, {
+				command: {
+					id: openCustomizations,
+					title: localize('customizationsEntryPoint', "Customizations"),
+					icon: sidebar ? undefined : Codicon.extensions,
+				},
+				group: 'navigation',
+				order: input ? -12 : 6,
+				when: input
+					? ContextKeyExpr.and(when, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat), ChatContextKeys.inQuickChat.negate(), ChatContextKeys.currentlyEditing.negate())
+					: when,
+			}));
+			this._register(actionViewItemService.register(menu, openCustomizations, (action, options, scopedInstantiationService) => action instanceof MenuItemAction
+				? scopedInstantiationService.createInstance(SessionsCustomizationsActionViewItemFactory).create(action, options, input ? 'chatInput' : sidebar ? 'sidebar' : 'chatToolbar')
+				: undefined, undefined));
+		}
 
 		// Per-section visibility context keys, kept in sync with the active
 		// harness's `hiddenSections`. Each customization action's menu entry
@@ -279,14 +438,78 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				if (!config.section) {
 					continue;
 				}
-				const supported = config.section !== AICustomizationManagementSection.HarnessSettings || activeHarness === SessionType.AgentHostCodex;
+				const supported = config.section === AICustomizationManagementSection.HarnessSettings
+					? activeHarness === SessionType.AgentHostCodex
+					: config.section === AICustomizationManagementSection.Canvases
+						? isCopilotCliSessionType(activeHarness)
+						: true;
 				visibilityKeys.get(config.section)!.set(!hidden.has(config.section) && supported);
 			}
 		}));
 
+		// Command enablement context keys, kept in sync with where the sidebar offers the item.
+		for (const config of CUSTOMIZATION_ITEMS) {
+			const enablementContextKey = config.command?.enablementContextKey;
+			if (!config.section || !enablementContextKey) {
+				continue;
+			}
+			const when = customizationItemWhen(config, config.section);
+			const whenKeys = new Set(when?.keys());
+			const enabled = new RawContextKey<boolean>(enablementContextKey, false).bindTo(contextKeyService);
+			const update = () => enabled.set(!when || contextKeyService.contextMatchesRules(when));
+			update();
+			this._register(contextKeyService.onDidChangeContext(e => {
+				if (e.affectsSome(whenKeys)) {
+					update();
+				}
+			}));
+		}
+
 		this._register(actionViewItemService.register(Menus.SidebarCustomizations, CUSTOMIZATION_OVERVIEW_ITEM.id, (action, options) => {
 			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, CUSTOMIZATION_OVERVIEW_ITEM);
 		}, undefined));
+
+		// More and Less show and hide in place the categories that the reduced section hides by default, and the
+		// section remembers which of them was used last.
+		const moreItems = CUSTOMIZATION_ITEMS.flatMap(config => config.section && !config.showWhenReduced ? [{ config, when: customizationItemWhen(config, config.section) }] : []);
+		const moreAvailable = CustomizationsMoreAvailableContext.bindTo(contextKeyService);
+		const moreAvailableKeys = new Set(moreItems.flatMap(item => item.when?.keys() ?? []));
+		const updateMoreAvailable = () => moreAvailable.set(moreItems.some(item => contextKeyService.contextMatchesRules(item.when)));
+		updateMoreAvailable();
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(moreAvailableKeys)) {
+				updateMoreAvailable();
+			}
+		}));
+		const showMore = CustomizationsShowMoreContext.bindTo(contextKeyService);
+		const updateShowMore = () => showMore.set(storageService.getBoolean(CUSTOMIZATIONS_SHOW_MORE_STORAGE_KEY, StorageScope.PROFILE, false));
+		updateShowMore();
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, CUSTOMIZATIONS_SHOW_MORE_STORAGE_KEY, this._store)(updateShowMore));
+		for (const expanded of [false, true]) {
+			const id = expanded ? SHOW_LESS_CUSTOMIZATIONS_COMMAND_ID : SHOW_MORE_CUSTOMIZATIONS_COMMAND_ID;
+			this._register(actionViewItemService.register(Menus.SidebarCustomizations, id, (action, options) => instantiationService.createInstance(
+				CustomizationsMoreViewItem, action, options, expanded,
+				moreItems.filter(item => contextKeyService.contextMatchesRules(item.when)).map(item => item.config),
+			), undefined));
+			this._register(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id,
+						title: expanded ? localize('lessCustomizations', "Less") : localize('moreCustomizations', "More"),
+						precondition: ChatContextKeys.enabled,
+						menu: {
+							id: Menus.SidebarCustomizations,
+							group: 'navigation',
+							order: SHOW_MORE_OR_LESS_ORDER,
+							when: ContextKeyExpr.and(ChatContextKeys.enabled, CUSTOMIZATIONS_REDUCED, CustomizationsMoreAvailableContext, expanded ? CustomizationsShowMoreContext : CustomizationsShowMoreContext.negate()),
+						},
+					});
+				}
+				run(accessor: ServicesAccessor): void {
+					accessor.get(IStorageService).store(CUSTOMIZATIONS_SHOW_MORE_STORAGE_KEY, !expanded, StorageScope.PROFILE, StorageTarget.USER);
+				}
+			}));
+		}
 
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -302,11 +525,13 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					}
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
+			async run(accessor: ServicesAccessor, options?: IOpenAICustomizationsCommandOptions): Promise<void> {
 				await openCustomizationOverviewPage(
 					accessor.get(IEditorService),
 					accessor.get(ICustomizationHarnessService),
-					accessor.get(ISessionsService),
+					accessor.get(IFocusedSessionHostService),
+					accessor.get(IAICustomizationWorkspaceService),
+					options,
 				);
 			}
 		}));
@@ -321,33 +546,56 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config);
 			}, undefined));
 
-			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
-			const combinedWhen = config.when
-				? ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen, config.when)
-				: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen);
+			const combinedWhen = customizationItemWhen(config, section);
 
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {
 				constructor() {
-					super({
+					const order = index + 1;
+					const menu = config.showWhenReduced
+						? { id: Menus.SidebarCustomizations, group: 'navigation', order, when: combinedWhen }
+						: [
+							{ id: Menus.SidebarCustomizations, group: 'navigation', order, when: ContextKeyExpr.and(combinedWhen, CUSTOMIZATIONS_REDUCED.negate()) },
+							{ id: Menus.SidebarCustomizations, group: 'navigation', order: MORE_CUSTOMIZATIONS_ORDER + order, when: ContextKeyExpr.and(combinedWhen, CUSTOMIZATIONS_REDUCED, CustomizationsShowMoreContext) },
+						];
+					super(config.command ? {
+						id: config.id,
+						title: config.command.title,
+						category: config.command.category,
+						f1: true,
+						// Offers the command where the sidebar offers the item. Its keybinding is registered on load, below.
+						precondition: combinedWhen,
+						menu,
+					} : {
 						id: config.id,
 						title: config.label,
-						menu: {
-							id: Menus.SidebarCustomizations,
-							group: 'navigation',
-							order: index + 1,
-							when: combinedWhen,
-						}
+						menu,
 					});
 				}
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
 					const harnessService = accessor.get(ICustomizationHarnessService);
-					const sessionsService = accessor.get(ISessionsService);
-					await openCustomizationSectionPage(editorService, harnessService, sessionsService, section);
+					await openCustomizationSectionPage(editorService, harnessService, accessor.get(IFocusedSessionHostService), accessor.get(IAICustomizationWorkspaceService), section);
 				}
 			}));
 		}
+	}
+}
+
+registerSingleton(IAICustomizationMcpServerCountService, AICustomizationMcpServerCountService, InstantiationType.Delayed);
+
+// Registered on load rather than with the toolbar's commands: the keybinding service
+// does not pick up keybindings registered after it first resolves keybindings.
+for (const config of CUSTOMIZATION_ITEMS) {
+	if (config.section && config.command?.keybinding) {
+		const enablementContextKey = config.command.enablementContextKey;
+		KeybindingsRegistry.registerKeybindingRule({
+			id: config.id,
+			primary: config.command.keybinding,
+			weight: KeybindingWeight.WorkbenchContrib,
+			// Where the sidebar offers the item, like the command's precondition.
+			when: enablementContextKey ? ContextKeyExpr.has(enablementContextKey) : customizationItemWhen(config, config.section),
+		});
 	}
 }
 
@@ -395,13 +643,13 @@ export class ActiveSessionHarnessSyncContribution extends Disposable implements 
 	static readonly ID = 'workbench.contrib.sessionsActiveHarnessSync';
 
 	constructor(
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
 	) {
 		super();
 
 		this._register(autorun(reader => {
-			const session = sessionsService.activeSession.read(reader);
+			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (!session) {
 				return;
 			}

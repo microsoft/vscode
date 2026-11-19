@@ -1,35 +1,26 @@
 # Pre-1.133 Permission-Policy Migration
 
-This is a temporary compatibility path for existing permission policies introduced before VS Code 1.133.0. The migration remains in progress.
+Temporary compatibility for permission policies that existed before VS Code 1.133. Never use it for new controls, and do not grow it into a general translation framework.
 
-Do not use this path for new controls.
+Two bounded paths:
 
-## Compatibility paths
+- **Legacy permission policy translation:** maps an exact enterprise `policyValue` to its runtime equivalent.
+- **Legacy setting bridge:** contributes restrictions through the declarative Agent Host bridge ([contract](./sdk-runtime-policy.md#legacy-setting-bridge)).
 
-There are two related but distinct bounded migrations:
+Rules:
 
-- **Legacy permission policy translation** reads only an exact enterprise `policyValue` and maps the old policy to its runtime equivalent.
-- **Legacy VS Code setting translation** reads explicitly configured global values (policy, user, then application) from an existing setting and contributes equivalent restrictions through the declarative Agent Host bridge.
+- Legacy permission translation and approval mappings use only enterprise `policyValue`, never user/workspace values. Personal approval preferences remain overridable by Allow All. The network-domain bridge retains the global-layer precedence described in the [bridge contract](./sdk-runtime-policy.md#legacy-setting-bridge).
+- Map only to an equivalent runtime capability; keep it restrictive and never synthesize permissive authorization. The runtime owns grammar and enforcement.
+- Keep existing enforcement until the runtime replacement is effective, and validate emitted rules across the real SDK boundary (create/resume, removal, default and peer sessions, diagnostics).
 
-Neither path is open to newly designed settings or controls. Put new runtime-owned controls directly in the shared managed-settings schema and SDK contract. The legacy-setting bridge may have a false-by-default experimental gate for staged adoption; that gate controls the compatibility mechanism itself and is not a mapped runtime control.
+## Retired sandbox device policies
 
-## Legacy permission policy rules
+`ChatAgentSandboxEnabled`, `ChatAgentSandboxAllowNetwork`, and `ChatAgentSandboxAllowUnsandboxedCommands` are deprecated, not removed. Keep their settings, defaults, Local behavior, and catalog descriptions. Their forwarded values are overridable root defaults, never a session policy floor; mandatory sandboxing uses runtime-native `sandbox.enabled`. Their support status is `notApplicable` by explicit scope decision, not because forwarding has no effect. Admins migrate to [Copilot managed settings](https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/use-managed-settings/get-started).
 
-- Translate only exact enterprise `policyValue`; never user/workspace values.
-- Map only to an equivalent runtime capability.
-- Preserve restrictive semantics; do not synthesize permissive authorization.
-- The compatibility bridge may emit managed rules, but the runtime remains the grammar and enforcement authority.
-- Validate emitted rules across the real SDK/runtime boundary.
-- Retain existing enforcement until the SDK/runtime replacement is effective.
-- Cover local create/resume, omission/removal, default and peer sessions, and diagnostics.
+## Facts to reverify before relying on them
 
-Known facts to reverify while working here:
-
-- Kind-only `Shell` is the all-shell form; `Shell(*)` is invalid managed-rule syntax.
+- Kind-only `Shell` is the all-shell rule; `Shell(*)` is invalid.
 - Agent Host custom terminal tools arrive as `custom-tool`, not `shell`.
-- AHP `permissions.deny` exists but is not enforced by the current host permission manager.
-- Managed Tool and MCP tool-call coverage is evolving.
-- Hook permission requests are outside the currently managed request families.
-- Account-scoped managed-settings diagnostics omit the session-local injected layer.
-
-Do not expand this bridge into a general translation framework. New enterprise controls belong in the shared managed-settings/SDK model.
+- AHP `permissions.deny` is not enforced by the host permission manager.
+- Hook permission requests are outside the managed request families.
+- Account-scoped diagnostics omit the session-local injected layer.

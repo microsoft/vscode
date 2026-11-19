@@ -4,6 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
+
+	// https://github.com/microsoft/vscode/issues/248775
+
+	export interface AuthenticationSession {
+		/**
+		 * The authorization server that issued this session, when provided by the authentication provider.
+		 * This identifies the OAuth server, not a REST API endpoint or resource audience.
+		 */
+		readonly authorizationServer?: Uri;
+	}
+
 	export interface AuthenticationProviderOptions {
 		/**
 		 * When specified, this provider will be associated with these authorization servers. They can still contain globs

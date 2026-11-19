@@ -11,7 +11,7 @@ export namespace TypeScript {
 	const unifiedSection = 'js/ts';
 	const legacySection = 'typescript';
 	const useTsgoKey = 'experimental.useTsgo';
-	const version7ExtensionIds = ['typescriptteam.vscode-typescript', 'typescriptteam.native-preview'] as const;
+	const version7ExtensionIds = ['typescriptteam.vscode-typescript', 'typescriptteam.vscode-typescript-nightly', 'typescriptteam.native-preview'] as const;
 
 	export const versionKey = `${unifiedSection}.${useTsgoKey}`;
 	export const legacyVersionKey = `${legacySection}.${useTsgoKey}`;
@@ -42,6 +42,13 @@ export namespace TypeScript {
 			}
 		}
 		return undefined;
+	}
+
+	/**
+	 * Returns all installed TypeScript 7 extensions, most preferred first.
+	 */
+	export function getVersion7Extensions<T>(): vscode.Extension<T>[] {
+		return version7ExtensionIds.map(extensionId => vscode.extensions.getExtension<T>(extensionId)).filter(extension => extension !== undefined);
 	}
 
 	function hasUserValue(inspect: ReturnType<vscode.WorkspaceConfiguration['inspect']>): boolean {

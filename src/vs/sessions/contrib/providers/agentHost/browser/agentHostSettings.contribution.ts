@@ -5,19 +5,27 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { SessionProviderIdContext } from '../../../../common/contextkeys.js';
-import { SessionItemContextMenuId } from '../../../sessions/browser/views/sessionsList.js';
-import { agentHostSettingsUri, AGENT_HOST_SETTINGS_SCHEME, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from './agentHostSettingsFileSystemProvider.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { SessionItemIsMultiSelectionContext, SessionProviderIdContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { agentHostSettingsUri, AGENT_HOST_SETTINGS_SCHEME, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSettingsFileSystemProvider.js';
+import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+
+MenuRegistry.appendMenuItem(Menus.SessionItemContextMenu, {
+	submenu: Menus.SessionItemSettings,
+	title: localize2('sessionItemSettings', "Settings"),
+	group: '4_manage',
+	order: 1,
+	when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+});
 
 /**
  * Registers the {@link AgentHostSettingsFileSystemProvider} with the
@@ -55,19 +63,21 @@ registerAction2(class OpenHostSettingsAction extends Action2 {
 		super({
 			id: 'sessionsViewPane.openHostSettings',
 			title: localize2('openHostSettings', "Open Host Settings"),
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+				SessionItemIsMultiSelectionContext.negate(),
+			),
 			menu: [{
-				id: SessionItemContextMenuId,
-				group: '2_settings',
+				id: Menus.SessionItemSettings,
+				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}],
-			precondition: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			f1: true
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
-		const session = (Array.isArray(context) ? context[0] : context) ?? sessionsService.activeSession.get();
+		const session = resolveSessionCommandTarget(accessor, Array.isArray(context) ? context.slice(0, 1) : [context])?.session;
 		if (!session) {
 			return;
 		}

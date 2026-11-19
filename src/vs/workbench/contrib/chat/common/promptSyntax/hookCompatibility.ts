@@ -6,8 +6,8 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { IHookCommand, toHookType } from './hookSchema.js';
-import { parseClaudeHooks, extractHookCommandsFromItem } from './hookClaudeCompat.js';
-import { resolveCopilotCliHookType } from './hookCopilotCliCompat.js';
+import { parseClaudeHooks, extractHookCommandsFromItem, getClaudeHookTypeName } from './hookClaudeCompat.js';
+import { resolveCopilotCliHookType, getCopilotCliHookTypeName } from './hookCopilotCliCompat.js';
 import { HookType } from './hookTypes.js';
 
 /**
@@ -211,4 +211,19 @@ export function buildNewHookEntry(format: HookSourceFormat): Record<string, unkn
 		return { matcher: '', hooks: [commandEntry] };
 	}
 	return commandEntry;
+}
+
+/**
+ * Builds a new hook file, using the versioned CLI format for Copilot hooks.
+ */
+export function buildNewHookFile(format: HookSourceFormat, hookType: HookType): { version?: number; hooks: Record<string, Record<string, unknown>[]> } {
+	const hookTypeName = format === HookSourceFormat.Claude
+		? (getClaudeHookTypeName(hookType) ?? hookType)
+		: (getCopilotCliHookTypeName(hookType) ?? hookType);
+	return {
+		...(format === HookSourceFormat.Copilot ? { version: 1 } : {}),
+		hooks: {
+			[hookTypeName]: [buildNewHookEntry(format)]
+		}
+	};
 }

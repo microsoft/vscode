@@ -5,16 +5,16 @@
 
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IDisposable, Disposable, dispose } from '../../../../base/common/lifecycle.js';
+import { IDisposable, Disposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { posix, sep, win32 } from '../../../../base/common/path.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from '../../../../platform/workspace/common/workspace.js';
-import { basenameOrAuthority, basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources.js';
+import { basenameOrAuthority, basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { tildify, getPathLabel } from '../../../../base/common/labels.js';
-import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity, ResourceLabelTemplateFormatter } from '../../../../platform/label/common/label.js';
+import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity, ResourceLabelTemplateFormatter, IWorkspaceLabelDecorator } from '../../../../platform/label/common/label.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
 import { match } from '../../../../base/common/glob.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
@@ -26,7 +26,8 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
-import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ResourceLabelTemplate } from './resourceLabelTemplate.js';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -132,7 +133,7 @@ interface IStoredFormatters {
 
 interface IHomeFormatterRegistration {
 	readonly formatter: ResourceLabelTemplateFormatter;
-	readonly templateMatcher: RegExp;
+	readonly template: ResourceLabelTemplate;
 }
 
 interface IResolvedHomeFormatter {
@@ -142,8 +143,6 @@ interface IResolvedHomeFormatter {
 	readonly homeLength: number;
 	readonly authorityLength: number;
 }
-
-const homeTemplateParameterRegex = /^\$\{(?<name>[a-zA-Z_][\w]*)\}$/;
 
 function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): formatter is ResourceLabelTemplateFormatter {
 	return URI.isUri(formatter.home);
@@ -159,6 +158,8 @@ export class LabelService extends Disposable implements ILabelService {
 	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400, leakWarningName: 'LabelService._onDidChangeFormatters' }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
+	private readonly workspaceLabelDecorators: IWorkspaceLabelDecorator[] = [];
+
 	private readonly storedFormattersMemento: Memento<IStoredFormatters>;
 	private readonly storedFormatters: IStoredFormatters;
 	private os: OperatingSystem;
@@ -171,6 +172,7 @@ export class LabelService extends Disposable implements ILabelService {
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IStorageService storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -213,22 +215,20 @@ export class LabelService extends Disposable implements ILabelService {
 				(formatter.home.authority && formatter.home.authority.toLowerCase() !== resource.authority.toLowerCase())) {
 				continue;
 			}
-			const templateMatch = registration.templateMatcher.exec(resource.path);
+			const templateMatch = registration.template.match(resource, this.uriIdentityService.extUri);
 			if (!templateMatch) {
 				continue;
 			}
-			const parameters = new Map(Object.entries(templateMatch.groups ?? {}));
-			const home = resource.with({ path: templateMatch[0], query: null, fragment: null });
-			const formatting = formatter.formatting({ resource, home, parameters });
+			const formatting = formatter.formatting({ resource, home: templateMatch.home, parameters: templateMatch.parameters });
 			if (!formatting) {
 				continue;
 			}
 
 			const result: IResolvedHomeFormatter = {
-				home,
+				home: templateMatch.home,
 				formatting,
 				literalLabel: true,
-				homeLength: home.path.length,
+				homeLength: templateMatch.home.path.length,
 				authorityLength: formatter.home.authority.length,
 			};
 			if (!bestResult ||
@@ -248,7 +248,7 @@ export class LabelService extends Disposable implements ILabelService {
 		for (const formatter of this.formatters) {
 			if (!formatter.home || formatter.scheme !== resource.scheme ||
 				(formatter.authority && !match(formatter.authority, resource.authority, { ignoreCase: true })) ||
-				!isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
+				!this.uriIdentityService.extUri.isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
 				continue;
 			}
 
@@ -300,7 +300,8 @@ export class LabelService extends Disposable implements ILabelService {
 		const homeFormatter = options.noPrefix ? undefined : this.findHomeFormatter(resource);
 		if (homeFormatter) {
 			const separator = options.separator ?? homeFormatter.formatting.separator;
-			const path = relativePath(homeFormatter.home, resource);
+			const homeWithResourceCasing = homeFormatter.home.with({ path: resource.path.slice(0, homeFormatter.home.path.length) });
+			const path = this.uriIdentityService.extUri.relativePath(homeWithResourceCasing, resource);
 			const label = homeFormatter.literalLabel ? homeFormatter.formatting.label : this.formatUri(homeFormatter.home, homeFormatter.formatting);
 			return path ? `${label}${separator}${this.adjustPathSeparators(path, separator)}` : label;
 		}
@@ -403,7 +404,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return pathLib.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: Verbosity }): string {
+	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose?: Verbosity; withLocation?: boolean }): string {
 		if (isWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (isSingleFolderWorkspaceIdentifier(identifier) || isWorkspaceIdentifier(identifier)) {
@@ -415,12 +416,12 @@ export class LabelService extends Disposable implements ILabelService {
 
 		// Workspace: Single Folder (as URI)
 		if (URI.isUri(workspace)) {
-			return this.doGetSingleFolderWorkspaceLabel(workspace, options);
+			return this.withFolderLocation(workspace, this.doGetSingleFolderWorkspaceLabel(workspace, options), options);
 		}
 
 		// Workspace: Single Folder (as workspace identifier)
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			return this.doGetSingleFolderWorkspaceLabel(workspace.uri, options);
+			return this.withFolderLocation(workspace.uri, this.doGetSingleFolderWorkspaceLabel(workspace.uri, options), options);
 		}
 
 		// Workspace: Multi Root
@@ -431,7 +432,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return '';
 	}
 
-	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: Verbosity }): string {
+	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose?: Verbosity }): string {
 
 		// Workspace: Untitled
 		if (isUntitledWorkspace(workspaceUri, this.environmentService)) {
@@ -470,7 +471,34 @@ export class LabelService extends Disposable implements ILabelService {
 		return this.appendWorkspaceSuffix(label, workspaceUri);
 	}
 
-	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: Verbosity }): string {
+	private withFolderLocation(folderUri: URI, label: string, options?: { withLocation?: boolean }): string {
+		const location = options?.withLocation ? this.getFolderLocationLabel(folderUri) : undefined;
+		return location ? localize('workspaceLabelWithLocation', "{0} ({1})", label, location) : label;
+	}
+
+	getFolderLocationLabel(folder: URI): string | undefined {
+		for (const decorator of this.workspaceLabelDecorators) {
+			const label = decorator.getFolderLocationLabel(folder);
+			if (label) {
+				return label;
+			}
+		}
+		return undefined;
+	}
+
+	registerWorkspaceLabelDecorator(decorator: IWorkspaceLabelDecorator): IDisposable {
+		this.workspaceLabelDecorators.push(decorator);
+		const changeListener = decorator.onDidChange(folder => this._onDidChangeFormatters.fire({ scheme: folder.scheme }));
+		return toDisposable(() => {
+			changeListener.dispose();
+			const index = this.workspaceLabelDecorators.indexOf(decorator);
+			if (index !== -1) {
+				this.workspaceLabelDecorators.splice(index, 1);
+			}
+		});
+	}
+
+	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose?: Verbosity }): string {
 		let label: string;
 		switch (options?.verbose) {
 			case Verbosity.LONG:
@@ -557,28 +585,9 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 
 	private createTemplateFormatterRegistration(formatter: ResourceLabelTemplateFormatter): IHomeFormatterRegistration {
-		const { home } = formatter;
-		const homePath = home.path.length > 1 ? home.path.replace(/\/+$/, '') : home.path;
-		const parameterNames = new Set<string>();
-		const matcherPattern = homePath.split('/').map(segment => {
-			const parameterMatch = homeTemplateParameterRegex.exec(segment);
-			if (parameterMatch?.groups?.name) {
-				const parameterName = parameterMatch.groups.name;
-				if (parameterNames.has(parameterName)) {
-					throw new Error(`Duplicate resource label home template parameter: ${parameterName}`);
-				}
-				parameterNames.add(parameterName);
-				return `(?<${parameterName}>(?!\\.{1,2}(?:/|$))[^/]+)`;
-			}
-			if (segment.includes('${')) {
-				throw new Error(`Resource label home template parameters must occupy an entire path segment: ${segment}`);
-			}
-			return escapeRegExpCharacters(segment);
-		}).join('/');
-		const isRootHome = homePath === '' || homePath === '/';
 		return {
 			formatter,
-			templateMatcher: new RegExp(`^${matcherPattern}${isRootHome ? '' : '(?=/|$)'}`),
+			template: new ResourceLabelTemplate(formatter.home),
 		};
 	}
 
