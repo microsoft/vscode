@@ -614,6 +614,15 @@ export class NewChatWidget extends Disposable {
 
 		const backgroundSend = this._backgroundSend;
 		const newChatInput = this.instantiationService.createInstance(SharedChatInputComposer, {
+			selectEnvironment: async providerId => {
+				const provider = this.sessionsProvidersService.getProvider(providerId);
+				const environment = provider && getRemoteSessionCreationEnvironment(provider);
+				if (!environment) {
+					throw new Error(localize('environmentPicker.unavailable', "This environment is no longer available."));
+				}
+				await this._selectEnvironment(environment);
+				this._newChatInput.focus();
+			},
 			inputEditorOptions: this.options.inputEditorOptions,
 			submitOverride: anchor => this._submitScheduledDraft(anchor),
 			shouldPersistInput: () => !this._isDraftPreview.get(),
