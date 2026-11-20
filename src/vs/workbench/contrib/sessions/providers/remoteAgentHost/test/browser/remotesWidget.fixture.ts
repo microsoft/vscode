@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -26,11 +26,11 @@ import { IEditorService } from '../../../../../../services/editor/common/editorS
 import { IPreferencesService } from '../../../../../../services/preferences/common/preferences.js';
 import { IProgress } from '../../../../../../../platform/progress/common/progress.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../test/browser/componentFixtures/fixtureUtils.js';
-import { ICustomizationRemote, IRemoteRefreshProgress, IRemotesModel, RemoteKind, remoteKindLabels } from '../../browser/remotesModel.js';
+import { ICustomizationRemote, IRemoteRefreshProgress, IRemotesModel, IRemoteTroubleshootingInfo, RemoteKind, remoteKindLabels } from '../../browser/remotesModel.js';
 import { RemotesWidget } from '../../browser/remotesWidget.js';
 import { confirmTunnelDeletion } from '../../browser/remoteHostOptions.js';
 import { IConnectionDiagnosticsService } from '../../browser/connectionDiagnostics.js';
-import { RemoteEnvironmentDetails } from '../../browser/remoteEnvironmentDetails.js';
+import { IRemoteEnvironmentDetailsDelegate, RemoteEnvironmentDetails } from '../../browser/remoteEnvironmentDetails.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { INewSessionComposerService } from '../../../../browser/newSessionComposerService.js';
 import '../../../../../../browser/media/style.css';
@@ -51,7 +51,41 @@ const extensionRemotes: ICustomizationRemote[] = [
 	{ id: '127.0.0.1:8446', kind: 'extension', name: 'Nightly job runs', detail: '127.0.0.1:8446', canRemove: false, contributedBy: { extensionId: 'publisher.jobs', displayName: 'Job Runner' }, hidden: true, availability: 'unknown', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string; readonly runBehavior?: boolean; readonly expandedKind?: RemoteKind; readonly grouping?: 'none' | 'type' | 'status'; readonly query?: string; readonly kinds?: readonly RemoteKind[]; readonly extensions?: boolean } = {}): Promise<void> {
+const sshInfo: IRemoteTroubleshootingInfo = { ssh: { alias: 'build', hostName: 'build.example.com', user: 'dev', port: 22, identityFiles: ['~/.ssh/id_ed25519'], hasSavedHostKey: true } };
+const failedSSH: ICustomizationRemote = { ...remotes[0], canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: 'All configured authentication methods failed' };
+const troubleshooting: Record<string, { readonly remote: ICustomizationRemote; readonly info: IRemoteTroubleshootingInfo }> = {
+	SSHAuthentication: { remote: failedSSH, info: sshInfo },
+	SSHHostKey: { remote: { ...failedSSH, lastConnectionError: 'Host key verification failed: the host key for build.example.com changed' }, info: sshInfo },
+	SSHConnected: { remote: remotes[0], info: sshInfo },
+	WSLStopped: {
+		remote: { id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: false, availability: 'offline', startsOnConnect: true, unavailableReason: 'This distribution is stopped.', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		info: { canRestartDistribution: true },
+	},
+	WSLDownloadFailed: {
+		remote: { id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: false, availability: 'online', lastConnectionError: 'Failed to download the VS Code server: getaddrinfo ENOTFOUND update.code.visualstudio.com', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		info: { canRestartDistribution: true },
+	},
+	TunnelNotShared: {
+		remote: { id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, canDelete: true, availability: 'offline', unavailableReason: 'No computer is sharing this tunnel.', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		info: { tunnel: { authProvider: 'github', inLastDiscovery: true, hostConnectionCount: 0 } },
+	},
+	TunnelIncompatible: { remote: remotes[5], info: { tunnel: { authProvider: 'microsoft', inLastDiscovery: true, hostConnectionCount: 1 } } },
+	GitHubEnvironmentOffline: { remote: remotes[7], info: {} },
+	Extension: {
+		remote: { ...extensionRemotes[1], hidden: false, lastConnectionError: 'connect ECONNREFUSED 127.0.0.1:8446' },
+		info: { extension: { version: '1.4.2', issuesUrl: 'https://github.com/publisher/jobs/issues' } },
+	},
+	DevContainerHostDisconnected: {
+		remote: { id: 'devcontainer:ssh:build:1', kind: 'devContainer', name: 'Dev Container', detail: 'Build server', description: 'Build server', canRemove: false, canDelete: true, connectsWithHost: true, availability: 'unknown', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		info: { devContainer: { hostId: 'ssh:build', hostName: 'Build server', hostConnected: false }, canShowLog: true },
+	},
+	DevContainerDockerUnavailable: {
+		remote: { id: 'devcontainer:local:1', kind: 'devContainer', name: 'Dev Container', detail: 'This Computer', description: 'This Computer', canRemove: false, canDelete: true, availability: 'unknown', lastConnectionError: 'Docker is not available.', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		info: { devContainer: { hostName: 'This Computer', hostConnected: true, dockerAvailable: false }, canShowLog: true },
+	},
+};
+
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string; readonly runBehavior?: boolean; readonly troubleshoot?: { readonly remote: ICustomizationRemote; readonly info: IRemoteTroubleshootingInfo }; readonly expandedKind?: RemoteKind; readonly grouping?: 'none' | 'type' | 'status'; readonly query?: string; readonly kinds?: readonly RemoteKind[]; readonly extensions?: boolean } = {}): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = `${options.height ?? 640}px`;
 	container.classList.add('remotes-editor');
@@ -169,11 +203,29 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 				connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
 			} : remote), undefined);
 		}
+		async getTroubleshootingInfo() {
+			return options.troubleshoot?.info ?? {};
+		}
+		async forgetSSHHostKey() { }
+		async restartWSLDistribution() { }
+		async showConnectionLog() { }
 	}());
+	const detailsDelegate: IRemoteEnvironmentDetailsDelegate = {
+		close: () => { }, onDidChangeBusy: () => { }, newSession: async () => { }, openConfiguration: async () => { }, showExtension: async () => { },
+		signInToTunnels: async () => { }, refresh: async () => { }, deleteRemote: async () => { },
+	};
+	if (options.troubleshoot) {
+		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, options.troubleshoot.remote, 'troubleshoot', model, detailsDelegate));
+		content.appendChild(details.domNode);
+		// The page shows the facts it reads from configuration once they arrive.
+		await timeout(0);
+		details.layout();
+		return;
+	}
 	if (options.runBehavior) {
 		const remote = model.remotes.get()[0];
 		model.preferences.set(remote.id, 'dedicated');
-		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, remote, model, () => { }, () => { }));
+		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, remote, 'runBehavior', model, detailsDelegate));
 		content.appendChild(details.domNode);
 		details.domNode.querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
 		details.layout();
@@ -247,6 +299,54 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	RunBehaviorDraftNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => render(context, 360, OS, false, [], false, undefined, false, { runBehavior: true }),
+	}),
+	TroubleshootSSHAuthentication: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => render(context, 900, OperatingSystem.Linux, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.SSHAuthentication }),
+	}),
+	TroubleshootSSHAuthenticationNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 360, OperatingSystem.Linux, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.SSHAuthentication }),
+	}),
+	TroubleshootSSHHostKey: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 900, OperatingSystem.Linux, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.SSHHostKey }),
+	}),
+	TroubleshootSSHConnected: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 900, OperatingSystem.Linux, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.SSHConnected }),
+	}),
+	TroubleshootWSLStopped: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 900, OperatingSystem.Windows, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.WSLStopped }),
+	}),
+	TroubleshootWSLDownloadFailed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 900, OperatingSystem.Windows, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.WSLDownloadFailed }),
+	}),
+	TroubleshootTunnelNotShared: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 900, OS, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.TunnelNotShared }),
+	}),
+	TroubleshootTunnelIncompatible: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 900, OS, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.TunnelIncompatible }),
+	}),
+	TroubleshootGitHubEnvironmentOffline: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 900, OS, false, [], true, undefined, false, { height: 900, troubleshoot: troubleshooting.GitHubEnvironmentOffline }),
+	}),
+	TroubleshootExtension: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 900, OS, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.Extension }),
+	}),
+	TroubleshootDevContainerHostDisconnected: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 900, OS, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.DevContainerHostDisconnected }),
+	}),
+	TroubleshootDevContainerDockerUnavailable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 900, OS, false, [], false, undefined, false, { height: 900, troubleshoot: troubleshooting.DevContainerDockerUnavailable }),
 	}),
 	ShortEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },

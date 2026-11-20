@@ -20,6 +20,10 @@ import { ExtensionRemoteAgentHostsService, IExtensionRemoteAgentHostsService } f
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHHostKeyTrustService, ISSHTrustedHostKey } from '../../../../../../../platform/agentHost/common/sshHostKeyTrust.js';
+import { IRemoteConnectionDiagnosticEvent } from '../../../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
+import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
@@ -136,6 +140,8 @@ suite('RemotesModel', () => {
 		let sshDiscovery: () => Promise<string[]> = async () => ['build', 'build'];
 		let tunnelDiscovery: () => Promise<ITunnelInfo[]> = async () => [tunnel];
 		let tunnelAuthentication: () => Promise<'github' | 'microsoft' | undefined> = async () => 'github';
+		const diagnosticEvents: IRemoteConnectionDiagnosticEvent[] = [];
+		const terminatedDistros: string[] = [];
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IConfigurationService, configuration);
 		const extensionHosts = store.add(new ExtensionRemoteAgentHostsService(storage));
@@ -188,6 +194,19 @@ suite('RemotesModel', () => {
 				}
 				return { address, name: address, status: RemoteAgentHostConnectionStatus.connected };
 			},
+			getConnectionDiagnostics: () => diagnosticEvents,
+		});
+		const trustedHostKeys = new Map<string, ISSHTrustedHostKey[]>();
+		const forgottenHosts: string[] = [];
+		instantiationService.stub(ISSHHostKeyTrustService, {
+			getTrustedKeys: (host, port) => trustedHostKeys.get(`${host}:${port}`) ?? [],
+			forgetHost: (host, port) => {
+				forgottenHosts.push(`${host}:${port}`);
+				trustedHostKeys.delete(`${host}:${port}`);
+			},
+		});
+		instantiationService.stub(IExtensionService, {
+			getExtension: async id => id === 'publisher.jobs' ? upcastPartial<IExtensionDescription>({ version: '1.4.2', bugs: { url: 'https://github.com/publisher/jobs/issues' } }) : undefined,
 		});
 		instantiationService.stub(IQuickInputService, {
 			input: async options => {
@@ -280,6 +299,10 @@ suite('RemotesModel', () => {
 					throw wslState.runningFailure;
 				}
 				return wslDistros.filter(distro => distro.isRunning).map(distro => distro.name);
+			},
+			terminateDistro: async distro => {
+				terminatedDistros.push(distro);
+				wslDistros = wslDistros.map(value => value.name === distro ? { ...value, isRunning: false } : value);
 			},
 			cacheDistro: distro => { distros = [distro]; },
 		});
@@ -396,7 +419,7 @@ suite('RemotesModel', () => {
 		return {
 			model, storage, configuration, removals, sshDisconnects, removedConnections, logEntries, providers, providersChanged, connectionChanges, reconnects, signIns,
 			copiedAddresses, locationPromptResult, locationPreferences, notifications, upgrades, upgrade,
-			wslState, wslConnectionsChanged,
+			wslState, wslConnectionsChanged, terminatedDistros, diagnosticEvents, trustedHostKeys, forgottenHosts,
 			setConnections: (value: readonly IRemoteAgentHostConnectionInfo[]) => { connections = value; connectionsChanged.fire(); },
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
 			getCachedTunnels: () => tunnels,
@@ -751,6 +774,76 @@ suite('RemotesModel', () => {
 			],
 			details: ['This removes the container and its Docker volume from this computer, including all files in the container. Sessions that ran in it can no longer continue.'],
 			deletions: ['devcontainer:local'],
+		});
+	});
+
+	test('troubleshooting info reads SSH configuration, saved host keys and the last connection step without connecting', async () => {
+		const { model, storage, diagnosticEvents, trustedHostKeys, forgottenHosts, confirmations, connectionChanges } = setup();
+		addSSHRemoteAgentHostEntry(storage, savedSSHHost);
+		trustedHostKeys.set('build.example:22', [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:abc', addedAt: 0 }]);
+		diagnosticEvents.push(
+			{ address: 'ssh:removed', operationId: '1', phase: 'transport.connect', outcome: 'failed', timestamp: 2, error: { name: 'Error', message: 'Host key verification failed' } },
+			{ address: 'ssh:removed', operationId: '1', phase: 'connection.closed', outcome: 'info', timestamp: 3 },
+			{ address: 'ssh:other', operationId: '2', phase: 'transport.connect', outcome: 'succeeded', timestamp: 4 },
+		);
+		const saved = await model.getTroubleshootingInfo('ssh:removed');
+		await model.forgetSSHHostKey('ssh:removed');
+		const forgotten = (await model.getTroubleshootingInfo('ssh:removed')).ssh?.hasSavedHostKey;
+		const forgetAgain = await model.forgetSSHHostKey('ssh:removed').then(() => 'forgotten', (error: Error) => error.message);
+		assert.deepStrictEqual({ saved, forgottenHosts, confirmations: confirmations.map(({ message, detail }) => ({ message, detail })), forgotten, forgetAgain, connectionChanges }, {
+			saved: {
+				lastStep: { phase: 'transport.connect', outcome: 'failed', timestamp: 2, error: 'Error: Host key verification failed' },
+				ssh: { alias: 'removed', hostName: 'build.example', user: 'developer', port: 22, hasSavedHostKey: true },
+			},
+			forgottenHosts: ['build.example:22'],
+			confirmations: [{
+				message: 'Forget the saved host key for \'Saved host\'?',
+				detail: 'The next time you connect, you\'ll be asked to verify the remote computer\'s host key. Only continue if you know why the key changed.\n\nssh-ed25519 SHA256:abc',
+			}],
+			forgotten: false,
+			forgetAgain: 'No host key is saved for this remote.',
+			connectionChanges: [],
+		});
+	});
+
+	test('troubleshooting info describes tunnels, extension remotes and Dev Container hosts', async () => {
+		const { model, extensionHosts, devContainers, setConfiguration } = setup();
+		await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
+		await setConfiguration(DevContainerEnvironmentsEnabledSettingId, true);
+		await model.refresh(CancellationToken.None);
+		const registration = extensionHosts.registerHost({ extensionId: 'publisher.jobs', extensionDisplayName: 'Job Runner', name: 'Runner Jobs', address: 'ws://127.0.0.1:8445', connectionToken: 'secret' });
+		devContainers.hosts.set(new Set(['ssh:build']), undefined);
+		await model.setConnected('ssh:build', true);
+		await model.createDevContainer('ssh:build');
+		const hostConnected = await model.getTroubleshootingInfo('devcontainer:ssh:build');
+		await model.setConnected('ssh:build', false);
+		const hostDisconnected = await model.getTroubleshootingInfo('devcontainer:ssh:build');
+		const info = { tunnel: await model.getTroubleshootingInfo('tunnel:laptop'), extension: await model.getTroubleshootingInfo('127.0.0.1:8445'), hostConnected, hostDisconnected };
+		registration.dispose();
+		assert.deepStrictEqual(info, {
+			tunnel: { tunnel: { authProvider: 'github', inLastDiscovery: true, hostConnectionCount: 1 } },
+			extension: { extension: { version: '1.4.2', issuesUrl: 'https://github.com/publisher/jobs/issues' } },
+			hostConnected: { devContainer: { hostId: 'ssh:build', hostName: 'build', hostConnected: true, dockerAvailable: true } },
+			hostDisconnected: { devContainer: { hostId: 'ssh:build', hostName: 'build', hostConnected: false } },
+		});
+	});
+
+	(isWindows ? test : test.skip)('Restart Distribution stops the distribution after confirmation and connects again', async () => {
+		const { model, setWSLDistros, terminatedDistros, connectionChanges, confirmations, environmentState } = setup();
+		setWSLDistros([{ name: 'Ubuntu', isDefault: true, isRunning: true, version: 2 }]);
+		await model.refresh(CancellationToken.None);
+		const info = await model.getTroubleshootingInfo('wsl:Ubuntu');
+		environmentState.pendingConfirmation = new DeferredPromise<IConfirmationResult>();
+		void environmentState.pendingConfirmation.complete({ confirmed: false });
+		const cancelled = await model.restartWSLDistribution('wsl:Ubuntu').then(() => false, isCancellationError);
+		environmentState.pendingConfirmation = undefined;
+		await model.restartWSLDistribution('wsl:Ubuntu');
+		assert.deepStrictEqual({ info, cancelled, terminatedDistros, connectionChanges, confirmations: confirmations.map(confirmation => confirmation.message) }, {
+			info: { canRestartDistribution: true },
+			cancelled: true,
+			terminatedDistros: ['Ubuntu'],
+			connectionChanges: [{ id: 'wsl:Ubuntu', connected: true }],
+			confirmations: ['Restart the WSL distribution \'Ubuntu\'?', 'Restart the WSL distribution \'Ubuntu\'?'],
 		});
 	});
 

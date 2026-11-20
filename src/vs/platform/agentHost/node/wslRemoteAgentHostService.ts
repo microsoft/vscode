@@ -188,6 +188,16 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		}
 	}
 
+	async terminateDistro(distro: string): Promise<void> {
+		const name = validateDistroName(distro);
+		await this.disconnect(name);
+		const result = await runWslCommand(['--terminate', name]);
+		if (result.exitCode !== 0) {
+			this._logService.warn(`${LOG_PREFIX} wsl --terminate exited ${result.exitCode}: ${result.stderr.trim()}`);
+			throw new Error(localize('wslTerminateFailed', "Couldn't stop the WSL distribution '{0}': {1}", name, result.stderr.trim() || result.stdout.trim() || String(result.exitCode)));
+		}
+	}
+
 	connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult> {
 		const distro = validateDistroName(config.distro);
 		return this._getOrCreateSession(config, distro).then(session => this._createRelay(session));

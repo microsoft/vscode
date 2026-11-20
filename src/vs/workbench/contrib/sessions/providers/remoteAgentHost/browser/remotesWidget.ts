@@ -12,14 +12,14 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DropdownMenuActionViewItem } from '../../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { ITableRenderer } from '../../../../../../base/browser/ui/table/table.js';
-import { Action, Separator, SubmenuAction } from '../../../../../../base/common/actions.js';
+import { Action, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { equals } from '../../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -38,7 +38,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { WorkbenchTable } from '../../../../../../platform/list/browser/listService.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
@@ -51,7 +51,7 @@ import { INewSessionComposerService } from '../../../browser/newSessionComposerS
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
 import { getConnectionProblem, getGitHubEnvironmentLabel, getServerUpdateLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
-import { RemoteEnvironmentDetails } from './remoteEnvironmentDetails.js';
+import { RemoteEnvironmentDetails, RemoteEnvironmentDetailsMode } from './remoteEnvironmentDetails.js';
 import './media/remotesWidget.css';
 import '../../../browser/media/disclosure.css';
 
@@ -139,6 +139,8 @@ export class RemotesWidget extends Disposable {
 	private hasRefreshed = false;
 	private signingInToTunnels = false;
 	private readonly details = this._register(new MutableDisposable<RemoteEnvironmentDetails>());
+	/** Removes the Troubleshoot action from connection failure notifications once this widget can't open the page anymore. */
+	private readonly connectionFailures = this._register(new DisposableMap<string>());
 	readonly detailsVisible = observableValue(this, false);
 	private readonly overview: HTMLElement;
 	private readonly detailsContainer: HTMLElement;
@@ -481,7 +483,9 @@ export class RemotesWidget extends Disposable {
 			} else if (action === 'copyAddress') {
 				void this.copyAddress(entry.remote.id);
 			} else if (action === 'locationPreference' && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh')) {
-				this.openDetails(entry.remote);
+				this.openDetails(entry.remote, 'runBehavior');
+			} else if (action === 'troubleshoot') {
+				this.openDetails(entry.remote, 'troubleshoot');
 			} else if (action === 'githubEnvironment' && entry.remote.gitHubEnvironment?.state !== 'unavailable' && (entry.remote.canShareAsGitHubEnvironment || entry.remote.gitHubEnvironment)) {
 				void this.manageRemote(entry.remote, 'githubEnvironment');
 			} else if (action === 'showExtension' && entry.remote.contributedBy) {
@@ -496,24 +500,39 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private openDetails(remote: ICustomizationRemote): void {
+	private openDetails(remote: ICustomizationRemote, mode: RemoteEnvironmentDetailsMode): void {
 		if (this.details.value?.isBusy || this.pendingActions.has(remote.id)) {
 			return;
 		}
-		if (this.detailsRemoteId === remote.id && this.details.value) {
+		if (this.detailsRemoteId === remote.id && this.details.value?.mode === mode) {
 			this.closeDetails();
 			return;
 		}
 		this.detailsRemoteId = remote.id;
-		this.details.value = this.instantiationService.createInstance(RemoteEnvironmentDetails, remote, this.model, () => this.closeDetails(), busy => {
-			if (busy) {
-				this.pendingActions.add(remote.id);
-			} else {
-				this.pendingActions.delete(remote.id);
-			}
-			if (!this._store.isDisposed) {
-				this.render();
-			}
+		const id = remote.id;
+		this.details.value = this.instantiationService.createInstance(RemoteEnvironmentDetails, remote, mode, this.model, {
+			close: () => this.closeDetails(),
+			onDidChangeBusy: busy => {
+				if (busy) {
+					this.pendingActions.add(id);
+				} else {
+					this.pendingActions.delete(id);
+				}
+				if (!this._store.isDisposed) {
+					this.render();
+				}
+			},
+			newSession: () => this.newSession(id),
+			openConfiguration: kind => this.openConfiguration(kind),
+			showExtension: extensionId => this.showExtension(extensionId),
+			signInToTunnels: () => this.signInToTunnels(),
+			refresh: () => this.refresh(),
+			deleteRemote: async () => {
+				const current = this.model.remotes.get().find(remote => remote.id === id);
+				if (current && (current.kind === 'environment' || current.kind === 'tunnel' || current.kind === 'ssh' || current.kind === 'devContainer')) {
+					await this.deleteRemote(id, current.kind);
+				}
+			},
 		});
 		this.detailsContainer.appendChild(this.details.value.domNode);
 		this.overview.hidden = true;
@@ -1113,12 +1132,33 @@ export class RemotesWidget extends Disposable {
 		this.render();
 		try {
 			await this.model.setConnected(id, connected);
+			this.connectionFailures.deleteAndDispose(id);
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				const remote = this.model.remotes.get().find(remote => remote.id === id);
-				this.notificationService.error(connected && remote
-					? localize('remotes.connectionFailureFor', "Connection to {0} failed: {1}", remote.name, toErrorMessage(error))
-					: error);
+				if (connected && remote) {
+					const handle = this.notificationService.notify({
+						severity: Severity.Error,
+						message: localize('remotes.connectionFailureFor', "Connection to {0} failed: {1}", remote.name, toErrorMessage(error)),
+						actions: {
+							primary: [toAction({
+								id: 'remotes.troubleshootFailure', label: localize('remotes.troubleshootAction', "Troubleshoot"),
+								run: () => {
+									const current = this.displayedRemotes.find(remote => remote.id === id);
+									if (this.detailsRemoteId === id && this.details.value?.mode === 'troubleshoot') {
+										this.details.value.focus();
+									} else if (current) {
+										this.openDetails(current, 'troubleshoot');
+									}
+								},
+							})],
+						},
+					});
+					// The page can only open while Remote Environments is open; the error itself stays in the notification.
+					this.connectionFailures.set(id, toDisposable(() => handle.updateActions()));
+				} else {
+					this.notificationService.error(error);
+				}
 			}
 		} finally {
 			this.pendingConnections.delete(id);
