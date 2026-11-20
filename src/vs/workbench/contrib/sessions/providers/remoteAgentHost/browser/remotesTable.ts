@@ -78,7 +78,7 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
+		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly pickerStatus: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'type' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
 		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly troubleshoot: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
@@ -365,6 +365,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						...defaultCountBadgeStyles, badgeBackground: undefined, badgeForeground: undefined,
 					})),
 					warning: dom.append(nameRow, dom.$('.remotes-refresh-warning')),
+					pickerStatus: dom.append(nameRow, dom.$('.remotes-picker-status', { 'aria-hidden': 'true' })),
 					description, actionContainer,
 					links: dom.append(content, dom.$('.remotes-empty-actions')),
 				};
@@ -639,6 +640,15 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					: entry.remote.pickerUnavailableReason
 						? localize('remotes.pickerUnavailableDetail', "Not shown in the environment picker: {0}", entry.remote.pickerUnavailableReason)
 						: entry.remote.hidden ? localize('remotes.hiddenDetail', "Hidden from the environment picker. Use More Actions to show it again.") : undefined;
+				template.pickerStatus.textContent = entry.type !== 'remote' ? ''
+					: entry.remote.pickerUnavailableReason ? localize('remotes.pickerUnavailableStatus', "Not shown in picker")
+						: entry.remote.hidden ? localize('remotes.hiddenStatus', "Hidden from picker") : '';
+				template.pickerStatus.hidden = !template.pickerStatus.textContent;
+				if (pickerDetail) {
+					template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.pickerStatus, {
+						content: pickerDetail, style: HoverStyle.Mouse,
+					}, { groupId: this.hoverGroupId }));
+				}
 				template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.label, {
 					content: entry.type === 'group' && entry.description ? entry.description
 						: [

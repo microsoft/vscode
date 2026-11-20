@@ -567,6 +567,26 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.remotes-widget .remotes-row-hidden :is(.remotes-name, .remotes-name-detail, .remotes-metadata) {
+	color: var(--vscode-descriptionForeground);
+}
+
+.remotes-widget .remotes-picker-status {
+	min-width: 0;
+	max-width: 50%;
+	flex-shrink: 0;
+	margin-inline-start: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.remotes-widget .monaco-list-row.selected :is(.remotes-picker-status, .remotes-row-hidden :is(.remotes-name, .remotes-name-detail, .remotes-metadata)) {
+	color: inherit;
+}
+
 .remotes-widget .remotes-group-count {
 	display: flex;
 	align-items: center;
@@ -803,6 +823,7 @@
 }
 
 .remotes-widget .remotes-group-count[hidden],
+.remotes-widget .remotes-picker-status[hidden],
 .remotes-widget .remotes-github-environment[hidden],
 .remotes-widget .remotes-empty-signin[hidden],
 .remotes-widget .remotes-signin-progress[hidden],

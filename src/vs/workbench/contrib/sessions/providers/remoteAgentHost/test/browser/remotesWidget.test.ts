@@ -2408,12 +2408,19 @@ suite('RemotesWidget', () => {
 			}
 			const row = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!;
 			row.click();
+			parent.style.setProperty('--vscode-disabledForeground', '#777777');
+			parent.style.setProperty('--vscode-descriptionForeground', '#606060');
 			const before = getMenuAction(parent, 'ssh:build', 'visibility').label;
 			runMenuAction(parent, 'ssh:build', 'visibility');
 			await timeout(0);
+			const hiddenActionLabel = getMenuAction(parent, 'ssh:build', 'visibility').label;
+			widget.clearRowFocusAndSelection();
+			const pickerStatus = row.querySelector<HTMLElement>('.remotes-picker-status')!;
 			const hidden = {
-				label: getMenuAction(parent, 'ssh:build', 'visibility').label,
-				dimmed: row.classList.contains('remotes-row-hidden'),
+				label: hiddenActionLabel,
+				dimmed: ['.remotes-name', '.remotes-metadata', '.remotes-picker-status'].every(selector => dom.getWindow(row).getComputedStyle(row.querySelector(selector)!).color === 'rgb(96, 96, 96)'),
+				status: pickerStatus.textContent,
+				statusVisible: !pickerStatus.hidden && pickerStatus.getBoundingClientRect().width > 0,
 				connection: getRowStatus(row),
 				accessible: widget.getAccessibilityContent().includes('Build server (hidden from environment picker)'),
 			};
@@ -2425,17 +2432,63 @@ suite('RemotesWidget', () => {
 			await timeout(0);
 			assert.deepStrictEqual({
 				before, hidden, retained,
-				restored: model.remotes.get().find(remote => remote.id === 'ssh:build')?.hidden,
+				restored: {
+					hidden: model.remotes.get().find(remote => remote.id === 'ssh:build')?.hidden,
+					statusVisible: !row.querySelector<HTMLElement>('.remotes-picker-status')!.hidden,
+					dimmed: row.classList.contains('remotes-row-hidden'),
+				},
 				visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges, managementChanges: model.managementChanges,
 			}, {
 				before: 'Hide from Picker',
-				hidden: { label: 'Show in Picker', dimmed: true, connection: state === 'offline' ? 'Offline' : state === 'connected' ? 'Connected' : 'Available', accessible: true },
-				retained: 1, restored: false,
+				hidden: { label: 'Show in Picker', dimmed: true, status: 'Hidden from picker', statusVisible: true, connection: state === 'offline' ? 'Offline' : state === 'connected' ? 'Connected' : 'Available', accessible: true },
+				retained: 1, restored: { hidden: false, statusVisible: false, dimmed: false },
 				visibilityChanges: [{ id: 'ssh:build', hidden: true }, { id: 'ssh:build', hidden: false }],
 				connectionChanges: [], managementChanges: [],
 			});
 		});
 	}
+
+	test('picker status stays visible with long names and restores selection colors across layouts', () => {
+		const { parent, model, widget, hoverContents } = createWidget(OperatingSystem.Windows, 'none', 1400);
+		feedbackStyles(parent);
+		parent.style.setProperty('--vscode-fontSize-label1', '12px');
+		parent.style.setProperty('--vscode-disabledForeground', '#777777');
+		parent.style.setProperty('--vscode-descriptionForeground', '#606060');
+		model.remotes.set([{
+			...model.remotes.get()[0], hidden: true,
+			name: 'Build server with a long environment name',
+			description: 'A long description for the hidden build server',
+		}], undefined);
+		const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
+		const name = row.querySelector<HTMLElement>('.remotes-name')!;
+		const status = row.querySelector<HTMLElement>('.remotes-picker-status')!;
+		const layouts = [1400, 360, 1400].map(width => {
+			parent.style.width = `${width}px`;
+			widget.layout();
+			widget.clearRowFocusAndSelection();
+			const bounds = row.querySelector('.remotes-name-row')!.getBoundingClientRect();
+			const statusBounds = status.getBoundingClientRect();
+			const resting = {
+				nameVisible: name.getBoundingClientRect().width > 0,
+				statusVisible: statusBounds.width > 0 && statusBounds.height > 0 && statusBounds.right <= bounds.right,
+				dimmed: dom.getWindow(name).getComputedStyle(name).color === 'rgb(96, 96, 96)',
+			};
+			widget.focusAndSelectFirstRow();
+			const selectedColor = dom.getWindow(row).getComputedStyle(row.closest('.monaco-list-row')!).color;
+			return {
+				resting,
+				selected: [name, status].every(element => dom.getWindow(element).getComputedStyle(element).color === selectedColor),
+			};
+		});
+		assert.deepStrictEqual({
+			layouts, hover: hoverContents.get(status),
+		}, {
+			layouts: Array.from({ length: 3 }, () => ({
+				resting: { nameVisible: true, statusVisible: true, dimmed: true }, selected: true,
+			})),
+			hover: 'Hidden from the environment picker. Use More Actions to show it again.',
+		});
+	});
 
 	test('an open row menu retains its environment when discovery recycles the row', async () => {
 		const { parent, model } = createWidget();
@@ -2488,6 +2541,7 @@ suite('RemotesWidget', () => {
 			const action = getMenuAction(parent, remote.id, 'visibility');
 			const unavailable = {
 				label: action.label, tooltip: action.tooltip, disabled: !action.enabled,
+				status: row.querySelector('.remotes-picker-status')?.textContent,
 				accessible: widget.getAccessibilityContent().includes('not shown in environment picker: This remote can\'t appear as a separate entry'),
 			};
 			runMenuAction(parent, remote.id, 'visibility');
@@ -2498,6 +2552,7 @@ suite('RemotesWidget', () => {
 				restored: {
 					label: restoredAction.label, disabled: !restoredAction.enabled,
 					unavailableClass: row.classList.contains('remotes-row-picker-unavailable'),
+					status: row.querySelector('.remotes-picker-status')?.textContent,
 				},
 				visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,
 			}, {
@@ -2505,10 +2560,12 @@ suite('RemotesWidget', () => {
 					label: 'Show in Picker',
 					tooltip: 'This remote can\'t appear as a separate entry in the environment picker.',
 					disabled: true, accessible: true,
+					status: 'Not shown in picker',
 				},
 				restored: {
 					label: hidden ? 'Show in Picker' : 'Hide from Picker',
 					disabled: false, unavailableClass: false,
+					status: hidden ? 'Hidden from picker' : '',
 				},
 				visibilityChanges: [], connectionChanges: [],
 			});
