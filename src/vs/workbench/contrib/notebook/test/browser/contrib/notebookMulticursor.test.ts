@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { PastePayload } from '../../../../../../editor/browser/editorBrowser.js';
 import { CursorsController } from '../../../../../../editor/common/cursor/cursor.js';
 import { Handler, ITriggerEditorOperationEvent } from '../../../../../../editor/common/editorCommon.js';
+import { IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType } from '../../../../../../platform/undoRedo/common/undoRedo.js';
 import { NotebookMultiCursorController } from '../../../browser/contrib/multicursor/notebookMulticursor.js';
 import { ICellViewModel } from '../../../browser/notebookBrowser.js';
 
@@ -61,5 +62,80 @@ suite('NotebookMultiCursorController', () => {
 		controller.handleEditorOperationEvent(event);
 
 		assert.strictEqual(mirroredIsBlock, true);
+	});
+
+	test('updateFinalUndoRedo executes undo in reverse order and redo in forward order without mutating elements', async () => {
+		const cell1 = new class extends mock<ICellViewModel>() {
+			override readonly handle = 1;
+			override readonly uri = URI.parse('test:///notebook/cell1');
+		};
+
+		const executionOrder: string[] = [];
+		const el1: IUndoRedoElement = {
+			type: UndoRedoElementType.Resource,
+			resource: cell1.uri,
+			label: 'edit1',
+			code: 'edit1',
+			confirmBeforeUndo: false,
+			undo: async () => { executionOrder.push('undo1'); },
+			redo: async () => { executionOrder.push('redo1'); },
+		};
+		const el2: IUndoRedoElement = {
+			type: UndoRedoElementType.Resource,
+			resource: cell1.uri,
+			label: 'edit2',
+			code: 'edit2',
+			confirmBeforeUndo: false,
+			undo: async () => { executionOrder.push('undo2'); },
+			redo: async () => { executionOrder.push('redo2'); },
+		};
+
+		let pushedElement: IWorkspaceUndoRedoElement | undefined;
+		const fakeUndoRedoService = new class extends mock<IUndoRedoService>() {
+			override getElements() {
+				return { past: [el1, el2], future: [] };
+			}
+			override removeElements() { }
+			override pushElement(element: IUndoRedoElement) {
+				if (element.type === UndoRedoElementType.Workspace) {
+					pushedElement = element as IWorkspaceUndoRedoElement;
+				}
+			}
+		};
+
+		const fakeEditor = {
+			getModel: () => ({})
+		};
+
+		const controller = Object.assign(
+			Object.create(NotebookMultiCursorController.prototype),
+			{
+				anchorCell: [cell1, fakeEditor],
+				trackedCells: [{
+					cellViewModel: cell1,
+					undoRedoHistory: { past: [], future: [] }
+				}],
+				undoRedoService: fakeUndoRedoService
+			}
+		);
+
+		(controller as any).updateFinalUndoRedo();
+
+		assert.ok(pushedElement, 'Workspace undo redo element should be pushed');
+
+		// First undo: should execute in reverse order (el2 then el1)
+		executionOrder.length = 0;
+		await pushedElement.undo();
+		assert.deepStrictEqual(executionOrder, ['undo2', 'undo1']);
+
+		// Redo: should execute in forward order (el1 then el2)
+		executionOrder.length = 0;
+		await pushedElement.redo();
+		assert.deepStrictEqual(executionOrder, ['redo1', 'redo2']);
+
+		// Second undo: must still execute in reverse order (not mutated by first undo)
+		executionOrder.length = 0;
+		await pushedElement.undo();
+		assert.deepStrictEqual(executionOrder, ['undo2', 'undo1']);
 	});
 });
