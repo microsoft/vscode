@@ -79,9 +79,9 @@ export interface IPreparedDevContainerEnvironment {
 	readonly cliArgs: readonly string[];
 }
 
-/** Names an environment's Docker volume, and the workspace folder in it, like New Dev Container names them. */
-export function getDevContainerEnvironmentVolumeName(environmentId: string): string {
-	return `dev-container-${environmentId.slice(0, 8)}`;
+/** The name that New Dev Container proposes for the image's Dev Containers template: `ubuntu` for the Ubuntu base image. */
+function getVolumeBaseName(image: string): string {
+	return /:(?<variant>[a-zA-Z0-9][a-zA-Z0-9_.-]*)$/.exec(image)?.groups?.variant ?? 'devcontainer';
 }
 
 function validateEnvironmentId(environmentId: string): void {
@@ -90,13 +90,37 @@ function validateEnvironmentId(environmentId: string): void {
 	}
 }
 
-async function listVolumes(docker: DockerCommand): Promise<readonly string[]> {
-	return checked(await docker(['volume', 'ls', '--format', '{{.Name}}']), 'docker volume ls').trim().split(/\r?\n/);
+async function listVolumes(docker: DockerCommand, labels: readonly string[] = []): Promise<readonly string[]> {
+	return checked(await docker(['volume', 'ls', ...labels.flatMap(label => ['--filter', `label=${label}`]), '--format', '{{.Name}}']), 'docker volume ls').trim().split(/\r?\n/).filter(Boolean);
 }
 
 async function isEnvironmentVolume(docker: DockerCommand, volumeName: string, environmentId: string): Promise<boolean> {
 	const labels: unknown = JSON.parse(checked(await docker(['volume', 'inspect', '--format', '{{json .Labels}}', volumeName]), 'docker volume inspect'));
 	return isRecord(labels) && labels[devContainerEnvironmentLabel] === environmentId;
+}
+
+/** Finds the environment's workspace volume by its labels, since its name depends on the volumes that existed when it was created. */
+async function findEnvironmentVolume(docker: DockerCommand, environmentId: string): Promise<string | undefined> {
+	return (await listVolumes(docker, [`${devContainerVolumeLabel}=true`, `${devContainerEnvironmentLabel}=${environmentId}`]))[0];
+}
+
+/** Creates the environment's workspace volume with the first free name, as New Dev Container names it: `ubuntu`, then `ubuntu-2`, and so on. */
+async function createEnvironmentVolume(docker: DockerCommand, environmentId: string, image: string, existingVolumes: readonly string[]): Promise<string> {
+	const baseName = getVolumeBaseName(image);
+	const taken = new Set(existingVolumes);
+	for (let index = 1; index <= 1000; index++) {
+		const volumeName = index === 1 ? baseName : `${baseName}-${index}`;
+		if (taken.has(volumeName)) {
+			continue;
+		}
+		checked(await docker(['volume', 'create', '--label', `${devContainerVolumeLabel}=true`, '--label', `${devContainerEnvironmentLabel}=${environmentId}`, volumeName]), 'docker volume create');
+		// Creating a volume that exists succeeds without changing it, so an environment created at the same time may own it.
+		if (await isEnvironmentVolume(docker, volumeName, environmentId)) {
+			return volumeName;
+		}
+		taken.add(volumeName);
+	}
+	throw new Error(localize('devContainerEnvironment.noVolumeName', "No free Docker volume name was found for the Dev Container environment."));
 }
 
 /** The volume and its folder share a name, as with New Dev Container, so the Dev Containers extension identifies the same container. */
@@ -118,22 +142,18 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 		throw new Error(localize('devContainerEnvironment.unsupportedImage', "Unsupported Dev Container environment image: {0}", source.image));
 	}
 	await prepareOwnerOnlyDirectory(cacheDirectory);
-	const volumeName = getDevContainerEnvironmentVolumeName(source.environmentId);
+	const existingVolumes = await listVolumes(commands.docker);
+	const volumeName = await findEnvironmentVolume(commands.docker, source.environmentId)
+		?? await createEnvironmentVolume(commands.docker, source.environmentId, source.image, existingVolumes);
 	const idLabels = getIdLabels(volumeName);
 	const workspace = `${volumeTarget}/${volumeName}`;
-	const existingVolumes = await listVolumes(commands.docker);
-	if (!existingVolumes.includes(volumeName)) {
-		checked(await commands.docker(['volume', 'create', '--label', `${devContainerVolumeLabel}=true`, '--label', `${devContainerEnvironmentLabel}=${source.environmentId}`, volumeName]), 'docker volume create');
-	}
-	if (!await isEnvironmentVolume(commands.docker, volumeName, source.environmentId)) {
-		throw new Error(localize('devContainerEnvironment.volumeConflict', "The Docker volume '{0}' does not belong to this Dev Container environment.", volumeName));
-	}
 	const userStateMountArgs: string[] = [];
 	if (persistUserState) {
 		const stateVolumeName = getDevContainerStateVolumeName(idLabels);
 		try {
 			if (!existingVolumes.includes(stateVolumeName)) {
-				checked(await commands.docker(['volume', 'create', ...getDevContainerStateVolumeLabels(idLabels).flatMap(label => ['--label', label]), stateVolumeName]), 'docker volume create');
+				// The environment's label lets its removal find the state volume.
+				checked(await commands.docker(['volume', 'create', ...[...getDevContainerStateVolumeLabels(idLabels), `${devContainerEnvironmentLabel}=${source.environmentId}`].flatMap(label => ['--label', label]), stateVolumeName]), 'docker volume create');
 			} else if (!await isEnvironmentStateVolume(commands.docker, stateVolumeName, idLabels)) {
 				throw new Error(localize('devContainerEnvironment.stateVolumeConflict', "The Docker volume '{0}' is not the state volume of this Dev Container environment.", stateVolumeName));
 			}
@@ -193,26 +213,22 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 }
 
 /**
- * Removes an environment's containers, Docker volumes, and cached configuration. Its containers and state volume are
- * identified by its volume's name, which a volume of the Dev Containers extension could share, so they are only
- * removed with the environment's own volume, or if that is already gone.
+ * Removes an environment's containers, Docker volumes, and cached configuration. Its volumes carry its label, and its
+ * containers the identity labels of its workspace volume, which no other volume has while that volume exists.
  */
 export async function removeDevContainerEnvironment(environmentId: string, cacheDirectory: string, docker: DockerCommand): Promise<void> {
 	validateEnvironmentId(environmentId);
-	const volumeName = getDevContainerEnvironmentVolumeName(environmentId);
-	const idLabels = getIdLabels(volumeName);
-	const volumes = await listVolumes(docker);
-	const ownsVolume = volumes.includes(volumeName) && await isEnvironmentVolume(docker, volumeName, environmentId);
-	if (ownsVolume) {
+	const volumeName = await findEnvironmentVolume(docker, environmentId);
+	if (volumeName) {
+		const idLabels = getIdLabels(volumeName);
 		const containerIds = checked(await docker(['ps', '--all', '--quiet', ...idLabels.flatMap(label => ['--filter', `label=${label}`])]), 'docker ps').trim().split(/\r?\n/).filter(Boolean);
 		if (containerIds.length) {
 			checked(await docker(['rm', '--force', ...containerIds]), 'docker rm');
 		}
-		checked(await docker(['volume', 'rm', volumeName]), 'docker volume rm');
 	}
-	const stateVolumeName = getDevContainerStateVolumeName(idLabels);
-	if ((ownsVolume || !volumes.includes(volumeName)) && volumes.includes(stateVolumeName) && await isEnvironmentStateVolume(docker, stateVolumeName, idLabels)) {
-		checked(await docker(['volume', 'rm', stateVolumeName]), 'docker volume rm');
+	const volumes = await listVolumes(docker, [`${devContainerEnvironmentLabel}=${environmentId}`]);
+	if (volumes.length) {
+		checked(await docker(['volume', 'rm', ...volumes]), 'docker volume rm');
 	}
 	await rm(cacheDirectory, { recursive: true, force: true });
 }
