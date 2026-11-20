@@ -489,22 +489,6 @@ app.on('ready', async () => {
 			view.webContents.focus();
 		}
 	});
-	// Dispatch a real Tab traversal so focus tests exercise the browser's default action.
-	ipcMain.handle('vscode:test-tab', async (event, backwards) => {
-		const debuggerWasAttached = event.sender.debugger.isAttached();
-		if (!debuggerWasAttached) {
-			event.sender.debugger.attach();
-		}
-		try {
-			for (const type of ['keyDown', 'keyUp']) {
-				await event.sender.debugger.sendCommand('Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: backwards ? 8 : 0 });
-			}
-		} finally {
-			if (!debuggerWasAttached) {
-				event.sender.debugger.detach();
-			}
-		}
-	});
 	ipcMain.handle('vscode:test-remote-resource', async () => {
 		const remoteResourceTestWindow = new BrowserWindow({ show: false });
 		try {

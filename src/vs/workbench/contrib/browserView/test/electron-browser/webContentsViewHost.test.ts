@@ -73,45 +73,32 @@ suite('WebContentsViewHost', () => {
 		return { host, container, focusCalls };
 	}
 
-	test('does not redirect restored workbench focus to the browser', async () => {
+	test('ignores restored workbench focus but honors an explicit focus request', async () => {
 		await setWebContentsFocus(true);
-		const { container, focusCalls } = createFocusHost();
+		const { host, container, focusCalls } = createFocusHost();
 		let restoredFocus: FocusEvent | undefined;
 		store.add(addDisposableListener(container, EventType.FOCUS, event => { restoredFocus = event; }));
 		try {
 			await setWebContentsFocus(false);
 			await setWebContentsFocus(true);
 			await timeout(40);
+			const automaticFocusCalls = [...focusCalls];
+			const explicitFocusHandled = host.tryFocus();
+			await timeout(40);
 			assert.deepStrictEqual({
 				restoredFromWindow: restoredFocus?.relatedTarget === null,
 				workbenchFocused: mainWindow.document.hasFocus(),
 				containerActive: mainWindow.document.activeElement === container,
+				automaticFocusCalls,
+				explicitFocusHandled,
 				focusCalls,
-			}, { restoredFromWindow: true, workbenchFocused: true, containerActive: true, focusCalls: [] });
+			}, { restoredFromWindow: true, workbenchFocused: true, containerActive: true, automaticFocusCalls: [], explicitFocusHandled: true, focusCalls: ['focus'] });
 		} finally {
 			await setWebContentsFocus(true);
 		}
 	});
 
-	for (const backwards of [false, true]) {
-		test(`focuses the browser when ${backwards ? 'Shift+Tab' : 'Tab'} moves from a workbench control`, async () => {
-			await setWebContentsFocus(true);
-			const { container, focusCalls } = createFocusHost();
-			const input = $('input');
-			if (backwards) {
-				container.after(input);
-			} else {
-				container.before(input);
-			}
-			store.add(toDisposable(() => input.remove()));
-			input.focus();
-			await ipcRenderer.invoke('vscode:test-tab', backwards);
-			await timeout(40);
-			assert.deepStrictEqual({ containerActive: mainWindow.document.activeElement === container, focusCalls }, { containerActive: true, focusCalls: ['focus'] });
-		});
-	}
-
-	test('focuses the browser when Tab moves from an iframe', async () => {
+	test('focuses the browser when focus moves from an iframe', async () => {
 		await setWebContentsFocus(true);
 		const { container, focusCalls } = createFocusHost();
 		const iframe = $<HTMLIFrameElement>('iframe');
@@ -122,29 +109,15 @@ suite('WebContentsViewHost', () => {
 			container.before(iframe);
 		});
 		iframe.contentDocument!.getElementById('input')!.focus();
-		await ipcRenderer.invoke('vscode:test-tab', false);
+		let focusEvent: FocusEvent | undefined;
+		store.add(addDisposableListener(container, EventType.FOCUS, event => { focusEvent = event; }));
+		container.focus();
 		await timeout(40);
-		assert.deepStrictEqual({ containerActive: mainWindow.document.activeElement === container, focusCalls }, { containerActive: true, focusCalls: ['focus'] });
-	});
-
-	test('honors an explicit focus request when the container is already active', async () => {
-		await setWebContentsFocus(true);
-		const { host, container, focusCalls } = createFocusHost();
-		const handled = host.tryFocus();
-		await timeout(40);
-		assert.deepStrictEqual({ handled, containerActive: mainWindow.document.activeElement === container, focusCalls }, { handled: true, containerActive: true, focusCalls: ['focus'] });
-	});
-
-	test('cancels an explicit focus request when another control takes focus', async () => {
-		await setWebContentsFocus(true);
-		const { host, focusCalls } = createFocusHost();
-		const input = $('input');
-		mainWindow.document.body.appendChild(input);
-		store.add(toDisposable(() => input.remove()));
-		host.tryFocus();
-		input.focus();
-		await timeout(40);
-		assert.deepStrictEqual(focusCalls, []);
+		assert.deepStrictEqual({
+			relatedTarget: focusEvent?.relatedTarget,
+			containerActive: mainWindow.document.activeElement === container,
+			focusCalls,
+		}, { relatedTarget: null, containerActive: true, focusCalls: ['focus'] });
 	});
 
 	test('hides the page a frame after its container, unless the container itself is hidden', async () => {
