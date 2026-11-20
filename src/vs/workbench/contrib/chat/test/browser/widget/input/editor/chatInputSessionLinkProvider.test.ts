@@ -117,12 +117,14 @@ suite('ChatInputSessionLinkProvider', () => {
 
 	test('links sent session links in rendered text without changing the request or other parts', () => {
 		const externalLink = `vscode-insiders://${externalPath}`;
-		const text = `See (${externalLink}),\r\n${internalLink} and #attachment:a.ts`;
-		const fileStart = text.indexOf('#attachment:');
+		const file = '#attachment:a.ts';
+		const text = `${internalLink} vs ${file}\r\nand (${externalLink}).`;
+		const fileStart = text.indexOf(file);
+		const fileEnd = fileStart + file.length;
 		const positions = new PositionOffsetTransformer(text);
-		const fileUri = URI.file('/a.ts');
-		const filePart = new ChatRequestDynamicVariablePart(new OffsetRange(fileStart, text.length), Range.fromPositions(positions.getPosition(fileStart), positions.getPosition(text.length)), text.slice(fileStart), 'file', undefined, fileUri, undefined, undefined, true, false, undefined, true);
-		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, fileStart), Range.fromPositions(positions.getPosition(0), positions.getPosition(fileStart)), text.slice(0, fileStart)), filePart] };
+		const textPart = (start: number, end: number) => new ChatRequestTextPart(new OffsetRange(start, end), Range.fromPositions(positions.getPosition(start), positions.getPosition(end)), text.slice(start, end));
+		const filePart = new ChatRequestDynamicVariablePart(new OffsetRange(fileStart, fileEnd), Range.fromPositions(positions.getPosition(fileStart), positions.getPosition(fileEnd)), file, 'file', undefined, URI.file('/a.ts'), undefined, undefined, true, false, undefined, true);
+		const message = { text, parts: [textPart(0, fileStart), filePart, textPart(fileEnd, text.length)] };
 		const result = linkSessionMentions(message, new ChatInputSessionLinkDetector('code-oss', store.add(new NullLogService())));
 		assert.deepStrictEqual({
 			text: result.text,
@@ -131,8 +133,9 @@ suite('ChatInputSessionLinkProvider', () => {
 		}, {
 			text,
 			parts: [
-				`See ([vscode-insiders://${externalPath.replace(/_/g, '\\_')}](${internalLink})),\r\n[${internalLink.replace(/_/g, '\\_')}](${internalLink}) and `,
-				'#attachment:a.ts',
+				`[${internalLink.replace(/_/g, '\\_')}](${internalLink}) vs `,
+				file,
+				`\r\nand ([vscode-insiders://${externalPath.replace(/_/g, '\\_')}](${internalLink})).`,
 			],
 			filePart: true,
 		});

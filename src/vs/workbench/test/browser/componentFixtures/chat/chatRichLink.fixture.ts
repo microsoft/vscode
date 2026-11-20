@@ -85,7 +85,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			inputVisible: false,
 			linkPresentationService: createLinkPresentationService(buildAgentSessionLinkPresentation('Implement rich links', 'Agent session', 'inProgress')),
 			messages: [{
-				user: 'Review the changes in agent-host-session://copilotcli/rich-links before merging',
+				user: 'agent-host-session://copilotcli/rich-links is ready. Review its changes against agent-host-session://copilotcli/rich-links-review before merging',
 				assistant: [{
 					kind: 'markdown',
 					text: 'I will review the [implementation session](agent-host-session://copilotcli/rich-links).',
