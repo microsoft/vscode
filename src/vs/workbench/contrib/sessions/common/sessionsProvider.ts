@@ -797,6 +797,9 @@ export interface ISessionsProvider {
 	 */
 	archiveSession(sessionId: string): Promise<void>;
 
+	/** Archives a batch with one settled outcome per input, allowing the provider to merge session-change notifications. */
+	archiveSessions?(sessionIds: readonly string[]): Promise<readonly PromiseSettledResult<void>[]>;
+
 	/** Permanently imports an external session without sending a message or changing its identity. */
 	importSession?(sessionId: string): Promise<void>;
 

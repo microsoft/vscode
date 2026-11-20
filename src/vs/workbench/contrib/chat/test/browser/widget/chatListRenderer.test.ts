@@ -56,6 +56,8 @@ import { ISharedWebContentExtractorService } from '../../../../../../platform/we
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { buildAgentSessionLinkPresentation } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { ILinkPresentationService } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestMenuService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
@@ -3407,6 +3409,32 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('inline request attachments', () => {
+		test('renders a sent session link as a rich session link', () => {
+			const { instantiationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+			instantiationService.stub(ILinkPresentationService, upcastPartial<ILinkPresentationService>({
+				getLinkPresentationRule: () => ({ id: 'session', uriPattern: /^agent-host-session:/, kind: 'session' }),
+				createLinkPresentationWatcher: () => ({ presentation: constObservable(buildAgentSessionLinkPresentation('Fix tests', undefined, 'inProgress')), dispose() { } }),
+			}));
+			request.response?.complete();
+			const link = 'agent-host-session://ahp-session/fd85cb8e-8954-4f79-b66b-b66979b73ca8';
+			const text = `Review (${link}).`;
+			const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+			const sent = model.addRequest(message, { variables: [] }, 0);
+			renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
+			const anchor = template.value.querySelector<HTMLAnchorElement>('.rendered-markdown a.chat-rich-link');
+			assert.deepStrictEqual({
+				href: anchor?.dataset.href ?? anchor?.getAttribute('href'),
+				title: anchor?.querySelector('.chat-rich-link-title')?.textContent,
+				authoredLabelHidden: anchor?.querySelector<HTMLElement>('.chat-rich-link-label')?.hidden,
+				requestText: sent.message.text,
+			}, {
+				href: link,
+				title: 'Fix tests',
+				authoredLabelHidden: true,
+				requestText: text,
+			});
+		});
+
 		for (const fontSize of [13, 18]) {
 			test(`aligns attachment pills and slash commands with the text of a request at chat font size ${fontSize}`, () => {
 				const { container, configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();

@@ -13,7 +13,7 @@ import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHost
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
@@ -28,6 +28,7 @@ import {
 	buildRemoteHostOptionItems,
 	applyRemoteAgentHostLocationPreference,
 	changeRemoteAgentHostLocationPreference,
+	confirmRemoteHostServerUpdate,
 	getCopyableRemoteAddress,
 	getStatusHover,
 	getStatusLabel,
@@ -174,6 +175,22 @@ suite('remoteHostOptions', () => {
 		assert.strictEqual(hasUpgradeReconnectStarted(RemoteAgentHostConnectionStatus.connected), true);
 	});
 
+	test('server updates ask first unless the host rejected this client', async () => {
+		const asked: string[] = [];
+		const dialogService = new class extends mock<IDialogService>() {
+			override async confirm(confirmation: IConfirmation) {
+				asked.push(confirmation.message);
+				return { confirmed: false };
+			}
+		}();
+		const statuses = [RemoteAgentHostConnectionStatus.incompatible('reason', ['0.1.0'], undefined, '_vscodeUpgrade'), RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.reconnecting];
+		const proceeded: boolean[] = [];
+		for (const status of statuses) {
+			proceeded.push(await confirmRemoteHostServerUpdate(dialogService, 'Laptop', status));
+		}
+		assert.deepStrictEqual({ proceeded, asked }, { proceeded: [true, false, false], asked: Array(2).fill('Update the server on \'Laptop\'?') });
+	});
+
 	suite('supportsRemoteAgentHostLocationPreference', () => {
 		test('desktop: recognizes stable SSH and tunnel address keys', () => {
 			assert.strictEqual(supportsRemoteAgentHostLocationPreference('ssh:my-host-alias', false), true);
@@ -308,6 +325,7 @@ suite('remoteHostOptions', () => {
 			});
 			instantiationService.stub(IRemoteAgentHostService, {
 				getEntryByAddress: () => undefined,
+				getConnection: () => undefined,
 				setDisplayName: (address, name) => {
 					if (fail) {
 						throw new Error('Storage unavailable');

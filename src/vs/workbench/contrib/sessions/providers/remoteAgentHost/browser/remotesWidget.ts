@@ -12,14 +12,14 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DropdownMenuActionViewItem } from '../../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { ITableRenderer } from '../../../../../../base/browser/ui/table/table.js';
-import { Action, Separator, SubmenuAction } from '../../../../../../base/common/actions.js';
+import { Action, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { equals } from '../../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -38,7 +38,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { WorkbenchTable } from '../../../../../../platform/list/browser/listService.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
@@ -50,8 +50,8 @@ import { ISessionsProvidersService } from '../../../browser/sessionsProvidersSer
 import { INewSessionComposerService } from '../../../browser/newSessionComposerService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
-import { getConnectionProblem, getGitHubEnvironmentLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
-import { RemoteEnvironmentDetails } from './remoteEnvironmentDetails.js';
+import { getConnectionProblem, getGitHubEnvironmentLabel, getServerUpdateLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
+import { RemoteEnvironmentDetails, RemoteEnvironmentDetailsMode } from './remoteEnvironmentDetails.js';
 import './media/remotesWidget.css';
 import '../../../browser/media/disclosure.css';
 
@@ -139,6 +139,8 @@ export class RemotesWidget extends Disposable {
 	private hasRefreshed = false;
 	private signingInToTunnels = false;
 	private readonly details = this._register(new MutableDisposable<RemoteEnvironmentDetails>());
+	/** Removes the Troubleshoot action from connection failure notifications once this widget can't open the page anymore. */
+	private readonly connectionFailures = this._register(new DisposableMap<string>());
 	readonly detailsVisible = observableValue(this, false);
 	private readonly overview: HTMLElement;
 	private readonly detailsContainer: HTMLElement;
@@ -450,14 +452,14 @@ export class RemotesWidget extends Disposable {
 
 	private runRowAction(entry: RemoteTableEntry, action: RemoteRowAction): void {
 		if (entry.type === 'empty' && action === 'signIn') {
-			void this.signInToTunnels();
+			void this.notifyOnFailure(this.signInToTunnels());
 		} else if (entry.type === 'empty' && action === 'createDevContainer' && entry.action?.enabled) {
 			void this.createDevContainer();
 		} else if (entry.type === 'group') {
 			if (action === 'toggleGroup') {
 				this.toggleGroup(entry.id);
 			} else if (action === 'configure' && entry.kind) {
-				void this.openConfiguration(entry.kind);
+				void this.notifyOnFailure(this.openConfiguration(entry.kind));
 			} else if (action === 'documentation' && entry.documentation) {
 				void this.openDocumentation(entry.documentation.href);
 			} else if (action === 'createDevContainer' && entry.canCreate) {
@@ -473,7 +475,7 @@ export class RemotesWidget extends Disposable {
 					}
 				}
 			} else if (action === 'signIn' && this.displayedRemotes.some(remote => remote.id === entry.remote.id && remote.requiresTunnelSignIn)) {
-				void this.signInToTunnels();
+				void this.notifyOnFailure(this.signInToTunnels());
 			} else if (action === 'connect') {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
 			} else if (action === 'newSession') {
@@ -483,11 +485,13 @@ export class RemotesWidget extends Disposable {
 			} else if (action === 'copyAddress') {
 				void this.copyAddress(entry.remote.id);
 			} else if (action === 'locationPreference' && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh')) {
-				this.openDetails(entry.remote);
+				this.openDetails(entry.remote, 'runBehavior');
+			} else if (action === 'troubleshoot') {
+				this.openDetails(entry.remote, 'troubleshoot');
 			} else if (action === 'githubEnvironment' && entry.remote.gitHubEnvironment?.state !== 'unavailable' && (entry.remote.canShareAsGitHubEnvironment || entry.remote.gitHubEnvironment)) {
 				void this.manageRemote(entry.remote, 'githubEnvironment');
 			} else if (action === 'showExtension' && entry.remote.contributedBy) {
-				void this.showExtension(entry.remote.contributedBy.extensionId);
+				void this.notifyOnFailure(this.showExtension(entry.remote.contributedBy.extensionId));
 			} else if (action === 'updateServer') {
 				void this.manageRemote(entry.remote, 'updateServer');
 			} else if (action === 'createDevContainer' && entry.remote.canCreateDevContainer) {
@@ -498,24 +502,47 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private openDetails(remote: ICustomizationRemote): void {
+	private openDetails(remote: ICustomizationRemote, mode: RemoteEnvironmentDetailsMode): void {
 		if (this.details.value?.isBusy || this.pendingActions.has(remote.id)) {
 			return;
 		}
-		if (this.detailsRemoteId === remote.id && this.details.value) {
+		if (this.detailsRemoteId === remote.id && this.details.value?.mode === mode) {
 			this.closeDetails();
 			return;
 		}
 		this.detailsRemoteId = remote.id;
-		this.details.value = this.instantiationService.createInstance(RemoteEnvironmentDetails, remote, this.model, () => this.closeDetails(), busy => {
-			if (busy) {
-				this.pendingActions.add(remote.id);
-			} else {
-				this.pendingActions.delete(remote.id);
-			}
-			if (!this._store.isDisposed) {
-				this.render();
-			}
+		const id = remote.id;
+		this.details.value = this.instantiationService.createInstance(RemoteEnvironmentDetails, remote, mode, this.model, {
+			close: () => this.closeDetails(),
+			onDidChangeBusy: busy => {
+				if (busy) {
+					this.pendingActions.add(id);
+				} else {
+					this.pendingActions.delete(id);
+				}
+				if (!this._store.isDisposed) {
+					this.render();
+				}
+			},
+			newSession: () => this.newSession(id),
+			// The page runs these itself, marking the remote pending and showing their failures.
+			openConfiguration: kind => this.openConfiguration(kind),
+			showExtension: extensionId => this.showExtension(extensionId),
+			signInToTunnels: () => this.signInToTunnels(),
+			refresh: async () => {
+				await this.discover();
+				const kind = this.model.remotes.get().find(remote => remote.id === id)?.kind;
+				const warning = kind && this.getRefreshWarning(kind);
+				if (warning) {
+					throw new Error(warning);
+				}
+			},
+			deleteRemote: async () => {
+				const current = this.model.remotes.get().find(remote => remote.id === id);
+				if (current && (current.kind === 'environment' || current.kind === 'tunnel' || current.kind === 'ssh' || current.kind === 'devContainer')) {
+					await this.removeRemote(id, current.kind);
+				}
+			},
 		});
 		this.detailsContainer.appendChild(this.details.value.domNode);
 		this.overview.hidden = true;
@@ -557,14 +584,21 @@ export class RemotesWidget extends Disposable {
 			if (!this._store.isDisposed && this.visible) {
 				await this.refresh();
 			}
-		} catch (error) {
-			if (!isCancellationError(error) && !this._store.isDisposed) {
-				this.notificationService.error(error);
-			}
 		} finally {
 			this.signingInToTunnels = false;
 			if (!this._store.isDisposed) {
 				this.render();
+			}
+		}
+	}
+
+	/** Shows a failure of an overview action as a notification; the details page shows the failures of its actions itself. */
+	private async notifyOnFailure(operation: Promise<void>): Promise<void> {
+		try {
+			await operation;
+		} catch (error) {
+			if (!isCancellationError(error) && !this._store.isDisposed) {
+				this.notificationService.error(error);
 			}
 		}
 	}
@@ -579,11 +613,7 @@ export class RemotesWidget extends Disposable {
 
 	/** Shows the extension's page, where disabling or uninstalling it removes the remotes it registers. */
 	private async showExtension(extensionId: string): Promise<void> {
-		try {
-			await this.commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, extensionId);
-		} catch (error) {
-			this.notificationService.error(error);
-		}
+		await this.commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, extensionId);
 	}
 
 	setGrouping(groupBy: RemoteGrouping): void {
@@ -621,17 +651,13 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private async openConfiguration(kind: RemoteKind): Promise<void> {
-		try {
-			if (kind === 'ssh') {
-				const resource = await this.sshService.ensureUserSSHConfig();
-				await this.editorService.openEditor({ resource, options: { pinned: true } }, MODAL_GROUP);
-			} else if (kind === 'tunnel') {
-				await this.preferencesService.openSettings({ query: 'chat.remoteAgentHosts' });
-			} else if (kind === 'environment') {
-				await this.preferencesService.openSettings({ query: GitHubEnvironmentsEnabledSettingId });
-			}
-		} catch (error) {
-			this.notificationService.error(error);
+		if (kind === 'ssh') {
+			const resource = await this.sshService.ensureUserSSHConfig();
+			await this.editorService.openEditor({ resource, options: { pinned: true } }, MODAL_GROUP);
+		} else if (kind === 'tunnel') {
+			await this.preferencesService.openSettings({ query: 'chat.remoteAgentHosts' });
+		} else if (kind === 'environment') {
+			await this.preferencesService.openSettings({ query: GitHubEnvironmentsEnabledSettingId });
 		}
 	}
 
@@ -644,6 +670,8 @@ export class RemotesWidget extends Disposable {
 			void this.refresh();
 		} else {
 			this.cancelRefresh();
+			// Troubleshoot actions of failure notifications can't open the page while it's hidden.
+			this.connectionFailures.clearAndDisposeAll();
 		}
 	}
 
@@ -672,6 +700,11 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private async refresh(): Promise<void> {
+		await this.notifyOnFailure(this.discover());
+	}
+
+	/** Refreshes discovery, rejecting when it fails unexpectedly; kinds whose discovery failed are in {@link failedKinds}. */
+	private async discover(): Promise<void> {
 		this.cancelRefresh();
 		const request = new CancellationTokenSource();
 		this.refreshRequest.value = request;
@@ -701,9 +734,9 @@ export class RemotesWidget extends Disposable {
 			}
 		} catch (error) {
 			if (!request.token.isCancellationRequested) {
-				this.notificationService.error(error);
 				this.failedKinds = this.kinds;
 				this.hasRefreshed = true;
+				throw error;
 			}
 		} finally {
 			if (this.refreshRequest.value === request) {
@@ -1068,6 +1101,15 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
+	private removeRemote(id: string, kind: 'environment' | 'tunnel' | 'ssh' | 'devContainer'): Promise<void> {
+		switch (kind) {
+			case 'tunnel': return this.model.deleteTunnel(id);
+			case 'ssh': return this.model.deleteSSHHost(id);
+			case 'devContainer': return this.model.deleteDevContainer(id);
+			case 'environment': return this.model.remove(id);
+		}
+	}
+
 	private async deleteRemote(id: string, kind: 'environment' | 'tunnel' | 'ssh' | 'devContainer'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
@@ -1077,15 +1119,7 @@ export class RemotesWidget extends Disposable {
 		this.pendingActions.add(id);
 		this.render();
 		try {
-			if (kind === 'tunnel') {
-				await this.model.deleteTunnel(id);
-			} else if (kind === 'ssh') {
-				await this.model.deleteSSHHost(id);
-			} else if (kind === 'devContainer') {
-				await this.model.deleteDevContainer(id);
-			} else {
-				await this.model.remove(id);
-			}
+			await this.removeRemote(id, kind);
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.notificationService.error(error);
@@ -1115,12 +1149,36 @@ export class RemotesWidget extends Disposable {
 		this.render();
 		try {
 			await this.model.setConnected(id, connected);
+			this.connectionFailures.deleteAndDispose(id);
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				const remote = this.model.remotes.get().find(remote => remote.id === id);
-				this.notificationService.error(connected && remote
-					? localize('remotes.connectionFailureFor', "Connection to {0} failed: {1}", remote.name, toErrorMessage(error))
-					: error);
+				if (connected && remote) {
+					// The page can only open while Remote Environments is open; the error itself stays in the notification.
+					const troubleshoot = this.visible && !this._store.isDisposed;
+					const handle = this.notificationService.notify({
+						severity: Severity.Error,
+						message: localize('remotes.connectionFailureFor', "Connection to {0} failed: {1}", remote.name, toErrorMessage(error)),
+						actions: troubleshoot ? {
+							primary: [toAction({
+								id: 'remotes.troubleshootFailure', label: localize('remotes.troubleshootAction', "Troubleshoot"),
+								run: () => {
+									const current = this.displayedRemotes.find(remote => remote.id === id);
+									if (this.detailsRemoteId === id && this.details.value?.mode === 'troubleshoot') {
+										this.details.value.focus();
+									} else if (current) {
+										this.openDetails(current, 'troubleshoot');
+									}
+								},
+							})],
+						} : undefined,
+					});
+					if (troubleshoot) {
+						this.connectionFailures.set(id, toDisposable(() => handle.updateActions()));
+					}
+				} else {
+					this.notificationService.error(error);
+				}
 			}
 		} finally {
 			this.pendingConnections.delete(id);
@@ -1184,6 +1242,10 @@ export class RemotesWidget extends Disposable {
 		const gitHubEnvironment = getGitHubEnvironmentLabel(remote);
 		if (gitHubEnvironment) {
 			sentences.push(gitHubEnvironment);
+		}
+		const serverUpdate = getServerUpdateLabel(remote);
+		if (serverUpdate) {
+			sentences.push(serverUpdate);
 		}
 		if (remote.contributedBy) {
 			sentences.push(localize('remotes.accessibleContributedBy', "Registered by the {0} extension.", remote.contributedBy.displayName));

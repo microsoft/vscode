@@ -11,7 +11,7 @@ import { raceTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, constObservable } from '../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable } from '../../../../base/common/observable.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -42,6 +42,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SharedChatInputComposer } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { createSessionHostServices, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
@@ -471,6 +472,8 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 			contextKeyService: scopedContextKeyService,
 		});
 		this._windowDisposables.add(this._sessionHostService.registerHost(host));
+		// The composer's controls are scoped to its draft, such as its repository pickers, rather than to the Agents window's active session.
+		this._windowDisposables.add(autorun(reader => setHostSessionContextKeys(host.session.read(reader), host.chat.read(reader), undefined, scopedContextKeyService, reader)));
 		const scopedInstantiationService = this._windowDisposables.add(this._instantiationService.createChild(createSessionHostServices(scopedContextKeyService, host)));
 		const view = this._windowDisposables.add(this._chatViewFactory.createNewChatView(false, {
 			backgroundSend: true,
