@@ -32,7 +32,7 @@ import { IAutomationDescriptor } from '../../../../../workbench/contrib/chat/com
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationService, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner, IAutomationRunDispatch, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { AutomationsModalCommands } from '../../browser/automationsModalActions.js';
@@ -123,7 +123,7 @@ suite('Automations modal table', () => {
 			override readonly onDidExecuteCommand = BaseEvent.None;
 			override async executeCommand<T>(id: string, ...args: readonly unknown[]): Promise<T> {
 				commands.push({ id, args });
-				if ([AutomationsModalCommands.createWithAgent.id, AutomationsModalCommands.run.id, AutomationCommands.edit.id, AutomationCommands.run.id].includes(id)) {
+				if ([AutomationsModalCommands.createWithAgent.id, AutomationsModalCommands.run.id, AutomationCommands.edit.id, AutomationCommands.run.id, AutomationCommands.showSharedByOthers.id].includes(id)) {
 					const result: unknown = await services.invokeFunction(CommandsRegistry.getCommand(id)!.handler, ...args);
 					return result as T;
 				}
@@ -722,22 +722,22 @@ suite('Automations modal table', () => {
 	});
 
 	test('follows main visibility for shared automations created by others', async () => {
-		const { automations, configurationService, names } = setup();
+		const { automations, names, openContextMenu, menuService } = setup();
 		automations.automations.set([
 			...automations.automations.get(),
 			tableAutomation('other', 'Other shared', { ownership: 'repository', isCreatedByCurrentUser: false }),
 		], undefined);
-		const hidden = names();
-		await configurationService.setUserConfiguration(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: key => key === SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING,
-			affectedKeys: new Set([SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING]),
-			change: { keys: [SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING], overrides: [] },
-			source: ConfigurationTarget.USER,
-		});
-		assert.deepStrictEqual({ hidden, shown: names() }, {
-			hidden: ['Alpha manual', 'Bravo daily', 'Charlie shared'],
-			shown: ['Alpha manual', 'Bravo daily', 'Charlie shared', 'Other shared'],
+		const action = () => getFlatActionBarActions(menuService.getMenuActions(AgentsWindowMenus.AutomationsModalViewOptions, openContextMenu(0).contextKeyService!))
+			.find(action => action.id === AutomationCommands.showSharedByOthers.id)!;
+		const snapshot = () => ({ names: names(), checked: action().checked });
+		const hidden = snapshot();
+		await action().run();
+		const shown = snapshot();
+		await action().run();
+		assert.deepStrictEqual({ hidden, shown, hiddenAgain: snapshot() }, {
+			hidden: { names: ['Alpha manual', 'Bravo daily', 'Charlie shared'], checked: false },
+			shown: { names: ['Alpha manual', 'Bravo daily', 'Charlie shared', 'Other shared'], checked: true },
+			hiddenAgain: { names: ['Alpha manual', 'Bravo daily', 'Charlie shared'], checked: false },
 		});
 	});
 

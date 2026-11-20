@@ -44,7 +44,7 @@ import { IScheduledChatsService } from '../../../../../../workbench/contrib/sess
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING } from '../../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { setShowSharedAutomationsByOthers } from '../../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/cloudAutomationStore.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -242,7 +242,8 @@ suite('CloudAutomationStore', () => {
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IDefaultAccountService, accounts);
 		instantiation.stub(IChatEntitlementService, entitlement);
-		instantiation.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		const storageService = disposables.add(new InMemoryStorageService());
+		instantiation.stub(IStorageService, storageService);
 		instantiation.stub(ILogService, logService);
 		instantiation.stub(IGitHubService, gitHubService);
 		instantiation.stub(ISessionsRecentWorkspacesService, upcastPartial<ISessionsRecentWorkspacesService>({
@@ -256,7 +257,7 @@ suite('CloudAutomationStore', () => {
 			await configuration.setUserConfiguration(key, value);
 			configuration.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set([key]), change: { keys: [key], overrides: [] }, source: ConfigurationTarget.USER });
 		};
-		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, set, instantiation, configuration };
+		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, set, instantiation, configuration, storageService };
 	}
 
 	function setupTools() {
@@ -1571,7 +1572,7 @@ suite('CloudAutomationStore', () => {
 	});
 
 	test('creator visibility filters history requests and published runs without filtering the catalogue', async () => {
-		const { provider, service, api, set } = setupTools();
+		const { provider, service, api, set, storageService } = setupTools();
 		api.definitions = [
 			{ ...definition, id: 'mine', ownership: 'repository', created_by: { login: 'UsEr' } },
 			{ ...definition, id: 'other', owner_type: 'repository', created_by: { login: 'teammate' } },
@@ -1590,12 +1591,12 @@ suite('CloudAutomationStore', () => {
 		const hidden = snapshot();
 		api.historyRequests.length = 0;
 		api.taskRequests.length = 0;
-		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
+		setShowSharedAutomationsByOthers(storageService, true);
 		await waitForState(provider.isRefreshing, refreshing => !refreshing);
 		const shown = snapshot();
 		api.historyRequests.length = 0;
 		api.taskRequests.length = 0;
-		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, false);
+		setShowSharedAutomationsByOthers(storageService, false);
 		const immediatelyHidden = service.runs.get().map(run => JSON.parse(run.automationId).at(-1));
 		await waitForState(provider.isRefreshing, refreshing => !refreshing);
 		assert.deepStrictEqual({ hidden, shown, immediatelyHidden, hiddenAgain: snapshot() }, {
@@ -1609,10 +1610,10 @@ suite('CloudAutomationStore', () => {
 	test('hiding shared automations during history loading skips queued requests and active polling', async () => {
 		const clock = useFakeTimers();
 		disposables.add(toDisposable(() => clock.restore()));
-		const { provider, api, set } = setup();
+		const { provider, api, set, storageService } = setup();
 		api.definitions = Array.from({ length: 6 }, (_, index) => ({ ...definition, id: `other-${index}`, ownership: 'repository' as const, created_by: { login: 'teammate' } }));
 		api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
-		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
+		setShowSharedAutomationsByOthers(storageService, true);
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
 		api.historyRequests.length = 0;
@@ -1621,7 +1622,7 @@ suite('CloudAutomationStore', () => {
 		api.pendingHistory = pending.p;
 		const refresh = provider.refresh();
 		await clock.tickAsync(0);
-		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, false);
+		setShowSharedAutomationsByOthers(storageService, false);
 		const immediatelyHidden = provider.runs.get();
 		await pending.complete();
 		await refresh;
@@ -1715,8 +1716,8 @@ suite('CloudAutomationStore', () => {
 	});
 
 	test('unavailable collaborator history does not remove its Repository automation or block healthy history', async () => {
-		const { provider, api, set } = setup();
-		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
+		const { provider, api, set, storageService } = setup();
+		setShowSharedAutomationsByOthers(storageService, true);
 		api.definitions = [
 			{ ...definition, id: 'shared', ownership: 'repository', created_by: { login: 'teammate' } },
 			{ ...definition, id: 'owned', ownership: 'repository' },

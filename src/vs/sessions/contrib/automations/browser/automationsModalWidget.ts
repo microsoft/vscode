@@ -36,16 +36,19 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { WorkbenchTable } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { observableShowSharedAutomationsByOthers } from '../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { ShowSharedAutomationsByOthersContext } from '../../../common/agentsWindowContextKeys.js';
 import { formatAutomationRunStatus, formatSchedule, getAutomationsViewContent, getAutomationRemoteStatusPresentation, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons } from '../../sessions/browser/views/automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from '../../sessions/browser/views/automationRunProgress.js';
 import { AutomationCommands } from './automationCommands.js';
@@ -103,6 +106,7 @@ export class AutomationsModalWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IChatService chatService: IChatService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 		this.domNode = dom.append(container, dom.$('.automations-modal-widget'));
@@ -111,6 +115,8 @@ export class AutomationsModalWidget extends Disposable {
 		const scopedInstantiationService = this.scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
 		AutomationsModalContext.bindTo(scopedContext).set(true);
 		const hasOthersContext = AutomationsModalHasOthersContext.bindTo(scopedContext);
+		const showOthersContext = ShowSharedAutomationsByOthersContext.bindTo(scopedContext);
+		const showSharedByOthers = observableShowSharedAutomationsByOthers(this, storageService, this._store);
 		const actionContext: IAutomationsModalActionContext = { openWithAgent, runAutomation: automation => this.runAutomation(automation) };
 		const actionRunner = this._register(new ActionRunner());
 		this._register(actionRunner.onDidRun(event => {
@@ -280,11 +286,12 @@ export class AutomationsModalWidget extends Disposable {
 			configurationChanged.read(reader);
 			remotesChanged.read(reader);
 			sessionsChanged.read(reader);
+			showOthersContext.set(showSharedByOthers.read(reader));
 			hasOthersContext.set(automationService.automations.read(reader).some(automation => automation.ownership === 'repository' && automation.isCreatedByCurrentUser !== true));
 			const { automations, runs } = getAutomationsViewContent(
 				automationService.automations.read(reader),
 				automationService.runs.read(reader),
-				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+				showSharedByOthers.read(reader),
 				configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 			);
 			const providers = [...automationService.availableProviders.read(reader), ...automationService.unavailableProviders.read(reader)];
