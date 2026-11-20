@@ -53,6 +53,11 @@ export interface IWindowsMainService {
 	hideEmbeddedEditorWindow(embeddingWindowId: number): void;
 
 	/**
+	 * Opens the chat session in the chat view of the editor window that the embedding window shows.
+	 */
+	openChatInEmbeddedEditorWindow(embeddingWindowId: number, chatSessionToOpen: URI): void;
+
+	/**
 	 * Shows an embedded window inside its embedding window where it was last laid out.
 	 * Returns `false` when its embedding window never laid out an editor window.
 	 */

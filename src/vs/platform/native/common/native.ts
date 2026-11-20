@@ -344,6 +344,7 @@ export interface ICommonNativeHostService {
 	showEmbeddedEditorWindow(toOpen: IWindowOpenable[], options: IEmbeddedEditorWindowOptions): Promise<void>;
 	layoutEmbeddedEditorWindow(bounds: IEmbeddedWindowBounds): Promise<void>;
 	hideEmbeddedEditorWindow(): Promise<void>;
+	openChatInEmbeddedEditorWindow(chatSessionToOpen: UriComponents): Promise<void>;
 
 	/**
 	 * Asks the Agents window to show the Agents Launcher, opening the Agents window first when none is open. An open Agents

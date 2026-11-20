@@ -418,6 +418,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async openChatInEmbeddedEditorWindow(windowId: number | undefined, chatSessionToOpen: UriComponents): Promise<void> {
+		if (typeof windowId === 'number') {
+			this.windowsMainService.openChatInEmbeddedEditorWindow(windowId, URI.revive(chatSessionToOpen));
+		}
+	}
+
 	async hideEmbeddedEditorWindow(windowId: number | undefined): Promise<void> {
 		if (typeof windowId === 'number') {
 			this.windowsMainService.hideEmbeddedEditorWindow(windowId);

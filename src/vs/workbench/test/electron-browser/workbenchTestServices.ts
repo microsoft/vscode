@@ -110,6 +110,7 @@ export class TestNativeHostService implements INativeHostService {
 	async showEmbeddedEditorWindow(_toOpen: IWindowOpenable[], _options: IEmbeddedEditorWindowOptions): Promise<void> { }
 	async layoutEmbeddedEditorWindow(_bounds: IEmbeddedWindowBounds): Promise<void> { }
 	async hideEmbeddedEditorWindow(): Promise<void> { }
+	async openChatInEmbeddedEditorWindow(_chatSessionToOpen: UriComponents): Promise<void> { }
 
 	readonly onDidChangeAgentHostEditorState = Event.None;
 	async getAgentHostEditorState(): Promise<IAgentHostEditorState> { return { revision: 0, editorSessionCount: 0, sessions: [], lastShown: undefined, lastCopilotHarnessIntroductionSessionCount: undefined, invitation: undefined }; }

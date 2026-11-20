@@ -10,6 +10,7 @@ import { mainWindow } from '../../base/browser/window.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../base/common/observable.js';
 import { Event } from '../../base/common/event.js';
+import { URI } from '../../base/common/uri.js';
 import { ipcRenderer } from '../../base/parts/sandbox/electron-browser/globals.js';
 import { localize } from '../../nls.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -23,7 +24,8 @@ import { INativeHostService } from '../../platform/native/common/native.js';
 import { IQuickInputService } from '../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
-import { EMBEDDED_EDITOR_WINDOW_CHANGED_CHANNEL, IEmbeddedWindowBounds } from '../../platform/window/common/window.js';
+import { EMBEDDED_EDITOR_WINDOW_CHANGED_CHANNEL, IEmbeddedWindowBounds, IFolderToOpen } from '../../platform/window/common/window.js';
+import { ILifecycleService } from '../../workbench/services/lifecycle/common/lifecycle.js';
 import { ISessionsService } from '../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { IChat, ISession } from '../../workbench/services/sessions/common/session.js';
@@ -51,13 +53,14 @@ export interface IEmbeddedEditorService {
 	readonly visible: IObservable<boolean>;
 
 	/**
-	 * Shows an editor window for the folders of the session, and remembers to show it whenever the session is selected.
+	 * Shows an editor window for the folders of the session, with its chat in the chat view of the editor window.
+	 * While it shows, selecting another chat shows that chat there, and a restart shows the editor window again.
 	 * Returns `false` when the session has no folders to open in the Agents window.
 	 */
 	show(session: ISession, chat?: IChat): Promise<boolean>;
 
 	/**
-	 * Shows the session again in place of its editor window, and forgets to show the editor window for it.
+	 * Shows the sessions again in place of the editor window.
 	 */
 	hide(): Promise<void>;
 }
@@ -65,129 +68,35 @@ export interface IEmbeddedEditorService {
 /** Parts of the Agents window that the editor window covers while it shows. */
 const COVERED_PARTS = [Parts.SESSIONS_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART, Parts.PANEL_PART, Parts.CUSTOM_VIEW_GRID_PART];
 
-const SESSIONS_WITH_EDITOR_STORAGE_KEY = 'sessions.embeddedEditor.sessions';
+const EMBEDDED_EDITOR_STORAGE_KEY = 'sessions.embeddedEditor.folders';
 
 /**
- * Remembers which sessions show their editor window, and decides what selecting a session shows.
+ * Remembers the folders of the editor window that the Agents window shows, so that a restart shows it again.
  */
-export class EmbeddedEditorSessionMemory {
+export class EmbeddedEditorMemory {
 
-	/** The sessions that show their editor window whenever they are selected. */
-	private readonly sessions: Set<string>;
+	constructor(private readonly storageService: IStorageService) { }
 
-	/** The session whose editor window shows, or is about to. */
-	private shownSessionId: string | undefined;
-
-	/** Whether the editor window hides because another session is selected, so the session it showed for keeps it. */
-	private hidingForSessionChange = false;
-
-	private selectedSessionId: string | undefined;
-	private restorePending = false;
-
-	constructor(private readonly storageService: IStorageService) {
-		this.sessions = new Set(this.read());
-	}
-
-	/**
-	 * What to show now that `session` is selected, or its folders changed.
-	 */
-	select(session: ISession | undefined, hasFolders: boolean): 'show' | 'hide' | undefined {
-		const sessionChanged = session?.sessionId !== this.selectedSessionId;
-		if (!sessionChanged && !this.restorePending) {
+	get folders(): IFolderToOpen[] | undefined {
+		try {
+			const value: unknown = JSON.parse(this.storageService.get(EMBEDDED_EDITOR_STORAGE_KEY, StorageScope.WORKSPACE, 'null'));
+			if (!Array.isArray(value) || value.length === 0) {
+				return undefined;
+			}
+			return value
+				.filter((folder): folder is { folderUri: string; label?: string } => typeof folder?.folderUri === 'string')
+				.map(folder => ({ folderUri: URI.parse(folder.folderUri), label: typeof folder.label === 'string' ? folder.label : undefined }));
+		} catch {
 			return undefined;
 		}
-		this.selectedSessionId = session?.sessionId;
-
-		const remembered = !!session && this.isRemembered(session);
-
-		// The folders of a restored session can arrive after the session
-		this.restorePending = remembered && !hasFolders;
-		if (remembered && hasFolders) {
-			return this.shownSessionId === session.sessionId ? undefined : 'show';
-		}
-
-		if (sessionChanged && this.shownSessionId !== undefined) {
-			this.hidingForSessionChange = true;
-			this.shownSessionId = undefined;
-			return 'hide';
-		}
-
-		return undefined;
 	}
 
-	willShow(sessionId: string): void {
-		this.shownSessionId = sessionId;
-		this.hidingForSessionChange = false;
-		this.remember(sessionId);
+	remember(folders: readonly IFolderToOpen[]): void {
+		this.storageService.store(EMBEDDED_EDITOR_STORAGE_KEY, JSON.stringify(folders.map(folder => ({ folderUri: folder.folderUri.toString(), label: folder.label }))), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	didFailToShow(sessionId: string): void {
-		this.forget(sessionId);
-		if (this.shownSessionId === sessionId) {
-			this.shownSessionId = undefined;
-		}
-	}
-
-	/** The user asks to show the session instead of its editor window. */
-	willHide(): void {
-		if (this.shownSessionId) {
-			this.forget(this.shownSessionId);
-		}
-	}
-
-	/** The editor window no longer shows, which unless another session was selected, the user asked for. */
-	didHide(): void {
-		if (!this.hidingForSessionChange && this.shownSessionId) {
-			this.forget(this.shownSessionId);
-		}
-		this.hidingForSessionChange = false;
-		this.shownSessionId = undefined;
-	}
-
-	/** Whether the session shows its editor window, also when it was remembered under an earlier identity. */
-	private isRemembered(session: ISession): boolean {
-		if (this.sessions.has(session.sessionId)) {
-			return true;
-		}
-
-		const previous = session.previousIdentities?.find(identity => this.sessions.has(identity.sessionId));
-		if (!previous) {
-			return false;
-		}
-
-		this.sessions.delete(previous.sessionId);
-		this.remember(session.sessionId);
-		return true;
-	}
-
-	private remember(sessionId: string): void {
-		if (!this.sessions.has(sessionId)) {
-			this.sessions.add(sessionId);
-			this.store();
-		}
-	}
-
-	private forget(sessionId: string): void {
-		if (this.sessions.delete(sessionId)) {
-			this.store();
-		}
-	}
-
-	private read(): string[] {
-		try {
-			const value = JSON.parse(this.storageService.get(SESSIONS_WITH_EDITOR_STORAGE_KEY, StorageScope.WORKSPACE, '[]'));
-			return Array.isArray(value) ? value.filter((sessionId): sessionId is string => typeof sessionId === 'string') : [];
-		} catch {
-			return [];
-		}
-	}
-
-	private store(): void {
-		if (this.sessions.size === 0) {
-			this.storageService.remove(SESSIONS_WITH_EDITOR_STORAGE_KEY, StorageScope.WORKSPACE);
-		} else {
-			this.storageService.store(SESSIONS_WITH_EDITOR_STORAGE_KEY, JSON.stringify([...this.sessions]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		}
+	forget(): void {
+		this.storageService.remove(EMBEDDED_EDITOR_STORAGE_KEY, StorageScope.WORKSPACE);
 	}
 }
 
@@ -198,8 +107,11 @@ class EmbeddedEditorService extends Disposable implements IEmbeddedEditorService
 	private readonly visibleWindowId = observableValue<number | undefined>(this, undefined);
 	readonly visible = derived(this, reader => this.visibleWindowId.read(reader) !== undefined);
 
-	private readonly memory: EmbeddedEditorSessionMemory;
+	private readonly memory: EmbeddedEditorMemory;
 	private readonly targetResolver: EditorWindowTargetResolver;
+
+	/** The chat that the editor window shows in its chat view, as handed to it from here. */
+	private handedChat: string | undefined;
 
 	get enabled(): boolean {
 		return this.configurationService.getValue<boolean>(EMBEDDED_EDITOR_SETTING) === true;
@@ -214,18 +126,22 @@ class EmbeddedEditorService extends Disposable implements IEmbeddedEditorService
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
-		this.memory = new EmbeddedEditorSessionMemory(storageService);
+		this.memory = new EmbeddedEditorMemory(storageService);
 		this.targetResolver = instantiationService.createInstance(EditorWindowTargetResolver);
 
 		const onDidChangeEmbeddedEditorWindow = (_event: unknown, windowId: unknown) => {
 			const visibleWindowId = typeof windowId === 'number' ? windowId : undefined;
-			if (visibleWindowId === undefined) {
-				this.memory.didHide();
+
+			// Left or closed by the user, rather than closed with this window
+			if (visibleWindowId === undefined && !lifecycleService.willShutdown) {
+				this.memory.forget();
+				this.handedChat = undefined;
 			}
 			this.visibleWindowId.set(visibleWindowId, undefined);
 		};
@@ -242,60 +158,70 @@ class EmbeddedEditorService extends Disposable implements IEmbeddedEditorService
 			}
 		}));
 
-		// Selecting a session shows its editor window if it had one, else its content
+		const activeChat = derived(this, reader => {
+			const pane = sessionsService.activePane.read(reader);
+			const session = pane?.session.read(reader);
+			return session ? { session, chat: pane?.chat.read(reader) } : undefined;
+		});
+
+		// The editor window of the last run shows again
+		let restored = false;
 		this._register(autorun(reader => {
-			if (!sessionsService.initialRestoreComplete.read(reader) || !this.enabled) {
+			if (restored || !sessionsService.initialRestoreComplete.read(reader) || !this.enabled) {
+				return;
+			}
+			restored = true;
+
+			const folders = this.memory.folders;
+			if (folders) {
+				const active = activeChat.read(undefined);
+				const chatSessionToOpen = active && this.targetResolver.resolveChatSession(active.session, active.chat, { notify: false });
+				void this.showFolders(folders, chatSessionToOpen).catch(error => {
+					this.memory.forget();
+					this.logService.error('[EmbeddedEditor] could not restore the editor window', error);
+				});
+			}
+		}));
+
+		// While the editor window shows, selecting a chat shows it in the chat view of the editor window
+		this._register(autorun(reader => {
+			const active = activeChat.read(reader);
+			if (!active || this.visibleWindowId.read(reader) === undefined) {
 				return;
 			}
 
-			const pane = sessionsService.activePane.read(reader);
-			const session = pane?.session.read(reader);
-			const chat = pane?.chat.read(reader);
-			const hasFolders = !!(chat ?? session?.mainChat.read(reader))?.workspace.read(reader)?.folders.length;
-			switch (this.memory.select(session, hasFolders)) {
-				case 'show':
-					if (session) {
-						void this.doShow(session, chat, false);
-					}
-					break;
-				case 'hide':
-					void this.nativeHostService.hideEmbeddedEditorWindow();
-					break;
+			const chatSessionToOpen = this.targetResolver.resolveChatSession(active.session, active.chat, { notify: false });
+			if (chatSessionToOpen && chatSessionToOpen.toString() !== this.handedChat) {
+				this.handedChat = chatSessionToOpen.toString();
+				void this.nativeHostService.openChatInEmbeddedEditorWindow(chatSessionToOpen);
 			}
 		}));
 	}
 
-	show(session: ISession, chat?: IChat): Promise<boolean> {
-		return this.doShow(session, chat, true);
-	}
-
-	private async doShow(session: ISession, chat: IChat | undefined, userRequested: boolean): Promise<boolean> {
-		const target = this.targetResolver.resolve(session, chat, { notify: userRequested });
+	async show(session: ISession, chat?: IChat): Promise<boolean> {
+		const target = this.targetResolver.resolve(session, chat);
 		if (target.kind !== 'folders') {
 			return false;
 		}
 
-		const bounds = this.computeBounds();
-		if (!bounds) {
-			this.logService.warn('[EmbeddedEditor] the Agents window has no room to show an editor window');
-			return true;
-		}
-
-		this.memory.willShow(session.sessionId);
-		try {
-			await this.nativeHostService.showEmbeddedEditorWindow(target.folders, { chatSessionToOpen: target.chatSessionToOpen, bounds });
-		} catch (error) {
-			this.memory.didFailToShow(session.sessionId);
-			if (userRequested) {
-				throw error;
-			}
-			this.logService.error('[EmbeddedEditor] could not restore the editor window of a session', error);
-		}
+		await this.showFolders(target.folders, target.chatSessionToOpen);
 		return true;
 	}
 
+	private async showFolders(folders: IFolderToOpen[], chatSessionToOpen: URI | undefined): Promise<void> {
+		const bounds = this.computeBounds();
+		if (!bounds) {
+			this.logService.warn('[EmbeddedEditor] the Agents window has no room to show an editor window');
+			return;
+		}
+
+		this.memory.remember(folders);
+		this.handedChat = chatSessionToOpen?.toString();
+		await this.nativeHostService.showEmbeddedEditorWindow(folders, { chatSessionToOpen, bounds });
+	}
+
 	async hide(): Promise<void> {
-		this.memory.willHide();
+		this.memory.forget();
 		await this.nativeHostService.hideEmbeddedEditorWindow();
 	}
 
@@ -424,7 +350,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
-			description: localize('editorInAgentsWindow', "Controls whether Open in Editor shows the editor for a session's folders inside the Agents window, next to the sessions list, instead of in a window of its own. Open in Editor again, or selecting another session, shows the session again."),
+			description: localize('editorInAgentsWindow', "Controls whether Open in Editor shows the editor for a session's folders inside the Agents window, next to the sessions list, instead of in a window of its own. While the editor shows, selecting a session shows its chat in the chat view of the editor. Back to Agents shows the sessions again."),
 		}
 	}
 });

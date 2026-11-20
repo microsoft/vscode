@@ -66,11 +66,18 @@ export class EditorWindowTargetResolver {
 			});
 		}
 
+		return { kind: 'folders', folders: foldersToOpen, chatSessionToOpen: this.resolveChatSession(session, chat, options) };
+	}
+
+	/**
+	 * The resource under which an editor window opens the chat of the session, if it can.
+	 */
+	resolveChatSession(session: ISession, chat?: IChat, options?: { readonly notify?: boolean }): URI | undefined {
 		const chatSessionToOpen = getChatSessionToOpenInEditor(session, chat);
 		const editorChatSession = chatSessionToOpen && getEditorWindowSessionResource(chatSessionToOpen, session.providerId, this.sessionsProvidersService, this.remoteAgentHostService, this.agentHostConnectionsService, this.tunnelAgentHostService, this.sshRemoteAgentHostService, this.remoteAgentHostLocationPreferenceService);
 		if (typeof editorChatSession === 'string' && options?.notify !== false) {
 			notifyEditorWindowSessionUnsupported(this.notificationService, editorChatSession);
 		}
-		return { kind: 'folders', folders: foldersToOpen, chatSessionToOpen: URI.isUri(editorChatSession) ? editorChatSession : undefined };
+		return URI.isUri(editorChatSession) ? editorChatSession : undefined;
 	}
 }

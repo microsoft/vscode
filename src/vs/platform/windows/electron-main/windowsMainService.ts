@@ -355,10 +355,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				forceNewWindow: true,
 				embeddingWindow
 			});
+		}
 
-			if (options.chatSessionToOpen) {
-				window.sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(options.chatSessionToOpen).toString());
-			}
+		if (options.chatSessionToOpen) {
+			window.sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(options.chatSessionToOpen).toString());
 		}
 
 		this.embeddedEditorBounds.set(embeddingWindowId, options.bounds);
@@ -369,6 +369,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	layoutEmbeddedEditorWindow(embeddingWindowId: number, bounds: IEmbeddedWindowBounds): void {
 		this.embeddedEditorBounds.set(embeddingWindowId, bounds);
 		this.visibleEmbeddedWindows.get(embeddingWindowId)?.layoutEmbedded(bounds);
+	}
+
+	openChatInEmbeddedEditorWindow(embeddingWindowId: number, chatSessionToOpen: URI): void {
+		this.visibleEmbeddedWindows.get(embeddingWindowId)?.sendWhenReady('vscode:openChatSession', CancellationToken.None, chatSessionToOpen.toString());
 	}
 
 	hideEmbeddedEditorWindow(embeddingWindowId: number): void {
