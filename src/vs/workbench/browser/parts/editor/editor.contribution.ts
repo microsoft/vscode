@@ -150,7 +150,7 @@ registerWorkbenchContribution2(EditorAutoSave.ID, EditorAutoSave, WorkbenchPhase
 registerWorkbenchContribution2(EditorStatusContribution.ID, EditorStatusContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(UntitledTextEditorWorkingCopyEditorHandler.ID, UntitledTextEditorWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(DynamicEditorConfigurations.ID, DynamicEditorConfigurations, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(DefaultEditorTelemetry.ID, DefaultEditorTelemetry, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(DefaultEditorTelemetry.ID, DefaultEditorTelemetry, WorkbenchPhase.AfterRestored);
 
 //#endregion
 

@@ -29,7 +29,7 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IUntitledTextEditorService } from '../../untitled/common/untitledTextEditorService.js';
 import { findGroup } from '../common/editorGroupFinder.js';
 import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
-import { DefaultEditorChangeSource, diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, EditorMatchRule, EditorMatchRuleSource, editorsAssociationsSettingId, globMatchesResource, EditorMatches, IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorMatchesOptions, IEditorResolverServiceGetEditorsOptions, isUnconfiguredUniversalOptionalEditorMatch, IWillSetDefaultEditorEvent, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
+import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, EditorMatchRule, EditorMatchRuleSource, editorsAssociationsSettingId, globMatchesResource, EditorMatches, IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorMatchesOptions, IEditorResolverServiceGetEditorsOptions, isUnconfiguredUniversalOptionalEditorMatch, ISetDefaultEditorOptions, IWillSetDefaultEditorEvent, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
 import { PreferredGroup } from '../common/editorService.js';
 import { CONFIGURE_DEFAULT_EDITOR_COMMAND_ID } from './openWithEditorPicker.js';
 
@@ -551,15 +551,16 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return Array.from(this._flattenedEditors.values()).flat();
 	}
 
-	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean, source?: DefaultEditorChangeSource): void {
+	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean, options?: ISetDefaultEditorOptions): void {
 		const settingId = forDiffEditor ? diffEditorsAssociationsSettingId : editorsAssociationsSettingId;
 		const associationType = forDiffEditor ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
 		const matches = this.getEditorMatches(resource, { isDiffEditor: forDiffEditor });
 		const currentAssociation = matches.defaultRule.source === EditorMatchRuleSource.UserAssociation ? matches.defaultRule.association : undefined;
-		const associationPattern = matches.defaultRule.associationPattern;
-		this._onWillSetDefaultEditor.fire({ resource, editorId: editorID, forDiffEditor: !!forDiffEditor, source });
-		if (editorID === matches.naturalDefaultRule.editor.id) {
+		const associationPattern = options?.associationPattern ?? matches.defaultRule.associationPattern;
+		const announce = () => this._onWillSetDefaultEditor.fire({ resource, editorId: editorID, forDiffEditor: !!forDiffEditor, source: options?.source });
+		if (!options?.associationPattern && editorID === matches.naturalDefaultRule.editor.id) {
 			if (currentAssociation && this.getDefaultEditorIdAfterRemovingAssociation(resource, associationType, settingId, associationPattern) === editorID) {
+				announce();
 				this.removeUserAssociationForSetting(settingId, associationPattern);
 				return;
 			}
@@ -568,6 +569,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			}
 		}
 
+		announce();
 		this.updateUserAssociationsForSetting(settingId, associationPattern, editorID);
 	}
 

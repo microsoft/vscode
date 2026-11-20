@@ -11,10 +11,15 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
 import { DefaultEditorChangeSource, diffEditorsAssociationsSettingId, editorsAssociationsSettingId, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
-/** File types whose default editor changes are reported, each with a file name to resolve their default for. */
+/**
+ * File types whose default editor changes are reported, by file extension, each with a file name to
+ * resolve the default for. Associations for single files (e.g. `README.md`) do not change them.
+ */
 const WELL_KNOWN_FILE_TYPES = {
-	markdown: URI.file('/default-editor.md'),
+	md: URI.file('/default-editor.md'),
+	markdown: URI.file('/default-editor.markdown'),
 } as const satisfies Record<string, URI>;
 
 type WellKnownFileType = keyof typeof WELL_KNOWN_FILE_TYPES;
@@ -33,8 +38,12 @@ function wellKnownEditor(editorId: string): string {
 type EditorKind = 'editor' | 'diffEditor';
 const EDITOR_KINDS: readonly EditorKind[] = ['editor', 'diffEditor'];
 
-/** A `setDefaultEditor` call is attributed to the association change it causes if that follows within this time. */
-const SOURCE_ATTRIBUTION_MS = 10_000;
+/**
+ * Association changes within this time after a `setDefaultEditor` call are attributed to it. One
+ * call can write both association settings, e.g. when the Reopen With picker sets the general
+ * default from a diff and clears the diff-only association.
+ */
+const SOURCE_ATTRIBUTION_MS = 5_000;
 
 type DefaultEditorChangedEvent = {
 	fileType: WellKnownFileType;
@@ -47,7 +56,7 @@ type DefaultEditorChangedEvent = {
 type DefaultEditorChangedClassification = {
 	owner: 'hediet';
 	comment: 'Reports when the effective default editor for a well-known file type changes, to learn how often users adopt or revert editors such as the Markdown Editor.';
-	fileType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The well-known file type, e.g. markdown.' };
+	fileType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The file extension of the well-known file type, e.g. md.' };
 	editorKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the default for opening files or for diffs changed.' };
 	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous default editor: a well-known built-in editor, or other.' };
 	to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new default editor: a well-known built-in editor, or other.' };
@@ -58,20 +67,28 @@ type DefaultEditorChangedClassification = {
  * Reports changes of the effective default editor of well-known file types, whatever caused them:
  * the editor type picker, the reopen-with picker, a nudge, settings.json or settings sync. Changes
  * caused by extensions registering or unregistering editors are not reported.
+ *
+ * Every window observes a change of user settings. To report it once, only the window that made
+ * the change reports it, or, for changes from outside (settings.json, settings sync), the focused
+ * window. Outside changes while no window is focused are not reported.
  */
 export class DefaultEditorTelemetry extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.defaultEditorTelemetry';
 
+	/** The resolved default editor IDs. Not mapped to well-known names, so changes between other editors are seen. */
 	private readonly _defaults = new Map<string, string>();
-	private _pendingSource: { readonly source: DefaultEditorChangeSource | undefined; readonly time: number } | undefined;
+	private _lastSetDefaultEditor: { readonly source: DefaultEditorChangeSource | undefined; readonly time: number } | undefined;
 
 	constructor(
 		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IHostService private readonly _hostService: IHostService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
+
+		this._register(this._editorResolverService.onWillSetDefaultEditor(e => this._lastSetDefaultEditor = { source: e.source, time: Date.now() }));
 
 		// Compare against defaults once editors contributed by extensions are known.
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
@@ -80,7 +97,6 @@ export class DefaultEditorTelemetry extends Disposable implements IWorkbenchCont
 			}
 			this._updateDefaults(false);
 			this._register(this._editorResolverService.onDidChangeEditorRegistrations(() => this._updateDefaults(false)));
-			this._register(this._editorResolverService.onWillSetDefaultEditor(e => this._pendingSource = { source: e.source, time: Date.now() }));
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(editorsAssociationsSettingId) || e.affectsConfiguration(diffEditorsAssociationsSettingId)) {
 					this._updateDefaults(true);
@@ -89,23 +105,24 @@ export class DefaultEditorTelemetry extends Disposable implements IWorkbenchCont
 		});
 	}
 
-	private _updateDefaults(report: boolean): void {
-		const pending = this._pendingSource;
-		this._pendingSource = undefined;
-		const source = pending?.source && Date.now() - pending.time < SOURCE_ATTRIBUTION_MS ? pending.source : 'other';
+	private _updateDefaults(isAssociationChange: boolean): void {
+		const last = this._lastSetDefaultEditor;
+		const madeHere = !!last && Date.now() - last.time < SOURCE_ATTRIBUTION_MS;
+		const report = isAssociationChange && (madeHere || this._hostService.hasFocus);
+		const source = madeHere ? last.source ?? 'other' : 'other';
 
 		for (const [fileType, resource] of Object.entries(WELL_KNOWN_FILE_TYPES) as [WellKnownFileType, URI][]) {
 			for (const editorKind of EDITOR_KINDS) {
 				const key = `${fileType}/${editorKind}`;
-				const editor = wellKnownEditor(this._editorResolverService.getEditorMatches(resource, { isDiffEditor: editorKind === 'diffEditor' }).defaultRule.editor.id);
+				const editorId = this._editorResolverService.getEditorMatches(resource, { isDiffEditor: editorKind === 'diffEditor' }).defaultRule.editor.id;
 				const previous = this._defaults.get(key);
-				this._defaults.set(key, editor);
-				if (report && previous !== undefined && previous !== editor) {
+				this._defaults.set(key, editorId);
+				if (report && previous !== undefined && previous !== editorId) {
 					this._telemetryService.publicLog2<DefaultEditorChangedEvent, DefaultEditorChangedClassification>('editorResolver.defaultEditorChanged', {
 						fileType,
 						editorKind,
-						from: previous,
-						to: editor,
+						from: wellKnownEditor(previous),
+						to: wellKnownEditor(editorId),
 						source,
 					});
 				}
