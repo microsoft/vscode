@@ -532,7 +532,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	async responses(): Promise<Response> { throw new Error('not used'); }
 	async resolveRestrictedTelemetryContext(githubToken: string): Promise<IRestrictedTelemetryContext> {
 		this.restrictedTelemetryContextCalls.push(githubToken);
-		const context = this.restrictedTelemetryContexts.get(githubToken) ?? {
+		return this.restrictedTelemetryContexts.get(githubToken) ?? {
 			restrictedTelemetryEnabled: false,
 			trackingId: undefined,
 			telemetryEndpoint: undefined,
@@ -540,8 +540,6 @@ class TestCopilotApiService implements ICopilotApiService {
 			userName: undefined,
 			isVscodeTeamMember: false,
 		};
-		this.onDidRefreshCopilotUserEmitter.fire({ githubToken, context });
-		return context;
 	}
 	async resolveApiEndpoint() { return this.apiEndpoint; }
 	async resolveUserLogin() { return this.userLogin; }
@@ -7444,7 +7442,9 @@ suite('CopilotAgent', () => {
 			const initialResolved = new DeferredPromise<void>();
 			const telemetryService = disposables.add(new class extends AgentHostTelemetryService {
 				override setRestrictedTelemetryEnabled(enabled: boolean): void {
-					enabledStates.push(enabled);
+					if (enabledStates.at(-1) !== enabled) {
+						enabledStates.push(enabled);
+					}
 					super.setRestrictedTelemetryEnabled(enabled);
 					if (enabled) {
 						initialResolved.complete();
@@ -7482,6 +7482,33 @@ suite('CopilotAgent', () => {
 		} finally {
 			clock.restore();
 		}
+	});
+
+	test('applies restricted telemetry on authentication when user discovery for the token is already cached', async () => {
+		const copilotApiService = disposables.add(new CopilotApiService(async () => new Response(JSON.stringify({
+			access_type_sku: 'no_access',
+			analytics_tracking_id: 'tid-1',
+			restricted_telemetry: true,
+			endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example/' },
+		}), { status: 200 }), new NullLogService(), { _serviceBrand: undefined, ...product }, createTestGitHubEndpointService(), NullTelemetryService));
+		// Another Agent Host consumer warms the shared discovery cache, so authentication sees a cache hit that publishes no refresh event.
+		await copilotApiService.resolveRestrictedTelemetryContext('active-token');
+		const enabledStates: boolean[] = [];
+		const telemetryService = disposables.add(new class extends AgentHostTelemetryService {
+			override setRestrictedTelemetryEnabled(enabled: boolean): void {
+				if (enabledStates.at(-1) !== enabled) {
+					enabledStates.push(enabled);
+				}
+				super.setRestrictedTelemetryEnabled(enabled);
+			}
+		}(NullTelemetryService));
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService, telemetryService }) as TestableCopilotAgent;
+		afterTest(() => disposeAgent(agent));
+
+		await agent.authenticate('https://api.github.com', 'active-token');
+		await timeout(0);
+
+		assert.deepStrictEqual(enabledStates, [false, true]);
 	});
 
 	test('advertises Copilot as its display name', async () => {

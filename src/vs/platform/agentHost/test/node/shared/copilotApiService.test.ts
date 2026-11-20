@@ -350,6 +350,34 @@ suite('CopilotApiService', () => {
 			}
 		}
 
+		test('superseded ordinary refresh does not return an expired entry while an entitlement refresh is pending', async () => {
+			const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+			try {
+				const normalResponse = new DeferredPromise<Response>();
+				const entitlementResponse = new DeferredPromise<Response>();
+				let requests = 0;
+				const service = createService(async () => {
+					if (++requests === 1) {
+						return userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' });
+					}
+					return requests === 2 ? entitlementResponse.p : normalResponse.p;
+				});
+				await service.resolveCopilotSku('token');
+				clock.tick(26 * 60 * 1000);
+				const entitlement = service.refreshCopilotUser('token', 'analytics', 'free');
+				const normal = service.resolveCopilotSku('token');
+				// The cached entry expires while both refreshes are in flight.
+				clock.tick(5 * 60 * 1000);
+				normalResponse.complete(userResponse({ access_type_sku: 'business', analytics_tracking_id: 'analytics' }));
+				const normalSku = await normal;
+				entitlementResponse.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'analytics' }));
+				await entitlement;
+				assert.deepStrictEqual({ normalSku, cachedSku: service.getCachedCopilotSku('token') }, { normalSku: 'business', cachedSku: 'free' });
+			} finally {
+				clock.restore();
+			}
+		});
+
 		test('rejected entitlement refresh permanently invalidates the captured account context', async () => {
 			let status = 200;
 			const service = createService(async () => status === 200

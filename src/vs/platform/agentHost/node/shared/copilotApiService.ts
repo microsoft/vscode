@@ -1120,7 +1120,8 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 				}
 			}
 			this._reportDiscovery(attempt, outcome);
-			return request.skuCell.valid && request.skuCell.value ? request.skuCell.value : entry;
+			// A superseding publication is authoritative; never hand out an expired entry.
+			return this._readCachedClient(request.skuCell) ?? entry;
 		}).catch(err => {
 			this._reportDiscovery(attempt, 'failed');
 			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid) {
