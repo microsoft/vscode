@@ -211,7 +211,7 @@ export interface IChatViewHostService extends IChatViewHost {
 	 * Whether the Chat view shows only its sessions, without its chat: while a contribution asks for it
 	 * ({@link IChatViewContribution.sessionsOnly}) while a host replaces it and the Chat view does not host the chat shown
 	 * last, or while a contribution has the chats open elsewhere ({@link IChatViewContribution.chatsOpenElsewhere}) and the
-	 * Chat view does not host the chat shown last of a host that replaces it.
+	 * Chat view does not host the chat shown last of a host that replaces it, nor a new chat that it started.
 	 */
 	readonly sessionsOnly: IObservable<boolean>;
 

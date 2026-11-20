@@ -251,8 +251,10 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 			const contributions = this.contributions.read(reader);
 			const replaced = this._replaced.read(reader);
 			const chatViewHosts = this.chatViewHosts.read(reader);
+			// A new chat that the Chat view started shows its composer, whose session then opens elsewhere
+			const hostsNewChat = chatViewHosts && this.state.read(reader).newChat;
 			return (replaced && !chatViewHosts && contributions.some(contribution => contribution.sessionsOnly))
-				|| (!(replaced && chatViewHosts) && contributions.some(contribution => contribution.chatsOpenElsewhere));
+				|| (!(replaced && chatViewHosts) && !hostsNewChat && contributions.some(contribution => contribution.chatsOpenElsewhere));
 		});
 	}
 

@@ -564,6 +564,22 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual(steps, [false, false, true, false, true, false]);
 	});
 
+	test('the Chat view shows the composer of a new chat that it started while the chats open elsewhere, until a chat shows', async () => {
+		const { service, view, shownSession, showView } = createService();
+		showView();
+		Object.assign(view, { newChat: async () => true });
+		const elsewhere = service.register({ chatsOpenElsewhere: true });
+		const steps = [service.sessionsOnly.get()];
+		await service.newChat(undefined, { ownChat: true });
+		steps.push(service.sessionsOnly.get());
+		shownSession.set({ resource: URI.parse('vscode-chat-session://local/session'), reason: 'open' }, undefined);
+		await service.openSession(URI.parse('agent-host-copilot:/session-1'));
+		steps.push(service.sessionsOnly.get());
+		elsewhere.dispose();
+
+		assert.deepStrictEqual(steps, [true, false, true]);
+	});
+
 	test('the Chat view shows only its sessions while the chats open elsewhere, even with no host, unless it hosts the chat shown last of a host that replaces it', () => {
 		const { service, shownSession, showView } = createService();
 		showView();
