@@ -132,11 +132,22 @@ export type ModelDeltaInput =
 	| { type: 'upsertDecoration'; decoration: DecorationInput }
 	| { type: 'removeDecoration'; id: number };
 
+/**
+ * Top padding plus space between view lines (view zones). `beforeLine` is the
+ * zero-based view line the space sits above, i.e. VS Code's `afterLineNumber`.
+ */
+export interface VerticalLayoutInput {
+	paddingTop?: number;
+	whitespaces: { beforeLine: number; height: number }[];
+}
+
 export interface EditorView {
 	setLines(lines: LineInput[]): void;
 	applyDelta(delta: ModelDeltaInput): void;
 	/** Absent in npm 0.0.1; hosts must check before enabling bracket guide paint. */
 	setBracketGuides?(start: number, guides: BracketGuideInput[][]): void;
+	/** Absent in npm 0.0.1; hosts must check before rendering padding or view zones. */
+	setVerticalLayout?(layout: VerticalLayoutInput): void;
 	setConfig(config: EditorViewConfig): void;
 	setViewport(viewport: { width: number; height: number; scrollTop?: number; scrollLeft?: number; devicePixelRatio?: number }): void;
 	decorationRanges(ranges: DecorationRangeInput[]): { line: number; left: number; width: number; continuesOnNextLine: boolean }[][];

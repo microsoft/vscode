@@ -7,6 +7,7 @@ import type { EditorView, EditorViewConfig, EditorViewModule, CursorInput, Curso
 import { addDisposableListener, EventType, getActiveWindow, WindowIntervalTimer } from '../../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { Color } from '../../../../base/common/color.js';
+import { equals } from '../../../../base/common/arrays.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { resolveAmdNodeModulePath } from '../../../../amdX.js';
 import { editorBackground, editorForeground, editorSelectionBackground, editorInactiveSelection } from '../../../../platform/theme/common/colorRegistry.js';
@@ -136,7 +137,9 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private readonly _decorationResolver: EditorViewDecorationResolver;
 	private _decorationsDirty = true;
 	private _bracketGuideColors: EditorViewBracketGuideColors | undefined;
-	private _bracketGuideSupportFailure = false;
+	private _unsupportedRendererReported = false;
+	/** Last vertical layout sent to the renderer: `[paddingTop, beforeLine0, height0, ...]`. */
+	private _verticalLayout: number[] = [0];
 	private _foldingControlsHovered = false;
 	/** View line (1-based) holding the primary cursor; its number is highlighted. */
 	private _activeLineNumber = 1;
@@ -721,7 +724,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 	}
 
-	private _syncGuides(scrollTop: number, height: number): void {
+	private _syncGuides(scrollTop: number): void {
 		const guideOptions = this._context.configuration.options.get(EditorOption.guides);
 		if (!guideOptions.indentation && guideOptions.bracketPairs === false) {
 			return;
@@ -730,9 +733,11 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		if (lineCount === 0) {
 			return;
 		}
-		const lineHeight = this._context.configuration.options.get(EditorOption.fontInfo).lineHeight;
-		const start = Math.max(0, Math.floor(scrollTop / lineHeight - 2));
-		const end = Math.min(lineCount, Math.ceil((scrollTop + height) / lineHeight + 2));
+		// Cover the renderer's visible range, which includes two lines of overscan
+		// and starts at the line above a partly scrolled-past view zone.
+		const viewport = this._context.viewLayout.getLinesViewportDataAtScrollTop(scrollTop);
+		const start = Math.max(0, viewport.startLineNumber - 4);
+		const end = Math.min(lineCount, viewport.endLineNumber + 3);
 		if (start >= end) {
 			return;
 		}
@@ -848,20 +853,56 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 
 	// --- rendering -----------------------------------------------------------
 
+	private _reportUnsupportedRenderer(message: string): void {
+		if (this._unsupportedRendererReported) {
+			return;
+		}
+		this._unsupportedRendererReported = true;
+		queueMicrotask(() => {
+			if (!this._disposed) {
+				editorGpuAcceleration.disableEditorView();
+				onUnexpectedError(new Error(message));
+			}
+		});
+	}
+
+	/**
+	 * Mirror `LinesLayout`'s top padding and view-zone whitespace so the renderer
+	 * places lines where VS Code's layout (and hit testing) expects them. Returns
+	 * `false` when they are needed but the installed renderer cannot draw them.
+	 */
+	private _syncVerticalLayout(): boolean {
+		const layout = [this._context.configuration.options.get(EditorOption.padding).top];
+		for (const whitespace of this._context.viewLayout.getWhitespaces()) {
+			if (whitespace.height > 0) {
+				layout.push(whitespace.afterLineNumber, whitespace.height);
+			}
+		}
+		if (equals(layout, this._verticalLayout)) {
+			return true;
+		}
+		if (!this._editorView?.setVerticalLayout) {
+			return layout.length === 1 && layout[0] === 0;
+		}
+		const whitespaces: { beforeLine: number; height: number }[] = [];
+		for (let i = 1; i < layout.length; i += 2) {
+			whitespaces.push({ beforeLine: layout[i], height: layout[i + 1] });
+		}
+		this._editorView.setVerticalLayout({ paddingTop: layout[0], whitespaces });
+		this._verticalLayout = layout;
+		return true;
+	}
+
 	private _present(): void {
 		if (!this._editorView || this._disposed) {
 			return;
 		}
 		if (this._context.configuration.options.get(EditorOption.guides).bracketPairs !== false && !this._editorView.setBracketGuides) {
-			if (!this._bracketGuideSupportFailure) {
-				this._bracketGuideSupportFailure = true;
-				queueMicrotask(() => {
-					if (!this._disposed) {
-						editorGpuAcceleration.disableEditorView();
-						onUnexpectedError(new Error(localize('editorView.bracketGuidesUnsupported', "The installed @vscode/editor-view package does not support bracket-pair guides. Update the package to use GPU rendering with bracket-pair guides. Using DOM rendering instead.")));
-					}
-				});
-			}
+			this._reportUnsupportedRenderer(localize('editorView.bracketGuidesUnsupported', "The installed @vscode/editor-view package does not support bracket-pair guides. Update the package to use GPU rendering with bracket-pair guides. Using DOM rendering instead."));
+			return;
+		}
+		if (!this._syncVerticalLayout()) {
+			this._reportUnsupportedRenderer(localize('editorView.verticalLayoutUnsupported', "The installed @vscode/editor-view package does not support view zones or editor padding. Update the package to use GPU rendering with them. Using DOM rendering instead."));
 			return;
 		}
 
@@ -880,7 +921,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this._editorView.setConfig(this._buildConfig());
 		this._syncModel();
 		this._syncDecorations();
-		this._syncGuides(scrollTop, height);
+		this._syncGuides(scrollTop);
 		this._editorView.setViewport({
 			width,
 			height,

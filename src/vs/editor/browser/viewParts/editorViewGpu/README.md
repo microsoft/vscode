@@ -5,9 +5,10 @@ The editor builds without it. The host-owned subset of its API is declared in
 [`editorViewTypes.ts`](./editorViewTypes.ts); keep it compatible with the version
 installed by the distro.
 
-Bracket-pair guides require a renderer exposing `setBracketGuides`; this API is
-not in the initial npm `0.0.1` release. Use the updated local build during
-development and pin the next published release in the distro to enable it.
+Bracket-pair guides and view zones require a renderer exposing
+`setBracketGuides` and `setVerticalLayout`; these APIs are not in the initial
+npm `0.0.1` release. Use the updated local build during development and pin the
+next published release in the distro to enable them.
 
 ## Distro setup
 
@@ -45,6 +46,10 @@ their product configuration **before** editor settings are registered:
 - Older renderer without `setBracketGuides`: ordinary GPU rendering still works
   with bracket guides disabled. Enabling bracket guides reports an unsupported
   package error and returns to DOM rendering instead of hiding the guides.
+- Older renderer without `setVerticalLayout`: GPU rendering continues while the
+  editor has no top padding or view zones. As soon as either is needed, it reports
+  an unsupported package error and returns to DOM rendering instead of drawing
+  lines in the wrong place.
 
 The existing `on` renderer is independent of this package and is unchanged.
 Availability is detected on application startup; restart after installing or
@@ -74,6 +79,19 @@ Rust owns endpoint measurement, vertical/horizontal stroke geometry, clipping
 and indentation overlap suppression. Both horizontal guide modes and all
 bracket-pair settings remain host-controlled. Cursor moves, model edits, theme
 changes and scrolling update the next visible batch.
+
+## View zones and padding
+
+View zones (CodeLens, peek views, inline chat, diff spacers) and
+`editor.padding.top` move lines away from `lineNumber × lineHeight`. Before each
+frame the adapter compares `viewLayout.getWhitespaces()` and the top padding
+with what it last sent, and sends any change through one `setVerticalLayout`
+call. The renderer then places all GPU paint, and computes its visible lines,
+with the same offsets as `LinesLayout`, matching VS Code's hit testing. Guide
+batches use `getLinesViewportDataAtScrollTop`, so they cover the lines visible
+around zones. The renderer leaves zone rows transparent: zone DOM in the content
+area and the margin stays beneath the opaque canvas everywhere else, but shows
+through at the zone itself.
 
 ## Decoration probes in auxiliary windows
 
