@@ -17,12 +17,8 @@ export const markdownEditorId = 'vscode.markdown.editor';
 
 const reopenWithEditorCommandId = 'workbench.action.reopenWithEditor';
 
-/** The editor that an untitled file was last reopened in from the hint, offered first next time. */
 const lastUntitledEditorStorageKey = 'emptyEditorHint.lastUntitledEditor';
 
-/**
- * The editors other than the text editor that can open this file, e.g. the Markdown Editor for an untitled plain text file.
- */
 export function getOtherEditors(editorResolverService: IEditorResolverService, resource: URI): RegisteredEditorInfo[] {
 	return editorResolverService.getEditors(resource).filter(editor => editor.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 }
@@ -45,9 +41,6 @@ export class EmptyEditorHintReopener {
 		@IStorageService private readonly _storageService: IStorageService,
 	) { }
 
-	/**
-	 * The editor to offer first: the one last chosen from the hint, else the Markdown Editor, if it can open this file.
-	 */
 	getPrimaryEditor(): RegisteredEditorInfo | undefined {
 		const resource = this._editor.getModel()?.uri;
 		const otherEditors = resource ? getOtherEditors(this._editorResolverService, resource) : [];
@@ -55,9 +48,6 @@ export class EmptyEditorHintReopener {
 		return otherEditors.find(editor => editor.id === lastEditorId) ?? otherEditors.find(editor => editor.id === markdownEditorId);
 	}
 
-	/**
-	 * Shows the Reopen Editor With picker, which lists all editors for an untitled file.
-	 */
 	showEditorPicker(): Promise<void> {
 		return this._reopenAndRemember(context => this._commandService.executeCommand(reopenWithEditorCommandId, context));
 	}

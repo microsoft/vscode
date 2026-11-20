@@ -40,7 +40,6 @@ import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
 
-/** Experimental: the classic hint also offers to open a new untitled file in the Markdown Editor. */
 export const emptyEditorHintOpenInMarkdownEditorSetting = 'workbench.editor.experimental.emptyEditorHintOpenInMarkdownEditor';
 
 export class EmptyTextEditorHintContribution extends Disposable implements IEmptyTextEditorHintContribution {
@@ -148,9 +147,6 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 			&& this.actionsFit();
 	}
 
-	/**
-	 * Experimental: the classic hint offers to open new untitled files in the Markdown Editor, if it can open them.
-	 */
 	private shouldOfferMarkdownEditor(): boolean {
 		const model = this.editor.getModel();
 		return !!model
@@ -174,9 +170,6 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		return layoutInfo.width - layoutInfo.verticalScrollbarWidth >= this.actionsRequiredSize.width && layoutInfo.height >= this.actionsRequiredSize.height;
 	}
 
-	/**
-	 * The hint to show, or `undefined` for none.
-	 */
 	private getVariant(): EmptyEditorHintVariant | undefined {
 		if (!this.shouldRenderHint()) {
 			return undefined;
@@ -266,7 +259,6 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		/** Whether the hint also offers to open the file in the Markdown Editor. */
 		private readonly offerMarkdownEditor: boolean,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
