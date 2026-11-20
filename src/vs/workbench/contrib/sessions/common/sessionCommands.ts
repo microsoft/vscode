@@ -65,6 +65,8 @@ export {
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
 export const CLOSE_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.close';
+/** Closes a chat of the chat part of an editor window. Registered in `agentsChatPartActions.ts`. */
+export const AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID = 'workbench.action.agentsView.closeChat';
 export const TOGGLE_PIN_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.togglePin';
 export const TOGGLE_PIN_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.togglePinChat';
 

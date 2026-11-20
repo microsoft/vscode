@@ -8680,7 +8680,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				},
 				_store: composerStore,
 				_sending: observableValue('sending', false),
-				_confirmingSend: observableValue('confirmingSend', false),
+				_suppressSendProgress: observableValue('suppressSendProgress', false),
 				_userInteractionSource: store.add(new MutableDisposable()),
 				_canSendRequest: constObservable(true),
 				_modelRef: { value: undefined },

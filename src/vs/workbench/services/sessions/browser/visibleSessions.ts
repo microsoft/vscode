@@ -140,11 +140,14 @@ class SessionSlotState extends Disposable implements IPaneState {
 		});
 	}
 
-	setWindowChats(resources: ReadonlySet<string>, transaction?: ITransaction): void {
+	/** `showAncestorInstead` are those of `resources` that the grid replaces with the chat they came from while active. */
+	setWindowChats(resources: ReadonlySet<string>, showAncestorInstead: ReadonlySet<string>, transaction?: ITransaction): void {
 		subtransaction(transaction, tx => {
 			this._windowChats.set(resources, tx);
-			if (resources.has(this._activeChat.get().resource.toString())) {
-				this._activeChat.set(this._defaultActiveChat(this._closedChatUris.get(), this._shownRelatedChatUris.get()), tx);
+			const activeChat = this._activeChat.get();
+			const active = activeChat.resource.toString();
+			if (resources.has(active)) {
+				this._activeChat.set(this._defaultActiveChat(this._closedChatUris.get(), this._shownRelatedChatUris.get(), showAncestorInstead.has(active) ? activeChat : undefined), tx);
 			}
 		});
 	}
@@ -245,17 +248,26 @@ class SessionSlotState extends Disposable implements IPaneState {
 	}
 
 	/**
-	 * Pick the active chat to fall back to when the current one is closed: the
-	 * last chat that would appear as a visible tab given the closed and shown-
-	 * subagent sets, or the main chat.
+	 * Pick the active chat to fall back to when the current one is closed: the nearest chat that `descendant` came from,
+	 * such as the source of a side chat, that would appear as a visible tab given the closed and shown-subagent sets, else
+	 * the last chat that would, or the main chat.
 	 */
-	private _defaultActiveChat(closed: ReadonlySet<string>, shownRelatedChats: ReadonlySet<string>): IChat {
+	private _defaultActiveChat(closed: ReadonlySet<string>, shownRelatedChats: ReadonlySet<string>, descendant?: IChat): IChat {
 		const candidates = this._session.chats.get().filter(c =>
 			!this._detachedChats.get().has(c.resource.toString()) &&
 			!this._windowChats.get().has(c.resource.toString()) &&
 			c.interactivity.get() !== ChatInteractivity.Hidden &&
 			!closed.has(c.resource.toString()) &&
 			(c.origin?.kind !== ChatOriginKind.Tool || shownRelatedChats.has(c.resource.toString())));
+		const chats = this._session.chats.get();
+		const visited = new Set<string>();
+		for (let ancestor = descendant?.origin?.parentChat?.toString(); ancestor && !visited.has(ancestor); ancestor = chats.find(c => c.resource.toString() === ancestor)?.origin?.parentChat?.toString()) {
+			visited.add(ancestor);
+			const candidate = candidates.find(c => c.resource.toString() === ancestor);
+			if (candidate) {
+				return candidate;
+			}
+		}
 		return candidates[candidates.length - 1] ?? this._session.mainChat.get();
 	}
 
@@ -494,26 +506,35 @@ export class VisibleSessions extends Disposable {
 	}
 
 	private _updateWindowChats(sessionId: string, transaction?: ITransaction): void {
-		this._wrappers.get(sessionId)?.setWindowChats(new Set(
-			[...this._hiddenChats].filter(([, hidden]) => hidden.sessionId === sessionId).map(([key]) => key),
-		), transaction);
+		const hidden = [...this._hiddenChats].filter(([, chat]) => chat.sessionId === sessionId);
+		this._wrappers.get(sessionId)?.setWindowChats(
+			new Set(hidden.map(([key]) => key)),
+			new Set(hidden.filter(([, chat]) => chat.showAncestorInstead > 0).map(([key]) => key)),
+			transaction,
+		);
 	}
 
-	/** Chats another host shows, such as a chat window, by chat resource: the grid does not show them. */
-	private readonly _hiddenChats = new Map<string, { readonly sessionId: string; count: number }>();
+	/**
+	 * Chats another host shows, such as a chat window, by chat resource: the grid does not show them. `showAncestorInstead`
+	 * counts the holds that show the chat it came from instead while it is the active chat.
+	 */
+	private readonly _hiddenChats = new Map<string, { readonly sessionId: string; count: number; showAncestorInstead: number }>();
 
 	/**
 	 * Hides `chat` of the session `sessionId` from the grid while the returned disposable is not disposed, such as while a
 	 * chat window shows it: its tab does not show in the session's slot. Holds may overlap; the chat shows again once all
-	 * are released.
+	 * are released. While it is the active chat, the last tab shows instead, unless `showAncestorInstead`: the nearest chat it
+	 * came from shows then, such as the source of a side chat that the side pane shows.
 	 */
-	hideChatFromGrid(sessionId: string, chatResource: URI): IDisposable {
+	hideChatFromGrid(sessionId: string, chatResource: URI, options?: { readonly showAncestorInstead?: boolean }): IDisposable {
 		const key = chatResource.toString();
+		const showAncestorInstead = options?.showAncestorInstead ? 1 : 0;
 		const hidden = this._hiddenChats.get(key);
 		if (hidden?.sessionId === sessionId) {
 			hidden.count++;
+			hidden.showAncestorInstead += showAncestorInstead;
 		} else {
-			this._hiddenChats.set(key, { sessionId, count: 1 });
+			this._hiddenChats.set(key, { sessionId, count: 1, showAncestorInstead });
 		}
 		this._updateWindowChats(sessionId);
 		let released = false;
@@ -526,6 +547,7 @@ export class VisibleSessions extends Disposable {
 			if (current?.sessionId !== sessionId) {
 				return;
 			}
+			current.showAncestorInstead -= showAncestorInstead;
 			if (--current.count === 0) {
 				this._hiddenChats.delete(key);
 			}

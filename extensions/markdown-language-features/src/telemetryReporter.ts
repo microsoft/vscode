@@ -5,16 +5,13 @@
 import { default as VSCodeTelemetryReporter } from '@vscode/extension-telemetry';
 import * as vscode from 'vscode';
 
-interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
-}
-
 export interface TelemetryReporter {
-	dispose(): void;
+	/** Flushes pending events; the returned promise resolves when they are sent. */
+	dispose(): void | Promise<void>;
 	sendTelemetryEvent(eventName: string, properties?: {
 		[key: string]: string;
+	}, measurements?: {
+		[key: string]: number;
 	}): void;
 }
 
@@ -25,36 +22,28 @@ const nullReporter = new class NullTelemetryReporter implements TelemetryReporte
 
 class ExtensionReporter implements TelemetryReporter {
 	readonly #reporter: VSCodeTelemetryReporter;
+	#disposed: Promise<void> | undefined;
 
 	constructor(
-		packageInfo: IPackageInfo
+		aiKey: string
 	) {
-		this.#reporter = new VSCodeTelemetryReporter(packageInfo.aiKey);
+		this.#reporter = new VSCodeTelemetryReporter(aiKey);
 	}
 	sendTelemetryEvent(eventName: string, properties?: {
 		[key: string]: string;
+	}, measurements?: {
+		[key: string]: number;
 	}) {
-		this.#reporter.sendTelemetryEvent(eventName, properties);
+		this.#reporter.sendTelemetryEvent(eventName, properties, measurements);
 	}
 
-	dispose() {
-		this.#reporter.dispose();
+	dispose(): Promise<void> {
+		this.#disposed ??= Promise.resolve(this.#reporter.dispose()).then(() => { });
+		return this.#disposed;
 	}
 }
 
-export function loadDefaultTelemetryReporter(): TelemetryReporter {
-	const packageInfo = getPackageInfo();
-	return packageInfo ? new ExtensionReporter(packageInfo) : nullReporter;
-}
-
-function getPackageInfo(): IPackageInfo | null {
-	const extension = vscode.extensions.getExtension('Microsoft.vscode-markdown');
-	if (extension?.packageJSON) {
-		return {
-			name: extension.packageJSON.name,
-			version: extension.packageJSON.version,
-			aiKey: extension.packageJSON.aiKey
-		};
-	}
-	return null;
+export function loadDefaultTelemetryReporter(extension: vscode.Extension<unknown>): TelemetryReporter {
+	const aiKey: unknown = extension.packageJSON?.aiKey;
+	return typeof aiKey === 'string' ? new ExtensionReporter(aiKey) : nullReporter;
 }

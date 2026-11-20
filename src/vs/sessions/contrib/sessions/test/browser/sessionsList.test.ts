@@ -7,7 +7,7 @@ import { IGitHubService } from '../../../../../workbench/contrib/sessions/browse
 import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, append, Dimension, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions, isManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -53,8 +53,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { INotificationService, NoOpNotification, Severity } from '../../../../../platform/notification/common/notification.js';
-import { NotificationText } from '../../../../../platform/notification/common/notificationMessage.js';
+import { INotificationService, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IListService, ListService, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -75,13 +74,13 @@ import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { NotificationService } from '../../../../../workbench/services/notification/common/notificationService.js';
-import { NotificationsToasts } from '../../../../../workbench/browser/parts/notifications/notificationsToasts.js';
 import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
-import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
+import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -104,6 +103,7 @@ import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatCopyKind, IChatRequestAcceptedEvent, IChatService, IChatToolInvocation, IChatUserActionEvent } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -6006,6 +6006,10 @@ suite('Sessions - SessionsList', () => {
 						return new NoOpNotification();
 					}
 				});
+				let tours = 0;
+				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+					runScenario: async () => { tours++; return OnboardingOutcome.Aborted; },
+				}));
 				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
 				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
 				harness.instantiationService.stub(IChatService, new class extends MockChatService {
@@ -6045,7 +6049,7 @@ suite('Sessions - SessionsList', () => {
 					screenReader = true;
 				}
 				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
-				assert.deepStrictEqual({ opened, notifications: notifications.length }, { opened: 0, notifications: 0 });
+				assert.deepStrictEqual({ opened, tours, notifications: notifications.length }, { opened: 0, tours: 0, notifications: 0 });
 			});
 		}
 
@@ -6067,6 +6071,10 @@ suite('Sessions - SessionsList', () => {
 						return new NoOpNotification();
 					}
 				});
+				let tours = 0;
+				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+					runScenario: async () => { tours++; return OnboardingOutcome.Aborted; },
+				}));
 				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 				harness.instantiationService.stub(ISessionsListModelService, model);
 				let navigate = false;
@@ -6090,7 +6098,7 @@ suite('Sessions - SessionsList', () => {
 					await timeout(0);
 				};
 				await send();
-				const afterNoOp = { notifications: notifications.length, shown: shown.get()?.session.sessionId };
+				const afterNoOp = { tours, notifications: notifications.length, shown: shown.get()?.session.sessionId };
 				transaction(tx => {
 					source.status.set(SessionStatus.Completed, tx);
 					source.mainChat.status.set(SessionStatus.Completed, tx);
@@ -6101,10 +6109,164 @@ suite('Sessions - SessionsList', () => {
 
 				assert.deepStrictEqual({
 					afterNoOp,
-					afterNavigation: { notifications: notifications.length, shown: shown.get()?.session.sessionId },
+					afterNavigation: { tours, notifications: notifications.length, shown: shown.get()?.session.sessionId },
 				}, {
-					afterNoOp: { notifications: 0, shown: 'source' },
-					afterNavigation: { notifications: 1, shown: 'next' },
+					afterNoOp: { tours: 0, notifications: 0, shown: 'source' },
+					afterNavigation: { tours: 1, notifications: 0, shown: 'next' },
+				});
+			});
+		}
+
+		test('Inbox automatic spotlight respects disabled onboarding without consuming the introduction', async () => {
+			const source = buildTestSession({ id: 'source', title: 'Source' });
+			const harness = createListHarness(disposables, [source.session]);
+			const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configuration.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, false);
+			stubSessionHosts(harness.instantiationService, disposables, {
+				session: constObservable({ session: source.session, chat: source.session.mainChat.get() }),
+			});
+			const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+			harness.instantiationService.stub(IChatService, new class extends MockChatService {
+				override readonly onDidAcceptRequest = accepted.event;
+			});
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			let tours = 0;
+			harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+				runScenario: async id => {
+					tours++;
+					const payload = onboardingScenarioRegistry.getScenario(id)!.presentation.payload as ISpotlightPayload;
+					const [step] = await payload.resolveSteps!();
+					step.onDidShow?.();
+					return OnboardingOutcome.Completed;
+				},
+			}));
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			const send = async () => {
+				transaction(tx => {
+					source.status.set(SessionStatus.Completed, tx);
+					source.mainChat.status.set(SessionStatus.Completed, tx);
+				});
+				list.update();
+				transaction(tx => {
+					source.status.set(SessionStatus.InProgress, tx);
+					source.mainChat.status.set(SessionStatus.InProgress, tx);
+				});
+				accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+				await timeout(0);
+			};
+			const storage = harness.instantiationService.get(IStorageService);
+			const state = () => ({ tours, explained: storage.getBoolean('sessionsListControl.inboxAutoAdvanceExplained', StorageScope.PROFILE, false) });
+			await send();
+			const disabled = state();
+			await configuration.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, true);
+			await send();
+
+			assert.deepStrictEqual({ disabled, enabled: state() }, {
+				disabled: { tours: 0, explained: false },
+				enabled: { tours: 1, explained: true },
+			});
+		});
+
+		for (const reason of ['hidden', 'grouping', 'disabled', 'aborted'] as const) {
+			test(`Inbox automatic spotlight retries after ${reason} before showing and suppresses duplicate pending tours`, async () => {
+				const source = buildTestSession({ id: 'source', title: 'Source' });
+				const harness = createListHarness(disposables, [source.session]);
+				const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+				stubSessionHosts(harness.instantiationService, disposables, {
+					session: constObservable({ session: source.session, chat: source.session.mainChat.get() }),
+				});
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				const releaseFirst = new DeferredPromise<void>();
+				const firstFinished = new DeferredPromise<void>();
+				let tours = 0;
+				let resolved = 0;
+				let cancelled = false;
+				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+					runScenario: async (id, token) => {
+						tours++;
+						if (tours === 1) {
+							const listener = disposables.add(token!.onCancellationRequested(() => {
+								cancelled = true;
+								void releaseFirst.complete();
+							}));
+							await releaseFirst.p;
+							listener.dispose();
+							void firstFinished.complete();
+							return OnboardingOutcome.Aborted;
+						}
+						const payload = onboardingScenarioRegistry.getScenario(id)!.presentation.payload as ISpotlightPayload;
+						const [step] = await payload.resolveSteps!();
+						resolved++;
+						step.onDidShow?.();
+						return OnboardingOutcome.Completed;
+					},
+				}));
+				let grouping = SessionsGrouping.Inbox;
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => grouping, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+				}));
+				list.layout(600, 400);
+				const send = async () => {
+					transaction(tx => {
+						source.status.set(SessionStatus.Completed, tx);
+						source.mainChat.status.set(SessionStatus.Completed, tx);
+					});
+					list.update();
+					transaction(tx => {
+						source.status.set(SessionStatus.InProgress, tx);
+						source.mainChat.status.set(SessionStatus.InProgress, tx);
+					});
+					accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					await timeout(0);
+				};
+				const storage = harness.instantiationService.get(IStorageService);
+				const state = () => ({
+					tours, resolved,
+					explained: storage.getBoolean('sessionsListControl.inboxAutoAdvanceExplained', StorageScope.PROFILE, false),
+					registered: !!onboardingScenarioRegistry.getScenario('sessions.inboxAutoAdvance'),
+				});
+				await send();
+				const pending = state();
+				await send();
+				const duplicate = state();
+				if (reason === 'hidden') {
+					list.setVisible(false);
+				} else if (reason === 'grouping') {
+					grouping = SessionsGrouping.Workspace;
+					list.update();
+				} else if (reason === 'disabled') {
+					await configuration.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, false);
+					configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+						affectsConfiguration: key => key === ONBOARDING_ENABLED_CONFIG,
+					}));
+				} else {
+					await releaseFirst.complete();
+				}
+				await firstFinished.p;
+				await timeout(0);
+				const afterCancellation = { ...state(), cancelled };
+				await configuration.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, true);
+				grouping = SessionsGrouping.Inbox;
+				list.setVisible(true);
+				await send();
+				await send();
+
+				assert.deepStrictEqual({ pending, duplicate, afterCancellation, retried: state() }, {
+					pending: { tours: 1, resolved: 0, explained: false, registered: true },
+					duplicate: { tours: 1, resolved: 0, explained: false, registered: true },
+					afterCancellation: { tours: 1, resolved: 0, explained: false, registered: false, cancelled: reason !== 'aborted' },
+					retried: { tours: 2, resolved: 1, explained: true, registered: false },
 				});
 			});
 		}
@@ -6114,13 +6276,20 @@ suite('Sessions - SessionsList', () => {
 			{ hasNext: false, action: 'gotIt' },
 			{ hasNext: true, action: 'keyboard' },
 			{ hasNext: false, action: 'keyboard' },
+			{ hasNext: true, action: 'rerender' },
+			{ hasNext: true, action: 'settings' },
 		] as const) {
-			test(`Inbox explains the first automatic move with a settings link and an opt-in session spotlight (next: ${hasNext}, action: ${action})`, async () => {
-				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
-				disposables.add(toDisposable(() => clock.restore()));
+			test(`Inbox automatically spotlights the moved session once (next: ${hasNext}, action: ${action})`, async () => {
 				const source = buildTestSession({ id: 'source', title: 'Source' });
 				const next = buildTestSession({ id: 'next', title: 'Next', minutesAgo: 1 });
 				const harness = createListHarness(disposables, hasNext ? [source.session, next.session] : [source.session]);
+				const settingsQueries: (string | undefined)[] = [];
+				harness.instantiationService.stub(IPreferencesService, upcastPartial<IPreferencesService>({
+					openSettings: async options => {
+						settingsQueries.push(options?.query);
+						return undefined;
+					},
+				}));
 				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
 				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
 				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
@@ -6140,30 +6309,40 @@ suite('Sessions - SessionsList', () => {
 						notification.close();
 					}
 				}));
-				const toasts = disposables.add(harness.instantiationService.createInstance(NotificationsToasts, harness.createContainer(), notificationService.model));
-				toasts.layout(new Dimension(1024, 600));
-				const toastVisible = Event.toPromise(toasts.onDidChangeVisibility);
 				const tours: { targetIsSource: boolean; hasDismissButton: boolean; targetInteractive: boolean | undefined; role: string | null; focusRestored: boolean; keyboardReturnFocused: boolean | undefined }[] = [];
+				const tourShown = new DeferredPromise<void>();
+				const dismissTour = new DeferredPromise<void>();
 				const tourFinished = new DeferredPromise<void>();
 				let tourId: string | undefined;
 				let targetId: string | undefined;
+				let navigationExplained = false;
+				let settingsLinkFocused: boolean | undefined;
 				const focusTarget = append(harness.createContainer(), $('button'));
 				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
-					runScenario: async id => {
+					runScenario: async (id, token) => {
 						tourId = id;
+						const aborted = disposables.add(new Emitter<void>());
+						if (token) {
+							disposables.add(token.onCancellationRequested(() => aborted.fire()));
+						}
 						const scenario = onboardingScenarioRegistry.getScenario(id)!;
 						const payload = scenario.presentation.payload as ISpotlightPayload;
 						const step = (await payload.resolveSteps!())[0];
 						targetId = step.targetId;
+						const description = typeof step.description === 'string' ? step.description : step.description.value;
+						navigationExplained = description.includes(hasNext ? 'Inbox opened the next session.' : 'Inbox is now empty.');
 						const layout = new class extends TestLayoutService {
 							override getContainer() { return mainWindow.document.body; }
 						}();
 						const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), harness.instantiationService.get(IContextKeyService), new TestConfigurationService(), NullTelemetryService));
 						const shownTour = new DeferredPromise<void>();
+						const previousFocus = mainWindow.document.activeElement;
 						const result = presentation.run({ ...scenario, presentation: { ...scenario.presentation, payload: { steps: [step] } } }, {
-							targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shownTour.complete(); },
+							targetWindow: mainWindow, onAbort: aborted.event, onDidShow: () => { void shownTour.complete(); },
 						});
 						await shownTour.p;
+						void tourShown.complete();
+						await dismissTour.p;
 						const callout = mainWindow.document.querySelector<HTMLElement>('.spotlight-callout')!;
 						const targetIsSource = resolveOnboardingTarget(mainWindow, step.targetId)?.element.closest('.monaco-list-row') === list.getItemRow({ session: source.session.resource });
 						const role = callout.getAttribute('role');
@@ -6174,6 +6353,11 @@ suite('Sessions - SessionsList', () => {
 							const returnButton = Array.from(callout.querySelectorAll<HTMLElement>('.monaco-button')).find(button => button.textContent === 'Return to Session')!;
 							keyboardReturnFocused = mainWindow.document.activeElement === returnButton;
 							returnButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+						} else if (action === 'settings') {
+							dismiss.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true }));
+							const link = callout.querySelector<HTMLElement>('.spotlight-callout-description a')!;
+							settingsLinkFocused = mainWindow.document.activeElement === link;
+							link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 						} else if (action === 'escape') {
 							dismiss.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 						} else {
@@ -6184,7 +6368,7 @@ suite('Sessions - SessionsList', () => {
 							targetIsSource,
 							hasDismissButton: step.endTourLabel === 'Got It',
 							targetInteractive: step.allowTargetInteraction,
-							role, focusRestored: mainWindow.document.activeElement === focusTarget, keyboardReturnFocused,
+							role, focusRestored: mainWindow.document.activeElement === previousFocus, keyboardReturnFocused,
 						});
 						void tourFinished.complete();
 						return outcome;
@@ -6215,22 +6399,26 @@ suite('Sessions - SessionsList', () => {
 					accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
 					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 				};
-				await send();
-				const notificationsBeforeOpen = notifications.length;
-				await opening.complete();
-				await toastVisible;
-				clock.tick(10_001);
-				const visibleAfterTimeout = toasts.isVisible;
-				toasts.dispose();
-				await timeout(0);
-				const toursBeforeAction = tours.length;
-				const [severity, message, choices] = notifications[0];
-				const links = message instanceof NotificationText ? message.nodes.filter(node => typeof node !== 'string') : [];
 				focusTarget.focus();
-				await notificationService.model.notifications[0].actions!.primary![0].run();
+				await send();
+				const toursBeforeOpen = tourId ? 1 : 0;
+				await opening.complete();
+				await tourShown.p;
+				if (action === 'rerender') {
+					const returnButton = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.spotlight-callout .monaco-button')).find(button => button.textContent === 'Return to Session')!;
+					returnButton.focus();
+					list.setItemCollapsed({ section: SessionInboxSection.Working }, true);
+					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					list.setItemCollapsed({ section: SessionInboxSection.Working }, false);
+					await retry(async () => {
+						assert.strictEqual(mainWindow.document.querySelector<HTMLElement>('.spotlight-overlay')?.style.display, '');
+					}, 10, 100);
+					assert.strictEqual(mainWindow.document.activeElement, returnButton);
+				}
+				await dismissTour.complete();
 				await tourFinished.p;
 				await timeout(0);
-				const notificationsAfterAction = notificationService.model.notifications.length;
 				const shownAfterAction = shown.get()?.session.sessionId;
 				const targetReleased = resolveOnboardingTarget(mainWindow, targetId!) === undefined;
 				list.dispose();
@@ -6245,19 +6433,17 @@ suite('Sessions - SessionsList', () => {
 				await timeout(0);
 
 				assert.deepStrictEqual({
-					notificationsBeforeOpen, severity, notifications: notifications.length, visibleAfterTimeout, notificationsAfterAction, toursBeforeAction, tours,
-					linkArguments: links.map(link => JSON.parse(decodeURIComponent(URI.parse(link.href).query))),
-					linkCommands: links.map(link => URI.parse(link.href).path),
-					showSession: choices[0].label,
+					toursBeforeOpen, notifications: notifications.length, tours, navigationExplained,
 					sourceOpenRequests, shownAfterAction,
 					targetReleased, tourReleased: onboardingScenarioRegistry.getScenario(tourId!),
+					settingsQueries, settingsLinkFocused,
 				}, {
-					notificationsBeforeOpen: hasNext ? 0 : 1, severity: Severity.Info, notifications: 1, visibleAfterTimeout: true, notificationsAfterAction: 0, toursBeforeAction: 0,
+					toursBeforeOpen: hasNext ? 0 : 1, notifications: 0, navigationExplained: true,
 					tours: [{ targetIsSource: true, hasDismissButton: true, targetInteractive: true, role: 'dialog', focusRestored: true, keyboardReturnFocused: action === 'keyboard' ? true : undefined }],
-					linkArguments: [[`@id:${SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING}`]],
-					linkCommands: ['workbench.action.openSettings'],
-					showSession: 'Show Session', targetReleased: true, tourReleased: undefined,
+					targetReleased: true, tourReleased: undefined,
 					sourceOpenRequests: action === 'keyboard' ? 1 : 0, shownAfterAction: action === 'keyboard' || !hasNext ? 'source' : 'next',
+					settingsQueries: action === 'settings' ? [`@id:${SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING}`] : [],
+					settingsLinkFocused: action === 'settings' ? true : undefined,
 				});
 			});
 		}
@@ -13563,6 +13749,32 @@ suite('Sessions - SessionsList', () => {
 					{ title: 'Side chat', last: true },
 				]
 			);
+		});
+
+		test('does not list side chats below their session while side chats show in the side pane', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const side = createChat('Side chat', ChatOriginKind.SideChat);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer, side]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const inSidePane = observableValue('sideChatsInSidePane', true);
+			const { container, list } = renderSessionChatsList(session, undefined, false, true, false, instantiationService => {
+				instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane });
+			});
+			const shownInSidePane = chatRowTitles(container);
+			inSidePane.set(false, undefined);
+			list.update();
+			setSessionChatsExpanded(container, true);
+
+			assert.deepStrictEqual({ shownInSidePane, shownAsChats: chatRowTitles(container) }, {
+				shownInSidePane: ['Peer chat'],
+				shownAsChats: ['Peer chat', 'Side chat'],
+			});
 		});
 
 		test('updates nested chat rows when the session chat catalog changes', async () => {

@@ -238,6 +238,29 @@ export class AgentHostGitService implements IAgentHostGitService {
 		this._repositoryRoots.set(roots, undefined);
 	}
 
+	/**
+	 * Forgets the cached repository roots of a removed worktree, so lookups stop resolving to a checkout that is gone.
+	 * Entries cached under the worktree's canonical path, which git reports as the root, are forgotten too.
+	 */
+	private async _forgetRepositoryRoots(worktree: URI): Promise<void> {
+		const removedRoots = [worktree, await this._canonicalizeWorktreePath(worktree)];
+		const roots = this._repositoryRoots.get();
+		const cachedRoot = roots.peek(extUriBiasedIgnorePathCase.getComparisonKey(worktree));
+		if (cachedRoot) {
+			removedRoots.push(cachedRoot);
+		}
+		const isRemoved = (resource: URI) => removedRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(resource, root));
+		// Collect the keys first: the cache throws when it is modified during iteration.
+		const keys = [...roots].filter(([key, root]) => isRemoved(URI.parse(key)) || (root !== undefined && isRemoved(root))).map(([key]) => key);
+		if (keys.length === 0) {
+			return;
+		}
+		for (const key of keys) {
+			roots.delete(key);
+		}
+		this._repositoryRoots.set(roots, undefined);
+	}
+
 	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined> {
 		if (workingDirectory.scheme !== Schemas.file) {
 			return undefined;
@@ -509,6 +532,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				if (!isRetryableWorktreeRemovalError(error)) {
 					if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 						await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
+						await this._forgetRepositoryRoots(worktree);
 						return;
 					}
 					throw error;
@@ -517,6 +541,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// A zero exit is not proof of success (see the doc above), so confirm de-registration.
 			if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 				await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
+				await this._forgetRepositoryRoots(worktree);
 				return;
 			}
 			if (gitCommandSucceeded) {
