@@ -4461,7 +4461,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	/* Code blocks are laid out to the width of the bubble, so the bubble can't size itself to them */
-	.interactive-item-container.interactive-request .value .rendered-markdown:has(.interactive-result-code-block) {
+	.interactive-item-container.interactive-request .value .rendered-markdown.chat-markdown-has-code-block {
 		width: 100%;
 	}
 
