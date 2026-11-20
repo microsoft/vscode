@@ -1772,6 +1772,7 @@ export namespace CustomAgent {
 		const visibility = {
 			userInvocable: ast.header.userInvocable !== false,
 			agentInvocable: ast.header.infer !== undefined ? ast.header.infer === true : ast.header.disableModelInvocation !== true,
+			...(ast.header.getAttribute(PromptHeaderAttributes.vscode) ? { pickerWhenSelected: true } : {}),
 		} satisfies ICustomAgentVisibility;
 
 		let model = ast.header.model;

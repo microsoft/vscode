@@ -33,7 +33,7 @@ import { ChatPhoneInputPresenterRequest, IChatPhoneInputPresenter, IChatPhoneInp
 import { IModePickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modePickerActionItem.js';
 import { IModelPickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelProviderIcons.js';
-import { IChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
+import { IChatMode, isChatModeOfferedInPicker } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelConfigurationAccess } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { buildSpeedVariants } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerVariants.js';
@@ -522,7 +522,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 		if (modeDelegate) {
 			const modes = modeDelegate.currentChatModes.get();
 			const currentMode = modeDelegate.currentMode.get();
-			[...modes.builtin, ...modes.custom].forEach((mode, index) => {
+			[...modes.builtin, ...modes.custom.filter(mode => isChatModeOfferedInPicker(mode, currentMode))].forEach((mode, index) => {
 				const icon = mode.icon.get();
 				items.push({
 					id: registerAction({ kind: 'mode', mode }),

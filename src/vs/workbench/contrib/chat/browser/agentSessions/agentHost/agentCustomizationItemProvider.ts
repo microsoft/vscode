@@ -358,7 +358,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				agentInstructions: { content: '', toolReferences: [] },
 				visibility: {
 					agentInvocable: true,
-					userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false
+					userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false,
+					...(meta['vscode.pickerWhenSelected'] ? { pickerWhenSelected: true } : {}),
 				},
 				target: Target.Undefined
 			} satisfies ICustomAgent;

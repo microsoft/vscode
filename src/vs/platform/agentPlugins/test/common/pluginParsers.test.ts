@@ -400,7 +400,7 @@ suite('pluginParsers', () => {
 			const agents = await readAgentComponents([uri], fileService);
 			const customization = toParsedAgent(agents[0]).customization;
 			assert.deepStrictEqual({ model: customization.model, meta: customization._meta }, {
-				model: 'missing', meta: { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required', 'vscode.welcomeMessage': 'Hello reviewer\n' },
+				model: 'missing', meta: { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required', 'vscode.welcomeMessage': 'Hello reviewer\n', 'vscode.pickerWhenSelected': true },
 			});
 		});
 

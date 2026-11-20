@@ -803,6 +803,14 @@ export interface IHandoffInfo {
 /**
  * Describes a custom agent (or built-in mode) and the handoffs it defines.
  */
+/**
+ * Whether an agent picker offers the mode. Agents meant to be opened by an extension, such as those
+ * using experimental `vscode:` options in their agent file, are offered only while they are selected.
+ */
+export function isChatModeOfferedInPicker(mode: IChatMode, currentMode: IChatMode): boolean {
+	return !mode.visibility?.get()?.pickerWhenSelected || mode.id === currentMode.id;
+}
+
 export interface ICustomAgentInfo {
 	readonly id: string;
 	readonly name: string;

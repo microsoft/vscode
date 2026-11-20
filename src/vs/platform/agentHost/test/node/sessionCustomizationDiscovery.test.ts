@@ -125,7 +125,7 @@ suite('SessionCustomizationDiscovery', () => {
 		]);
 		const agent = agentsInAgentsDir.children?.find(child => child.name === 'One');
 		assert.deepStrictEqual(agent?.type === CustomizationType.Agent ? { model: agent.model, meta: agent._meta } : undefined, {
-			model: 'missing', meta: { userInvocable: false, 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required', 'vscode.welcomeMessage': 'Hello' },
+			model: 'missing', meta: { userInvocable: false, 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required', 'vscode.welcomeMessage': 'Hello', 'vscode.pickerWhenSelected': true },
 		});
 		assert.deepStrictEqual(agentsInAgentsDir.children?.find(child => child.name === 'Two')?._meta, {
 			userInvocable: true, 'vscode.reasoningEffort': 'medium',

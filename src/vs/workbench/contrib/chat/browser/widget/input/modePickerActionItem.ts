@@ -27,7 +27,7 @@ import { observableConfigValue } from '../../../../../../platform/observable/com
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatMode, getChatModeSourceLabel, IChatMode, IChatModes } from '../../../common/chatModes.js';
+import { ChatMode, getChatModeSourceLabel, IChatMode, IChatModes, isChatModeOfferedInPicker } from '../../../common/chatModes.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
@@ -202,7 +202,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				if (target !== currentTarget && target !== Target.Undefined) {
 					return false;
 				}
-				return true;
+				return isChatModeOfferedInPicker(mode, currentMode);
 			});
 			const customModes = groupBy(
 				filteredCustomModes,
@@ -241,7 +241,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					if (isModeConsideredBuiltIn(mode, this._productService)) {
 						return shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 					}
-					return true;
+					return isChatModeOfferedInPicker(mode, currentMode);
 				});
 				const offeredModes = [...(agentMode ? [agentMode] : []), ...otherBuiltinModes, ...filteredCustomModes];
 				// Filter out 'implement' mode from the dropdown - it's available for handoffs but not user-selectable
