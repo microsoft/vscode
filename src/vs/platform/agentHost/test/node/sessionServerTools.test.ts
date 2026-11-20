@@ -28,8 +28,9 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
-import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
+import { getDelegatedMessageAttribution } from '../../node/shared/delegatedMessageAttribution.js';
 import { mintedTestChatOwner } from '../common/mintedChatUri.js';
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError } from '../../common/agentHostChatMove.js';
 import { buildOpenSessionLinkUri } from '../../common/openSessionLink.js';
@@ -91,7 +92,7 @@ suite('SessionServerTools', () => {
 		return { directory, release, associateWithChat };
 	}
 
-	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (...args: Parameters<ISessionServerToolAccessor['createChat']>) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
+	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (session: URI, chat: URI, text: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource) => void; onCreateChat?: (...args: Parameters<ISessionServerToolAccessor['createChat']>) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
 			getCredentialSource: overrides?.getCredentialSource ?? (() => undefined),
@@ -109,7 +110,8 @@ suite('SessionServerTools', () => {
 			getModelsForCredentials: overrides?.getModelsForCredentials ?? (async () => []),
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
 			restoreChat: overrides?.restoreChat ?? (async () => { }),
-			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation, credentials) => { overrides?.onPrompt?.(session, chat, prompt, delegation, credentials); }),
+			startMessage: overrides?.startMessage ?? (async (session, chat, message, credentials) => { overrides?.onPrompt?.(session, chat, message.text, readAgentMessageDelegationMeta(message), credentials); }),
+			getToolCallSource: overrides?.getToolCallSource ?? (() => undefined),
 			createChat: overrides?.createChat ?? (async (session, chat, options, credentials) => { overrides?.onCreateChat?.(session, chat, options, credentials); }),
 			prepareChatWorkingDirectory: overrides?.prepareChatWorkingDirectory ?? (async (_session, directory) => prepared(directory)),
 			renameChat: overrides?.renameChat ?? (async (session, chat, title) => { overrides?.onRenameChat?.(session, chat, title); return { title }; }),
@@ -1263,7 +1265,7 @@ suite('SessionServerTools', () => {
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		let created: IAgentCreateSessionConfig | undefined;
 		let renamed: { session: URI; chat: URI; title: string } | undefined;
-		let prompted: { chat: URI; prompt: string; delegation: Parameters<ISessionServerToolAccessor['startPrompt']>[3] } | undefined;
+		let prompted: { chat: URI; prompt: string; delegation: IAgentMessageDelegationMeta | undefined } | undefined;
 		const accessor = createAccessor({
 			onCreate: c => { created = c; },
 			onRenameChat: (session, chat, title) => { renamed = { session, chat, title }; },
@@ -1846,7 +1848,7 @@ suite('SessionServerTools', () => {
 		const group = createSessionServerToolGroup(createAccessor({
 			createSession: async () => URI.parse(`copilot:/created-${created++}`),
 			createChat: async () => { created++; },
-			startPrompt: async () => { sentMessages++; },
+			startMessage: async () => { sentMessages++; },
 		}), () => true, () => now);
 		const sessionArgs = { relationship: 'independent', workspace: workspace.toString(), prompt: 'go', title: 'Spawned Task' };
 		const chatArgs = { relationship: 'currentSession', prompt: 'go', title: 'Peer Task' };
@@ -1919,7 +1921,7 @@ suite('SessionServerTools', () => {
 		let messageLimitsEnabled = true;
 		let sentMessages = 0;
 		const messageGroup = createSessionServerToolGroup(createAccessor({
-			startPrompt: async () => { sentMessages++; },
+			startMessage: async () => { sentMessages++; },
 		}), () => messageLimitsEnabled, () => 0);
 		const messageArgs = { session: 'copilot:/s1', message: 'status' };
 		for (let i = 0; i < 100; i++) {
@@ -1948,7 +1950,7 @@ suite('SessionServerTools', () => {
 		let createdChat: { session: URI; chat: URI; options?: { title?: string; model?: ModelSelection } } | undefined;
 		let renamedChat: { session: URI; chat: URI; title: string } | undefined;
 		let createdSession = false;
-		let prompted: { session: URI; chat: URI; prompt: string; delegation: Parameters<ISessionServerToolAccessor['startPrompt']>[3] } | undefined;
+		let prompted: { session: URI; chat: URI; prompt: string; delegation: IAgentMessageDelegationMeta | undefined } | undefined;
 		const operations: string[] = [];
 		const accessor = createAccessor({
 			onCreate: () => { createdSession = true; },
@@ -2818,7 +2820,7 @@ suite('SessionServerTools', () => {
 
 	test('legacy create_chat adds a chat to the session, starts the prompt, and returns an open link', async () => {
 		let createdChat: { session: URI; chat: URI; options?: { title?: string; model?: ModelSelection } } | undefined;
-		let prompted: { session: URI; chat: URI; prompt: string; delegation: Parameters<ISessionServerToolAccessor['startPrompt']>[3] } | undefined;
+		let prompted: { session: URI; chat: URI; prompt: string; delegation: IAgentMessageDelegationMeta | undefined } | undefined;
 		const accessor = createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)],
 			onCreateChat: (session, chat, options) => { createdChat = { session, chat, options }; },
@@ -3132,7 +3134,7 @@ suite('SessionServerTools', () => {
 		const resource = 'https://api.github.com';
 		const credentials = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
 		await credentials.authenticate({ resource, token: 'calling-chat' }, [resource]);
-		const prompts: (Parameters<ISessionServerToolAccessor['startPrompt']>[4])[] = [];
+		const prompts: (IAgentHostCredentialSource | undefined)[] = [];
 		const creates: IAgentCreateSessionConfig[] = [];
 		const chats: (Parameters<ISessionServerToolAccessor['createChat']>[3])[] = [];
 		const accessor = createAccessor({
@@ -3155,7 +3157,7 @@ suite('SessionServerTools', () => {
 	});
 
 	test('send_message targets the default chat / a specific chat, refuses the current chat, and validates', async () => {
-		const prompts: { session: URI; chat: URI; prompt: string; delegation: Parameters<ISessionServerToolAccessor['startPrompt']>[3] }[] = [];
+		const prompts: { session: URI; chat: URI; prompt: string; delegation: IAgentMessageDelegationMeta | undefined }[] = [];
 		const accessor = createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
 			onPrompt: (session, chat, prompt, delegation) => { prompts.push({ session, chat, prompt, delegation }); },
@@ -3465,11 +3467,12 @@ suite('SessionServerTools', () => {
 		stateManager.dispatchServerAction(targetChat, chatTurnStarted('active-turn', 'running', new Date(0).toISOString()));
 		const group = createSessionServerToolGroup(createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace), sessionMeta('s3', SessionStatus.InProgress, workspace)],
+			getToolCallSource: chat => ({ session: 'copilot:/s1', chat, turnId: 'original-turn' }),
 		}));
 		const source = executionContext('copilot:/s1');
 		const otherSource = executionContext('copilot:/s3');
 
-		const first = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
+		const first = JSON.parse(await group.execute(stateManager, { ...source, toolCallId: 'original-call' }, SessionServerToolName.SendMessage, {
 			operation: 'send', session: targetSession, delivery: 'queue', message: 'first',
 		}));
 		const second = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
@@ -3514,6 +3517,7 @@ suite('SessionServerTools', () => {
 			processing: { action: processing.action, reason: processing.reason, status: processing.status },
 			completed: { action: completed.action, reason: completed.reason, status: completed.status },
 			queue: stateManager.getChatState(targetChat)?.queuedMessages,
+			replacementAttribution: getDelegatedMessageAttribution(queuedMessage),
 		}, {
 			notOwned: { action: 'rejected', reason: 'messageNotOwned' },
 			replaced: { action: 'replaced', revision: 2, replacedMessage: 'first' },
@@ -3522,6 +3526,7 @@ suite('SessionServerTools', () => {
 			processing: { action: 'notReplaced', reason: 'processing', status: 'processing' },
 			completed: { action: 'notReplaced', reason: 'completed', status: 'completed' },
 			queue: undefined,
+			replacementAttribution: { source: undefined, version: { messageId: first.messageId, revision: 2 } },
 		});
 		store.dispose();
 	});

@@ -56,6 +56,7 @@ import { AgentHostScheduledChatMoves, IAgentHostScheduledChatMoves } from './cha
 import { ChatMoveConfigKey, chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
 import { IAgentHostArchivedChatWorkspaceService } from './chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostSessionLifecycle, type IAgentHostSessionLifecycleAccessor } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
@@ -235,8 +236,10 @@ export function createAgentServiceComposition(
 			applyChatMove: move => callbackAdapter.sessionServerToolAccessor.applyChatMove(move),
 		}));
 		services.set(IAgentHostScheduledChatMoves, scheduledChatMoves);
+		const toolCallTracker = accessor.get(IAgentHostToolCallTracker);
 		const sessionServerToolAccessor: ISessionServerToolAccessor = {
 			...callbackAdapter.sessionServerToolAccessor,
+			getToolCallSource: (chat, toolCallId, toolName) => toolCallTracker.getToolCallSource(chat, toolCallId, toolName),
 			getChatOwner: chat => chatOwnership.getChatOwner(chat),
 			getDefaultChat: session => chatOwnership.getDefaultChat(session),
 			scheduleChatMove: (chat, turnId, move) => scheduledChatMoves.schedule(chat, turnId, move),

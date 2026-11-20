@@ -32,6 +32,7 @@ import { chatUriFormatOf, mintPeerChatUri } from '../../common/agentHostChatMint
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../agentHostSessionTitleController.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
+import { captureDelegatedMessage, getDelegatedMessageAttribution, type IToolCallSource } from './delegatedMessageAttribution.js';
 
 /**
  * Maximum `create_session` recursion depth. A user/top-level session is depth 0;
@@ -524,7 +525,7 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getCreationDefaults: (source: URI, sourceTurnId?: string) => ISessionCreationDefaults | undefined;
 	/** Restores the target session and chat before deciding whether a message must be queued. */
 	readonly restoreChat: (session: URI, chat: URI, credentials?: IAgentHostCredentialSource) => Promise<void>;
-	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource) => Promise<void>;
+	readonly startMessage: (session: URI, chat: URI, message: Message, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[]; provider?: AgentProvider }, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	/**
 	 * The agents a new chat of `session` may use (`create_session`'s `harness`): `undefined` unless chats of one session
@@ -597,6 +598,7 @@ export type ISessionServerToolMove =
 
 /** Complete dependency surface needed by the session server-tool group. */
 export interface ISessionServerToolAccessor extends IAgentServiceSessionServerToolAccessor {
+	readonly getToolCallSource: (chat: ProtocolURI, toolCallId: string, toolName: string) => IToolCallSource | undefined;
 	/** Returns whether a workspace change was scheduled. */
 	readonly requestSessionWorkspaceUpdate: (chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, credentials?: IAgentHostCredentialSource) => boolean;
 	/** Schedules a move of the calling chat for when its turn {@link turnId} ends successfully. */
@@ -1392,7 +1394,7 @@ export function isChatWorkspacelessInSession(metadata: IAgentSessionMetadata | u
 /**
  * Creates work with the requested relationship and sends its initial prompt.
  */
-export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string, enforceSpawnDepthLimit = true): Promise<ICreateSessionResult> {
+export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string, enforceSpawnDepthLimit = true, executionSource?: IToolCallSource): Promise<ICreateSessionResult> {
 	const credentials = source ? accessor.getCredentialSource(source) : undefined;
 	const modelOptions = accessor.getSessionModelOptions() !== 'off';
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
@@ -1439,7 +1441,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 				...(model !== undefined ? { model } : {}),
 				...(prepared !== undefined ? { workingDirectories: [prepared.directory] } : {}),
 				...(harnessProvider !== undefined && harnessProvider !== sessionProvider ? { provider: harnessProvider } : {}),
-			}, source, sourceTurnId, prepared?.associateWithChat);
+			}, source, sourceTurnId, executionSource, prepared?.associateWithChat);
 		} catch (error) {
 			await prepared?.release();
 			throw error;
@@ -1499,11 +1501,12 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	}
 	const chat = URI.parse(defaultChat);
 	await accessor.renameChat(session, chat, args.title);
-	await accessor.startPrompt(session, chat, args.prompt, currentSession ? {
+	const message = createAgentSessionMessage(args.prompt, currentSession ? {
 		sourceSession: currentSession.toString(),
 		sourceChat: source?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
-	} : undefined, credentials);
+	} : undefined);
+	await accessor.startMessage(session, chat, captureDelegatedMessage(message, executionSource), credentials);
 	return { relationship: args.relationship, session: session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(session) };
 }
 
@@ -1627,7 +1630,7 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	return { session, prompt, ...(title !== undefined ? { title } : {}), ...(model !== undefined ? { model } : {}) };
 }
 
-async function createChat(accessor: ISessionServerToolAccessor, args: ICreateChatRequest, source?: URI, sourceTurnId?: string, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
+async function createChat(accessor: ISessionServerToolAccessor, args: ICreateChatRequest, source?: URI, sourceTurnId?: string, executionSource?: IToolCallSource, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
 	const credentials = source ? accessor.getCredentialSource(source) : undefined;
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
 	const chat = URI.parse(mintPeerChatUri(chatUriFormatOf(accessor.getDefaultChat(args.session.toString())), args.session.toString()));
@@ -1641,16 +1644,17 @@ async function createChat(accessor: ISessionServerToolAccessor, args: ICreateCha
 	if (args.title !== undefined) {
 		await accessor.renameChat(args.session, chat, args.title);
 	}
-	await accessor.startPrompt(args.session, chat, args.prompt, currentSession ? {
+	const message = createAgentSessionMessage(args.prompt, currentSession ? {
 		sourceSession: currentSession.toString(),
 		sourceChat: source?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
-	} : undefined, credentials);
+	} : undefined);
+	await accessor.startMessage(args.session, chat, captureDelegatedMessage(message, executionSource), credentials);
 	return { session: args.session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(args.session, getAgentHostChatId(chat)) };
 }
 
 /** Executes the retired `create_chat` contract for sessions that advertised it previously. */
-export async function applyCreateChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateChatResult> {
+export async function applyCreateChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string, executionSource?: IToolCallSource): Promise<ICreateChatResult> {
 	const sessions = await accessor.listSessions();
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
 	const { model: requestedModel, ...args } = getCreateChatArgs(rawArgs, sessions, accessor.getModels(), currentSession);
@@ -1658,7 +1662,7 @@ export async function applyCreateChatTool(accessor: ISessionServerToolAccessor, 
 	const targetProvider = (await accessor.getSession(args.session))?.provider ?? AgentSession.provider(args.session);
 	// The calling chat's model is inherited only by a chat of the same agent.
 	const model = requestedModel !== undefined ? { id: requestedModel.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
-	return createChat(accessor, { ...args, ...(model !== undefined ? { model } : {}) }, source, sourceTurnId);
+	return createChat(accessor, { ...args, ...(model !== undefined ? { model } : {}) }, source, sourceTurnId, executionSource);
 }
 
 /** Builds the model-facing `create_chat` result. */
@@ -1863,7 +1867,7 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 
 const sendMessageSequencers = new WeakMap<ISessionServerToolAccessor, SequencerByKey<string>>();
 
-export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string, stateManager?: AgentHostStateManager): Promise<string> {
+export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string, stateManager?: AgentHostStateManager, executionSource?: IToolCallSource): Promise<string> {
 	const credentials = currentChannel ? accessor.getCredentialSource(URI.parse(currentChannel)) : undefined;
 	const sessions = await accessor.listSessions();
 	const args = getSendMessageArgs(rawArgs, sessions, accessor.getDefaultChat);
@@ -1875,7 +1879,7 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 	const sourceSession = sourceChat ? currentSessionUri(accessor, sourceChat.toString()) : undefined;
 	const openLink = buildOpenSessionLinkUri(session, chatId);
 	if (args.operation !== 'send') {
-		return applyPendingMessageOperation(args, openLink, sourceChat, sourceSession, sourceTurnId, stateManager);
+		return applyPendingMessageOperation(args, openLink, sourceChat, sourceSession, sourceTurnId, stateManager, executionSource);
 	}
 
 	const messageId = generateUuid();
@@ -1887,6 +1891,7 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 		messageId,
 		revision,
 	} : undefined;
+	const message = captureDelegatedMessage(createAgentSessionMessage(args.message, delegation), executionSource, { messageId, revision });
 	if (args.delivery === 'steer') {
 		const targetState = stateManager?.getChatState(chat.toString());
 		if (!stateManager || !targetState?.activeTurn) {
@@ -1907,7 +1912,7 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 			type: ActionType.ChatPendingMessageSet,
 			kind: PendingMessageKind.Steering,
 			id: messageId,
-			message: createAgentSessionMessage(args.message, delegation),
+			message,
 		}, credentials);
 		return JSON.stringify({ action: 'steered', messageId, revision, status: 'processing', openLink });
 	}
@@ -1927,11 +1932,11 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 				type: ActionType.ChatPendingMessageSet,
 				kind: PendingMessageKind.Queued,
 				id: messageId,
-				message: createAgentSessionMessage(args.message, delegation),
+				message,
 			}, credentials);
 			return JSON.stringify({ action: 'queued', messageId, revision, status: 'pending', openLink });
 		}
-		await accessor.startPrompt(session, chat, args.message, delegation, credentials);
+		await accessor.startMessage(session, chat, message, credentials);
 		return JSON.stringify({ action: 'started', messageId, revision, status: 'processing', openLink });
 	});
 }
@@ -1959,6 +1964,7 @@ function applyPendingMessageOperation(
 	sourceSession: URI | undefined,
 	sourceTurnId: string | undefined,
 	stateManager: AgentHostStateManager | undefined,
+	executionSource: IToolCallSource | undefined,
 ): string {
 	const state = stateManager?.getChatState(args.chat.toString());
 	const managed = findAgentSessionMessage(state, args.messageId);
@@ -2020,11 +2026,15 @@ function applyPendingMessageOperation(
 		messageId: args.messageId,
 		revision,
 	};
+	const previousVersion = getDelegatedMessageAttribution(managed.message)?.version;
+	const version = previousVersion?.messageId === args.messageId && previousVersion.revision === args.expectedRevision
+		? { messageId: args.messageId, revision } : undefined;
+	const message = createAgentSessionMessage(args.message, updatedDelegation, managed.message);
 	stateManager!.dispatchServerAction(args.chat.toString(), {
 		type: ActionType.ChatPendingMessageSet,
 		kind: managed.kind,
 		id: args.messageId,
-		message: createAgentSessionMessage(args.message, updatedDelegation, managed.message),
+		message: captureDelegatedMessage(message, executionSource, version),
 	});
 	return JSON.stringify({
 		action: 'replaced',
@@ -2625,6 +2635,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				throw new Error(`Session server tool "${toolName}" cannot run: the group was built without a session accessor.`);
 			}
 			const currentChannel = context.chatUri;
+			const executionSource = () => context.toolCallId ? accessor.getToolCallSource(currentChannel, context.toolCallId, toolName) : undefined;
 			const enforceAgentOrchestrationLimits = areAgentOrchestrationLimitsEnabled();
 			switch (toolName) {
 				case SessionServerToolName.ListSessions:
@@ -2654,7 +2665,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					if (limitMessage) {
 						throw new Error(limitMessage);
 					}
-					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId, enforceAgentOrchestrationLimits);
+					const result = await applyCreateSessionTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId, enforceAgentOrchestrationLimits, executionSource());
 					limiter.record(sourceSession);
 					return formatCreateSessionResult(result);
 				}
@@ -2664,7 +2675,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					if (limitMessage) {
 						throw new Error(limitMessage);
 					}
-					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
+					const result = await applyCreateChatTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId, executionSource());
 					createdChats.record(sourceSession);
 					return formatCreateChatResult(result);
 				}
@@ -2679,7 +2690,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					if (limitMessage) {
 						throw new Error(limitMessage);
 					}
-					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
+					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager, executionSource());
 					if (operation === 'send') {
 						sentMessages.record(sendingSession);
 					}

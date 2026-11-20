@@ -7,7 +7,6 @@ import type { LanguageModelToolApprovalClassification, LanguageModelToolInvokedC
 import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
-import { hasKey } from '../../../base/common/types.js';
 import { isUUID } from '../../../base/common/uuid.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentSession, type AgentCanvasOpenFailure, type AgentSubagentKind, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary, type IAgentTelemetryContext, type IAgentTurnInteraction } from '../common/agent.js';
@@ -20,7 +19,7 @@ import { readAgentErrorTelemetryMeta } from '../common/meta/errorMeta.js';
 import { readLocalModelRowMeta } from '../common/meta/localModelStatus.js';
 import type { IAgentMetadataSource } from '../common/meta/metadata.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
-import { readAgentMessageDelegationMeta } from '../common/meta/agentMessageDelegationMeta.js';
+import { getDelegatedMessageAttribution } from './shared/delegatedMessageAttribution.js';
 import type { McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 import type { SessionArtifactAddOutcome } from '../common/sessionArtifactCollection.js';
 import type { SessionArtifactType } from '../common/sessionArtifacts.js';
@@ -86,20 +85,21 @@ type AgentHostProviderTimingClassification = IAgentHostEventClassification & {
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
 function getDelegationTelemetry(message: Message) {
-	const delegation = message.origin.kind === MessageKind.Agent ? readAgentMessageDelegationMeta(message) : undefined;
-	if (!delegation || !hasKey(delegation, { sourceSession: true })) {
+	const attribution = message.origin.kind === MessageKind.Agent ? getDelegatedMessageAttribution(message) : undefined;
+	if (!attribution) {
 		return undefined;
 	}
-	// Delegation metadata can come from a client. Only opaque IDs enter standard telemetry.
-	const sourceSessionId = /^[a-z][a-z0-9+.-]*:\/(?<id>[^/?#]+)$/i.exec(delegation.sourceSession)?.groups?.id;
-	const { sourceTurnId, messageId, revision } = delegation;
+	const { source, version } = attribution;
+	const sessionId = source && AgentSession.id(source.session);
 	return {
-		...(sourceSessionId && isUUID(sourceSessionId) ? { sourceAgentSessionId: sourceSessionId } : {}),
-		...(delegation.sourceChat ? { sourceChatSessionId: getTelemetryChatSessionId(delegation.sourceChat) } : {}),
-		...(sourceTurnId && isUUID(sourceTurnId.replace(/^request_/, '')) ? { sourceTurnId } : {}),
-		...(messageId && isUUID(messageId) ? {
-			delegationMessageId: messageId,
-			...(revision !== undefined && Number.isSafeInteger(revision) && revision > 0 ? { delegationMessageRevision: revision } : {}),
+		...(source && sessionId && isUUID(sessionId) && isUUID(source.turnId.replace(/^request_/, '')) ? {
+			sourceAgentSessionId: sessionId,
+			sourceChatSessionId: getTelemetryChatSessionId(source.chat),
+			sourceTurnId: source.turnId,
+		} : {}),
+		...(version && isUUID(version.messageId) && Number.isSafeInteger(version.revision) && version.revision > 0 ? {
+			delegationMessageId: version.messageId,
+			delegationMessageRevision: version.revision,
 		} : {}),
 	};
 }

@@ -44,7 +44,7 @@ import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliCon
 import { AgentHostStartupPerformance, type IAgentHostStartupPerformance, type IAgentHostStartupMetrics } from '../../node/agentHostStartupPerformance.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
-import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorrelation.js';
+import { getTelemetryChatSessionId, getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
@@ -36095,6 +36095,61 @@ suite('AgentService (node dispatcher)', () => {
 				materializeCalls: 1,
 				transcript: [{ turn: 1, state: 'complete', user: 'Remember this', assistant: 'Remembered' }],
 			});
+		});
+
+		test('delegation admission attributes a queued replacement to its worker, not the active parent or original sender', async () => {
+			const rows: ITelemetryData[] = [];
+			const telemetry = new class extends NullTelemetryServiceShape {
+				override publicLog2(name?: string, data?: ITelemetryData): void {
+					if (name === 'agentHost.userMessageSent' && data?.messageActorKind === MessageKind.Agent) {
+						rows.push(data);
+					}
+				}
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, telemetry));
+			let host!: IAgentServerToolHost;
+			registerTestAgentProvider(svc, Object.assign(copilotAgent, { setServerToolHost: (value: IAgentServerToolHost) => { host = value; } }));
+			const state = getStateManager(svc);
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const parent = buildDefaultChatUri(session);
+			const first = generateUuid();
+			const successor = generateUuid();
+			const toolStart = (toolName: string, toolCallId: string, turnId: string, parentToolCallId?: string) => copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parent), parentToolCallId,
+				action: { type: ActionType.ChatToolCallStart, toolName, displayName: toolName, toolCallId, turnId },
+			});
+			await svc.dispatchAction(parent, chatTurnStarted(first, 'Delegate'), 'client', 1);
+			toolStart(SessionServerToolName.CreateSession, 'create', first);
+			await host.executeTool(parent, SessionServerToolName.CreateSession, { relationship: 'independent', title: 'Target', prompt: 'Start' }, 'create');
+			const target = state.getSessionUris().find(uri => uri !== session.toString());
+			assert.ok(target);
+			const targetChat = state.getDefaultChat(target);
+			assert.ok(targetChat);
+			const targetTurn = state.getActiveTurnId(targetChat);
+			assert.ok(targetTurn);
+			const send = (callId: string, args: Record<string, unknown>) => host.executeTool(parent, SessionServerToolName.SendMessage, { ...args, session: buildOpenSessionLinkUri(target) }, callId);
+			toolStart(SessionServerToolName.SendMessage, 'send', first);
+			await send('send', { message: 'First version' });
+			const messageId = state.getChatState(targetChat)?.queuedMessages?.[0].id;
+			assert.ok(messageId);
+
+			toolStart(SessionServerToolName.CreateSession, 'pending-approval', first);
+			copilotAgent.fireProgress({ kind: 'action', resource: URI.parse(parent), action: chatTurnComplete(first, 1) });
+			await svc.dispatchAction(parent, chatTurnStarted(successor, 'Independent work'), 'client', 2);
+			copilotAgent.fireProgress({ kind: 'subagent_started', chat: URI.parse(parent), toolCallId: 'spawn', agentName: 'explore', agentDisplayName: 'Explore' });
+			const worker = state.getSessionState(session.toString())?.chats.find(chat => chat.origin?.kind === ChatOriginKind.Tool);
+			assert.ok(worker);
+			const workerTurn = state.getActiveTurnId(worker.resource);
+			assert.ok(workerTurn);
+			toolStart(SessionServerToolName.SendMessage, 'replace', successor, 'spawn');
+			await send('replace', { operation: 'replace', expectedRevision: 1, messageId, message: 'Worker revision' });
+			copilotAgent.fireProgress({ kind: 'action', resource: URI.parse(targetChat), action: chatTurnComplete(targetTurn, 1) });
+			await host.executeTool(parent, SessionServerToolName.CreateSession, { relationship: 'independent', title: 'Late approval', prompt: 'Start' }, 'pending-approval');
+			assert.deepStrictEqual(rows.map(row => [row.source, row.sourceAgentSessionId, row.sourceChatSessionId, row.sourceTurnId, row.delegationMessageId, row.delegationMessageRevision]), [
+				['direct', AgentSession.id(session), getTelemetryChatSessionId(parent), first, undefined, undefined],
+				['queued', AgentSession.id(session), getTelemetryChatSessionId(worker.resource), workerTurn, messageId, 2],
+				['direct', undefined, undefined, undefined, undefined, undefined],
+			]);
 		});
 
 		test('session creation tools inherit the calling chat model and permissions and isolate a different project', async () => {

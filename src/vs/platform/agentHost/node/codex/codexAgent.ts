@@ -96,6 +96,7 @@ import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHand
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { captureCopilotTelemetryContext } from '../shared/copilotSkuTelemetry.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isGitHubMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, shouldRecoverCommandCompletion, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
@@ -3070,8 +3071,11 @@ export class CodexAgent extends Disposable implements IAgent {
 					fullAccess = approvalPolicy === 'never' && sandboxMode === 'danger-full-access';
 				}
 				fullAccess &&= !session.agentMergeTurn;
+				const entry = session.mapState.itemToToolCall.get(params.callId);
+				const delegatesMessage = params.tool === SessionServerToolName.CreateSession || params.tool === SessionServerToolName.CreateChat || params.tool === SessionServerToolName.SendMessage;
+				// Pin the delegation call before approval; a later turn may reset or reuse the item map.
+				const delegationCallId = session.threadId === params.threadId && entry?.toolName === params.tool && entry.turnId === this._hostTurnId(session, params.turnId) ? entry.toolCallId : undefined;
 				if (host.requiresConfirmation(chatChannel, params.tool) && !fullAccess) {
-					const entry = session.mapState.itemToToolCall.get(params.callId);
 					if (!entry) {
 						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
 					}
@@ -3091,7 +3095,8 @@ export class CodexAgent extends Disposable implements IAgent {
 						return { result: this._toolFailure(`Server tool ${params.tool} was not approved`) };
 					}
 				}
-				const text = host.executeTool(chatChannel, params.tool, params.arguments, session.mapState.itemToToolCall.get(params.callId)?.toolCallId);
+				const toolCallId = delegatesMessage ? delegationCallId : session.mapState.itemToToolCall.get(params.callId)?.toolCallId;
+				const text = host.executeTool(chatChannel, params.tool, params.arguments, toolCallId);
 				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
 				return { result: this._toolFailure(`Server tool ${params.tool} failed: ${err instanceof Error ? err.message : String(err)}`) };

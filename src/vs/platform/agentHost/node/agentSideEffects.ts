@@ -1014,7 +1014,7 @@ export class AgentSideEffects extends Disposable {
 			// Stamp the tool call start for `languageModelToolInvoked` telemetry.
 			// Ready may refine the contributor once the complete tool metadata is
 			// available, so the tracker updates the source kind below when needed.
-			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, toolCallOwner, action.turnId, action.toolCallId, action.toolName, action.contributor, modelContext?.model, modelContext?.modelTelemetryKind, mcpSourceKind);
+			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, toolCallOwner, action.turnId, action.toolCallId, action.toolName, action.contributor, modelContext?.model, modelContext?.modelTelemetryKind, mcpSourceKind, signal.resource.toString());
 		} else if (action.type === ActionType.ChatToolCallReady) {
 			const mcpSourceKind = getMcpSourceKind(this._stateManager.getSessionState(sessionKey)?.customizations, action.contributor);
 			this._toolCallTracker.toolCallMetadataUpdated(sessionKey, action.toolCallId, action.contributor, mcpSourceKind);
