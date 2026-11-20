@@ -75,15 +75,6 @@ export class LRURadixTrie<T> {
 			.filter(x => x !== undefined);
 	}
 
-	/** Removes the value at a given key if any from the trie. */
-	delete(key: string): void {
-		const { node, remainingKey } = this.findClosestNode(key);
-		// If no exact match is found, do nothing.
-		if (remainingKey.length > 0) { return; }
-		// Exact match found, remove the value.
-		this.deleteNode(node);
-	}
-
 	/** Traverses the trie to find the node with the closest prefix to a given key. */
 	private findClosestNode(key: string) {
 		let hasNext = true;

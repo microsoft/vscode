@@ -3,19 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { RequestQueue } from '../../common/requestQueue.js';
 import { GitHubRequestTelemetry } from '../../common/githubRequestTelemetry.js';
-import { requestOutcome, AccountHandle, gitHubRequestDomains, RequestContext, RequestOptions } from '../../common/types.js';
 import { GitHubRestRequest, GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubRequestError } from '../../common/githubTypes.js';
+import { RequestQueue } from '../../common/requestQueue.js';
+import { AccountHandle, RequestContext, RequestOptions, gitHubRequestDomains, requestOutcome } from '../../common/types.js';
 import { FakeScheduler } from './fakeScheduler.js';
+
 
 class RecordingTelemetryService extends mock<ITelemetryService>() {
 	override telemetryLevel = TelemetryLevel.USAGE;
@@ -48,7 +51,7 @@ function context(overrides: Partial<RequestContext & { account: AccountHandle }>
 		resource: 'core',
 		priority: 'interactive',
 		deadline: 1_000,
-		signal: new AbortController().signal,
+		cancellationToken: CancellationToken.None,
 		...overrides,
 	};
 }
@@ -87,13 +90,13 @@ suite('GitHubRequestTelemetry', () => {
 			return new Response(null, { status: 304 });
 		}, scheduler, false, undefined, undefined, telemetry));
 		const request = { method: 'GET' as const, url: 'https://private-tenant.example/repos/private-owner/private-repo', caller: 'github.query', domain: 'repositories' as const };
-		const first = transport.rest(context().account, 'private-token', request, context().signal);
-		const second = transport.rest(context().account, 'private-token', { ...request, domain: 'issues' }, context().signal);
+		const first = transport.rest(context().account, 'private-token', request, context().cancellationToken);
+		const second = transport.rest(context().account, 'private-token', { ...request, domain: 'issues' }, context().cancellationToken);
 		await started.p;
 		scheduler.advanceBy(7);
 		await response.complete(new Response('{"private":"private-response"}', { headers: { ETag: '"private-validator"' } }));
 		await Promise.all([first, second]);
-		await transport.rest(context().account, 'private-token', request, context().signal);
+		await transport.rest(context().account, 'private-token', request, context().cancellationToken);
 		telemetry.flush();
 		const summary = sink.summary();
 		assert.deepStrictEqual({
@@ -242,7 +245,7 @@ suite('GitHubRequestTelemetry', () => {
 			method: 'POST',
 			url: 'https://private-tenant.example/resource',
 			body: { toJSON: () => { scheduler.advanceWallClockBy(60); return {}; } },
-		}, context().signal), { kind: 'timeout', requestDispatched: false });
+		}, context().cancellationToken), { kind: 'timeout', requestDispatched: false });
 		telemetry.flush();
 		const summary = sink.summary();
 		assert.deepStrictEqual({ calls, attempts: summary.wireAttempts, retries: summary.retries, timeouts: summary.timedOut, timers: scheduler.pendingCount }, {
@@ -330,7 +333,7 @@ suite('GitHubRequestTelemetry', () => {
 		sink.telemetryLevel = TelemetryLevel.NONE;
 		telemetry.recordWireAttempt(false, false);
 		const transport = store.add(new GitHubTransport(async () => new Response('{}'), scheduler, false, undefined, undefined, telemetry));
-		await transport.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/user' }, context().signal);
+		await transport.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/user' }, context().cancellationToken);
 		telemetry.flush();
 		assert.deepStrictEqual({ events: sink.events, timers: scheduler.pendingCount }, { events: [], timers: 0 });
 		sink.telemetryLevel = TelemetryLevel.USAGE;
@@ -378,13 +381,13 @@ suite('GitHubRequestTelemetry', () => {
 			await started.complete();
 			return response.p;
 		}, scheduler, false, undefined, { maximumSharedWaiters: 1 }, telemetry));
-		const controller = new AbortController();
+		const controller = store.add(new CancellationTokenSource());
 		const request = { method: 'GET' as const, url: 'https://github.example.test/user', domain: 'repositories' as const };
-		const pending = transport.rest(context().account, 'token', request, controller.signal);
-		const cancelled = assert.rejects(pending, /private cancellation/);
+		const pending = transport.rest(context().account, 'token', request, controller.token);
+		const cancelled = assert.rejects(pending, isCancellationError);
 		await started.p;
-		await assert.rejects(transport.rest(context().account, 'token', { ...request, domain: 'content' }, context().signal), { kind: 'overloaded' });
-		controller.abort(new Error('private cancellation'));
+		await assert.rejects(transport.rest(context().account, 'token', { ...request, domain: 'content' }, context().cancellationToken), { kind: 'overloaded' });
+		controller.cancel();
 		await cancelled;
 		await response.complete(new Response('{}'));
 		telemetry.flush();
@@ -443,8 +446,8 @@ suite('GitHubRequestTelemetry', () => {
 						: limit === 'account' ? { maximumAccountRequests: 1 } : { maximumCallerRequests: 1 }),
 				},
 			}, telemetry));
-			const first = transport.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/one', domain: 'content' }, context().signal);
-			await assert.rejects(transport.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/two', domain: 'reviews' }, context().signal), { kind: 'overloaded' });
+			const first = transport.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/one', domain: 'content' }, context().cancellationToken);
+			await assert.rejects(transport.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/two', domain: 'reviews' }, context().cancellationToken), { kind: 'overloaded' });
 			await response.complete(new Response('{}'));
 			await first;
 			telemetry.flush();
@@ -469,7 +472,7 @@ suite('GitHubRequestTelemetry', () => {
 				data: { private: 'private-body' },
 				errors: [{ type, message: 'private-error' }],
 			})), scheduler, false, undefined, undefined, telemetry));
-			await transport.graphql(context().account, 'private-token', 'https://private-host.example/graphql', 'query PrivateOperation { viewer { login } }', { private: 'private-variable' }, context().signal);
+			await transport.graphql(context().account, 'private-token', 'https://private-host.example/graphql', 'query PrivateOperation { viewer { login } }', { private: 'private-variable' }, context().cancellationToken);
 			telemetry.flush();
 			assert.deepStrictEqual({
 				requests: sink.summary().requests,
@@ -495,7 +498,7 @@ suite('GitHubRequestTelemetry', () => {
 			}), scheduler, false, undefined, undefined, telemetry));
 			await assert.rejects(transport.rest(context().account, 'token', {
 				method: 'GET', url: 'https://github.example.test/repos/owner/repo',
-			}, context().signal), { kind: limited ? 'rateLimit' : 'authorization' });
+			}, context().cancellationToken), { kind: limited ? 'rateLimit' : 'authorization' });
 			telemetry.flush();
 			const summary = sink.summary();
 			assert.deepStrictEqual({
@@ -538,7 +541,7 @@ suite('GitHubRequestTelemetry', () => {
 			await started.complete();
 			return new Response('{}', { status: calls === 1 ? 503 : 200 });
 		}, scheduler, false, undefined, undefined, telemetry));
-		const pending = transport.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/user' }, context().signal);
+		const pending = transport.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/user' }, context().cancellationToken);
 		await started.p;
 		await Promise.resolve();
 		await Promise.resolve();
@@ -560,13 +563,13 @@ suite('GitHubRequestTelemetry', () => {
 			await started.complete();
 			return response.p;
 		}, scheduler, false, undefined, { requestTimeout: 10 }, telemetry));
-		const timedOut = assert.rejects(slow.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/user' }, context().signal), { kind: 'timeout' });
+		const timedOut = assert.rejects(slow.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/user' }, context().cancellationToken), { kind: 'timeout' });
 		await started.p;
 		scheduler.advanceBy(10);
 		await timedOut;
 		await response.complete(new Response(null, { status: 204 }));
 		const large = store.add(new GitHubTransport(async () => new Response('{}'), scheduler, false, undefined, { maximumResponseBytes: 1 }, telemetry));
-		await assert.rejects(large.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/user' }, context().signal), { kind: 'responseTooLarge' });
+		await assert.rejects(large.rest(context().account, 'token', { method: 'GET', url: 'https://github.example.test/user' }, context().cancellationToken), { kind: 'responseTooLarge' });
 		telemetry.flush();
 		assert.deepStrictEqual({
 			requests: sink.summary().requests, timedOut: sink.summary().timedOut,

@@ -215,6 +215,17 @@ suite('Sessions - Layout Actions', () => {
 		assert.deepStrictEqual(resized, [Parts.AUXILIARYBAR_PART, Parts.AUXILIARYBAR_PART, Parts.EDITOR_PART]);
 	});
 
+	test('offers the Details Position submenu in View > Appearance, not in the title bar context menu or the editor More Actions menu', () => {
+		const desktop: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true };
+		const context: IContext = { getValue: <T extends ContextKeyValue>(key: string) => desktop[key] as T | undefined };
+		// The editor toolbar offers the positions in the dropdown of Toggle Details instead.
+		const menus = [AgentsWindowMenus.TitleBarContext, Menus.SessionsEditorTitle, MenuId.MenubarAppearanceMenu].filter(menu => MenuRegistry.getMenuItems(menu)
+			.filter(isISubmenuItem)
+			.some(item => item.submenu === Menus.DetailsPosition && item.when?.evaluate(context) !== false));
+
+		assert.deepStrictEqual(menus.map(menu => menu.id), [MenuId.MenubarAppearanceMenu.id]);
+	});
+
 	test('offers floating alongside docked detail positions with only the active layout checked', async () => {
 		const configuration = new class extends TestConfigurationService {
 			override updateValue(key: string, value: unknown): Promise<void> {
@@ -256,6 +267,9 @@ suite('Sessions - Layout Actions', () => {
 			}),
 			separateEntries: [AgentsWindowMenus.TitleBarContext, Menus.SessionsEditorTitle, MenuId.MenubarAppearanceMenu].flatMap(menu =>
 				MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentSessions.toggleFloatingDetails')),
+			// The dropdown of the Toggle Details split button offers the same entries, after the view modes the Changes editor adds.
+			toggleDetailsDropdown: MenuRegistry.getMenuItems(Menus.DetailsToggle).filter(isIMenuItem).filter(item => item.group === '2_organize')
+				.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(item => ({ group: item.group, command: item.command })),
 		}, {
 			enabled: ['bottom', true],
 			top: ['workbench.action.agentSessions.detailsPosition.top'],
@@ -271,6 +285,7 @@ suite('Sessions - Layout Actions', () => {
 			menuLabels: ['Above Editor', 'Below Editor', 'Left', 'Right', 'Floating'],
 			paletteLabels: ['Move Details Above Editor', 'Move Details Below Editor', 'Move Details Left', 'Move Details Right', 'Floating Details Panel'],
 			separateEntries: [],
+			toggleDetailsDropdown: options.map(item => ({ group: '2_organize', command: item.command })),
 		});
 	});
 

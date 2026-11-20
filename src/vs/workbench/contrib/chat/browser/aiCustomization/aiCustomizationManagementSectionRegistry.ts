@@ -19,6 +19,8 @@ export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	focus?(): void;
 	fireItemCount?(): void;
 	setSearchQuery?(query: string): void;
+	/** Shows the installed extension with the given identifier, such as its page. */
+	showExtension?(extensionId: string): void;
 	setVisible?(visible: boolean): void;
 	setCloseCustomizationEditor?(closeCustomizationEditor: () => Promise<boolean>): void;
 	getAccessibilityContent?(): string;

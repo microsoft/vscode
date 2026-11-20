@@ -16,13 +16,14 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
-import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
+import { isSSHAuthenticationFailedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
 import { parseSSHGOutput } from '../../common/sshConfigParsing.js';
 import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
@@ -204,6 +205,8 @@ class MockSSHClient {
 class KeyboardInteractiveMockSSHClient {
 	ended = false;
 	connectError: Error | undefined;
+	/** Like ssh2, report a lost connection as soon as the proxy closes its output, before the proxy exits. */
+	loseConnectionWhenProxyCloses = false;
 	finishResponses: readonly string[] | undefined;
 	connectConfig: ConnectConfig | undefined;
 	readonly authMethods: string[] = [];
@@ -228,6 +231,11 @@ class KeyboardInteractiveMockSSHClient {
 		this.connectConfig = config;
 		if (this.connectError) {
 			this.fireError(this.connectError);
+			return;
+		}
+		if (this.loseConnectionWhenProxyCloses && config.sock) {
+			config.sock.on('end', () => this.fireError(new Error('Connection lost before handshake')));
+			config.sock.resume();
 			return;
 		}
 		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
@@ -565,6 +573,28 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 				}, {
 					message: expectedMessage, code: 'ECONNREFUSED', name: error.name,
 					log: [`[SSHRemoteAgentHost] SSH connection error: ${expectedMessage}`],
+				});
+				return true;
+			});
+		});
+	}
+
+	for (const level of ['client-authentication', 'client-dns', 'client-socket', 'client-timeout', undefined]) {
+		test(`classifies SSH authentication failure by level (${level}) rather than message`, async () => {
+			const connecting = disposables.add(new KeyboardInteractiveConnectTestService(
+				new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
+			const error = Object.assign(new Error(level === 'client-authentication' ? 'Credentials rejected' : 'All configured authentication methods failed'), { level });
+			connecting.client.connectError = error;
+
+			await assert.rejects(connecting.connectSSHForTest(makeConfig()), actual => {
+				assert.deepStrictEqual({
+					authenticationFailed: isSSHAuthenticationFailedError(actual),
+					sameError: actual === error,
+					message: toErrorMessage(actual),
+				}, {
+					authenticationFailed: level === 'client-authentication',
+					sameError: level !== 'client-authentication',
+					message: error.message,
 				});
 				return true;
 			});
@@ -1411,6 +1441,22 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		});
 	});
 
+	(isWindows ? test.skip : test)('reports why a ProxyCommand dropped the connection when the SSH client notices first', async () => {
+		const proxyService = disposables.add(new KeyboardInteractiveConnectTestService(new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
+		proxyService.proxyCommand = 'printf "proxy failed" >&2; exec >&-; sleep 0.1; exit 42';
+		proxyService.client.loseConnectionWhenProxyCloses = true;
+		const error = await proxyService.connectSSHForTest(makeConfig({ host: 'sandbox.sbx' })).then(() => undefined, (error: Error) => error);
+		assert.deepStrictEqual({
+			message: error?.message,
+			ended: proxyService.client.ended,
+			proxyCount: proxyService.proxyCount,
+		}, {
+			message: 'Connection lost before handshake (SSH ProxyCommand exited (42): proxy failed)',
+			ended: false,
+			proxyCount: 0,
+		});
+	});
+
 	test('manual hosts connect with their own settings when SSH configuration cannot be resolved', async () => {
 		const unresolvedService = disposables.add(new KeyboardInteractiveConnectTestService(new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
 		unresolvedService.proxyCommand = 'exit 42';
@@ -1907,8 +1953,8 @@ class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 	agentSock: string | undefined = undefined;
 	keyFiles: Map<string, Buffer> = new Map();
 
-	async testBuildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
-		return this._buildAuthAttempts(config);
+	async testBuildAuthAttempts(config: ISSHAgentHostConfig, resolved?: ISSHResolvedConfig): Promise<SSHAuthAttempt[]> {
+		return this._buildAuthAttempts(config, resolved);
 	}
 
 	protected override _isAgentAvailable(): string | undefined {
@@ -1919,6 +1965,73 @@ class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 		return this.keyFiles.get(keyPath);
 	}
 }
+
+suite('SSHRemoteAgentHostMainService - SSH config Includes', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	let directory: string;
+	let service: SSHRemoteAgentHostMainService;
+	let logService: RecordingLogService;
+
+	setup(async () => {
+		directory = await fsp.mkdtemp(join(os.tmpdir(), 'vscode-ssh-includes-'));
+		logService = new RecordingLogService();
+		service = disposables.add(new SSHRemoteAgentHostMainService(
+			logService,
+			{ _serviceBrand: undefined, quality, dataFolderName } as IProductService,
+			NullTelemetryService,
+		));
+	});
+
+	teardown(async () => {
+		await fsp.rm(directory, { recursive: true, force: true });
+	});
+
+	test('discovers the same hosts through quoted and unquoted Include paths', async () => {
+		const file = join(directory, 'ssh_config');
+		await fsp.writeFile(file, 'Host pj-jump pj-target\n');
+		const values = ['ssh_config', '"ssh_config"', JSON.stringify(file)];
+		const hosts: string[][] = [];
+		for (const value of values) {
+			hosts.push(await service['_parseSSHConfigHosts'](`Include ${value}`, directory));
+		}
+		assert.deepStrictEqual(hosts, values.map(() => ['pj-jump', 'pj-target']));
+	});
+
+	test('follows multiple quoted paths, nested Includes and globs without following comments', async () => {
+		const includeDirectory = join(directory, 'included files');
+		const globDirectory = join(directory, 'more configs');
+		await fsp.mkdir(includeDirectory);
+		await fsp.mkdir(globDirectory);
+		const jumpFile = join(includeDirectory, 'jump config');
+		const ignoredFile = join(directory, 'ignored');
+		await fsp.writeFile(jumpFile, 'Host pj-jump\nInclude "nested # config"\n');
+		await fsp.writeFile(join(includeDirectory, 'nested # config'), `Host pj-target\nInclude ${JSON.stringify(jumpFile)}\n`);
+		await fsp.writeFile(join(globDirectory, 'other.conf'), 'Host pj-other\n');
+		await fsp.writeFile(ignoredFile, 'Host must-not-appear\n');
+
+		assert.deepStrictEqual(await service['_parseSSHConfigHosts'](
+			`Include "included files/jump config" ${JSON.stringify(join(globDirectory, '*.conf'))}\t# ${JSON.stringify(ignoredFile)}`,
+			directory,
+		), ['pj-jump', 'pj-target', 'pj-other']);
+	});
+
+	test('warns about malformed Includes and continues discovering other hosts', async () => {
+		const file = join(directory, 'ssh_config');
+		await fsp.writeFile(file, 'Host included\n');
+		const hosts = await service['_parseSSHConfigHosts']([
+			'Host direct',
+			'Include "unterminated',
+			`Include "" ${JSON.stringify(file)}`,
+			`Include ${JSON.stringify(file)}`,
+		].join('\n'), directory);
+
+		assert.deepStrictEqual({ hosts, warnings: logService.warnings.length }, {
+			hosts: ['direct', 'included'],
+			warnings: 2,
+		});
+	});
+});
 
 suite('SSHRemoteAgentHostMainService - resolveSSHConfig', () => {
 
@@ -2195,6 +2308,33 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
+	});
+
+	test('Agent skips the agent and keys when SSH config disables public key authentication', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		const encrypted = openSSHPrivateKeyWithCipher('aes256-ctr');
+		service.keyFiles.set('~/.ssh/id_ed25519', encrypted);
+		const build = (sshGOutput: string) => service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }), parseSSHGOutput(sshGOutput));
+		const interactiveOnly = [{ type: 'keyboard-interactive', username: 'testuser' }];
+		const all = [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: encrypted, keyPath: '~/.ssh/id_ed25519', encrypted: true },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		];
+
+		assert.deepStrictEqual({
+			pubkeyDisabled: await build('pubkeyauthentication false\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+			publickeyNotPreferred: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,password'),
+			passwordPreferred: await build('pubkeyauthentication true\npreferredauthentications password'),
+			publickeyPreferredLast: await build('pubkeyauthentication true\npreferredauthentications keyboard-interactive,publickey'),
+			defaults: await build('pubkeyauthentication true\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+		}, {
+			pubkeyDisabled: interactiveOnly,
+			publickeyNotPreferred: interactiveOnly,
+			passwordPreferred: interactiveOnly,
+			publickeyPreferredLast: all,
+			defaults: all,
+		});
 	});
 
 	test('Agent + IdentityAgent uses configured agent endpoint before default keys', async () => {

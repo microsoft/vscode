@@ -11,6 +11,9 @@ import { isSandboxPathGrant, type ISandboxPathGrant } from '../../sandboxPathGra
 
 export const copilotCliToolInputContract = 'copilot-cli-v1';
 
+/** What the path of a native `view` tool call named. */
+export type ViewedResourceType = 'file' | 'directory';
+
 /** Anything carrying a tool call's `_meta` bag (persisted state or wire actions). */
 interface IHasToolCallMeta {
 	readonly _meta?: Record<string, unknown>;
@@ -28,6 +31,8 @@ export interface IToolCallMeta {
 	readonly 'vscode.toolCallDurationMs'?: number;
 	/** Declares the input schema of a native tool, never a client- or MCP-contributed implementation. */
 	readonly 'vscode.toolInputContract'?: typeof copilotCliToolInputContract;
+	/** What the path of a completed native `view` call named, which its input does not say. Absent when the runtime did not report it. */
+	readonly 'vscode.viewedResourceType'?: ViewedResourceType;
 	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
 	readonly 'vscode.copilotSandboxNetworkRestrictions'?: ISandboxNetworkRestrictions;
 	readonly 'agentHost.sandboxBypass'?: boolean;
@@ -62,6 +67,12 @@ export interface IToolCallMeta {
 	readonly subagentChatUri?: string;
 	/** Originating MCP server name, when the call came from an MCP server. */
 	readonly mcpServerName?: string;
+	/**
+	 * User-facing label for the originating MCP server (e.g. "Slack" for a
+	 * Connector). Presentation only; {@link mcpServerName} stays the identity.
+	 * When absent, display {@link mcpServerName}.
+	 */
+	readonly 'vscode.mcpServerDisplayName'?: string;
 	/** Originating MCP tool name, when the call came from an MCP server. */
 	readonly mcpToolName?: string;
 	/** MCP App render data, when the call exposes an interactive App surface. */
@@ -84,16 +95,20 @@ const fusionPhaseStatuses = ['running', 'succeeded', 'failed', 'cancelled'] as c
 export type AgentFusionPhaseStatus = typeof fusionPhaseStatuses[number];
 const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuses);
 
+const maxMcpServerDisplayNameLength = 256;
+
 const toolCallMetaKeys = [
 	imageGenerationToolMetaKey,
 	'vscode.toolCallDurationMs',
 	'vscode.toolInputContract',
+	'vscode.viewedResourceType',
 	'vscode.copilotSandboxNetworkRestrictions',
 	'vscode.sandboxPathGrant',
 	'vscode.assistedApprovalNotice',
 	'vscode.assistedApprovalFeedbackAccepted',
 	'vscode.terminalWorkingDirectory',
 	'vscode.terminalEnvironment',
+	'vscode.mcpServerDisplayName',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
 	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
 ] as const;
@@ -206,6 +221,10 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (meta['vscode.toolInputContract'] === copilotCliToolInputContract) {
 		result['vscode.toolInputContract'] = copilotCliToolInputContract;
 	}
+	const viewedResourceType = meta['vscode.viewedResourceType'];
+	if (viewedResourceType === 'file' || viewedResourceType === 'directory') {
+		result['vscode.viewedResourceType'] = viewedResourceType;
+	}
 	const networkRestrictions = meta['vscode.copilotSandboxNetworkRestrictions'];
 	if (isSandboxNetworkRestrictions(networkRestrictions)) {
 		result['vscode.copilotSandboxNetworkRestrictions'] = networkRestrictions;
@@ -225,6 +244,9 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta.subagentAgentName === 'string') { result.subagentAgentName = meta.subagentAgentName; }
 	if (typeof meta.subagentChatUri === 'string') { result.subagentChatUri = meta.subagentChatUri; }
 	if (typeof meta.mcpServerName === 'string') { result.mcpServerName = meta.mcpServerName; }
+	const rawMcpServerDisplayName = meta['vscode.mcpServerDisplayName'];
+	const mcpServerDisplayName = typeof rawMcpServerDisplayName === 'string' ? rawMcpServerDisplayName.trim() : undefined;
+	if (mcpServerDisplayName && mcpServerDisplayName.length <= maxMcpServerDisplayNameLength) { result['vscode.mcpServerDisplayName'] = mcpServerDisplayName; }
 	if (typeof meta.mcpToolName === 'string') { result.mcpToolName = meta.mcpToolName; }
 	if (typeof meta.progressMessage === 'string') { result.progressMessage = meta.progressMessage; }
 	const imageGeneration = readImageGenerationToolMetadata(source);

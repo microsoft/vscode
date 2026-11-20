@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -27,6 +27,7 @@ import { buildChatUri, buildDefaultChatUri, ChatState, ComponentToState, createC
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -36,6 +37,7 @@ import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/com
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { GetRemoteSessionTool } from '../../browser/getRemoteSessionTool.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
+import { DevContainerHandoffEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { RemoteSessionInspector } from '../../browser/remoteSessionInspector.js';
 import { readRemoteSessionState } from '../../browser/remoteSessionSource.js';
 
@@ -139,7 +141,7 @@ suite('RemoteSessionInspector', () => {
 			}
 			override getConnectionByAuthority(authority: string) { return this.getConnection(authority); }
 		}();
-		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), new NullLogService()));
+		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })));
 		const providersService = new class extends mock<ISessionsProvidersService>() {
 			override getProviders() {
 				return catalogOnly ? [upcastPartial<ISessionsProvider>({
@@ -384,14 +386,14 @@ suite('RemoteSessionInspector', () => {
 		const prepared = await tool.prepareToolInvocation({ parameters: { session: resource.toString() }, toolCallId: 'inspect', chatSessionResource: undefined }, CancellationToken.None);
 		assert.deepStrictEqual({
 			name: data.toolReferenceName, runsInWorkspace: data.runsInWorkspace,
-			keys: data.when?.keys().sort(), confirmation: prepared.confirmationMessages, subscriptions: first.subscribed,
+			keys: [...new Set(data.when?.keys())].sort(), confirmation: prepared.confirmationMessages, subscriptions: first.subscribed,
 			noPolling: data.modelDescription.includes('do not sleep or poll'),
 			readOnly: data.modelDescription.includes('Read-only'),
 			noReasoning: data.modelDescription.includes('Excludes reasoning'),
 			exactReference: data.modelDescription.includes('exact host-qualified references, not bare IDs or "origin"'),
 		}, {
 			name: 'get_remote_session', runsInWorkspace: false,
-			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort(),
+			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`, `config.${DevContainerHandoffEnabledSettingId}`].sort(),
 			confirmation: undefined, subscriptions: [], noPolling: true, readOnly: true, noReasoning: true, exactReference: true,
 		});
 	});

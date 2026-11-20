@@ -39,6 +39,7 @@ import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificate
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
+import { AgentHostMultipleChatProvidersMetaKey } from '../common/meta/agentHostMultipleChatProvidersMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import type { Credentials } from '../../request/common/request.js';
@@ -50,7 +51,8 @@ import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, I
 import { readAgentHostAuthenticationEncryption, type IAgentHostAuthenticationEncryption } from '../common/meta/agentHostAuthenticationEncryption.js';
 import { sealAgentHostCredential } from './agentHostCredentialSealing.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
-import { AcknowledgeAutomationDeletionExtensionMethod, CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, DeleteAutomationExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { AcknowledgeAutomationDeletionExtensionMethod, AnswerShellAuthenticationExtensionMethod, CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, DeleteAutomationExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, type IAgentHostGitHubEnvironmentRegistration } from '../common/agentHostExtensionProtocol.js';
+import { agentHostGitHubEnvironmentStatusValidator, getAgentHostGitHubEnvironmentStatus, type IAgentHostGitHubEnvironmentStatus } from '../common/meta/agentHostGitHubEnvironmentMeta.js';
 import { supportsAgentHostAutomationHistory } from '../common/meta/agentHostAutomationsMeta.js';
 import { supportsAgentHostCopilotExtensions } from '../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
@@ -62,12 +64,12 @@ import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHost
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
-import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
+import { AgentSubscriptionManager, ChatStateSubscription, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
+import { getOlderHostDefaultChat, getOlderHostSkillCompletion } from './agentHostOlderHostCompatibility.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type AgentInfo, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import { ChatMoveDestinationKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -98,7 +100,8 @@ import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
-import { derived, observableValue, type IObservable, autorun, observableFromEvent } from '../../../base/common/observable.js';
+import { derived, observableValue, observableValueOpts, transaction, type IObservable, autorun, observableFromEvent } from '../../../base/common/observable.js';
+import { structuralEquals } from '../../../base/common/equals.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -146,6 +149,8 @@ function toAgentExtensionStatus(value: unknown): AgentExtensionStatus | undefine
  * remote extension host stack.
  */
 const PING_INTERVAL_MS = 5_000;
+
+const relayChatPageTurns = 10;
 
 /**
  * Total inbound silence (ping interval + this) before a non-local connection
@@ -384,7 +389,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	get clientConnectionKind(): AgentHostClientConnectionKind | undefined { return this._transport.clientConnectionKind; }
 	private _relayRootRefresh: { readonly transport: IProtocolTransport; readonly promise: Promise<void> } | undefined;
 	private _initialAuthenticationResource: string | undefined;
-	private _expiredRelayAuthentication: { readonly transport: IProtocolTransport; readonly resource: string } | undefined;
+	private _expiredRelayAuthentication: { readonly transport: IProtocolTransport; readonly resource: string; readonly unsentTurns: Set<number>; readonly pendingTurns: Set<number> } | undefined;
 	/** Disposable holding the listeners attached to the current transport. */
 	private readonly _transportListeners = this._register(new MutableDisposable<DisposableStore>());
 	/** The next reconnect sends `initialize` instead of `reconnect`, so the host decides its capabilities again. */
@@ -404,6 +409,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * a fresh snapshot. `undefined` before the handshake completes.
 	 */
 	private readonly _initializeResult = observableValue<IAgentHostExtensionInitializeResult | undefined>('agentHostInitializeResult', undefined);
+	private readonly _gitHubEnvironment = observableValueOpts<IAgentHostGitHubEnvironmentStatus | undefined>({ owner: this, debugName: 'agentHostGitHubEnvironment', equalsFn: structuralEquals }, undefined);
 	private _authenticationHandshake: Pick<InitializeResult, '_meta'> | undefined;
 	readonly sandboxCertificateInstallationSupported = derived(this, reader => supportsSandboxCertificateInstallation(this._initializeResult.read(reader)));
 	readonly sandboxCertificateRotationSupported = derived(this, reader => supportsSandboxCertificateRotation(this._initializeResult.read(reader)));
@@ -605,6 +611,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._initializeResult;
 	}
 
+	get gitHubEnvironment(): IObservable<IAgentHostGitHubEnvironmentStatus | undefined> {
+		return this._gitHubEnvironment;
+	}
+
 	constructor(
 		identity: AgentHostResourceIdentity,
 		transportOrFactory: IProtocolTransport | (() => IProtocolTransport),
@@ -622,9 +632,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
 		this._clientId = options?.clientId ?? generateUuid();
 		this._connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
-		this.resourceUris = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
-			? identityAgentHostResourceUriMapper
-			: options?.resourceUris ?? createAgentHostResourceUriMapper(this._connectionAuthority);
+		this.resourceUris = options?.resourceUris ?? createAgentHostResourceUriMapper(this._connectionAuthority);
 		this._liveness = this._register(new ProtocolLivenessMonitor({
 			pingIntervalMs: PING_INTERVAL_MS,
 			timeoutMs: LIVENESS_TIMEOUT_MS,
@@ -1221,7 +1229,18 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			reconnect.transportConnected = true;
 			this._recordInboundTraffic();
 
-			const subscriptions = this._subscriptionManager.currentSubscriptionUris().map(u => u.toString());
+			const resources = this._subscriptionManager.currentSubscriptionUris();
+			// An older host can return full snapshots. Never combine several relay chat histories in a handshake.
+			const chats = resources.filter(resource => this._usesPagedChatHistory(resource) && !this._subscriptionsAwaitingRestore.has(resource.toString())
+				&& this._subscriptionManager.getSubscriptionUnmanaged(resource)?.verifiedValue);
+			const resumeChat = chats.find(resource => this._subscriptionManager.getSubscriptionUnmanaged(resource)?.hasPendingActions) ?? chats[0];
+			const subscriptions = resources.filter(resource => {
+				if (resource !== resumeChat && this._usesPagedChatHistory(resource)) {
+					this._subscriptionsAwaitingRestore.add(resource.toString());
+					return false;
+				}
+				return true;
+			}).map(resource => resource.toString());
 			// Always include the always-live root state alongside getSubscription-managed entries.
 			if (!subscriptions.includes(ROOT_STATE_URI)) {
 				subscriptions.unshift(ROOT_STATE_URI);
@@ -1237,8 +1256,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const restoreAuthentication = freshInitialize || !!this._resolveInitialAuthentication || !!this._resolveAdvertisedAuthentication || this._authentication.size > 0 || this._authenticationRestorePending;
 			if (!freshInitialize) {
 				this._authenticationHandshake = result;
+				// Status notifications are not replayed, so take the status the reconnect result reports.
+				this._gitHubEnvironment.set(getAgentHostGitHubEnvironmentStatus(result), undefined);
 			}
 			this._applyReconnectResult(result, freshInitialize, restoreAuthentication);
+			if (result.type === ReconnectResultType.Snapshot && resumeChat && !result.snapshots.some(s => s.resource === resumeChat.toString())) {
+				this._subscriptionsAwaitingRestore.add(resumeChat.toString());
+			}
 			this._updateManagedSettingsPermissions(true);
 			// A replacement transport may need authentication even when the host remembers this client.
 			if (restoreAuthentication) {
@@ -1255,6 +1279,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			// the reconnect above resolved to a snapshot-less `replay`.
 			if (windowSnapshots.size > 0 || this._subscriptionsAwaitingRestore.size > 0) {
 				await this._traceConnection('protocol.subscriptions', () => this._restoreSubscriptionsAwaitingRestore(windowSnapshots));
+				if (!await this._continueReconnectAfterResume(reconnect, attempt, transport)) {
+					return;
+				}
+			}
+			if (resumeChat && result.type === ReconnectResultType.Snapshot && result.snapshots.some(s => s.resource === resumeChat.toString())) {
+				await this._verifyPendingPagedTurns(resumeChat);
 				if (!await this._continueReconnectAfterResume(reconnect, attempt, transport)) {
 					return;
 				}
@@ -1375,6 +1405,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			return { result, freshInitialize: false, windowSnapshots };
 		} catch (error) {
+			if (error instanceof ProtocolError && error.code === JSON_RPC_INTERNAL_ERROR) {
+				const paged = subscriptions.filter(channel => this._usesPagedChatHistory(URI.parse(channel)));
+				if (paged.length) {
+					for (const channel of paged) {
+						this._subscriptionsAwaitingRestore.add(channel);
+					}
+					return this._reconnectOrInitialize(lastSeenServerSeq, subscriptions.filter(channel => !paged.includes(channel)));
+				}
+			}
 			if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.NotFound) {
 				throw error;
 			}
@@ -1389,7 +1428,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			_meta: this._clientMeta(),
-			initialSubscriptions: subscriptions,
+			initialSubscriptions: subscriptions.filter(channel => !this._usesPagedChatHistory(URI.parse(channel))),
 		}, { bypassReconnectGate: true });
 		this._windowedStateChannels.clear();
 		this._applyInitializeResult(initializeResult, false);
@@ -1450,9 +1489,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 						snapshot.resource,
 						snapshot.state,
 						snapshot.fromSeq,
-						!windowSnapshot,
+						this._usesPagedChatHistory(subscription.resource) ? 'turnStarts' : !windowSnapshot,
 					);
 					this._serverSeq = Math.max(this._serverSeq, snapshot.fromSeq);
+					if (this._usesPagedChatHistory(subscription.resource)) {
+						await this._verifyPendingPagedTurns(subscription.resource);
+					}
 					this._subscriptionsAwaitingRestore.delete(resource);
 				} catch (error) {
 					if (error instanceof ProtocolError && error.code === AHP_CLIENT_CONNECTION_CLOSED) {
@@ -1460,6 +1502,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 						this._subscriptionManager.cancelSnapshotRefresh(subscription.resource);
 						throw error;
 					}
+
 					this._logService.warn(`[AgentHostProtocolClient] Failed to restore subscription ${resource} after reconnect: ${error instanceof Error ? error.message : String(error)}`);
 					this._subscriptionManager.cancelSnapshotRefresh(subscription.resource);
 					this._subscriptionManager.markSubscriptionsMissing([subscription.resource]);
@@ -1473,6 +1516,47 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			restoreGroup(pending.filter(subscription => subscription.kind === StateComponents.Chat)),
 			restoreGroup(pending.filter(subscription => subscription.kind !== StateComponents.Session && subscription.kind !== StateComponents.Chat)),
 		]);
+	}
+
+	/** A short snapshot may omit an accepted turn. Look back only to the last turn known when it was sent. */
+	private async _verifyPendingPagedTurns(resource: URI): Promise<void> {
+		if (!this._usesPagedChatHistory(resource)) {
+			return;
+		}
+		const sub = this._subscriptionManager.getSubscriptionUnmanaged(resource);
+		if (!(sub instanceof ChatStateSubscription) || !sub.hasPendingActions) {
+			return;
+		}
+		const channel = resource.toString();
+		const queued = new Set(this._expiredRelayAuthentication?.unsentTurns);
+		if (this._state.kind === AgentHostClientState.Reconnecting) {
+			for (const message of this._state.reconnect.outbox) {
+				if (hasKey(message, { method: true }) && message.method === 'dispatchAction') {
+					queued.add(message.params.clientSeq);
+				}
+			}
+		}
+		const visited = new Set<string>();
+		try {
+			for (let cursor = sub.getTurnRecoveryCursor(queued); cursor !== undefined; cursor = sub.getTurnRecoveryCursor(queued)) {
+				this._subscriptionsAwaitingRestore.add(channel);
+				if (visited.has(cursor) || visited.size >= 8) {
+					throw new Error('History recovery limit reached');
+				}
+				visited.add(cursor);
+				await this._dispatchRequest('fetchTurns', { channel, cursor }, { bypassReconnectGate: true, timeoutMs: 30_000 });
+				if (this._subscriptionManager.getSubscriptionUnmanaged(resource) !== sub) {
+					break;
+				}
+			}
+		} catch (error) {
+			if (error instanceof ProtocolError && error.code === AHP_CLIENT_CONNECTION_CLOSED) {
+				throw error;
+			}
+			sub.clearPending();
+			sub.setError(new Error(localize('unverifiedPendingTurn', "Could not verify delivery of your message. It was not resent: {0}", getErrorMessage(error))));
+		}
+		this._subscriptionsAwaitingRestore.delete(channel);
 	}
 
 	private async _restoreAuthentication(expectedState: AgentHostClientState.Connecting | AgentHostClientState.Reconnecting): Promise<void> {
@@ -1615,6 +1699,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return {
 			...(this._clientCertificates?.isEnabled() ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
 			...(this._clientProxy?.isEnabled() ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
+			...(this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true ? { [AgentHostMultipleChatProvidersMetaKey]: true } : {}),
 			...toAgentHostClientMeta(
 				this._transport.clientConnectionKind,
 				telemetryLevel,
@@ -1626,7 +1711,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private _applyInitializeResult(result: IAgentHostExtensionInitializeResult, forwardClientConfig = true): void {
 		this._authenticationHandshake = result;
-		this._initializeResult.set(result, undefined);
+		transaction(tx => {
+			this._initializeResult.set(result, tx);
+			this._gitHubEnvironment.set(getAgentHostGitHubEnvironmentStatus(result), tx);
+		});
 		this._startRelayKeepAlive(result._meta);
 		this._serverSeq = result.serverSeq;
 		if (result.defaultDirectory) {
@@ -1804,7 +1892,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			let maxSeq = this._serverSeq;
 			for (const hostSnapshot of result.snapshots) {
 				const snapshot = this._withOlderHostSnapshot(hostSnapshot);
-				this._subscriptionManager.applyReconnectSnapshot(snapshot.resource, snapshot.state, snapshot.fromSeq, preservePending);
+				this._subscriptionManager.applyReconnectSnapshot(snapshot.resource, snapshot.state, snapshot.fromSeq,
+					this._usesPagedChatHistory(URI.parse(snapshot.resource)) ? 'turnStarts' : preservePending);
 				// This snapshot came from the current host, so it settles any
 				// restore still owed for the channel.
 				this._subscriptionsAwaitingRestore.delete(snapshot.resource);
@@ -1865,6 +1954,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._sendMessage(msg);
 		}
 		for (const msg of outbox) {
+			if (hasKey(msg, { method: true }) && msg.method === 'dispatchAction'
+				&& this._subscriptionManager.getSubscriptionUnmanaged(URI.parse(msg.params.channel))?.value instanceof Error) {
+				continue;
+			}
 			this._sendMessage(msg);
 		}
 	}
@@ -1881,6 +1974,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
+	}
+
+	async fetchTurns(chat: URI, cursor: string): Promise<void> {
+		await this._sendRequest('fetchTurns', { channel: chat.toString(), cursor });
 	}
 
 	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
@@ -2068,7 +2165,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return snapshot;
 	}
 
-	private async _subscribeWindowedChannel(channel: string, receive: ChannelReceiveLimits | undefined, acceptWindow: (flowControl: ChannelFlowControl) => void, options: { readonly bypassReconnectGate?: boolean; readonly timeoutMs?: number } = {}): Promise<SubscribeResult> {
+	private async _subscribeWindowedChannel(channel: string, receive: ChannelReceiveLimits | undefined, acceptWindow: (flowControl: ChannelFlowControl) => void, options: { readonly bypassReconnectGate?: boolean; readonly timeoutMs?: number; readonly view?: CommandMap['subscribe']['params']['view'] } = {}): Promise<SubscribeResult> {
 		const pending = this._pendingChannelSubscriptions.get(channel) ?? { generation: 0, requests: 0, windowed: false, messages: [], bufferedBytes: 0 };
 		this._pendingChannelSubscriptions.set(channel, pending);
 		pending.requests++;
@@ -2095,11 +2192,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 		};
 		try {
+			const { view, ...requestOptions } = options;
 			return await this._dispatchRequest<SubscribeResult>('subscribe', {
 				channel,
+				...(view && { view }),
 				...(receive ? { flowControl: { receive } } : {}),
 			}, {
-				...options,
+				...requestOptions,
 				acceptResult: value => {
 					if (pending.generation !== generation) {
 						throw new CancellationError();
@@ -2137,18 +2236,22 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
+	private _usesPagedChatHistory(resource: URI): boolean {
+		return this._isWebPubSubRelay() && this._subscriptionManager.getSubscriptionKind(resource) === StateComponents.Chat;
+	}
+
 	private async _requestSnapshot(resource: URI, bypassReconnectGate = false): Promise<IStateSnapshot> {
 		const channel = resource.toString();
 		const receive = !isAhpRootChannel(channel) && !this._isWebPubSubRelay() ? agentHostStateReceiveLimits : undefined;
 		let pending: Promise<IStateSnapshot> | undefined;
 		const result = await this._subscribeWindowedChannel(channel, receive, flowControl => {
 			pending = this._acceptStateChannel(channel, flowControl);
-		}, { bypassReconnectGate });
+		}, { bypassReconnectGate, view: this._usesPagedChatHistory(resource) ? { turns: relayChatPageTurns } : undefined });
 		const snapshot = pending ? await pending : result.snapshot;
 		if (!snapshot) {
 			throw new Error(`subscribe to ${channel} returned no snapshot`);
 		}
-		if (pending) {
+		if (pending || this._usesPagedChatHistory(resource)) {
 			this._serverSeq = Math.max(this._serverSeq, snapshot.fromSeq);
 		}
 		return this._withOlderHostSnapshot(snapshot);
@@ -2216,6 +2319,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
 	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+		if (action.type === ActionType.ChatTurnStarted && this._expiredRelayAuthentication && this._usesPagedChatHistory(URI.parse(channel))) {
+			this._expiredRelayAuthentication.unsentTurns.add(clientSeq);
+			return;
+		}
 		this._grantImplicitReadsForOutgoingAction(action);
 		if (action.type === ActionType.ChatTurnStarted) {
 			this._onDidConnectionDiagnostic.fire({
@@ -2302,6 +2409,29 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		const result = await this._sendExtensionRequest(StopBackgroundWorkExtensionMethod, { chat: chat.toString(), id });
 		return result.stopped;
+	}
+
+	async answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
+		const result = await this._sendExtensionRequest(AnswerShellAuthenticationExtensionMethod, { chat: chat.toString(), requestId, ...(answer !== undefined ? { answer } : {}) });
+		return result?.delivered === true;
+	}
+
+	async registerGitHubEnvironment(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration> {
+		if (!this._gitHubEnvironment.get()) {
+			throw new Error('This agent host does not support GitHub environment registration.');
+		}
+		const result = await this._sendExtensionRequest(RegisterGitHubEnvironmentExtensionMethod, { accountId, credential });
+		if (typeof result?.name !== 'string' || (result.environmentId !== undefined && typeof result.environmentId !== 'string')) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid GitHub environment registration');
+		}
+		return result;
+	}
+
+	async unregisterGitHubEnvironment(accountId: string): Promise<void> {
+		if (!this._gitHubEnvironment.get()) {
+			return;
+		}
+		await this._sendExtensionRequest(UnregisterGitHubEnvironmentExtensionMethod, { accountId });
 	}
 
 	async measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
@@ -2569,7 +2699,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	async completions(params: CompletionsParams): Promise<CompletionsResult> {
-		return this._sendRequest('completions', params);
+		const result = await this._sendRequest('completions', params);
+		const root = this.rootState.value;
+		return {
+			...result,
+			items: result.items.map(item => {
+				const attachment = getOlderHostSkillCompletion(item.attachment, this._initializeResult.get(), root instanceof Error ? undefined : root);
+				return attachment ? { ...item, attachment } : item;
+			}),
+		};
 	}
 
 	async listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {
@@ -2733,6 +2871,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			if (this._expiredRelayAuthentication === expired && this._transport === transport && !operation.token.isCancellationRequested) {
 				this._expiredRelayAuthentication = undefined;
+				for (const { channel, clientSeq, action } of this._subscriptionManager.getPendingActions()) {
+					if (action.type === ActionType.ChatTurnStarted && (expired.pendingTurns.has(clientSeq) || expired.unsentTurns.has(clientSeq))) {
+						this.dispatchAction(channel, action, this._clientId, clientSeq);
+					}
+				}
 				this._onDidReconnect.fire();
 			}
 		}
@@ -3036,6 +3179,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
 				workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
 				changes: s.changes,
+				...(s.annotations !== undefined ? { annotations: s.annotations } : {}),
 				...(model ? { model } : {}),
 				chats: s.chats?.map(chat => ({
 					chat: URI.parse(chat.resource),
@@ -3097,7 +3241,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _toHostUri(uri: URI): URI {
-		// Local API callers can still pass wrapped resources even though the local mapper is identity-only.
+		// Local API callers can still pass legacy wrappers from any authority.
 		return this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? fromAgentHostUri(uri) : this.resourceUris.toAgentHost(uri);
 	}
 
@@ -3223,11 +3367,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/**
 	 * Trigger the CLI-managed upgrade flow for this agent host using the
 	 * method name advertised by the server (typically
-	 * {@link VSCODE_UPGRADE_METHOD}). Callable before {@link connect} has
-	 * completed — typically used when the host has just rejected our
-	 * `initialize` with an `UnsupportedProtocolVersion` error. The
-	 * transport stays open after the rejection, so the extension request
-	 * rides over it without a special out-of-band path.
+	 * {@link VSCODE_UPGRADE_METHOD}). Connected clients send it like any other
+	 * request. It is also callable before {@link connect} has completed,
+	 * typically when the host has just rejected our `initialize` with an
+	 * `UnsupportedProtocolVersion` error. The transport stays open after the
+	 * rejection, so the extension request rides over it without a special
+	 * out-of-band path.
 	 *
 	 * The result mirrors the CLI's HTTP response: ok flag, whether the
 	 * upgrade is needed / started, running/latest commits.
@@ -3294,6 +3439,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			return;
 		}
+		if (notification.method === GitHubEnvironmentChangedNotification) {
+			const { content, error } = agentHostGitHubEnvironmentStatusValidator.validate(notification.params);
+			if (content) {
+				this._gitHubEnvironment.set(content, undefined);
+			} else {
+				this._logService.error(`[RemoteAgentHostProtocol] Invalid GitHub environment status from ${this._address}: ${error?.message}`);
+			}
+			return;
+		}
 		if (this._devContainerService.handleNotification(msg.method, msg.params)) {
 			return;
 		}
@@ -3317,7 +3471,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (msg.method === 'auth/required' && this._isWebPubSubRelay()
 					&& isAhpRootChannel(msg.params.channel) && msg.params.reason === AuthRequiredReason.Expired
 					&& msg.params.resource.resource === this._initialAuthenticationResource && !this._expiredRelayAuthentication) {
-					this._expiredRelayAuthentication = { transport: this._transport, resource: msg.params.resource.resource };
+					const pendingTurns = this._subscriptionManager.getPendingActions().filter(p => p.action.type === ActionType.ChatTurnStarted).map(p => p.clientSeq);
+					this._expiredRelayAuthentication = { transport: this._transport, resource: msg.params.resource.resource, pendingTurns: new Set(pendingTurns), unsentTurns: new Set() };
 					this._markSubscriptionsAwaitingRestore([]);
 				}
 				this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${msg.method}`);

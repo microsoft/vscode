@@ -11,7 +11,6 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
-import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { readAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import type { AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -101,7 +100,7 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 		assert.deepStrictEqual({ requests, ongoing }, {
 			requests: [{
 				resource: resource.resource, scopes: ['read'], token: session.accessToken, expiresIn: 2,
-				_meta: authenticationAccountMeta({ providerId: 'test', accountId: 'account', authorizationServer: 'https://example.com/' }),
+				accountId: '["test","account","https://example.com/"]',
 			}],
 			ongoing: requests,
 		});
@@ -288,9 +287,15 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 		});
 	});
 
-	test('optional credentials remain on the ongoing authentication path after required bootstrap', async () => {
+	test('optional credentials granted by the default sign-in remain on the ongoing authentication path after required bootstrap', async () => {
 		const { resolver, instantiationService, extensions } = fixture();
 		await extensions.complete(true);
+		instantiationService.stub(IDefaultAccountService, {
+			currentDefaultAccount: {
+				sessionId: session.id, accountName: session.account.label, enterprise: false,
+				authenticationProvider: { id: 'test', name: 'Test', enterprise: false },
+			},
+		});
 		const optional = { ...resource, resource: 'https://api.example.com/optional', required: false };
 		const advertised = [{ ...agents[0], protectedResources: [resource, optional] }];
 		const initial = await resolver.resolve(advertised);

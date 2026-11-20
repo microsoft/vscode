@@ -31,3 +31,10 @@ export function getVirtualWorkspaceAuthority(workspace: IWorkspace): string | un
 export function isVirtualWorkspace(workspace: IWorkspace): boolean {
 	return getVirtualWorkspaceLocation(workspace) !== undefined;
 }
+
+/** Whether the workspace has any virtual folders, or a virtual configuration when it has no folders. */
+export function hasVirtualWorkspaceContent(workspace: IWorkspace): boolean {
+	return workspace.folders.length > 0
+		? workspace.folders.some(folder => isVirtualResource(folder.uri))
+		: isVirtualWorkspace(workspace);
+}

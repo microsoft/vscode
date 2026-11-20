@@ -44,10 +44,11 @@ import { toMissionControlSessionList } from './missionControlSessionList.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentHostAhpJsonlLoggingEnvVar, AhpJsonlLogger, AhpJsonlLogRetention, isAhpJsonlLoggingEnabled } from '../../common/ahpJsonlLogger.js';
-import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
+import { MISSION_CONTROL_AHP_LOG_ID, MissionControlUseLocalCredentialsConfigKey } from '../../common/missionControlEnvironment.js';
 import { IAgentHostChatOwnershipService } from '../agentHostChatOwnershipService.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { AgentHostAhpJsonlLoggingEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { localProcessPathStyle } from '../../common/agentHostPathStyle.js';
 
 interface IMissionControlHostOptions {
 	readonly hostLaunchKind: AgentHostLaunchKind;
@@ -325,7 +326,17 @@ export class MissionControlHost extends Disposable {
 			fetch: (input, init) => proxyResolver.fetch(input, init),
 			// The relay must honor the same proxy and certificate configuration as registration requests.
 			socketFactory: (url, protocol) => toMissionControlSocket(proxyResolver.createWebSocket(url, protocol)),
-			attach: (relay, roots, getRoots, getProjects, defaultDirectory, useLocalCredentials) => this._attachRelay(relay, roots, getRoots, getProjects, defaultDirectory, useLocalCredentials),
+			attach: (relay, roots, getRoots, getProjects, defaultDirectory) => this._attachRelay(relay, roots, getRoots, getProjects, defaultDirectory),
+			configureExecutionAuthentication: useLocalCredentials => {
+				if (this._authenticationService.useLocalCredentials === useLocalCredentials) {
+					return false;
+				}
+				if (!configurationService.publishRootTransientValues) {
+					throw new Error('Host credential configuration is unavailable');
+				}
+				configurationService.publishRootTransientValues({ [MissionControlUseLocalCredentialsConfigKey]: useLocalCredentials });
+				return true;
+			},
 			updateProjects: () => this._projects.initialize(),
 			onError: error => {
 				this._publishTelemetry.flush();
@@ -419,7 +430,7 @@ export class MissionControlHost extends Disposable {
 		return provider.getRemoteControlManagedSettings();
 	}
 
-	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string, useLocalCredentials = false): IDisposable {
+	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string): IDisposable {
 		this._grantedRoots = getRoots;
 		this._projectRoots = getProjects;
 		const directory = defaultDirectory ?? roots[0];
@@ -430,9 +441,10 @@ export class MissionControlHost extends Disposable {
 			relay,
 			{
 				hostLaunchKind: this._options.hostLaunchKind,
+				environment: { pathStyle: localProcessPathStyle },
 				allowExtensionMethods: true,
 				scopedRelayCredentials: true,
-				resolveRelayCredentials: useLocalCredentials ? (principal, resource) => {
+				resolveRelayCredentials: this._authenticationService.useLocalCredentials ? (principal, resource) => {
 					const metadata = [this._gitHubEndpoints.getCopilotResource(), this._gitHubEndpoints.getRepoResource()].find(candidate => candidate.resource === resource);
 					return metadata
 						? { principal, getCredential: request => this._authenticationService.getSharedCredential(request) }

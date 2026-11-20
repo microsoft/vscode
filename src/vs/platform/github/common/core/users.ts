@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { PageOptions } from '../client/types.js';
 import { Account } from './core.js';
@@ -35,11 +36,11 @@ export interface UserEmail {
 export interface IUsersClient {
 
 	/** GET /user: read the authenticated user's profile. */
-	getAuthenticated(signal: AbortSignal, options?: ApiRequestOptions): Promise<User>;
+	getAuthenticated(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<User>;
 
 	/** GET /users/{username}: read a public user profile. */
-	get(username: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<User>;
+	get(username: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<User>;
 
 	/** GET /user/emails: read one page of email addresses with the required user permission. */
-	listEmails(signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly UserEmail[]>;
+	listEmails(cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly UserEmail[]>;
 }

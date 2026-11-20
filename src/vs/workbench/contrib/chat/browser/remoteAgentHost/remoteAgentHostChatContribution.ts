@@ -11,12 +11,12 @@ import { constObservable, ISettableObservable, observableFromEvent } from '../..
 import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } from '../../../../../platform/agentHost/common/agent.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, getEntryAddress, getWorkspaceRemoteAgentHostAddresses } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, getEntryAddress, getWorkspaceRemoteAgentHostAddresses } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -236,9 +236,23 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 	}
 
+	/**
+	 * The hosts an editor window shows: those its workspace lists in `chat.workspaceRemoteAgentHosts`, and those its
+	 * extensions register, which it connects to alike.
+	 */
+	private _editorWindowHostAddresses(): ReadonlySet<string> {
+		const addresses = new Set(getWorkspaceRemoteAgentHostAddresses(this._configurationService));
+		for (const entry of this._remoteAgentHostService.configuredEntries) {
+			if (entry.connection.type === RemoteAgentHostEntryType.Extension) {
+				addresses.add(normalizeRemoteAgentHostAddress(entry.connection.address));
+			}
+		}
+		return addresses;
+	}
+
 	private _reconcileConnections(): void {
-		const workspaceHosts = getWorkspaceRemoteAgentHostAddresses(this._configurationService);
-		const currentConnections = this._remoteAgentHostService.connections.filter(connection => this._isSessionsWindow || isCloudSandboxConnectionAddress(connection.address) || workspaceHosts.has(connection.address));
+		const editorWindowHosts = this._isSessionsWindow ? undefined : this._editorWindowHostAddresses();
+		const currentConnections = this._remoteAgentHostService.connections.filter(connection => !editorWindowHosts || isCloudSandboxConnectionAddress(connection.address) || editorWindowHosts.has(connection.address));
 		const connectedAddresses = new Set(
 			currentConnections
 				.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status) && c.clientId !== undefined)
@@ -479,7 +493,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, []));
+		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, undefined));
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
 			connection,
@@ -498,6 +512,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			syncedUri => this._activeClientService.getOrigin(syncedUri)
 		));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
+		// Only the Copilot runtime runs the hooks declared in custom agent files.
+		itemProvider.setListsCustomAgentHooks(agent.provider === 'copilotcli');
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		const modelCatalogueStatus = observableFromEvent(this, connection.rootState.onDidChange, () =>
 			readAgentModelCatalogStatus(connection.rootState.value, agent.provider));
@@ -661,7 +677,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				return true;
 			} : undefined,
 			authenticate: this._authenticateCallback(address, connection, reason),
-		}))
+		}, reason))
 			.catch(err => {
 				this._logService.error(`[RemoteAgentHost] Failed to authenticate notified resource ${protectedResource.resource}`, err);
 			})

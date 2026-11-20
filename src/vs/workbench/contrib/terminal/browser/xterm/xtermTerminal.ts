@@ -12,6 +12,7 @@ import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serializ
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
 import type { ClipboardAddon as ClipboardAddonType } from '@xterm/addon-clipboard';
 import * as dom from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { IXtermCore } from '../xterm-private.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -50,7 +51,7 @@ import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { updateTerminalFontRendering } from './terminalFontRendering.js';
+import { ensureCanvasFontLeadingWhitespaceFix, updateTerminalFontRendering } from './terminalFontRendering.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -730,6 +731,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return this._terminalConfigurationService.getFont(dom.getWindow(this.raw.element), this._core);
 	}
 
+	setBufferLineWrapped(lineIndex: number, isWrapped: boolean): void {
+		this._core._bufferService.buffer.setWrapped(lineIndex, isWrapped);
+	}
+
 	getLongestViewportWrappedLineLength(): number {
 		let maxLineLength = 0;
 		for (let i = this.raw.buffer.active.length - 1; i >= this.raw.buffer.active.viewportY; i--) {
@@ -977,6 +982,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			customGlyphs
 		});
 		this._webglWindow = dom.getWindow(this.raw.element);
+		ensureCanvasFontLeadingWhitespaceFix(mainWindow);
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');

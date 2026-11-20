@@ -19,6 +19,10 @@ import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, LayoutSettings, Mo
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { DesktopChangesEditorTransitionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ActiveEditorContext } from '../../../workbench/common/contextkeys.js';
+import { MockContextKeyService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { EmptyFileEditorInput } from '../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
@@ -749,6 +753,30 @@ suite('Sessions - Workbench', () => {
 			sessionViewBesideActivityBar: ['7px', '7px', '7px', '7px'],
 			editorBesideActivityBar: ['8px', '8px', '8px', '8px'],
 			panelBesideActivityBar: ['8px', '8px', '8px', '8px'],
+		});
+	});
+
+	test('draws the compact separator between the cards and the Session Activity Bar column', () => {
+		const root = append(document.body, $('div'));
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-agentsPanel-border: rgb(1, 2, 3); --vscode-agentsActivityBar-border: transparent;';
+		const activityBar = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
+		const strip = append(activityBar, $('.menu-activity-bar.session-activity-bar.docked'));
+		store.add(toDisposable(() => root.remove()));
+		const separator = (classes: string) => {
+			root.className = `monaco-workbench agent-sessions-workbench ${classes}`;
+			return mainWindow.getComputedStyle(strip).borderLeft;
+		};
+
+		assert.deepStrictEqual({
+			compact: separator('modern-ui-compact'),
+			compactHighContrastDark: separator('modern-ui-compact hc-black'),
+			compactHighContrastLight: separator('modern-ui-compact hc-light'),
+			defaultDensity: separator(''),
+		}, {
+			compact: '1px solid rgb(1, 2, 3)',
+			compactHighContrastDark: '1px solid rgba(0, 0, 0, 0)',
+			compactHighContrastLight: '1px solid rgba(0, 0, 0, 0)',
+			defaultDensity: '1px solid rgba(0, 0, 0, 0)',
 		});
 	});
 
@@ -2737,11 +2765,7 @@ suite('Sessions - Workbench', () => {
 		// Breadcrumbs render inside the full-width header row between the tab bar
 		// and the editor content only in the desktop Agents Window. The mobile
 		// editor part must keep its default (below-tabs) placement.
-		const getOptions = Reflect.get(DesktopMainEditorPart.prototype, 'getGroupViewOptions') as () => {
-			showHeader?: boolean;
-			useModernUITabs?: boolean;
-			menuIds?: { headerPrimary?: object; headerSecondary?: object; headerLayout?: object };
-		};
+		const getOptions = Reflect.get(DesktopMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
 		const options = getOptions.call({});
 
 		assert.deepStrictEqual({
@@ -2759,33 +2783,75 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('desktop reserves an empty header only for docked inputs with editor content visible', () => {
+	test('desktop reserves the header for the visible docked tabs and spans it only while the group shows the Changes tab', () => {
 		const getOptions = Reflect.get(DesktopMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
-		let editorVisible = true;
-		const options = getOptions.call({ agentWorkbenchLayoutService: { isVisible: () => editorVisible } });
 		const store = new DisposableStore();
 		try {
-			const dockedEditor = store.add(new TestDockedEditorInput());
-			const ordinaryEditor = store.add(new class extends EditorInput {
-				override get typeId(): string { return 'test.ordinaryEditor'; }
+			let editorVisible = true;
+			// The docked editor that is not the Files tab.
+			const changes = store.add(new class extends TestDockedEditorInput {
+				override get editorId(): string { return 'test.changesEditor'; }
+			}());
+			const files = store.add(new EmptyFileEditorInput(undefined, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: BaseEvent.None, isVisible: () => true }), upcastPartial<IEditorGroupsService>({ parts: [] })));
+			const text = store.add(new class extends EditorInput {
+				override get typeId(): string { return 'test.textEditorInput'; }
+				override get editorId(): string { return 'test.textEditor'; }
 				override get resource(): undefined { return undefined; }
 			}());
-			const visibleState = {
-				docked: options.reserveHeaderSpace?.(dockedEditor),
-				ordinary: options.reserveHeaderSpace?.(ordinaryEditor),
-				empty: options.reserveHeaderSpace?.(undefined),
+			const groupContextKeyService = store.add(new MockContextKeyService());
+			const shownEditor = ActiveEditorContext.bindTo(groupContextKeyService);
+			const transition = DesktopChangesEditorTransitionContext.bindTo(groupContextKeyService);
+			const createOptions = (activeGroup: { scopedContextKeyService: MockContextKeyService; editors: EditorInput[] } | undefined) => getOptions.call({
+				activeGroup,
+				agentWorkbenchLayoutService: {
+					isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART || part === Parts.EDITOR_PART && editorVisible,
+				},
+				_showsChangesHeader: Reflect.get(DesktopMainEditorPart.prototype, '_showsChangesHeader'),
+			});
+			const options = createOptions({ scopedContextKeyService: groupContextKeyService, editors: [changes, files, text] });
+			// The group publishes the editor it shows only once opening it completes.
+			const header = (activeEditor: EditorInput | undefined, shown: EditorInput | undefined) => {
+				if (shown?.editorId) {
+					shownEditor.set(shown.editorId);
+				} else {
+					shownEditor.reset();
+				}
+				return { reserved: options.reserveHeaderSpace?.(activeEditor), spans: options.headerSpansContentInset?.(activeEditor) };
+			};
+
+			const editorShown = {
+				changes: header(changes, changes),
+				openingChangesFromText: header(changes, text),
+				openingTextFromChanges: header(text, changes),
+				files: header(files, files),
+				text: header(text, text),
 			};
 			editorVisible = false;
-			const hiddenState = options.reserveHeaderSpace?.(dockedEditor);
-			editorVisible = true;
-			assert.deepStrictEqual({
-				visibleState,
-				hiddenState,
-				reopened: options.reserveHeaderSpace?.(dockedEditor),
-			}, {
-				visibleState: { docked: true, ordinary: false, empty: false },
-				hiddenState: false,
-				reopened: true,
+			const editorHidden = {
+				changes: header(changes, changes),
+				openingChangesFromFiles: header(changes, files),
+				files: header(files, files),
+			};
+			transition.set(true);
+			const duringChangesTransition = header(undefined, undefined);
+			const beforeActiveGroup = createOptions(undefined).reserveHeaderSpace?.(undefined);
+
+			// Other docked tabs, such as Files, reserve the header only while the editor content is visible, and don't span it.
+			assert.deepStrictEqual({ editorShown, editorHidden, duringChangesTransition, beforeActiveGroup }, {
+				editorShown: {
+					changes: { reserved: true, spans: true },
+					openingChangesFromText: { reserved: true, spans: false },
+					openingTextFromChanges: { reserved: true, spans: true },
+					files: { reserved: true, spans: false },
+					text: { reserved: false, spans: false },
+				},
+				editorHidden: {
+					changes: { reserved: true, spans: true },
+					openingChangesFromFiles: { reserved: false, spans: false },
+					files: { reserved: false, spans: false },
+				},
+				duringChangesTransition: { reserved: true, spans: true },
+				beforeActiveGroup: false,
 			});
 		} finally {
 			store.dispose();
@@ -3396,6 +3462,60 @@ suite('Sessions - Workbench', () => {
 				height: '538px',
 			},
 			visualTop: 63,
+		});
+
+		controller.dispose();
+	});
+
+	test('positions spanned docked details below the header reserved when the content inset is applied', () => {
+		const editorContainer = document.createElement('div');
+		const auxiliaryBarContainer = document.createElement('div');
+		const layouts: { height: number; top: number }[] = [];
+		let inset = 0;
+
+		Object.defineProperty(editorContainer, 'clientHeight', { value: 600 });
+		editorContainer.getBoundingClientRect = () => ({
+			width: 800,
+			height: 600,
+			top: 0,
+			right: 800,
+			bottom: 600,
+			left: 0,
+			x: 0,
+			y: 0,
+			toJSON: () => undefined,
+		});
+
+		const auxiliaryBarPart = {
+			getContainer: () => auxiliaryBarContainer,
+			layout: (_width: number, height: number, top: number) => layouts.push({ height, top }),
+		} as unknown as Part;
+		const host: IDockedAuxiliaryBarHost = {
+			getPosition: () => 'right',
+			getHeight: () => 240,
+			setHeight: () => { },
+			getWidth: () => 260,
+			setWidth: () => { },
+			isEditorAreaVisible: () => true,
+			isEditorVisible: () => true,
+			isAuxiliaryBarVisible: () => true,
+			hideAuxiliaryBar: () => { },
+			// Docking the details insets the editor content, which reserves the spanning header.
+			setEditorContentInsets: right => inset = right,
+			getTabsHeight: () => 33,
+			getEditorContentTop: () => inset > 0 ? 65 : 33,
+			headerSpansDetails: () => true,
+		};
+		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
+
+		controller.layout();
+
+		assert.deepStrictEqual({
+			layouts,
+			style: { top: auxiliaryBarContainer.style.top, height: auxiliaryBarContainer.style.height },
+		}, {
+			layouts: [{ height: 535, top: 65 }],
+			style: { top: '65px', height: '535px' },
 		});
 
 		controller.dispose();
@@ -4690,6 +4810,71 @@ suite('Sessions - Workbench', () => {
 		} finally {
 			store.dispose();
 		}
+	});
+
+	test('round trips panel alignment while a custom view covers the sessions and editor', () => {
+		const descriptorHost = createHost({ single: true, partVisibility: { sidebar: true, sessions: false, editor: false, auxiliaryBar: false, panel: true, customViewGrid: true } }) as IGridDescriptorTestHarness;
+		descriptorHost._customViewAllowsPanel = true;
+		descriptorHost.layoutPolicy = {
+			getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
+			viewportClass: { get: () => 'desktop' },
+		};
+		descriptorHost.titleBarPartView = { minimumHeight: 30 };
+		const views = new Map<Parts, TestPartView>();
+		const grid = store.add(SerializableGrid.deserialize(createDesktopGridDescriptor.call(descriptorHost, 1200, 800), {
+			fromJSON: ({ type }: { type: Parts }) => {
+				const view = store.add(new TestPartView(type));
+				views.set(type, view);
+				return view;
+			},
+		}, { proportionalLayout: false }));
+		grid.layout(1200, 800);
+		const getView = (view: object): TestPartView => {
+			if (!(view instanceof TestPartView)) {
+				throw new Error('Expected a test part view');
+			}
+			return view;
+		};
+		const host: IPanelAlignmentTestHarness = {
+			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
+			isEditorPaneVisible: () => false,
+			_panelAlignment: 'justify',
+			partVisibility: { customViewGrid: true },
+			_customViewAllowsPanel: true,
+			panelPartView: views.get(Parts.PANEL_PART)!,
+			sessionsPartView: views.get(Parts.SESSIONS_PART)!,
+			editorPartView: views.get(Parts.EDITOR_PART)!,
+			customViewGridPartView: views.get(Parts.CUSTOM_VIEW_GRID_PART)!,
+			workbenchGrid: {
+				isViewVisible: view => grid.isViewVisible(getView(view)),
+				isViewMaximized: view => grid.isViewMaximized(getView(view)),
+				getViewSize: view => grid.getViewSize(getView(view)),
+				getViewCachedVisibleSize: view => grid.getViewCachedVisibleSize(getView(view)),
+				moveView: (view, size, referenceView, direction) => grid.moveView(getView(view), size, getView(referenceView), direction),
+				resizeView: (view, size) => grid.resizeView(getView(view), size),
+				exitMaximizedView: () => grid.exitMaximizedView(),
+			},
+			mainContainer: { classList: { toggle: () => { } } },
+			getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
+			storageService: { store: () => { } },
+			_onDidChangePanelAlignment: { fire: () => { } },
+			_runWithEditorResizeSyncSuspended: fn => fn(),
+			_layoutGrid: () => grid.layout(1200, 800),
+			hasFocus: () => false,
+			focusPart: () => { },
+		};
+		Object.setPrototypeOf(host, Workbench.prototype);
+		const snapshot = () => ({
+			topology: getPartTopology(grid.serialize().root),
+			panel: grid.getViewSize(views.get(Parts.PANEL_PART)!),
+			customView: grid.getViewSize(views.get(Parts.CUSTOM_VIEW_GRID_PART)!),
+			sidebar: grid.getViewSize(views.get(Parts.SIDEBAR_PART)!),
+		});
+		const initial = snapshot();
+		setPanelAlignment.call(host, 'center');
+		setPanelAlignment.call(host, 'justify');
+
+		assert.deepStrictEqual(snapshot(), initial);
 	});
 
 	test('desktop restores the bottom panel height after navigating through Quick Chat', () => {

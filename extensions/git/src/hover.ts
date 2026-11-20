@@ -121,9 +121,42 @@ function appendContent(markdownString: MarkdownString, authorAvatar: string | un
 		}
 	}
 
-	// Subject | Message (escape image syntax)
-	markdownString.appendMarkdown(`${emojify(message.replace(/!\[/g, '&#33;&#91;').replace(/\r\n|\r|\n/g, '\n\n'))}`);
+	// Subject | Message (escape image syntax, HTML tags)
+	markdownString.appendMarkdown(`${emojify(escapeHtmlTags(message).replace(/!\[/g, '&#33;&#91;').replace(/\r\n|\r|\n/g, '\n\n'))}`);
 	markdownString.appendMarkdown(`\n\n---\n\n`);
+}
+
+/**
+ * Escapes `<` characters that would start an HTML tag (ex: `<div>`, `Foo<T>`) so that they
+ * are rendered literally instead of being dropped by the markdown renderer. Code spans, code
+ * blocks, and autolinks are left untouched as they are already rendered as expected.
+ */
+export function escapeHtmlTags(message: string): string {
+	let fence: string | undefined;
+
+	return message.split(/\r\n|\r|\n/).map(line => {
+		// Fenced code block (a closing fence can only be followed by whitespace)
+		const fenceMatch = (fence !== undefined ? /^ {0,3}(`{3,}|~{3,})[ \t]*$/ : /^ {0,3}(`{3,}|~{3,})/).exec(line);
+		if (fence !== undefined) {
+			if (fenceMatch && fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) {
+				fence = undefined;
+			}
+			return line;
+		}
+		if (fenceMatch) {
+			fence = fenceMatch[1];
+			return line;
+		}
+
+		// Indented code block
+		if (/^( {4}|\t)/.test(line)) {
+			return line;
+		}
+
+		// Skip backslash escapes (ex: \<div>), code spans, and autolinks (ex: <https://example.com>, <user@example.com>)
+		return line.replace(/\\[\s\S]|(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)|<(?=[a-zA-Z/!?])(?![a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\s<>]*>|[^\s<>@]+@[^\s<>]+>)/g,
+			match => match === '<' ? '&lt;' : match);
+	}).join('\n');
 }
 
 function appendShortStats(markdownString: MarkdownString, shortStats: { files: number; insertions: number; deletions: number }): void {

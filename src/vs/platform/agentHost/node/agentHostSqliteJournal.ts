@@ -87,6 +87,8 @@ export async function canUseWriteAheadLog(path: string, host: ISqliteJournalHost
  * `synchronous = NORMAL`.
  */
 export async function configureSqliteJournal(database: Database, path: string, host: ISqliteJournalHost = nodeSqliteJournalHost): Promise<boolean> {
+	// Configure contention handling before journal changes and the caller's schema migrations.
+	await exec(database, 'PRAGMA busy_timeout = 5000');
 	if (!isDatabaseFile(path)) {
 		return false;
 	}

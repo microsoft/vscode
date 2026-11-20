@@ -1242,7 +1242,7 @@ export function registerTerminalActions() {
 					eventOrOptions.location = { viewColumn: editorGroupToColumn(editorGroupsService, editorGroupsService.activeGroup) };
 				}
 
-				const resolvedLocation = await c.service.resolveLocation(eventOrOptions.location);
+				const resolvedLocation = await c.service.resolveLocation(eventOrOptions.location) ?? c.configService.defaultLocation;
 				const panelDefaultCwd = resolvedLocation === TerminalLocation.Panel ? c.service.getPanelDefaultCwd() : undefined;
 				let instance: ITerminalInstance | undefined;
 				if (eventOrOptions.cwd || panelDefaultCwd || folders.length <= 1) {

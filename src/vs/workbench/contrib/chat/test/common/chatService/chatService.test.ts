@@ -59,7 +59,7 @@ import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, IChatReq
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatRequestAcceptedEvent, IChatService, IChatUserActionEvent, ResponseModelState, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService, rekeyIntendedModel } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
@@ -69,7 +69,7 @@ import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatRequestModeInfo, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { IChatSessionIndex } from '../../../common/model/chatSessionStore.js';
@@ -647,10 +647,11 @@ suite('ChatService', () => {
 	test('acceptance counts submissions once, not rejections, system messages, retries or queue drains', async () => {
 		const service = createChatService();
 		const model = startSessionModel(service).object;
-		const accepted: boolean[] = [];
-		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		const modeInfo: IChatRequestModeInfo = { kind: undefined, isBuiltin: true, modeInstructions: undefined, telemetryModeId: undefined, applyCodeBlockSuggestionId: undefined };
+		const accepted: { isNewSession: boolean; modeInfo?: IChatRequestModeInfo }[] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push({ isNewSession: event.isNewSession, modeInfo: event.modeInfo })));
 		await service.sendRequest(model.sessionResource, '');
-		const first = await service.sendRequest(model.sessionResource, 'first');
+		const first = await service.sendRequest(model.sessionResource, 'first', { modeInfo });
 		ChatSendResult.assertSent(first);
 		await first.data.responseCompletePromise;
 		await service.resendRequest(model.getRequests()[0]);
@@ -661,7 +662,25 @@ suite('ChatService', () => {
 		await service.sendRequest(model.sessionResource, 'steering', { queue: ChatRequestQueueKind.Steering, pauseQueue: true });
 		service.processPendingRequests(model.sessionResource);
 		await timeout(10);
-		assert.deepStrictEqual(accepted, [true, false, false]);
+		assert.deepStrictEqual(accepted, [
+			{ isNewSession: true, modeInfo },
+			{ isNewSession: false, modeInfo: undefined },
+			{ isNewSession: false, modeInfo: undefined },
+		]);
+	});
+
+	test('acceptance exposes the Agent Host origin of delegated submissions', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const accepted: IChatRequestAcceptedEvent['agentHostMessageOrigin'][] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.agentHostMessageOrigin)));
+		for (const agentHostMessageOrigin of [undefined, { kind: MessageKind.Agent }]) {
+			const sent = await service.sendRequest(model.sessionResource, 'hello', { agentHostMessageOrigin });
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+		}
+		await service.sendRequest(model.sessionResource, 'queued', { queue: ChatRequestQueueKind.Queued, pauseQueue: true, agentHostMessageOrigin: { kind: MessageKind.Tool } });
+		assert.deepStrictEqual(accepted, [undefined, { kind: MessageKind.Agent }, { kind: MessageKind.Tool }]);
 	});
 
 	async function createSurveySession(sessionType: string, provider?: string) {
@@ -4567,6 +4586,9 @@ suite('ChatService', () => {
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
+			readonly loadOlderHistory?: IChatSession['loadOlderHistory'];
+			readonly olderHistoryCursor?: IChatSession['olderHistoryCursor'];
+			readonly ownsHistoryRequestIds?: boolean;
 			readonly history?: readonly IChatSessionHistoryItem[];
 			readonly preserveHistoryItemIdentity?: boolean;
 			readonly transferredState?: IChatSession['transferredState'];
@@ -4597,6 +4619,9 @@ suite('ChatService', () => {
 				canvasContext: opts.canvasContext,
 				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
 				onDidStartServerRequest: opts.onDidStartServerRequest,
+				loadOlderHistory: opts.loadOlderHistory,
+				olderHistoryCursor: opts.olderHistoryCursor,
+				ownsHistoryRequestIds: opts.ownsHistoryRequestIds,
 				// Like the agent host provider, update the history before announcing the change.
 				onDidChangeHistory: onDidChangeHistory && Event.map(onDidChangeHistory, next => history = next, testDisposables),
 				preserveHistoryItemIdentity: opts.preserveHistoryItemIdentity,
@@ -5993,6 +6018,139 @@ suite('ChatService', () => {
 			});
 		}
 
+		test('loads older history in front of a running request without replaying it as a new send', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const history: IChatSessionHistoryItem[] = [{ id: 'recent', type: 'request', prompt: 'Recent', participant: remoteScheme }];
+			const cursor = observableValue<string | undefined>('cursor', 'older');
+			let loads = 0;
+			const { resource } = setupRemoteProvider({
+				history, onDidChangeHistory: changes.event, olderHistoryCursor: cursor,
+				loadOlderHistory: async () => {
+					loads++;
+					changes.fire([
+						{ id: 'first', type: 'request', prompt: 'First', participant: remoteScheme },
+						{ id: 'second', type: 'request', prompt: 'Second', participant: remoteScheme },
+						...history,
+					]);
+					cursor.set(undefined, undefined);
+				},
+			});
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const view = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const recent = model.lastRequest;
+			const live = model.addRequest({ text: 'Live', parts: [] }, { variables: [] }, 0);
+			let sends = 0;
+			testDisposables.add(view.onDidChange(change => { if (change?.kind === 'addRequest') { sends++; } }));
+			const before = model.olderHistoryCursor.get();
+			await Promise.all([model.loadOlderHistory!(), model.loadOlderHistory!()]);
+			assert.deepStrictEqual({
+				order: view.getItems().filter(isRequestVM).map(item => item.messageText), sends, loads, cursors: [before, model.olderHistoryCursor.get()],
+				preserved: model.getRequests()[2] === recent && model.lastRequest === live,
+				active: model.hasActiveRequest.get(), complete: model.getRequests().map(r => r.response?.isIncomplete.get()),
+			}, { order: ['First', 'Second', 'Recent', 'Live'], sends: 0, loads: 1, cursors: ['older', undefined], preserved: true, active: true, complete: [false, false, false, true] });
+			model.cancelRequest(live);
+		});
+
+		test('keeps a fetched page searchable as pending until its replacement history is applied', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const recent = { id: 'recent', type: 'request', prompt: 'Recent', participant: remoteScheme } as const;
+			const cursor = observableValue<string | undefined>('cursor', 'last page');
+			let loads = 0;
+			const { resource } = setupRemoteProvider({
+				history: [recent], onDidChangeHistory: changes.event, olderHistoryCursor: cursor, ownsHistoryRequestIds: true,
+				loadOlderHistory: async () => {
+					loads++;
+					changes.fire([{ ...recent, id: 'older', prompt: 'Unique early match' }, { ...recent }]);
+					cursor.set(undefined, undefined);
+				},
+			});
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			const model = testDisposables.add(ref).object as ChatModel;
+			const live = model.addRequest({ parts: [], text: 'Live' }, { variables: [] }, 0);
+			let finished = false;
+			const page = model.loadOlderHistory!().then(() => { finished = true; });
+			await timeout(0);
+			const before = { finished, cursor: model.olderHistoryCursor.get(), rows: model.getRequests().map(r => r.id) };
+			const samePage = model.loadOlderHistory!();
+			live.response!.complete();
+			await Promise.all([page, samePage]);
+			assert.deepStrictEqual({ before, loads, cursor: model.olderHistoryCursor.get(), prompts: model.getRequests().map(r => r.message.text) }, {
+				before: { finished: false, cursor: 'last page', rows: ['recent', live.id] }, loads: 1, cursor: undefined,
+				prompts: ['Unique early match', 'Recent', 'Live'],
+			});
+		});
+
+		test('disposing the model cancels a page waiting for its replacement history', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const recent = { id: 'recent', type: 'request', prompt: 'Recent', participant: remoteScheme } as const;
+			const { resource } = setupRemoteProvider({
+				history: [recent], onDidChangeHistory: changes.event,
+				loadOlderHistory: async () => changes.fire([{ ...recent, id: 'older' }, { ...recent }]),
+			});
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			const model = testDisposables.add(ref).object as ChatModel;
+			model.addRequest({ parts: [], text: 'Live' }, { variables: [] }, 0);
+			const page = model.loadOlderHistory!();
+			await timeout(0);
+			model.dispose();
+			await assert.rejects(page, isCancellationError);
+		});
+
+		test('authoritative history removes confirmed local turns even if snapshots coalesce while streaming', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first = { id: 'one', type: 'request', prompt: 'First', participant: remoteScheme } as const;
+			const { resource } = setupRemoteProvider({ history: [first], onDidChangeHistory: changes.event, ownsHistoryRequestIds: true });
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			const model = testDisposables.add(ref).object as ChatModel;
+			const local = model.addRequest({ parts: [], text: 'Local' }, { variables: [] }, 0);
+			const observed = { ...first, prompt: 'Local', id: local.id };
+			changes.fire([first, observed]);
+			changes.fire([first]);
+			local.response!.complete();
+			await timeout(0);
+			const afterCoalescing = model.getRequests().map(request => request.id);
+			const settled = model.addRequest({ parts: [], text: 'Settled' }, { variables: [] }, 0);
+			settled.response!.complete();
+			changes.fire([first, { ...first, prompt: 'Settled', id: settled.id }]);
+			const sameLocal = model.lastRequest === settled;
+			changes.fire([]);
+			changes.fire([{ ...first, id: 'replacement' }]);
+			assert.deepStrictEqual({ afterCoalescing, sameLocal, final: model.getRequests().map(request => request.id) }, {
+				afterCoalescing: ['one'], sameLocal: true, final: ['replacement'],
+			});
+		});
+
+		test('send-time history truncation preserves the optimistic request before host confirmation', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first = { id: 'keep', type: 'request', prompt: 'First', participant: remoteScheme } as const;
+			const { resource } = setupRemoteProvider({
+				history: [first, { ...first, id: 'discard' }], onDidChangeHistory: changes.event, ownsHistoryRequestIds: true,
+			});
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			const model = testDisposables.add(ref).object as ChatModel;
+			const sending = model.addRequest({ parts: [], text: 'New branch' }, { variables: [] }, 0);
+			const response = sending.response!;
+			changes.fire([first]);
+			const inFlight = model.lastRequest === sending && model.hasActiveRequest.get();
+			response.complete();
+			await timeout(0);
+			assert.deepStrictEqual({ inFlight, sameResponse: model.lastRequest?.response === response, ids: model.getRequests().map(r => r.id) }, {
+				inFlight: true, sameResponse: true, ids: ['keep', sending.id],
+			});
+		});
+
 		for (const [previousCount, nextCount] of [[2, 1], [1, 2]]) {
 			test(`passive history does not reuse ambiguous ID-less identities: ${previousCount} to ${nextCount}`, async () => {
 				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
@@ -6583,6 +6741,67 @@ suite('ChatService', () => {
 			});
 		});
 
+		test('times a turn that was already running when its session was loaded from the turn\'s start', async () => {
+			const startedAt = Date.now() - 40_000;
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ type: 'request', prompt: 'hello', participant: remoteScheme, timestamp: startedAt },
+					{ type: 'response', parts: [], participant: remoteScheme },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue<boolean>('isComplete', false),
+				interruptActiveResponseCallback: async () => true,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const response = ref.object.getRequests()[0].response;
+			assert.deepStrictEqual({
+				running: response?.isIncomplete.get(),
+				startedAt: response?.confirmationAdjustedTimestamp.get(),
+			}, {
+				running: true,
+				startedAt,
+			});
+		});
+
+		test('keeps the working time of a restored remote turn unknown unless its history records when it ended', async () => {
+			const timestamp = Date.now() - 24 * 60 * 60 * 1000;
+			const response = (completedAt: number | undefined, isCanceled: boolean): IChatSessionHistoryItem => ({ type: 'response', parts: [], participant: remoteScheme, completedAt, ...(isCanceled ? { isCanceled } : {}) });
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ type: 'request', prompt: 'completed', participant: remoteScheme, timestamp },
+					response(timestamp + 3_000, false),
+					{ type: 'request', prompt: 'completed without time', participant: remoteScheme, timestamp: timestamp + 4_000 },
+					response(undefined, false),
+					{ type: 'request', prompt: 'cancelled without time', participant: remoteScheme, timestamp: timestamp + 8_000 },
+					response(undefined, true),
+				],
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const exported = ref.object.toJSON().requests;
+			const log = new ChatSessionOperationLog();
+			const stored = log.read(log.createInitial(ref.object)).requests;
+			assert.deepStrictEqual(ref.object.getRequests().map((request, index) => ({
+				prompt: request.message.text,
+				elapsedMs: request.response?.elapsedMs,
+				exported: exported[index].elapsedMs,
+				stored: stored[index].elapsedMs,
+			})), [
+				{ prompt: 'completed', elapsedMs: 3_000, exported: 3_000, stored: 3_000 },
+				{ prompt: 'completed without time', elapsedMs: undefined, exported: undefined, stored: undefined },
+				{ prompt: 'cancelled without time', elapsedMs: undefined, exported: undefined, stored: undefined },
+			]);
+		});
+
 		test('restores cancelled remote turns as cancelled at their recorded time', async () => {
 			const timestamp = 1_752_012_321_000;
 			const response = (completedAt: number | undefined, isCanceled: boolean): IChatSessionHistoryItem => ({ type: 'response', parts: [], participant: remoteScheme, completedAt, ...(isCanceled ? { isCanceled } : {}) });
@@ -6634,12 +6853,13 @@ suite('ChatService', () => {
 			assert.deepStrictEqual({ canceled: response?.isCanceled, completionTimestamp: response?.completionTimestamp }, { canceled: true, completionTimestamp: completedAt });
 		});
 
-		test('a cold restore waits for the transferred draft\'s model, not the history\'s last one', async () => {
+		test('a cold restore waits for the transferred draft\'s model and configuration, not the history\'s last model', async () => {
 			const draftModelId = 'agent-host-copilotcli:gpt-5.3-codex';
+			const configuration = { thinkingLevel: 'high', contextSize: 200_000 };
 			const { resource } = setupRemoteProvider({
 				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme, modelId: 'agent-host-copilotcli:claude-opus-5.5' }],
 				// The live catalog is not loaded, so the draft arrives without its model's metadata.
-				transferredState: { editingSession: undefined, inputState: { attachments: [], contrib: {}, inputText: '', mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, selections: [] }, selectedModelId: draftModelId },
+				transferredState: { editingSession: undefined, inputState: { attachments: [], contrib: {}, inputText: '', mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, selections: [] }, selectedModelId: draftModelId, selectedModelConfiguration: configuration },
 			});
 
 			const testService = createChatService();
@@ -6651,7 +6871,7 @@ suite('ChatService', () => {
 				intended: ref.object.inputModel.intendedModel,
 				selected: ref.object.inputModel.state.get()?.selectedModel?.identifier,
 			}, {
-				intended: { modelId: draftModelId, reason: ModelSelectionReason.SessionRestore },
+				intended: { modelId: draftModelId, reason: ModelSelectionReason.SessionRestore, configuration },
 				selected: undefined,
 			});
 		});
@@ -6925,9 +7145,11 @@ suite('ChatService', () => {
 			assert.deepStrictEqual({
 				message: ref.object.lastRequest?.message.text,
 				timestamp: ref.object.lastRequest?.timestamp,
+				responseStartedAt: ref.object.lastRequest?.response?.confirmationAdjustedTimestamp.get(),
 			}, {
 				message: 'server request',
 				timestamp,
+				responseStartedAt: timestamp,
 			});
 		});
 

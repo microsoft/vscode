@@ -12,7 +12,6 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { raceCancellation } from '../../../util/vs/base/common/async';
 import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
-import { ResourceSet } from '../../../util/vs/base/common/map';
 import { isEqual } from '../../../util/vs/base/common/resources';
 import { createTimeout } from '../../inlineEdits/common/common';
 import { IToolsService } from '../../tools/common/toolsService';
@@ -21,7 +20,6 @@ import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspa
 import { ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import {
 	FolderRepositoryInfo,
-	FolderRepositoryMRUEntry,
 	GetFolderRepositoryOptions,
 	IFolderRepositoryManager,
 	InitializeFolderRepositoryOptions
@@ -45,7 +43,6 @@ export const UNTRUSTED_FOLDER_MESSAGE = l10n.t('The selected folder is not trust
  * - Resolving folder/repository/worktree information for new sessions
  * - Creating worktrees for git repositories
  * - Verifying trust status
- * - Tracking MRU (Most Recently Used) folders
  *
  * Subclasses must implement {@link getFolderRepository} to provide session-type-specific
  * resolution of folder information for existing (named) sessions.
@@ -57,7 +54,7 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 	 * In-memory storage for new session folder selections.
 	 * Maps session ID → folder URI.
 	 */
-	protected readonly _newSessionFolders = new Map<string, { uri: vscode.Uri; lastAccessTime: number }>();
+	protected readonly _newSessionFolders = new Map<string, vscode.Uri>();
 
 	constructor(
 		protected readonly worktreeService: IChatSessionWorktreeService,
@@ -76,7 +73,7 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 	 * @deprecated
 	 */
 	setNewSessionFolder(sessionId: string, folderUri: vscode.Uri): void {
-		this._newSessionFolders.set(sessionId, { uri: folderUri, lastAccessTime: Date.now() });
+		this._newSessionFolders.set(sessionId, folderUri);
 	}
 
 	/**
@@ -106,7 +103,7 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 				const { folder, repository, repositoryProperties, trusted } = await this.getFolderRepositoryForNewSession(sessionId, undefined, options.stream, _token);
 				return { folder, repository, repositoryProperties, worktree: undefined, worktreeProperties: undefined, trusted };
 			} else {
-				const folder = this._newSessionFolders.get(sessionId)?.uri
+				const folder = this._newSessionFolders.get(sessionId)
 					?? await this.workspaceFolderService.getSessionWorkspaceFolder(sessionId);
 				return { folder, repository: undefined, repositoryProperties: undefined, worktree: undefined, trusted: undefined, worktreeProperties: undefined };
 			}
@@ -192,7 +189,7 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 
 	protected async getFolderRepositoryForNewSession(sessionId: string | undefined, selectedFolder: vscode.Uri | undefined, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<FolderRepositoryInfo> {
 		// Use the explicitly provided folder, or fall back to the session's stored folder
-		selectedFolder = selectedFolder ?? (sessionId ? (this._newSessionFolders.get(sessionId)?.uri
+		selectedFolder = selectedFolder ?? (sessionId ? (this._newSessionFolders.get(sessionId)
 			?? await this.workspaceFolderService.getSessionWorkspaceFolder(sessionId)) : undefined);
 
 		// If no folder selected and we have a single workspace folder, use active repository
@@ -439,204 +436,6 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 			worktreeProperties,
 			trusted: true
 		};
-	}
-
-	async initializeMultiRootFolderRepositories(
-		sessionId: string,
-		primaryFolder: vscode.Uri,
-		additionalFolders: vscode.Uri[],
-		options: InitializeFolderRepositoryOptions,
-		token: vscode.CancellationToken
-	): Promise<{ primary: FolderRepositoryInfo; additional: FolderRepositoryInfo[] }> {
-		const { stream, toolInvocationToken, isolation } = options;
-		const allFolders = [primaryFolder, ...additionalFolders];
-
-		// 1. Resolve all folder/repo info
-		const folderInfos = await Promise.all(
-			allFolders.map(folder => this.getFolderRepositoryForNewSession(sessionId, folder, stream, token))
-		);
-
-		// 2. Filter out untrusted folders
-		const trustedInfos: { folder: vscode.Uri; info: FolderRepositoryInfo }[] = [];
-		for (let i = 0; i < allFolders.length; i++) {
-			if (folderInfos[i].trusted === false) {
-				continue;
-			}
-			trustedInfos.push({ folder: allFolders[i], info: folderInfos[i] });
-		}
-
-		if (trustedInfos.length === 0) {
-			return {
-				primary: { folder: primaryFolder, repository: undefined, repositoryProperties: undefined, worktree: undefined, worktreeProperties: undefined, trusted: false },
-				additional: []
-			};
-		}
-
-		// 3. If workspace mode, skip worktree creation — return all as-is
-		if (isolation === 'workspace') {
-			const primary = trustedInfos.find(t => t.folder.fsPath === primaryFolder.fsPath)?.info
-				?? { folder: primaryFolder, repository: undefined, repositoryProperties: undefined, worktree: undefined, worktreeProperties: undefined, trusted: true };
-			const additional = trustedInfos
-				.filter(t => t.folder.fsPath !== primaryFolder.fsPath)
-				.map(t => ({
-					folder: t.info.folder ?? t.folder,
-					repository: undefined,
-					repositoryProperties: undefined,
-					worktree: undefined,
-					worktreeProperties: undefined,
-					trusted: true as boolean | undefined,
-				}));
-			return {
-				primary: { ...primary, repository: undefined, repositoryProperties: undefined, worktree: undefined, worktreeProperties: undefined },
-				additional
-			};
-		}
-
-		// 4. Collect uncommitted changes from ALL git repos into one combined list
-		const reposWithChanges: { folder: vscode.Uri; repository: vscode.Uri; modifiedFiles: Array<{ uri: vscode.Uri; originalUri?: vscode.Uri; insertions?: number; deletions?: number }> }[] = [];
-		for (const { folder, info } of trustedInfos) {
-			if (!info.repository) {
-				continue;
-			}
-			const repo = await this.gitService.getRepository(info.repository, false);
-			if (!repo) {
-				continue;
-			}
-			const modifiedFiles = await this.getModifiedFilesForConfirmation(info.repository, repo, token);
-			if (modifiedFiles.length > 0) {
-				reposWithChanges.push({ folder, repository: info.repository, modifiedFiles });
-			}
-		}
-
-		// 5. Show ONE combined prompt if any repo has uncommitted changes
-		let uncommittedChangesAction: 'move' | 'copy' | 'skip' | 'cancel' | undefined = undefined;
-		if (reposWithChanges.length > 0) {
-			const allModifiedFiles = reposWithChanges.flatMap(r => r.modifiedFiles);
-			uncommittedChangesAction = await this._promptForMultiRootUncommittedChanges(toolInvocationToken, allModifiedFiles, token);
-			if (uncommittedChangesAction === 'cancel') {
-				return {
-					primary: { folder: primaryFolder, repository: undefined, repositoryProperties: undefined, worktree: undefined, worktreeProperties: undefined, trusted: true, cancelled: true },
-					additional: []
-				};
-			}
-		}
-
-		// 6. Create worktrees for all git repo folders in parallel
-		const results: { folder: vscode.Uri; info: FolderRepositoryInfo }[] = [];
-		const worktreeCreationResults = await Promise.allSettled(
-			trustedInfos.map(async ({ folder, info }) => {
-				if (!info.repository) {
-					// Non-git folder — keep as plain folder
-					return { folder, info };
-				}
-
-				const worktreeProperties = await this.worktreeService.createWorktree(info.repository, stream);
-				if (!worktreeProperties) {
-					this.logService.warn(`[FolderRepositoryManager] Multi-root: failed to create worktree for ${info.repository.fsPath}, proceeding without isolation`);
-					return { folder, info };
-				}
-
-				this.logService.info(`[FolderRepositoryManager] Multi-root: created worktree for ${info.repository.fsPath}: ${worktreeProperties.worktreePath}`);
-				return {
-					folder,
-					info: {
-						folder: info.folder ?? info.repository,
-						repository: info.repository,
-						repositoryProperties: info.repositoryProperties,
-						worktree: vscode.Uri.file(worktreeProperties.worktreePath),
-						worktreeProperties,
-						trusted: true as boolean | undefined,
-					}
-				};
-			})
-		);
-
-		for (const result of worktreeCreationResults) {
-			if (result.status === 'fulfilled') {
-				results.push(result.value);
-			} else {
-				this.logService.error(`[FolderRepositoryManager] Multi-root: worktree creation failed: ${result.reason}`);
-			}
-		}
-
-		// 7. Migrate changes to worktrees if requested
-		if (uncommittedChangesAction === 'move' || uncommittedChangesAction === 'copy') {
-			const reposWithChangesSet = new Set(reposWithChanges.map(r => r.repository.fsPath));
-			await Promise.allSettled(
-				results
-					.filter(r => r.info.repository && r.info.worktree && reposWithChangesSet.has(r.info.repository.fsPath))
-					.map(r => this.moveOrCopyChangesToWorkTree(r.info.repository!, r.info.worktree!, uncommittedChangesAction!, stream, token))
-			);
-		}
-
-		// 8. Build result
-		const primaryResult = results.find(r => r.folder.fsPath === primaryFolder.fsPath)?.info
-			?? { folder: primaryFolder, repository: undefined, repositoryProperties: undefined, worktree: undefined, worktreeProperties: undefined, trusted: true };
-		const additionalResults = results
-			.filter(r => r.folder.fsPath !== primaryFolder.fsPath)
-			.map(r => r.info);
-
-		return { primary: primaryResult, additional: additionalResults };
-	}
-
-	private async _promptForMultiRootUncommittedChanges(
-		toolInvocationToken: vscode.ChatParticipantToolToken,
-		modifiedFiles: Array<{ uri: vscode.Uri; originalUri?: vscode.Uri; insertions?: number; deletions?: number }>,
-		token: vscode.CancellationToken
-	): Promise<'move' | 'copy' | 'skip' | 'cancel'> {
-		const title = l10n.t('Uncommitted Changes');
-		const message = l10n.t('Some repositories have uncommitted changes. Should these changes be included in the new worktrees?');
-		const copyChanges = l10n.t('Copy Changes');
-		const moveChanges = l10n.t('Move Changes');
-		const skipChanges = l10n.t('Skip Changes');
-		const options = [copyChanges, moveChanges, skipChanges];
-		const input = { title, message, options, modifiedFiles };
-		const result = await this.toolsService.invokeTool('vscode_get_modified_files_confirmation', { input, toolInvocationToken }, token);
-		const selection = this.getSelectedUncommittedChangesAction(result, options);
-		switch (selection?.toUpperCase()) {
-			case moveChanges.toUpperCase(): return 'move';
-			case copyChanges.toUpperCase(): return 'copy';
-			case skipChanges.toUpperCase(): return 'skip';
-			default: return 'cancel';
-		}
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	async getFolderMRU(): Promise<FolderRepositoryMRUEntry[]> {
-		const latestReposAndFolders: FolderRepositoryMRUEntry[] = [];
-		const seenUris = new ResourceSet();
-
-		for (const { uri, lastAccessTime } of this._newSessionFolders.values()) {
-			if (seenUris.has(uri)) {
-				continue;
-			}
-			seenUris.add(uri);
-			latestReposAndFolders.push({
-				folder: uri,
-				repository: undefined,
-				lastAccessed: lastAccessTime,
-			});
-		}
-
-		// Add recent git repositories
-		for (const repo of this.gitService.getRecentRepositories()) {
-			if (seenUris.has(repo.rootUri)) {
-				continue;
-			}
-			seenUris.add(repo.rootUri);
-			latestReposAndFolders.push({
-				folder: repo.rootUri,
-				repository: repo.rootUri,
-				lastAccessed: repo.lastAccessTime,
-			});
-		}
-
-		// Sort by last access time descending and limit
-		latestReposAndFolders.sort((a, b) => b.lastAccessed - a.lastAccessed);
-
-		return latestReposAndFolders;
 	}
 
 	/**

@@ -112,6 +112,21 @@ function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
 	return first === second || (first.size === second.size && [...first].every(value => second.has(value)));
 }
 
+/** The label of a pill kind's options submenu. The options of the pills listing artifacts filter those artifacts. */
+function getOptionsLabel(kind: SessionChatPillKind): string {
+	switch (kind) {
+		case SessionChatPillKind.Subagents:
+			return localize('chatInputPills.subagentOptions', "Subagent Options");
+		case SessionChatPillKind.Artifacts:
+			return localize('chatInputPills.artifactOptions', "Artifact Options");
+		case SessionChatPillKind.PullRequests:
+		case SessionChatPillKind.Issues:
+			return localize('chatInputPills.artifactKindOptions', "{0} Artifact Options", getSessionChatPillLabel(kind));
+		default:
+			return localize('chatInputPills.options', "{0} Options", getSessionChatPillLabel(kind));
+	}
+}
+
 const PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY = 'chat.inputPills.pinnedEntries';
 
 function readPinnedChatPillEntries(storageService: IStorageService): ReadonlyMap<string, readonly string[]> {
@@ -249,6 +264,8 @@ export function createChatSectionPillSource(
 export class StandardChatInputPillSources extends Disposable {
 	readonly sources: readonly IChatInputPillSource[];
 	private readonly pins: ChatInputPillPins;
+	/** Actions on an entry's place in the chat rather than on its resource, which pinning adds or moves into its row. */
+	private readonly placementActions = new WeakSet<IAction>();
 
 	constructor(
 		data: IStandardChatInputPillsData,
@@ -385,11 +402,11 @@ export class StandardChatInputPillSources extends Disposable {
 				getContextMenuPrimaryActions: pill => {
 					const pinnedModel = pinnedModelsByPill.get(pill);
 					if (pinnedModel) {
-						return getChatPillEntryHoverActions(pinnedModel.getEntry());
+						return this.getEntryContextMenuActions(pinnedModel.getEntry());
 					}
 					const entries = getChatPillEntries(presentation.get().sections);
 					if (entries.length === 1) {
-						return getChatPillEntryHoverActions(entries[0]);
+						return this.getEntryContextMenuActions(entries[0]);
 					}
 					if (source.getContextMenuPrimaryActions) {
 						return source.getContextMenuPrimaryActions();
@@ -415,12 +432,35 @@ export class StandardChatInputPillSources extends Disposable {
 		return this.pins.getPinned(this.pinScope.read(reader), kind, reader);
 	}
 
+	/** Pins an entry of a pill kind into a pill of its own, as its pin action does. Returns whether it could: pins need a scope. */
+	pin(kind: SessionChatPillKind, entry: Pick<IChatPillEntry, 'id' | 'label'>): boolean {
+		const scope = this.pinScope.get();
+		if (scope) {
+			this.pins.setPinned(scope, kind, entry.id, entry.label, true);
+		}
+		return !!scope;
+	}
+
+	/**
+	 * An entry's context menu actions: those on its resource, such as Copy, then those on its place in the chat, such
+	 * as Pin and Remove.
+	 */
+	private getEntryContextMenuActions(entry: IChatPillEntry): readonly IAction[] {
+		const actions = getChatPillEntryHoverActions(entry);
+		const isPlacementAction = (action: IAction) => action === entry.promotedAction || this.placementActions.has(action);
+		return Separator.join(actions.filter(action => !isPlacementAction(action)), actions.filter(isPlacementAction));
+	}
+
 	private withPinAction(entry: IChatPillEntry, kind: SessionChatPillKind, scope: string | undefined, pinned: boolean): IChatPillEntry {
 		if (!scope) {
 			return entry;
 		}
 		const pinAction = this.pins.createPinAction(entry, kind, scope, pinned);
+		this.placementActions.add(pinAction);
 		if (pinned) {
+			if (entry.promotedAction) {
+				this.placementActions.add(entry.promotedAction);
+			}
 			return {
 				...entry,
 				toolbarActions: [...entry.toolbarActions ?? [], ...(entry.promotedAction ? [entry.promotedAction] : [])],
@@ -516,12 +556,16 @@ export class ChatInputPills extends Disposable {
 		}));
 		this._register(this._row.onDidRequestContextMenu(anchor => showContextMenu(anchor, this._getTarget(anchor))));
 
-		derived(this, reader => {
+		const rowState = derived(this, reader => {
 			const anyVisible = this._pills.isVisible.read(reader);
 			// The empty row only restores pills the user hid or filtered; default-hidden kinds never claimed room in the row.
 			const anyRestorable = [...kindsWithData.read(reader)].some(kind => this._visibility.isVisible(kind, reader) || !isSessionChatPillHiddenByDefault(kind));
 			return anyVisible ? 'visible' : anyRestorable ? 'empty' : 'hidden';
-		}).recomputeInitiallyAndOnChange(this._store, state => {
+		});
+		// Only touch the DOM when the row state changes: the sources update often (e.g. while a response streams),
+		// and pill size changes are already rescanned by the row's resize observer.
+		this._register(autorun(reader => {
+			const state = rowState.read(reader);
 			const activeElement = getWindow(this._row.content).document.activeElement;
 			const restoreInputFocus = state === 'hidden' && !!activeElement && this._row.content.contains(activeElement);
 			const visible = state !== 'hidden';
@@ -535,7 +579,7 @@ export class ChatInputPills extends Disposable {
 			if (restoreInputFocus) {
 				this._row.restoreFocus(() => this._pills.getPillElements(), _options.focusFallback);
 			}
-		});
+		}));
 	}
 
 	get visible(): boolean {
@@ -544,6 +588,11 @@ export class ChatInputPills extends Disposable {
 
 	getPillElements(): readonly HTMLElement[] {
 		return this._pills.getPillElements();
+	}
+
+	/** Surfaces for the chat pet: each pill together with any segments joined to it, such as integration status. */
+	getPillItemElements(): readonly HTMLElement[] {
+		return this._pills.getPillItemElements();
 	}
 
 	focusFirst(): boolean {
@@ -622,28 +671,28 @@ export class ChatInputPills extends Disposable {
 			if (actions.length) {
 				optionsActions.push(new SubmenuAction(
 					`chatInputPills.options.${source.kind}`,
-					source.kind === SessionChatPillKind.Subagents
-						? localize('chatInputPills.subagentOptions', "Subagent Options")
-						: localize('chatInputPills.options', "{0} Options", getSessionChatPillLabel(source.kind)),
+					getOptionsLabel(source.kind),
 					actions.map(withFocusRestoration),
 				));
 			}
 		}
-		if (targetActions.length) {
-			targetActions.push(new Separator());
-		}
-		if (menu.hide) {
-			const hide = menu.hide;
-			targetActions.push(toAction({
-				id: `chatInputPills.hide.${hide.kind}`,
-				label: hide.label,
-				run: () => {
-					this._visibility.hide(hide.kind);
-					restoreFocus();
-				},
-			}));
-		}
-		return Separator.join(targetActions, optionsActions, menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
+		const hide = menu.hide;
+		const hideActions = hide ? [toAction({
+			id: `chatInputPills.hide.${hide.kind}`,
+			label: hide.label,
+			run: () => {
+				this._visibility.hide(hide.kind);
+				restoreFocus();
+			},
+		})] : [];
+		const toggleActions = Separator.join(menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
+		const showPillsActions = toggleActions.length ? [new SubmenuAction('chatInputPills.show', localize('chatInputPills.show', "Show Pills"), toggleActions)] : [];
+		const pillActions = Separator.join(targetActions, optionsActions);
+		// A pill's menu ends with Hide right above a submenu of the visibility toggles. Offering nothing else, as on the row itself, the toggles stay flat.
+		const visibilityActions = target && (pillActions.length || hideActions.length)
+			? [...hideActions, ...showPillsActions]
+			: toggleActions;
+		return Separator.join(pillActions, visibilityActions);
 	}
 }
 

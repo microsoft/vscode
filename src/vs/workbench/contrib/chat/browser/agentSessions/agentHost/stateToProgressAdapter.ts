@@ -5,6 +5,7 @@
 
 import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
 import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage, type IAgentChatUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
+import { readAgentModelCallDiagnostics } from '../../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -18,14 +19,16 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, TurnState, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, TurnState, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, AHP_CHAT_SCHEME, type IModelRoutedInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
+import { getShellAuthenticationTitle, readShellAuthentication, type IShellAuthenticationPrompt } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import { isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, readToolCallResponseMarkdown, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
+import { getCompletionDescription, readCompletionAttachmentMeta, restoreLegacySkillAttachment } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { modelRouterNameFromModelId } from '../../../../../../platform/agentHost/common/modelRouter.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -51,7 +54,7 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agentS
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
-import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMarkdownContent, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatSingleSelectAnswer, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -59,7 +62,8 @@ import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chat
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { type ChatRequestSource, type IChatRequestVariableData, type IChatSessionCost } from '../../../common/model/chatModel.js';
 import { ChatRequestOriginKind, type IChatRequestOrigin } from '../../../common/chatRequestOrigin.js';
-import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntry, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX } from '../../../common/attachments/chatInlineAttachments.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ChatToolInvocationSummary, getToolInvocationSummaryFromInput } from '../../../common/tools/toolInvocationSummary.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
@@ -126,6 +130,15 @@ function shouldHideAutomaticTitleRename(toolCall: ToolCallState): boolean {
 	return isAutomaticTitleRename(toolCall)
 		&& toolCall.status !== ToolCallStatus.Cancelled
 		&& (toolCall.status !== ToolCallStatus.Completed || toolCall.success);
+}
+
+/**
+ * Response text that a completed tool call reports, shown in the response in place of the call. A subagent's
+ * call keeps its row in the parent's response, which doesn't show the subagent's text.
+ */
+export function toolCallToResponseMarkdown(toolCall: ToolCallState, subAgentInvocationId: string | undefined): IChatMarkdownContent | undefined {
+	const markdown = subAgentInvocationId === undefined ? readToolCallResponseMarkdown(toolCall) : undefined;
+	return markdown ? { kind: 'markdownContent', content: new MarkdownString(markdown) } : undefined;
 }
 
 export interface IAgentHostToolInvocationOptions {
@@ -313,6 +326,55 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 	return carousel;
 }
 
+export const SHELL_AUTHENTICATION_QUESTION_ID = 'answer';
+const SHELL_AUTHENTICATION_CONFIRM_YES = 'yes';
+const SHELL_AUTHENTICATION_CONFIRM_NO = 'no';
+const SHELL_AUTHENTICATION_CANCEL = 'cancel';
+
+export function createShellAuthenticationCarousel(requestId: string, prompt: IShellAuthenticationPrompt, canAnswer = true): ChatQuestionCarouselData {
+	const note = !canAnswer
+		? { icon: Codicon.info, text: localize('agentHost.shellAuthentication.cannotAnswer', "This connection can't send your answer privately, so you can only cancel the prompt here.") }
+		: { icon: Codicon.lock, text: localize('agentHost.shellAuthentication.disclosure', "Your answer goes only to {0} and isn't sent to the model.", prompt.program) };
+	const base = {
+		id: SHELL_AUTHENTICATION_QUESTION_ID,
+		title: getShellAuthenticationTitle(prompt),
+		context: prompt.command ? `${localize('agentHost.shellAuthentication.command', "Command:")}\n${prompt.command}` : undefined,
+		description: prompt.prompt.trim() || undefined,
+		note,
+		required: true,
+	};
+	const question: IChatQuestion = !canAnswer
+		? {
+			...base,
+			type: 'singleSelect',
+			allowFreeformInput: false,
+			options: [{ id: SHELL_AUTHENTICATION_CANCEL, label: localize('agentHost.shellAuthentication.cancelPrompt', "Cancel Prompt"), value: SHELL_AUTHENTICATION_CANCEL }],
+		}
+		: prompt.inputKind === 'confirm'
+			? {
+				...base,
+				type: 'singleSelect',
+				allowFreeformInput: false,
+				options: [
+					{ id: SHELL_AUTHENTICATION_CONFIRM_YES, label: localize('agentHost.shellAuthentication.yes', "Yes"), value: SHELL_AUTHENTICATION_CONFIRM_YES },
+					{ id: SHELL_AUTHENTICATION_CONFIRM_NO, label: localize('agentHost.shellAuthentication.no', "No"), value: SHELL_AUTHENTICATION_CONFIRM_NO },
+				],
+			}
+			: { ...base, type: 'text', password: prompt.inputKind === 'secret' };
+	const carousel = new ChatQuestionCarouselData([question], true, requestId);
+	carousel.answerPresentation = 'conversation';
+	return carousel;
+}
+
+export function getShellAuthenticationAnswer(prompt: IShellAuthenticationPrompt, answers: IChatQuestionAnswers | undefined): string | undefined {
+	const answer = answers?.[SHELL_AUTHENTICATION_QUESTION_ID];
+	if (prompt.inputKind === 'confirm') {
+		const selected = typeof answer === 'object' ? (answer as IChatSingleSelectAnswer).selectedValue : answer;
+		return selected === SHELL_AUTHENTICATION_CONFIRM_YES ? 'yes' : undefined;
+	}
+	return typeof answer === 'string' ? answer : undefined;
+}
+
 export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentPlanReview['review'], resourceUris: IAgentHostResourceUriMapper, connectionAuthority: string): ChatPlanReviewData {
 	return new ChatPlanReviewData(
 		planReview.title,
@@ -392,6 +454,16 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 			state: part.response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
 			isHidden: false,
 		};
+	}
+
+	const shellAuthentication = readShellAuthentication(inputReq);
+	if (shellAuthentication) {
+		// Chat state never holds the answer, so the record only says whether the prompt was answered.
+		const carousel = createShellAuthenticationCarousel(inputReq.id, shellAuthentication);
+		carousel.data = {};
+		carousel.isUsed = true;
+		carousel.answeredExternally = part.response === ChatInputResponseKind.Accept;
+		return carousel;
 	}
 
 	if (readComputerUseSetupCard(inputReq)) {
@@ -591,7 +663,7 @@ function getToolSummary(tc: ToolCallState, resourceUris: IAgentHostResourceUriMa
 	if (tc.contributor || meta['vscode.toolInputContract'] !== copilotCliToolInputContract) {
 		return { kind: 'unknown' };
 	}
-	return getToolInvocationSummaryFromInput(tc.toolName, getToolRawInput(tc), uri => resourceUris.fromAgentHost(uri)) ?? { kind: 'unknown' };
+	return getToolInvocationSummaryFromInput(tc.toolName, getToolRawInput(tc), uri => resourceUris.fromAgentHost(uri), meta['vscode.viewedResourceType']) ?? { kind: 'unknown' };
 }
 
 function buildMcpAppToolInputData(tc: ToolCallState, connectionAuthority: string, existingRawInput?: unknown): IChatToolInputInvocationData | undefined {
@@ -829,6 +901,8 @@ export function getTerminalContent(content: ToolResultContent[] | undefined): Ex
  * Resolves selected and actual model identifiers independently, along with response display details.
  */
 export interface TurnModelLookup {
+	/** Returns the lookup for a turn that selected the given raw AHP model id, so each turn is read against its own selection. */
+	forTurn?(selectedRawModelId: string | undefined): TurnModelLookup;
 	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
 	/** Resolves the actual model's registered id when available, without falling back to the selected model. */
@@ -842,8 +916,9 @@ export interface TurnModelLookup {
 	/**
 	 * Returns the Auto model routing part carried by this usage report, if any. A report with nothing
 	 * new to show returns none, unless `settlesPendingRow` says a row that is still routing is waiting on it.
+	 * `previousRouted` is the chat's routing before this turn, which says whether a turn that kept its route changed anything.
 	 */
-	toAutoModeResolution?(usage: UsageInfo | undefined, settlesPendingRow?: boolean): IChatAutoModeResolutionPart | undefined;
+	toAutoModeResolution?(usage: UsageInfo | undefined, settlesPendingRow?: boolean, previousRouted?: IModelRoutedInfo): IChatAutoModeResolutionPart | undefined;
 	/**
 	 * Returns the identity and display name of the model a turn bills to, reading Auto's pick
 	 * when it routed and folding back to "Auto" while explainability is hidden.
@@ -883,7 +958,8 @@ export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, looku
 		}
 	}
 	const fusionModelId = reportedModelId ?? (isFusionModel(selectedModelId) ? selectedModelId : COPILOT_HYDRA_FUSION_MODEL_ID);
-	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? fusionModelId : undefined);
+	const turnLookup = lookup?.forTurn?.(selectedModelId) ?? lookup;
+	return turnLookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? fusionModelId : undefined);
 }
 
 /**
@@ -919,10 +995,22 @@ export function formatTurnResponseDetails(
 	return [displayName, model.pricing].filter(Boolean).join(' · ');
 }
 
+/** The routing of the last turn before `turnId` that a model router routed. */
+export function previousModelRouted(turns: readonly Turn[], turnId: string): IModelRoutedInfo | undefined {
+	const index = turns.findIndex(turn => turn.id === turnId);
+	for (let i = (index < 0 ? turns.length : index) - 1; i >= 0; i--) {
+		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed) {
+			return routed;
+		}
+	}
+	return undefined;
+}
+
 /**
- * Whether a model router that picks once per chat has already picked for this chat. A later turn
- * that selects it keeps that pick without being routed, so there is no routing to report. As on
- * the host, a model picked by hand or another router selected since then means it routes afresh.
+ * Whether a model router has already picked for this chat. A later turn that selects it reports
+ * only a move to another route, so there is no row to show while it decides. As on the host, a
+ * model picked by hand or another router selected since then means it routes afresh.
  */
 export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string, routerName: string | undefined): boolean {
 	if (!routerName) {
@@ -934,7 +1022,7 @@ export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string,
 		}
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
-			return routed.router === routerName && routed.firstTurnOnly === true;
+			return routed.router === routerName;
 		}
 		// A turn since that pick that selected a model by hand, or another router. A restored turn
 		// that asked for a router and got no pick has the model it ran on as its selection, so the
@@ -983,6 +1071,7 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayN
 	}
 	const metadata = readUsageInfoMeta(usage);
 	const turnTokenTotals = metadata.turnTokenTotals;
+	const latestModelCall = metadata.latestModelCall ?? readTimedModelCall(usage);
 	return {
 		kind: 'usage',
 		promptTokens: usage?.inputTokens ?? 0,
@@ -995,9 +1084,17 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayN
 			...total,
 			model: modelDisplayNameResolver?.(total.model) ?? total.model,
 		})),
-		...(metadata.latestModelCall ? { latestModelCall: metadata.latestModelCall } : {}),
+		...(latestModelCall ? { latestModelCall } : {}),
 		...(contextUsage ? { contextUsage: { currentTokens: contextUsage.currentTokens, tokenLimit: contextUsage.tokenLimit } } : {}),
 	};
+}
+
+/** The duration and output of the model call a VS Code host's report describes, which can be a subagent's. */
+function readTimedModelCall(usage: UsageInfo | undefined): IChatUsage['latestModelCall'] {
+	const modelCall = usage && readAgentModelCallDiagnostics(usage);
+	return modelCall?.durationMs !== undefined && modelCall.outputTokens !== undefined
+		? { duration: modelCall.durationMs, outputTokens: modelCall.outputTokens }
+		: undefined;
 }
 
 function getSessionCopilotCredits(usage: UsageInfo | undefined): number | undefined {
@@ -1013,10 +1110,7 @@ function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
 	if (typeof totalNanoAiu === 'number' && totalNanoAiu >= 0) {
 		return totalNanoAiu / 1_000_000_000;
 	}
-	const cost = meta?.cost;
-	return typeof cost === 'number' && cost >= 0
-		? cost
-		: undefined;
+	return undefined;
 }
 
 /**
@@ -1285,10 +1379,12 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  */
 export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
+	let previousRouted: IModelRoutedInfo | undefined;
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
 		const modelId = lookup?.toLanguageModelId(turn.message.model?.id ?? rawModelId);
-		const details = turnToResponseDetails(turn, lookup);
+		const turnLookup = lookup?.forTurn?.(turn.message.model?.id) ?? lookup;
+		const details = turnToResponseDetails(turn, turnLookup);
 
 		// Request
 		const variableData = messageToVariableData(turn.message, connectionAuthority, resourceUris);
@@ -1327,14 +1423,15 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
 		// History is settled, so an unresolved row would never flip to a routed one.
-		const autoModeResolution = lookup?.toAutoModeResolution?.(turn.usage);
+		const autoModeResolution = turnLookup?.toAutoModeResolution?.(turn.usage, undefined, previousRouted);
 		if (autoModeResolution?.resolved) {
 			parts.push(autoModeResolution);
 		}
+		previousRouted = readUsageInfoMeta(turn.usage).modelRouted ?? previousRouted;
 
-		const usage = usageInfoToChatUsage(turn.usage, lookup?.toModelDisplayName, turn === turns.at(-1) ? contextUsage : undefined);
+		const usage = usageInfoToChatUsage(turn.usage, turnLookup?.toModelDisplayName, turn === turns.at(-1) ? contextUsage : undefined);
 		if (usage) {
-			const actualModelId = lookup?.toActualModelId(rawModelId);
+			const actualModelId = turnLookup?.toActualModelId(rawModelId);
 			if (actualModelId) {
 				usage.actualModelId = actualModelId;
 			}
@@ -1357,6 +1454,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					}
 					parts.push(serialized);
 					parts.push(...fileEditParts);
+					const responseMarkdown = toolCallToResponseMarkdown(tc, undefined);
+					if (responseMarkdown) {
+						parts.push(responseMarkdown);
+					}
 					break;
 				}
 				case ResponsePartKind.Reasoning:
@@ -1553,6 +1654,9 @@ function aggregateAgentFeedbackAttachments(attachments: readonly MessageAttachme
 }
 
 function messageAttachmentToVariableEntry(attachment: MessageAttachment, resourceUris: IAgentHostResourceUriMapper, messageText?: string): IChatRequestVariableEntry | undefined {
+	if (attachment.type === MessageAttachmentKind.Simple) {
+		attachment = restoreLegacySkillAttachment(attachment) ?? attachment;
+	}
 	if (isAgentFeedbackAttachment(attachment)) {
 		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
 		if (metadata) {
@@ -1577,8 +1681,15 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, resourc
 		if (isSessionReferenceTrajectoryAttachment(attachment)) {
 			return undefined;
 		}
-		const uri = resourceUris.fromAgentHost(URI.parse(attachment.uri));
+		const uri = resourceUris.fromAgentHost(URI.parse(attachment.uri, attachment.displayKind === 'skill'));
 		const name = attachment.label;
+		if (attachment.displayKind === 'skill') {
+			const description = getCompletionDescription(attachment);
+			return {
+				...toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, name, uri, attachment._meta),
+				...(description !== undefined ? { modelDescription: description } : {}),
+			};
+		}
 		const id = uri.toString() + (attachment.selection
 			? `:${attachment.selection.range.start.line}-${attachment.selection.range.end.line}`
 			: '');
@@ -1653,9 +1764,12 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, resourc
 		return restoreChatReferenceVariableEntryFromAttachment(attachment, messageText);
 	}
 
-	const agentHostCompletionKind = getAgentHostCompletionKind(attachment);
-	if (agentHostCompletionKind !== undefined) {
-		return toAgentHostCompletionVariableEntryFromMetadata(agentHostCompletionKind, attachment.label, attachment._meta);
+	if (attachment.type === MessageAttachmentKind.Simple && attachment.displayKind === 'command') {
+		const metadata = readCompletionAttachmentMeta(attachment);
+		return toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, attachment.label, metadata?.command, attachment._meta);
+	}
+	if (attachment.type === MessageAttachmentKind.Simple && attachment.displayKind === 'skill') {
+		return toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, attachment.label, undefined, attachment._meta);
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
@@ -1703,6 +1817,10 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, resourc
 	if (pasteEntry) {
 		return pasteEntry;
 	}
+	const gitHubContextEntry = restoreGitHubContextVariableEntry(attachment, modelRepresentation);
+	if (gitHubContextEntry) {
+		return gitHubContextEntry;
+	}
 	const detail = readAttachmentDetail(attachment);
 	const reference = detail?.url && URL.canParse(detail.url) && ['http:', 'https:'].includes(new URL(detail.url).protocol) ? URI.parse(detail.url) : undefined;
 	return {
@@ -1712,6 +1830,26 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, resourc
 		value: reference ?? (modelRepresentation || attachment.label),
 		_meta: attachment._meta,
 		...(detail?.text !== undefined ? { modelDescription: detail.text } : {}),
+	};
+}
+
+/**
+ * Restores the attachment of a GitHub issue or pull request, which says only its
+ * link. History keeps what the attachment says but not its id and icon, by which
+ * the link in the request is shown as the pill of the attachment.
+ */
+function restoreGitHubContextVariableEntry(attachment: MessageAttachment, modelRepresentation: string | undefined): IChatRequestVariableEntry | undefined {
+	const groups = modelRepresentation === undefined ? undefined : /^GitHub context: (?<link>https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(?<kind>issues|pull)\/\d+)$/.exec(modelRepresentation)?.groups;
+	if (!groups) {
+		return undefined;
+	}
+	return {
+		kind: 'generic',
+		id: `${GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX}${groups.link}`,
+		name: attachment.label,
+		icon: groups.kind === 'issues' ? Codicon.issues : Codicon.gitPullRequest,
+		value: modelRepresentation,
+		_meta: attachment._meta,
 	};
 }
 
@@ -1729,19 +1867,6 @@ function restoreElementVariableEntry(attachment: MessageAttachment, modelReprese
 		value: modelRepresentation,
 		_meta: attachment._meta,
 	};
-}
-
-function getAgentHostCompletionKind(attachment: MessageAttachment): AgentHostCompletionReferenceKind | undefined {
-	if (attachment.type !== MessageAttachmentKind.Simple) {
-		return undefined;
-	}
-	switch (attachment.displayKind) {
-		case 'command':
-			return AgentHostCompletionReferenceKind.Command;
-		case 'skill':
-			return AgentHostCompletionReferenceKind.Skill;
-	}
-	return undefined;
 }
 
 function textRangeToIRange(range: TextRange): IRange {
@@ -1776,7 +1901,7 @@ export function reasoningPartToThinking(part: ReasoningResponsePart, value = par
  */
 export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatProgress[] {
 	const parts: IChatProgress[] = [];
-	const usage = usageInfoToChatUsage(activeTurn.usage, lookup?.toModelDisplayName);
+	const usage = usageInfoToChatUsage(activeTurn.usage, (lookup?.forTurn?.(activeTurn.message.model?.id) ?? lookup)?.toModelDisplayName);
 	if (usage) {
 		parts.push(usage);
 	}
@@ -1805,6 +1930,10 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 						parts.push(invocation);
 					} else {
 						parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority, resourceUris));
+					}
+					const responseMarkdown = toolCallToResponseMarkdown(tc, undefined);
+					if (responseMarkdown) {
+						parts.push(responseMarkdown);
 					}
 				} else if (tc.status === ToolCallStatus.Streaming && !isOtherClientToolCall) {
 					parts.push(toolCallStateToStreamingInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority));
@@ -2320,7 +2449,8 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 }
 
 function toolCallOriginMessage(tc: ToolCallState): string | undefined {
-	const serverName = readToolCallMeta(tc).mcpServerName?.trim();
+	const meta = readToolCallMeta(tc);
+	const serverName = (meta['vscode.mcpServerDisplayName'] ?? meta.mcpServerName)?.trim();
 	return serverName ? localize('agentHost.mcpServer.origin', "{0} (MCP Server)", serverName) : undefined;
 }
 
@@ -2423,7 +2553,10 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			pastTenseMsg = ref;
 		}
 	}
-	const resultDetails = (!toolSpecificData || toolSpecificData.kind === 'generatedImage' || toolSpecificData.kind === 'input' && (toolSpecificData.mcpAppData || toolSpecificData.imageGeneration))
+	// Raw input and output would repeat the response text shown in place of the call.
+	const responseMarkdown = toolCallToResponseMarkdown(tc, subAgentInvocationId);
+	const resultDetails = !responseMarkdown
+		&& (!toolSpecificData || toolSpecificData.kind === 'generatedImage' || toolSpecificData.kind === 'input' && (toolSpecificData.mcpAppData || toolSpecificData.imageGeneration))
 		&& (tc.status !== ToolCallStatus.Completed || getToolFileEdits(tc).length === 0)
 		? getToolInputOutputDetails(tc, !isSuccess, getToolErrorString(tc), !!(toolSpecificData?.kind === 'input' && toolSpecificData.mcpAppData), connectionAuthority)
 		: undefined;
@@ -2439,7 +2572,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
-		presentation: shouldHideAutomaticTitleRename(tc)
+		presentation: shouldHideAutomaticTitleRename(tc) || responseMarkdown
 			? ToolInvocationPresentation.Hidden
 			: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
 		subAgentInvocationId: subAgentInvocationId,
@@ -2532,6 +2665,7 @@ const EXTERNAL_LINK_SCHEMES: ReadonlySet<string> = new Set([
 	product.urlProtocol,
 	AGENT_HOST_SCHEME,
 	AGENT_HOST_SESSION_LINK_SCHEME,
+	AHP_CHAT_SCHEME,
 ]);
 
 /**
@@ -3037,7 +3171,7 @@ export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolC
 	return {
 		id: `${sessionAuthority}/${tc.contributor.customizationId}`,
 		target: { kind: AuthenticateTargetKind.McpServer, session: backendSession.toString(), customizationId: tc.contributor.customizationId },
-		name: name ?? tc.auth.resource.resource_name ?? metadata.mcpServerName ?? tc.displayName,
+		name: name ?? tc.auth.resource.resource_name ?? metadata['vscode.mcpServerDisplayName'] ?? metadata.mcpServerName ?? tc.displayName,
 		resource: tc.auth.resource.resource,
 		oauthClient: tc.auth.oauthClient,
 		authorizationServers: tc.auth.resource.authorization_servers,
@@ -3426,18 +3560,24 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	if (fileEdits.length > 0 && !isFailure) {
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
+	// Likewise when the call's response text is shown in its place.
+	const hasResponseMarkdown = !!toolCallToResponseMarkdown(tc, invocation.subAgentInvocationId);
+	if (hasResponseMarkdown) {
+		invocation.presentation = ToolInvocationPresentation.Hidden;
+	}
 
 	const hasMcpAppData = invocation.toolSpecificData?.kind === 'input' && !!invocation.toolSpecificData.mcpAppData;
 	// The generic raw input/output details (the expandable JSON blob) are
 	// suppressed for tool kinds that render their own bespoke UI — the subagent
 	// card and the `sessionCreated` linked session title — so we don't duplicate
-	// the result underneath them. Search results and separately-rendered file
-	// edits are likewise excluded.
+	// the result underneath them. Search results, separately-rendered file
+	// edits and response text shown in place of the call are likewise excluded.
 	const resultDetails = !isTerminal
 		&& invocation.toolSpecificData?.kind !== 'subagent'
 		&& invocation.toolSpecificData?.kind !== 'sessionCreated'
 		&& getToolKind(tc) !== 'search'
 		&& fileEdits.length === 0
+		&& !hasResponseMarkdown
 		? getToolInputOutputDetails(tc, isFailure, errorString, hasMcpAppData, connectionAuthority)
 		: undefined;
 	const result: IToolResult | undefined = isFailure || resultDetails

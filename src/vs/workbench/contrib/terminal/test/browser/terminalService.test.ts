@@ -88,25 +88,38 @@ suite('Workbench - TerminalService', () => {
 	test('applies the default cwd only to visible local terminals', async () => {
 		const home = URI.file('/home/user');
 		terminalService.setPanelDefaultCwd(Promise.resolve(home));
-		const resolveCwd = Reflect.get(terminalService, '_resolveCwd') as (shellLaunchConfig: IShellLaunchConfig, split: boolean, options: { location: TerminalLocation }, useDefaultCwd: boolean) => Promise<void>;
+		const resolveCwd = Reflect.get(terminalService, '_resolveCwd') as (shellLaunchConfig: IShellLaunchConfig, split: boolean, options: { location?: TerminalLocation; cwd?: URI } | undefined, useDefaultCwd: boolean) => Promise<void>;
 		const panel = { location: TerminalLocation.Panel };
 		const local: IShellLaunchConfig = {};
+		const implicitPanel: IShellLaunchConfig = {};
+		const editor: IShellLaunchConfig = {};
+		const explicit: IShellLaunchConfig = {};
+		const explicitCwd = URI.file('/explicit');
 		const hidden: IShellLaunchConfig = { hideFromUser: true };
 		const contributed: IShellLaunchConfig = {};
 		const extension: IShellLaunchConfig = { extHostTerminalId: 'extension-terminal' };
 
 		await resolveCwd.call(terminalService, local, false, panel, true);
+		await resolveCwd.call(terminalService, implicitPanel, false, undefined, true);
+		await resolveCwd.call(terminalService, editor, false, { location: TerminalLocation.Editor }, true);
+		await resolveCwd.call(terminalService, explicit, false, { cwd: explicitCwd }, true);
 		await resolveCwd.call(terminalService, hidden, false, panel, true);
 		await resolveCwd.call(terminalService, contributed, false, panel, false);
 		await resolveCwd.call(terminalService, extension, false, panel, true);
 
 		deepStrictEqual({
 			local: local.cwd,
+			implicitPanel: implicitPanel.cwd,
+			editor: editor.cwd,
+			explicit: explicit.cwd,
 			hidden: hidden.cwd,
 			contributed: contributed.cwd,
 			extension: extension.cwd,
 		}, {
 			local: home,
+			implicitPanel: home,
+			editor: undefined,
+			explicit: explicitCwd,
 			hidden: undefined,
 			contributed: undefined,
 			extension: undefined,

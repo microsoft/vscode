@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type WebSocket from 'ws';
-import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
+import type { AnyAuthMethod, AuthenticationType, ClientErrorExtensions, ConnectConfig } from 'ssh2';
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -38,6 +38,7 @@ import {
 	type SSHAgentHostLifecycle,
 	type SSHStrictHostKeyChecking,
 	SSHHostKeyDeniedError,
+	SSHAuthenticationFailedError,
 } from '../common/sshRemoteAgentHost.js';
 import {
 	computeHostKeyFingerprint,
@@ -75,7 +76,7 @@ import {
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled, type IRemoteAgentHostCliInstallResult } from './remoteAgentHostCliInstaller.js';
-import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
+import { parseSSHConfigHostEntries, parseSSHConfigIncludePaths, parseSSHGOutput } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
 import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
@@ -100,7 +101,7 @@ interface ISSHKnownHostsEvidence {
 /** Minimal subset of ssh2.Client used by this module. */
 interface SSHClient {
 	on(event: 'ready', listener: () => void): SSHClient;
-	on(event: 'error', listener: (err: Error) => void): SSHClient;
+	on(event: 'error', listener: (err: Error & ClientErrorExtensions) => void): SSHClient;
 	on(event: 'close', listener: () => void): SSHClient;
 	/**
 	 * OpenSSH's `UpdateHostKeys` announcement. ssh2 verifies the
@@ -182,6 +183,14 @@ function describeAuthAttempt(attempt: SSHAuthAttempt): string {
 		case 'password': return 'password';
 		case 'keyboard-interactive': return 'keyboard-interactive';
 	}
+}
+
+/**
+ * Whether SSH config allows public key authentication: `PubkeyAuthentication` is not disabled and, when set,
+ * `PreferredAuthentications` lists `publickey`.
+ */
+function allowsSSHPublicKeyAuthentication(resolved: ISSHResolvedConfig | undefined): boolean {
+	return resolved?.pubkeyAuthentication !== false && (!resolved?.preferredAuthentications || resolved.preferredAuthentications.includes('publickey'));
 }
 
 /**
@@ -1422,8 +1431,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				continue;
 			}
 
-			const rawValue = stripSSHComment(includeMatch[1]);
-			const patterns = rawValue.split(/\s+/).filter(Boolean);
+			const patterns = parseSSHConfigIncludePaths(includeMatch[1]);
+			if (!patterns) {
+				this._logService.warn(`${LOG_PREFIX} Skipping invalid SSH Include directive in ${configDir}`);
+				continue;
+			}
 
 			for (const rawPattern of patterns) {
 				const pattern = rawPattern.replace(/^~/, os.homedir());
@@ -1512,7 +1524,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			keepaliveInterval: 15_000,
 		};
 
-		const attempts: SSHAuthAttempt[] = [{ type: 'none', username: config.username }, ...await this._buildAuthAttempts(config)];
+		const attempts: SSHAuthAttempt[] = [{ type: 'none', username: config.username }, ...await this._buildAuthAttempts(config, resolved)];
 		this._logService.info(`${LOG_PREFIX} Built ${attempts.length} auth attempt(s): ${attempts.map(a => describeAuthAttempt(a)).join(', ')}`);
 		// Track requestIds we created during this connect so we can fire
 		// onDidCancelKeyboardInteractive for any still-pending prompts when
@@ -1691,7 +1703,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				resolve(client);
 			};
 
-			const rejectConnect = (err: Error, endClient: boolean) => {
+			const rejectConnect = (err: Error, endClient: boolean, describeTransport = true) => {
 				if (settled) {
 					return;
 				}
@@ -1699,20 +1711,22 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				clearDeadline();
 				cancelLiveKbiRequests();
 				cancelLiveHostKeyRequests();
-				this._proxies.deleteAndDispose(client);
 				const finish = (detail?: string) => {
 					if (detail) {
 						err.message = localize('sshJumpFailed', "{0} ({1})", err.message, detail);
 					}
+					this._proxies.deleteAndDispose(client);
 					this._jumpProxies.deleteAndDispose(client);
 					if (endClient) {
 						client.end();
 					}
 					reject(err);
 				};
-				if (jumpProxy && !(err instanceof CancellationError) && !hostKeyDenied) {
-					void jumpProxy.describeFailure().then(finish, () => {
-						this._logService.warn(`${LOG_PREFIX} Failed to collect SSH jump failure details`);
+				// The proxy process that carries the connection often knows why it was lost better than ssh2 does.
+				const transport = jumpProxy ?? this._proxies.get(client);
+				if (transport && describeTransport && !(err instanceof CancellationError) && !hostKeyDenied) {
+					void transport.describeFailure().then(finish, () => {
+						this._logService.warn(`${LOG_PREFIX} Failed to collect SSH proxy failure details`);
 						finish();
 					});
 				} else {
@@ -1729,7 +1743,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				resolveConnect();
 			});
 
-			client.on('error', (err: Error) => {
+			client.on('error', (err: Error & ClientErrorExtensions) => {
 				if (err instanceof AggregateError && !err.message) {
 					// Node's dual-stack connection errors have no message, and IPC drops their nested errors.
 					err.message = err.errors.filter((error: unknown): error is Error => error instanceof Error && !!error.message)
@@ -1739,7 +1753,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// ssh2 reports a refused host key as "Host denied (verification
 				// failed)", which is both jargon and redundant — the host key
 				// UI has already told the user what happened.
-				rejectConnect(hostKeyDenied ? new SSHHostKeyDeniedError(displayHost) : err, false);
+				rejectConnect(
+					hostKeyDenied ? new SSHHostKeyDeniedError(displayHost)
+						: err.level === 'client-authentication' ? new SSHAuthenticationFailedError(err.message)
+							: err,
+					false);
 			});
 
 			// A server can drop the connection cleanly mid-handshake (for
@@ -1748,8 +1766,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// connect promise would never settle and any outstanding host key
 			// prompt would be left on screen forever.
 			client.on('close', () => {
-				this._proxies.deleteAndDispose(client);
 				if (connected) {
+					this._proxies.deleteAndDispose(client);
 					this._jumpProxies.deleteAndDispose(client);
 				}
 				rejectConnect(
@@ -1776,7 +1794,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					this._proxies.set(client, proxy);
 					proxy.stream.on('error', error => {
 						this._logService.error(`${LOG_PREFIX} SSH ProxyCommand failed`, error);
-						rejectConnect(error, true);
+						rejectConnect(error, true, false);
 					});
 					connectConfig.sock = proxy.stream;
 				}
@@ -1814,35 +1832,40 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * file), then any non-default explicit `IdentityFile`, then each readable
 	 * default identity in turn. A host that accepts `~/.ssh/id_rsa` still
 	 * works even if the agent doesn't have it loaded — without needing an
-	 * explicit `IdentityFile` entry in `~/.ssh/config`.
+	 * explicit `IdentityFile` entry in `~/.ssh/config`. `Agent` mode skips the
+	 * agent and keys when the resolved SSH config disables public key
+	 * authentication.
 	 */
-	protected async _buildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
+	protected async _buildAuthAttempts(config: ISSHAgentHostConfig, resolved?: ISSHResolvedConfig): Promise<SSHAuthAttempt[]> {
 		const attempts: SSHAuthAttempt[] = [];
 		const username = config.username;
 
 		switch (config.authMethod) {
 			case SSHAuthMethod.Agent: {
-				// Try the agent first: if it has any of the configured identities
-				// loaded, auth succeeds without ever touching on-disk keys. This
-				// matches OpenSSH's IdentityAgent semantics and avoids an
-				// unnecessary passphrase prompt when an encrypted key file is
-				// configured but the agent already holds its unlocked copy.
-				const agentSock = this._getAgentSocket(config);
-				if (agentSock) {
-					attempts.push({ type: 'agent', username, agent: agentSock });
-				}
-				const explicitKeyPath = config.privateKeyPath;
-				const explicitIsDefault = explicitKeyPath !== undefined && SSHRemoteAgentHostMainService._isDefaultKeyPath(explicitKeyPath);
-				if (explicitKeyPath && !explicitIsDefault) {
-					const explicit = await this._readKeyFileIfExists(explicitKeyPath);
-					if (explicit) {
-						attempts.push({ type: 'publickey', username, key: explicit, keyPath: explicitKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
+				// Like OpenSSH, offer no agent or key when SSH config disables public key authentication.
+				if (allowsSSHPublicKeyAuthentication(resolved)) {
+					// Try the agent first: if it has any of the configured identities
+					// loaded, auth succeeds without ever touching on-disk keys. This
+					// matches OpenSSH's IdentityAgent semantics and avoids an
+					// unnecessary passphrase prompt when an encrypted key file is
+					// configured but the agent already holds its unlocked copy.
+					const agentSock = this._getAgentSocket(config);
+					if (agentSock) {
+						attempts.push({ type: 'agent', username, agent: agentSock });
 					}
-				}
-				for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
-					const contents = await this._readKeyFileIfExists(keyPath);
-					if (contents) {
-						attempts.push({ type: 'publickey', username, key: contents, keyPath, ...(isEncryptedPrivateKey(contents) ? { encrypted: true } : undefined) });
+					const explicitKeyPath = config.privateKeyPath;
+					const explicitIsDefault = explicitKeyPath !== undefined && SSHRemoteAgentHostMainService._isDefaultKeyPath(explicitKeyPath);
+					if (explicitKeyPath && !explicitIsDefault) {
+						const explicit = await this._readKeyFileIfExists(explicitKeyPath);
+						if (explicit) {
+							attempts.push({ type: 'publickey', username, key: explicit, keyPath: explicitKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
+						}
+					}
+					for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
+						const contents = await this._readKeyFileIfExists(keyPath);
+						if (contents) {
+							attempts.push({ type: 'publickey', username, key: contents, keyPath, ...(isEncryptedPrivateKey(contents) ? { encrypted: true } : undefined) });
+						}
 					}
 				}
 				// Final fallback: keyboard-interactive (typically a password prompt).

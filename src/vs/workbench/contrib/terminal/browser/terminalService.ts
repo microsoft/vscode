@@ -1204,7 +1204,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 				useDefaultCwd
 				&& !shellLaunchConfig.hideFromUser
 				&& !shellLaunchConfig.extHostTerminalId
-				&& await this.resolveLocation(options?.location) === TerminalLocation.Panel
+				&& (await this.resolveLocation(options?.location) ?? this._terminalConfigurationService.defaultLocation) === TerminalLocation.Panel
 			) {
 				const panelDefaultCwd = this.getPanelDefaultCwd();
 				if (panelDefaultCwd) {

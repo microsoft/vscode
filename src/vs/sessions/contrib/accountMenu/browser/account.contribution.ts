@@ -20,14 +20,16 @@ import { appendUpdateMenuItems as registerUpdateMenuItems } from '../../../../wo
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventType, getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventType, findParentWithClass, getDomNodePagePosition, isHTMLElement } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { HoverStyle, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { registerUpdateTitleBarMenuPlacement } from '../../../../workbench/contrib/update/browser/updateTitleBarEntry.js';
 import { ChatEntitlement, ChatEntitlementService, getChatPlanName, getQuotaReset, getQuotaUsage, IChatEntitlementService, IQuotaSnapshot, QuotaUsageKind } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -274,7 +276,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		super.render(container);
 
 		this.container = container;
-		container.classList.add('sessions-account-titlebar-widget');
+		container.classList.add('sessions-account-titlebar-widget', 'agent-sessions-interactive');
 		container.setAttribute('role', 'button');
 		container.tabIndex = 0;
 
@@ -294,6 +296,15 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		this.showCombinedPanel();
+	}
+
+	override getActionToRun(): IAction {
+		return toAction({
+			id: this.action.id,
+			label: this.action.label,
+			enabled: this.action.enabled,
+			run: () => this.showCombinedPanel(true),
+		});
 	}
 
 	private async refreshAccount(): Promise<void> {
@@ -512,7 +523,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		};
 	}
 
-	private showCombinedPanel(): void {
+	private showCombinedPanel(focusFirstAction = false): void {
 		if (!this.container) {
 			return;
 		}
@@ -538,38 +549,89 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		this.container.classList.add('menu-visible');
 		this.renderState();
 
+		const panelContent = $('div.sessions-account-titlebar-panel');
 		panelStore.add({
 			dispose: () => {
+				const panelHover = findParentWithClass(panelContent, 'sessions-account-titlebar-panel-hover');
+				const restoreFocus = panelHover?.contains(mainWindow.document.activeElement);
 				this.isMenuVisible = false;
 				this.container?.classList.remove('menu-visible');
 				this.renderState();
-				this.container?.focus();
+				if (restoreFocus) {
+					this.container?.focus();
+				}
 			}
 		});
 
-		const panelContent = this.createCombinedPanelContent(panelStore);
+		const focus = this.createCombinedPanelContent(panelStore, panelContent);
+		let hoverHidden = false;
 		const hoverWidget = this.hoverService.showInstantHover({
 			content: panelContent,
 			target: this.getHoverTarget(),
 			additionalClasses: ['sessions-account-titlebar-panel-hover'],
 			position: { hoverPosition: HoverPosition.BELOW },
+			trapFocus: focusFirstAction,
 			persistence: { sticky: true, hideOnHover: false },
 			appearance: { showPointer: false, skipFadeInAnimation: true, maxHeightRatio: 0.8 },
+			onDidShow: () => {
+				if (focusFirstAction) {
+					focus();
+				}
+			},
+			onDidHide: () => {
+				hoverHidden = true;
+				if (this.clickPanelDisposable.value === panelStore) {
+					this.clickPanelDisposable.clear();
+				}
+			},
 		}, true);
 
-		if (hoverWidget) {
-			panelStore.add(hoverWidget);
+		if (!hoverWidget || hoverHidden) {
+			if (this.clickPanelDisposable.value === panelStore) {
+				this.clickPanelDisposable.clear();
+			}
+			return;
 		}
 
+		panelStore.add(toDisposable(() => {
+			if (!hoverHidden) {
+				hoverWidget.dispose();
+			}
+		}));
 		panelStore.add(disposableWindowInterval(mainWindow, () => {
-			if (!panelContent.isConnected || hoverWidget?.isDisposed) {
+			if (!panelContent.isConnected) {
 				this.clickPanelDisposable.clear();
 			}
 		}, 500));
 	}
 
-	private createCombinedPanelContent(panelStore: DisposableStore): HTMLElement {
-		const panel = $('div.sessions-account-titlebar-panel');
+	private createCombinedPanelContent(panelStore: DisposableStore, panel: HTMLElement): () => void {
+		const actionBars: ActionBar[] = [];
+		const actionHover = panelStore.add(new MutableDisposable<IHoverWidget>());
+		const hoverGroupId = generateUuid();
+		const setupKeyboardActionHover = (container: HTMLElement, actionBar: ActionBar) => {
+			panelStore.add(addDisposableListener(container, EventType.FOCUS_IN, event => {
+				const target = event.target;
+				if (!isHTMLElement(target) || !target.matches(':focus-visible, .focus-visible')) {
+					actionHover.clear();
+					return;
+				}
+				const action = actionBar.getAction(target);
+				if (action) {
+					actionHover.value = this.hoverService.showDelayedHover({
+						target,
+						content: action.tooltip || action.label,
+						style: HoverStyle.Pointer,
+						persistence: { hideOnKeyDown: true },
+					}, { groupId: hoverGroupId });
+				}
+			}));
+			panelStore.add(addDisposableListener(container, EventType.FOCUS_OUT, event => {
+				if (!isHTMLElement(event.relatedTarget) || !container.contains(event.relatedTarget)) {
+					actionHover.clear();
+				}
+			}));
+		};
 
 		// Build the menu actions once and partition them.
 		const menu = this.menuService.createMenu(AccountMenu, this.contextKeyService);
@@ -604,6 +666,8 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			title.textContent = this.getPanelHeaderLabel();
 			const copilotActions = append(copilotIdentity, $('.sessions-account-titlebar-panel-provider-actions'));
 			const copilotActionBar = panelStore.add(new ActionBar(copilotActions));
+			actionBars.push(copilotActionBar);
+			setupKeyboardActionHover(copilotActions, copilotActionBar);
 			panelStore.add(copilotActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -631,6 +695,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.github));
 			const signInActions = append(copilotIdentity, $('.sessions-account-titlebar-panel-provider-sign-in-actions'));
 			const signInActionBar = panelStore.add(new ActionBar(signInActions));
+			actionBars.push(signInActionBar);
 			panelStore.add(signInActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -666,6 +731,8 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			accountName.textContent = codexAccount.email ?? localize('chatGPTAccountName', "ChatGPT");
 			const accountActions = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-actions'));
 			const accountActionBar = panelStore.add(new ActionBar(accountActions));
+			actionBars.push(accountActionBar);
+			setupKeyboardActionHover(accountActions, accountActionBar);
 			panelStore.add(accountActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -699,6 +766,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
 				const signInActions = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-sign-in-actions'));
 				const signInActionBar = panelStore.add(new ActionBar(signInActions));
+				actionBars.push(signInActionBar);
 				panelStore.add(signInActionBar.onWillRun(() => {
 					this.hoverService.hideHover(true);
 					this.clickPanelDisposable.clear();
@@ -730,6 +798,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			const actionsActionBar = panelStore.add(new ActionBar(actionsSection, {
 				orientation: ActionsOrientation.VERTICAL,
 			}));
+			actionBars.push(actionsActionBar);
 			panelStore.add(actionsActionBar.onWillRun(() => {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
@@ -754,7 +823,17 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			summary.textContent = this.lastState.ariaLabel;
 		}
 
-		return panel;
+		return () => {
+			for (const actionBar of actionBars) {
+				for (let i = 0; i < actionBar.length(); i++) {
+					const action = actionBar.getAction(i);
+					if (action?.enabled && !(action instanceof Separator)) {
+						actionBar.focus(true);
+						return;
+					}
+				}
+			}
+		};
 	}
 
 	private appendCopilotUsage(accountSection: HTMLElement, panelStore: DisposableStore): void {

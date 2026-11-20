@@ -27,6 +27,11 @@ export interface INewChatModelPickerService {
 	switchToModel(modelIdentifier: string): boolean;
 	/** Moves focus to the prompt input that hosts the model pickers. */
 	focusInput(): void;
+	/**
+	 * Starts the prompt input that hosts the model pickers with the given text, keeping what is
+	 * already written after it, and moves focus there. Absent when the pickers have no prompt input.
+	 */
+	readonly startPromptWith?: (text: string) => void;
 }
 
 export class NewChatModelPickerService implements INewChatModelPickerService {
@@ -34,7 +39,7 @@ export class NewChatModelPickerService implements INewChatModelPickerService {
 
 	private readonly _modelPickers = new Set<INewChatModelPicker>();
 
-	constructor(private readonly _focusInput: () => void = () => { }) { }
+	constructor(private readonly _focusInput: () => void = () => { }, readonly startPromptWith?: (text: string) => void) { }
 
 	registerModelPicker(modelPicker: INewChatModelPicker): IDisposable {
 		this._modelPickers.add(modelPicker);
