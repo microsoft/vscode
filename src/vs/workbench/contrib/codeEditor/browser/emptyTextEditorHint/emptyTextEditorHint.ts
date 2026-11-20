@@ -39,7 +39,7 @@ import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
 
-/** Set in the editor while an empty editor hint (the classic hint or the list of actions) is shown, so that Escape hides it. */
+/** Lets Escape hide either variant of the hint. */
 export const EmptyEditorHintVisible = new RawContextKey<boolean>('emptyEditorHintVisible', false, localize('emptyEditorHintVisible', "Whether the empty editor hint is shown"));
 
 export class EmptyTextEditorHintContribution extends Disposable implements IEmptyTextEditorHintContribution {
@@ -204,16 +204,11 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		this.hintVisible.reset();
 	}
 
-	/**
-	 * Hides the hint for this editor's document (Escape in the editor).
-	 */
 	closeHint(): void {
 		this.textHintContentWidget?.close('closeEscape');
 	}
 
-	/**
-	 * Hides the hint for the current document until its text model is disposed; not persisted.
-	 */
+	/** Until the text model is disposed; not persisted. */
 	private hideForModel(): void {
 		const model = this.editor.getModel();
 		if (model) {
@@ -230,7 +225,6 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 }
 
 interface IEmptyTextEditorHintContentWidgetOptions {
-	/** Hides the hint for this editor only. */
 	readonly close: () => void;
 }
 
@@ -278,9 +272,6 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		return EmptyTextEditorHintContentWidget.ID;
 	}
 
-	/**
-	 * Hides the hint for this editor, with Escape.
-	 */
 	close(action: 'closeEscape'): void {
 		this.logHintEvent('action', action);
 		this.options.close();
