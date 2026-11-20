@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ipcRenderer } from '../../../../../base/parts/sandbox/electron-browser/globals.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -31,6 +33,92 @@ suite('WebContentsViewHost', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		return store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
 	}
+
+	async function setWebContentsFocus(focused: boolean): Promise<void> {
+		const changed = mainWindow.document.hasFocus() === focused
+			? undefined
+			: new Promise<void>(resolve => mainWindow.addEventListener(focused ? EventType.FOCUS : EventType.BLUR, () => resolve(), { once: true }));
+		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', focused);
+		await changed;
+	}
+
+	function createFocusHost(): { host: WebContentsViewHost; container: HTMLElement; focusCalls: string[] } {
+		const focusCalls: string[] = [];
+		let visible = false;
+		const model = upcastPartial<IBrowserViewModel>({
+			url: 'about:blank',
+			error: undefined,
+			screenshot: undefined,
+			focused: false,
+			get visible() { return visible; },
+			onDidChangeVisibility: Event.None,
+			onDidKeyCommand: Event.None,
+			onDidNavigate: Event.None,
+			onDidChangeLoadingState: Event.None,
+			onWillDispose: Event.None,
+			setVisible: async value => { visible = value; },
+			focus: async () => { focusCalls.push('focus'); },
+			captureScreenshot: () => new Promise<VSBuffer>(() => { }),
+		});
+		const host = createHost();
+		host.setModel(model);
+		host.setVisible(true);
+		const container = $('div');
+		container.tabIndex = 0;
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		// Start with the remembered active element, without requesting native focus.
+		container.focus();
+		host.onContainerCreated(container);
+		return { host, container, focusCalls };
+	}
+
+	test('ignores restored workbench focus but honors an explicit focus request', async () => {
+		await setWebContentsFocus(true);
+		const { host, container, focusCalls } = createFocusHost();
+		let restoredFocus: FocusEvent | undefined;
+		store.add(addDisposableListener(container, EventType.FOCUS, event => { restoredFocus = event; }));
+		try {
+			await setWebContentsFocus(false);
+			await setWebContentsFocus(true);
+			await timeout(40);
+			const automaticFocusCalls = [...focusCalls];
+			const explicitFocusHandled = host.tryFocus();
+			await timeout(40);
+			assert.deepStrictEqual({
+				restoredFromWindow: restoredFocus?.relatedTarget === null,
+				workbenchFocused: mainWindow.document.hasFocus(),
+				containerActive: mainWindow.document.activeElement === container,
+				automaticFocusCalls,
+				explicitFocusHandled,
+				focusCalls,
+			}, { restoredFromWindow: true, workbenchFocused: true, containerActive: true, automaticFocusCalls: [], explicitFocusHandled: true, focusCalls: ['focus'] });
+		} finally {
+			await setWebContentsFocus(true);
+		}
+	});
+
+	test('focuses the browser when focus moves from an iframe', async () => {
+		await setWebContentsFocus(true);
+		const { container, focusCalls } = createFocusHost();
+		const iframe = $<HTMLIFrameElement>('iframe');
+		store.add(toDisposable(() => iframe.remove()));
+		await new Promise<void>(resolve => {
+			store.add(addDisposableListener(iframe, EventType.LOAD, () => resolve()));
+			iframe.srcdoc = '<input id="input">';
+			container.before(iframe);
+		});
+		iframe.contentDocument!.getElementById('input')!.focus();
+		let focusEvent: FocusEvent | undefined;
+		store.add(addDisposableListener(container, EventType.FOCUS, event => { focusEvent = event; }));
+		container.focus();
+		await timeout(40);
+		assert.deepStrictEqual({
+			relatedTarget: focusEvent?.relatedTarget,
+			containerActive: mainWindow.document.activeElement === container,
+			focusCalls,
+		}, { relatedTarget: null, containerActive: true, focusCalls: ['focus'] });
+	});
 
 	test('hides the page a frame after its container, unless the container itself is hidden', async () => {
 		const calls: boolean[] = [];

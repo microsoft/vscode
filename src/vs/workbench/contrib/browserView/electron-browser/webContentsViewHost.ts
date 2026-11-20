@@ -95,7 +95,19 @@ export class WebContentsViewHost extends Disposable {
 				this._refresh(false, true);
 			}
 		}));
-		this._register(addDisposableListener(container, EventType.FOCUS, () => this.tryFocus()));
+		let restoringContainerFocus = false;
+		this._register(addDisposableListener(this.targetWindow, EventType.FOCUS, () => {
+			// A window restores its remembered active element before a clicked webview
+			// receives focus. This must not request native browser focus again.
+			restoringContainerFocus = this.targetWindow.document.activeElement === container;
+		}));
+		this._register(addDisposableListener(container, EventType.FOCUS, event => {
+			const restoredFromWindow = restoringContainerFocus && !event.relatedTarget;
+			restoringContainerFocus = false;
+			if (!restoredFromWindow) {
+				this.tryFocus();
+			}
+		}));
 		this._register(addDisposableListener(container, EventType.BLUR, () => this._cancelFocusTimeout()));
 		this._register(registerExternalFocusChecker(() => ({
 			hasFocus: this._model?.focused ?? false,
