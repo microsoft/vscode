@@ -32,23 +32,28 @@ import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { IUntitledDocumentTelemetryService } from '../../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } from './emptyTextEditorHintTypes.js';
-import { EmptyEditorHintActionsVisible, EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting, IEmptyEditorHintActionsSize } from './emptyEditorHintActions.js';
+import { EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting, IEmptyEditorHintActionsSize } from './emptyEditorHintActions.js';
 import { EmptyEditorHintAction, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
+
+/** Set in the editor while an empty editor hint (the classic hint or the list of actions) is shown, so that Escape hides it. */
+export const EmptyEditorHintVisible = new RawContextKey<boolean>('emptyEditorHintVisible', false, localize('emptyEditorHintVisible', "Whether the empty editor hint is shown"));
 
 export class EmptyTextEditorHintContribution extends Disposable implements IEmptyTextEditorHintContribution {
 
 	static readonly ID = EmptyTextEditorHintContributionId;
 
 	private textHintContentWidget: EmptyTextEditorHintContentWidget | EmptyEditorHintActionsWidget | undefined;
+
+	private readonly hintVisible: IContextKey<boolean>;
 
 	/** The text models for which the user closed the hint. Untitled URIs are reused, models are not; held weakly so disposed models are dropped. */
 	private readonly closedForModels = new WeakSet<ITextModel>();
@@ -64,6 +69,8 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
+
+		this.hintVisible = EmptyEditorHintVisible.bindTo(this.editor.contextKeyService);
 
 		this._register(this.editor.onDidChangeModel(() => this.update()));
 		this._register(this.editor.onDidChangeModelLanguage(() => this.update()));
@@ -167,7 +174,8 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		}
 		if (shouldRenderHint && !this.textHintContentWidget) {
 			const actionsWidget = shouldRenderActions ? this.createActionsWidget() : undefined;
-			this.textHintContentWidget = actionsWidget ?? this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor);
+			this.textHintContentWidget = actionsWidget ?? this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor, { close: () => this.hideForModel() });
+			this.hintVisible.set(true);
 		}
 	}
 
@@ -176,13 +184,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 	 */
 	private createActionsWidget(): EmptyEditorHintActionsWidget | undefined {
 		const widget: EmptyEditorHintActionsWidget = this.instantiationService.createInstance(EmptyEditorHintActionsWidget, this.editor, {
-			close: () => {
-				const model = this.editor.getModel();
-				if (model) {
-					this.closedForModels.add(model);
-				}
-				this.disposeHint();
-			},
+			close: () => this.hideForModel(),
 			dontShowAgain: () => {
 				this.configurationService.updateValue(emptyTextEditorHintSetting, 'hidden');
 				this.disposeHint();
@@ -204,15 +206,25 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 	disposeHint(): void {
 		this.textHintContentWidget?.dispose();
 		this.textHintContentWidget = undefined;
+		this.hintVisible.reset();
 	}
 
 	/**
-	 * Hides the list of actions for this editor (Escape in the editor).
+	 * Hides the hint for this editor's document (Escape in the editor).
 	 */
-	closeActionsHint(): void {
-		if (this.textHintContentWidget instanceof EmptyEditorHintActionsWidget) {
-			this.textHintContentWidget.close('closeEscape');
+	closeHint(): void {
+		this.textHintContentWidget?.close('closeEscape');
+	}
+
+	/**
+	 * Hides the hint for the current document until its text model is disposed; not persisted.
+	 */
+	private hideForModel(): void {
+		const model = this.editor.getModel();
+		if (model) {
+			this.closedForModels.add(model);
 		}
+		this.disposeHint();
 	}
 
 	override dispose(): void {
@@ -220,6 +232,11 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 
 		this.disposeHint();
 	}
+}
+
+interface IEmptyTextEditorHintContentWidgetOptions {
+	/** Hides the hint for this editor only. */
+	readonly close: () => void;
 }
 
 class EmptyTextEditorHintContentWidget extends Disposable implements IContentWidget {
@@ -232,6 +249,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly options: IEmptyTextEditorHintContentWidgetOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -263,6 +281,14 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 
 	getId(): string {
 		return EmptyTextEditorHintContentWidget.ID;
+	}
+
+	/**
+	 * Hides the hint for this editor, with Escape.
+	 */
+	close(action: 'closeEscape'): void {
+		this.logHintEvent('action', action);
+		this.options.close();
 	}
 
 	private disableHint(e?: MouseEvent) {
@@ -416,8 +442,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	// Below other editor contributions, so Escape still closes their widgets first
 	weight: KeybindingWeight.EditorContrib - 50,
 	primary: KeyCode.Escape,
-	when: ContextKeyExpr.and(EmptyEditorHintActionsVisible, EditorContextKeys.editorTextFocus, EditorContextKeys.hasNonEmptySelection.toNegated(), EditorContextKeys.hasMultipleSelections.toNegated()),
+	when: ContextKeyExpr.and(EmptyEditorHintVisible, EditorContextKeys.editorTextFocus, EditorContextKeys.hasNonEmptySelection.toNegated(), EditorContextKeys.hasMultipleSelections.toNegated()),
 	handler: accessor => {
-		accessor.get(ICodeEditorService).getFocusedCodeEditor()?.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID)?.closeActionsHint();
+		accessor.get(ICodeEditorService).getFocusedCodeEditor()?.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID)?.closeHint();
 	}
 });
