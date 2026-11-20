@@ -11,7 +11,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { CellKind, CellUri, compressOutputItemStreams, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from '../../common/notebookCommon.js';
+import { CellKind, CellUri, compressOutputItemStreams, diff, MimeTypeDisplayOrder, NotebookMetadataUri, NotebookWorkingCopyTypeIdentifier } from '../../common/notebookCommon.js';
+import { NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from '../../common/notebookRange.js';
 import { setupInstantiationService, TestCell } from './testNotebookEditor.js';
 
@@ -419,6 +420,141 @@ suite('CellUri', function () {
 		const actual = parsedUris.map(u => CellUri.parse(u)?.handle);
 
 		assert.deepStrictEqual(actual, handles);
+	});
+
+	test('parse, generate (preserves notebook fragment)', function () {
+
+		const nb = URI.parse('jj-view:///bar/følder/file.nb#root=%2Fworkspace&base=rev1&side=left');
+		const id = 17;
+
+		const data = CellUri.generate(nb, id);
+		const actual = CellUri.parse(data);
+		assert.ok(Boolean(actual));
+		assert.strictEqual(actual?.handle, id);
+		assert.strictEqual(actual?.notebook.toString(), nb.toString());
+		assert.strictEqual(actual?.notebook.fragment, nb.fragment);
+	});
+
+	test('parse, generate (preserves fragment containing hash)', function () {
+
+		const nb = URI.from({ scheme: 'foo', path: '/bar/file.nb', fragment: 'section#subsection' });
+		const id = 3;
+
+		const data = CellUri.generate(nb, id);
+		const actual = CellUri.parse(data);
+		assert.ok(Boolean(actual));
+		assert.strictEqual(actual?.handle, id);
+		assert.strictEqual(actual?.notebook.scheme, 'foo');
+		assert.strictEqual(actual?.notebook.fragment, 'section#subsection');
+	});
+
+	test('distinct cell URIs for notebooks differing only in fragment', function () {
+
+		const leftNb = URI.parse('jj-view:///dir/notebook.ipynb#root=%2Frepo&base=rev1&side=left');
+		const rightNb = URI.parse('jj-view:///dir/notebook.ipynb#root=%2Frepo&base=rev1&side=right');
+
+		const leftCell = CellUri.generate(leftNb, 0);
+		const rightCell = CellUri.generate(rightNb, 0);
+
+		assert.notStrictEqual(leftCell.toString(), rightCell.toString());
+		assert.strictEqual(CellUri.parse(leftCell)?.notebook.toString(), leftNb.toString());
+		assert.strictEqual(CellUri.parse(rightCell)?.notebook.toString(), rightNb.toString());
+	});
+
+	test('stable order (with fragment)', function () {
+
+		const nb = URI.parse('foo:///bar/følder/file.nb#root=%2Frepo&side=left');
+		const handles = [1, 2, 9, 10, 88, 100, 666666, 7777777];
+
+		const uris = handles.map(h => CellUri.generate(nb, h)).sort();
+
+		const strUris = uris.map(String).sort();
+		const parsedUris = strUris.map(s => URI.parse(s));
+
+		const actual = parsedUris.map(u => CellUri.parse(u)?.handle);
+
+		assert.deepStrictEqual(actual, handles);
+	});
+
+	test('cell output and property URIs preserve notebook fragment', function () {
+
+		const nb = URI.parse('jj-view:///dir/notebook.ipynb#1s_not_a_cell_handle&side=left');
+		const cell = CellUri.generate(nb, 5);
+
+		const outputWithId = CellUri.generateCellOutputUriWithId(nb, 'out-1');
+		const parsedWithId = CellUri.parseCellOutputUri(outputWithId);
+		assert.strictEqual(parsedWithId?.openIn, 'editor');
+		assert.strictEqual(parsedWithId?.outputId, 'out-1');
+		assert.strictEqual(parsedWithId?.notebook.toString(), nb.toString());
+
+		const outputWithIndex = CellUri.generateCellOutputUriWithIndex(nb, cell, 2);
+		const parsedWithIndex = CellUri.parseCellOutputUri(outputWithIndex);
+		assert.strictEqual(parsedWithIndex?.openIn, 'notebook');
+		assert.strictEqual(parsedWithIndex?.cellHandle, 5);
+		assert.strictEqual(parsedWithIndex?.outputIndex, 2);
+		assert.strictEqual(parsedWithIndex?.notebook.toString(), nb.toString());
+
+		const outputEditorUri = CellUri.generateOutputEditorUri(nb, 'cell-id', 3, 'out-1', 0);
+		const parsedOutputEditor = CellUri.parseCellOutputUri(outputEditorUri);
+		assert.strictEqual(parsedOutputEditor?.openIn, 'notebookOutputEditor');
+		assert.strictEqual(parsedOutputEditor?.cellIndex, 3);
+		assert.strictEqual(parsedOutputEditor?.outputId, 'out-1');
+		assert.strictEqual(parsedOutputEditor?.outputIndex, 0);
+		assert.strictEqual(parsedOutputEditor?.notebook.toString(), nb.toString());
+
+		const propUri = CellUri.generateCellPropertyUri(nb, 5, 'vscode-notebook-cell-metadata');
+		const parsedProp = CellUri.parseCellPropertyUri(propUri, 'vscode-notebook-cell-metadata');
+		assert.strictEqual(parsedProp?.handle, 5);
+		assert.strictEqual(parsedProp?.notebook.toString(), nb.toString());
+	});
+});
+
+suite('NotebookMetadataUri', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('parse, generate (without fragment)', function () {
+
+		const nb = URI.parse('foo:///bar/følder/file.nb');
+		const metadataUri = NotebookMetadataUri.generate(nb);
+		const parsed = NotebookMetadataUri.parse(metadataUri);
+
+		assert.strictEqual(parsed?.toString(), nb.toString());
+	});
+
+	test('parse, generate (preserves notebook fragment and distinguishes diff sides)', function () {
+
+		const leftNb = URI.parse('jj-view:///dir/notebook.ipynb#root=%2Frepo&base=rev1&side=left');
+		const rightNb = URI.parse('jj-view:///dir/notebook.ipynb#root=%2Frepo&base=rev1&side=right');
+
+		const leftMeta = NotebookMetadataUri.generate(leftNb);
+		const rightMeta = NotebookMetadataUri.generate(rightNb);
+
+		assert.notStrictEqual(leftMeta.toString(), rightMeta.toString());
+		assert.strictEqual(NotebookMetadataUri.parse(leftMeta)?.toString(), leftNb.toString());
+		assert.strictEqual(NotebookMetadataUri.parse(rightMeta)?.toString(), rightNb.toString());
+	});
+});
+
+suite('NotebookDocumentWorkbenchService', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves notebooks with fragments from cell and cell-output URIs', function () {
+
+		const service = new NotebookDocumentWorkbenchService();
+		const leftUri = URI.parse('jj-view:///dir/notebook.ipynb#root=%2Frepo&base=rev1&side=left');
+		const rightUri = URI.parse('jj-view:///dir/notebook.ipynb#root=%2Frepo&base=rev1&side=right');
+
+		const leftDoc = { uri: leftUri, getCellIndex: () => 0 };
+		const rightDoc = { uri: rightUri, getCellIndex: () => 0 };
+		service.addNotebookDocument(leftDoc);
+		service.addNotebookDocument(rightDoc);
+
+		assert.strictEqual(service.getNotebook(CellUri.generate(leftUri, 0)), leftDoc);
+		assert.strictEqual(service.getNotebook(CellUri.generate(rightUri, 0)), rightDoc);
+		assert.strictEqual(service.getNotebook(CellUri.generateCellOutputUriWithId(leftUri, 'out-1')), leftDoc);
+		assert.strictEqual(service.getNotebook(CellUri.generateCellOutputUriWithIndex(rightUri, CellUri.generate(rightUri, 0), 0)), rightDoc);
 	});
 });
 

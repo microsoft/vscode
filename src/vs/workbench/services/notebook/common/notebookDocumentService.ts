@@ -20,6 +20,24 @@ export interface INotebookDocument {
 const _lengths = ['W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f'];
 const _padRegexp = new RegExp(`^[${_lengths.join('')}]+`);
 const _radix = 7;
+
+function encodeSchemeAndFragment(notebook: URI): string {
+	const schemeAndFragment = notebook.fragment ? `${notebook.scheme}#${notebook.fragment}` : notebook.scheme;
+	return encodeBase64(VSBuffer.fromString(schemeAndFragment), true, true);
+}
+
+function decodeSchemeAndFragment(encoded: string): { scheme: string; fragment: string | null } {
+	const decoded = decodeBase64(encoded).toString();
+	const hashIdx = decoded.indexOf('#');
+	if (hashIdx < 0) {
+		return { scheme: decoded, fragment: null };
+	}
+	return {
+		scheme: decoded.substring(0, hashIdx),
+		fragment: decoded.substring(hashIdx + 1)
+	};
+}
+
 export function parse(cell: URI): { notebook: URI; handle: number } | undefined {
 	if (cell.scheme !== Schemas.vscodeNotebookCell) {
 		return undefined;
@@ -31,14 +49,14 @@ export function parse(cell: URI): { notebook: URI; handle: number } | undefined 
 	}
 
 	const handle = parseInt(cell.fragment.substring(0, idx).replace(_padRegexp, ''), _radix);
-	const _scheme = decodeBase64(cell.fragment.substring(idx + 1)).toString();
+	const { scheme: _scheme, fragment: _fragment } = decodeSchemeAndFragment(cell.fragment.substring(idx + 1));
 
-	if (isNaN(handle)) {
+	if (isNaN(handle) || !_scheme) {
 		return undefined;
 	}
 	return {
 		handle,
-		notebook: cell.with({ scheme: _scheme, fragment: null })
+		notebook: cell.with({ scheme: _scheme, fragment: _fragment })
 	};
 }
 
@@ -47,7 +65,7 @@ export function generate(notebook: URI, handle: number): URI {
 	const s = handle.toString(_radix);
 	const p = s.length < _lengths.length ? _lengths[s.length - 1] : 'z';
 
-	const fragment = `${p}${s}s${encodeBase64(VSBuffer.fromString(notebook.scheme), true, true)}`;
+	const fragment = `${p}${s}s${encodeSchemeAndFragment(notebook)}`;
 	return notebook.with({ scheme: Schemas.vscodeNotebookCell, fragment });
 }
 
@@ -56,13 +74,16 @@ export function parseMetadataUri(metadata: URI): URI | undefined {
 		return undefined;
 	}
 
-	const _scheme = decodeBase64(metadata.fragment).toString();
+	const { scheme: _scheme, fragment: _fragment } = decodeSchemeAndFragment(metadata.fragment);
+	if (!_scheme) {
+		return undefined;
+	}
 
-	return metadata.with({ scheme: _scheme, fragment: null });
+	return metadata.with({ scheme: _scheme, fragment: _fragment });
 }
 
 export function generateMetadataUri(notebook: URI): URI {
-	const fragment = `${encodeBase64(VSBuffer.fromString(notebook.scheme), true, true)}`;
+	const fragment = encodeSchemeAndFragment(notebook);
 	return notebook.with({ scheme: Schemas.vscodeNotebookMetadata, fragment });
 }
 
@@ -77,13 +98,18 @@ export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: str
 		return;
 	}
 	const outputId = params.get('outputId') ?? undefined;
-	const parsedCell = parse(uri.with({ scheme: Schemas.vscodeNotebookCell, query: null }));
+	const notebookParam = params.get('notebook');
+	const parsedCell = (openIn !== 'editor' && !notebookParam) ? parse(uri.with({ scheme: Schemas.vscodeNotebookCell, query: null })) : undefined;
 	const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
-	const notebookUri = parsedCell ? parsedCell.notebook : uri.with({
-		scheme: params.get('notebookScheme') || Schemas.file,
-		fragment: null,
-		query: null,
-	});
+	const notebookUri = parsedCell
+		? parsedCell.notebook
+		: notebookParam
+			? URI.parse(notebookParam)
+			: uri.with({
+				scheme: params.get('notebookScheme') || Schemas.file,
+				fragment: uri.fragment || null,
+				query: null,
+			});
 	const cellIndex = params.get('cellIndex') ? parseInt(params.get('cellIndex') || '', 10) : undefined;
 
 	return {
