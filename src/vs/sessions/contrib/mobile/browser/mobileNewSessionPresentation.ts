@@ -13,9 +13,10 @@ import { FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPAC
 import { renderMobileSessionToolbar } from './mobileSessionToolbar.js';
 
 export const mobileNewSessionPresentation: INewSessionPresentation = {
+	separateSessionControls: true,
 	getAccessibilityHelp: () => [
 		localize('mobileNewSession.choices', "Choose where the session runs, then choose a repository or workspace above the prompt. Use Tab and Shift+Tab to reach these controls, and Enter or Space to open their sheets. Press Escape to close a sheet and return to its control. Open the workspace picker{0} or the harness picker{1} directly when available. Starting a chat within a session keeps that session's host.", `<keybinding:${FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID}>`, `<keybinding:${FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID}>`),
-		localize('mobileNewSession.input', "The prompt stays at the bottom of the welcome view. Use Add Context to attach files or other context. Open the configuration control beside it to choose the model, reasoning effort, mode, and permissions supported by the selected harness. Repository controls, when available, remain beside the prompt and do not collapse into a session-options tray."),
+		localize('mobileNewSession.input', "The prompt stays at the bottom of the welcome view. Use Add Context to attach files or other context. The model button beside Add Context opens Configure Session, where you can choose a model and adjust reasoning effort when supported. When available, mode and permissions can also be opened from the controls row above the prompt, alongside repository controls."),
 	],
 	create: (isNewChatInSession, instantiationService) => instantiationService.createInstance(MobileNewSessionPresentation, isNewChatInSession),
 };

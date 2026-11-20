@@ -32,6 +32,8 @@ export interface IModelPickerPresentationOptions {
 	readonly showUnavailableFeatured: boolean;
 	readonly showAutoModel: boolean;
 	readonly showModelIcon: boolean;
+	/** Use one labeled trigger for a picker that presents model and configuration together. */
+	readonly singleButton?: boolean;
 }
 
 export interface IModelPickerDelegate {
