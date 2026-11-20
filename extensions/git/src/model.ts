@@ -21,7 +21,7 @@ import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { IBranchProtectionProviderRegistry } from './branchProtection';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { RepositoryCache } from './repositoryCache';
-import { ILocationOpening, IRepositoryChanges, WorkspaceFolderRepositories } from './workspaceFolderRepositories';
+import { ILocationOpening, IRepositoryChanges, isInUnopenedWorktree, WorkspaceFolderRepositories } from './workspaceFolderRepositories';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -665,6 +665,13 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 				if (repository) {
 					this.logger.trace(`[Model][onDidChangeVisibleTextEditors] Repository for editor resource ${uri.fsPath} already exists: ${repository.root}`);
+					return;
+				}
+
+				const worktreePaths = this.repositories.flatMap(r => r.worktrees.map(w => w.path));
+				const workspaceFolderPaths = (workspace.workspaceFolders ?? []).filter(f => f.uri.scheme === 'file').map(f => f.uri.fsPath);
+				if (isInUnopenedWorktree(uri.fsPath, worktreePaths, workspaceFolderPaths)) {
+					this.logger.trace(`[Model][onDidChangeVisibleTextEditors] Editor resource ${uri.fsPath} is in a worktree that is not a workspace folder`);
 					return;
 				}
 

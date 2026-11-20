@@ -280,6 +280,15 @@ export class WorkspaceFolderRepositories<T extends IFolderLocationRepository> {
 	}
 }
 
+/**
+ * Whether `fsPath` is inside one of `worktreePaths` and outside every one of `workspaceFolderPaths`, so that opening
+ * its repository would list a worktree that the window is not at.
+ */
+export function isInUnopenedWorktree(fsPath: string, worktreePaths: readonly string[], workspaceFolderPaths: readonly string[]): boolean {
+	return worktreePaths.some(worktree => isAtOrInside(worktree, fsPath))
+		&& !workspaceFolderPaths.some(folder => isAtOrInside(folder, fsPath));
+}
+
 function createChanges<T>(): IRepositoryChanges<T> {
 	return { show: [], warm: [], close: [], open: [] };
 }

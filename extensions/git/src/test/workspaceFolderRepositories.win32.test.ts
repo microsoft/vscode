@@ -6,7 +6,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import { Uri, WorkspaceFolder } from 'vscode';
-import { WorkspaceFolderRepositories } from '../workspaceFolderRepositories';
+import { isInUnopenedWorktree, WorkspaceFolderRepositories } from '../workspaceFolderRepositories';
 import { isWindows } from '../util';
 
 function folder(fsPath: string, locations?: string[]): WorkspaceFolder {
@@ -45,5 +45,16 @@ function folder(fsPath: string, locations?: string[]): WorkspaceFolder {
 			opened: [nested],
 			back: { show: [primary], warm: [nested] }
 		});
+	});
+
+	test('a file in an unopened worktree is recognised ignoring drive letter and path casing, separators and UNC share casing', () => {
+		const worktrees = ['C:\\Repo\\WT1', '\\\\Server\\Share\\WT2'];
+
+		assert.deepStrictEqual([
+			isInUnopenedWorktree('c:\\repo\\wt1\\package.json', worktrees, ['C:\\Repo\\Primary']),
+			isInUnopenedWorktree('\\\\server\\share\\wt2\\src\\a.ts', worktrees, ['C:\\Repo\\Primary']),
+			isInUnopenedWorktree('c:\\REPO\\wt1\\package.json', worktrees, ['C:\\repo\\WT1\\']),
+			isInUnopenedWorktree('C:\\Repo\\WT10\\package.json', worktrees, ['C:\\Repo\\Primary']),
+		], [true, true, false, false]);
 	});
 });

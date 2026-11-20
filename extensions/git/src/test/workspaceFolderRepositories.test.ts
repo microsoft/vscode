@@ -7,7 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import { Uri, WorkspaceFolder } from 'vscode';
-import { ILocationOpening, IRepositoryChanges, WorkspaceFolderRepositories } from '../workspaceFolderRepositories';
+import { ILocationOpening, IRepositoryChanges, isInUnopenedWorktree, WorkspaceFolderRepositories } from '../workspaceFolderRepositories';
 import { isDescendant, isMacintosh, isWindows, PendingOperations } from '../util';
 
 const primary = Uri.file('/repo/primary').fsPath;
@@ -527,4 +527,33 @@ suite('WorkspaceFolderRepositories', () => {
 
 		assert.deepStrictEqual({ runs: runs > 1000, violations: violations.slice(0, 10), count: violations.length }, { runs: true, violations: [], count: 0 });
 	}
+});
+
+suite('isInUnopenedWorktree', () => {
+
+	const worktrees = [wt1, nested];
+
+	test('a file in a worktree outside every workspace folder is in an unopened worktree', () => {
+		assert.deepStrictEqual([
+			isInUnopenedWorktree(path.join(wt1, 'package.json'), worktrees, [primary]),
+			isInUnopenedWorktree(path.join(wt1, 'src', 'a.ts'), worktrees, []),
+			isInUnopenedWorktree(path.join(wt1, 'package.json'), worktrees, [wt2]),
+		], [true, true, true]);
+	});
+
+	test('a file in a worktree that is, or is inside, a workspace folder is not', () => {
+		assert.deepStrictEqual([
+			isInUnopenedWorktree(path.join(wt1, 'package.json'), worktrees, [primary, wt1]),
+			isInUnopenedWorktree(path.join(nested, 'a.ts'), worktrees, [primary]),
+			isInUnopenedWorktree(path.join(nested, 'a.ts'), worktrees, [wt1]),
+		], [false, false, true]);
+	});
+
+	test('a file outside every worktree is not', () => {
+		assert.deepStrictEqual([
+			isInUnopenedWorktree(path.join(other, 'a.ts'), worktrees, [primary]),
+			isInUnopenedWorktree(path.join(primary, 'a.ts'), worktrees, [primary]),
+			isInUnopenedWorktree(path.join(wt1 + '-sibling', 'a.ts'), worktrees, [primary]),
+		], [false, false, false]);
+	});
 });
