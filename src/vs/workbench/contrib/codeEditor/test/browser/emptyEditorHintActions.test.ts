@@ -32,7 +32,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { EmptyEditorHintActionsWidget } from '../../browser/emptyTextEditorHint/emptyEditorHintActions.js';
-import { EmptyTextEditorHintContentWidget } from '../../browser/emptyTextEditorHint/emptyTextEditorHint.js';
+import { EmptyTextEditorHintContentWidget } from '../../browser/emptyTextEditorHint/emptyTextEditorHintController.js';
 import { startsTextInput } from '../../browser/emptyTextEditorHint/emptyEditorHintFocus.js';
 
 suite('EmptyEditorHintActionsWidget', () => {
