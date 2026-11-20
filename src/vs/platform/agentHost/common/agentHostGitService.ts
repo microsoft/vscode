@@ -253,6 +253,13 @@ export interface IAgentHostGitService {
 	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
 	getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined>;
+	/**
+	 * Returns the remote-tracking branch the checked-out branch is based on: the git
+	 * extension's `branch.<name>.vscode-merge-base`, else the branch's upstream. Either
+	 * only counts when it tracks a differently named branch, since a same-named one is
+	 * the branch's own remote copy. Undefined when neither applies or HEAD is detached.
+	 */
+	getBranchBase?(workingDirectory: URI): Promise<IRemoteBranch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
