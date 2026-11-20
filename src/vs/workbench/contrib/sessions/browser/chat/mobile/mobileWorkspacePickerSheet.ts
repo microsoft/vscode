@@ -170,6 +170,7 @@ export async function showMobileWorkspacePickerSheet(
 		readonly getItems: (query: string) => readonly IActionListItem<IWorkspacePickerItem>[];
 		readonly onDidChange: Event<void>;
 	},
+	foldersOnly = false,
 ): Promise<void> {
 	if (cancellationToken.isCancellationRequested) {
 		return;
@@ -217,11 +218,11 @@ export async function showMobileWorkspacePickerSheet(
 	let currentSearchQuery = '';
 	const search: IMobilePickerSheetSearchSource | undefined = inlineFolderActions.length > 0 || showSearch
 		? {
-			placeholder: showSearch
+			placeholder: showSearch && !foldersOnly
 				? localize('mobileWorkspacePicker.searchWorkspaces', "Search Workspaces...")
 				: localize('mobileWorkspacePicker.searchFolders', "Search folders…"),
 			resultsSectionTitle: showSearch ? undefined : localize('mobileWorkspacePicker.foldersSection', "Folders"),
-			emptyMessage: showSearch
+			emptyMessage: showSearch && !foldersOnly
 				? localize('mobileWorkspacePicker.noWorkspaces', "No workspaces match")
 				: localize('mobileWorkspacePicker.noFolders', "No folders match"),
 			onDidChangeItems: liveItems?.onDidChange,
@@ -252,6 +253,9 @@ export async function showMobileWorkspacePickerSheet(
 				}
 				const flattened = results.flat();
 				const sheetItems: IMobilePickerSheetItem[] = [...filteredRows];
+				if (foldersOnly && sheetItems.length) {
+					sheetItems[0] = { ...sheetItems[0], sectionTitle: localize('mobileWorkspacePicker.recentFolders', "Recent folders") };
+				}
 				flattened.forEach((entry, idx) => {
 					const id = `${SEARCH_RESULT_ID_PREFIX}${idx}`;
 					const folderUri = entry.workspace.folders[0]?.root;
@@ -265,6 +269,7 @@ export async function showMobileWorkspacePickerSheet(
 						label: entry.workspace.label,
 						description: entry.workspace.description,
 						icon: entry.workspace.icon,
+						sectionTitle: foldersOnly && idx === 0 ? localize('mobileWorkspacePicker.foldersSection', "Folders") : undefined,
 						navigates: true,
 					});
 				});
@@ -293,7 +298,7 @@ export async function showMobileWorkspacePickerSheet(
 	try {
 		result = await showMobilePickerSheet(
 			layoutService.mainContainer,
-			localize('mobileWorkspacePicker.title', "Choose Workspace"),
+			foldersOnly ? localize('mobileWorkspacePicker.folderTitle', "Choose folder") : localize('mobileWorkspacePicker.title', "Choose Workspace"),
 			[...(search ? [] : browseRows), ...(showSearch ? [] : rows.map(r => r.sheetItem))],
 			{
 				cancellationToken,

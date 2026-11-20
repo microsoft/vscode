@@ -457,6 +457,7 @@ export class NewChatWidget extends Disposable {
 		}
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
+			searchWorkspaceTargetDirectly: this.options.newSessionPresentation.searchWorkspaceTargetDirectly,
 			environment: this._environment,
 			environmentPickerEnabled,
 			canRestoreWorkspace: () => !this._savedDraftComposer?.isRestoring && !this._savedDraftTargetUnavailable.get()

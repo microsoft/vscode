@@ -30,6 +30,7 @@ export interface INewSessionPresentationController extends IDisposable {
 }
 
 export interface INewSessionPresentation {
+	readonly searchWorkspaceTargetDirectly?: boolean;
 	getAccessibilityHelp(screenReaderOptimized: boolean, agentPickerInAttachContextMenu: boolean): readonly string[];
 	create(isNewChatInSession: boolean, instantiationService: IInstantiationService): INewSessionPresentationController;
 }
