@@ -1758,9 +1758,6 @@ async function applyForkSessionTool(accessor: ISessionServerToolAccessor, rawArg
 		...(model !== undefined ? { model } : {}),
 		...(args.title !== undefined ? { title: args.title } : {}),
 	}, credentials);
-	if (args.title !== undefined) {
-		await accessor.renameChat(args.session, chat, args.title);
-	}
 	if (args.prompt !== undefined) {
 		const currentSession = currentSessionUri(accessor, currentChannel);
 		await accessor.startPrompt(args.session, chat, args.prompt, {

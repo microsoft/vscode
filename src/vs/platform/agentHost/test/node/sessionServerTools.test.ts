@@ -3851,7 +3851,7 @@ suite('SessionServerTools', () => {
 			return { result, calls };
 		}
 
-		test('forks the calling chat at its last completed turn with the model of its running turn, then names and starts the fork', async () => {
+		test('forks the calling chat at its last completed turn with the model of its running turn, then starts the fork', async () => {
 			const source = buildDefaultChatUri('copilot:/s1');
 			const running = { ...completed, activeTurn: { message: { text: 'fork this', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet' } }, responseParts: [] } };
 			assert.deepStrictEqual(await runFork({ prompt: 'Try approach B', title: 'Approach B' }, running), {
@@ -3859,7 +3859,6 @@ suite('SessionServerTools', () => {
 				calls: [
 					{ read: source },
 					{ create: 'copilot:/s1', fork: { source, turnId: 't2' }, model: { id: 'claude-sonnet' }, title: 'Approach B' },
-					{ rename: 'NEW', title: 'Approach B' },
 					{ prompt: 'NEW', text: 'Try approach B', delegation: { sourceSession: 'copilot:/s1', sourceChat: source, sourceTurnId: 'turn-1' } },
 				],
 			});
