@@ -18,7 +18,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { safeIntl } from '../../../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -137,6 +137,7 @@ import { TestColorTheme, TestThemeService } from '../../../../../../platform/the
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { captureGlobalTimeApi, createVirtualTimeApi, pushGlobalTimeApi, VirtualClock } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
@@ -15348,6 +15349,20 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	/** Holds `setTimeout` callbacks until disposed, which drops them. Intervals, clocks and animation frames keep running. */
+	function holdTimeouts(): IDisposable {
+		const real = captureGlobalTimeApi();
+		const held = createVirtualTimeApi(new VirtualClock());
+		return pushGlobalTimeApi({
+			...real,
+			setTimeout: held.setTimeout,
+			clearTimeout: id => {
+				held.clearTimeout(id);
+				real.clearTimeout(id);
+			},
+		});
+	}
+
 	for (const { name, width, imageWidth, imageHeight, imageCount, animate, batch } of [
 		{ name: 'portrait', width: 760, imageWidth: 800, imageHeight: 1600, imageCount: 1 },
 		{ name: 'landscape', width: 760, imageWidth: 1600, imageHeight: 800, imageCount: 1 },
@@ -15408,6 +15423,10 @@ suite('ChatListRenderer', () => {
 				}
 				renderer.renderElement(node, 0, template);
 			}
+			// A reveal also ends on a real-time deadline, a few seconds after its image loads, which pausing its
+			// animations doesn't hold. Hold timeouts until the reveal has been sampled, so that a slow run can't end it
+			// between samples. Intervals, clocks and animation frames keep running.
+			const heldTimeouts = animate ? disposables.add(holdTimeouts()) : undefined;
 			await tool.didExecuteTool({
 				content: [],
 				toolSpecificData: { kind: 'generatedImage' },
@@ -15438,11 +15457,17 @@ suite('ChatListRenderer', () => {
 				extraHeight: group.getBoundingClientRect().height - imageReveal!.getBoundingClientRect().height,
 			});
 			const revealStates = animate ? [revealState()] : [];
-			await retry(async () => {
+			const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			const imagesLoaded = () => {
 				const images = [...template.value.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')];
-				assert.ok(images.length === imageCount && images.every(image => image.complete && image.naturalWidth > 0
-					&& image.closest('.image-attachment')?.getAttribute('aria-busy') === 'false'));
-			}, 20, 50);
+				return images.length === imageCount && images.every(image => image.complete && image.naturalWidth > 0
+					&& image.closest('.image-attachment')?.getAttribute('aria-busy') === 'false');
+			};
+			// Timeouts don't run while they're held, so wait for the images by animation frames.
+			for (let frame = 0; frame < 300 && !imagesLoaded(); frame++) {
+				await nextFrame();
+			}
+			assert.ok(imagesLoaded());
 			if (animate) {
 				assert.ok(imageReveal);
 				assert.ok(imageReveal.classList.contains('revealing'));
@@ -15455,7 +15480,7 @@ suite('ChatListRenderer', () => {
 						animation.pause();
 						animation.currentTime = Number(animation.effect?.getTiming().duration) * fraction;
 					}
-					await new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					await nextFrame();
 					revealStates.push(revealState());
 				}
 				const bounds = () => {
@@ -15477,6 +15502,7 @@ suite('ChatListRenderer', () => {
 				// same cleanup its real-time deadline runs (covered with virtual time in chatImageReveal.test.ts).
 				motionReduced = true;
 				reducedMotionChanged.fire();
+				heldTimeouts?.dispose();
 				assert.ok(!imageReveal.classList.contains('revealing'));
 				const afterFinish = bounds();
 				assert.deepStrictEqual({
