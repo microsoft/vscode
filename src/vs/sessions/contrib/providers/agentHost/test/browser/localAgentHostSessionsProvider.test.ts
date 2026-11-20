@@ -9970,6 +9970,49 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('two clients with different sensitive edit locations for one session settle on both of their locations', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const createClient = async (hookLocations: Record<string, boolean>) => {
+			const host = new MockAgentHostService();
+			disposables.add(toDisposable(() => host.dispose()));
+			host.addSession(createSession('shared', { summary: 'Shared Session', workingDirectory: URI.file('/home/user/project') }));
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(ChatHookFilesLocationsSettingId, hookLocations);
+			const provider = createProvider(disposables, host, undefined, { configurationService });
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(s => s.title.get() === 'Shared Session')!;
+			provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+			return host;
+		};
+		const clients = [await createClient({ 'agents-window-hooks': true }), await createClient({ 'other-window-hooks': true })];
+		let hostValue: unknown = [{ path: 'agents-window-hooks', isDirectory: true }];
+		const broadcast = () => {
+			for (const host of clients) {
+				host.setSessionState('shared', 'copilotcli', {
+					provider: 'copilotcli', title: 'Shared Session', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+					config: { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree', [SessionConfigKey.SensitiveEditLocations]: hostValue } },
+				});
+			}
+		};
+
+		let rounds = 0;
+		for (; rounds < 10; rounds++) {
+			broadcast();
+			await timeout(0);
+			const writes = clients.flatMap(host => host.dispatchedActions.splice(0).flatMap(({ action }) =>
+				action.type === ActionType.SessionConfigChanged && Object.hasOwn(action.config, SessionConfigKey.SensitiveEditLocations) ? [action.config[SessionConfigKey.SensitiveEditLocations]] : []));
+			if (writes.length === 0) {
+				break;
+			}
+			hostValue = writes.at(-1);
+		}
+
+		assert.deepStrictEqual({ settled: rounds < 10, hostValue }, {
+			settled: true,
+			hostValue: [{ path: 'agents-window-hooks', isDirectory: true }, { path: 'other-window-hooks', isDirectory: true }],
+		});
+	}));
+
 	test('sendRequest forwards Git worktree settings of the folder loaded after the draft was created', async () => {
 		const folder = URI.file('/home/user/project');
 		const configService = new TestConfigurationService();

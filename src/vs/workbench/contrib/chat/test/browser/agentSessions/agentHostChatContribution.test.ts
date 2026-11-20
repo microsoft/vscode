@@ -20222,6 +20222,50 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('handler keeps another client\'s hook locations when it sends a turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const workspace = URI.file('/workspace');
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				workingDirectoryResolver: { resolve: () => workspace },
+				workspaceFolders: [workspace],
+				configOverrides: {
+					[ChatHookFilesLocationsSettingId]: { 'custom-hooks/hooks.json': true },
+				},
+			});
+			const sessionUri = AgentSession.uri('copilot', 'shared-sensitive-edit-locations');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+				config: {
+					schema: { type: 'object', properties: { [SessionConfigKey.SensitiveEditLocations]: { type: 'array', title: 'Sensitive edit locations', readOnly: true, sessionMutable: true } } },
+					values: { [SessionConfigKey.SensitiveEditLocations]: [{ path: 'other-window-hooks', isDirectory: true }] },
+				},
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/shared-sensitive-edit-locations' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'Create custom-hooks/hooks.json', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const turnDispatch = agentHostService.turnActions[0];
+			const turnAction = turnDispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+
+			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged);
+			assert.deepStrictEqual((configChanged?.action as { config?: Record<string, unknown> } | undefined)?.config?.[SessionConfigKey.SensitiveEditLocations], [
+				{ path: 'custom-hooks/hooks.json', isDirectory: true },
+				{ path: 'other-window-hooks', isDirectory: true },
+			]);
+		}));
+
 		test('handler resolves authentication before sending to an eager-created session', async () => {
 			const authenticationRequests: ProtectedResourceMetadata[][] = [];
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);

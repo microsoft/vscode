@@ -68,7 +68,7 @@ import { readSlashCommandResource, type ISlashCommandResource } from '../../../.
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostClientConnectionKind, agentHostClientConnectionKindValidator } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../../platform/chat/common/chatSettings.js';
+import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, readChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../../platform/chat/common/chatSettings.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
@@ -8189,10 +8189,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._configurationService.getValue<unknown>(ChatAgentFilesLocationsSettingId, overrides),
 			);
 		}));
-		const current = existingState?.config?.values[SessionConfigKey.SensitiveEditLocations];
-		return (desired.length > 0 || (current !== undefined && !equals(current, desired)))
-			? { [SessionConfigKey.SensitiveEditLocations]: desired }
-			: {};
+		const key = SessionConfigKey.SensitiveEditLocations;
+		if (!existingState) {
+			return desired.length > 0 ? { [key]: desired } : {};
+		}
+		const current = existingState.config?.values[key];
+		const merged = mergeChatSensitiveEditLocations(readChatSensitiveEditLocations(current), desired);
+		return merged.length > 0 && !equals(current, merged) ? { [key]: merged } : {};
 	}
 
 	/** `undefined` is preserved for createSession to let the host choose its working directories. */
