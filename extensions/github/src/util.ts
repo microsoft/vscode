@@ -83,8 +83,8 @@ export function getRepositoryFromUrl(url: string): { owner: string; repo: string
 		return { owner: match[1], repo: match[2], baseUrl: 'https://github.com' };
 	}
 
-	// Generic HTTPS URL: https://host/owner/repo[.git]
-	match = /^https:\/\/([^/]+)\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	// Generic HTTP(S) URL: http(s)://host/owner/repo[.git]
+	match = /^https?:\/\/([^/]+)\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
 	if (match) {
 		try {
 			// Use URL to extract the origin, stripping any embedded credentials.
