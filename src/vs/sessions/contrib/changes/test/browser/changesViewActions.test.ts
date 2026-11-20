@@ -411,6 +411,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = changesets;
 			override readonly activeSessionChangesetsLoadingObs = loading;
 			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionBaseBranchFullNameObs = constObservable(undefined);
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
 		const contextKeyService = new MockContextKeyService();
@@ -465,27 +466,26 @@ suite('Changes View Actions', () => {
 	});
 
 	test('uses the branch description in the picker tooltip while preserving its accessible label', () => {
-		const createChangeset = (id: string, label: string, description?: string, baseBranchName?: IObservable<string | undefined>) => upcastPartial<ISessionChangeset>({
+		const createChangeset = (id: string, label: string, description?: string) => upcastPartial<ISessionChangeset>({
 			id,
 			label,
 			description,
-			baseBranchName,
 			isEnabled: constObservable(true),
 			isDefault: constObservable(true),
 		});
-		const branchBase = observableValue<string | undefined>('picker.branchBase', 'origin/main');
-		const branch = createChangeset('branch', 'Branch', 'feature -> main', branchBase);
-		const updatedBranch = createChangeset('branch', 'Branch', 'feature -> release', constObservable('origin/release'));
-		const withoutDescription = createChangeset('branch', 'Branch', undefined, constObservable('origin/main'));
-		const withoutBase = createChangeset('branch', 'Branch', 'feature -> main');
+		const branch = createChangeset('branch', 'Branch', 'feature -> main');
+		const updatedBranch = createChangeset('branch', 'Branch', 'feature -> release');
+		const withoutDescription = createChangeset('branch', 'Branch');
 		const emptyDescription = createChangeset('branch', 'Branch', '');
 		const session = createChangeset('session', 'Session', 'Session description');
 		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', branch);
 		const loading = observableValue('picker.loading', false);
+		const baseBranch = observableValue<string | undefined>('picker.baseBranch', 'origin/main');
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetsObs = constObservable([branch]);
 			override readonly activeSessionChangesetsLoadingObs = loading;
 			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionBaseBranchFullNameObs = baseBranch;
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
 		const contextKeyService = new MockContextKeyService();
@@ -504,9 +504,12 @@ suite('Changes View Actions', () => {
 		});
 
 		const initial = snapshot();
-		branchBase.set('origin/release/1.108', undefined);
+		baseBranch.set('origin/release/1.108', undefined);
 		const baseChanged = snapshot();
-		selected.set(updatedBranch, undefined);
+		transaction(tx => {
+			baseBranch.set('origin/release', tx);
+			selected.set(updatedBranch, tx);
+		});
 		const updated = snapshot();
 		transaction(tx => {
 			loading.set(true, tx);
@@ -515,14 +518,21 @@ suite('Changes View Actions', () => {
 		const loadingCatalogue = snapshot();
 		transaction(tx => {
 			loading.set(false, tx);
+			baseBranch.set('origin/main', tx);
 			selected.set(withoutDescription, tx);
 		});
 		const missing = snapshot();
-		selected.set(withoutBase, undefined);
+		transaction(tx => {
+			baseBranch.set(undefined, tx);
+			selected.set(branch, tx);
+		});
 		const noBase = snapshot();
 		selected.set(emptyDescription, undefined);
 		const empty = snapshot();
-		selected.set(session, undefined);
+		transaction(tx => {
+			baseBranch.set('origin/main', tx);
+			selected.set(session, tx);
+		});
 		const otherChangeset = snapshot();
 		selected.set(undefined, undefined);
 		const noChangeset = snapshot();
@@ -553,6 +563,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionBaseBranchFullNameObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = summary;
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();
@@ -661,6 +672,7 @@ suite('Changes View Actions', () => {
 			override readonly activeSessionChangesetsObs = constObservable([changeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionBaseBranchFullNameObs = constObservable(undefined);
 			override readonly activeSessionChangesSummaryObs = constObservable<ISessionChangesSummary | undefined>({ files: 2, additions: 5, deletions: 1 });
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
 		}();

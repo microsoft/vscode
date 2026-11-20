@@ -1331,6 +1331,8 @@ export interface ISessionGitState {
 	readonly isDetachedHead?: boolean;
 	/** Base branch the work targets (e.g. `main`). */
 	readonly baseBranchName?: string;
+	/** Base branch exactly as recorded for the session (e.g. `origin/main`), as Branch Changes describes it. {@link baseBranchName} is the same branch without its remote prefix. */
+	readonly baseBranchFullName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
 	/**
@@ -1403,42 +1405,6 @@ export function withSessionSourceControlState(meta: SessionMeta | undefined, sta
 		next[SESSION_META_SOURCE_CONTROL_KEY] = state;
 	} else {
 		delete next[SESSION_META_SOURCE_CONTROL_KEY];
-	}
-	return Object.keys(next).length > 0 ? next : undefined;
-}
-
-/**
- * Reserved key under {@link SessionMeta} for a map from a Branch changeset URI,
- * as advertised in the changeset catalogue, to the base branch exactly as the
- * host uses it for that changeset's description and diff (for example
- * `origin/main`).
- */
-export const SESSION_META_BRANCH_CHANGESET_BASES_KEY = 'vscode.branchChangesetBases';
-
-/** Reads the base branch the host compares the given Branch changeset against. */
-export function readBranchChangesetBaseBranch(meta: SessionMeta | undefined, changeset: string): string | undefined {
-	const bases = meta?.[SESSION_META_BRANCH_CHANGESET_BASES_KEY];
-	if (!bases || typeof bases !== 'object' || Array.isArray(bases) || !Object.hasOwn(bases, changeset)) {
-		return undefined;
-	}
-	const baseBranch = (bases as Record<string, unknown>)[changeset];
-	return typeof baseBranch === 'string' && baseBranch.length > 0 ? baseBranch : undefined;
-}
-
-/** Returns session metadata with the base branch of the given Branch changeset updated or removed. */
-export function withBranchChangesetBaseBranch(meta: SessionMeta | undefined, changeset: string, baseBranch: string | undefined): SessionMeta | undefined {
-	const current = meta?.[SESSION_META_BRANCH_CHANGESET_BASES_KEY];
-	const bases: Record<string, unknown> = current && typeof current === 'object' && !Array.isArray(current) ? { ...current } : {};
-	if (baseBranch) {
-		bases[changeset] = baseBranch;
-	} else {
-		delete bases[changeset];
-	}
-	const next: SessionMeta = { ...meta };
-	if (Object.keys(bases).length > 0) {
-		next[SESSION_META_BRANCH_CHANGESET_BASES_KEY] = bases;
-	} else {
-		delete next[SESSION_META_BRANCH_CHANGESET_BASES_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }
@@ -1573,6 +1539,7 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 		branchName?: string;
 		isDetachedHead?: boolean;
 		baseBranchName?: string;
+		baseBranchFullName?: string;
 		upstreamBranchName?: string;
 		defaultBranchName?: string;
 		defaultRemoteBranchName?: string;
@@ -1589,6 +1556,7 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
+	if (typeof raw['baseBranchFullName'] === 'string') { result.baseBranchFullName = raw['baseBranchFullName']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
 	if (typeof raw['defaultBranchName'] === 'string') { result.defaultBranchName = raw['defaultBranchName']; }
 	if (typeof raw['defaultRemoteBranchName'] === 'string') { result.defaultRemoteBranchName = raw['defaultRemoteBranchName']; }

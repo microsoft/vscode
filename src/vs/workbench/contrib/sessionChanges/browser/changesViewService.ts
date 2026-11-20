@@ -123,6 +123,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
+	readonly activeSessionBaseBranchFullNameObs: IObservable<string | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 
@@ -217,6 +218,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionLoadingObs = active.loadingObs;
 		this.activeSessionChangesSummaryObs = active.changesSummaryObs;
 		this.activeSessionStateObs = active.stateObs;
+		this.activeSessionBaseBranchFullNameObs = active.baseBranchFullNameObs;
 
 		// View mode
 		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);
@@ -482,6 +484,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		}, reader => cachedChangesSummaryObs.read(reader));
 
 		const stateObs = this._getSessionState(sessionObs, chatOf, loadingObs, hasGitRepositoryObs);
+		const baseBranchFullNameObs = derived(reader => chatOf(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchFullName);
 
 		return {
 			resourceObs,
@@ -500,6 +503,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			changesSummaryObs,
 			sectionCollapseStateObs,
 			stateObs,
+			baseBranchFullNameObs,
 		};
 	}
 

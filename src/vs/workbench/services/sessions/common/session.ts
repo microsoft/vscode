@@ -203,6 +203,8 @@ export interface ISessionGitRepository {
 	readonly branchName?: string;
 	/** Name of the base branch. */
 	readonly baseBranchName: string | undefined;
+	/** Base branch exactly as recorded for the session (e.g. `origin/main`), as Branch Changes describes it. {@link baseBranchName} is the same branch without its remote prefix. */
+	readonly baseBranchFullName?: string;
 	/** Whether the base branch is protected (drives PR vs merge workflow). */
 	readonly baseBranchProtected?: boolean;
 	/** Whether the repository has any Git remote. */
@@ -639,8 +641,6 @@ export interface ISessionChangeset {
 	readonly label: string;
 	/** Optional description for the changeset. */
 	readonly description?: string;
-	/** The base branch the host compares this changeset against, exactly as it describes it (for example `origin/main`); only Branch Changes of hosts that publish it have one. */
-	readonly baseBranchName?: IObservable<string | undefined>;
 	/** Whether the changeset is enabled. */
 	readonly isEnabled: IObservable<boolean>;
 	/**
@@ -1423,6 +1423,7 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.isRepository?.get() === b.isRepository?.get()
 		&& a.branchName === b.branchName
 		&& a.baseBranchName === b.baseBranchName
+		&& a.baseBranchFullName === b.baseBranchFullName
 		&& a.baseBranchProtected === b.baseBranchProtected
 		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote

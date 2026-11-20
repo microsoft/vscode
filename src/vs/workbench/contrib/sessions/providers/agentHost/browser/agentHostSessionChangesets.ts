@@ -19,7 +19,7 @@ import { isAgentMergeMessage } from '../../../../../../platform/agentHost/common
 import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, readBranchChangesetBaseBranch, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../../services/sessions/common/session.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
@@ -37,8 +37,6 @@ export interface IAgentHostChangeset extends Changeset {
 	readonly changes?: IObservable<readonly ISessionFileChange[] | undefined>;
 	/** Live changes layered over the authoritative changeset until its next cached `Recomputing` or `Ready` snapshot. */
 	readonly streamingChanges?: IObservable<IAgentHostCurrentTurnChanges | undefined>;
-	/** The base branch the host compares this changeset against, exactly as it describes it (for example `origin/main`). */
-	readonly baseBranchName?: IObservable<string | undefined>;
 }
 
 /** File changes published by one active turn. */
@@ -206,10 +204,6 @@ export function createChatChangesets(
 	const currentTurnFileChanges = currentTurnChanges
 		? derived(reader => currentTurnChanges.read(reader)?.changes)
 		: undefined;
-	const sessionMetaObs = derived(reader => {
-		const state = sessionStateObs.read(reader).read(reader);
-		return state instanceof Error ? undefined : state?._meta;
-	});
 	return derived(reader => {
 		const chatUri = chatUriObs.read(reader);
 		const chatState = chatStateObs.read(reader).read(reader);
@@ -235,22 +229,16 @@ export function createChatChangesets(
 		lastChatUri = chatUri;
 		lastDefaultChatUri = defaultChatUri;
 		lastDefaultChangesetKind = defaultChangesetKind;
-		lastChangesets = createChangesets(sessionUri, options, isActiveSessionObs, resolvedCatalogue.map(({ changeset, owner }) => {
-			const uriTemplate = resolveChangesetUriTemplate((owner === 'session' ? sessionUri : chatUri).toString(), changeset.uriTemplate);
-			return {
-				...changeset,
-				uriTemplate,
-				changes: changeset.changeKind === ChangesetKind.Turn ? currentTurnFileChanges : undefined,
-				streamingChanges: changeset.changeKind === ChangesetKind.Branch
-					|| changeset.changeKind === ChangesetKind.Uncommitted
-					|| changeset.changeKind === ChangesetKind.Session
-					? currentTurnChanges
-					: undefined,
-				baseBranchName: changeset.changeKind === ChangesetKind.Branch
-					? derived(reader => readBranchChangesetBaseBranch(sessionMetaObs.read(reader), uriTemplate))
-					: undefined,
-			};
-		}), chatUri, defaultChangesetKind);
+		lastChangesets = createChangesets(sessionUri, options, isActiveSessionObs, resolvedCatalogue.map(({ changeset, owner }) => ({
+			...changeset,
+			uriTemplate: resolveChangesetUriTemplate((owner === 'session' ? sessionUri : chatUri).toString(), changeset.uriTemplate),
+			changes: changeset.changeKind === ChangesetKind.Turn ? currentTurnFileChanges : undefined,
+			streamingChanges: changeset.changeKind === ChangesetKind.Branch
+				|| changeset.changeKind === ChangesetKind.Uncommitted
+				|| changeset.changeKind === ChangesetKind.Session
+				? currentTurnChanges
+				: undefined,
+		})), chatUri, defaultChangesetKind);
 		return lastChangesets;
 	});
 }
@@ -648,8 +636,6 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	private _description?: string;
 	get description(): string | undefined { return this._description; }
 
-	readonly baseBranchName: IObservable<string | undefined> | undefined;
-
 	readonly isEnabled = constObservable(true);
 	readonly isDefault: IObservable<boolean>;
 
@@ -677,7 +663,6 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 		this.id = changesetSummary.id ?? changesetSummary.changeKind;
 		this._label = changesetSummary.label;
 		this._description = changesetSummary.description;
-		this.baseBranchName = changesetSummary.baseBranchName;
 
 		this.isDefault = constObservable(changesetSummary.isDefault);
 	}
