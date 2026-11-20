@@ -175,6 +175,7 @@ import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
 import { TurnInteractionCorrelation, type ISteeringTurnContext } from './turnInteractionCorrelation.js';
 import { CompactionTurnCorrelation } from './compactionTurnCorrelation.js';
 import { CopilotSubagentTracking } from './copilotSubagentTracking.js';
+import { getCopilotSkillTelemetry } from './copilotSkillTelemetry.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
@@ -2202,6 +2203,7 @@ export class CopilotAgentSession extends Disposable {
 	private _pendingClientToolReplacement: ICopilotClientToolReplacement | undefined;
 	private readonly _appliedPluginSources: ReadonlySet<string>;
 	private readonly _appliedPluginDirectories: readonly URI[];
+	private readonly _runtimePluginRoots: readonly URI[];
 	private readonly _projectedMcpServerLaunchEnablement: ReadonlyMap<string, boolean>;
 	private readonly _declaredMcpServerNames: ReadonlySet<string>;
 	/** Last host-applied values, retained until SDK-native servers return to their inherited defaults. */
@@ -2642,6 +2644,7 @@ export class CopilotAgentSession extends Disposable {
 			const directory = plugin.pluginDir ?? plugin.resourceDir;
 			return directory?.scheme === Schemas.file ? [directory] : [];
 		}), ...(options.builtinPluginDirectories ?? [])];
+		this._runtimePluginRoots = options.builtinPluginDirectories ?? [];
 		const disabledMcpServers = new Set([
 			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
 			...(this._launchPlan.disabledRootMcpServers ?? []),
@@ -4254,6 +4257,7 @@ export class CopilotAgentSession extends Disposable {
 			sdkEventId: e.id,
 			trigger: e.data.trigger,
 			isSubagentInvocation: !!e.agentId,
+			...getCopilotSkillTelemetry(e.data, this._runtimePluginRoots),
 		};
 		if (!e.agentId) {
 			this._telemetryReporter.skillInvoked({ ...base, session: this._chatChannelUri.toString(), turnId: this._turnId, clientContext: turn?.clientContext, telemetryContext: turn?.telemetryContext });
