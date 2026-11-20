@@ -626,7 +626,7 @@ suite('ChatAttachmentsContentPart', () => {
 			});
 		});
 
-		test('should warn about Copilot Fusion image support without marking images omitted', () => {
+		test('should not warn about images attached to Copilot Fusion', () => {
 			setModels([{ identifier: 'copilot/auto', id: 'copilot/auto', vendor: 'copilot', vision: false }]);
 			const image = createImageEntry('image.png', new Uint8Array([1, 2, 3]));
 			const imageHoverContents = captureImageHovers();
@@ -641,20 +641,18 @@ suite('ChatAttachmentsContentPart', () => {
 				omittedState: image.omittedState,
 				ariaLabel: attachment?.ariaLabel,
 				isWarning: attachment?.classList.contains('warning'),
-				isAutoWarning: attachment?.classList.contains('auto-image-warning'),
 				hasWarningIcon: !!attachment?.querySelector('.codicon-warning'),
 				hoverText: imageHoverContents.map(content => content.textContent),
 			}, {
 				omittedState: undefined,
-				ariaLabel: 'Attached image, image.png. Image support depends on the model selected by Copilot Fusion.',
+				ariaLabel: 'Attached image, image.png',
 				isWarning: false,
-				isAutoWarning: true,
 				hasWarningIcon: false,
-				hoverText: [`${instantiationService.get(ILabelService).getUriLabel(URI.file('/test/image.png'))}Image support depends on the model selected by Copilot Fusion.`],
+				hoverText: [instantiationService.get(ILabelService).getUriLabel(URI.file('/test/image.png'))],
 			});
 		});
 
-		test('should show the Copilot Fusion warning instead of a stale omission when editing', () => {
+		test('should not show a stale omission for Copilot Fusion when editing', () => {
 			const fusionModel = {
 				identifier: 'agent-host-copilotcli/auto',
 				metadata: {
@@ -689,15 +687,13 @@ suite('ChatAttachmentsContentPart', () => {
 			assert.deepStrictEqual({
 				ariaLabel: widget.element.ariaLabel,
 				isWarning: widget.element.classList.contains('warning'),
-				isAutoWarning: widget.element.classList.contains('auto-image-warning'),
 				hasWarningIcon: !!widget.element.querySelector('.codicon-warning-compact'),
 				hoverText: imageHoverContents.map(content => content.textContent),
 			}, {
-				ariaLabel: 'Attached image, image.png. Image support depends on the model selected by Copilot Fusion. (Delete)',
+				ariaLabel: 'Attached image, image.png (Delete)',
 				isWarning: false,
-				isAutoWarning: true,
 				hasWarningIcon: false,
-				hoverText: [`${instantiationService.get(ILabelService).getUriLabel(URI.file('/test/image.png'))}Image support depends on the model selected by Copilot Fusion.`],
+				hoverText: [instantiationService.get(ILabelService).getUriLabel(URI.file('/test/image.png'))],
 			});
 		});
 
