@@ -1501,6 +1501,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Active session subscriptions, keyed by backend session URI string. */
 	private readonly _sessionSubscriptions = new Map<string, IReference<IAgentSubscription<SessionState>>>();
+	/** The sensitive-edit locations this client last asserted on each session, kept as long as its {@link _sessionSubscriptions} entry. */
+	private readonly _assertedSensitiveEditLocations = new Map<string, readonly IChatSensitiveEditLocation[]>();
 	/**
 	 * Working-directory synchronizer registrations, keyed by session URI. Each
 	 * lives exactly as long as that session's {@link _sessionSubscriptions} entry.
@@ -2350,7 +2352,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (this._isInvocationAbandoned(cancellationToken)) {
 				return {};
 			}
-			const sensitiveEditLocationsConfig = this._getSensitiveEditLocationsConfig(request.sessionResource, existingState);
 
 			// On-device models: a chat bound to an installed model that isn't loaded keeps its draft.
 			if (!this._isSubagentChat(this._resolveSessionUri(request.sessionResource).toString(), invocationChat) && !request.acceptedConfirmationData?.length && !request.rejectedConfirmationData?.length
@@ -2378,7 +2379,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const model = imported?.model ?? this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
 				const initialConfig = {
 					...this._provisionalService.getInitialSessionConfig(),
-					...sensitiveEditLocationsConfig,
+					...this._getNewSessionSensitiveEditLocationsConfig(sessionKey, request.sessionResource),
 					...this._config.resolveInitialSessionConfig?.(request.sessionResource),
 					...request.agentHostSessionConfig,
 				};
@@ -2414,7 +2415,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// Recompute settings-derived security config before each turn; draft picks and
 				// Agents-window request config layer on top.
 				const sessionConfig = {
-					...sensitiveEditLocationsConfig,
+					...this._getSensitiveEditLocationsUpdate(sessionKey, request.sessionResource, existingState),
 					...this._config.resolveInitialSessionConfig?.(request.sessionResource),
 					...request.agentHostSessionConfig,
 				};
@@ -8181,21 +8182,35 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 
-	private _getSensitiveEditLocationsConfig(sessionResource: URI, existingState: SessionState | undefined): Record<string, readonly IChatSensitiveEditLocation[]> {
-		const desired = mergeChatSensitiveEditLocations(...this._resolveSessionWorkingDirectoryRoots(sessionResource).map(resource => {
+	private _getSensitiveEditLocations(sessionResource: URI): readonly IChatSensitiveEditLocation[] {
+		return mergeChatSensitiveEditLocations(...this._resolveSessionWorkingDirectoryRoots(sessionResource).map(resource => {
 			const overrides = { resource };
 			return getChatSensitiveEditLocations(
 				this._configurationService.getValue<unknown>(ChatHookFilesLocationsSettingId, overrides),
 				this._configurationService.getValue<unknown>(ChatAgentFilesLocationsSettingId, overrides),
 			);
 		}));
+	}
+
+	private _getNewSessionSensitiveEditLocationsConfig(sessionKey: string, sessionResource: URI): Record<string, readonly IChatSensitiveEditLocation[]> {
+		const desired = this._getSensitiveEditLocations(sessionResource);
+		this._assertedSensitiveEditLocations.set(sessionKey, desired);
+		return desired.length > 0 ? { [SessionConfigKey.SensitiveEditLocations]: desired } : {};
+	}
+
+	/**
+	 * The sensitive-edit locations to assert before a turn of an existing session, from its live state. Other clients of
+	 * the session can compute different locations from their settings: on its first turn, or once its settings change, this
+	 * client sets exactly its own; otherwise it only adds those missing, so that it never drops another client's.
+	 */
+	private _getSensitiveEditLocationsUpdate(sessionKey: string, sessionResource: URI, fallbackState: SessionState | undefined): Record<string, readonly IChatSensitiveEditLocation[]> {
 		const key = SessionConfigKey.SensitiveEditLocations;
-		if (!existingState) {
-			return desired.length > 0 ? { [key]: desired } : {};
-		}
-		const current = existingState.config?.values[key];
-		const merged = mergeChatSensitiveEditLocations(readChatSensitiveEditLocations(current), desired);
-		return merged.length > 0 && !equals(current, merged) ? { [key]: merged } : {};
+		const desired = this._getSensitiveEditLocations(sessionResource);
+		const current = (this._getRawSessionState(sessionKey) ?? fallbackState)?.config?.values[key];
+		const asserted = this._assertedSensitiveEditLocations.get(sessionKey);
+		this._assertedSensitiveEditLocations.set(sessionKey, desired);
+		const next = asserted && equals(asserted, desired) ? mergeChatSensitiveEditLocations(readChatSensitiveEditLocations(current), desired) : desired;
+		return equals(current, next) || (current === undefined && next.length === 0) ? {} : { [key]: next };
 	}
 
 	/** `undefined` is preserved for createSession to let the host choose its working directories. */
@@ -9061,6 +9076,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (this._hasOtherSessionHold(sessionUri)) {
 			return;
 		}
+		this._assertedSensitiveEditLocations.delete(sessionUri);
 		const ref = this._sessionSubscriptions.get(sessionUri);
 		if (ref) {
 			this._sessionSubscriptions.delete(sessionUri);
@@ -9260,6 +9276,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			ref.dispose();
 		}
 		this._sessionSubscriptions.clear();
+		this._assertedSensitiveEditLocations.clear();
 		for (const ref of this._defaultChatSubscriptions.values()) {
 			ref.dispose();
 		}
