@@ -747,7 +747,7 @@ export const agentHostKeepAwakeConfiguration = {
 		localize('agentHost.config.keepAwake.always', "Prevent idle sleep while a chat is working, even on battery power."),
 		localize('agentHost.config.keepAwake.whenPluggedIn', "Prevent idle sleep only while the host is plugged in. On Linux desktop, the power source is unavailable, so this option allows idle sleep."),
 	],
-	default: AgentHostKeepAwakeMode.Always,
+	default: AgentHostKeepAwakeMode.WhenPluggedIn,
 };
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';

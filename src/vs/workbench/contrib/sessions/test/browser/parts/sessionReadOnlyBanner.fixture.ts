@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../base/common/codicons.js';
-import { constObservable } from '../../../base/common/observable.js';
-import { mock } from '../../../base/test/common/mock.js';
-import { ChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
-import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from '../../../workbench/contrib/sessions/browser/parts/sessionReadOnlyBanner.js';
-import { IChat, ISession } from '../../../workbench/services/sessions/common/session.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { ChatSessionArchiveActionWording } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../test/browser/componentFixtures/fixtureUtils.js';
+import { ChatReadOnlyBanner, IChatReadOnlyBannerContent } from '../../../../chat/browser/widget/chatReadOnlyBanner.js';
+import { getArchivedChatBannerContent } from '../../../browser/parts/sessionReadOnlyBanner.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/readOnlyBanner/' }, {
 	// Generic read-only chat (e.g. a subagent transcript): message only.
@@ -74,13 +75,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/readOnlyBanner/' }, {
 	}),
 });
 
-function renderBanner({ container, disposableStore, theme }: ComponentFixtureContext, content: ISessionReadOnlyBannerContent): void {
+function renderBanner({ container, disposableStore, theme }: ComponentFixtureContext, content: IChatReadOnlyBannerContent): void {
 	container.style.width = '480px';
 	container.style.padding = '8px';
 	container.style.backgroundColor = 'var(--vscode-editorWidget-background)';
 
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
-	const banner = disposableStore.add(instantiationService.createInstance(SessionReadOnlyBanner));
+	const banner = disposableStore.add(instantiationService.createInstance(ChatReadOnlyBanner));
 	banner.setContent(content);
 	banner.setVisible(true);
 	container.appendChild(banner.domNode);

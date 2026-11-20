@@ -12847,6 +12847,32 @@ suite('CopilotAgentSession', () => {
 		});
 	}
 
+	test('resolves forwarded row accounts from the emitting subagent, the active turn, or not at all for scoped credentials', async () => {
+		const accountA = { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' };
+		const accountB = { copilotSku: 'sku-b', copilotTrackingId: 'analytics-b' };
+		const options = { telemetryContext: accountA };
+		const { session, mockSession } = await createAgentSession(disposables, options);
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+		options.telemetryContext = accountB;
+		session.resetTurnState('turn-2');
+
+		const scoped = await createAgentSession(disposables, {
+			telemetryContext: accountA,
+			githubCredentials: CopilotGitHubSessionCredentials.fromCredential({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 }),
+		});
+		scoped.session.resetTurnState('turn-1');
+
+		assert.deepStrictEqual({
+			root: session.telemetryContextForRow(undefined),
+			subagent: session.telemetryContextForRow('agent-1'),
+			unknownSubagent: session.telemetryContextForRow('agent-unknown'),
+			scoped: scoped.session.telemetryContextForRow(undefined),
+		}, { root: accountB, subagent: accountA, unknownSubagent: undefined, scoped: undefined });
+	});
+
 	for (const provisional of [false, true]) {
 		test(`retains the root account context for a subagent spawned by a ${provisional ? 'provisional' : 'committed'} Fusion phase`, async () => {
 			const context = { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' };
@@ -22967,15 +22993,17 @@ Use the attached image as context.
 
 			mockSession.fire('skill.invoked', { name: 'commit', path: '/skills/commit/SKILL.md', content: '', trigger: 'agent-invoked' }, { id: 'skill-1' });
 			mockSession.fire('skill.invoked', { name: 'merge', path: '/skills/merge/SKILL.md', content: '', trigger: 'user-invoked' }, { id: 'skill-2' });
+			mockSession.fire('skill.invoked', { name: 'pr-stack', path: '/runtime/builtin/pr-stack/SKILL.md', content: '', trigger: 'agent-invoked', source: 'builtin' }, { id: 'skill-3' });
 
 			const chatSessionId = getTelemetryChatSessionId(chatChannelUri);
 			assert.notStrictEqual(chatSessionId, getTelemetryChatSessionId(sessionUri));
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.skillInvoked').map(event => {
 				const data = event.data as Record<string, unknown>;
-				return { sdkEventId: data.sdkEventId, turnId: data.turnId, trigger: data.trigger, isSubagentInvocation: data.isSubagentInvocation, chatSessionId: data.chatSessionId };
+				return { sdkEventId: data.sdkEventId, turnId: data.turnId, trigger: data.trigger, isSubagentInvocation: data.isSubagentInvocation, chatSessionId: data.chatSessionId, skillOrigin: data.skillOrigin, skillName: data.skillName };
 			}), [
-				{ sdkEventId: 'skill-1', turnId: 'turn-skill', trigger: 'agent-invoked', isSubagentInvocation: false, chatSessionId },
-				{ sdkEventId: 'skill-2', turnId: 'turn-skill', trigger: 'user-invoked', isSubagentInvocation: false, chatSessionId },
+				{ sdkEventId: 'skill-1', turnId: 'turn-skill', trigger: 'agent-invoked', isSubagentInvocation: false, chatSessionId, skillOrigin: 'other', skillName: undefined },
+				{ sdkEventId: 'skill-2', turnId: 'turn-skill', trigger: 'user-invoked', isSubagentInvocation: false, chatSessionId, skillOrigin: 'other', skillName: undefined },
+				{ sdkEventId: 'skill-3', turnId: 'turn-skill', trigger: 'agent-invoked', isSubagentInvocation: false, chatSessionId, skillOrigin: 'runtime', skillName: 'pr-stack' },
 			]);
 		});
 

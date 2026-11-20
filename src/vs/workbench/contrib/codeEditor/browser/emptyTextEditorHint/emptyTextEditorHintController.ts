@@ -32,12 +32,16 @@ import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineCha
 import { IUntitledDocumentTelemetryService } from '../../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } from './emptyTextEditorHintTypes.js';
 import { EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting, IEmptyEditorHintActionsSize } from './emptyEditorHintActions.js';
-import { EmptyEditorHintAction, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
+import { canOpenInMarkdownEditor, EmptyEditorHintReopener, markdownEditorId } from './emptyEditorHintReopen.js';
+import { EmptyEditorHintAction, EmptyEditorHintVariant, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
+import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IContextKey, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
+
+export const emptyEditorHintOpenInMarkdownEditorSetting = 'workbench.editor.experimental.emptyEditorHintOpenInMarkdownEditor';
 
 /** Lets Escape hide either variant of the hint. */
 export const EmptyEditorHintVisible = new RawContextKey<boolean>('emptyEditorHintVisible', false, localize('emptyEditorHintVisible', "Whether the empty editor hint is shown"));
@@ -61,7 +65,8 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInlineChatSessionService private readonly inlineChatSessionService: IInlineChatSessionService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 	) {
 		super();
 
@@ -71,6 +76,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		this._register(this.editor.onDidChangeModelLanguage(() => this.update()));
 		this._register(this.editor.onDidChangeModelContent(() => this.update()));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.update()));
+		this._register(this.editorResolverService.onDidChangeEditorRegistrations(() => this.update()));
 		this._register(this.editor.onDidChangeModelDecorations(() => this.update()));
 		this._register(this.editor.onDidLayoutChange(() => {
 			if (this.actionsRequiredSize) {
@@ -83,7 +89,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(emptyTextEditorHintSetting) || e.affectsConfiguration(emptyEditorHintActionsSetting)) {
+			if (e.affectsConfiguration(emptyTextEditorHintSetting) || e.affectsConfiguration(emptyEditorHintActionsSetting) || e.affectsConfiguration(emptyEditorHintOpenInMarkdownEditorSetting)) {
 				this.update();
 			}
 		}));
@@ -144,10 +150,21 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 	 * The list of actions is experimental and only offered for new untitled files, not in diff editors.
 	 */
 	private shouldRenderActions(): boolean {
-		return this.editor.getModel()?.uri.scheme === Schemas.untitled
-			&& !this.editor.getOption(EditorOption.inDiffEditor)
+		return this.isUntitledOutsideDiffEditor()
 			&& this.configurationService.getValue<boolean>(emptyEditorHintActionsSetting) === true
 			&& this.actionsFit();
+	}
+
+	private shouldOfferMarkdownEditor(): boolean {
+		const model = this.editor.getModel();
+		return !!model
+			&& this.isUntitledOutsideDiffEditor()
+			&& this.configurationService.getValue<boolean>(emptyEditorHintOpenInMarkdownEditorSetting) === true
+			&& canOpenInMarkdownEditor(this.editorResolverService, model.uri);
+	}
+
+	private isUntitledOutsideDiffEditor(): boolean {
+		return this.editor.getModel()?.uri.scheme === Schemas.untitled && !this.editor.getOption(EditorOption.inDiffEditor);
 	}
 
 	/**
@@ -161,15 +178,25 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		return layoutInfo.width - layoutInfo.verticalScrollbarWidth >= this.actionsRequiredSize.width && layoutInfo.height >= this.actionsRequiredSize.height;
 	}
 
+	private getVariant(): EmptyEditorHintVariant | undefined {
+		if (!this.shouldRenderHint()) {
+			return undefined;
+		}
+		if (this.shouldRenderActions()) {
+			return 'actions';
+		}
+		return this.shouldOfferMarkdownEditor() ? 'classicMarkdownEditor' : 'classic';
+	}
+
 	protected update(): void {
-		const shouldRenderHint = this.shouldRenderHint();
-		const shouldRenderActions = shouldRenderHint && this.shouldRenderActions();
-		if (this.textHintContentWidget && (!shouldRenderHint || shouldRenderActions !== this.textHintContentWidget instanceof EmptyEditorHintActionsWidget)) {
+		const variant = this.getVariant();
+		if (this.textHintContentWidget && this.textHintContentWidget.variant !== variant) {
 			this.disposeHint();
 		}
-		if (shouldRenderHint && !this.textHintContentWidget) {
-			const actionsWidget = shouldRenderActions ? this.createActionsWidget() : undefined;
-			this.textHintContentWidget = actionsWidget ?? this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor, { close: () => this.hideForModel() });
+		if (variant && !this.textHintContentWidget) {
+			this.textHintContentWidget = variant === 'actions' ? this.createActionsWidget() : undefined;
+			// The list of actions falls back to the classic hint if it does not fit
+			this.textHintContentWidget ??= this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor, this.shouldOfferMarkdownEditor(), { close: () => this.hideForModel() });
 			this.hintVisible.set(true);
 		}
 	}
@@ -228,16 +255,23 @@ interface IEmptyTextEditorHintContentWidgetOptions {
 	readonly close: () => void;
 }
 
-class EmptyTextEditorHintContentWidget extends Disposable implements IContentWidget {
+/**
+ * The classic hint: a single line with links, e.g. "Generate code (Ctrl+I), or select a language (Ctrl+K M)."
+ */
+export class EmptyTextEditorHintContentWidget extends Disposable implements IContentWidget {
 
 	private static readonly ID = 'editor.widget.emptyHint';
 
 	private domNode: HTMLElement | undefined;
 	private isVisible = false;
 	private ariaLabel: string = '';
+	private readonly reopener: EmptyEditorHintReopener;
+
+	readonly variant: EmptyEditorHintVariant;
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly offerMarkdownEditor: boolean,
 		private readonly options: IEmptyTextEditorHintContentWidgetOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -246,9 +280,12 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IUntitledDocumentTelemetryService private readonly untitledDocumentTelemetryService: IUntitledDocumentTelemetryService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
+		this.variant = offerMarkdownEditor ? 'classicMarkdownEditor' : 'classic';
+		this.reopener = instantiationService.createInstance(EmptyEditorHintReopener, this.editor);
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (this.domNode && e.hasChanged(EditorOption.fontInfo)) {
 				this.editor.applyFontInfo(this.domNode);
@@ -265,7 +302,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 	}
 
 	private logHintEvent(kind: 'shown' | 'action', action?: EmptyEditorHintAction): void {
-		logEmptyEditorHintEvent(this.telemetryService, this.untitledDocumentTelemetryService, this.editor.getModel()?.uri, 'classic', kind, action);
+		logEmptyEditorHintEvent(this.telemetryService, this.untitledDocumentTelemetryService, this.editor.getModel()?.uri, this.variant, kind, action);
 	}
 
 	getId(): string {
@@ -311,23 +348,6 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 	private getHint() {
 		const hasInlineChatProvider = this.chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.EditorInline)).length > 0;
 
-		const hintHandler: IContentActionHandler = {
-			disposables: this._store,
-			callback: (index, event) => {
-				switch (index) {
-					case '0':
-						hasInlineChatProvider ? askSomething(event.browserEvent) : languageOnClickOrTap(event.browserEvent);
-						break;
-					case '1':
-						hasInlineChatProvider ? languageOnClickOrTap(event.browserEvent) : this.disableHint();
-						break;
-					case '2':
-						this.disableHint();
-						break;
-				}
-			}
-		};
-
 		// the actual command handlers...
 		const askSomethingCommandId = 'inlineChat.start';
 		const askSomething = async (e: UIEvent) => {
@@ -351,32 +371,36 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 			await this.commandService.executeCommand(ChangeLanguageAction.ID);
 			this.editor.focus();
 		};
+		const openInMarkdownEditor = async (e: UIEvent) => {
+			e.stopPropagation();
+			this.logHintEvent('action', 'openMarkdownEditor');
+			// The reopen command works on the active editor, so make this editor the active one first
+			this.editor.focus();
+			await this.reopener.reopenWith(markdownEditorId);
+		};
+
+		// The handlers of the [[links]] of the message, in their order
+		const linkHandlers: ((e: UIEvent) => void)[] = [
+			...(hasInlineChatProvider ? [askSomething] : []),
+			languageOnClickOrTap,
+			...(this.offerMarkdownEditor ? [openInMarkdownEditor] : []),
+			() => this.disableHint(),
+		];
+		const hintHandler: IContentActionHandler = {
+			disposables: this._store,
+			callback: (index, event) => linkHandlers[Number(index)]?.(event.browserEvent),
+		};
 
 		const keybindingsLookup = [askSomethingCommandId, ChangeLanguageAction.ID];
 		const keybindingLabels = keybindingsLookup.map(id => this.keybindingService.lookupKeybinding(id)?.getLabel());
 
-		const hintMsg = (hasInlineChatProvider ? localize({
-			key: 'emptyTextEditorHintWithInlineChat',
-			comment: [
-				'Preserve double-square brackets and their order',
-				'language refers to a programming language'
-			]
-		}, '[[Generate code]] ({0}), or [[select a language]] ({1}). Start typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(0) ?? '', keybindingLabels.at(1) ?? '') : localize({
-			key: 'emptyTextEditorHintWithoutInlineChat',
-			comment: [
-				'Preserve double-square brackets and their order',
-				'language refers to a programming language'
-			]
-		}, '[[Select a language]] ({0}) to get started. Start typing to dismiss or [[don\'t show]] this again.', keybindingLabels.at(1) ?? '')).replaceAll(' ()', '');
-		const hintElement = renderFormattedText(hintMsg, {
+		const { message, ariaLabel } = getHintTexts(hasInlineChatProvider, this.offerMarkdownEditor, keybindingLabels.at(0), keybindingLabels.at(1));
+		const hintElement = renderFormattedText(message, {
 			actionHandler: hintHandler,
 			renderCodeSegments: false,
 		});
 		hintElement.style.fontStyle = 'italic';
 
-		const ariaLabel = hasInlineChatProvider ?
-			localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language and get started. Start typing to dismiss.', ...keybindingLabels) :
-			localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', ...keybindingLabels);
 		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		for (const anchor of hintElement.querySelectorAll('a')) {
 			anchor.style.cursor = 'pointer';
@@ -419,4 +443,26 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 
 		this.editor.removeContentWidget(this);
 	}
+}
+
+/**
+ * The message of the classic hint, with its [[links]] in the order of their handlers, and its aria label.
+ */
+function getHintTexts(hasInlineChatProvider: boolean, offerMarkdownEditor: boolean, inlineChatKeybinding: string | null | undefined, languageKeybinding: string | null | undefined): { message: string; ariaLabel: string } {
+	if (offerMarkdownEditor) {
+		return hasInlineChatProvider ? {
+			message: localize({ key: 'emptyTextEditorHintWithInlineChatAndMarkdownEditor', comment: ['Preserve double-square brackets and their order', 'language refers to a programming language', 'Markdown Editor is the name of an editor'] }, '[[Generate code]] ({0}), [[select a language]] ({1}), or [[open in Markdown Editor]]. Start typing to dismiss or [[don\'t show]] this again.', inlineChatKeybinding ?? '', languageKeybinding ?? '').replaceAll(' ()', ''),
+			ariaLabel: localize('defaultHintAriaLabelWithInlineChatAndMarkdownEditor', 'Execute {0} to ask a question, execute {1} to select a language and get started, or open the file in the Markdown Editor. Start typing to dismiss.', inlineChatKeybinding, languageKeybinding),
+		} : {
+			message: localize({ key: 'emptyTextEditorHintWithMarkdownEditor', comment: ['Preserve double-square brackets and their order', 'language refers to a programming language', 'Markdown Editor is the name of an editor'] }, '[[Select a language]] ({0}) or [[open in Markdown Editor]] to get started. Start typing to dismiss or [[don\'t show]] this again.', languageKeybinding ?? '').replaceAll(' ()', ''),
+			ariaLabel: localize('defaultHintAriaLabelWithMarkdownEditor', 'Execute {0} to select a language and get started, or open the file in the Markdown Editor. Start typing to dismiss.', languageKeybinding),
+		};
+	}
+	return hasInlineChatProvider ? {
+		message: localize({ key: 'emptyTextEditorHintWithInlineChat', comment: ['Preserve double-square brackets and their order', 'language refers to a programming language'] }, '[[Generate code]] ({0}), or [[select a language]] ({1}). Start typing to dismiss or [[don\'t show]] this again.', inlineChatKeybinding ?? '', languageKeybinding ?? '').replaceAll(' ()', ''),
+		ariaLabel: localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language and get started. Start typing to dismiss.', inlineChatKeybinding, languageKeybinding),
+	} : {
+		message: localize({ key: 'emptyTextEditorHintWithoutInlineChat', comment: ['Preserve double-square brackets and their order', 'language refers to a programming language'] }, '[[Select a language]] ({0}) to get started. Start typing to dismiss or [[don\'t show]] this again.', languageKeybinding ?? '').replaceAll(' ()', ''),
+		ariaLabel: localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', inlineChatKeybinding, languageKeybinding),
+	};
 }
