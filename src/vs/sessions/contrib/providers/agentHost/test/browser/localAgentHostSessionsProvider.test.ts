@@ -7583,37 +7583,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('a Dev Container draft shows its request and Dev Container workspace while the container starts', async () => {
-		const connecting = new DeferredPromise<void>();
-		const provider = createProvider(disposables, agentHost, undefined, {
-			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
-				override async isAvailable(): Promise<boolean> { return true; }
-				override getWorkspaceLabel(workspace: URI): string { return `${basename(workspace)} [Dev Container]`; }
-				override async connect(_workspace: URI, token: CancellationToken): Promise<never> {
-					connecting.complete();
-					return raceCancellationError(new DeferredPromise<never>().p, token);
-				}
-			}(),
+	for (const pendingAvailability of [false, true]) {
+		test(`a Dev Container draft shows its request and Dev Container workspace while the container starts (availability pending: ${pendingAvailability})`, async () => {
+			const availability = new DeferredPromise<boolean>();
+			const connecting = new DeferredPromise<void>();
+			const provider = createProvider(disposables, agentHost, undefined, {
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override isAvailable(): Promise<boolean> { return availability.p; }
+					override getWorkspaceLabel(workspace: URI): string { return `${basename(workspace)} [Dev Container]`; }
+					override async connect(_workspace: URI, token: CancellationToken): Promise<never> {
+						connecting.complete();
+						return raceCancellationError(new DeferredPromise<never>().p, token);
+					}
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			if (!pendingAvailability) {
+				await availability.complete(true);
+				await timeout(0);
+			}
+			provider.preferDevContainer(session.sessionId);
+			const show = () => ({ title: session.title.get(), workspace: session.workspace.get()?.label });
+			const before = show();
+			const preparation = provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello\nworld');
+			const rejected = assert.rejects(preparation, /Canceled/);
+			if (pendingAvailability) {
+				await availability.complete(true);
+			}
+			await connecting.p;
+			const during = show();
+			session.preparationProgress?.get()?.cancel();
+			await rejected;
+			assert.deepStrictEqual({ before, during, after: show() }, {
+				before: { title: '', workspace: 'project' },
+				during: { title: 'hello', workspace: 'project [Dev Container]' },
+				after: { title: '', workspace: 'project' },
+			});
 		});
-		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
-		provider.setDevContainerEnabled(session.sessionId, true);
-		const show = () => ({ title: session.title.get(), workspace: session.workspace.get()?.label });
-		const before = show();
-		const request = provider.startNewSessionRequest(session.sessionId);
-		const preparation = provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello\nworld');
-		const rejected = assert.rejects(preparation, /Canceled/);
-		await connecting.p;
-		const during = show();
-		session.preparationProgress?.get()?.cancel();
-		await rejected;
-		request.dispose();
-		assert.deepStrictEqual({ before, during, after: show() }, {
-			before: { title: '', workspace: 'project' },
-			during: { title: 'hello', workspace: 'project [Dev Container]' },
-			after: { title: '', workspace: 'project' },
-		});
-	});
+	}
 
 	for (const pendingEagerCreate of [false, true]) {
 		test(`canceling Dev Container worktree preparation does not create a worktree (pending eager create: ${pendingEagerCreate})`, async () => {
