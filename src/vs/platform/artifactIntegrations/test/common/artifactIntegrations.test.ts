@@ -1639,6 +1639,36 @@ suite('Artifact Integrations', () => {
 		}, { submissions: 1, recovered: [first.id], runs: [['failed', false], ['cancelled', false]] });
 	}));
 
+	test('restarting an archived session keeps an automated prompt whose turn is gone uncertain without cancelling it', () => run(async store => {
+		const action: ArtifactAction = { id: 'act', label: 'Analyse', iconId: 'search', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) };
+		const firstStore = store.add(new DisposableStore());
+		const first = fixture(firstStore, action);
+		const reference = firstStore.add(await first.service.acquireArtifact('session', artifact.id));
+		await reference.object.configure('test', 0, { automatic: true });
+		const requested = await first.bindings[0].automation!.runAutomation({ optionId: 'automatic', actionId: 'act', configurationRevision: 1, occurrenceKey: 'first', reason: 'Due' });
+		await waitForState(first.service.ledger.state, state => state.runs[0]?.state === 'submitted');
+		first.progress.set({ kind: 'indeterminate', reason: 'The turn is missing' }, undefined);
+		await waitForState(first.service.ledger.state, state => state.runs[0]?.indeterminate === true);
+		await first.service.whenIdle();
+		firstStore.dispose();
+		await first.service.whenIdle();
+
+		const writtenStates: string[] = [];
+		first.storage.beforeWrite = async value => { writtenStates.push((JSON.parse(value) as ArtifactIntegrationState).runs[0].state); };
+		const restarted = fixture(store, action, first.storage);
+		restarted.session.set({ ...restarted.session.get(), archived: true }, undefined);
+		restarted.progress.set({ kind: 'indeterminate', reason: 'The turn is missing' }, undefined);
+		await restarted.service.initialize();
+		await timeout(0);
+		await restarted.service.whenIdle();
+		const { state, indeterminate } = restarted.service.ledger.state.get().runs[0];
+		assert.deepStrictEqual({
+			recovered: restarted.recovered.map(recovery => recovery.requestId),
+			cancellations: restarted.handles.map(handle => handle.cancelCalls),
+			writtenStates, run: { state, indeterminate },
+		}, { recovered: [requested.id], cancellations: [0], writtenStates: [], run: { state: 'interrupted', indeterminate: true } });
+	}));
+
 	for (const kind of ['prompt', 'code'] as const) {
 		test(`restart preserves ${kind} recovery when the original action was removed`, () => run(async store => {
 			const firstStore = store.add(new DisposableStore());

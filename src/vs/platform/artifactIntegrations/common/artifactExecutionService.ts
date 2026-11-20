@@ -503,44 +503,49 @@ export class ArtifactExecutionService extends Disposable {
 				this.promptHandles.delete(run.id);
 			}
 		}));
+		// A persisted receipt does not prove that an uncertain prompt can still be found, so only its handle's confirmed state reopens or settles it.
+		const uncertain = reconciliation && this.getRun(run.id).indeterminate === true;
 		try {
-			await this.updateRun(run.id, { state: handle.receipt.kind === 'queued' ? 'submitted' : 'running', receipt: handle.receipt, indeterminate: false }, reconciliation);
-			if (store.isDisposed || !this.runtime.isOwner() || isArtifactRunSettled(this.getRun(run.id))) {
+			if (!uncertain) {
+				await this.updateRun(run.id, { state: handle.receipt.kind === 'queued' ? 'submitted' : 'running', receipt: handle.receipt, indeterminate: false }, reconciliation);
+			}
+			if (store.isDisposed || !this.runtime.isOwner() || (!uncertain && isArtifactRunSettled(this.getRun(run.id)))) {
 				store.dispose();
 				return;
 			}
 			store.add(autorun(reader => {
 				const state = handle.state.read(reader);
 				if (state.kind === 'running') {
-					this.recordPromptUpdate(run.id, handle, { state: 'running', receipt: { kind: 'turn', turnId: state.turnId } });
+					this.recordPromptUpdate(run.id, handle, { state: 'running', receipt: { kind: 'turn', turnId: state.turnId } }, uncertain);
 				}
 			}));
-			void this.completePrompt(run.id, handle).catch(error => this.logService.error('[ArtifactIntegrations] Could not track prompt outcome', error));
+			void this.completePrompt(run.id, handle, uncertain).catch(error => this.logService.error('[ArtifactIntegrations] Could not track prompt outcome', error));
 		} catch (error) {
 			store.dispose();
 			throw error;
 		}
 	}
 
-	private async completePrompt(runId: string, handle: IArtifactPromptHandle): Promise<void> {
+	private async completePrompt(runId: string, handle: IArtifactPromptHandle, reconciliation: boolean): Promise<void> {
 		let outcome: ArtifactPromptOutcome;
 		try {
 			outcome = await handle.completion;
 		} catch (error) {
-			this.recordPromptUpdate(runId, handle, { state: 'interrupted', indeterminate: true, reason: toErrorMessage(error) });
+			this.recordPromptUpdate(runId, handle, { state: 'interrupted', indeterminate: true, reason: toErrorMessage(error) }, reconciliation);
 			return;
 		}
 		this.recordPromptUpdate(runId, handle, {
 			state: outcome.kind, reason: outcome.reason, indeterminate: false,
 			...(outcome.turnId ? { receipt: { kind: 'turn', turnId: outcome.turnId } } : {}),
-		});
+		}, reconciliation);
 	}
 
-	private recordPromptUpdate(runId: string, handle: IArtifactPromptHandle, update: ArtifactRunTransition): void {
-		if (this.promptHandles.get(runId) !== handle || this._store.isDisposed || !this.runtime.isOwner() || isArtifactRunSettled(this.getRun(runId))) {
+	private recordPromptUpdate(runId: string, handle: IArtifactPromptHandle, update: ArtifactRunTransition, reconciliation = false): void {
+		const current = this.getRun(runId);
+		if (this.promptHandles.get(runId) !== handle || this._store.isDisposed || !this.runtime.isOwner() || (isArtifactRunSettled(current) && !(reconciliation && current.indeterminate))) {
 			return;
 		}
-		const persistence = this.updateRun(runId, update);
+		const persistence = this.updateRun(runId, update, reconciliation);
 		this.inFlight.add(persistence);
 		void persistence.catch(error => this.logService.error('[ArtifactIntegrations] Could not record prompt progress', error)).finally(() => {
 			this.inFlight.delete(persistence);
