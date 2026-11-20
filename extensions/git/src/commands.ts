@@ -1526,7 +1526,8 @@ export class CommandCenter {
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
-			const resource = this.getSCMResource();
+			// The editor title menu passes the resource of its editor group
+			const resource = this.getSCMResource(resourceStates[0] instanceof Uri ? resourceStates[0] : undefined);
 
 			this.logger.debug(`[CommandCenter][stage] git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
 
@@ -1775,8 +1776,8 @@ export class CommandCenter {
 	}
 
 	@command('git.stageSelectedRanges')
-	async stageSelectedChanges(): Promise<void> {
-		const textEditor = window.activeTextEditor;
+	async stageSelectedChanges(uri?: Uri): Promise<void> {
+		const textEditor = this.getTextEditor(uri);
 
 		if (!textEditor) {
 			return;
@@ -1972,8 +1973,8 @@ export class CommandCenter {
 	}
 
 	@command('git.revertSelectedRanges')
-	async revertSelectedRanges(): Promise<void> {
-		const textEditor = window.activeTextEditor;
+	async revertSelectedRanges(uri?: Uri): Promise<void> {
+		const textEditor = this.getTextEditor(uri);
 
 		if (!textEditor) {
 			return;
@@ -2035,7 +2036,8 @@ export class CommandCenter {
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
-			const resource = this.getSCMResource();
+			// The editor title menu passes the resource of its editor group
+			const resource = this.getSCMResource(resourceStates[0] instanceof Uri ? resourceStates[0] : undefined);
 
 			if (!resource) {
 				return;
@@ -2061,8 +2063,8 @@ export class CommandCenter {
 	}
 
 	@command('git.unstageSelectedRanges')
-	async unstageSelectedRanges(): Promise<void> {
-		const textEditor = window.activeTextEditor;
+	async unstageSelectedRanges(uri?: Uri): Promise<void> {
+		const textEditor = this.getTextEditor(uri);
 
 		if (!textEditor) {
 			return;
@@ -5717,6 +5719,25 @@ export class CommandCenter {
 
 			resultFn?.();
 		}
+	}
+
+	/**
+	 * Returns the text editor a command should run on. Commands run from a menu, such
+	 * as the editor title menu of an editor group that is not active, receive the URI
+	 * of the editor they target, which is not necessarily the active text editor.
+	 */
+	private getTextEditor(uri?: Uri): TextEditor | undefined {
+		const activeTextEditor = window.activeTextEditor;
+		if (!(uri instanceof Uri)) {
+			return activeTextEditor;
+		}
+
+		const uriString = uri.toString();
+		if (activeTextEditor?.document.uri.toString() === uriString) {
+			return activeTextEditor;
+		}
+
+		return window.visibleTextEditors.find(e => e.document.uri.toString() === uriString);
 	}
 
 	private getSCMResource(uri?: Uri): Resource | undefined {
