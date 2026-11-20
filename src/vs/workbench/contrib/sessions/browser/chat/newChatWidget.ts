@@ -238,6 +238,8 @@ export class NewChatWidget extends Disposable {
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
 	private readonly _pendingPreferredUpgrade = new MutableDisposable<IDisposable>();
 	private readonly _newSessionCreation = new MutableDisposable<IDisposable>();
+	private _worktreeChoiceCount = 0;
+	private readonly _pendingRequestedModel = this._register(new MutableDisposable<IDisposable>());
 	/** Waits until a hosted composer's draft offers the requested custom agent ({@link _applyRequestedSelection}). */
 	private readonly _pendingRequestedAgent = this._register(new MutableDisposable<IDisposable>());
 	private readonly _noWorkspaceRestore = this._register(new MutableDisposable<IDisposable>());
@@ -1636,9 +1638,11 @@ export class NewChatWidget extends Disposable {
 		const previous = this._draftHost?.requestedTarget?.get();
 		this._requestTarget(target => ({ ...target, placement: selected ? 'worktree' : undefined, placementIsPreference: undefined }));
 		const chosen = this._draftHost?.requestedTarget?.get();
+		const choice = ++this._worktreeChoiceCount;
 		const applied = await newWorktree.setSelected(selected);
-		// Undone only while the composer still aims at the very target this choice made: any later choice or retarget replaces it
-		if (!applied && !this._store.isDisposed && chosen && this._draftHost?.requestedTarget?.get() === chosen) {
+		// Undone only while this is the latest choice and the composer still aims at its folder: other picks, such as the model, stay
+		const current = this._draftHost?.requestedTarget?.get();
+		if (!applied && !this._store.isDisposed && chosen && current && choice === this._worktreeChoiceCount && current.folderUri?.toString() === chosen.folderUri?.toString() && current.providerId === chosen.providerId) {
 			this._requestTarget(target => ({ ...target, placement: previous?.placement, placementIsPreference: previous?.placementIsPreference }));
 		}
 		return applied;
@@ -1956,6 +1960,7 @@ export class NewChatWidget extends Disposable {
 	private _applyRequestedSelection(session: ISession | undefined): void {
 		const target = this._draftHost?.requestedTarget?.get();
 		this._pendingRequestedAgent.clear();
+		this._pendingRequestedModel.clear();
 		if (!session || !target || isSessionCreated(session) || !this._isRequestedAgent(session, target)) {
 			return;
 		}
@@ -2038,10 +2043,35 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		const folderUri = session.workspace.get()?.folders[0]?.root;
-		if (provider.getModelsSnapshotForCreation?.(folderUri, session.sessionType, modelId).desiredModelResolution.kind !== 'available') {
+		const resolution = provider.getModelsSnapshotForCreation?.(folderUri, session.sessionType, modelId).desiredModelResolution;
+		if (resolution?.kind === 'pending') {
+			this._waitForRequestedModel(provider, session, modelId);
+			return;
+		}
+		if (resolution?.kind !== 'available') {
 			return;
 		}
 		provider.setModel(session.sessionId, chat.resource, modelId, ChatModelSource.Chosen);
+	}
+
+	/** Applies the requested model once its catalog has loaded, unless the draft is replaced, sent or its requested model changes. */
+	private _waitForRequestedModel(provider: ISessionsProvider, session: ISession, modelId: string): void {
+		this._pendingRequestedModel.value = provider.onDidChangeModels(() => {
+			const current = this._session.get();
+			if (current?.sessionId !== session.sessionId || isSessionCreated(current) || this._draftHost?.requestedTarget?.get()?.modelId !== modelId) {
+				this._pendingRequestedModel.clear();
+				return;
+			}
+			const folderUri = session.workspace.get()?.folders[0]?.root;
+			const kind = provider.getModelsSnapshotForCreation?.(folderUri, session.sessionType, modelId).desiredModelResolution.kind;
+			if (kind === 'pending') {
+				return;
+			}
+			this._pendingRequestedModel.clear();
+			if (kind === 'available') {
+				this._applyRequestedModel(provider, session, modelId);
+			}
+		});
 	}
 
 	/** Replaces the host's requested target with what `change` makes of it, for a change by the user. */

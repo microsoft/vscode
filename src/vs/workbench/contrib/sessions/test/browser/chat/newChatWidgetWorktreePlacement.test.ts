@@ -45,7 +45,7 @@ suite('NewChatWidget new worktree placement', () => {
 
 	function createWidget(fields: object) {
 		const store = disposables.add(new DisposableStore());
-		const widget = Object.assign(Object.create(NewChatWidget.prototype), { _store: store }, fields) as INewChatWidgetInternals;
+		const widget = Object.assign(Object.create(NewChatWidget.prototype), { _store: store, _worktreeChoiceCount: 0 }, fields) as INewChatWidgetInternals;
 		return { widget, store };
 	}
 
@@ -102,6 +102,19 @@ suite('NewChatWidget new worktree placement', () => {
 			later: { placement: undefined, isPreference: undefined, folder: '/repo' },
 			disposed: { placement: 'worktree', isPreference: undefined, folder: '/repo' },
 		});
+	});
+
+	test('a rejected New Worktree choice restores only the placement when the model changed meanwhile', async () => {
+		const { requestedTarget, draftHost } = createHost({ folderUri: folder, placement: 'worktree', placementIsPreference: true });
+		const { widget } = createWidget({ _draftHost: draftHost });
+		const result = new DeferredPromise<boolean>();
+
+		const done = widget._setNewWorktreeByUser(choice(result.p), false);
+		requestedTarget.set({ ...requestedTarget.get(), modelId: 'other-model' }, undefined);
+		await result.complete(false);
+		await done;
+
+		assert.deepStrictEqual({ ...picked(requestedTarget.get()), modelId: requestedTarget.get()?.modelId }, { placement: 'worktree', isPreference: true, folder: '/repo', modelId: 'other-model' });
 	});
 
 	function createPlacementWidget(placement: IPendingPlacement, newWorktree: { isAvailable: boolean; isResolved: boolean }) {
