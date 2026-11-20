@@ -12,7 +12,7 @@ import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHos
 import { CODEX_CONTINUATION_SETTING, CODEX_CONTINUATION_THRESHOLD_SETTING } from '../../../services/agentHost/browser/codexContinuationService.js';
 import { Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
@@ -1759,6 +1759,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
 		},
+		[CopilotSecurityReviewSecretDetectionEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.securityReview.secretDetection.enabled', "When enabled, `/security-review` in Copilot SDK sessions also runs a purpose-built secret detection model alongside the existing analysis to find unstructured credentials, such as passwords without a recognizable token format. Requires preview features to be allowed by your organization. Applies to new and resumed sessions."),
+			default: false,
+			tags: ['preview'],
+			scope: ConfigurationScope.APPLICATION,
+		},
 		[AgentHostCopilotProgressUpdatesPromptSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.copilot.progressUpdatesPrompt.enabled', "When enabled, Copilot SDK sessions running a GPT model or Auto are asked to send a brief user-visible update before their first tool call and while they work. Applies to new and resumed sessions."),
@@ -3050,7 +3057,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		this.registerMaxRequestsSetting();
 		this.registerNewChatButtonIcon();
 		this.registerDefaultModeSetting();
-		this.registerSecurityReviewSecretDetectionSetting();
 	}
 
 
@@ -3080,42 +3086,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			});
 		};
 		this._register(Event.runAndSubscribe(Event.debounce(this.entitlementService.onDidChangeEntitlement, () => { }, 1000), () => registerMaxRequestsSetting()));
-	}
-
-	/**
-	 * Registered only for internal accounts. The agent host also checks the session's account at launch.
-	 * Configurable only through settings.json until its runtime dependencies land.
-	 */
-	private registerSecurityReviewSecretDetectionSetting(): void {
-		const node: IConfigurationNode = {
-			id: 'chatSidebar',
-			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
-			type: 'object',
-			properties: {
-				[CopilotSecurityReviewSecretDetectionEnabledSettingId]: {
-					type: 'boolean',
-					markdownDescription: nls.localize('chat.copilot.securityReview.secretDetection.enabled', "When enabled, `/security-review` in Copilot SDK sessions also runs a purpose-built secret detection model alongside the existing analysis to find unstructured credentials, such as passwords without a recognizable token format. Available to GitHub and Microsoft staff only, and requires preview features to be allowed by your organization. Applies to new and resumed sessions."),
-					default: false,
-					tags: ['preview'],
-					scope: ConfigurationScope.APPLICATION,
-					included: false,
-				},
-			}
-		};
-		let registered = false;
-		const update = () => {
-			const internal = this.entitlementService.isInternal;
-			if (internal !== registered) {
-				configurationRegistry.updateConfigurations(internal ? { add: [node], remove: [] } : { add: [], remove: [node] });
-				registered = internal;
-			}
-		};
-		this._register(Event.runAndSubscribe(this.entitlementService.onDidChangeEntitlement, update));
-		this._register(toDisposable(() => {
-			if (registered) {
-				configurationRegistry.deregisterConfigurations([node]);
-			}
-		}));
 	}
 
 	private registerNewChatButtonIcon(): void {

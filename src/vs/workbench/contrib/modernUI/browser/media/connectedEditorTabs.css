@@ -21,6 +21,10 @@
 	--modern-ui-connected-well-border: transparent;
 }
 
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:where(.modern-ui:not(.agent-sessions-workbench)) .part.editor > .content .editor-group-container {
+	--modern-ui-connected-tab-border: var(--modern-ui-editor-tab-custom-border, var(--vscode-modernPanel-border, var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-tab-border, var(--modern-ui-connected-tab-surface)))));
+}
+
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container,
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .modern-ui-editor-tab-group {
 	--modern-ui-connected-tab-border: var(--vscode-contrastBorder);
@@ -649,6 +653,16 @@
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping:not(.connected-tab-upper-bar) .tabs-container > .tabs-bar-add-tab::before {
 	inset-inline-start: calc(var(--vscode-spacing-size20) - var(--modern-ui-connected-tab-shoulder-radius));
+}
+
+/* An add tab button on a row of its own aligns with the leading tab of the row above (see tabs.css). */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping:not(.connected-tab-upper-bar) .tabs-container > .tabs-bar-add-tab.controls-only-row .action-label {
+	margin-inline-end: calc(var(--vscode-spacing-size20) + var(--vscode-spacing-size20) - var(--modern-ui-connected-tab-shoulder-radius) - var(--modern-ui-editor-tab-left-inset));
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping:not(.connected-tab-upper-bar) .tabs-container > .tabs-bar-add-tab.controls-only-row::before {
+	inset-inline-start: var(--modern-ui-editor-tab-left-inset);
+	inset-inline-end: calc(var(--vscode-spacing-size20) + var(--vscode-spacing-size20) - var(--modern-ui-connected-tab-shoulder-radius) - var(--modern-ui-editor-tab-left-inset));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-right-clipped::after,

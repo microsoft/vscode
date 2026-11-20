@@ -75,7 +75,9 @@ export type LocalAgentHostRegistration = 'devTunnel' | 'githubEnvironment';
 export function getAgentHostConnectionStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	return status.kind === 'connected' ? localize('agentHost.connected', "Connected")
 		: status.kind === 'connecting' ? localize('agentHost.connecting', "Connecting")
-			: localize('agentHost.disconnected', "Disconnected");
+			: status.kind === 'reconnecting' ? localize('agentHost.reconnecting', "Reconnecting")
+				: status.kind === 'incompatible' ? localize('agentHost.updateRequired', "Update required")
+					: localize('agentHost.disconnected', "Disconnected");
 }
 
 /**
@@ -197,6 +199,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+	/** Successful session-list revision for this connection; zero means the host list has not resolved. */
+	readonly sessionListVersion?: IObservable<number>;
 	/** Progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Opens this host's connection log, including while connecting. */

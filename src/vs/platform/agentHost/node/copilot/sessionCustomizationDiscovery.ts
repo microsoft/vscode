@@ -19,6 +19,7 @@ import { basename, isAbsolute, dirname as nodeDirname } from '../../../../base/c
 import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { makeMcpServerCustomization, parseAgentFile, parseSkillFile, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
+import { customAgentFileDeclaresHooks } from './copilotPluginConverters.js';
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, McpServerCustomization, PluginCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
 import { ChildCustomizationType, McpServerStatus } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
@@ -29,6 +30,9 @@ import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '
 import { withCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
 import { withCustomizationTeamProvided } from '../../common/meta/customizationTeamMeta.js';
 import { withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { AgentHostWorkspaceTrustConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
 type HooksDiscoveryResult = Awaited<ReturnType<CopilotClient['rpc']['hooks']['discover']>>;
@@ -123,6 +127,12 @@ const fixedDiscoveryFiles: { workspace: IFixedDiscoveryFile[]; user: IFixedDisco
 	user: [],
 };
 
+/** The runtime reports a user or plugin hook once per requested project path. */
+function withUniqueHookIds(discovered: HooksDiscoveryResult): HooksDiscoveryResult {
+	const seen = new Set<string>();
+	return { ...discovered, hooks: discovered.hooks.filter(hook => !seen.has(hook.id) && !!seen.add(hook.id)) };
+}
+
 function throwIfCancelled(token: CancellationToken): void {
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
@@ -210,9 +220,18 @@ export class SessionCustomizationDiscovery extends Disposable {
 		private readonly _pathToUri: PathToUri = URI.file,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 		this._register({ dispose: () => this._disposeAllWatchers() });
+		let trust = JSON.stringify(this._workspaceTrust());
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			const next = JSON.stringify(this._workspaceTrust());
+			if (next !== trust) {
+				trust = next;
+				this._scheduleRefresh();
+			}
+		}));
 		this._register(this._fileService.onDidFilesChange(e => {
 			for (const watcher of this._watchers.values()) {
 				for (const [uri, trigger] of watcher.resourcesToWatch) {
@@ -230,6 +249,15 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	private _scheduleRefresh(): void {
 		this._onDidChange.fire();
+	}
+
+	private _workspaceTrust() {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
+	}
+
+	/** Whether repository hooks under `root` run: sessions enable them only for folders trusted in VS Code. */
+	private _isTrusted(root: URI): boolean {
+		return isAgentHostWorkspaceTrusted(root, this._workspaceTrust());
 	}
 
 	/**
@@ -272,22 +300,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 	/**
-	 * The working-directory roots that hooks are discovered from.
-	 *
-	 * **Hooks are discovered from the PRIMARY working directory only** (index 0 of
-	 * {@link _workingDirectories}, which callers MUST order primary-first). Hooks
-	 * from non-primary roots are intentionally NOT discovered because the Copilot
-	 * agent currently applies hooks from a single primary directory only. Every
-	 * other customization types (agents, skills, and instructions) are discovered
-	 * across all roots.
-	 *
-	 * Example: for roots `[B, A, C]` (with `B` selected as primary), hooks are
-	 * discovered from `B` only; hooks under `A`/`C` are ignored.
-	 *
-	 * This may expand to all roots in the future — see `MULTI_ROOT_CHANGES.md`.
+	 * The working-directory roots that hooks are discovered from: every root, because sessions load
+	 * repository hooks from additional directories too.
 	 */
 	private get _hookWorkingDirectories(): readonly URI[] {
-		return this._workingDirectories.slice(0, 1);
+		return this._workingDirectories;
 	}
 
 	private async writeCustomizationDiscoveryDebugLog(payload: Record<string, unknown>): Promise<void> {
@@ -411,7 +428,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 		for (const root of searchRoots.workspace) {
 			if (root.type === DiscoveredType.Hook) {
-				// Hooks: primary working directory only (Copilot limitation).
 				for (const workingDirectory of this._hookWorkingDirectories) {
 					add(joinPath(workingDirectory, ...root.path), root.name);
 				}
@@ -424,7 +440,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 		for (const root of fixedDiscoveryFiles.workspace) {
 			if (root.type === DiscoveredType.Hook) {
-				// Hooks: primary working directory only (Copilot limitation).
 				for (const workingDirectory of this._hookWorkingDirectories) {
 					add(joinPath(workingDirectory, ...root.path), basename(joinPath(workingDirectory, ...root.path).path));
 				}
@@ -560,10 +575,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 			]);
 			throwIfCancelled(token);
 			const mcpServers = mcpDiscovery.servers;
-			const pluginCustomizations = await this.toPluginCustomizations(client, [...agents, ...skills, ...rules, ...(hooks?.children ?? []), ...mcpServers], token, sessionPlugins);
+			const pluginCustomizations = await this.toPluginCustomizations(client, [...agents, ...skills, ...rules, ...(hooks.discovered?.children ?? []), ...mcpServers], token, sessionPlugins);
 			const nestedMcpNames = new Set(pluginCustomizations.flatMap(plugin => plugin.children?.filter(child => child.type === CustomizationType.McpServer).map(child => child.name) ?? []));
 			const nestedHookIds = new Set(pluginCustomizations.flatMap(plugin => plugin.children?.filter(child => child.type === CustomizationType.Hook).map(child => child.id) ?? []));
-			const remainingHooks = hooks && { ...hooks, children: hooks.children?.filter(hook => !nestedHookIds.has(hook.id)) };
+			const remainingHooks = hooks.discovered && { ...hooks.discovered, children: hooks.discovered.children?.filter(hook => !nestedHookIds.has(hook.id)) };
+			const untrustedHooks = this.toUntrustedHooksDirectory([...hooks.untrusted, ...await this.discoverUntrustedAgentHookFiles(agents, token)]);
 			const isPluginChild = (customization: ChildCustomization) => readCustomizationDiscoveryMeta(customization)?.source === 'plugin';
 			const result: DirectoryCustomization[] = [];
 			await this.toDirectoryCustomizations(CustomizationType.Agent, agents.filter(agent => !isPluginChild(agent)), discoveredDirectories, result);
@@ -573,6 +589,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			const sortedResult: SessionDiscoveredCustomization[] = [
 				...result.sort(compareDirectoryCustomization),
 				...(remainingHooks && (remainingHooks.children?.length || remainingHooks.load?.kind !== CustomizationLoadStatus.Loaded) ? [remainingHooks] : []),
+				...(untrustedHooks ? [untrustedHooks] : []),
 				...(mcpDiscovery.error ? [mcpDiscovery.error] : []),
 				...pluginCustomizations.sort((a, b) => compareStrings(a.uri, b.uri)),
 				...mcpServers.filter(server => !nestedMcpNames.has(server.name)),
@@ -617,6 +634,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 					'vscode.models': agent.models,
 					'vscode.reasoningEffort': reasoningEffort,
 					'vscode.modelPolicy': parsed.modelPolicy,
+					'vscode.assistedApprovalInstructions': parsed.assistedApprovalInstructions,
+					'vscode.argumentHint': parsed.argumentHint,
+					'vscode.welcomeMessage': parsed.welcomeMessage,
 				});
 				agents.push({
 					type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: isPlugin ? parsed.name : agent.name, description: agent.description,
@@ -833,13 +853,49 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 	}
 
-	private async discoverHooks(client: CopilotClient, token: CancellationToken): Promise<DirectoryCustomization | undefined> {
+	private async discoverHooks(client: CopilotClient, token: CancellationToken): Promise<{ readonly discovered?: DirectoryCustomization; readonly untrusted: readonly URI[] }> {
+		const untrustedRoots = this._untrustedHookWorkingDirectories();
+		const [discovered, untrusted] = await Promise.all([
+			this.discoverRuntimeHooks(client, untrustedRoots, token),
+			this.discoverUntrustedHookFiles(untrustedRoots, token),
+		]);
+		return { discovered, untrusted };
+	}
+
+	private _untrustedHookWorkingDirectories(): readonly URI[] {
+		return this._hookWorkingDirectories.filter(root => !this._isTrusted(root));
+	}
+
+	/**
+	 * Custom agent files that declare hooks, when a folder of the session is untrusted. Sessions then leave out the
+	 * hooks of every custom agent, because an agent's source folder is not always known.
+	 */
+	private async discoverUntrustedAgentHookFiles(agents: readonly AgentCustomization[], token: CancellationToken): Promise<readonly URI[]> {
+		if (this._workingDirectories.every(root => this._isTrusted(root))) {
+			return [];
+		}
+		// Plugin agents are listed with their plugin, whose rows show that their hooks won't run.
+		const candidates = agents.filter(agent => readCustomizationDiscoveryMeta(agent)?.source !== 'plugin').map(agent => URI.parse(agent.uri));
+		const declaring = await Promise.all(candidates.map(async uri => {
+			try {
+				return customAgentFileDeclaresHooks((await raceCancellationError(this._fileService.readFile(uri), token)).value.toString()) ? uri : undefined;
+			} catch (error) {
+				if (error instanceof CancellationError) {
+					throw error;
+				}
+				return undefined;
+			}
+		}));
+		return declaring.filter(uri => uri !== undefined);
+	}
+
+	private async discoverRuntimeHooks(client: CopilotClient, untrustedRoots: readonly URI[], token: CancellationToken): Promise<DirectoryCustomization | undefined> {
 		const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks' });
 		try {
 			const discovered = await raceCancellationError(client.rpc.hooks.discover({
 				projectPaths: this._hookWorkingDirectories.map(directory => directory.fsPath),
 			}), token);
-			const result = await this.discoverWorkspaceHooksFallback(client, discovered, token);
+			const result = await this.discoverWorkspaceHooksFallback(client, this.withoutUntrustedRepositoryHooks(withUniqueHookIds(discovered), untrustedRoots), untrustedRoots, token);
 			for (const warning of result.warnings) {
 				this._logService.warn(`[SessionCustomizationDiscovery] Hook discovery: ${warning}`);
 			}
@@ -878,14 +934,73 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 	}
 
+	/**
+	 * Removes repository hooks of folders that are not trusted in VS Code. The runtime can still report them when its own
+	 * trusted folders cover the folder, but sessions do not enable repository hooks there. A repository hook reported
+	 * without a location cannot be attributed to a folder, so it is removed too.
+	 */
+	private withoutUntrustedRepositoryHooks(discovered: HooksDiscoveryResult, untrustedRoots: readonly URI[]): HooksDiscoveryResult {
+		if (untrustedRoots.length === 0) {
+			return discovered;
+		}
+		const isUntrusted = (hook: HooksDiscoveryResult['hooks'][number]) => {
+			const location = hook.projectPath ? this._pathToUri(hook.projectPath) : hook.definitionFileUri ? this._definitionUri(hook.definitionFileUri) : undefined;
+			return !location || untrustedRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(location, root));
+		};
+		return { ...discovered, hooks: discovered.hooks.filter(hook => hook.origin !== 'repository' || !isUntrusted(hook)) };
+	}
+
+	/**
+	 * Lists the `.github/hooks` files of folders that are not trusted in VS Code. Sessions do not run them, and the
+	 * runtime does not report them, so they are shown as not running until the folder is trusted.
+	 */
+	private async discoverUntrustedHookFiles(untrustedRoots: readonly URI[], token: CancellationToken): Promise<readonly URI[]> {
+		const files: URI[] = [];
+		for (const root of untrustedRoots) {
+			try {
+				files.push(...await listWorkspaceHookFiles(this._fileService, root, token));
+			} catch (error) {
+				if (error instanceof CancellationError) {
+					throw error;
+				}
+				this._logService.warn(`[SessionCustomizationDiscovery] Listing hooks of untrusted folder ${root.toString()} failed: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+		return files;
+	}
+
+	private toUntrustedHooksDirectory(files: readonly URI[]): DirectoryCustomization | undefined {
+		if (files.length === 0) {
+			return undefined;
+		}
+		const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks/untrusted' });
+		return {
+			type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
+			name: localize('copilot.untrustedHooks', "Hooks in untrusted folders"), contents: CustomizationType.Hook,
+			enabled: false, writable: false,
+			load: { kind: CustomizationLoadStatus.Degraded, message: localize('copilot.untrustedHooksMessage', "Won't run until you trust this folder.") },
+			children: files.map(file => ({
+				type: CustomizationType.Hook,
+				id: customizationId(file.toString()),
+				uri: file.toString(),
+				name: basename(file.path),
+				enabled: false,
+				_meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository' }),
+			})),
+		};
+	}
+
 	/** TODO: Remove when https://github.com/github/copilot-agent-runtime/issues/30644 is fixed. */
-	private async discoverWorkspaceHooksFallback(client: CopilotClient, discovered: HooksDiscoveryResult, token: CancellationToken): Promise<HooksDiscoveryResult> {
-		if (discovered.hooks.some(hook => hook.origin === 'repository')) {
+	private async discoverWorkspaceHooksFallback(client: CopilotClient, discovered: HooksDiscoveryResult, untrustedRoots: readonly URI[], token: CancellationToken): Promise<HooksDiscoveryResult> {
+		const hasRepositoryHooks = (root: URI) => discovered.hooks.some(hook => hook.origin === 'repository' && hook.projectPath !== undefined && extUriBiasedIgnorePathCase.isEqual(this._pathToUri(hook.projectPath), root));
+		// Explicit hook directories ignore whether repository hooks are enabled, so untrusted folders are left out.
+		const roots = this._hookWorkingDirectories.filter(root => !untrustedRoots.some(untrusted => extUriBiasedIgnorePathCase.isEqual(untrusted, root)) && !hasRepositoryHooks(root));
+		if (roots.length === 0) {
 			return discovered;
 		}
 		try {
 			const hookDirectories: string[] = [];
-			for (const directory of this._hookWorkingDirectories) {
+			for (const directory of roots) {
 				for (const root of searchRoots.workspace.filter(root => root.type === DiscoveredType.Hook)) {
 					throwIfCancelled(token);
 					const uri = joinPath(directory, ...root.path);
@@ -1009,7 +1124,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 		const fixedHookDirectoryUris = type === CustomizationType.Hook
 			? new ResourceSet([
-				// Hooks: primary working directory only (Copilot limitation).
 				...this._hookWorkingDirectories.flatMap(workingDirectory => fixedDiscoveryFiles.workspace
 					.filter(root => root.type === DiscoveredType.Hook)
 					.map(root => joinPath(workingDirectory, ...root.path))),
@@ -1194,4 +1308,33 @@ export async function workspaceDirectoryHasHooks(fileService: IFileService, work
 		throw new CancellationError();
 	}
 	return found;
+}
+
+/**
+ * Lists the hook files (`*.json`) anywhere under `<workingDirectory>/.github/hooks/`. A missing directory has none;
+ * any other IO failure is rethrown.
+ */
+export async function listWorkspaceHookFiles(fileService: IFileService, workingDirectory: URI, token: CancellationToken = CancellationToken.None): Promise<URI[]> {
+	const files: URI[] = [];
+	const collect = async (directory: URI, depth: number): Promise<void> => {
+		throwIfCancelled(token);
+		let stat: IFileStat;
+		try {
+			stat = await fileService.resolve(directory, { resolveMetadata: false });
+		} catch (err) {
+			if (toFileOperationResult(err as Error) !== FileOperationResult.FILE_NOT_FOUND) {
+				throw err;
+			}
+			return;
+		}
+		const children = stat.children ?? [];
+		files.push(...children.filter(child => child.isFile && child.name.toLowerCase().endsWith(HOOK_FILE_SUFFIX)).map(child => child.resource));
+		if (depth < MAX_HOOKS_RECURSION_DEPTH) {
+			for (const child of children.filter(child => child.isDirectory)) {
+				await collect(child.resource, depth + 1);
+			}
+		}
+	};
+	await collect(joinPath(workingDirectory, '.github', 'hooks'), 0);
+	return files.sort((a, b) => compareStrings(a.toString(), b.toString()));
 }

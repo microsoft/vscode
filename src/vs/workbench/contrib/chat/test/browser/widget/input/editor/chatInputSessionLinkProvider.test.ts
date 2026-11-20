@@ -10,13 +10,17 @@ import { URI } from '../../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { computeLinks } from '../../../../../../../../editor/common/languages/linkComputer.js';
+import { Range } from '../../../../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../../../../editor/common/core/ranges/offsetRange.js';
+import { PositionOffsetTransformer } from '../../../../../../../../editor/common/core/text/positionToOffset.js';
 import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
 import { getLinks } from '../../../../../../../../editor/contrib/links/browser/getLinks.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../../platform/actions/common/actions.js';
 import { NullLogService } from '../../../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
-import { ChatInputSessionLinkProvider } from '../../../../../browser/widget/input/editor/chatInputSessionLinkProvider.js';
+import { ChatInputSessionLinkDetector, ChatInputSessionLinkProvider, linkSessionMentions } from '../../../../../browser/widget/input/editor/chatInputSessionLinkProvider.js';
+import { ChatRequestDynamicVariablePart, ChatRequestTextPart } from '../../../../../common/requestParser/chatParserTypes.js';
 
 suite('ChatInputSessionLinkProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -109,6 +113,85 @@ suite('ChatInputSessionLinkProvider', () => {
 			'agent-host-session://ahp-session/',
 			'command://workbench.action.quit',
 		].join('\n')), []);
+	});
+
+	test('links sent session links in rendered text without changing the request or other parts', () => {
+		const externalLink = `vscode-insiders://${externalPath}`;
+		const file = '#attachment:a.ts';
+		const text = `${internalLink} vs ${file}\r\nand (${externalLink}).`;
+		const fileStart = text.indexOf(file);
+		const fileEnd = fileStart + file.length;
+		const positions = new PositionOffsetTransformer(text);
+		const textPart = (start: number, end: number) => new ChatRequestTextPart(new OffsetRange(start, end), Range.fromPositions(positions.getPosition(start), positions.getPosition(end)), text.slice(start, end));
+		const filePart = new ChatRequestDynamicVariablePart(new OffsetRange(fileStart, fileEnd), Range.fromPositions(positions.getPosition(fileStart), positions.getPosition(fileEnd)), file, 'file', undefined, URI.file('/a.ts'), undefined, undefined, true, false, undefined, true);
+		const message = { text, parts: [textPart(0, fileStart), filePart, textPart(fileEnd, text.length)] };
+		const result = linkSessionMentions(message, new ChatInputSessionLinkDetector('code-oss', store.add(new NullLogService())));
+		assert.deepStrictEqual({
+			text: result.text,
+			parts: result.parts.map(part => part.text),
+			filePart: result.parts[1] === filePart,
+		}, {
+			text,
+			parts: [
+				`[${internalLink.replace(/_/g, '\\_')}](${internalLink}) vs `,
+				file,
+				`\r\nand ([vscode-insiders://${externalPath.replace(/_/g, '\\_')}](${internalLink})).`,
+			],
+			filePart: true,
+		});
+	});
+
+	test('links a parenthesized session link at the start of a line', () => {
+		const text = `(${internalLink})`;
+		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+		assert.deepStrictEqual(linkSessionMentions(message, new ChatInputSessionLinkDetector('code-oss', store.add(new NullLogService()))).parts.map(part => part.text), [
+			`([${internalLink.replace(/_/g, '\\_')}](${internalLink}))`,
+		]);
+	});
+
+	test('does not replace session links in code, authored links, images or unrelated URLs', () => {
+		const text = [
+			`\`${internalLink}\``,
+			'```',
+			internalLink,
+			'```',
+			`[Session](${internalLink}) ![Session](${internalLink}) <${internalLink}>`,
+			`[see ${internalLink} here](https://example.com) ![see ${internalLink} here](https://example.com/a.png) [Session]( ${internalLink} )`,
+			`<a href="${internalLink}">Session</a>`,
+			`<a href="https://example.com">${internalLink}</a> <code>${internalLink}</code>`,
+			'<code>',
+			internalLink,
+			'</code>',
+			'',
+			'Before <code>',
+			internalLink,
+			'</code> after',
+			'',
+			'<pre>',
+			internalLink,
+			'</pre>',
+			`https://example.com/?next=${internalLink}`,
+			'',
+			`[reference]: ${internalLink}`,
+			'',
+			`> [nested]: ${internalLink}`,
+			'>',
+			'> [nested]',
+			'',
+			'[multiline]:',
+			`  ${internalLink}`,
+			'',
+			`- [listed]: ${internalLink}`,
+			'- [listed] [multiline]',
+			'',
+			'| Session |',
+			'| --- |',
+			`| \`${internalLink}\` |`,
+			`| \`a \\| review ${internalLink} now\` |`,
+		].join('\n');
+		const positions = new PositionOffsetTransformer(text);
+		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), Range.fromPositions(positions.getPosition(0), positions.getPosition(text.length)), text)] };
+		assert.strictEqual(linkSessionMentions(message, new ChatInputSessionLinkDetector('code-oss', store.add(new NullLogService()))), message);
 	});
 
 	test('makes the keyboard command discoverable when chat is enabled', async () => {

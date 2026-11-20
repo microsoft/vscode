@@ -296,7 +296,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			return;
 		}
 
-		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
+		if (parsed?.kind === ChangesetKind.Turn) {
 			this._addSubscription(parsed.ownerUri, resourceStr);
 			if (sessionLoaded) {
 				void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
@@ -508,7 +508,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._removeSubscription(parsed.ownerUri, resourceStr);
 			return;
 		}
-		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
+		if (parsed?.kind === ChangesetKind.Turn) {
 			this._removeSubscription(parsed.ownerUri, resourceStr);
 			return;
 		}
@@ -563,9 +563,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 					this._changesetFileMonitor.onSessionRestored(parsed.ownerUri);
 					break;
 				case ChangesetKind.Turn:
-					if (parsed.turnId !== undefined) {
-						void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
-					}
+					void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
 					break;
 			}
 		}
@@ -581,10 +579,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * callback when no live state exists yet — this matches the previous
 	 * inline behaviour in `AgentService.subscribe`.
 	 *
-	 * Throws when the URI matches the changeset shape but the id is not
-	 * a well-known kind ({@link ChangesetKind.Unknown}). The unknown-id
-	 * rejection MUST fire before any parent-session restore so subscribing
-	 * to a bogus child URI cannot materialize the parent as a side effect.
+	 * Rejects unsupported changesets before restoring the owning session.
 	 */
 	async tryHandleSubscribe(resource: URI, restoreOwner: ChangesetOwnerRestorer): Promise<boolean> {
 		const resourceStr = resource.toString();
@@ -596,11 +591,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			throw new Error(`Cannot subscribe to unknown changeset resource: ${resourceStr}`);
 		}
 		await this.restoreSessionIfChangesetSubscription(resource, restoreOwner);
-		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
+		if (parsed.kind === ChangesetKind.Turn) {
 			if (!this._stateManager.getChangesetState(resourceStr)) {
 				void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
 			}
-		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
+		} else if (parsed.kind === ChangesetKind.Compare) {
 			// Compare-turns is computed once on subscribe. Both turns are
 			// typically historical so the snapshot doesn't need to track
 			// live edits; `onFirstSubscriber` / `onLastSubscriber` do not

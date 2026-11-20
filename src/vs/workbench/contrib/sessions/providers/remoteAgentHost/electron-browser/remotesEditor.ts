@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { OS } from '../../../../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
@@ -25,22 +28,27 @@ import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
 import { RemotesModel } from '../browser/remotesModel.js';
 import { RemotesWidget } from '../browser/remotesWidget.js';
 import { ThisComputerSection } from './thisComputerSection.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../common/chatConstants.js';
+import { SegmentedThisComputerSection } from './segmentedThisComputerSection.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_SHARING_SETUP_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../common/chatConstants.js';
 
 export const RemotesEditorFocusedContext = new RawContextKey<boolean>('remotesEditorFocused', false);
+export const RemotesSharingExpandedContext = new RawContextKey<boolean>('remotesSharingExpanded', false);
 
 export class RemotesEditor extends EditorPane {
 	static readonly ID = 'sessions.editor.remotes';
 
 	private container: HTMLElement | undefined;
 	private content: HTMLElement | undefined;
+	private scrollable: DomScrollableElement | undefined;
 	private thisComputerContainer: HTMLElement | undefined;
 	private tableContainer: HTMLElement | undefined;
 	private disabledMessage: HTMLElement | undefined;
 	private scopedContext: IScopedContextKeyService | undefined;
+	private sharingExpandedContext: IContextKey<boolean> | undefined;
 	private widgetInstantiationService: IInstantiationService | undefined;
 	private readonly widget = this._register(new MutableDisposable<RemotesWidget>());
-	private readonly thisComputer = this._register(new MutableDisposable<ThisComputerSection>());
+	private readonly thisComputer = this._register(new MutableDisposable<ThisComputerSection | SegmentedThisComputerSection>());
+	private readonly detailsVisibility = this._register(new MutableDisposable());
 
 	constructor(
 		group: IEditorGroup,
@@ -53,7 +61,7 @@ export class RemotesEditor extends EditorPane {
 	) {
 		super(RemotesEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || event.affectsConfiguration('chat.disableAIFeatures') || event.affectsConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING) || event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING) || event.affectsConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING)) {
+			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || event.affectsConfiguration('chat.disableAIFeatures') || event.affectsConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING) || event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING) || event.affectsConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING) || event.affectsConfiguration(REMOTE_ENVIRONMENTS_SHARING_SETUP_SETTING)) {
 				this.updateWidget();
 			}
 		}));
@@ -65,14 +73,19 @@ export class RemotesEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		this.container = dom.append(parent, dom.$('.remotes-editor'));
-		this.content = dom.append(this.container, dom.$('.remotes-editor-content'));
+		this.content = dom.$('.remotes-editor-content');
+		this.scrollable = this._register(new DomScrollableElement(this.content, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
+		this.container.appendChild(this.scrollable.getDomNode());
 		this.thisComputerContainer = dom.append(this.content, dom.$('.remotes-editor-this-computer'));
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('RemotesEditor.thisComputer', () => this.layoutContents(), dom.getWindow(this.container)));
+		this._register(resizeObserver.observe(this.thisComputerContainer));
 		this.tableContainer = dom.append(this.content, dom.$('.remotes-editor-table'));
 		this.disabledMessage = dom.append(this.container, dom.$('p.remotes-editor-disabled', { role: 'status', tabindex: '0' }));
 		this.disabledMessage.textContent = localize('remotes.editorDisabled', "Remote agent hosts are disabled.");
 		this.disabledMessage.hidden = true;
 		this.scopedContext = this._register(this.contextKeyService.createScoped(this.container));
 		RemotesEditorFocusedContext.bindTo(this.scopedContext).set(true);
+		this.sharingExpandedContext = RemotesSharingExpandedContext.bindTo(this.scopedContext);
 		this.widgetInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContext])));
 	}
 
@@ -88,13 +101,15 @@ export class RemotesEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
+		this.detailsVisibility.clear();
 		this.widget.clear();
 		this.thisComputer.clear();
+		this.sharingExpandedContext?.reset();
 		super.clearInput();
 	}
 
 	private updateWidget(): void {
-		if (!this.content || !this.thisComputerContainer || !this.tableContainer || !this.disabledMessage || !this.widgetInstantiationService || !this.input) {
+		if (!this.content || !this.scrollable || !this.thisComputerContainer || !this.tableContainer || !this.disabledMessage || !this.widgetInstantiationService || !this.input) {
 			return;
 		}
 		const managementEnabled = this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
@@ -103,29 +118,73 @@ export class RemotesEditor extends EditorPane {
 			&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures');
 		this.disabledMessage.textContent = managementEnabled
 			? environmentPickerEnabled ? localize('remotes.editorDisabled', "Remote agent hosts are disabled.")
-				: localize('remotes.environmentPickerDisabled', "The Environment picker is disabled.")
+				: localize('remotes.environmentPickerDisabled', "The environment picker is disabled.")
 			: localize('remotes.managementDisabled', "Remote Environments management is disabled.");
 		this.disabledMessage.hidden = enabled;
+		// The full-height scroll viewport would otherwise push the message out of view.
+		this.scrollable.getDomNode().hidden = !enabled;
 		this.content.hidden = !enabled;
 		if (!enabled) {
+			if (this.input instanceof RemotesEditorInput) {
+				this.input.sharingState = undefined;
+			}
+			this.detailsVisibility.clear();
 			this.widget.clear();
 			this.thisComputer.clear();
+			this.sharingExpandedContext?.reset();
 			return;
 		}
 		if (!this.widget.value) {
 			const model = this.widgetInstantiationService.createInstance(RemotesModel);
 			this.widget.value = this.widgetInstantiationService.createInstance(RemotesWidget, this.tableContainer, model, OS);
+			const widget = this.widget.value;
+			this.detailsVisibility.value = autorun(reader => {
+				widget.detailsVisible.read(reader);
+				this.layoutContents();
+			});
 		}
 		const showThisComputer = this.isThisComputerEnabled();
 		this.thisComputerContainer.hidden = !showThisComputer;
-		if (!showThisComputer) {
+		const sharingSetup = showThisComputer && this.isSharingSetupEnabled();
+		if (!showThisComputer || this.thisComputer.value && (this.thisComputer.value instanceof ThisComputerSection) !== sharingSetup) {
+			if (this.input instanceof RemotesEditorInput) {
+				this.input.sharingState = undefined;
+			}
 			this.thisComputer.clear();
-		} else if (!this.thisComputer.value) {
-			this.thisComputer.value = this.widgetInstantiationService.createInstance(ThisComputerSection, this.thisComputerContainer);
+			this.sharingExpandedContext?.reset();
 		}
-		this.widget.value.setHeading(showThisComputer ? localize('remotes.otherEnvironments', "Other Environments") : undefined);
+		if (showThisComputer && !this.thisComputer.value) {
+			if (sharingSetup) {
+				const section = this.thisComputer.value = this.widgetInstantiationService.createInstance(ThisComputerSection, this.thisComputerContainer, expanded => {
+					this.sharingExpandedContext?.set(expanded);
+					this.layoutContents();
+				}, state => {
+					if (this.input instanceof RemotesEditorInput) {
+						this.input.sharingState = state;
+					}
+				});
+				if (this.input instanceof RemotesEditorInput && this.input.sharingState) {
+					const state = this.input.sharingState;
+					this.input.sharingState = undefined;
+					section.restoreState(state);
+				}
+			} else {
+				this.thisComputer.value = this.widgetInstantiationService.createInstance(SegmentedThisComputerSection, this.thisComputerContainer);
+			}
+		}
+		this.widget.value.setHeading(showThisComputer ? localize('remotes.otherEnvironments', "Other environments") : undefined);
 		this.widget.value.setVisible(this.isVisible());
-		this.widget.value.layout();
+		this.layoutContents();
+	}
+
+	collapseSharing(): void {
+		if (this.thisComputer.value instanceof ThisComputerSection) {
+			this.thisComputer.value.close();
+		}
+	}
+
+	closeEnvironmentDetails(): void {
+		this.widget.value?.closeDetails();
 	}
 
 	/**
@@ -137,7 +196,19 @@ export class RemotesEditor extends EditorPane {
 		return !!this.configurationService.getValue<boolean>(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
 	}
 
+	/**
+	 * Reads the experiment-controlled sharing setup setting. Only called when the This Computer section is shown,
+	 * so the experiment trigger is logged in every arm whenever either design of the section would render.
+	 */
+	private isSharingSetupEnabled(): boolean {
+		logSettingExperimentTrigger(this.telemetryService, REMOTE_ENVIRONMENTS_SHARING_SETUP_SETTING);
+		return !!this.configurationService.getValue<boolean>(REMOTE_ENVIRONMENTS_SHARING_SETUP_SETTING);
+	}
+
 	getAccessibilityContent(): string {
+		if (this.widget.value?.detailsVisible.get()) {
+			return this.widget.value.getAccessibilityContent();
+		}
 		return this.widget.value
 			? [this.thisComputer.value?.getAccessibilityContent(), this.widget.value.getAccessibilityContent()].filter(Boolean).join('\n\n')
 			: this.disabledMessage?.textContent ?? '';
@@ -145,7 +216,9 @@ export class RemotesEditor extends EditorPane {
 
 	override focus(): void {
 		super.focus();
-		if (this.widget.value) {
+		if (!this.widget.value?.detailsVisible.get() && this.thisComputer.value instanceof ThisComputerSection && this.thisComputer.value.isExpanded) {
+			this.thisComputer.value.focus();
+		} else if (this.widget.value) {
 			this.widget.value.focus();
 		} else {
 			this.disabledMessage?.focus();
@@ -155,7 +228,15 @@ export class RemotesEditor extends EditorPane {
 	layout(dimension: dom.Dimension): void {
 		if (this.container) {
 			dom.size(this.container, dimension.width, dimension.height);
-			this.widget.value?.layout();
+			this.layoutContents();
 		}
+	}
+
+	private layoutContents(): void {
+		if (this.thisComputerContainer) {
+			this.thisComputerContainer.hidden = !this.thisComputer.value || !!this.widget.value?.detailsVisible.get();
+		}
+		this.widget.value?.layout();
+		this.scrollable?.scanDomNode();
 	}
 }

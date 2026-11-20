@@ -67,7 +67,9 @@ class WindowCanvasesContribution extends Disposable implements IWorkbenchContrib
 				const command = { id: `sessions.windowCanvas.open.${canvas.id}`, title: canvas.title, icon: canvas.icon };
 				registrations.add(CommandsRegistry.registerCommand(command.id, () => canvasService.openCanvas(canvas.id)));
 				for (const menu of [AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas, AgentsWindowMenus.SessionActivityBarCanvas]) {
-					registrations.add(MenuRegistry.appendMenuItem(menu, { command, group: SessionCanvasMenuGroup.Available, when: ChatContextKeys.enabled }));
+					// The Session Activity Bar of a chat window shares its Canvas submenu, but these canvases show in the main window only.
+					const when = menu === AgentsWindowMenus.SessionActivityBarCanvas ? ContextKeyExpr.and(ChatContextKeys.enabled, IsAuxiliaryWindowContext.toNegated()) : ChatContextKeys.enabled;
+					registrations.add(MenuRegistry.appendMenuItem(menu, { command, group: SessionCanvasMenuGroup.Available, when }));
 				}
 			}
 		}));
