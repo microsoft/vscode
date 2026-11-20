@@ -3898,6 +3898,50 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('overlapping archive batches share the provider limit and merge changes until both settle', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const backends = Array.from({ length: 8 }, (_, index) => URI.parse(`opaque-session://tenant/overlapping-${index}`));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		for (const [index, resource] of backends.entries()) {
+			fireSessionAdded(agentHost, `overlapping-${index}`, { resource });
+		}
+		await timeout(100);
+		const sessions = provider.getSessions();
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(event => changes.push(event)));
+		let active = 0;
+		let maximumActive = 0;
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			active++;
+			maximumActive = Math.max(maximumActive, active);
+			await timeout(10);
+			active--;
+			return { channel, action, serverSeq: 1, origin: undefined };
+		};
+
+		const first = provider.archiveSessions(sessions.slice(0, 4).map(session => session.sessionId));
+		const second = provider.archiveSessions(sessions.slice(4).map(session => session.sessionId));
+		await timeout(15);
+		const betweenBatches = { active, changes: changes.length };
+		const results = await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			betweenBatches,
+			active, maximumActive,
+			outcomes: results.map(batch => batch.map(result => result.status)),
+			archived: sessions.map(session => session.isArchived.get()),
+			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
+		}, {
+			betweenBatches: { active: 4, changes: 0 },
+			active: 0, maximumActive: 4,
+			outcomes: [['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled'], ['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled']],
+			archived: sessions.map(() => true),
+			changes: [sessions.map(session => session.sessionId)],
+			released: backends.map(() => 1),
+		});
+	}));
+
 	test('a summaryChanged modifiedAt advances the last turn end like a listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('turn-end', { summary: 'Turn End', modifiedTime: 1_000 }));
 		const provider = createProvider(disposables, agentHost);

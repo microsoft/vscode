@@ -4626,6 +4626,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
 	protected readonly _onDidChangeSessions = this._register(new PauseableEmitter<ISessionChangeEvent>({ merge: mergeSessionChangeEvents }));
+	private readonly _archiveSessionLimiter = this._register(new Limiter<void>(4));
 	private readonly _onDidChangeSessionsFromNotifications = this._register(new Emitter<ISessionChangeEvent>());
 	protected readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
 	/** The changes of every session, also of those the listing scope hides: see {@link getAllSessions}. */
@@ -8022,14 +8023,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async archiveSessions(sessionIds: readonly string[]): Promise<readonly PromiseSettledResult<void>[]> {
-		const store = new DisposableStore();
-		const limiter = store.add(new Limiter<void>(4));
 		this._onDidChangeSessions.pause();
 		try {
-			return await Promise.allSettled(sessionIds.map(sessionId => limiter.queue(() => this.archiveSession(sessionId))));
+			return await Promise.allSettled(sessionIds.map(sessionId => this._archiveSessionLimiter.queue(() => this.archiveSession(sessionId))));
 		} finally {
 			this._onDidChangeSessions.resume();
-			store.dispose();
 		}
 	}
 
