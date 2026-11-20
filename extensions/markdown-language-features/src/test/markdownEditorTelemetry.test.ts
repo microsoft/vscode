@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
+import { MAX_SCANNED_DOCUMENT_LENGTH, scanMarkdownFeatures } from '../preview/markdownDocumentFeatures';
 import { MarkdownEditorSessionTelemetry } from '../preview/markdownEditorTelemetry';
 import type { TelemetryReporter } from '../telemetryReporter';
 
@@ -62,5 +63,70 @@ suite('Markdown editor telemetry', () => {
 			properties: { sessionId: sessionId(), scheme: 'untitled', sizeBucket: '0', initialMode: 'edit', finalMode: 'edit', ended: 'shutdown', untitledDocumentId: 'untitled-1' },
 			measurements: { modeSwitches: 0, editCount: 0, firstEditMs: -1, visibleMs: 10, focusedMs: 10, lifetimeMs: 10 },
 		}]);
+	});
+
+	test('reports document features when they were scanned', () => {
+		const { session, events } = createSession({ scheme: 'file', textLength: 100, mode: 'read' });
+		session.setDocumentFeatures(scanMarkdownFeatures('# A\n\n```mermaid\ngraph TD\n```\n'));
+		session.end('closed');
+
+		assert.deepStrictEqual(events[0].properties, {
+			sessionId: events[0].properties?.sessionId, scheme: 'file', sizeBucket: '<1k', initialMode: 'read', finalMode: 'read', ended: 'closed',
+			hasMermaid: 'true', hasMath: 'false', hasHtmlBlock: 'false', hasFrontMatter: 'false', hasTable: 'false', hasFootnote: 'false', hasTaskList: 'false', headingCountBucket: '1-5',
+		});
+	});
+});
+
+suite('Markdown document features', () => {
+	test('detects constructs outside fenced code', () => {
+		const doc = [
+			'---',
+			'title: x',
+			'---',
+			'# Title',
+			'## Section',
+			'',
+			'| a | b |',
+			'| --- | :-: |',
+			'| 1 | 2 |',
+			'',
+			'- [x] done',
+			'- [ ] open',
+			'',
+			'Inline math $x^2$ and a footnote[^1].',
+			'',
+			'[^1]: The note.',
+			'',
+			'<details>',
+			'<summary>More</summary>',
+			'</details>',
+			'',
+			'```ts',
+			'# not a heading',
+			'<div>not html</div>',
+			'```',
+		].join('\n');
+		assert.deepStrictEqual(scanMarkdownFeatures(doc), {
+			hasMermaid: false, hasMath: true, hasHtmlBlock: true, hasFrontMatter: true, hasTable: true, hasFootnote: true, hasTaskList: true, headingCountBucket: '1-5',
+		});
+	});
+
+	test('finds nothing in plain prose and ignores prices', () => {
+		assert.deepStrictEqual(scanMarkdownFeatures('Just text.\nIt costs $5 and $ 10.\n---\n'), {
+			hasMermaid: false, hasMath: false, hasHtmlBlock: false, hasFrontMatter: false, hasTable: false, hasFootnote: false, hasTaskList: false, headingCountBucket: '0',
+		});
+	});
+
+	test('scans the largest scanned document quickly', () => {
+		const line = '| cell | `code` $x$ [link](https://example.com) - [ ] task <b>bold</b> **strong** _em_\n';
+		const doc = line.repeat(Math.floor(MAX_SCANNED_DOCUMENT_LENGTH / line.length));
+		scanMarkdownFeatures(doc); // warm up
+		const start = performance.now();
+		const runs = 20;
+		for (let i = 0; i < runs; i++) {
+			scanMarkdownFeatures(doc);
+		}
+		const msPerScan = (performance.now() - start) / runs;
+		assert.ok(msPerScan < 20, `scan took ${msPerScan.toFixed(2)} ms`);
 	});
 });
