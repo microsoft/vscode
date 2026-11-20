@@ -54,12 +54,13 @@ import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contr
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { getSessionsPickerChatWindow, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
+import { getSessionsPickerChatWindow, MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ArchiveChatAction, ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
@@ -339,6 +340,7 @@ suite('Sessions - Actions', () => {
 			ARCHIVE_CHAT_COMMAND_ID,
 			'sessionsViewPane.moveChatUp',
 			'sessionsViewPane.moveChatDown',
+			MOVE_CHAT_TO_SESSION_ACTION_ID,
 			PROMOTE_CHAT_TO_SESSION_ACTION_ID,
 			RENAME_CHAT_COMMAND_ID,
 			'sessions.list.deleteChat',
@@ -356,7 +358,8 @@ suite('Sessions - Actions', () => {
 			{ id: ARCHIVE_CHAT_COMMAND_ID, group: '1_state', order: 2 },
 			{ id: 'sessionsViewPane.moveChatUp', group: '2_organize', order: 1 },
 			{ id: 'sessionsViewPane.moveChatDown', group: '2_organize', order: 2 },
-			{ id: PROMOTE_CHAT_TO_SESSION_ACTION_ID, group: '2_organize', order: 3 },
+			{ id: MOVE_CHAT_TO_SESSION_ACTION_ID, group: '2_organize', order: 3 },
+			{ id: PROMOTE_CHAT_TO_SESSION_ACTION_ID, group: '2_organize', order: 4 },
 			{ id: RENAME_CHAT_COMMAND_ID, group: '4_manage', order: 1 },
 			{ id: 'sessions.list.deleteChat', group: '4_manage', order: 2 },
 		]);
@@ -371,6 +374,7 @@ suite('Sessions - Actions', () => {
 			'sessionsViewPane.markAllNestedRead',
 			'sessionsViewPane.pinSession',
 			'sessionsViewPane.unpinSession',
+			MOVE_SESSION_INTO_SESSION_ACTION_ID,
 			RENAME_SESSION_COMMAND_ID,
 			'sessionsViewPane.deleteSession',
 		]);
@@ -393,6 +397,7 @@ suite('Sessions - Actions', () => {
 			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_state', order: 2 },
 			{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1 },
 			{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1 },
+			{ id: MOVE_SESSION_INTO_SESSION_ACTION_ID, group: '2_organize', order: 3 },
 			{ id: RENAME_SESSION_COMMAND_ID, group: '4_manage', order: 2 },
 			{ id: 'sessionsViewPane.deleteSession', group: '4_manage', order: 3 },
 		]);
@@ -643,6 +648,7 @@ suite('Sessions - Actions', () => {
 				return pendingRead.p;
 			}
 		});
+		instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane: constObservable(false) });
 
 		const result = CommandsRegistry.getCommand('sessionsViewPane.markAllNestedRead')?.handler(instantiationService, sessions);
 
@@ -2566,6 +2572,7 @@ suite('Sessions - Actions', () => {
 				{ id: local.providerId, environment: { id: 'local', label: 'This Computer' } },
 			].map(provider => upcastPartial<ISessionsProvider>(provider));
 			const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+			const environments: string[] = [];
 			instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 			instantiationService.stub(ISessionsProvidersService, {
 				getProvider: <T extends ISessionsProvider>(providerId: string) => providers.find(provider => provider.id === providerId) as T | undefined,
@@ -2587,6 +2594,10 @@ suite('Sessions - Actions', () => {
 						selections.push({ folder, options });
 						return 'applied';
 					},
+					selectEnvironment: providerId => {
+						environments.push(providerId);
+						return 'applied';
+					},
 				}),
 			});
 			instantiationService.stub(ICommandService, new TestCommandService());
@@ -2599,19 +2610,26 @@ suite('Sessions - Actions', () => {
 			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { sessions: [session] });
 			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { environment, sessions: [session] });
 
-			assert.deepStrictEqual(selections, available
-				? Array.from({ length: 5 }, () => ({
-					folder: creationTarget.folderUri,
-					options: { providerId: creationTarget.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
-				}))
-				: [{
-					folder: localFolder,
-					options: { providerId: local.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
-				}]);
+			// Without a creation target, the environment section still starts in its environment.
+			assert.deepStrictEqual({ selections, environments }, available
+				? {
+					selections: Array.from({ length: 5 }, () => ({
+						folder: creationTarget.folderUri,
+						options: { providerId: creationTarget.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
+					})),
+					environments: [],
+				}
+				: {
+					selections: [{
+						folder: localFolder,
+						options: { providerId: local.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
+					}],
+					environments: [session.providerId],
+				});
 		});
 	}
 
-	test('New Session never starts like a session that only names its repository by URL without a creation target', async () => {
+	test('New Session never starts like a session that only names its repository by URL without a creation target, but in its environment', async () => {
 		const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
 		const sandbox = (title: string) => {
 			const { session } = createTestSession(title, { providerId: 'sandbox-provider', environment: 'cloud' });
@@ -2644,6 +2662,10 @@ suite('Sessions - Actions', () => {
 					selections.push(`${options?.providerId} ${folder.toString()}`);
 					return 'applied';
 				},
+				selectEnvironment: providerId => {
+					selections.push(`environment of ${providerId}`);
+					return 'applied';
+				},
 			}),
 			focusNewSessionSlot: () => { },
 		}));
@@ -2654,8 +2676,10 @@ suite('Sessions - Actions', () => {
 		await run({ repository: { owner: 'microsoft', name: 'vscode' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 		// A workspace section starts like its first session that it can start like.
 		await run({ sessions: [sandbox('sandbox'), local] });
+		// An environment section of only such sessions, such as an extension's host of jobs, starts in its environment.
+		await run({ environment: { id: 'cloud', label: 'Cloud' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 
-		assert.deepStrictEqual({ opened, selections }, { opened: 2, selections: ['local-provider file:///local'] });
+		assert.deepStrictEqual({ opened, selections }, { opened: 3, selections: ['local-provider file:///local', 'environment of sandbox-provider'] });
 	});
 
 	test('New Session uses the active native canvas for plain invocations and incidental toolbar context', async () => {

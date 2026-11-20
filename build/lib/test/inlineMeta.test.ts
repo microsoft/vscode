@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import es from 'event-stream';
+import { Readable } from 'stream';
+import { collectStream } from './collectStream.ts';
 import path from 'path';
 import { suite, test } from 'node:test';
 import File from 'vinyl';
@@ -24,7 +25,7 @@ suite('Bootstrap package metadata', () => {
 			const filenames = ['main.js', 'cli.js', 'server-main.js', 'server-cli.js', 'bootstrap-fork.js', 'other.js'];
 			const original = 'export const config={BUILD_INSERT_PACKAGE_CONFIGURATION:"BUILD_INSERT_PACKAGE_CONFIGURATION"};';
 			const packageJson = JSON.stringify({ name: 'Code - OSS', version: '1.0.0' });
-			const stream = inlineMeta(es.readArray(filenames.map(filename => new File({
+			const stream = inlineMeta(Readable.from(filenames.map(filename => new File({
 				path: path.join(import.meta.dirname, filename),
 				contents: Buffer.from(original)
 			}))), {
@@ -32,16 +33,7 @@ suite('Bootstrap package metadata', () => {
 				packageJsonFn: () => packageJson,
 				productJsonFn: () => '{}'
 			});
-			const output = await new Promise<File[]>((resolve, reject) => {
-				stream.on('error', reject);
-				stream.pipe(es.writeArray<File>((err, result) => {
-					if (err) {
-						reject(err);
-					} else {
-						resolve(result);
-					}
-				}));
-			});
+			const output = await collectStream<File>(stream);
 			assert.deepStrictEqual(output.map(file => ({
 				name: file.basename,
 				contents: file.contents?.toString()

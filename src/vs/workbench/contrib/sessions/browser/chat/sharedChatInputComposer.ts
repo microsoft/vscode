@@ -163,6 +163,9 @@ class RepositoryConfigSeparatorActionViewItem extends ActionViewItem {
  * toolbar and the input's own model commands and notifications act on it.
  */
 export class SharedChatInputComposer extends Disposable implements INewSessionComposer, INewChatVoiceComposer {
+	get selectEnvironment(): INewSessionComposer['selectEnvironment'] {
+		return this.options.selectEnvironment;
+	}
 
 	private static readonly _backgroundComposers = new WeakMap<IChatWidget, SharedChatInputComposer>();
 
@@ -181,7 +184,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private readonly _modelSelection: SessionModelSelection;
 	/** The chat the input binds to: the composer's chat, else the session's shown chat. */
 	private readonly _shownChat: IObservable<IChat | undefined>;
-	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus());
+	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus(), text => this._widget?.input.startPromptWith(text));
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _promptOptions: NewSessionPromptOptionsPresenter;
@@ -204,8 +207,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	/** Attachments added before the input renders, such as a host's initial context. */
 	private readonly _pendingAttachments: IChatRequestVariableEntry[] = [];
 	private readonly _sending = observableValue(this, false);
-	/** Whether the host is asking to confirm a send. Other sends stay blocked, but nothing shows progress yet. */
-	private readonly _confirmingSend = observableValue(this, false);
+	/** Blocks duplicate sends without showing progress while confirming a send or choosing a send time. */
+	private readonly _suppressSendProgress = observableValue(this, false);
 	/** Releases the in-flight send's visibility tracking, also when the composer is disposed mid-send. */
 	private readonly _userInteractionSource = this._register(new MutableDisposable());
 	/** A send's wait for the session to be ready to send, which settles as the composer is disposed. */
@@ -453,7 +456,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	/** Shows progress in the input toolbar while the draft initializes or the host sends, after a short delay. */
 	private _renderBusyState(busyContextKey: IContextKey<ComposerBusyState>): void {
 		const busy = derived<ComposerBusyState>(this, reader => {
-			const sending = this._sending.read(reader) && !this._confirmingSend.read(reader);
+			const sending = this._sending.read(reader) && !this._suppressSendProgress.read(reader);
 			const comparisonSending = sending && !!this.options.modelPickerComparison?.summary.read(reader);
 			return sending && !comparisonSending ? 'sending' : this.options.loading.read(reader) ? 'initializing' : '';
 		});
@@ -867,7 +870,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		if (!this.options.canSchedule?.get() || !this.options.scheduleRequest || this._sending.get() || !this.hasInput) {
 			throw new Error(localize('sendLater.composerUnavailable', "Send Later is not available for this composition."));
 		}
-		this._sending.set(true, undefined);
+		transaction(tx => {
+			this._sending.set(true, tx);
+			this._suppressSendProgress.set(true, tx);
+		});
 		this.setInputEnabled(false);
 		const input = this.getDraft();
 		try {
@@ -878,7 +884,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				onDidClearInput();
 			}
 		} finally {
-			this._sending.set(false, undefined);
+			transaction(tx => {
+				this._sending.set(false, tx);
+				this._suppressSendProgress.set(false, tx);
+			});
 			this.setInputEnabled(true);
 		}
 	}
@@ -1164,7 +1173,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		if (this.options.confirmSend) {
 			transaction(tx => {
 				this._sending.set(true, tx);
-				this._confirmingSend.set(true, tx);
+				this._suppressSendProgress.set(true, tx);
 			});
 			// The request is already captured, so edits made while the host confirms would be lost.
 			widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
@@ -1175,7 +1184,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			} finally {
 				transaction(tx => {
 					this._sending.set(false, tx);
-					this._confirmingSend.set(false, tx);
+					this._suppressSendProgress.set(false, tx);
 				});
 				if (this._widget === widget && widget.input) {
 					widget.input.setInputEnabled(true);

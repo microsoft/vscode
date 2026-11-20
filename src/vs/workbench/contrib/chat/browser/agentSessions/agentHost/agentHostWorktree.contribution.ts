@@ -276,7 +276,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		}
 		// Back to its own location from a worktree; else where the folder is, which supersedes a move under way
 		const target = atWorktree ? workspace.uri : folder.uri;
-		this._workspaceEditingService.setFolderLocation(target).then(
+		this._workspaceEditingService.setFolderLocation(target, { force: true }).then(
 			() => { if (atWorktree) { this._log('toPrimary', 'switched', true); } },
 			error => { this._logService.error('[worktree] could not return the folder to its own location', error); if (atWorktree) { this._log('toPrimary', 'failed', true); } });
 	}
@@ -455,7 +455,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			this._ownMove = target;
 			try {
 				// An automatic move gives way to a switch already under way in the workspace, such as one in the window's title
-				await this._workspaceEditingService.setFolderLocation(target, automatic ? { ifIdle: true, reason: 'programmatic' } : { reason: 'user' });
+				await this._workspaceEditingService.setFolderLocation(target, automatic ? { ifIdle: true, reason: 'programmatic', force: true } : { reason: 'user' });
 			} finally {
 				this._pendingMoves--;
 			}
@@ -516,7 +516,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			return;
 		}
 		const keepInPlace = this._keepInPlace = folder.uri;
-		this._workspaceEditingService.setFolderLocation(folder.uri)
+		this._workspaceEditingService.setFolderLocation(folder.uri, { force: true })
 			.catch(error => this._logService.error('[worktree] could not keep the folder where it is', error))
 			.finally(() => {
 				if (this._keepInPlace === keepInPlace) {

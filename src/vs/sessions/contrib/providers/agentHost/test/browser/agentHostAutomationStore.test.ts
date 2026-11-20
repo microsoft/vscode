@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { AutomationDisableConditionKind } from '../../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { AutomationDisableConditionKind, AutomationTargetKind } from '../../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { safeIntl } from '../../../../../../base/common/date.js';
@@ -21,7 +21,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { nextAutomationCronOccurrence } from '../../../../../../platform/agentHost/common/automationCron.js';
-import { AgentHostScheduledChatExistingConversationCapabilityMetaKey, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeRun } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostScheduledChatExistingConversationCapabilityMetaKey, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeRun, withAgentHostScheduledChat } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { isAutomationAfterDateExpired } from '../../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { AutomationCatalogSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -1553,6 +1553,41 @@ suite('AgentHostAutomationStore', () => {
 		}, { definitions: [], name: automation.name, requests: [false] });
 	});
 
+	test('retained runs preserve scheduled-chat provenance without a live definition', () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		for (const scheduledChat of [false, true]) {
+			const resource = `vendor-automation:/history-${scheduledChat}`;
+			connection.setAutomation({
+				resource,
+				definition: {
+					title: 'History', message: { text: '', origin: { kind: MessageKind.Automation } },
+					session: {}, enabled: false, triggers: [],
+				},
+				runs: [{
+					resource: `vendor-run:/history-${scheduledChat}`, automation: resource,
+					origin: { kind: AutomationRunOriginKind.Manual },
+					lifecycle: { status: AutomationRunStatus.Completed, createdAt: '2026-01-01T00:00:00Z', startedAt: '2026-01-01T00:00:00Z', completedAt: '2026-01-01T00:01:00Z' },
+					sessionCount: 0,
+					_meta: withAgentHostScheduledChat(undefined, scheduledChat ? {} : undefined),
+				}],
+				operations: [],
+				createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+				_meta: withAgentHostAutomationHistoryState(undefined, 'retained'),
+			});
+		}
+		const store = disposables.add(new AgentHostAutomationStore('host', connection, undefined, new NullLogService(), disposables.add(new InMemoryStorageService()), activeClientService));
+		assert.deepStrictEqual({
+			definitions: store.automations.get(),
+			runs: store.runs.get().map(run => ({ id: run.id, purpose: run.purpose })),
+		}, {
+			definitions: [],
+			runs: [
+				{ id: 'host:vendor-run:/history-false', purpose: undefined },
+				{ id: 'host:vendor-run:/history-true', purpose: 'scheduledChat' },
+			],
+		});
+	});
+
 	test('distinguishes active and interrupted retained history deletion', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
@@ -1929,6 +1964,33 @@ suite('AgentHostAutomationStore', () => {
 				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
 				enabled: true,
 			},
+		});
+	});
+
+	test('maps the continue-session choice to the previous-session target, which turning it off replaces', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const supportedBefore = store.supportsContinueSession('local-agent-host');
+		const initializeResult = connection.initializeResult.get()!;
+		connection.initializeResult.set({ ...initializeResult, automations: { ...initializeResult.automations, targets: { previousSession: {} } } }, undefined);
+		const created = await store.createAutomation({
+			name: 'Daily status', prompt: 'What changed since yesterday?',
+			schedule: { interval: 'cron', cronExpression: '0 9 * * *', cronTimeZone: 'UTC', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			continueSession: true,
+		});
+		const renamed = await store.updateAutomation(created.id, { name: 'Renamed' });
+		const turnedOff = await store.updateAutomation(created.id, { continueSession: false });
+
+		assert.deepStrictEqual({
+			supported: [supportedBefore, store.supportsContinueSession('local-agent-host'), store.supportsContinueSession('other-host')],
+			continueSession: [created, renamed, turnedOff].map(automation => automation.continueSession),
+			targets: connection.dispatched.map(({ action }) => action.type === ActionType.AutomationCreateRequested ? action.definition.target : action.type === ActionType.AutomationUpdateRequested ? action.changes.target : undefined),
+		}, {
+			supported: [false, true, false],
+			continueSession: [true, true, undefined],
+			targets: [{ kind: AutomationTargetKind.PreviousSession }, { kind: AutomationTargetKind.PreviousSession }, { kind: AutomationTargetKind.NewSession }],
 		});
 	});
 

@@ -109,6 +109,7 @@ export interface IAgentPluginResource extends INamedPluginResource {
 	readonly reasoningEffort?: string;
 	readonly modelPolicy?: 'preferred' | 'required';
 	readonly argumentHint?: string;
+	readonly welcomeMessage?: string;
 	readonly tools?: readonly string[];
 	readonly disableModelInvocation?: boolean;
 	readonly disableUserInvocation?: boolean;
@@ -391,7 +392,7 @@ function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomizat
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
 		...(resource.model ? { model: resource.model } : {}),
-		...(resource.models || resource.reasoningEffort || resource.modelPolicy || resource.argumentHint ? { _meta: toAgentCustomizationMeta({ 'vscode.models': resource.models, 'vscode.reasoningEffort': resource.reasoningEffort, 'vscode.modelPolicy': resource.modelPolicy, 'vscode.argumentHint': resource.argumentHint }) } : {}),
+		...(resource.models || resource.reasoningEffort || resource.modelPolicy || resource.argumentHint || resource.welcomeMessage ? { _meta: toAgentCustomizationMeta({ 'vscode.models': resource.models, 'vscode.reasoningEffort': resource.reasoningEffort, 'vscode.modelPolicy': resource.modelPolicy, 'vscode.argumentHint': resource.argumentHint, 'vscode.welcomeMessage': resource.welcomeMessage }) } : {}),
 		...(resource.tools?.length ? { tools: [...resource.tools] } : {}),
 		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
 		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
@@ -1268,6 +1269,7 @@ export async function readAgentComponents(
 				...(parsed.reasoningEffort ? { reasoningEffort: parsed.reasoningEffort } : {}),
 				...(parsed.modelPolicy ? { modelPolicy: parsed.modelPolicy } : {}),
 				...(parsed.argumentHint ? { argumentHint: parsed.argumentHint } : {}),
+				...(parsed.welcomeMessage ? { welcomeMessage: parsed.welcomeMessage } : {}),
 				...(parsed.tools?.length ? { tools: parsed.tools } : {}),
 				...(parsed.disableModelInvocation ? { disableModelInvocation: true } : {}),
 				...(parsed.userInvocable === false ? { disableUserInvocation: true } : {}),
@@ -1290,7 +1292,7 @@ export async function readAgentComponents(
 	return result;
 }
 
-export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; argumentHint?: string; userInvocable?: boolean; model?: string; models?: readonly string[]; reasoningEffort?: string; modelPolicy?: 'preferred' | 'required'; tools?: readonly string[]; disableModelInvocation?: boolean }> {
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; argumentHint?: string; userInvocable?: boolean; model?: string; models?: readonly string[]; reasoningEffort?: string; modelPolicy?: 'preferred' | 'required'; welcomeMessage?: string; tools?: readonly string[]; disableModelInvocation?: boolean }> {
 	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
 	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
@@ -1305,10 +1307,13 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const reasoningEffort = frontmatter?.getStringValue('reasoning-effort');
 		const policy = frontmatter?.getStringValue('model-policy');
 		const modelPolicy = policy === 'preferred' || policy === 'required' ? policy : undefined;
+		const vscode = frontmatter?.header?.type === 'map' ? frontmatter.header.properties.find(property => property.key.value === 'vscode')?.value : undefined;
+		const message = vscode?.type === 'map' ? vscode.properties.find(property => property.key.value === 'welcome-message')?.value : undefined;
+		const welcomeMessage = message?.type === 'scalar' && message.value.trim() ? message.value : undefined;
 		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
 		const infer = frontmatter?.getBooleanValue('infer');
 		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
-		return { name, description, ...(argumentHint ? { argumentHint } : {}), userInvocable, model, ...(models && models.length > 1 ? { models } : {}), ...(reasoningEffort ? { reasoningEffort } : {}), ...(modelPolicy ? { modelPolicy } : {}), tools, disableModelInvocation };
+		return { name, description, ...(argumentHint ? { argumentHint } : {}), userInvocable, model, ...(models && models.length > 1 ? { models } : {}), ...(reasoningEffort ? { reasoningEffort } : {}), ...(modelPolicy ? { modelPolicy } : {}), ...(welcomeMessage ? { welcomeMessage } : {}), tools, disableModelInvocation };
 	} catch {
 		return { name: nameFromFile };
 	}

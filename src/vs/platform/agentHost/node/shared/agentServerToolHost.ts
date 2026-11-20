@@ -91,8 +91,11 @@ export interface IServerToolGroup {
 	readonly materializeDefinitions?: boolean;
 	/** Whether a contributed tool is currently enabled for advertisement and execution. */
 	isEnabled(toolName: string, sessionUri?: URI): boolean;
-	/** Tailors current tool wording to a session without changing its materialized membership. */
-	getDefinitionForSession?(definition: IAgentServerToolDefinition, sessionUri: URI): IAgentServerToolDefinition;
+	/**
+	 * Tailors current tool wording to a session without changing its materialized membership.
+	 * @param offeredToolNames The names of this group's tools the session offers, so wording mentions only tools the agent can call.
+	 */
+	getDefinitionForSession?(definition: IAgentServerToolDefinition, sessionUri: URI, offeredToolNames: ReadonlySet<string>): IAgentServerToolDefinition;
 	/** Whether a contributed tool is supported by a specific session. */
 	isEnabledForSession(toolName: string, sessionUri: URI): boolean;
 	/**
@@ -207,16 +210,21 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 				// of pinning the descriptions they were first advertised with. Tools
 				// with no current definition (e.g. the retired create_chat) keep their
 				// stored metadata.
-				const currentByName = new Map(currentDefinitions.map(definition => [definition.name, group.getDefinitionForSession?.(definition, sessionUri) ?? definition]));
-				return materializedDefinitions
+				const currentByName = new Map(currentDefinitions.map(definition => [definition.name, definition]));
+				const offered = materializedDefinitions
 					.filter(definition => this._groupByToolName.get(definition.name) === group)
-					.filter(definition => !currentByName.has(definition.name) || group.isEnabledForSession(definition.name, sessionUri))
-					.map(definition => currentByName.get(definition.name) ?? definition);
+					.filter(definition => !currentByName.has(definition.name) || group.isEnabledForSession(definition.name, sessionUri));
+				const offeredNames = new Set(offered.map(definition => definition.name));
+				return offered.map(definition => {
+					const current = currentByName.get(definition.name);
+					return current ? group.getDefinitionForSession?.(current, sessionUri, offeredNames) ?? current : definition;
+				});
 			}
-			const definitions = currentDefinitions
+			const offered = currentDefinitions
 				.filter(definition => group.isEnabled(definition.name, sessionUri) && group.isEnabledForSession(definition.name, sessionUri))
-				.map(definition => group.getDefinitionForSession?.(definition, sessionUri) ?? definition);
-			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;
+				.filter(definition => !isEphemeral || definition.enabledForEphemeralSessions);
+			const offeredNames = new Set(offered.map(definition => definition.name));
+			return offered.map(definition => group.getDefinitionForSession?.(definition, sessionUri, offeredNames) ?? definition);
 		}).filter(definition => !definition.topLevelChatOnly || !isSubagentSession(sessionUri));
 	}
 
@@ -297,7 +305,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	}
 
 	private _toProtocolDefinitions(definitions: readonly IAgentServerToolDefinition[]): ToolDefinition[] {
-		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, topLevelChatOnly: _topLevelChatOnly, deferLoading: _deferLoading, ...definition }) => definition);
+		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, topLevelChatOnly: _topLevelChatOnly, deferLoading: _deferLoading, deferredInputSchema: _deferredInputSchema, ...definition }) => definition);
 	}
 
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {

@@ -1829,6 +1829,6 @@ export class MainEditorPart extends EditorPart {
 
 	// The new tab button shows while its menu has entries, which the `workbench.editor.newTabButton` setting controls.
 	protected override getGroupViewOptions(): IEditorGroupViewOptions | undefined {
-		return { menuIds: { tabsBarAddTab: MenuId.EditorTabsBarAddTab } };
+		return { menuIds: { tabsBarAddTab: MenuId.EditorTabsBarAddTab, tabsBarAddTabRecentFirst: true } };
 	}
 }

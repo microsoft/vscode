@@ -21,13 +21,12 @@ import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalMana
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { CopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
-import type { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 
 export const testRuntime: ICopilotSessionRuntime = {
 	chatUri: URI.parse(buildDefaultChatUri('copilot:/sess-1')),
 	launchOwner: URI.parse('copilot:/sess-1'),
 	getLaunchSandboxConfig: () => undefined,
-	applyLaunchSandbox: async session => { await session.rpc.options.update({ sandboxConfig: { enabled: false } }); },
+	applyLaunchSandbox: async session => { await session.rpc.options.update({ permissions: { sandbox: { enabled: false } } }); },
 	handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
 	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
 	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
@@ -92,6 +91,5 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		telemetryService ?? upcastPartial<ITelemetryService>({ telemetryLevel: TelemetryLevel.USAGE }),
 		upcastPartial<ICopilotHomeService>({ home: URI.file('/copilot-home') }),
 		accountService ?? upcastPartial<ICopilotAccountService>({}),
-		upcastPartial<ICopilotApiService>({}),
 	);
 }

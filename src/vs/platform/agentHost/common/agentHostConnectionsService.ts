@@ -22,6 +22,12 @@ import type { DefaultChangesetKind } from './changesetUri.js';
 export const LOCAL_AGENT_HOST_SCHEME_PREFIX = 'agent-host-';
 
 /**
+ * The id of the sessions provider of the window's local agent host. Its session types are the provider parts of its
+ * chat-session types: `copilotcli` for `agent-host-copilotcli` ({@link LOCAL_AGENT_HOST_SCHEME_PREFIX}).
+ */
+export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+
+/**
  * Reserved connection authority for the window's ambient/primary agent host.
  *
  * NOTE: "ambient" is not the same as "local". In a local window the ambient

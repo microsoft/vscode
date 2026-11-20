@@ -1219,6 +1219,10 @@ export class ChatGroupsView extends Themable {
 		return this._activeGroup?.view.selectNoWorkspace(options) ?? 'notReady';
 	}
 
+	selectEnvironment(providerId: string): WorkspaceSelectionResult {
+		return this._activeGroup?.view.selectEnvironment(providerId) ?? 'notReady';
+	}
+
 	prefillInput(text: string): void {
 		this._activeGroup?.view.prefillInput(text);
 	}

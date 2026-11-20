@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as esbuild from 'esbuild';
 import ts from 'typescript';
 import { SourceMapConsumer } from 'source-map';
-import { getBundleOptions } from '../bundle.ts';
+import { assertOneByteStartupBundle, bundleAssetLoaders, desktopWorkbenchEntryPoint, getBundleOptions } from '../bundle.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..');
 
@@ -26,8 +26,9 @@ async function bundle(source: string, minify: boolean, platform: 'neutral' | 'no
 	const output = Object.values(result.metafile.outputs).find(output => output.entryPoint);
 	assert.ok(javascript && sourceMap && output);
 	return {
+		file: javascript.path,
 		code: javascript.text,
-		map: new SourceMapConsumer(JSON.parse(sourceMap.text)),
+		readSourceMap: () => sourceMap.text,
 		output,
 	};
 }
@@ -38,6 +39,38 @@ function positionOf(text: string, token: string): { line: number; column: number
 	const lines = text.slice(0, offset).split('\n');
 	return { line: lines.length, column: lines[lines.length - 1].length };
 }
+
+suite('desktop workbench startup encoding', () => {
+	test('the minified desktop JavaScript import graph stays within Latin-1', async () => {
+		const file = path.join(repoRoot, 'out-test', `${desktopWorkbenchEntryPoint}.js`);
+		const result = await esbuild.build({
+			...getBundleOptions(true, 'neutral'),
+			entryPoints: [path.join(repoRoot, 'src', `${desktopWorkbenchEntryPoint}.ts`)],
+			outfile: file,
+			loader: { ...bundleAssetLoaders, '.css': 'empty' },
+			sourcesContent: false,
+		});
+		const js = result.outputFiles?.find(output => output.path === file);
+		const map = result.outputFiles?.find(output => output.path === `${file}.map`);
+		assert.ok(js && map);
+		assertOneByteStartupBundle(file, js.text, () => map.text);
+	});
+
+	test('allows Latin-1 regexes, Unicode escapes and strings escaped by esbuild', async () => {
+		const { file, code } = await bundle('export const values = [/[\u00ff\\u0100]/u, "\u3002"];', true, 'neutral');
+		assertOneByteStartupBundle(file, code, () => assert.fail('Passing bundles should not need their source map'));
+	});
+
+	test('reports the first two-byte regex character at its TypeScript source', async () => {
+		const { file, code, readSourceMap } = await bundle('\nexport const flag = /[\u00ff\u0100]/u;', true, 'neutral');
+		assert.throws(() => assertOneByteStartupBundle(file, code, readSourceMap), /fixture\.ts:2:\d+ .*U\+0100/);
+	});
+
+	test('reports an unmapped wide character in a retained comment as a full code point', async () => {
+		const { file, code, readSourceMap } = await bundle('/*! \u{1F600} */\nexport const value = 1;', true, 'neutral');
+		assert.throws(() => assertOneByteStartupBundle(file, code, readSourceMap), /bundle\.js:\d+:\d+: U\+1F600/);
+	});
+});
 
 suite('production bundle helpers', () => {
 	for (const platform of ['neutral', 'node'] as const) {
@@ -180,7 +213,8 @@ suite('production bundle helpers', () => {
 
 				test('maps tokens after the banner to the original TypeScript and retains legal comments', async () => {
 					const source = '/*! Fixture license */\nexport function marker() {\n\treturn "TSLIB_SOURCE_MAP";\n}\n';
-					const { code, map } = await bundle(source, minify, platform);
+					const { code, readSourceMap } = await bundle(source, minify, platform);
+					const map = new SourceMapConsumer(JSON.parse(readSourceMap()));
 					const original = positionOf(source, '"TSLIB_SOURCE_MAP"');
 					assert.deepStrictEqual({
 						position: map.originalPositionFor(positionOf(code, '"TSLIB_SOURCE_MAP"')),

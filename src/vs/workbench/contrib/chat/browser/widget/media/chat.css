@@ -562,6 +562,11 @@
 	text-overflow: ellipsis;
 }
 
+/* The model details give way first, so the working time is never cut off mid-number. */
+.interactive-item-container .chat-response-working-time {
+	flex-shrink: 0;
+}
+
 .interactive-item-container.interactive-response .chat-footer-toolbar .chat-footer-details.hidden {
 	display: none;
 }
@@ -1252,13 +1257,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-dnd-overlay .attach-context-overlay-text {
-	padding: 0.6em;
-	margin: 0.2em;
-	line-height: 12px;
-	height: 12px;
 	display: flex;
 	align-items: center;
-	text-align: center;
+}
+
+.chat-dnd-overlay .attach-context-overlay-text .overlay-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .chat-dnd-overlay .attach-context-overlay-text .codicon {
@@ -3850,6 +3856,32 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-working-progress-has-activities > .rendered-markdown.progress-step {
 	display: none;
+}
+
+.chat-working-progress > .chat-live-response-stats {
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
+/* Leading stats take the place of a generic working phrase, and lead a label or activities that name a state. */
+.chat-working-progress-generic-label > .chat-working-progress-leading-stats:not([hidden]) ~ .rendered-markdown.progress-step {
+	display: none;
+}
+
+.chat-working-progress:not(.chat-working-progress-generic-label) > .chat-working-progress-leading-stats::after {
+	/* The separator between the stats themselves. */
+	content: ' \00b7  ';
+	white-space: pre;
+}
+
+/* Trailing stats follow the phrase, label or activities, after the same separator. */
+.chat-working-progress > .chat-working-progress-trailing-stats::before {
+	content: ' \00b7  ';
+	white-space: pre;
+}
+
+/* The slot of the activities' chevron, which shows on hover, already sets them apart. */
+.chat-working-progress-has-activities > .chat-working-progress-trailing-stats::before {
+	content: '\00b7  ';
 }
 
 .chat-working-activities {
