@@ -634,6 +634,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					'vscode.models': agent.models,
 					'vscode.reasoningEffort': reasoningEffort,
 					'vscode.modelPolicy': parsed.modelPolicy,
+					'vscode.welcomeMessage': parsed.welcomeMessage,
 				});
 				agents.push({
 					type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: isPlugin ? parsed.name : agent.name, description: agent.description,

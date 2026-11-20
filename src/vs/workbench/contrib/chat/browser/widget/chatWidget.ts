@@ -516,6 +516,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	readonly inputVisible: IObservable<boolean> = this._inputVisibleObs;
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
+	/** The selected custom agent's `welcome-message`, shown as the welcome while the chat is empty. */
+	private _agentEmptyChatMessage: { readonly agentName: string; readonly markdown: IMarkdownString } | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
 	private _isRenderingWelcome = false;
@@ -1768,7 +1770,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						welcomeContent,
 						{
 							location: this.location,
-							isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent
+							isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent,
+							// An agent's message offers its first (command) link as a button.
+							firstLinkToButton: !!this._agentEmptyChatMessage,
 						}
 					);
 					dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
@@ -1783,6 +1787,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private renderGettingStartedTipIfNeeded(): void {
 		this._gettingStartedTip.value?.update();
+	}
+
+	private _observeAgentEmptyChatMessage(input: ChatInputPart): IDisposable {
+		return autorun(reader => {
+			const mode = input.currentModeObs.read(reader);
+			const name = mode.name.read(reader);
+			const message = mode.isBuiltin ? undefined : mode.welcomeMessage?.read(reader);
+			this._updateAgentEmptyChatMessage(name, message?.trim() ? message : undefined);
+		});
+	}
+
+	private _updateAgentEmptyChatMessage(agentName: string, text: string | undefined): void {
+		const current = this._agentEmptyChatMessage;
+		if (text === current?.markdown.value && (!current || agentName === current.agentName)) {
+			return;
+		}
+		this._agentEmptyChatMessage = text ? { agentName, markdown: new MarkdownString(text, { isTrusted: true, supportThemeIcons: true }) } : undefined;
+		this.welcomeMessageContainer?.classList.toggle('chat-agent-empty-chat-message', !!this._agentEmptyChatMessage);
+		this.renderWelcomeViewContentIfNeeded();
 	}
 
 	updateGettingStartedTip(): void {
@@ -1864,6 +1887,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
+		if (this._agentEmptyChatMessage) {
+			return { title: this._agentEmptyChatMessage.agentName, message: this._agentEmptyChatMessage.markdown, icon: Codicon.chatSparkle };
+		}
 		if (this.isLockedToCodingAgent && !this._lockedAgent?.agentHostProviderId) {
 			// Check for provider-specific customizations from chat sessions service
 			const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
@@ -3172,6 +3198,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderFollowups();
 			this.renderChatSuggestNextWidget();
 		}));
+		if (!isInlineEdit) {
+			store.add(this._observeAgentEmptyChatMessage(input));
+		}
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
 		const hasByokModelsContextKeys = new Set([ChatEntitlementContextKeys.hasByokModels.key]);
 		store.add(this.contextKeyService.onDidChangeContext(e => {
