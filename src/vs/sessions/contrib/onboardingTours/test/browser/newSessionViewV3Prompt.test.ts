@@ -8,14 +8,15 @@ import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { FileOperationError, FileOperationResult, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
@@ -56,6 +57,25 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 class MissingFileService extends mock<IFileService>() {
 	override stat(_resource: URI): ReturnType<IFileService['stat']> {
 		return Promise.reject(new FileOperationError('Not found', FileOperationResult.FILE_NOT_FOUND));
+	}
+}
+
+/** A file system with only a Git repository at `root`, whose `origin` remote is `remoteUrl`. */
+class GitRepositoryFileService extends MissingFileService {
+	constructor(private readonly _root: URI, private readonly _remoteUrl: string) {
+		super();
+	}
+
+	override stat(resource: URI): ReturnType<IFileService['stat']> {
+		return isEqual(resource, joinPath(this._root, '.git'))
+			? Promise.resolve(upcastPartial<IFileStatWithMetadata>({ isDirectory: true }))
+			: super.stat(resource);
+	}
+
+	override readFile(resource: URI): ReturnType<IFileService['readFile']> {
+		return isEqual(resource, joinPath(this._root, '.git', 'config'))
+			? Promise.resolve(upcastPartial<IFileContent>({ value: VSBuffer.fromString(`[remote "origin"]\n\turl = ${this._remoteUrl}\n`) }))
+			: Promise.reject(new FileOperationError('Not found', FileOperationResult.FILE_NOT_FOUND));
 	}
 }
 
@@ -877,7 +897,7 @@ suite('NewSessionViewV3Prompt', () => {
 		assert.deepStrictEqual(result.gitHubRequests, []);
 	});
 
-	test('waits for Agent Host git metadata instead of requiring the Git extension', async () => {
+	test('waits for Agent Host git metadata', async () => {
 		const workspace = observableValue('workspace', createWorkspace(URI.file('C:\\repo'), 'r', false));
 		const activeSession = new class extends mock<ITestSessionWithChat>() {
 			override readonly providerId = 'local-agent-host';
@@ -886,7 +906,6 @@ suite('NewSessionViewV3Prompt', () => {
 			override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 			override readonly workspace = workspace;
 		}();
-		let gitServiceCalled = false;
 		let prompt: string | undefined;
 		const runner = new NewSessionViewV3PromptRunner(
 			new TestAssignmentService({ 'onb.newSessionViewV3.variation': 'githubPrompt' }),
@@ -900,12 +919,6 @@ suite('NewSessionViewV3Prompt', () => {
 					},
 					showPromptOptions: () => true,
 				});
-			}(),
-			new class extends mock<IGitService>() {
-				override async openRepository(): Promise<IGitRepository | undefined> {
-					gitServiceCalled = true;
-					return undefined;
-				}
 			}(),
 			new MissingFileService(),
 			new class extends mock<IGitHubService>() {
@@ -926,13 +939,7 @@ suite('NewSessionViewV3Prompt', () => {
 		workspace.set(createWorkspace(URI.file('C:\\repo'), 'r', true), undefined);
 		await run;
 
-		assert.deepStrictEqual({
-			gitServiceCalled,
-			prompt,
-		}, {
-			gitServiceCalled: false,
-			prompt: 'Tackle the following issue and create a pull request for it: "Metadata issue" (https://github.com/o/r/issues/Metadata%20issue).',
-		});
+		assert.strictEqual(prompt, 'Tackle the following issue and create a pull request for it: "Metadata issue" (https://github.com/o/r/issues/Metadata%20issue).');
 	});
 
 	test('discards a result when the selected workspace changes during the request', async () => {
@@ -956,7 +963,6 @@ suite('NewSessionViewV3Prompt', () => {
 					showPromptOptions: () => true,
 				});
 			}(),
-			new class extends mock<IGitService>() { }(),
 			new MissingFileService(),
 			new class extends mock<IGitHubService>() {
 				override async getRecentAssignedIssues(_owner: string, repo: string) {
@@ -1110,30 +1116,12 @@ async function runPrompt(
 		}
 	}();
 	const telemetryService = new TestTelemetryService();
-	const gitService = new class extends mock<IGitService>() {
-		override async openRepository(): Promise<IGitRepository | undefined> {
-			if (!options.gitRemoteUrl) {
-				return undefined;
-			}
-			return new class extends mock<IGitRepository>() {
-				override readonly rootUri = workspaceUri;
-				override readonly state = constObservable({
-					remotes: [{ name: 'origin', fetchUrl: options.gitRemoteUrl, isReadOnly: false }],
-					mergeChanges: [],
-					indexChanges: [],
-					workingTreeChanges: [],
-					untrackedChanges: [],
-				});
-			}();
-		}
-	}();
 	const runner = new NewSessionViewV3PromptRunner(
 		new TestAssignmentService(treatments) as IWorkbenchAssignmentService,
 		new TestConfigurationService(configuration),
 		sessionsService.activeSession,
 		composerService,
-		gitService,
-		new MissingFileService(),
+		options.gitRemoteUrl ? new GitRepositoryFileService(workspaceUri, options.gitRemoteUrl) : new MissingFileService(),
 		gitHubService,
 		telemetryService,
 		new NullLogService(),

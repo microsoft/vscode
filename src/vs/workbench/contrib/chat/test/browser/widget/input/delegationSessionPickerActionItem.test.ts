@@ -31,7 +31,6 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext } from '../../../../../../common/contextkeys.js';
-import { IGitService } from '../../../../../git/common/gitService.js';
 import { IAgentSdkSetupService } from '../../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ICodexAccountService } from '../../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
@@ -146,7 +145,6 @@ suite('DelegationSessionPickerActionItem', () => {
 		}());
 		instantiationService.stub(IAgentSdkSetupService, { setups: [] });
 		instantiationService.stub(ICodexAccountService, { account: { status: 'unknown' } });
-		instantiationService.stub(IGitService, new class extends mock<IGitService>() { }());
 		instantiationService.stub(IChatHarnessSwitchFeedbackSurveyService, { prompt: () => { } });
 
 		const action = instantiationService.createInstance(MenuItemAction, new OpenDelegationPickerAction().desc, undefined, undefined, undefined, undefined);
