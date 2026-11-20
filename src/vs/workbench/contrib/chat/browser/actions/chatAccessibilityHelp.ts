@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { getActiveElement, getWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { AccessibleDiffViewerNext } from '../../../../../editor/browser/widget/diffEditor/commands.js';
@@ -13,7 +14,7 @@ import { IAccessibleViewImplementation } from '../../../../../platform/accessibi
 import { LocalModelEnabledSettingId } from '../../../../../platform/agentHost/common/localModel.js';
 import { CloudSandboxEarlyPreparationSettingId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { getTabbedActionListKeybindingLabels } from '../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -24,7 +25,7 @@ import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
 import { TerminalContribCommandId } from '../../../terminal/terminalContribExports.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
-import { isStickyPromptHeaderShown } from '../promptTimeline/promptTimelineWidgetContrib.js';
+import { getPromptTimelineRailStyle, isStickyPromptHeaderShown } from '../promptTimeline/promptTimelineWidgetContrib.js';
 import { FocusAgentSessionsAction } from '../agentSessions/agentSessionsActions.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../agentSessions/agentSessions.js';
 import { IChatWidgetService, isIChatResourceViewContext, isResponseSelectionSupported } from '../chat.js';
@@ -74,6 +75,11 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
+/** Where side chats open, and how to reach them, while the Agents window shows them as tabs of its side panel. */
+export function getSideChatsInSidePaneAccessibilityHelp(): string {
+	return localize('chat.sideChatsInSidePane', "Side chats, such as those started with /btw, open as tabs of the side panel beside Changes and Files, while the chat they come from stays in place. Focus moves to the side chat's input when it opens. Each chat keeps its own side chat tabs, which show again when you return to that chat. To ask a new side question about the active chat, choose Side Chat from the side panel's Add Tab menu, or New Side Chat from the Command Palette, type the question, and press Enter. While the active chat has side chats, the Session Activity Bar shows a Side Chat entry that opens its only side chat, or a Side Chats submenu that lists them; the entry is checked while the side panel shows a side chat. You can also reopen a closed side chat from the Side Chats dropdown in the session's overflow menu.");
+}
+
 export function getChatViewModeAccessibilityHelp(): string {
 	return localize('chat.viewMode.help', "Open the chat menu and choose View Mode to select Compact, Verbose, or Conversation. The active mode is checked. Press Right Arrow to open the submenu, Up or Down Arrow to choose a mode, Enter to apply it, and Left Arrow or Escape to go back. Selecting a mode updates {0} and enables {1} if it is Off; otherwise your progress animation is preserved. Legacy thinking presentation settings will be deprecated in a future release.", ChatConfiguration.PersistentProgressVerbosity, ChatConfiguration.PersistentProgress);
 }
@@ -106,7 +112,7 @@ export function getAppWindowScreenshotAccessibilityHelp(): string {
 	return localize('chat.attachments.appWindowScreenshot', "To attach a screenshot of the window of another app, such as the app that you are building, use Attach Screenshot of App Window{0}. It captures the window that you are using or just left, and announces which window it attached. After your first screenshot, a chat tip offers to enable its keybinding in all apps. The keybinding then also works while another app is in front, and VS Code comes to the front with the screenshot in the chat input. The command Pick App Window to Screenshot lists the open windows to choose from instead. While macOS does not allow Screen Recording, the command opens a setup dialog instead, which lists its steps with their status. Allow in Settings opens System Settings; when you come back, the dialog checks again and offers to restart, which macOS needs to apply the permission. After you paste or drop an image into the chat input, a tip above the input suggests this command's keybinding once; the keybinding in it is a link that runs the command, and Escape dismisses the tip.", '<keybinding:workbench.action.chat.attachAppWindowScreenshot>');
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported(), sessionWorkingSetEnabled: boolean = false, sessionWorkingSetUndo: boolean = false, sessionWorkingSetReviewEnabled: boolean = true, inlineAttachmentsEnabled: boolean = false, chatResourcesEnabled: boolean = false, appWindowScreenshotsEnabled: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported(), sessionWorkingSetEnabled: boolean = false, sessionWorkingSetUndo: boolean = false, sessionWorkingSetReviewEnabled: boolean = true, inlineAttachmentsEnabled: boolean = false, chatResourcesEnabled: boolean = false, appWindowScreenshotsEnabled: boolean = false, sideChatsInSidePane: boolean = false, promptTimelineGutterShown: boolean = false): string {
 	const content = [];
 	if (type !== 'inlineChat' && type !== 'quickChat') {
 		content.push(localize('chat.agentPickerSources', "When an Agent Host picker lists agents with the same name, each entry includes its source, using the extension name when available. If sources also match, a file name or location helps distinguish the agents."));
@@ -316,6 +322,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		if (stickyPromptHeaderShown) {
 			content.push(localize('chat.stickyPromptHeader', 'The prompt you have scrolled past is pinned to the top of the transcript. Activate its title to jump back to that prompt.'));
 		}
+		if (promptTimelineGutterShown) {
+			content.push(localize('chat.promptTimelineGutter', "A handle on the left edge of the transcript lists your prompts. Activate it to expand the list, use the up and down arrows (or Home and End) to move between prompts, Enter or Space to jump to a prompt, and Escape to dismiss the list and return focus to the handle."));
+		}
 		content.push(localize('workbench.action.chat.announceConfirmation', "To focus pending chat confirmation dialogs or MCP authentication prompts, invoke the Chat: Focus Chat Confirmation command{0}. Use Tab to reach a button and Enter or Space to activate it. Invoke the command again to return to the chat input.", '<keybinding:workbench.action.chat.focusConfirmation>'));
 		content.push(localize('chat.mcpAuthenticationProgress', "After you activate Authenticate, authentication progress and its outcome are announced. Errors are announced through notifications. An incomplete or cancelled attempt is not reported as a success."));
 		content.push(localize('chat.sandboxPathGrant', "When a sandbox confirmation offers path access, review the granted path and whether it allows reading or reading and writing. A grant may cover a folder rather than only the blocked file. Allow for This Session is the default: access is shared by chats in this session and saved when you resume it, without changing user settings. When supported for the chat's workspace folders, the approval dropdown offers Allow for This Workspace. This saves access privately on the agent host for chats using the same folders, without changing workspace settings. Allow for This User saves access in your user settings and shares it with connected agent hosts across workspaces and sessions. All scopes retry inside the sandbox and remain subject to your organization's restrictions. Skip declines access. Use Tab to reach More Actions, Enter or Space to open the approval dropdown, Up or Down Arrow to choose a scope, and Enter to approve. Escape closes the dropdown without approving."));
@@ -350,6 +359,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	if (type !== 'inlineChat' && type !== 'quickChat') {
 		content.push(localize('chat.btw', "In a conversation that supports side chats, type /btw followed by a question to open a side chat with the prior conversation as context. You can ask while a response is in progress without stopping it."));
+		if (isSessionsWindow && sideChatsInSidePane) {
+			content.push(getSideChatsInSidePaneAccessibilityHelp());
+		}
 		content.push(localize('chat.terminalConfirmationExplain', "When a terminal command needs approval and the agent describes what it is for, the confirmation title includes that description, such as Run in terminal: followed by the description. In a conversation that supports side chats, use Tab to reach Explain and press Enter or Space to open a fresh side chat that explains only the terminal command, without the prior conversation as context. The confirmation stays pending until you allow or skip it."));
 		if (responseSelectionSupported) {
 			content.push(isSessionsWindow
@@ -456,7 +468,7 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 	const workingSetFocus = isHTMLElement(focusedElement) && focusedElement.closest('.chat-session-working-set') ? focusedElement : undefined;
 	inputEditor.getSupportedActions();
 	const isInlineChat = isIChatResourceViewContext(widget.viewContext) && widget.viewContext.isInlineChat;
-	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get(), configurationService.getValue<boolean>(LocalModelEnabledSettingId) === true, undefined, widget.inputPart.hasSessionWorkingSet, widget.inputPart.hasSessionWorkingSetUndo, widget.inputPart.sessionWorkingSet?.keepUndoEnabled, !!widget.input.inlineAttachments?.isEnabled, configurationService.getValue<boolean>(ChatResourcesEnabledSettingId) === true, configurationService.getValue<boolean>(ChatConfiguration.AppWindowScreenshotsEnabled) === true);
+	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get(), configurationService.getValue<boolean>(LocalModelEnabledSettingId) === true, undefined, widget.inputPart.hasSessionWorkingSet, widget.inputPart.hasSessionWorkingSetUndo, widget.inputPart.sessionWorkingSet?.keepUndoEnabled, !!widget.input.inlineAttachments?.isEnabled, configurationService.getValue<boolean>(ChatResourcesEnabledSettingId) === true, configurationService.getValue<boolean>(ChatConfiguration.AppWindowScreenshotsEnabled) === true, ChatContextKeys.sideChatsInSidePane.getValue(accessor.get(IContextKeyService)) === true && getWindow(domNode) === mainWindow, !environmentService.isSessionsWindow && getPromptTimelineRailStyle(widget, configurationService, false) === 'gutter');
 	return new AccessibleContentProvider(
 		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },

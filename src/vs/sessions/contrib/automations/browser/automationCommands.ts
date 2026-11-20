@@ -14,6 +14,7 @@ import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { getAutomationAfterDate, isAutomationAfterDateExpired } from '../../../../platform/agentHost/common/automationDisableConditions.js';
 import { AutomationDisableConditionKind } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -30,6 +31,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import type { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
 import { IAutomationDialogResult, IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type IAutomationRefreshOptions, IAutomationService, type IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { hasAutomationEventTrigger } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -67,6 +69,17 @@ export const AutomationCommands = {
 	createWithAgent: {
 		id: 'sessions.automations.createWithAgent',
 		title: localize2('createWithAgent', "Create with Agent"),
+		precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+	},
+	edit: {
+		id: 'sessions.automations.edit',
+		title: localize2('editAutomation', "Edit..."),
+		precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+	},
+	run: {
+		id: 'sessions.automations.run',
+		title: localize2('runAutomationNow', "Run"),
+		icon: Codicon.play,
 		precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
 	},
 	import: {
@@ -141,6 +154,97 @@ export async function showAutomationEditDialog(
 		},
 	});
 }
+
+registerAction2(class EditAutomationAction extends Action2 {
+	constructor() {
+		super(AutomationCommands.edit);
+	}
+
+	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		if (configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true) {
+			await showAutomationsDisabled(dialogService);
+			return;
+		}
+		const automationService = accessor.get(IAutomationService);
+		const logService = accessor.get(ILogService);
+		try {
+			const current = automationService.getAutomation(automation.id);
+			if (!current || !automationService.canUpdateAutomation(automation.id)) {
+				throw new Error(current?.readOnlyReason ?? localize('automationEditUnavailable', "This automation is no longer available for editing."));
+			}
+			const result = await showAutomationEditDialog(current, accessor.get(IAutomationDialogService), automationService, configurationService, accessor.get(ITelemetryService));
+			if (result?.kind === 'update') {
+				status(localize('automationUpdatedStatus', "Updated automation {0}", current.name));
+			}
+		} catch (error) {
+			logService.error('[Automations] Failed to update automation', error);
+			await dialogService.error(localize('automationUpdateFailed', "Failed to update automation."), getErrorMessage(error));
+		}
+	}
+});
+
+registerAction2(class RunAutomationNowAction extends Action2 {
+	private readonly pending = new Set<string>();
+	constructor() {
+		super(AutomationCommands.run);
+	}
+
+	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<IAutomationRunDispatch | undefined> {
+		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		if (configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true) {
+			await showAutomationsDisabled(dialogService);
+			return undefined;
+		}
+		if (configurationService.getValue<boolean>(ChatAIDisabledSettingId)) {
+			await dialogService.info(localize('automationRunAiDisabled', "Enable AI features to run automations."));
+			return undefined;
+		}
+		const automationService = accessor.get(IAutomationService);
+		const logService = accessor.get(ILogService);
+		if (this.pending.has(automation.id)) {
+			status(localize('automationDispatchPending', "A run request for {0} is already pending.", automation.name));
+			return undefined;
+		}
+		this.pending.add(automation.id);
+		try {
+			const current = automationService.getAutomation(automation.id);
+			if (!current || !automationService.canRunAutomation(automation.id)) {
+				throw new Error(localize('automationRunUnavailable', "This automation is no longer available to run."));
+			}
+			const dispatch = await accessor.get(IAutomationRunner).runOnce(current).whenDispatched;
+			switch (dispatch.kind) {
+				case 'accepted':
+					status(localize('automationAcceptedStatus', "Run requested for {0}. Its history will update when available.", current.name));
+					break;
+				case 'started':
+					status(localize('automationStartedStatus', "Started automation {0}", current.name));
+					break;
+				case 'queued':
+					status(localize('automationQueuedStatus', "Queued automation {0}", current.name));
+					break;
+				case 'alreadyRunning':
+					status(localize('automationAlreadyRunningStatus', "Automation {0} is already running", current.name));
+					break;
+				case 'notStarted':
+					status(localize('automationNotStartedStatus', "Automation {0} did not start", current.name));
+					break;
+				case 'uncertain':
+					status(dispatch.message);
+					break;
+			}
+			return dispatch;
+		} catch (error) {
+			logService.error('[Automations] Failed to run automation', error);
+			await dialogService.error(localize('automationRunActionFailed', "Failed to run automation."), getErrorMessage(error));
+			return undefined;
+		} finally {
+			this.pending.delete(automation.id);
+		}
+	}
+});
 
 export function getErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
@@ -475,7 +579,7 @@ registerAction2(class NewAutomationAction extends Action2 {
 registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 	private showingIntroduction = false;
 	constructor() { super(AutomationCommands.createWithAgent); }
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, creationOptions?: { readonly skipIntroduction?: boolean }): Promise<void> {
 		if (this.showingIntroduction) {
 			return;
 		}
@@ -486,7 +590,7 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 		const composerService = accessor.get(INewSessionComposerService);
 		const storageService = accessor.get(IStorageService);
 		const sessionDraftsService = accessor.get(ISessionDraftsService);
-		if (onboardingScenarioRegistry.getScenario(AUTOMATIONS_TOUR_ID) && onboardingService.shouldShowNudge(AUTOMATIONS_TOUR_ID)) {
+		if (!creationOptions?.skipIntroduction && onboardingScenarioRegistry.getScenario(AUTOMATIONS_TOUR_ID) && onboardingService.shouldShowNudge(AUTOMATIONS_TOUR_ID)) {
 			this.showingIntroduction = true;
 			try {
 				const outcome = await onboardingService.runScenario(AUTOMATIONS_TOUR_ID);

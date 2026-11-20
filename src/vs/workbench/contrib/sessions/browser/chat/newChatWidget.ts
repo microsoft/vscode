@@ -41,7 +41,7 @@ import { getNoWorkspaceDescription, getQuickChatProviderLabel, getRemoteQuickCha
 import { shouldShowGitHubWorkspaceGroupSignIn } from '../../../../services/sessions/browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConfigProvider, IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
-import { NewSessionComposerFocusContext, NewSessionCreationProviderIdContext } from '../../common/contextkeys.js';
+import { NewSessionComposerFocusContext, NewSessionCreationProviderIdContext, bindNewSessionFolderPickerOffersNewWorktree } from '../../common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
 import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -445,6 +445,8 @@ export class NewChatWidget extends Disposable {
 		const draftHostAllowedFolders = this._draftHost?.allowedFolders;
 		this._newWorktree = draftHostAllowedFolders && this.instantiationService.createInstance(NewWorktreeChoice, this._session, derived(this, reader => draftHostAllowedFolders.read(reader).length > 0));
 		this._newWorktreeCheckboxVisible = this._createNewWorktreeCheckboxVisible(this._newWorktree, draftHostAllowedFolders);
+		// Restricted to its folders, the composer offers New Worktree itself, in its folder picker or as a checkbox
+		this._register(bindNewSessionFolderPickerOffersNewWorktree(this.contextKeyService, draftHostAllowedFolders));
 		const newWorktree = this._newWorktree;
 		if (newWorktree) {
 			// As its first request is sent in its folder, the draft can be asked to work in a new worktree instead
@@ -614,6 +616,15 @@ export class NewChatWidget extends Disposable {
 
 		const backgroundSend = this._backgroundSend;
 		const newChatInput = this.instantiationService.createInstance(SharedChatInputComposer, {
+			selectEnvironment: async providerId => {
+				const provider = this.sessionsProvidersService.getProvider(providerId);
+				const environment = provider && getRemoteSessionCreationEnvironment(provider);
+				if (!environment) {
+					throw new Error(localize('environmentPicker.unavailable', "This environment is no longer available."));
+				}
+				await this._selectEnvironment(environment);
+				this._newChatInput.focus();
+			},
 			inputEditorOptions: this.options.inputEditorOptions,
 			submitOverride: anchor => this._submitScheduledDraft(anchor),
 			shouldPersistInput: () => !this._isDraftPreview.get(),

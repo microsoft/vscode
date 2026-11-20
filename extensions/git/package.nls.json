@@ -428,6 +428,7 @@
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
+	"view.workbench.scm.openingLocation": "Opening the Git repository...",
 	"view.workbench.scm.scanFolderForRepositories": {
 		"message": "Scanning folder for Git repositories..."
 	},

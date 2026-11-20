@@ -203,6 +203,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 	readonly id = gitHubPullRequestArtifactIntegrationId;
 	readonly label = localize('prArtifact.integration', "GitHub Pull Request");
 	readonly groupLabel = localize('prArtifact.groupLabel', "Pull Requests");
+	readonly artifactKind = localize('prArtifact.kind', "PR");
 	readonly description = 'GitHub pull request links recorded as artifacts rather than references';
 	readonly automationOptions = gitHubPullRequestArtifactOptions;
 	readonly onDidChange: Event<void>;
@@ -318,8 +319,13 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 	}
 
 	private requestAuthentication(target: GitHubPullRequestArtifactTarget, error: GitHubFragmentError): void {
-		this.stateManager.emitAuthRequired({ resource: this.endpoint.getRepoResource(), reason: AuthRequiredReason.Required });
-		this.logService.warn(`[GitHubPullRequestArtifact] GitHub refused repository access (${error.kind}): ${target.owner}/${target.repo}#${target.number}${isSamlEnforcementError(error.message) ? '; organization SSO authorization is required' : ''}`);
+		const singleSignOn = isSamlEnforcementError(error.message);
+		// Signing in again cannot authorize a credential for an organization's single sign-on, so asking clients to
+		// would only repeat the sign-in dialog; the artifact's Sign In opens GitHub's authorization page instead.
+		if (!singleSignOn) {
+			this.stateManager.emitAuthRequired({ resource: this.endpoint.getRepoResource(), reason: AuthRequiredReason.Required });
+		}
+		this.logService.warn(`[GitHubPullRequestArtifact] GitHub refused repository access (${error.kind}): ${target.owner}/${target.repo}#${target.number}${singleSignOn ? '; organization SSO authorization is required' : ''}`);
 	}
 
 	createBinding(resource: GitHubPullRequestArtifactResource, context: IArtifactBindingContext): IArtifactIntegrationBinding {

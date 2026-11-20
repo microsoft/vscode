@@ -129,7 +129,7 @@ suite('SessionEnvironmentPicker', () => {
 		}, { environments: [], workspace, workspaceSelection: true });
 	});
 
-	test('connection descriptions use the shared Connected, Connecting and Disconnected labels', () => {
+	test('connection descriptions use the shared connection status labels', () => {
 		const states = [
 			RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.connecting,
 			RemoteAgentHostConnectionStatus.disconnected, RemoteAgentHostConnectionStatus.reconnecting,
@@ -139,7 +139,7 @@ suite('SessionEnvironmentPicker', () => {
 			...provider(`agenthost-remote-${index}`, 'remote'), connectionStatus: constObservable(connectionStatus),
 		}));
 		assert.deepStrictEqual(getSessionCreationEnvironments(providers).map(environment => environment.description), [
-			'Connected', 'Connecting', 'Disconnected', 'Disconnected', 'Disconnected',
+			'Connected', 'Connecting', 'Disconnected', 'Reconnecting', 'Update required',
 		]);
 	});
 
