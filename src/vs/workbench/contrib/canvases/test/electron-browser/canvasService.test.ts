@@ -134,9 +134,13 @@ suite('CanvasService', () => {
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
 		let modalActive = false;
+		let applyingWorkingSet = false;
+		const applyingWorkingSetChanged = store.add(new Emitter<boolean>());
 		const editorGroupsService = upcastPartial<IEditorGroupsService>({
 			mainPart: upcastPartial<IEditorPart>({ windowId: 1 }),
 			getGroup: id => groups.find(group => group.id === id),
+			get isApplyingWorkingSet() { return applyingWorkingSet; },
+			onDidChangeApplyingWorkingSet: applyingWorkingSetChanged.event,
 			get activeModalEditorPart() { return modalActive ? upcastPartial<IModalEditorPart>({}) : undefined; },
 		});
 		instantiationService.stub(IEditorGroupsService, editorGroupsService);
@@ -156,6 +160,10 @@ suite('CanvasService', () => {
 			hideAI: () => { hidden = true; sentiment.fire(); },
 			showAI: () => { hidden = false; sentiment.fire(); },
 			setModalActive: (value: boolean) => modalActive = value,
+			setApplyingWorkingSet: (value: boolean) => {
+				applyingWorkingSet = value;
+				applyingWorkingSetChanged.fire(value);
+			},
 			selectGroup: (id: number) => targetGroup = groups[id - 1],
 			/** Lets the editor service choose the group, as the main window's active group when it is active. */
 			selectNoGroup: () => targetGroup = undefined,
@@ -396,6 +404,21 @@ suite('CanvasService', () => {
 		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
 		await timeout(0);
 		assert.deepStrictEqual({ reopened: harness.openEditors.length, opened: harness.opened.length }, { reopened: 1, opened: 2 });
+	});
+
+	test('shows the canvas again after a folder location working-set swap closed it while its owner was visible', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const input = harness.opened[0];
+		harness.setApplyingWorkingSet(true);
+		harness.openEditors.length = 0;
+		input.dispose();
+		await timeout(0);
+		const openedWhileApplying = harness.opened.length;
+		harness.setApplyingWorkingSet(false);
+		await timeout(0);
+		assert.deepStrictEqual({ openedWhileApplying, reopened: harness.openEditors.length, opened: harness.opened.length }, { openedWhileApplying: 1, reopened: 1, opened: 2 });
 	});
 
 	test('closes the canvas of a hidden owner when the visible owner has not settled its canvases', async () => {
