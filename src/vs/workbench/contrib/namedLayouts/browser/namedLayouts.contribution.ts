@@ -173,15 +173,24 @@ function isDeletable(layout: INamedLayout): boolean {
 
 /**
  * The name under which the given layout is shown. A layout that an extension contributes
- * is shown with the name of its extension if another layout has the same name.
+ * is shown with the name of its extension if another layout has the same name. Layouts of
+ * the user with the same name, for example created on different machines, are numbered.
  */
 function getLayoutLabel(namedLayoutsService: INamedLayoutsService, layout: INamedLayout): string {
 	const contribution = layout.contribution;
 	const name = layout.name.toLowerCase();
-	if (contribution && namedLayoutsService.layouts.some(other => other.id !== layout.id && other.name.toLowerCase() === name)) {
+	const layoutsWithSameName = namedLayoutsService.layouts.filter(other => other.name.toLowerCase() === name);
+	if (layoutsWithSameName.length < 2) {
+		return layout.name;
+	}
+	if (contribution) {
 		return localize({ key: 'contributedLayoutLabel', comment: ['{0} is the name of a layout, {1} the name of the extension that contributes it'] }, "{0} - {1}", layout.name, contribution.extensionName);
 	}
-	return layout.name;
+
+	const index = layoutsWithSameName.filter(other => !other.contribution).findIndex(other => other.id === layout.id);
+	return index > 0
+		? localize({ key: 'numberedLayoutLabel', comment: ['{0} is the name of a layout, {1} a number that distinguishes it from other layouts with the same name'] }, "{0} ({1})", layout.name, index + 1)
+		: layout.name;
 }
 
 async function setLayoutLocked(namedLayoutsService: INamedLayoutsService, layout: INamedLayout, locked: boolean): Promise<void> {

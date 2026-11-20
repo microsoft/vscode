@@ -8,6 +8,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { parse } from '../../../../../base/common/json.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
@@ -33,7 +34,7 @@ import { DEFAULT_NAMED_LAYOUT_ID, IContributedNamedLayout, INamedLayoutDefinitio
 import { NamedLayoutsService } from '../../common/namedLayoutsService.js';
 
 const LAYOUT_SETTING = 'namedLayoutsTest.setting';
-const LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts';
+const LAYOUT_STORAGE_KEY_PREFIX = 'workbench.namedLayouts.layout.';
 
 /**
  * Reads the settings of the active named layout from its settings file, like the configuration service.
@@ -308,13 +309,13 @@ suite('NamedLayoutsService', () => {
 
 	test('the settings file of a layout shows the content stored with the layout, also when another window changes it', async () => {
 		const testObject = createService(new TestParticipant());
-		await testObject.createLayout('Debug');
+		const layout = await testObject.createLayout('Debug');
 		const settingsFile = configurationService.layoutSettings!.resource;
 		const content = `{\n\t// Debugging\n\t"${LAYOUT_SETTING}": "debugValue"\n}`;
 		await fileService.writeFile(settingsFile, VSBuffer.fromString(content));
 		await configurationService.reloadConfiguration(ConfigurationTarget.LAYOUT);
-		const storedLayouts = JSON.parse(storageService.get(LAYOUTS_STORAGE_KEY, StorageScope.PROFILE)!);
-		const afterWrite = { stored: storedLayouts[0].settings, setting: configurationService.getValue(LAYOUT_SETTING) };
+		const storedLayout = JSON.parse(storageService.get(LAYOUT_STORAGE_KEY_PREFIX + layout.id, StorageScope.PROFILE)!);
+		const afterWrite = { stored: storedLayout.settings, setting: configurationService.getValue(LAYOUT_SETTING) };
 		const modificationTime = (await fileService.stat(settingsFile)).mtime;
 
 		// Another window changes the settings of the layout
@@ -324,7 +325,7 @@ suite('NamedLayoutsService', () => {
 				updates++;
 			}
 		}));
-		storageService.store(LAYOUTS_STORAGE_KEY, JSON.stringify([{ ...storedLayouts[0], settings: `{ "${LAYOUT_SETTING}": "otherValue" }` }]), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store(LAYOUT_STORAGE_KEY_PREFIX + layout.id, JSON.stringify({ ...storedLayout, settings: `{ "${LAYOUT_SETTING}": "otherValue" }` }), StorageScope.PROFILE, StorageTarget.USER);
 		await configurationService.reloadConfiguration(ConfigurationTarget.LAYOUT);
 		const afterChange = { updates, setting: configurationService.getValue(LAYOUT_SETTING), modified: (await fileService.stat(settingsFile)).mtime !== modificationTime };
 
@@ -334,15 +335,84 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
-	test('a layout stored before the content of its settings file was stored gets it from its stored settings', async () => {
-		storageService.store(LAYOUTS_STORAGE_KEY, JSON.stringify([{ id: 'old', name: 'Old', settings: { [LAYOUT_SETTING]: 'storedValue' }, state: {} }]), StorageScope.PROFILE, StorageTarget.USER);
-		const testObject = createService(new TestParticipant());
+	test('each layout and each lock is synchronized under its own key, the state of a layout is stored per machine', async () => {
+		const participant = new TestParticipant();
+		const testObject = createService(participant);
+		const debugLayout = await testObject.createLayout('Debug');
+		await testObject.setLayoutLocked(debugLayout, true);
+		const focusLayout = await testObject.createLayout('Focus');
+		const keys = (target: StorageTarget) => storageService.keys(StorageScope.PROFILE, target).filter(key => key.startsWith('workbench.namedLayouts')).sort();
+		const synchronized = keys(StorageTarget.USER);
+
+		// Changing the arrangement of the active layout does not change what is synchronized
+		const changedKeys: string[] = [];
+		const store = disposables.add(new DisposableStore());
+		store.add(storageService.onDidChangeValue(StorageScope.PROFILE, undefined, store)(e => changedKeys.push(e.key)));
+		participant.state = 'changed state';
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+
+		assert.deepStrictEqual({ synchronized, perMachine: keys(StorageTarget.MACHINE), changedKeys }, {
+			synchronized: [`${LAYOUT_STORAGE_KEY_PREFIX}${debugLayout.id}`, `${LAYOUT_STORAGE_KEY_PREFIX}${focusLayout.id}`, `workbench.namedLayouts.locked.${debugLayout.id}`].sort(),
+			perMachine: [`workbench.namedLayouts.state.${debugLayout.id}`, `workbench.namedLayouts.state.${focusLayout.id}`].sort(),
+			changedKeys: [`workbench.namedLayouts.state.${focusLayout.id}`]
+		});
+	});
+
+	test('layouts and locks synchronized from another machine are applied, a layout keeps the arrangement of the window the first time it becomes active', async () => {
+		const participant = new TestDefinitionParticipant();
+		const testObject = createService(participant);
+		const defaultLayout = testObject.activeLayout;
+		participant.state = 'default state';
+		testObject.setContributedLayouts([{ extensionId: 'publisher.extension', extensionName: 'Extension', id: 'agentic', label: 'Agentic', definition: { settings: { [LAYOUT_SETTING]: 'contributedValue' }, editor: { orientation: 'vertical' } } }]);
+
+		// Settings Sync stores the layouts of another machine, but not their state
+		storageService.store(`${LAYOUT_STORAGE_KEY_PREFIX}synced`, JSON.stringify({ name: 'Synced', settings: `{ "${LAYOUT_SETTING}": "syncedValue" }` }), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store(`${LAYOUT_STORAGE_KEY_PREFIX}publisher.extension/agentic`, JSON.stringify({ name: 'Agentic', settings: `{ "${LAYOUT_SETTING}": "changedValue" }`, contribution: { extensionId: 'publisher.extension', id: 'agentic' } }), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store('workbench.namedLayouts.locked.synced', true, StorageScope.PROFILE, StorageTarget.USER);
+		const layouts = testObject.layouts.map(layout => ({ name: layout.name, locked: !!layout.locked }));
+
+		await testObject.switchLayout(testObject.layouts.find(layout => layout.name === 'Synced')!);
+		const synced = { setting: configurationService.getValue(LAYOUT_SETTING), state: participant.state };
+		participant.state = 'changed state';
+		await testObject.revertLayout();
+		const afterRevert = participant.state;
+
+		await testObject.switchLayout(defaultLayout);
+		await testObject.switchLayout(testObject.layouts.find(layout => layout.contribution)!);
+		const contributed = { setting: configurationService.getValue(LAYOUT_SETTING), state: participant.state };
+
+		assert.deepStrictEqual({ layouts, synced, afterRevert, contributed }, {
+			layouts: [{ name: 'Default', locked: false }, { name: 'Agentic', locked: false }, { name: 'Synced', locked: true }],
+			synced: { setting: 'syncedValue', state: 'default state' },
+			afterRevert: 'default state',
+			contributed: { setting: 'changedValue', state: 'vertical over default state' }
+		});
+	});
+
+	test('layouts and locks stored under a single key are stored under their own keys', async () => {
+		storageService.store('workbench.namedLayouts', JSON.stringify([
+			{ id: 'old', name: 'Old', settings: { [LAYOUT_SETTING]: 'storedValue' }, state: { test: 'old state' } },
+			{ id: 'kept', name: 'Outdated', settings: '{}', state: {} }
+		]), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store('workbench.namedLayouts.locked', JSON.stringify(['old']), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store(`${LAYOUT_STORAGE_KEY_PREFIX}kept`, JSON.stringify({ name: 'Kept', settings: '{}' }), StorageScope.PROFILE, StorageTarget.USER);
+		const participant = new TestParticipant();
+		const testObject = createService(participant);
 
 		await testObject.switchLayout(testObject.layouts.find(layout => layout.name === 'Old')!);
 
-		assert.deepStrictEqual({ setting: configurationService.getValue(LAYOUT_SETTING), file: parse(await readFile(configurationService.layoutSettings!.resource)) }, {
+		assert.deepStrictEqual({
+			layouts: testObject.layouts.map(layout => ({ name: layout.name, locked: !!layout.locked })),
+			setting: configurationService.getValue(LAYOUT_SETTING),
+			file: parse(await readFile(configurationService.layoutSettings!.resource)),
+			state: participant.state,
+			legacyKeys: [storageService.get('workbench.namedLayouts', StorageScope.PROFILE), storageService.get('workbench.namedLayouts.locked', StorageScope.PROFILE)]
+		}, {
+			layouts: [{ name: 'Default', locked: false }, { name: 'Kept', locked: false }, { name: 'Old', locked: true }],
 			setting: 'storedValue',
-			file: { [LAYOUT_SETTING]: 'storedValue' }
+			file: { [LAYOUT_SETTING]: 'storedValue' },
+			state: 'old state',
+			legacyKeys: [undefined, undefined]
 		});
 	});
 
@@ -353,12 +423,19 @@ suite('NamedLayoutsService', () => {
 		const contribute = (extensionName: string, label: string): IContributedNamedLayout => ({ extensionId: `publisher.${extensionName.toLowerCase()}`, extensionName, id: label.toLowerCase(), label, definition: {} });
 		testObject.setContributedLayouts([contribute('Second', 'Agentic'), contribute('First', 'Zen'), contribute('First', 'Agentic')]);
 
-		assert.deepStrictEqual(testObject.layouts.map(layout => `${layout.name}${layout.contribution ? ` (${layout.contribution.extensionName})` : ''}`), [
+		// Layouts with the same name created on different machines are in the same order everywhere
+		for (const id of ['second', 'first']) {
+			storageService.store(`${LAYOUT_STORAGE_KEY_PREFIX}${id}`, JSON.stringify({ name: 'Synced', settings: '{}' }), StorageScope.PROFILE, StorageTarget.USER);
+		}
+
+		assert.deepStrictEqual(testObject.layouts.map(layout => `${layout.name}${layout.contribution ? ` (${layout.contribution.extensionName})` : ''}${layout.name === 'Synced' ? ` ${layout.id}` : ''}`), [
 			'Default',
 			'Agentic',
 			'Agentic (First)',
 			'Agentic (Second)',
 			'Debug',
+			'Synced first',
+			'Synced second',
 			'Zen (First)'
 		]);
 	});

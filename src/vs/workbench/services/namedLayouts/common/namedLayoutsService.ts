@@ -27,6 +27,9 @@ import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecy
 import { getLayoutSettingsResource, LAYOUT_SETTINGS_SCHEME, LayoutSettingsFileSystemProvider } from './layoutSettingsFileSystemProvider.js';
 import { DEFAULT_NAMED_LAYOUT_ID, IContributedNamedLayout, INamedLayout, INamedLayoutDefinition, INamedLayoutParticipant, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from './namedLayouts.js';
 
+/**
+ * A named layout as this window knows it.
+ */
 interface IStoredNamedLayout {
 	readonly id: string;
 	readonly name: string;
@@ -35,11 +38,25 @@ interface IStoredNamedLayout {
 	 * The content of the settings file of the layout, JSON with comments.
 	 */
 	readonly settings: string;
-	readonly state: IStringDictionary<unknown>;
+
+	/**
+	 * The state of the participants on this machine, `undefined` if the layout was
+	 * synchronized from another machine and was not active on this machine yet.
+	 */
+	readonly state: IStringDictionary<unknown> | undefined;
 
 	/**
 	 * Set for the saved changes of a layout contributed by an extension.
 	 */
+	readonly contribution?: IStoredNamedLayoutContribution;
+}
+
+/**
+ * The part of a named layout that Settings Sync synchronizes, stored under its own key.
+ */
+interface ISyncedNamedLayout {
+	readonly name: string;
+	readonly settings: string;
 	readonly contribution?: IStoredNamedLayoutContribution;
 }
 
@@ -53,25 +70,28 @@ interface IStoredNamedLayoutContribution {
 	readonly locked?: boolean;
 }
 
-function toStoredNamedLayout(candidate: unknown): IStoredNamedLayout | undefined {
+function isStoredContribution(candidate: unknown): candidate is IStoredNamedLayoutContribution {
+	if (!isObject(candidate)) {
+		return false;
+	}
+
+	const { extensionId, id, locked } = candidate as IStoredNamedLayoutContribution;
+	return isString(extensionId) && isString(id) && (locked === undefined || typeof locked === 'boolean');
+}
+
+function toStoredNamedLayout(id: string, candidate: unknown, state: IStringDictionary<unknown> | undefined): IStoredNamedLayout | undefined {
 	if (!isObject(candidate)) {
 		return undefined;
 	}
 
-	const layout = candidate as IStoredNamedLayout;
-	const { id, name, state, contribution } = layout;
-	const settings: unknown = layout.settings;
-	const isValid = isString(id)
-		&& isString(name)
-		&& (isString(settings) || isObject(settings))
-		&& isObject(state)
-		&& (contribution === undefined || (isObject(contribution) && isString(contribution.extensionId) && isString(contribution.id) && (contribution.locked === undefined || typeof contribution.locked === 'boolean')));
-	if (!isValid) {
+	const { name, contribution } = candidate as ISyncedNamedLayout;
+	const settings: unknown = (candidate as ISyncedNamedLayout).settings;
+	if (!isString(name) || !(isString(settings) || isObject(settings)) || (contribution !== undefined && !isStoredContribution(contribution))) {
 		return undefined;
 	}
 
 	// Layouts stored before the content of their settings file was stored have the settings themselves
-	return isString(settings) ? layout : { ...layout, settings: toSettingsContent(settings) };
+	return { id, name, settings: isString(settings) ? settings : toSettingsContent(settings), state, ...(contribution ? { contribution } : {}) };
 }
 
 function toSettingsContent(settings: object): string {
@@ -92,8 +112,14 @@ interface ILayoutSnapshot {
 
 /**
  * Named layouts are stored in the profile so that they are available in every
- * workspace. The active layout and the state of the default layout are stored
- * per workspace.
+ * workspace. Each layout and each lock of a layout is stored under its own key,
+ * so that Settings Sync merges the changes made to different layouts on
+ * different machines. The state of the participants of a named layout is
+ * stored per machine and is not synchronized: a layout synchronized from
+ * another machine keeps the arrangement of the window, or starts from its
+ * definition if an extension contributes it, the first time it becomes active
+ * on a machine. The active layout and the state of the default layout are
+ * stored per workspace.
  *
  * The settings of a named layout are stored with the layout. A file system
  * provider shows them as the settings file of the layout, which the
@@ -123,8 +149,28 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts';
-	private static readonly LOCKED_LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts.locked';
+	/**
+	 * Stored named layouts, each under this prefix followed by its identifier. Synchronized.
+	 */
+	private static readonly LAYOUT_STORAGE_KEY_PREFIX = 'workbench.namedLayouts.layout.';
+
+	/**
+	 * The state of the participants of named layouts on this machine, each under this prefix
+	 * followed by the identifier of its layout. Not synchronized.
+	 */
+	private static readonly LAYOUT_STATE_STORAGE_KEY_PREFIX = 'workbench.namedLayouts.state.';
+
+	/**
+	 * Layouts that users locked, each under this prefix followed by its identifier. Synchronized.
+	 */
+	private static readonly LOCKED_LAYOUT_STORAGE_KEY_PREFIX = 'workbench.namedLayouts.locked.';
+
+	/**
+	 * Where all named layouts and all locked layouts were stored before each was stored under its own key.
+	 */
+	private static readonly LEGACY_LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts';
+	private static readonly LEGACY_LOCKED_LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts.locked';
+
 	private static readonly ACTIVE_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.active';
 	private static readonly DEFAULT_LAYOUT_STATE_STORAGE_KEY = 'workbench.namedLayouts.defaultState';
 	private static readonly EMPTY_SETTINGS = '{}';
@@ -189,6 +235,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		setSettings: (layoutId, content) => this.setSettingsContent(layoutId, content)
 	}));
 
+	/**
+	 * Whether this service changes the storage, whose changes it then does not need to read.
+	 */
+	private isWritingStorage = false;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
@@ -199,6 +250,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	) {
 		super();
 
+		this.migrateLegacyStorage();
 		this.storedLayouts = this.loadLayouts();
 		this.lockedLayoutIds = this.loadLockedLayoutIds();
 
@@ -234,8 +286,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 
 		this._register(this.storageService.onWillSaveState(() => this.saveActiveLayout()));
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, NamedLayoutsService.LAYOUTS_STORAGE_KEY, this._store)(() => this.onDidChangeStoredLayouts()));
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, NamedLayoutsService.LOCKED_LAYOUTS_STORAGE_KEY, this._store)(() => this.onDidChangeLockedLayouts()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => this.onDidChangeProfileStorage(e.key)));
 		this._register(this.onDidChangeLayouts(() => {
 			this.updateLayoutSettings();
 			this.updateReadonlySettingsFiles();
@@ -260,7 +311,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			.filter((layout): layout is INamedLayout => !!layout)
 			.sort((a, b) => a.name.localeCompare(b.name)
 				|| Number(!!a.contribution) - Number(!!b.contribution)
-				|| (a.contribution?.extensionName ?? '').localeCompare(b.contribution?.extensionName ?? ''));
+				|| (a.contribution?.extensionName ?? '').localeCompare(b.contribution?.extensionName ?? '')
+				// Layouts with the same name, for example created on different machines, are in the same order everywhere
+				|| a.id.localeCompare(b.id));
 		return [this.defaultLayout, ...layouts];
 	}
 
@@ -315,8 +368,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			// A new layout starts as a copy of the active layout, also of its settings
 			const settings = this.getSettingsContent(this.activeLayoutId) ?? NamedLayoutsService.EMPTY_SETTINGS;
 			const layout: IStoredNamedLayout = { id: generateUuid(), name: layoutName, settings, state: this.captureState() };
-			this.storedLayouts = [...this.storedLayouts, layout];
-			this.storeLayouts();
+			this.storeLayout(layout);
 
 			this.applyLayoutSettings(layout);
 			this.setActiveLayout(layout.id);
@@ -358,9 +410,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			}
 
 			if (this.removeStoredLayout(layout.id)) {
-				if (this.lockedLayoutIds.delete(layout.id)) {
-					this.storeLockedLayoutIds();
-				}
+				this.storeLocked(layout.id, false);
 				this._onDidChangeLayouts.fire();
 			}
 		});
@@ -403,16 +453,15 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				if (this.activeLayoutId === layout.id) {
 					this.saveActiveLayout();
 				}
-				this.lockedLayoutIds.add(layout.id);
+				this.storeLocked(layout.id, true);
 			} else {
-				this.lockedLayoutIds.delete(layout.id);
+				this.storeLocked(layout.id, false);
 				// The changes made while the layout was locked are kept
 				if (this.activeLayoutId === layout.id) {
 					this.saveActiveLayout();
 				}
 			}
 
-			this.storeLockedLayoutIds();
 			this._onDidChangeLayouts.fire();
 
 			// A layout that is locked now keeps its current state, its changes are detected against it
@@ -500,9 +549,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.saveOutgoingLayout();
 		}
 
-		// A layout that its extension locked always starts from its definition
-		if (contributedLayout && (!storedLayout || contributedLayout.locked)) {
-			await this.applyContributedLayout(layoutId, contributedLayout);
+		// A layout that its extension locked always starts from its definition. The state of a
+		// contributed layout is not synchronized, so on a machine where it was not active yet it
+		// starts from its definition with the settings synchronized from another machine
+		if (contributedLayout && (!storedLayout?.state || contributedLayout.locked)) {
+			await this.applyContributedLayout(layoutId, contributedLayout, contributedLayout.locked ? undefined : storedLayout?.settings);
 			return;
 		}
 
@@ -510,17 +561,24 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		this.applyLayoutSettings(storedLayout);
 		this.setActiveLayout(storedLayout?.id ?? DEFAULT_NAMED_LAYOUT_ID);
 		await this.applyLayoutState(storedLayout, [...this.participants]);
+
+		// A layout synchronized from another machine keeps the arrangement of the window, which
+		// is saved right away so that a locked layout has an arrangement to revert to
+		if (storedLayout && !storedLayout.state) {
+			this.storeLayout({ ...storedLayout, state: this.captureState() });
+		}
 	}
 
 	/**
 	 * Applies the definition of a contributed layout and saves the result as the
 	 * changes of the layout, replacing previously saved changes. Must only be called
 	 * from a task of the sequencer.
+	 *
+	 * @param settings The content of the settings file of the layout, the settings of the definition if not given.
 	 */
-	private async applyContributedLayout(layoutId: string, contributedLayout: IContributedNamedLayout): Promise<void> {
+	private async applyContributedLayout(layoutId: string, contributedLayout: IContributedNamedLayout, settings = toSettingsContent(this.getDefinitionSettings(contributedLayout))): Promise<void> {
 		const { definition } = contributedLayout;
 
-		const settings = toSettingsContent(this.getDefinitionSettings(contributedLayout));
 		this.configurationService.setLayoutSettings(this.getLayoutSettings(layoutId), this.parseSettings(layoutId, settings));
 		this.setActiveLayout(layoutId);
 
@@ -551,8 +609,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			state: this.captureState(),
 			contribution: this.toStoredContribution(contributedLayout)
 		};
-		this.storedLayouts = [...this.storedLayouts.filter(candidate => candidate.id !== layoutId), layout];
-		this.storeLayouts();
+		this.storeLayout(layout);
 		this._onDidChangeLayouts.fire();
 
 		// Participants that share their state with the default layout switch to a local copy
@@ -692,12 +749,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			...(contribution ? { contribution } : {})
 		};
 		if (!activeLayout) {
-			this.storedLayouts = [...this.storedLayouts, updatedLayout];
-			this.storeLayouts();
+			this.storeLayout(updatedLayout);
 			this._onDidChangeLayouts.fire();
 		} else if (!equals(updatedLayout, activeLayout)) {
-			this.storedLayouts = this.storedLayouts.map(candidate => candidate.id === updatedLayout.id ? updatedLayout : candidate);
-			this.storeLayouts();
+			// Only the keys of the values that changed are written
+			this.storeLayout(updatedLayout);
 		}
 	}
 
@@ -747,8 +803,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 
 		if (storedLayout.settings !== content) {
-			this.storedLayouts = this.storedLayouts.map(candidate => candidate.id === layoutId ? { ...candidate, settings: content } : candidate);
-			this.storeLayouts();
+			this.storeLayout({ ...storedLayout, settings: content });
 		}
 	}
 
@@ -810,7 +865,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	 * of the sequencer.
 	 */
 	private async applyLayoutState(layout: IStoredNamedLayout | undefined, participants: readonly INamedLayoutParticipant[]): Promise<void> {
-		const state = layout ? layout.state : this.loadDefaultLayoutState();
+		const state = layout ? layout.state ?? {} : this.loadDefaultLayoutState();
 		this.isApplying = true;
 		try {
 			for (const participant of participants) {
@@ -892,22 +947,40 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 	}
 
-	private onDidChangeStoredLayouts(): void {
-		const storedLayouts = this.loadLayouts();
-		if (equals(storedLayouts, this.storedLayouts)) {
+	private onDidChangeProfileStorage(key: string): void {
+		if (this.isWritingStorage) {
 			return; // changed by this window
 		}
 
-		this.storedLayouts = storedLayouts;
+		if (key.startsWith(NamedLayoutsService.LOCKED_LAYOUT_STORAGE_KEY_PREFIX)) {
+			this.onDidChangeLockedLayouts();
+		} else if (key.startsWith(NamedLayoutsService.LAYOUT_STORAGE_KEY_PREFIX)) {
+			this.onDidChangeStoredLayout(key.substring(NamedLayoutsService.LAYOUT_STORAGE_KEY_PREFIX.length));
+		} else if (key.startsWith(NamedLayoutsService.LAYOUT_STATE_STORAGE_KEY_PREFIX)) {
+			this.onDidChangeStoredLayout(key.substring(NamedLayoutsService.LAYOUT_STATE_STORAGE_KEY_PREFIX.length));
+		}
+	}
+
+	/**
+	 * Another window, Settings Sync or a switch of the profile changed the given layout.
+	 */
+	private onDidChangeStoredLayout(id: string): void {
+		const storedLayout = this.loadLayout(id);
+		if (equals(storedLayout, this.getStoredLayout(id))) {
+			return;
+		}
+
+		const storedLayouts = this.storedLayouts.filter(candidate => candidate.id !== id);
+		this.storedLayouts = storedLayout ? [...storedLayouts, storedLayout] : storedLayouts;
 		this.settingsFileSystemProvider.refresh();
 		this._onDidChangeLayouts.fire();
 
-		if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID || this.getStoredLayout(this.activeLayoutId)) {
+		if (id !== this.activeLayoutId || storedLayout) {
 			return;
 		}
 
 		// Another window reset the active contributed layout. This window keeps using it.
-		if (this.contributedLayouts.has(this.activeLayoutId)) {
+		if (this.contributedLayouts.has(id)) {
 			this.saveActiveLayout();
 			return;
 		}
@@ -923,45 +996,125 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		return this.storedLayouts.find(layout => layout.id === id);
 	}
 
+	/**
+	 * Stores the given layout, replacing the stored layout with the same identifier.
+	 */
+	private storeLayout(layout: IStoredNamedLayout): void {
+		this.storedLayouts = this.getStoredLayout(layout.id)
+			? this.storedLayouts.map(candidate => candidate.id === layout.id ? layout : candidate)
+			: [...this.storedLayouts, layout];
+		this.writeStorage(() => this.writeLayout(layout));
+		this.settingsFileSystemProvider.refresh();
+	}
+
 	private removeStoredLayout(id: string): boolean {
-		const storedLayouts = this.storedLayouts.filter(candidate => candidate.id !== id);
-		if (storedLayouts.length === this.storedLayouts.length) {
+		if (!this.getStoredLayout(id)) {
 			return false;
 		}
 
-		this.storedLayouts = storedLayouts;
-		this.storeLayouts();
+		this.storedLayouts = this.storedLayouts.filter(candidate => candidate.id !== id);
+		this.writeStorage(() => {
+			this.storageService.remove(NamedLayoutsService.LAYOUT_STATE_STORAGE_KEY_PREFIX + id, StorageScope.PROFILE);
+			this.storageService.remove(NamedLayoutsService.LAYOUT_STORAGE_KEY_PREFIX + id, StorageScope.PROFILE);
+		});
+		this.settingsFileSystemProvider.refresh();
 		return true;
 	}
 
-	private loadLayouts(): IStoredNamedLayout[] {
-		const value = this.storageService.get(NamedLayoutsService.LAYOUTS_STORAGE_KEY, StorageScope.PROFILE);
-		if (!value) {
-			return [];
+	/**
+	 * Writes the given layout to the storage. The storage ignores values that do not change,
+	 * so a change of the state of the participants does not change the synchronized layout.
+	 */
+	private writeLayout({ id, name, settings, state, contribution }: IStoredNamedLayout): void {
+		// The state is written first, so that other windows read it together with the layout
+		if (state) {
+			this.storageService.store(NamedLayoutsService.LAYOUT_STATE_STORAGE_KEY_PREFIX + id, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(NamedLayoutsService.LAYOUT_STATE_STORAGE_KEY_PREFIX + id, StorageScope.PROFILE);
 		}
 
+		const syncedLayout: ISyncedNamedLayout = { name, settings, ...(contribution ? { contribution } : {}) };
+		this.storageService.store(NamedLayoutsService.LAYOUT_STORAGE_KEY_PREFIX + id, JSON.stringify(syncedLayout), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private writeStorage(write: () => void): void {
+		const wasWritingStorage = this.isWritingStorage;
+		this.isWritingStorage = true;
 		try {
-			const layouts: unknown = JSON.parse(value);
-			return Array.isArray(layouts) ? coalesce(layouts.map(toStoredNamedLayout)) : [];
-		} catch (error) {
-			this.logService.error('[named layouts] Failed to parse the stored named layouts.', error);
-			return [];
+			write();
+		} finally {
+			this.isWritingStorage = wasWritingStorage;
 		}
 	}
 
-	private storeLayouts(): void {
-		if (this.storedLayouts.length) {
-			this.storageService.store(NamedLayoutsService.LAYOUTS_STORAGE_KEY, JSON.stringify(this.storedLayouts), StorageScope.PROFILE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(NamedLayoutsService.LAYOUTS_STORAGE_KEY, StorageScope.PROFILE);
+	private loadLayouts(): IStoredNamedLayout[] {
+		const prefix = NamedLayoutsService.LAYOUT_STORAGE_KEY_PREFIX;
+		return coalesce(this.storageService.keys(StorageScope.PROFILE)
+			.filter(key => key.startsWith(prefix))
+			.map(key => this.loadLayout(key.substring(prefix.length))));
+	}
+
+	private loadLayout(id: string): IStoredNamedLayout | undefined {
+		const layout = this.loadStoredValue(NamedLayoutsService.LAYOUT_STORAGE_KEY_PREFIX + id);
+		if (layout === undefined) {
+			return undefined;
 		}
-		this.settingsFileSystemProvider.refresh();
+
+		const state = this.loadStoredValue(NamedLayoutsService.LAYOUT_STATE_STORAGE_KEY_PREFIX + id);
+		const storedLayout = toStoredNamedLayout(id, layout, isObject(state) ? state as IStringDictionary<unknown> : undefined);
+		if (!storedLayout) {
+			this.logService.error(`[named layouts] The stored named layout '${id}' is invalid.`);
+		}
+		return storedLayout;
+	}
+
+	private loadStoredValue(key: string): unknown {
+		const value = this.storageService.get(key, StorageScope.PROFILE);
+		if (value === undefined) {
+			return undefined;
+		}
+
+		try {
+			return JSON.parse(value);
+		} catch (error) {
+			this.logService.error(`[named layouts] Failed to parse the stored value of '${key}'.`, error);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Stores the named layouts and the locked layouts, which were stored under a single key
+	 * each, under their own keys. Layouts that another machine stored under their own key
+	 * meanwhile are kept.
+	 */
+	private migrateLegacyStorage(): void {
+		const { LEGACY_LAYOUTS_STORAGE_KEY, LEGACY_LOCKED_LAYOUTS_STORAGE_KEY } = NamedLayoutsService;
+		if (this.storageService.get(LEGACY_LAYOUTS_STORAGE_KEY, StorageScope.PROFILE) === undefined && this.storageService.get(LEGACY_LOCKED_LAYOUTS_STORAGE_KEY, StorageScope.PROFILE) === undefined) {
+			return;
+		}
+
+		const layouts = this.loadStoredValue(LEGACY_LAYOUTS_STORAGE_KEY);
+		const lockedLayoutIds = this.loadStoredValue(LEGACY_LOCKED_LAYOUTS_STORAGE_KEY);
+		this.writeStorage(() => {
+			for (const candidate of Array.isArray(layouts) ? layouts : []) {
+				const { id, state } = isObject(candidate) ? candidate as { id?: unknown; state?: unknown } : {};
+				const layout = isString(id) ? toStoredNamedLayout(id, candidate, isObject(state) ? state as IStringDictionary<unknown> : undefined) : undefined;
+				if (layout && this.storageService.get(NamedLayoutsService.LAYOUT_STORAGE_KEY_PREFIX + layout.id, StorageScope.PROFILE) === undefined) {
+					this.writeLayout(layout);
+				}
+			}
+			for (const id of Array.isArray(lockedLayoutIds) ? lockedLayoutIds.filter(isString) : []) {
+				this.storageService.store(NamedLayoutsService.LOCKED_LAYOUT_STORAGE_KEY_PREFIX + id, true, StorageScope.PROFILE, StorageTarget.USER);
+			}
+			this.storageService.remove(LEGACY_LAYOUTS_STORAGE_KEY, StorageScope.PROFILE);
+			this.storageService.remove(LEGACY_LOCKED_LAYOUTS_STORAGE_KEY, StorageScope.PROFILE);
+		});
 	}
 
 	private onDidChangeLockedLayouts(): void {
 		const lockedLayoutIds = this.loadLockedLayoutIds();
-		if (equals([...lockedLayoutIds], [...this.lockedLayoutIds])) {
-			return; // changed by this window
+		if (equals([...lockedLayoutIds].sort(), [...this.lockedLayoutIds].sort())) {
+			return;
 		}
 
 		// Changes made to the active layout while another window locked it are not saved
@@ -974,25 +1127,19 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	private loadLockedLayoutIds(): Set<string> {
-		const value = this.storageService.get(NamedLayoutsService.LOCKED_LAYOUTS_STORAGE_KEY, StorageScope.PROFILE);
-		if (!value) {
-			return new Set();
-		}
-
-		try {
-			const ids: unknown = JSON.parse(value);
-			return new Set(Array.isArray(ids) ? ids.filter(isString) : []);
-		} catch (error) {
-			this.logService.error('[named layouts] Failed to parse the locked named layouts.', error);
-			return new Set();
-		}
+		const prefix = NamedLayoutsService.LOCKED_LAYOUT_STORAGE_KEY_PREFIX;
+		return new Set(this.storageService.keys(StorageScope.PROFILE)
+			.filter(key => key.startsWith(prefix))
+			.map(key => key.substring(prefix.length)));
 	}
 
-	private storeLockedLayoutIds(): void {
-		if (this.lockedLayoutIds.size) {
-			this.storageService.store(NamedLayoutsService.LOCKED_LAYOUTS_STORAGE_KEY, JSON.stringify([...this.lockedLayoutIds]), StorageScope.PROFILE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(NamedLayoutsService.LOCKED_LAYOUTS_STORAGE_KEY, StorageScope.PROFILE);
+	private storeLocked(id: string, locked: boolean): void {
+		const key = NamedLayoutsService.LOCKED_LAYOUT_STORAGE_KEY_PREFIX + id;
+		if (locked) {
+			this.lockedLayoutIds.add(id);
+			this.writeStorage(() => this.storageService.store(key, true, StorageScope.PROFILE, StorageTarget.USER));
+		} else if (this.lockedLayoutIds.delete(id)) {
+			this.writeStorage(() => this.storageService.remove(key, StorageScope.PROFILE));
 		}
 	}
 
