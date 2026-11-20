@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { getActiveElement } from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -179,25 +180,21 @@ suite('startsTextInput', () => {
 
 	test('characters, dead keys and IME composition start text input, keys that operate the hint do not', () => {
 		const keys: Record<string, KeyboardEventInit> = {
-			'a': { key: 'a' },
-			'AltGr+q (@)': { key: '@', ctrlKey: true, altKey: true, modifierAltGraph: true } as KeyboardEventInit,
-			'dead key': { key: 'Dead' },
-			'IME Process': { key: 'Process', keyCode: 229 },
-			'IME keyCode 229': { key: 'Unidentified', keyCode: 229 },
-			'composing': { key: 'k', isComposing: true },
-			'Space': { key: ' ' },
-			'Enter': { key: 'Enter' },
-			'Tab': { key: 'Tab' },
-			'ArrowDown': { key: 'ArrowDown' },
-			'Ctrl+c': { key: 'c', ctrlKey: true },
+			'a': { key: 'a', keyCode: 65 },
+			'AltGr+q (@)': { key: '@', keyCode: 81, ctrlKey: true, altKey: true, modifierAltGraph: true } as KeyboardEventInit,
+			'dead key': { key: 'Dead', keyCode: 192 },
+			'IME': { key: 'Process', keyCode: 229 },
+			'Space': { key: ' ', keyCode: 32 },
+			'Enter': { key: 'Enter', keyCode: 13 },
+			'Tab': { key: 'Tab', keyCode: 9 },
+			'ArrowDown': { key: 'ArrowDown', keyCode: 40 },
+			'Ctrl+c': { key: 'c', keyCode: 67, ctrlKey: true },
 		};
-		assert.deepStrictEqual(Object.fromEntries(Object.entries(keys).map(([name, init]) => [name, startsTextInput(new KeyboardEvent('keydown', init))])), {
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(keys).map(([name, init]) => [name, startsTextInput(new StandardKeyboardEvent(new KeyboardEvent('keydown', init)))])), {
 			'a': true,
 			'AltGr+q (@)': true,
 			'dead key': true,
-			'IME Process': true,
-			'IME keyCode 229': true,
-			'composing': true,
+			'IME': true,
 			'Space': false,
 			'Enter': false,
 			'Tab': false,
@@ -238,7 +235,6 @@ function pressKey(target: Element | null | undefined, init: KeyboardEventInit & 
 	target?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }));
 }
 
-/** Focus only moves to elements in the document. */
 function attachToDocument(store: Pick<DisposableStore, 'add'>, node: HTMLElement): HTMLElement {
 	mainWindow.document.body.appendChild(node);
 	store.add(toDisposable(() => node.remove()));

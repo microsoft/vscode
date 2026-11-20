@@ -214,7 +214,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 	}
 
 	/**
-	 * Moves keyboard focus into the hint (Tab in the editor). Returns `false` if no hint is shown.
+	 * Returns `false` if no hint is shown.
 	 */
 	focusHint(): boolean {
 		this.textHintContentWidget?.focus();
@@ -388,9 +388,6 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 		return { hintElement, ariaLabel };
 	}
 
-	/**
-	 * Tab and Shift+Tab move between the links as usual. Shift+Tab on the first link and Escape return to the editor.
-	 */
 	private onLinkKeyDown(link: HTMLAnchorElement, e: IKeyboardEvent): void {
 		const index = this.links.indexOf(link);
 		if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
@@ -408,9 +405,6 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 		e.stopPropagation();
 	}
 
-	/**
-	 * Moves keyboard focus to the first link of the hint.
-	 */
 	focus(): void {
 		this.links.at(0)?.focus();
 	}

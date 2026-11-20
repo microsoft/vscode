@@ -202,9 +202,6 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 		this._options.close();
 	}
 
-	/**
-	 * Moves keyboard focus to the first row (Tab in the editor).
-	 */
 	focus(): void {
 		this._actionBar?.focus(0);
 	}
