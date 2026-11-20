@@ -566,10 +566,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		lifetime.add(Event.once(input.onWillDispose)(() => {
 			const isCurrentInput = this.inputs.get(key) === input;
-			// Without working sets of its own, a window swaps editors as the folder location changes: an editor closed then, while its
-			// owner is not visible, is no dismissal by the user. It shows again once its owner is.
+			// Without working sets of its own, a window swaps editors as the folder location changes: an editor closed then
+			// is no dismissal by the user. It shows again once its owner is visible and the swap is done.
 			const workingSetSuspension = this.workingSetSuspensions.delete(input)
-				|| (!this.contextService.workingSets && (this.editorGroupsService.isApplyingWorkingSet || !this.contextService.isOwnerVisible(reference)));
+				|| (!this.contextService.workingSets && this.editorGroupsService.isApplyingWorkingSet);
 			if (isCurrentInput) {
 				// First, so nothing that reacts to the presentation changing below still finds this closing editor.
 				this.inputs.deleteAndLeak(key);
