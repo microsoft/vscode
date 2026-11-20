@@ -10,6 +10,7 @@ import { structuralEquals } from '../../../base/common/equals.js';
 import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableSignal, observableValue, observableValueOpts, waitForState } from '../../../base/common/observable.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { escapeMarkdownSyntaxTokens } from '../../../base/common/htmlContent.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactJsonValue, ArtifactAuthenticationRequiredError, ArtifactAutomationConfiguration, ArtifactAutomationOption, artifactBindingId, ArtifactContributionSnapshot, ArtifactContributionView, ArtifactRecord, ArtifactSnapshot, getArtifactMainContribution, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
@@ -17,7 +18,7 @@ import { applyArtifactAutomationSelection, artifactOptionConsent, disableArtifac
 import { isArtifactActionDescriptor, isArtifactAuthenticationRequest, isArtifactJsonValue } from './artifactIntegrationValidation.js';
 import { hasValidArtifactPresentationReferences, isArtifactContributionView, isArtifactDetails } from './artifactPresentationValidation.js';
 import { ArtifactExecutionService, IArtifactExecutionBinding } from './artifactExecutionService.js';
-import { getArtifactAutomationNotices } from './artifactIntegrationNotices.js';
+import { getArtifactAutomationNotices, IArtifactAutomationNoticeLabels } from './artifactIntegrationNotices.js';
 import { IArtifactIntegrationRegistry, IRegisteredArtifactIntegration } from './artifactIntegrationRegistry.js';
 import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactIntegrationStore, ArtifactStoredBinding } from './artifactIntegrationStore.js';
 import { ArtifactAutomationNotice, ArtifactSessionState, IArtifactIntegrationStorage, IArtifactRuntime, isArtifactRuntimeAvailable } from './artifactRuntime.js';
@@ -73,9 +74,13 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 		if (this.runtime.postNotice) {
 			const posts = new SequencerByKey<string>();
 			let previous = this.ledger.state.get();
+			const labels: IArtifactAutomationNoticeLabels = {
+				getAgentName: chat => this.runtime.getAgentName?.(chat),
+				getArtifactKind: integrationId => this.registry.integrations.get().find(integration => integration.id === integrationId)?.artifactKind,
+			};
 			this._register(autorun(reader => {
 				const current = this.ledger.state.read(reader);
-				const notices = getArtifactAutomationNotices(previous, current);
+				const notices = getArtifactAutomationNotices(previous, current, labels);
 				previous = current;
 				for (const notice of notices) {
 					void posts.queue(notice.session, async () => {
@@ -582,6 +587,7 @@ class ArtifactBinding extends Disposable {
 					state.bindings = state.bindings.map(candidate => candidate.id === this.id ? { ...binding, checkpoint: { revision: expectedRevision + 1, value } } : candidate);
 				}),
 			},
+			...this.runtime.postNotice ? { postNotice: (content: string) => this.postStatusNotice(content) } : {},
 		}, { authority: this.runtime.authority, runtimeId: this.registration.runtimeId }, token).catch(error => {
 			if (!(error instanceof ArtifactAuthenticationRequiredError) || token.isCancellationRequested) {
 				throw error;
@@ -748,6 +754,16 @@ class ArtifactBinding extends Disposable {
 		}
 		state.bindings.push(this.unstored);
 		return this.unstored;
+	}
+
+	private async postStatusNotice(content: string): Promise<void> {
+		const state = this.sessionState.get();
+		const artifact = state.artifacts.find(artifact => artifact.id === this.artifact.id && artifact.resource === this.artifact.resource);
+		if (!artifact || state.availability.kind !== 'available' || state.deleted || !this.runtime.postNotice
+			|| this._store.isDisposed || !isArtifactRuntimeAvailable(this.runtime) || !this.runtime.isOwner()) {
+			throw new Error(localize('artifactStatusNoticeUnavailable', "The artifact notice cannot be posted because its session or runtime is unavailable."));
+		}
+		await this.runtime.postNotice({ session: this.session, artifact, kind: 'status', content: escapeMarkdownSyntaxTokens(content), iconId: this.view.get().main?.icon.id });
 	}
 
 	async ensureStored(): Promise<void> {

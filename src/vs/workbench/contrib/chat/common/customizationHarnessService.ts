@@ -122,6 +122,8 @@ export interface ICustomizationMarketplaceInfo {
 	readonly isDefault: boolean;
 	readonly managed: boolean;
 	readonly available: boolean;
+	/** Set when the user's GitHub Team provides this marketplace. */
+	readonly team?: boolean;
 }
 
 export interface ICustomizationMarketplaceRemoveResult {
@@ -303,12 +305,14 @@ export interface ICustomizationItem {
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
 	readonly statusMessage?: string;
-	/** Whether this customization is currently enabled. */
+	/** Whether this customization is active, independent of whether its enablement can be changed. */
 	readonly enabled?: boolean;
 	/** Host-published reason for a disabled customization. */
 	readonly disabledReason?: CustomizationDisabledReason;
 	/** Set when the user's organization manages this customization. */
 	readonly organizationControl?: ICustomizationOrganizationControl;
+	/** Set when the user's GitHub Team provides this customization. Provenance only; it doesn't restrict enablement. */
+	readonly teamProvided?: boolean;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/**

@@ -12,7 +12,7 @@ import { CancellationTokenSource } from '../../../../../../base/common/cancellat
 import { Emitter } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IMobileContentSheetOptions, showMobileContentSheet, showMobilePickerSheet } from '../../../browser/mobile/mobilePickerSheet.js';
+import { IMobileContentSheetApi, IMobileContentSheetOptions, showMobileContentSheet, showMobilePickerSheet } from '../../../browser/mobile/mobilePickerSheet.js';
 
 suite('MobilePickerSheet', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -188,6 +188,41 @@ suite('MobileContentSheet', () => {
 			trigger();
 			await closed;
 			assert.deepStrictEqual({ disposed: getDisposeCount(), remaining: container.childElementCount }, { disposed: 1, remaining: 0 });
+		});
+	}
+
+	for (const closeOuterFirst of [false, true]) {
+		test(`nested sheets dismiss one layer and restore live focus targets (outer closed: ${closeOuterFirst})`, async () => {
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => container.remove()));
+			const trigger = dom.append(container, dom.$('button'));
+			trigger.focus();
+			let outerApi: IMobileContentSheetApi;
+			const outerClosed = showMobileContentSheet(container, 'Outer', (body, api) => {
+				outerApi = api;
+				dom.append(body, dom.$('button')).focus();
+				store.add(toDisposable(() => api.close()));
+			});
+			const outerButton = dom.getActiveElement();
+			const innerClosed = showMobilePickerSheet(container, 'Inner', [{ id: 'choice', label: 'Choice' }]);
+			const innerButton = dom.getActiveElement();
+			store.add(toDisposable(() => container.querySelectorAll<HTMLButtonElement>('.mobile-picker-sheet-done').forEach(button => button.click())));
+			if (closeOuterFirst) {
+				outerApi!.close();
+			}
+			const focusBeforeEscape = dom.getActiveElement() === innerButton;
+			mainWindow.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+			const selected = await innerClosed;
+			const restoredParent = dom.getActiveElement() === (closeOuterFirst ? trigger : outerButton);
+			const remaining = container.querySelectorAll('.mobile-picker-sheet:not(.closing)').length;
+			if (!closeOuterFirst) {
+				mainWindow.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+			}
+			await outerClosed;
+
+			assert.deepStrictEqual({ focusBeforeEscape, selected, restoredParent, remaining, focusRestored: dom.getActiveElement() === trigger }, {
+				focusBeforeEscape: true, selected: undefined, restoredParent: true, remaining: closeOuterFirst ? 0 : 1, focusRestored: true,
+			});
 		});
 	}
 });

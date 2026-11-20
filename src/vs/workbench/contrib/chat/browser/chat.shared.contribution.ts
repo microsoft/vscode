@@ -12,7 +12,7 @@ import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHos
 import { CODEX_CONTINUATION_SETTING, CODEX_CONTINUATION_THRESHOLD_SETTING } from '../../../services/agentHost/browser/codexContinuationService.js';
 import { Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
@@ -200,6 +200,7 @@ import { ChatOutlineCreator } from './chatOutlineCreator.js';
 import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatLayoutService } from './widget/chatLayoutService.js';
+import { ChatMcpAppEditor, ChatMcpAppEditorInput } from './widget/chatContentParts/toolInvocationParts/chatMcpAppEditor.js';
 import './widget/input/chatInputNoticeHub.js';
 import './widget/input/chatInputNotificationService.js';
 import { ChatInputBoxContentProvider } from './widget/input/editor/chatEditorInputContentProvider.js';
@@ -1758,6 +1759,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
 		},
+		[CopilotSecurityReviewSecretDetectionEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.securityReview.secretDetection.enabled', "When enabled, `/security-review` in Copilot SDK sessions also runs a purpose-built secret detection model alongside the existing analysis to find unstructured credentials, such as passwords without a recognizable token format. Requires preview features to be allowed by your organization. Applies to new and resumed sessions."),
+			default: false,
+			tags: ['preview'],
+			scope: ConfigurationScope.APPLICATION,
+		},
 		[AgentHostCopilotProgressUpdatesPromptSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.copilot.progressUpdatesPrompt.enabled', "When enabled, Copilot SDK sessions running a GPT model or Auto are asked to send a brief user-visible update before their first tool call and while they work. Applies to new and resumed sessions."),
@@ -2457,7 +2465,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize({ key: 'chat.welcomePage.agentsWindowGraphic.auto', comment: ['Values surrounded by single quotes are not to be translated.'] }, "Show 'manyWindowsToOne' when more than one editor window is open, and 'windowComparison' otherwise."),
 			],
 			description: nls.localize('chat.welcomePage.agentsWindowGraphic', "Controls which graphic explains the Agents window above the Agents window button on the Welcome page."),
-			default: AgentsWindowGraphicVariant.None,
+			default: AgentsWindowGraphicVariant.WindowComparison,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -2677,6 +2685,16 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(ChatEditorInput)
+	]
+);
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		ChatMcpAppEditor,
+		ChatMcpAppEditor.ID,
+		nls.localize('chatMcpApp', "MCP App")
+	),
+	[
+		new SyncDescriptor(ChatMcpAppEditorInput)
 	]
 );
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -3039,7 +3057,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		this.registerMaxRequestsSetting();
 		this.registerNewChatButtonIcon();
 		this.registerDefaultModeSetting();
-		this.registerSecurityReviewSecretDetectionSetting();
 	}
 
 
@@ -3069,38 +3086,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			});
 		};
 		this._register(Event.runAndSubscribe(Event.debounce(this.entitlementService.onDidChangeEntitlement, () => { }, 1000), () => registerMaxRequestsSetting()));
-	}
-
-	/** Registered only for internal accounts. The agent host also checks the session's account at launch. */
-	private registerSecurityReviewSecretDetectionSetting(): void {
-		const node: IConfigurationNode = {
-			id: 'chatSidebar',
-			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
-			type: 'object',
-			properties: {
-				[CopilotSecurityReviewSecretDetectionEnabledSettingId]: {
-					type: 'boolean',
-					markdownDescription: nls.localize('chat.copilot.securityReview.secretDetection.enabled', "When enabled, `/security-review` in Copilot SDK sessions also runs a purpose-built secret detection model alongside the existing analysis to find unstructured credentials, such as passwords without a recognizable token format. Available to GitHub and Microsoft staff only, and requires preview features to be allowed by your organization. Applies to new and resumed sessions."),
-					default: false,
-					tags: ['preview'],
-					scope: ConfigurationScope.APPLICATION,
-				},
-			}
-		};
-		let registered = false;
-		const update = () => {
-			const internal = this.entitlementService.isInternal;
-			if (internal !== registered) {
-				configurationRegistry.updateConfigurations(internal ? { add: [node], remove: [] } : { add: [], remove: [node] });
-				registered = internal;
-			}
-		};
-		this._register(Event.runAndSubscribe(this.entitlementService.onDidChangeEntitlement, update));
-		this._register(toDisposable(() => {
-			if (registered) {
-				configurationRegistry.deregisterConfigurations([node]);
-			}
-		}));
 	}
 
 	private registerNewChatButtonIcon(): void {

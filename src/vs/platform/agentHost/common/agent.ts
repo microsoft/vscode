@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IOtlpLogRecord, OtlpLogLevelName } from './otlp/otlpLogEmitter.js';
 import { Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
@@ -352,6 +353,8 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 	/** Explicit repository override; null inherits global state, absent means unavailable. */
 	readonly repositoryEnabled?: boolean | null;
 	readonly managedDesiredEnabled?: boolean;
+	/** Set when the signed-in account's GitHub Team assigns this plugin. Provenance only: the user's own enablement choices still apply. Absent when the runtime doesn't report it. */
+	readonly team?: boolean;
 	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
 	readonly resource?: URI;
 	/** Host-owned installed-content revision; activation-only changes preserve it. */
@@ -711,6 +714,8 @@ export interface IAgentPluginMarketplace {
 	readonly isDefault: boolean;
 	readonly managed: boolean;
 	readonly available: boolean;
+	/** Set when the signed-in account's GitHub Team provides this marketplace. Absent when the runtime doesn't report it. */
+	readonly team?: boolean;
 }
 
 export interface IAgentPluginMarketplaceItem {
@@ -744,6 +749,16 @@ export interface IAgentTokenUsageSummary {
 	readonly knownInputTokens?: number;
 	readonly knownOutputTokens?: number;
 	readonly knownCacheReadTokens?: number;
+}
+
+/** Observed provider interactions and steering lineage. */
+export interface IAgentTurnInteraction {
+	readonly sdkSessionId: string;
+	readonly originalTurnId?: string;
+	readonly steeredFromTurn?: string;
+	readonly interactionIds: readonly string[];
+	readonly interactionIdsTruncated: boolean;
+	readonly steeringDelivery?: 'steering' | 'idle' | 'queued' | 'unknown';
 }
 
 /** A point-in-time snapshot; missing counters and missing snapshots remain unknown. */
@@ -820,6 +835,8 @@ export interface AuthenticateParams {
 	readonly expiresIn?: number;
 	/** The single consumer this token is for; when absent, tokens match by resource and scopes. */
 	readonly target?: AuthenticateTarget;
+	/** Unverified client-local account selection, stable across token renewals. */
+	readonly accountId?: string;
 	/** Optional client metadata. Hosts must remain usable when it is absent. */
 	readonly _meta?: Record<string, unknown>;
 }
@@ -1061,7 +1078,7 @@ export interface IAgentChatContext {
 	 * reason when the send used it, or with the bounded reason it was discarded
 	 * and the send launched one instead.
 	 */
-	readonly reportPrewarmedSession?: (discardReason?: string) => void;
+	readonly reportPrewarmedSession?: (discardReason?: string, claim?: IAgentPrewarmClaim) => void;
 	/**
 	 * Records, before progress can complete the addressed turn, that its send
 	 * materialized a deferred provider session without a pre-warmed one to
@@ -1098,6 +1115,12 @@ export interface IAgentChatContext {
 	readonly originalMessageText?: string;
 	/** Records provider timing for the current send or resumed execution. */
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
+	/**
+	 * The still-pending turn-start checkpoint capture, supplied only for the send of a
+	 * provider that sets {@link IAgentChats.awaitsTurnStartCheckpoint}. The provider
+	 * must await it before any tool of the turn runs and must not run tools if it rejects.
+	 */
+	readonly turnStartCheckpoint?: Promise<void>;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
 	/**
@@ -1460,6 +1483,24 @@ export interface IAgentChatReleaseOptions {
 	readonly canContinue?: () => boolean;
 }
 
+/** What a deferred chat's composer would send with, used to shape its warm runtime ({@link IAgentChats.warmChat}). */
+export interface IAgentWarmChatSelection {
+	/** The model to warm with; `undefined` keeps the chat's current model. */
+	readonly model: ModelSelection | undefined;
+	/** The custom agent to warm with; `undefined` is the default agent. */
+	readonly agent: AgentSelection | undefined;
+}
+
+/** How a send found the pre-warmed provider session it used, for turn telemetry ({@link IAgentChatContext.reportPrewarmedSession}). */
+export interface IAgentPrewarmClaim {
+	/** When the used launch became ready, as `Date.now()` in the reporting process. */
+	readonly readyAt: number;
+	/** The draft's warm launches so far, including the used one; more than one means it was warmed again. */
+	readonly launchCount: number;
+	/** Whether the launch's background warm-up, such as MCP startup and tool initialization, had finished. */
+	readonly warmUpComplete: boolean;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -1471,10 +1512,18 @@ export interface IAgentChatReleaseOptions {
  */
 export interface IAgentChats {
 	/**
+	 * Whether the provider awaits the turn-start checkpoint itself, before the
+	 * turn's first tool runs, via {@link IAgentChatContext.turnStartCheckpoint}.
+	 * The host then sends without waiting for the capture; otherwise it awaits
+	 * the capture before {@link sendMessage}.
+	 */
+	readonly awaitsTurnStartCheckpoint?: boolean;
+
+	/**
 	 * Optional pre-send preparation, such as materializing a deferred provider
 	 * session, after the turn's model/agent selection and working directories
 	 * are resolved. The host may run it concurrently with the turn-start
-	 * checkpoint capture and awaits both before {@link sendMessage} for the same
+	 * checkpoint capture and awaits it before {@link sendMessage} for the same
 	 * `turnId`, so implementations must not send a prompt or modify the working
 	 * tree. Preparation that is not needed must resolve without doing work.
 	 */
@@ -1498,8 +1547,15 @@ export interface IAgentChats {
 	 * disposing the chat discards it. Resolves `true` when a warm runtime is
 	 * live afterwards; a chat that cannot be warmed resolves `false` without
 	 * doing work.
+	 *
+	 * The host calls it again while the user composes. A warm runtime that
+	 * still matches `selection` is kept and its unclaimed lifetime extended;
+	 * one launched with another model or agent is replaced; and a chat whose
+	 * warm runtime expired or was torn down is warmed again. `selection` only
+	 * shapes the warm launch: the first send still selects its own model and
+	 * agent and replaces a launch that does not match them.
 	 */
-	warmChat?(chat: URI, context: IAgentChatContext): Promise<boolean>;
+	warmChat?(chat: URI, context: IAgentChatContext, selection?: IAgentWarmChatSelection): Promise<boolean>;
 
 	/**
 	 * Records why the host is not (yet) warming a deferred chat
@@ -2207,9 +2263,6 @@ export interface IAgent {
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
 
-	/** Native snapshots can arrive after host cancellation or steering has already ended a turn. */
-	readonly onDidStoreTurnEdits?: Event<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
-
 	/** Host-wide progress for provider setup, including work without a chat yet. */
 	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;
 
@@ -2301,6 +2354,9 @@ export interface IAgent {
 
 	/** Read observed usage at terminal dispatch for this exact owning turn, excluding descendants and later delivery. */
 	getTurnTokenUsage?(chat: URI, turnId: string, parentToolCallId?: string): IAgentTurnTokenUsage | undefined;
+
+	/** Capture bounded provider interaction and steering lineage from cached state. */
+	getTurnInteraction?(chat: URI, turnId: string): IAgentTurnInteraction | undefined;
 
 	/** Record the host-remapped turn for a completed provider model call. */
 	recordModelCallTurnCorrelation?(chat: URI, modelCallId: string, turnId: string): void;
@@ -2508,6 +2564,9 @@ export interface IAgent {
 
 	/** Optional `mcp://` router for providers that advertise chat-scoped MCP side-channel resources. */
 	handleMcpRequest?(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+
+	/** Streams per-server diagnostics without exporting them through host logging or telemetry. */
+	subscribeMcpServerLogs?(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable;
 
 	/** Optional notification stream paired with {@link handleMcpRequest}. */
 	readonly onMcpNotification?: Event<IMcpNotification>;

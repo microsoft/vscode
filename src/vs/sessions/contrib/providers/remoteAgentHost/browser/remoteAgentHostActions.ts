@@ -25,7 +25,8 @@ import { SnippetController2 } from '../../../../../editor/contrib/snippet/browse
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { parseRemoteAgentHostInput, RemoteAgentHostInputValidationError } from '../../../../../platform/agentHost/common/remoteAgentHostAddress.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig, type SSHAgentHostConnectionRequest } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -166,6 +167,7 @@ interface ISSHAuthMethodPickItem extends IQuickPickItem {
 
 /**
  * Parse a free-form SSH connection string of the form `[user@]host[:port]`.
+ * The host follows the last `@`, because user names can contain `@` and host names can't.
  * Returns `undefined` for empty or invalid input.
  */
 export function parseSSHHostInput(value: string): { host: string; username?: string; port?: number } | undefined {
@@ -173,7 +175,7 @@ export function parseSSHHostInput(value: string): { host: string; username?: str
 	if (!trimmed) {
 		return undefined;
 	}
-	const atIdx = trimmed.indexOf('@');
+	const atIdx = trimmed.lastIndexOf('@');
 	if (atIdx === 0 || atIdx === trimmed.length - 1) {
 		return undefined;
 	}
@@ -218,7 +220,7 @@ function validateSSHHostInput(value: string): string | undefined {
 	if (!v) {
 		return localize('sshHostEmpty', "Enter an SSH host.");
 	}
-	const atIdx = v.indexOf('@');
+	const atIdx = v.lastIndexOf('@');
 	if (atIdx === 0) {
 		return localize('sshUsernameMissingInHost', "Enter a username before '@'.");
 	}
@@ -888,9 +890,11 @@ async function promptToConnectViaTunnel(
 		.filter(tunnel => !isHostedTunnel(tunnel))
 		.map(tunnel => ({
 			label: tunnel.name,
-			description: tunnel.hostConnectionCount > 0
-				? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
-				: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
+			description: tunnel.hostConnectionCount === undefined
+				? localize('tunnelPickUnknown', "{0} · Status unknown", tunnel.tunnelId)
+				: tunnel.hostConnectionCount > 0
+					? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
+					: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
 			buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
 			tunnel,
 		}));

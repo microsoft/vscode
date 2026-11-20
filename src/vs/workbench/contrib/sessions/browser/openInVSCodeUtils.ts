@@ -79,6 +79,10 @@ export function resolveRemoteAgentHostEntryAuthority(entry: IRemoteAgentHostEntr
 			if (entry.connection.repository) {
 				return `dev-container+${encodeHex(VSBuffer.fromString(JSON.stringify(entry.connection.repository)))}`;
 			}
+			if (entry.connection.environmentId !== undefined) {
+				// The Dev Containers extension has no authority for environment containers.
+				return undefined;
+			}
 			let { hostPath, hostAuthority } = entry.connection;
 			if (hostAuthority?.startsWith('wsl+')) {
 				// Dev Containers identifies WSL through a UNC host path, not an @wsl parent authority.
@@ -137,8 +141,9 @@ export function getEditorWindowSessionUnsupportedReason(
 				&& locationPreferenceService.getPreference(hostKey) !== 'editor' ? 'differentAgentHost' : undefined;
 		}
 		case RemoteAgentHostEntryType.WSL:
-		case RemoteAgentHostEntryType.DevContainer:
 			return undefined;
+		case RemoteAgentHostEntryType.DevContainer:
+			return entry.connection.environmentId !== undefined ? 'unsupported' : undefined;
 		default:
 			return 'unsupported';
 	}

@@ -19,6 +19,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../c
 import { AgentSession } from '../../../common/agent.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../../node/agentHostFileEditCoordinator.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -50,6 +51,7 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const otelService = new RecordingOTelService();
 	instantiationService.stub(ISessionDataService, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, {

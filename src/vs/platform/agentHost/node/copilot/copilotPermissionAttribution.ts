@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createAttributedPermissionResult, type AttributedPermissionResult, type PermissionDecisionSource, type PermissionRequestResult, type PermissionResult } from '@github/copilot-sdk';
+import { createAttributedPermissionResult, type AttributedPermissionResult, type PermissionDecisionSource, type PermissionRequestResult, type PermissionResult } from '@microsoft/copilot-sdk';
 import type { IAgentHostToolApprovalReport } from '../agentHostTelemetryReporter.js';
 
 /**

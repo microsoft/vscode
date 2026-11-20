@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
@@ -12,6 +13,7 @@ import { IGitHubAnonymousClient } from '../common/anonymous/anonymous.js';
 import { GitHubAuthorizationContext } from '../common/githubTypes.js';
 import { GITHUB_CHANNEL_NAME, GITHUB_CREDENTIALS_CHANNEL_NAME, IGitHubCredentialBroker, ISharedProcessGitHubService } from '../common/remote/ipc.js';
 import { GitHubChannelClient, GitHubCredentialsChannel } from '../common/remote/ipcClient.js';
+
 
 class SharedProcessGitHubService extends Disposable implements ISharedProcessGitHubService {
 	declare readonly _serviceBrand: undefined;
@@ -27,12 +29,12 @@ class SharedProcessGitHubService extends Disposable implements ISharedProcessGit
 		this.client = new GitHubChannelClient(sharedProcessService.getChannel(GITHUB_CHANNEL_NAME), logService);
 	}
 
-	acquireAnonymousClient(signal: AbortSignal): Promise<IGitHubAnonymousClient> {
-		return this.client.acquireAnonymousClient(signal);
+	acquireAnonymousClient(cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient> {
+		return this.client.acquireAnonymousClient(cancellationToken);
 	}
 
-	acquireClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient> {
-		return this.client.acquireClient(authorization, signal);
+	acquireClient(authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<IGitHubAccountClient> {
+		return this.client.acquireClient(authorization, cancellationToken);
 	}
 }
 

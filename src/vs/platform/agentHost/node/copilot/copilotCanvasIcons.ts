@@ -8,15 +8,12 @@ import { getErrorMessage } from '../../../../base/common/errors.js';
 import { isEqualOrParent } from '../../../../base/common/extpath.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { basename, dirname, extname, isAbsolute, join } from '../../../../base/common/path.js';
-import { isLinux } from '../../../../base/common/platform.js';
 import { ILogService } from '../../../log/common/log.js';
-import { MAX_CANVAS_ICON_BYTES, toCanvasIconDataUri } from '../../common/meta/agentCanvasIconMeta.js';
+import { isBoundedPngSize, MAX_CANVAS_ICON_BYTES, toCanvasIconDataUri } from '../../common/meta/agentCanvasIconMeta.js';
 
 /** The entry modules the runtime discovers an extension by, which mark its directory. */
 const EXTENSION_ENTRY_FILES = ['extension.mjs', 'extension.cjs', 'extension.js'];
 const PNG_SIGNATURE = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-/** The largest image a canvas icon may declare, so that clients never decode an oversized one. */
-const MAX_ICON_PIXELS = 4 * 1024 * 1024;
 
 interface ICachedCanvasIcon {
 	readonly mtimeMs: number;
@@ -64,7 +61,8 @@ export class CopilotCanvasIconLoader {
 			return undefined;
 		}
 		const [icon, directory] = await Promise.all([fs.realpath(path), fs.realpath(extensionDirectory)]);
-		if (icon === directory || !isEqualOrParent(icon, directory, !isLinux)) {
+		// Both paths are canonical, so they compare exactly, even on a file system that ignores case.
+		if (icon === directory || !isEqualOrParent(icon, directory, false)) {
 			return undefined;
 		}
 		// Opening a FIFO waits for a writer, so only a regular file is opened.
@@ -146,9 +144,7 @@ function isBoundedPng(bytes: Uint8Array): boolean {
 		return false;
 	}
 	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-	const width = view.getUint32(16);
-	const height = view.getUint32(20);
 	return view.getUint32(8) === 13
 		&& String.fromCharCode(bytes[12], bytes[13], bytes[14], bytes[15]) === 'IHDR'
-		&& width > 0 && height > 0 && width * height <= MAX_ICON_PIXELS;
+		&& isBoundedPngSize(view.getUint32(16), view.getUint32(20));
 }

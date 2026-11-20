@@ -117,6 +117,8 @@ Local and per-address remote frontend summary caches use a separate generation f
 
 ## Session adaptation
 
+Sandboxed Copilot Agent Host sessions with Canvas enabled request read/write access to the shared `<COPILOT_HOME>/extension-data/` directory, subject to sandbox policy. This default does not grant the parent Copilot home or the extension source directories.
+
 `AgentHostSessionAdapter` is the stable `ISession` facade for a committed Agent Host session. It:
 
 - preserves provider resource identity;
@@ -136,6 +138,8 @@ Side-chat provenance is independent of conversation inheritance. Side chats norm
 Each chat's read state is projected from its chat summary independently of the session aggregate. In a multi-chat session, any unread normal user-visible chat forces the aggregate unread; Tool/subagent chats are excluded. When the last unread participating chat becomes read, the host promotes the aggregate to read; repeated read actions do not clear an independently unread session. When supported by the negotiated protocol version, activating a chat or invoking Mark as Read or Mark as Unread on a session row dispatches the chat-level read-state action for the represented main chat and updates that chat facade optimistically; the host remains responsible for aggregate synchronization, persistence, and fan-out.
 
 Selectable Agent Host changesets have one catalogue owner for each scope. The default chat exists from initial draft creation and owns repository-preparation changes before provider materialization. After materialization, the session continues publishing its cumulative Session Changes entry while each chat owns its repository and turn catalogue. Peer chats also own a Session Changes entry scoped to the edits made in that chat; because Git checkpoints capture the working tree shared by every chat, it is computed from the chat's tracked edits. The client keeps a chat-owned Session Changes entry and otherwise projects the session-owned entry into the chat catalogue, so the default chat shows the cumulative summary across all chats while every chat retains chat-scoped Branch, Uncommitted, This Turn, and Compare entries.
+
+VS Code's Agent Host only serves per-turn changesets at chat addresses, including for the default chat. The client still follows a session-owned turn entry if an older host advertises one.
 
 Session workflow operations such as pull-request creation and Agent Merge are advertised by Branch Changes sourced from the default chat. Changesets from other scopes, along with Uncommitted, This Turn, and Compare entries, keep those operations filtered out.
 

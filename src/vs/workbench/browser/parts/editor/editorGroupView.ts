@@ -149,6 +149,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private _contentTopInset = 0;
 	private _contentBottomInset = 0;
 
+	private readonly headerSpansContentInset: IEditorGroupViewOptions['headerSpansContentInset'];
+
 	private readonly _onDidRelayout = this._register(new Emitter<void>());
 	readonly onDidRelayout = this._onDidRelayout.event;
 
@@ -188,6 +190,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IModelService private readonly modelService: IModelService
 	) {
 		super(themeService);
+
+		this.headerSpansContentInset = options?.headerSpansContentInset;
 
 		if (from instanceof EditorGroupView) {
 			this.model = this._register(from.model.clone());
@@ -876,6 +880,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
+		// A single tab shows the active editor's title only, which an editor can provide where the part asks for it
+		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
+			this.updateTitleProvidedByEditor();
+		}
+
 		// Styles
 		this.updateStyles();
 
@@ -985,14 +994,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private titleProvidedByEditor = false;
 
 	/**
-	 * A group that holds exactly one editor whose pane renders its own title
-	 * does not show its title area. With more editors, it shows as usual, and
-	 * the editor does not show its own title.
+	 * A group whose active editor's pane renders its own title does not show its
+	 * title area while it holds only that editor, or, where its part asks for it
+	 * as it is created (`ICreateEditorPartOptions.singleTabTitleProvidedByEditor`), while it shows the
+	 * title of its active editor only, as with a single tab. Otherwise, it shows
+	 * as usual, and the editor does not show its own title.
 	 */
 	private updateTitleProvidedByEditor(): void {
 		const activeEditorPane = this.editorPane.activeEditorPane;
 		const paneProvidesTitle = activeEditorPane instanceof EditorPane && activeEditorPane.input === this.activeEditor && activeEditorPane.providesTitle;
-		const titleProvidedByEditor = this.count === 1 && paneProvidesTitle;
+		const titleProvidedByEditor = paneProvidesTitle && (this.count === 1 || (this.groupsView.partOptions.showTabs === 'single' && !!this.groupsView.singleTabTitleProvidedByEditor));
 		if (paneProvidesTitle) {
 			activeEditorPane.setProvidedTitleVisible(titleProvidedByEditor);
 		}
@@ -2331,14 +2342,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
 		const contentWidth = Math.max(0, width - this._contentLeftInset - this._contentRightInset);
-		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
-		this.titleContainer.style.setProperty('--title-border-bottom-left', `${this._contentLeftInset}px`);
+		const headerSpansContentInset = (this._contentLeftInset > 0 || this._contentRightInset > 0) && this.headerSpansContentInset?.(this.activeEditor ?? undefined) === true;
+		const headerWidth = headerSpansContentInset ? width : contentWidth;
+		const headerLeft = headerSpansContentInset ? 0 : this._contentLeftInset;
+		this.titleContainer.classList.toggle('header-spans-content-inset', headerSpansContentInset);
+		this.titleContainer.style.setProperty('--title-border-bottom-width', `${headerWidth}px`);
+		this.titleContainer.style.setProperty('--title-border-bottom-left', `${headerLeft}px`);
 
-		// Keep tabs full-width while the header and editor pane follow the content inset.
+		// Keep tabs full-width while the editor pane follows the content inset, and the
+		// header does too unless it spans the inset.
 		const titleControlSize = this.titleProvidedByEditor ? new Dimension(width, 0) : this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
-		}, contentWidth, this._contentLeftInset);
+		}, headerWidth, headerLeft);
 
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;

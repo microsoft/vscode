@@ -1150,6 +1150,33 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		]);
 	});
 
+	test('completion distinguishes actual steering delivery from submission intent', () => {
+		setupSession();
+		for (const delivery of ['steering', 'idle', 'queued', 'unknown'] as const) {
+			startTurn(`original-${delivery}`);
+			Object.assign(agent, {
+				getTurnInteraction: (_chat: URI, turnId: string) => turnId === `turn-${delivery}` ? { sdkSessionId: 'sdk', interactionIds: [], interactionIdsTruncated: false, steeringDelivery: delivery } : undefined,
+			});
+			const message: Message = { text: 'follow-up', origin: { kind: MessageKind.User } };
+			applyClientAction({
+				type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: `pending-${delivery}`,
+				message,
+			});
+			fire(chatTurnComplete(`original-${delivery}`, 100));
+			fire({
+				type: ActionType.ChatTurnStarted, turnId: `turn-${delivery}`, startedAt: new Date().toISOString(),
+				message, queuedMessageId: `pending-${delivery}`,
+			});
+			fire(chatTurnComplete(`turn-${delivery}`, 100));
+		}
+		assert.deepStrictEqual(completedEvents().filter(event => String((event.data as Record<string, unknown>).turnId).startsWith('turn-')).map(event => {
+			const data = event.data as Record<string, unknown>;
+			return [data.steeringDelivery, data.startedWithSteering, data.receivedSteering];
+		}), [
+			['steering', true, false], ['idle', false, false], ['queued', false, false], ['unknown', false, false],
+		]);
+	});
+
 	test('request token availability is independent of success, failure, cancellation and missing snapshots', () => {
 		setupSession();
 		const observed: IAgentTurnTokenUsage = {
@@ -1166,6 +1193,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				return turnId === 'missing' ? undefined : observed;
 			}
 		});
+
 		for (const turnId of ['success', 'failure', 'cancel', 'missing']) {
 			startTurn(turnId);
 			if (turnId === 'failure') {
@@ -1189,6 +1217,22 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			['cancel', 'cancelled', 'partial', 1, 0],
 			['missing', 'success', 'notReported', 0, undefined],
 		]);
+	});
+
+	test('enriches completion with observed interactions and steering origin without changing execution identity', () => {
+		setupSession();
+		Object.assign(agent, {
+			getTurnInteraction: () => ({
+				sdkSessionId: 'sdk', originalTurnId: 'original', steeredFromTurn: 'previous',
+				interactionIds: ['i1', 'i2'], interactionIdsTruncated: false,
+			}),
+		});
+		startTurn('successor');
+		fire(chatTurnComplete('successor', 100));
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return [data.turnId, data.sdkSessionId, data.originalTurnId, data.steeredFromTurn, data.interactionIds, data.interactionIdsTruncated];
+		}), [['successor', 'sdk', 'original', 'previous', '["i1","i2"]', false]]);
 	});
 
 	for (const result of ['success', 'error', 'cancelled'] as const) {
