@@ -1259,6 +1259,10 @@ export class ChatService extends Disposable implements IChatService {
 				this._remoteSessionRestorers.delete(model.sessionResource);
 			}
 		}));
+		// A disposed session can no longer stream into the model or take its input, so the
+		// model must not keep itself alive for it. Once its other holders release it, the
+		// next open loads the session from its current provider.
+		disposables.add(providedSession.onWillDispose(() => model.disableBackgroundKeepAlive()));
 
 		// Set up progress streaming and cancellation for contributed sessions.
 		// This handles both the initial in-flight response (from session load)
