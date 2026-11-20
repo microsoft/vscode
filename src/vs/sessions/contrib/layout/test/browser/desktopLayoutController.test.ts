@@ -1982,7 +1982,7 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[desktop] Toggle Details targets the multi diff file list while docked and the widget while floating', () => {
+	test('[desktop] Toggle Details targets the multi diff file list, also while the details float, and the details elsewhere', () => {
 		createDesktopController();
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		const configurationService = new TestConfigurationService();
@@ -2019,13 +2019,14 @@ suite('DesktopLayoutController', () => {
 			textEditorActive: { fileListVisible: false, detailsVisible: true },
 			multiDiffEditorGroupToolbar: { fileListVisible: true, detailsVisible: true },
 		});
+		// The details are hidden while a multi diff editor is active, docked or floating, so it toggles its file list either way.
 		harness.layoutService.setAuxiliaryBarFloating(true);
 		assert.deepStrictEqual({
-			hideWidget: toggle(multiDiffEditorGroup),
-			showWidget: toggle(multiDiffEditorGroup),
+			multiDiffEditorActive: toggle(multiDiffEditorGroup),
+			textEditorActive: toggle(textEditorGroup),
 		}, {
-			hideWidget: { fileListVisible: true, detailsVisible: false },
-			showWidget: { fileListVisible: true, detailsVisible: true },
+			multiDiffEditorActive: { fileListVisible: false, detailsVisible: true },
+			textEditorActive: { fileListVisible: false, detailsVisible: false },
 		});
 	});
 
@@ -2107,11 +2108,12 @@ suite('DesktopLayoutController', () => {
 			multiDiffWithFileList: shown(MultiDiffEditor.ID, { hasDockedDetails: true, fileList: true }),
 			multiDiffWithoutFileList: shown(MultiDiffEditor.ID, { hasDockedDetails: true }),
 			withoutDockedDetails: shown('test.browserEditor'),
-			// Toggle Details shows and hides the floating details, also for a multi diff editor.
+			// Toggle Details shows and hides the floating details, but keeps toggling the file list of a multi diff editor,
+			// which has no docked details to float.
 			floating: {
 				textFile: shown(TEXT_FILE_EDITOR_ID, { hasDockedDetails: true, floating: true }),
 				changes: shown(SessionChangesEditorInput.EDITOR_ID, { floating: true }),
-				multiDiffWithFileList: shown(MultiDiffEditor.ID, { hasDockedDetails: true, fileList: true, floating: true }),
+				multiDiffWithFileList: shown(MultiDiffEditor.ID, { fileList: true, floating: true }),
 				withoutDockedDetails: shown('test.browserEditor', { floating: true }),
 			},
 		}, {
@@ -2122,7 +2124,7 @@ suite('DesktopLayoutController', () => {
 			multiDiffWithFileList: ['fileList'],
 			multiDiffWithoutFileList: ['details'],
 			withoutDockedDetails: [],
-			floating: { textFile: ['details'], changes: ['details'], multiDiffWithFileList: ['details'], withoutDockedDetails: [] },
+			floating: { textFile: ['details'], changes: ['details'], multiDiffWithFileList: ['fileList'], withoutDockedDetails: [] },
 		});
 	});
 

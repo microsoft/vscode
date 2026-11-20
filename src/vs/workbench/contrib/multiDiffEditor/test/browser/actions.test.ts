@@ -36,7 +36,7 @@ suite('MultiDiffEditor Actions', () => {
 		const inEditorTitle = MenuRegistry.getMenuItems(MenuId.EditorTitle)
 			.filter(isISubmenuItem)
 			.some(item => item.submenu === MultiDiffEditorFilesViewAndPositionMenu);
-		// The view mode and position stay available in the Agents window, which contributes the submenu to its own editor title menu while its details float.
+		// The view mode and position stay available in the Agents window, which contributes the submenu to the editor title menu of its chat windows.
 		// Hidden where the editor has no file list, so a host's own entries are not shown next to disabled ones.
 		const whenKeys = ['activeEditor', 'multiDiffEditorFileListAvailable'];
 		const preconditionKeys = ['activeEditor', 'multiDiffEditorFileListAvailable'];

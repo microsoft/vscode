@@ -1273,15 +1273,15 @@ suite('Changes View Actions', () => {
 		}]);
 	});
 
-	test('Files View & Position is in the editor title overflow for multi diff editors with a file list while the details float', () => {
+	test('Files View & Position is in the editor title overflow for multi diff editors with a file list in a chat window', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isISubmenuItem)
 			.filter(item => item.submenu.id === MultiDiffEditorFilesViewAndPositionMenu.id);
-		const matches = (activeEditor: string, fileListAvailable: boolean, detailsFloating = true) => {
+		const matches = (activeEditor: string, fileListAvailable: boolean, chatWindow = true, detailsFloating = false) => {
 			const context = new Context(1, null);
 			context.setValue(IsSessionsWindowContext.key, true);
 			context.setValue(DesktopLayoutContext.key, true);
-			context.setValue(IsAuxiliaryWindowContext.key, false);
+			context.setValue(IsAuxiliaryWindowContext.key, chatWindow);
 			context.setValue(IsTopRightEditorGroupContext.key, true);
 			context.setValue(MainEditorAreaVisibleContext.key, true);
 			context.setValue(ActiveEditorContext.key, activeEditor);
@@ -1290,17 +1290,19 @@ suite('Changes View Actions', () => {
 			return items.map(item => item.when?.evaluate(context) ?? true);
 		};
 
-		// While the details are docked, the Toggle Details dropdown offers them instead.
+		// The main window offers them in the dropdown of Toggle Details, also while the details float.
 		assert.deepStrictEqual({
 			items: items.map(item => ({ title: typeof item.title === 'string' ? item.title : item.title.value, group: item.group, order: item.order })),
 			multiDiffEditorWithFileList: matches(MultiDiffEditor.ID, true),
-			multiDiffEditorWithFileListWhileDocked: matches(MultiDiffEditor.ID, true, false),
+			multiDiffEditorWithFileListInMainWindow: matches(MultiDiffEditor.ID, true, false),
+			multiDiffEditorWithFileListInMainWindowWhileFloating: matches(MultiDiffEditor.ID, true, false, true),
 			multiDiffEditorWithoutFileList: matches(MultiDiffEditor.ID, false),
 			changesEditor: matches(SessionChangesEditor.ID, true),
 		}, {
 			items: [{ title: 'Files View & Position', group: '2_viewMode', order: 10 }],
 			multiDiffEditorWithFileList: [true],
-			multiDiffEditorWithFileListWhileDocked: [false],
+			multiDiffEditorWithFileListInMainWindow: [false],
+			multiDiffEditorWithFileListInMainWindowWhileFloating: [false],
 			multiDiffEditorWithoutFileList: [false],
 			changesEditor: [false],
 		});

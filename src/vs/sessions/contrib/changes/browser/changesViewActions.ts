@@ -21,7 +21,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DIFF_VIEW_MODE_INLINE_TEMPORARY, SET_DIFF_VIEW_MODE_AUTOMATIC, SET_DIFF_VIEW_MODE_INLINE, SET_DIFF_VIEW_MODE_SIDE_BY_SIDE, TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
 import { IEditorCommandsContext, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
 import { readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
@@ -33,7 +33,6 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionArtifactIntegrationsEnabledContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
@@ -545,14 +544,14 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	order: 30,
 	when: desktopChangesEditorTitleVisible,
 });
-// While the details are docked, the Toggle Details dropdown offers how a multi diff editor shows its files list and where,
-// so the editor title overflow only offers them while the details float, when Toggle Details shows or hides the details.
+// The main window offers how a multi diff editor shows its files list and where in the dropdown of Toggle Details. A chat
+// window offers neither Toggle Details nor Toggle Files, so its editor title overflow offers them instead.
 MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	submenu: MultiDiffEditorFilesViewAndPositionMenu,
 	title: localize('filesViewAndPosition', "Files View & Position"),
 	group: '2_viewMode',
 	order: 10,
-	when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, editorAreaVisible, ActiveMultiDiffEditorHasFileListContext, ContextKeyExpr.equals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true)),
+	when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, editorAreaVisible, ActiveMultiDiffEditorHasFileListContext, IsAuxiliaryWindowContext),
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: Menus.SessionsDiffEditorView,

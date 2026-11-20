@@ -38,7 +38,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 });
 
 // The Agents window offers Toggle Details instead of Toggle Files, and contributes
-// the Files View & Position submenu to its own editor title menu while its details float.
+// the Files View & Position submenu to the editor title menu of its chat windows.
 const filesViewWhen = ContextKeyExpr.and(ActiveMultiDiffEditorHasFileListContext, IsSessionsWindowContext.toNegated());
 
 // Toggle Files, with a dropdown that switches the list between a list and a tree, and puts it on either side of the diffs.

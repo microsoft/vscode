@@ -26,7 +26,6 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/services/sessions/common/session.js';
@@ -50,9 +49,9 @@ const desktopHeaderToggleDetailsOrder = 10;
 /**
  * Whether Toggle Details toggles the changed files list of the multi diff editor shown in
  * the editor area instead of the detail panel. Evaluated against an editor group's context.
+ * The detail panel is hidden while a multi diff editor is active, whether docked or floating.
  */
 const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(
-	ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
 	MainEditorAreaVisibleContext,
 	ActiveMultiDiffEditorHasFileListContext)!;
 
@@ -727,7 +726,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				const group = context
 					? accessor.get(IEditorGroupsService).getGroup(context.groupId)
 					: accessor.get(IEditorService).activeEditorPane?.group;
-				if (!that._layoutService.isAuxiliaryBarFloating() && group?.scopedContextKeyService.contextMatchesRules(toggleMultiDiffEditorFileListContext)) {
+				if (group?.scopedContextKeyService.contextMatchesRules(toggleMultiDiffEditorFileListContext)) {
 					toggleMultiDiffEditorFileList(accessor.get(IStorageService));
 					return;
 				}
@@ -768,8 +767,8 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 								DesktopChangesEditorTransitionContext))
 					}
 				},
-				// In a multi diff editor with a changed files list, Toggle Details shows or hides that list instead while the details
-				// are docked, with a dropdown that switches the list between a list and a tree, and puts it on either side of the diffs.
+				// In a multi diff editor with a changed files list, Toggle Details shows or hides that list instead, with a dropdown
+				// that switches the list between a list and a tree, and puts it on either side of the diffs.
 				{
 					id: MenuId.EditorTitleLayout, item: {
 						submenu: Menus.MultiDiffFileListToggle,
