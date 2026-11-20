@@ -173,7 +173,8 @@ export class AgentsWindow {
 	private async waitForDevContainerLogAndClose(): Promise<void> {
 		const page = this.code.driver.currentPage;
 		await page.locator('.output-view .monaco-editor').waitFor({ state: 'visible' });
-		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:/.test(text.replace(/\u00a0/g, ' ')));
+		// The log of a Dev Container environment starts with its Docker commands, before the Dev Containers CLI writes to it.
+		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:|\$\s*docker/.test(text.replace(/\u00a0/g, ' ')));
 		await this.quickaccess.runCommand('workbench.action.closePanel');
 	}
 
