@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, EventType, getActiveWindow } from '../../../../../base/browser/dom.js';
 import { IContentActionHandler, renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
+import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
@@ -34,11 +35,12 @@ import { IUntitledDocumentTelemetryService } from '../../../../services/untitled
 import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } from './emptyTextEditorHintTypes.js';
 import { EmptyEditorHintActionsVisible, EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting, IEmptyEditorHintActionsSize } from './emptyEditorHintActions.js';
 import { EmptyEditorHintAction, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
+import { EmptyEditorHintVisible, focusEmptyEditorHintCommandId, forwardTypingToEditor, getFocusEmptyEditorHintAriaLabel } from './emptyEditorHintFocus.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import './emptyTextEditorHint.css';
 
@@ -215,6 +217,14 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		}
 	}
 
+	/**
+	 * Moves keyboard focus into the hint (Tab in the editor). Returns `false` if no hint is shown.
+	 */
+	focusHint(): boolean {
+		this.textHintContentWidget?.focus();
+		return !!this.textHintContentWidget;
+	}
+
 	override dispose(): void {
 		super.dispose();
 
@@ -222,12 +232,12 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 	}
 }
 
-class EmptyTextEditorHintContentWidget extends Disposable implements IContentWidget {
+export class EmptyTextEditorHintContentWidget extends Disposable implements IContentWidget {
 
 	private static readonly ID = 'editor.widget.emptyHint';
 
 	private domNode: HTMLElement | undefined;
-	private isVisible = false;
+	private links: HTMLAnchorElement[] = [];
 	private ariaLabel: string = '';
 
 	constructor(
@@ -239,8 +249,13 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IUntitledDocumentTelemetryService private readonly untitledDocumentTelemetryService: IUntitledDocumentTelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		const visible = EmptyEditorHintVisible.bindTo(contextKeyService);
+		visible.set(true);
+		this._register(toDisposable(() => visible.reset()));
 
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (this.domNode && e.hasChanged(EditorOption.fontInfo)) {
@@ -249,7 +264,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		}));
 		const onDidFocusEditorText = Event.debounce(this.editor.onDidFocusEditorText, () => undefined, 500);
 		this._register(onDidFocusEditorText(() => {
-			if (this.editor.hasTextFocus() && this.isVisible && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EmptyEditorHint)) {
+			if (this.editor.hasTextFocus() && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EmptyEditorHint)) {
 				status(this.ariaLabel);
 			}
 		}));
@@ -366,11 +381,42 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 			localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language and get started. Start typing to dismiss.', ...keybindingLabels) :
 			localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', ...keybindingLabels);
 		// eslint-disable-next-line eslint-js/no-restricted-syntax
-		for (const anchor of hintElement.querySelectorAll('a')) {
-			anchor.style.cursor = 'pointer';
+		this.links = [...hintElement.querySelectorAll('a')];
+		for (const link of this.links) {
+			link.style.cursor = 'pointer';
+			link.tabIndex = 0;
+			link.setAttribute('role', 'button');
+			this._register(addStandardDisposableListener(link, EventType.KEY_DOWN, e => this.onLinkKeyDown(link, e)));
 		}
 
 		return { hintElement, ariaLabel };
+	}
+
+	/**
+	 * Tab and Shift+Tab move between the links as usual. Shift+Tab on the first link and Escape return to the editor.
+	 */
+	private onLinkKeyDown(link: HTMLAnchorElement, e: IKeyboardEvent): void {
+		const index = this.links.indexOf(link);
+		if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+			link.click();
+		} else if (e.equals(KeyCode.Escape) || (index === 0 && e.equals(KeyMod.Shift | KeyCode.Tab))) {
+			this.editor.focus();
+		} else if (e.equals(KeyCode.RightArrow) || e.equals(KeyCode.DownArrow)) {
+			this.links[(index + 1) % this.links.length].focus();
+		} else if (e.equals(KeyCode.LeftArrow) || e.equals(KeyCode.UpArrow)) {
+			this.links[(index - 1 + this.links.length) % this.links.length].focus();
+		} else {
+			return;
+		}
+		e.preventDefault();
+		e.stopPropagation();
+	}
+
+	/**
+	 * Moves keyboard focus to the first link of the hint.
+	 */
+	focus(): void {
+		this.links.at(0)?.focus();
 	}
 
 	getDomNode(): HTMLElement {
@@ -381,11 +427,14 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 
 			const { hintElement, ariaLabel } = this.getHint();
 			this.domNode.append(hintElement);
-			this.ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.EmptyEditorHint));
+			this.ariaLabel = ariaLabel
+				.concat(getFocusEmptyEditorHintAriaLabel(this.keybindingService))
+				.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.EmptyEditorHint));
 
 			this._register(addDisposableListener(this.domNode, 'click', () => {
 				this.editor.focus();
 			}));
+			this._register(forwardTypingToEditor(this.domNode, this.editor));
 
 			this.editor.applyFontInfo(this.domNode);
 			const lineHeight = this.editor.getLineHeightForPosition(new Position(1, 1));
@@ -419,5 +468,21 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(EmptyEditorHintActionsVisible, EditorContextKeys.editorTextFocus, EditorContextKeys.hasNonEmptySelection.toNegated(), EditorContextKeys.hasMultipleSelections.toNegated()),
 	handler: accessor => {
 		accessor.get(ICodeEditorService).getFocusedCodeEditor()?.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID)?.closeActionsHint();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: focusEmptyEditorHintCommandId,
+	// Tab in an empty editor would only insert indentation. Below other editor contributions, so that e.g. accepting a suggestion wins.
+	weight: KeybindingWeight.EditorContrib - 50,
+	primary: KeyCode.Tab,
+	// With tab focus mode, Tab already moves focus and reaches the hint like any other focusable element
+	when: ContextKeyExpr.and(EmptyEditorHintVisible, EditorContextKeys.editorTextFocus, EditorContextKeys.tabMovesFocus.toNegated()),
+	handler: accessor => {
+		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		if (editor && !editor.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID)?.focusHint()) {
+			// The hint is shown by another contribution, e.g. in a notebook cell
+			editor.trigger('keyboard', 'tab', null);
+		}
 	}
 });
