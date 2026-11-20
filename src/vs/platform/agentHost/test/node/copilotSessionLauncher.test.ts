@@ -22,6 +22,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
+import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileOperationError, FileOperationResult, IFileService, type IFileContent, type IFileStatWithMetadata } from '../../../files/common/files.js';
@@ -67,7 +68,7 @@ import { ISessionSandboxPathService } from '../../node/sessionSandboxPathService
 import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
@@ -2222,6 +2223,20 @@ suite('getCopilotAgentSelectionName', () => {
 		assert.deepStrictEqual([...uris, nativeUri, URI.parse('client-agent:/missing')].map(uri =>
 			getCopilotAgentSelectionName(customizations, uri.toString())),
 			[...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', undefined]);
+		// The agent host reads a selected agent's parsed options (e.g. its Assisted permissions instructions) back by name.
+		assert.deepStrictEqual([...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', 'unknown'].map(name =>
+			getCopilotAgentCustomization(customizations, name)?.uri),
+			[...uris.map(uri => uri.toString()), nativeUri.toString(), undefined]);
+	});
+
+	test('carries an agent file\'s Assisted permissions instructions to the selected agent', () => {
+		const uri = URI.parse('client-agent:/fixer');
+		const customizations = {
+			plugins: [], nativeAgents: [], additionalRootInstructions: [],
+			discoveredAgents: [toParsedAgent({ uri, name: 'Fixer', assistedApprovalInstructions: 'Always ask before pushing.' })],
+		};
+		const agent = getCopilotAgentCustomization(customizations, getSdkCustomAgentName(uri));
+		assert.deepStrictEqual(agent && readAgentCustomizationMeta(agent)['vscode.assistedApprovalInstructions'], 'Always ask before pushing.');
 	});
 
 	test('keeps plugin and standalone SDK identities stable across cache revisions', () => {

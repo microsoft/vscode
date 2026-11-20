@@ -3846,6 +3846,136 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}));
 	}
 
+	test('bulk archive bounds confirmed dispatches, merges changes and releases subscriptions after rejection', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 200 }, async () => {
+		const backends = Array.from({ length: 90 }, (_, index) => URI.parse(`opaque-session://tenant/bulk-${index}`));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		for (const [index, resource] of backends.entries()) {
+			fireSessionAdded(agentHost, `bulk-${index}`, { resource });
+		}
+		await timeout(100);
+		const sessions = provider.getSessions();
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(event => changes.push(event)));
+		let active = 0;
+		let maximumActive = 0;
+		let rejectArchive = true;
+		const channels: string[] = [];
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			channels.push(channel);
+			active++;
+			maximumActive = Math.max(maximumActive, active);
+			await timeout(10);
+			active--;
+			return { channel, action, serverSeq: 1, origin: undefined, ...(rejectArchive && channel === backends[1].toString() ? { rejectionReason: 'Archive denied' } : {}) };
+		};
+
+		const started = Date.now();
+		const results = await provider.archiveSessions(sessions.map(session => session.sessionId));
+		const afterBatch = {
+			active, maximumActive, elapsedMs: Date.now() - started,
+			outcomes: results.map(result => result.status),
+			archived: sessions.map(session => session.isArchived.get()),
+			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			channels: [...channels],
+			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
+		};
+		rejectArchive = false;
+		await provider.archiveSession(sessions[1].sessionId);
+
+		assert.deepStrictEqual({ afterBatch, changesAfterRetry: changes.length }, {
+			afterBatch: {
+				active: 0,
+				maximumActive: 4,
+				elapsedMs: 230,
+				outcomes: sessions.map((_, index) => index === 1 ? 'rejected' : 'fulfilled'),
+				archived: sessions.map((_, index) => index !== 1),
+				changes: Array.from({ length: 23 }, (_, batch) => sessions.slice(batch * 4, (batch + 1) * 4)
+					.filter(session => session !== sessions[1]).map(session => session.sessionId)),
+				channels: backends.map(resource => resource.toString()),
+				released: backends.map(() => 1),
+			},
+			changesAfterRetry: 24,
+		});
+	}));
+
+	test('overlapping archive batches share the provider limit and publish changes while another batch is pending', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const backends = Array.from({ length: 8 }, (_, index) => URI.parse(`opaque-session://tenant/overlapping-${index}`));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		for (const [index, resource] of backends.entries()) {
+			fireSessionAdded(agentHost, `overlapping-${index}`, { resource });
+		}
+		await timeout(100);
+		const sessions = provider.getSessions();
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(event => changes.push(event)));
+		let active = 0;
+		let maximumActive = 0;
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			active++;
+			maximumActive = Math.max(maximumActive, active);
+			await timeout(10);
+			active--;
+			return { channel, action, serverSeq: 1, origin: undefined };
+		};
+
+		const first = provider.archiveSessions(sessions.slice(0, 4).map(session => session.sessionId));
+		const second = provider.archiveSessions(sessions.slice(4).map(session => session.sessionId));
+		await timeout(15);
+		const betweenBatches = { active, changes: changes.length };
+		const results = await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			betweenBatches,
+			active, maximumActive,
+			outcomes: results.map(batch => batch.map(result => result.status)),
+			archived: sessions.map(session => session.isArchived.get()),
+			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
+		}, {
+			betweenBatches: { active: 4, changes: 1 },
+			active: 0, maximumActive: 4,
+			outcomes: [['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled'], ['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled']],
+			archived: sessions.map(() => true),
+			changes: [sessions.slice(0, 4), sessions.slice(4)].map(batch => batch.map(session => session.sessionId)),
+			released: backends.map(() => 1),
+		});
+	}));
+
+	test('a pending bulk archive does not block listing additions or renames', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('pending-archive', { summary: 'Pending Archive' }));
+		const provider = createRefreshableProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const acknowledgement = new DeferredPromise<void>();
+		const dispatched = new DeferredPromise<void>();
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			await dispatched.complete();
+			await acknowledgement.p;
+			return { channel, action, serverSeq: 1, origin: undefined };
+		};
+		const changes: { added: string[]; changed: string[] }[] = [];
+		disposables.add(provider.onDidChangeSessions(event => changes.push({
+			added: event.added.map(session => session.title.get()),
+			changed: event.changed.map(session => session.title.get()),
+		})));
+
+		const archive = provider.archiveSessions([session.sessionId]);
+		await dispatched.p;
+		agentHost.addSession(createSession('unrelated-listing', { summary: 'Unrelated Listing' }));
+		await provider.refreshForTest();
+		await provider.renameSession(session.sessionId, 'Renamed While Pending');
+		const whilePending = [...changes];
+		await acknowledgement.complete();
+		await archive;
+
+		assert.deepStrictEqual(whilePending, [
+			{ added: ['Unrelated Listing'], changed: [] },
+			{ added: [], changed: ['Renamed While Pending'] },
+		]);
+	}));
+
 	test('a summaryChanged modifiedAt advances the last turn end like a listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('turn-end', { summary: 'Turn End', modifiedTime: 1_000 }));
 		const provider = createProvider(disposables, agentHost);

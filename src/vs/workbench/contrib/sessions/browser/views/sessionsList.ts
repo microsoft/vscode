@@ -80,7 +80,8 @@ import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprova
 import { getTerminalExecutionTargetDescription, getTerminalExecutionTargetMessage } from '../../../chat/common/chat.js';
 import { IVoicePlaybackService } from '../../../chat/common/voicePlaybackService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../chat/common/chatService/chatService.js';
+import { IChatResponseModel } from '../../../chat/common/model/chatModel.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import * as aria from '../../../../../base/browser/ui/aria/aria.js';
@@ -5024,7 +5025,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.filters = this._register(instantiationService.createInstance(SessionsListFilters));
 		this._register(chatService.onDidAcceptRequest(event => {
 			if (!event.isNewSession && !event.agentHostMessageOrigin) {
-				this.advanceInboxAfterSend(event.chatSessionResource);
+				this.advanceInboxAfterReplyOrApproval(event.chatSessionResource);
 			}
 		}));
 		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
@@ -5122,9 +5123,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 						return false;
 					}
 					const sessions = this.getMultiSelectedSessions(session);
+					const keyboardPosition = action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID ? this.captureKeyboardPosition(session) : undefined;
 					await action.run(sessions);
 					if (action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID) {
-						this.tree.domFocus();
+						this.restoreAcknowledgementPosition(keyboardPosition, sessions);
 					}
 					return true;
 				},
@@ -5907,6 +5909,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.refresh();
 		this.syncActiveChatSelection(this._mainWindowShown.get());
+		this.observeInboxApprovals(chatService);
 	}
 
 	/**
@@ -6771,8 +6774,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 		const keyboardPosition = this.captureKeyboardPosition();
+		const visibleSelection = inbox ? this.tree.getSelection().filter((item): item is SessionListItem => !!item && this.isTreeItemVisible(item)) : [];
 		this.tree.setChildren(null, attachedChildren);
 		this.restoreKeyboardPosition(keyboardPosition);
+		this.restoreVisibleInboxSelection(visibleSelection);
 		this.hadInboxSessions = hasInboxSessions;
 		if (inboxLayoutChanged) {
 			for (const session of this.sessions) {
@@ -7158,11 +7163,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/** The session row the user is on while the list has focus, with the session rows around it. */
-	private captureKeyboardPosition(): IKeyboardPosition | undefined {
-		if (!DOM.isAncestorOfActiveElement(this.listContainer)) {
+	private captureKeyboardPosition(session?: ISession): IKeyboardPosition | undefined {
+		if (!session && !DOM.isAncestorOfActiveElement(this.listContainer)) {
 			return undefined;
 		}
-		const focused = this.tree.getFocus()[0];
+		const focused = session ?? this.tree.getFocus()[0];
 		if (!focused || !isSessionItem(focused)) {
 			return undefined;
 		}
@@ -7172,33 +7177,60 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Keeps the user's place in the list when the session row they are on leaves it, such as when that session is
-	 * archived or deleted: the session row that followed it gets focus, or the one before it when it was the last.
+	 * Keeps the user's place when a session is acknowledged, archived, or deleted.
+	 * Inbox triage stays among actionable categories, falling back to a heading when empty.
 	 */
 	private restoreKeyboardPosition(position: IKeyboardPosition | undefined): void {
 		if (!position || !DOM.isAncestorOfActiveElement(this.listContainer)) {
 			return;
 		}
 		const rows = this.getVisibleSessionRows();
-		// A row leaves when it is no longer shown, or moves into the archived section
+		const sectionId = position.rows.get(position.id)?.topLevelRowId;
+		const isInboxSection = (id: string | undefined): boolean => id === SessionInboxSection.ReadyForYou
+			|| id === SessionInboxSection.Working || id === SessionInboxSection.OnHold;
+		const stayInInbox = this.isInboxLayout() && isInboxSection(sectionId);
 		const hasLeft = (id: string): boolean => {
 			const row = rows.get(id);
-			return !row || (row.topLevelRowId === 'archived' && position.rows.get(id)?.topLevelRowId !== 'archived');
+			return !row || ((row.topLevelRowId === 'archived' || row.topLevelRowId === SessionInboxSection.Acknowledged)
+				&& position.rows.get(id)?.topLevelRowId !== row.topLevelRowId);
 		};
 		if (!hasLeft(position.id)) {
 			return;
 		}
 		const ids = [...position.rows.keys()];
 		const index = ids.indexOf(position.id);
-		const next = [...ids.slice(index + 1), ...ids.slice(0, index).reverse()].find(id => !hasLeft(id));
+		const candidates = [...ids.slice(index + 1), ...ids.slice(0, index).reverse()].filter(id =>
+			!hasLeft(id) && (!stayInInbox || isInboxSection(rows.get(id)?.topLevelRowId)));
+		const next = (stayInInbox && candidates.find(id => rows.get(id)?.topLevelRowId === sectionId)) || candidates[0];
 		const session = next && rows.get(next)?.session;
-		if (!session) {
+		const element = session || (stayInInbox && sectionId
+			? this.findItem({ section: sectionId }) ?? this.findItem({ section: SessionInboxSection.ReadyForYou })
+			: undefined);
+		if (!element) {
 			return;
 		}
-		this.tree.setFocus([session]);
-		if (this.tree.getRelativeTop(session) === null) {
-			this.tree.reveal(session);
+		this.tree.setFocus([element]);
+		if (this.tree.getRelativeTop(element) === null) {
+			this.tree.reveal(element);
 		}
+	}
+
+	private restoreAcknowledgementPosition(position: IKeyboardPosition | undefined, sessions: readonly ISession[]): void {
+		this.update();
+		this.tree.domFocus();
+		this.restoreKeyboardPosition(position);
+		const focused = this.tree.getFocus()[0];
+		const selection = this.tree.getSelection().filter(item => {
+			if (!item) {
+				return false;
+			}
+			const session = isSessionItem(item) ? item : isSessionChatItem(item) ? item.session : undefined;
+			return !session || !sessions.includes(session);
+		});
+		if (focused && isSessionItem(focused) && !selection.includes(focused)) {
+			selection.push(focused);
+		}
+		this.tree.setSelection(selection);
 	}
 
 	private revealActiveItem(element: SessionListItem): void {
@@ -7211,6 +7243,40 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.tree.reveal(element, 0.5);
 		} finally {
 			this.suspendCollapseStatePersistence = previousSuspendCollapseStatePersistence;
+		}
+	}
+
+	private isTreeItemVisible(element: SessionListItem): boolean {
+		if (!this.tree.hasElement(element) || !this.tree.getNode(element).visible) {
+			return false;
+		}
+		for (let parent = this.tree.getParentElement(element); parent; parent = this.tree.getParentElement(parent)) {
+			if (this.tree.isCollapsed(parent)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private restoreVisibleInboxSelection(previous: readonly SessionListItem[]): void {
+		if (previous.length === 0) {
+			return;
+		}
+		const selection = previous.map(item => this.findTreeElement((element): element is SessionListItem => getSessionListItemId(element) === getSessionListItemId(item)));
+		const visible = selection.filter((item): item is SessionListItem => !!item && this.isTreeItemVisible(item));
+		if (visible.length === selection.length) {
+			return;
+		}
+		const focused = this.tree.getFocus().find((item): item is SessionListItem => !!item && this.isTreeItemVisible(item));
+		const nextInboxSession = this.getVisibleInboxSessions()[0];
+		const fallback = nextInboxSession ?? focused ?? this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === SessionInboxSection.ReadyForYou);
+		const nextSelection = visible.length ? visible : fallback ? [fallback] : [];
+		this.tree.setSelection(nextSelection);
+		if (!focused && nextSelection.length) {
+			this.tree.setFocus([nextSelection[0]]);
+		}
+		if (nextSelection.length) {
+			this.revealActiveItem(nextSelection[0]);
 		}
 	}
 
@@ -9105,6 +9171,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return;
 		}
 
+		const keyboardPosition = this.isInboxLayout() ? this.captureKeyboardPosition(element) : undefined;
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => e.anchor,
@@ -9112,7 +9179,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			actionRunner: this.isInboxLayout() ? disposables.add(new SessionItemActionRunner(() => selectedSessions, async action => {
 				await action.run();
 				if (action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID) {
-					this.tree.domFocus();
+					this.restoreAcknowledgementPosition(keyboardPosition, selectedSessions);
 				}
 				return true;
 			})) : undefined,
@@ -9523,12 +9590,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.isInboxLayout() && !session.isArchived.read(reader) && this.getInboxStateContext(session, reader) !== 'done';
 	}
 
-	private advanceInboxAfterSend(resource: URI): void {
-		if (!this.isInboxAutoAdvanceEnabled() || !this.visible || !this.isInboxLayout() || !isEqual(this._mainWindowShown.get()?.chat.resource, resource)) {
-			return;
-		}
-		// Use the rendered placement: acceptance may already have changed the session's status to Working.
-		const inboxSessions = this.getVisibleSessions().filter(session => {
+	private getVisibleInboxSessions(): ISession[] {
+		return this.getVisibleSessions().filter(session => {
 			for (let parent = this.tree.getParentElement(session); parent; parent = this.tree.getParentElement(parent)) {
 				if (isSessionSection(parent)) {
 					return parent.id === SessionInboxSection.ReadyForYou;
@@ -9536,6 +9599,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			return false;
 		});
+	}
+
+	private advanceInboxAfterReplyOrApproval(resource: URI): void {
+		if (!this.isInboxAutoAdvanceEnabled() || !this.visible || !this.isInboxLayout() || !isEqual(this._mainWindowShown.get()?.chat.resource, resource)) {
+			return;
+		}
+		// Use the rendered placement: acceptance may already have changed the session's status to Working.
+		const inboxSessions = this.getVisibleInboxSessions();
 		const index = inboxSessions.findIndex(session => isEqual(session.resource, this._mainWindowShown.get()?.session.resource));
 		if (index < 0) {
 			return;
@@ -9571,6 +9642,54 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			}
 		});
+	}
+
+	private observeInboxApprovals(chatService: IChatService): void {
+		this._register(autorun(reader => {
+			const resource = this._mainWindowShown.read(reader)?.chat.resource;
+			const model = Array.from(chatService.chatModels.read(reader)).find(model => isEqual(model.sessionResource, resource));
+			if (!model) {
+				return;
+			}
+			const requestChanges = observableSignalFromEvent(this, model.onDidChange);
+			const responseChanges = new WeakMap<IChatResponseModel, IObservable<void>>();
+			let pending = new Map<IChatToolInvocation, IChatToolInvocation.StateKind.WaitingForConfirmation | IChatToolInvocation.StateKind.WaitingForPostApproval>();
+			reader.store.add(autorun(reader => {
+				requestChanges.read(reader);
+				for (const [tool, waiting] of pending) {
+					const state = tool.state.read(reader);
+					if (state.type === waiting) {
+						continue;
+					}
+					const confirmed = waiting === IChatToolInvocation.StateKind.WaitingForPostApproval
+						? state.type === IChatToolInvocation.StateKind.Completed ? state.postConfirmed : undefined
+						: IChatToolInvocation.executionConfirmedOrDenied(tool, reader);
+					if (confirmed?.type === ToolConfirmKind.UserAction && confirmed.selectedButtonKind !== 'deny') {
+						this.advanceInboxAfterReplyOrApproval(model.sessionResource);
+					}
+				}
+				const nextPending = new Map<IChatToolInvocation, IChatToolInvocation.StateKind.WaitingForConfirmation | IChatToolInvocation.StateKind.WaitingForPostApproval>();
+				for (const request of model.getRequests()) {
+					const response = request.response;
+					if (!response || response.isCanceled || request.isHiddenFromTranscript || (request.shouldBeRemovedOnSend && !request.shouldBeRemovedOnSend.afterUndoStop)) {
+						continue;
+					}
+					let changed = responseChanges.get(response);
+					if (!changed) {
+						changed = observableSignalFromEvent(this, response.onDidChange);
+						responseChanges.set(response, changed);
+					}
+					changed.read(reader);
+					for (const tool of response.pendingToolInvocations.read(reader)) {
+						const state = tool.state.read(reader);
+						if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+							nextPending.set(tool, state.type);
+						}
+					}
+				}
+				pending = nextPending;
+			}));
+		}));
 	}
 
 	private isInboxAutoAdvanceEnabled(): boolean {

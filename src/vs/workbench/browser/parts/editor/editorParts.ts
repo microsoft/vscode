@@ -874,7 +874,26 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 	}
 
+	private applyingWorkingSets = 0;
+	get isApplyingWorkingSet(): boolean { return this.applyingWorkingSets > 0; }
+
+	private readonly _onDidChangeApplyingWorkingSet = this._register(new Emitter<boolean>());
+	readonly onDidChangeApplyingWorkingSet = this._onDidChangeApplyingWorkingSet.event;
+
 	async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> {
+		if (this.applyingWorkingSets++ === 0) {
+			this._onDidChangeApplyingWorkingSet.fire(true);
+		}
+		try {
+			return await this.doApplyWorkingSet(workingSet, options);
+		} finally {
+			if (--this.applyingWorkingSets === 0) {
+				this._onDidChangeApplyingWorkingSet.fire(false);
+			}
+		}
+	}
+
+	private async doApplyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> {
 		let workingSetState: IEditorWorkingSetState | 'empty' | undefined;
 		if (workingSet === 'empty') {
 			workingSetState = 'empty';

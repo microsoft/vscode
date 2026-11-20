@@ -1189,6 +1189,7 @@ class MockCopilotSession {
 				this.agentSelectionCalls.push(undefined);
 				return {};
 			},
+			getCurrent: async () => ({ agent: null }),
 		},
 		sendMessages: async (): Promise<void> => { },
 		connectors: {
@@ -5032,7 +5033,7 @@ suite('CopilotAgent', () => {
 			const sdkSessions = new Map<string, MockCopilotSession>();
 			client.createSession = async config => {
 				const sdk = new MockCopilotSession(config.sessionId);
-				Object.assign(sdk.rpc, { agent: { list: async () => ({ agents: [] }), select: async () => ({}), deselect: async () => ({}) } });
+				Object.assign(sdk.rpc, { agent: { list: async () => ({ agents: [] }), select: async () => ({}), deselect: async () => ({}), getCurrent: async () => ({ agent: null }) } });
 				sdkSessions.set(sdk.sessionId, sdk);
 				launches.push({ sdkSessionId: sdk.sessionId, tools: (config.tools?.definitions ?? []).map(tool => tool.name), agent: config.agents?.selected, customAgents: (config.agents?.definitions ?? []).map(agent => agent.name).sort() });
 				return sdk as unknown as CopilotSession;
