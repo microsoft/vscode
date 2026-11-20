@@ -7,14 +7,15 @@ import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ChatCustomizationsLocationContext } from '../../common/customizationsLocation.js';
 import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { language } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -26,7 +27,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, ICommandPaletteOptions, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -39,13 +40,13 @@ import product from '../../../../../platform/product/common/product.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { NewTabButtonEntryAction, NewTabButtonHidden } from '../../../../browser/parts/editor/newTabButton.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
@@ -57,9 +58,11 @@ import { IChatInputNoticeHubService } from '../widget/input/chatInputNoticeHub.j
 import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatMode, IChatMode } from '../../common/chatModes.js';
+import { agentReg } from '../../common/requestParser/chatRequestParser.js';
 import { ElicitationState, IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
+import { IChatViewHostService } from '../chatViewHost.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, getDefaultNewChatSessionTypeAndReason } from '../../common/constants.js';
 import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
@@ -162,6 +165,54 @@ const defaultChat = {
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',
 };
+
+/** Options of `workbench.action.newChatWindow`. */
+export interface INewChatWindowOptions {
+	/** The name of the agent (mode) the new chat starts with, e.g. a custom agent contributed by an extension. */
+	readonly mode?: string;
+	/** Text to put into the chat input, without sending it. */
+	readonly query?: string;
+	/** Options of the new window, merged over the defaults (compact, 640x640). */
+	readonly auxiliary?: IEditorOptions['auxiliary'];
+}
+
+/**
+ * Resolves the named mode once the widget offers it, or `undefined` after the timeout or when the widget goes away.
+ * Custom agents may still be loading in a new window: they arrive by replacing the modes or by changing them in place.
+ */
+function waitForChatMode(widget: IChatWidget, widgetService: IChatWidgetService, name: string, timeoutMs: number): Promise<IChatMode | undefined> {
+	const initial = widget.input.currentChatModesObs.get().findModeByName(name);
+	if (initial) {
+		return Promise.resolve(initial);
+	}
+	return new Promise(resolve => {
+		const store = new DisposableStore();
+		const settle = (mode: IChatMode | undefined) => {
+			store.dispose();
+			resolve(mode);
+		};
+		const modesListener = store.add(new MutableDisposable());
+		store.add(autorun(reader => {
+			const modes = widget.input.currentChatModesObs.read(reader);
+			modesListener.value = modes.onDidChange(() => {
+				const mode = modes.findModeByName(name);
+				if (mode) {
+					settle(mode);
+				}
+			});
+			const mode = modes.findModeByName(name);
+			if (mode) {
+				settle(mode);
+			}
+		}));
+		store.add(widgetService.onDidRemoveWidget(removed => {
+			if (removed === widget) {
+				settle(undefined);
+			}
+		}));
+		disposableTimeout(() => settle(undefined), timeoutMs, store);
+	});
+}
 
 export interface IChatViewOpenOptions {
 	/**
@@ -273,8 +324,19 @@ export interface IChatViewOpenRequestEntry {
 
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
+/** Whether opening chat with `opts`, or in `mode`, asks for what only local chat serves: Ask or Edit mode, or a chat participant. */
+function requiresLocalChat(opts: IChatViewOpenOptions | undefined, mode: IChatMode | undefined, chatAgentService: IChatAgentService): boolean {
+	const kind = opts?.mode ?? mode?.kind;
+	if (kind === ChatModeKind.Ask || kind === ChatModeKind.Edit) {
+		return true;
+	}
+	// Only a registered participant needs local chat: a query may start with `@` for other reasons, such as a decorator
+	const name = opts?.query?.trimStart().match(agentReg)?.[1];
+	return !!name && (chatAgentService.getAgentsByName(name).length > 0 || !!chatAgentService.getAgentByFullyQualifiedId(name));
+}
+
 abstract class OpenChatGlobalAction extends Action2 {
-	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: IChatMode) {
+	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: IChatMode, precondition?: ContextKeyExpression) {
 		super({
 			...overrides,
 			icon: Codicon.chatSparkle,
@@ -283,6 +345,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.Setup.hidden.negate(),
 				ChatContextKeys.Setup.disabledInWorkspace.negate(),
+				precondition,
 			)
 		});
 	}
@@ -290,8 +353,16 @@ abstract class OpenChatGlobalAction extends Action2 {
 	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<IChatAgentResult & { type?: 'confirmation' } | undefined> {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
-		const chatService = accessor.get(IChatService);
 		const widgetService = accessor.get(IChatWidgetService);
+		// The Agents view shows sessions, not local chat: what only local chat serves is not available there. The Ask and Edit
+		// mode actions are disabled by their precondition; this covers what a precondition cannot see, the arguments, such as
+		// a mode or a chat participant that the caller asks for.
+		if (accessor.get(IContextKeyService).getContextKeyValue<boolean>(ChatContextKeys.agentsViewActive.key) && requiresLocalChat(opts, this.mode, accessor.get(IChatAgentService))) {
+			accessor.get(INotificationService).info(localize('chat.localChatUnavailable', "Ask and Edit modes and chat participants are not available while the Agents view is enabled."));
+			return;
+		}
+
+		const chatService = accessor.get(IChatService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		const hostService = accessor.get(IHostService);
 		const chatAgentService = accessor.get(IChatAgentService);
@@ -646,7 +717,7 @@ export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 			id: getOpenChatActionIdForMode(mode),
 			title: localize2('openChatMode', "Open Chat ({0})", mode.label.get()),
 			keybinding
-		}, mode);
+		}, mode, mode.kind === ChatModeKind.Ask || mode.kind === ChatModeKind.Edit ? ChatContextKeys.agentsViewActive.negate() : undefined);
 	}
 }
 
@@ -747,37 +818,9 @@ export function registerChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor) {
-			const layoutService = accessor.get(IWorkbenchLayoutService);
-			const viewsService = accessor.get(IViewsService);
-			const viewDescriptorService = accessor.get(IViewDescriptorService);
 			const widgetService = accessor.get(IChatWidgetService);
-
-			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
-			const chatVisible = viewsService.isViewVisible(ChatViewId);
-			if (chatVisible) {
-				this.updatePartVisibility(layoutService, chatLocation, false);
-			} else {
-				this.updatePartVisibility(layoutService, chatLocation, true);
+			if (await accessor.get(IChatViewHostService).toggle()) {
 				(await widgetService.revealWidget())?.focusInput();
-			}
-		}
-
-		private updatePartVisibility(layoutService: IWorkbenchLayoutService, location: ViewContainerLocation | null, visible: boolean): void {
-			let part: Parts.PANEL_PART | Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | undefined;
-			switch (location) {
-				case ViewContainerLocation.Panel:
-					part = Parts.PANEL_PART;
-					break;
-				case ViewContainerLocation.Sidebar:
-					part = Parts.SIDEBAR_PART;
-					break;
-				case ViewContainerLocation.AuxiliaryBar:
-					part = Parts.AUXILIARYBAR_PART;
-					break;
-			}
-
-			if (part) {
-				layoutService.setPartHidden(!visible, part);
 			}
 		}
 	});
@@ -832,10 +875,10 @@ export function registerChatActions() {
 			});
 		}
 
-		protected override openTab(accessor: ServicesAccessor, group: IEditorGroup): Promise<unknown> {
+		protected override openTab(accessor: ServicesAccessor, group: IEditorGroup, options: IEditorOptions): Promise<unknown> {
 			const widgetService = accessor.get(IChatWidgetService);
 			const input = getNewChatEditorInput(accessor);
-			return widgetService.openSession(input.resource, group, input.options);
+			return widgetService.openSession(input.resource, group, { ...input.options, ...options });
 		}
 	});
 
@@ -952,10 +995,23 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor) {
+		async run(accessor: ServicesAccessor, options?: INewChatWindowOptions) {
 			const widgetService = accessor.get(IChatWidgetService);
 			const input = getNewChatEditorInput(accessor);
-			await widgetService.openSession(input.resource, AUX_WINDOW_GROUP, { ...input.options, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } });
+			const widget = await widgetService.openSession(input.resource, AUX_WINDOW_GROUP, { ...input.options, auxiliary: { compact: true, bounds: { width: 640, height: 640 }, ...options?.auxiliary } });
+			if (!widget) {
+				return;
+			}
+			if (options?.query !== undefined) {
+				// Before waiting for the agent, so that what the user types meanwhile is kept.
+				widget.setInput(options.query);
+			}
+			if (options?.mode) {
+				const mode = await waitForChatMode(widget, widgetService, options.mode, 5000);
+				if (mode) {
+					widget.input.setChatMode(mode.id, false);
+				}
+			}
 		}
 	});
 

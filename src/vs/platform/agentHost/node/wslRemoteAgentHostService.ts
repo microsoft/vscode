@@ -31,6 +31,7 @@ import {
 	extractAgentHostWebSocketURL,
 	getWslExePath,
 	isWSLSupported,
+	type IRunWslCommandResult,
 	parseRunningDistros,
 	parseWslListVerbose,
 	runWslCommand,
@@ -99,6 +100,8 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	private readonly _connections = new Map<string, IWSLRelayLease>();
 	private readonly _pendingConnects = new Map<string, Promise<IWSLSession>>();
 	private readonly _pendingReconnects = new Map<string, Promise<IWSLConnectResult>>();
+	/** Distributions being stopped by {@link terminateDistro}, which connects wait for. */
+	private readonly _terminations = new Map<string, Promise<void>>();
 	private readonly _pendingRelayAcquisitions = new Map<IWSLSession, number>();
 	private readonly _replacements = new Map<string, string>();
 
@@ -188,15 +191,59 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		}
 	}
 
+	async terminateDistro(distro: string): Promise<void> {
+		const name = validateDistroName(distro);
+		const pending = this._terminations.get(name);
+		if (pending) {
+			return pending;
+		}
+		const termination = this._terminate(name);
+		this._terminations.set(name, termination);
+		try {
+			await termination;
+		} finally {
+			if (this._terminations.get(name) === termination) {
+				this._terminations.delete(name);
+			}
+		}
+	}
+
+	/**
+	 * Lets a host that is starting and reconnects in flight settle, so they can't keep a session in the stopped distribution,
+	 * then closes its connections, failing relays still being acquired, and stops it. Connects that start meanwhile wait for {@link _terminations}.
+	 */
+	private async _terminate(distro: string): Promise<void> {
+		const reconnects = [...this._pendingReconnects].filter(([connectionId]) => this._connections.get(connectionId)?.session.distro === distro).map(([, reconnect]) => reconnect);
+		await Promise.allSettled([this._pendingConnects.get(distro), ...reconnects]);
+		await this.disconnect(distro);
+		const result = await this._runWslTerminate(distro);
+		if (result.exitCode !== 0) {
+			this._logService.warn(`${LOG_PREFIX} wsl --terminate exited ${result.exitCode}: ${result.stderr.trim()}`);
+			throw new Error(localize('wslTerminateFailed', "Couldn't stop the WSL distribution '{0}': {1}", distro, result.stderr.trim() || result.stdout.trim() || String(result.exitCode)));
+		}
+	}
+
+	protected _runWslTerminate(distro: string): Promise<IRunWslCommandResult> {
+		return runWslCommand(['--terminate', distro]);
+	}
+
+	/** Waits for a pending termination of the distribution; a failed one leaves the distribution as it was. */
+	private async _afterTermination(distro: string): Promise<void> {
+		await this._terminations.get(distro)?.catch(() => undefined);
+	}
+
 	connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult> {
 		const distro = validateDistroName(config.distro);
 		return this._getOrCreateSession(config, distro).then(session => this._createRelay(session));
 	}
 
-	private _getOrCreateSession(config: IWSLAgentHostConfig, distro: string): Promise<IWSLSession> {
+	private async _getOrCreateSession(config: IWSLAgentHostConfig, distro: string): Promise<IWSLSession> {
+		while (this._terminations.has(distro)) {
+			await this._afterTermination(distro);
+		}
 		const existing = this._sessions.get(distro);
 		if (existing) {
-			return Promise.resolve(existing);
+			return existing;
 		}
 		const pending = this._pendingConnects.get(distro);
 		if (pending) {
@@ -507,7 +554,8 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	}
 
 	async reconnect(distro: string, name: string, remoteAgentHostCommand?: string, userInitiated?: boolean, expectedConnectionId?: string): Promise<IWSLConnectResult> {
-		if (!expectedConnectionId) {
+		if (!expectedConnectionId || this._terminations.has(distro)) {
+			// A termination closes the expected connection, so it needs a new one.
 			return this.connect({ distro, name, remoteAgentHostCommand, userInitiated });
 		}
 		const pending = this._pendingReconnects.get(expectedConnectionId);

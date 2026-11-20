@@ -5,6 +5,7 @@
 
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { isAnnotationsUri } from './annotationsUri.js';
 
 /** Why windowed delivery failed. Bounded so it can be sent as telemetry. */
 export const enum AgentHostChannelErrorCode {
@@ -48,7 +49,7 @@ function getChannelKind(channel: string | undefined): AgentHostChannelKind {
 	if (/\/changeset\/|changeset:/.test(channel)) {
 		return 'changeset';
 	}
-	if (channel.endsWith('/annotations')) {
+	if (isAnnotationsUri(channel)) {
 		return 'annotations';
 	}
 	if (channel.startsWith('ahp-chat:')) {

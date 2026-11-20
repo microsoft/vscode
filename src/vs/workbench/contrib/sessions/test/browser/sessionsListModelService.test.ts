@@ -21,6 +21,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { timeout } from '../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
+import { getSessionInboxSection, SessionInboxSection } from '../../common/sessionInbox.js';
 
 function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI; isAutomation?: boolean }): ISession {
 	return {
@@ -210,10 +211,11 @@ suite('SessionsListModelService', () => {
 
 	// -- Inbox --
 
-	test('historical unread completions only bypass the cutoff when modified today locally', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
+	test('historical unread completions only bypass the cutoff when modified within the last 7 days', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
 		const cases = [
 			{ id: 'yesterday-unread', updatedAt: new Date(2025, 11, 31, 23, 59, 59, 999), isRead: false, historical: true },
-			{ id: 'midnight-unread', updatedAt: new Date(2026, 0, 1), isRead: false, historical: true },
+			{ id: 'seven-days-unread', updatedAt: new Date(new Date(2026, 0, 1, 12).getTime() - 7 * 24 * 60 * 60 * 1000), isRead: false, historical: true },
+			{ id: 'over-seven-days-unread', updatedAt: new Date(new Date(2026, 0, 1, 12).getTime() - 7 * 24 * 60 * 60 * 1000 - 1), isRead: false, historical: true },
 			{ id: 'today-unread', updatedAt: new Date(2026, 0, 1, 11), isRead: false, historical: true },
 			{ id: 'today-read', updatedAt: new Date(2026, 0, 1, 11), isRead: true, historical: true },
 			{ id: 'last-month-unread', updatedAt: new Date(2025, 11, 1, 11), isRead: false, historical: true },
@@ -229,8 +231,9 @@ suite('SessionsListModelService', () => {
 			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: historical,
 		}])), undefined);
 		assert.deepStrictEqual(sessions.map(session => [session.sessionId, service.getInboxState(session)?.kind]), [
-			['yesterday-unread', 'done'],
-			['midnight-unread', undefined],
+			['yesterday-unread', undefined],
+			['seven-days-unread', undefined],
+			['over-seven-days-unread', 'done'],
 			['today-unread', undefined],
 			['today-read', 'done'],
 			['last-month-unread', 'done'],
@@ -241,7 +244,7 @@ suite('SessionsListModelService', () => {
 
 	test('historical unread completions remain in Inbox after reading and reload until dismissed', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
 		const isRead = observableValue('historicalRead', false);
-		const updatedAt = observableValue('historicalUpdatedAt', new Date(2025, 11, 31, 23));
+		const updatedAt = observableValue('historicalUpdatedAt', new Date(2025, 11, 1, 23));
 		const session = { ...createSession('historical'), isRead, updatedAt };
 		sessions.push(session);
 		sessionsChangedEmitter.fire({ added: [session], removed: [], changed: [] });
@@ -263,6 +266,18 @@ suite('SessionsListModelService', () => {
 			states: ['done', undefined], restored: undefined, dismissed: 'done',
 		});
 	}));
+
+	test('a malformed stored Inbox entry does not discard the other triage decisions', () => {
+		storageService.store('sessionsListControl.inboxState', JSON.stringify([
+			['held', { kind: 'hold' }],
+			['broken', { kind: 'unknown' }],
+			['alsoBroken'],
+			['snoozed', { kind: 'snoozed', until: Date.now() + 60_000 }],
+		]), StorageScope.PROFILE, StorageTarget.USER);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual(['held', 'broken', 'snoozed'].map(id => service.getInboxState(createSession(id))?.kind), ['hold', undefined, 'snoozed']);
+	});
 
 	test('explicit triage of historical unread completions survives reload', () => {
 		sessions.push(...['dismissed', 'held', 'timed', 'untilActivity'].map(id => ({
@@ -381,21 +396,29 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
-	test('historical completions start Done while Return to Inbox persists and remains undoable', () => {
+	test('historical completions stay hidden unless explicitly acknowledged, while Return to Inbox persists and remains undoable', () => {
 		const session = createSession('historical');
 		sessions.push(session);
 		attention.set(new Map([[session.sessionId, {
 			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
 		}]]), undefined);
 		const initial = service.getInboxState(session)?.kind;
+		const section = () => getSessionInboxSection(session, service.getInboxState(session));
+		const historicalSection = section();
 		const undo = service.setInboxState([session], undefined);
 		const resumed = service.getInboxState(session);
 		undo();
 		const undone = service.getInboxState(session)?.kind;
+		service.setInboxState([session], 'done');
+		const acknowledgedSection = section();
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const restoredSection = section();
 		service.setInboxState([session], undefined);
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
-		assert.deepStrictEqual({ initial, resumed, undone, restored: service.getInboxState(session), archived: session.isArchived.get() }, {
+		assert.deepStrictEqual({ initial, historicalSection, acknowledgedSection, restoredSection, resumed, undone, restored: service.getInboxState(session), archived: session.isArchived.get() }, {
+			historicalSection: SessionInboxSection.Done, acknowledgedSection: SessionInboxSection.Acknowledged, restoredSection: SessionInboxSection.Acknowledged,
 			initial: 'done', resumed: undefined, undone: 'done', restored: undefined, archived: false,
 		});
 	});
@@ -654,7 +677,7 @@ suite('SessionsListModelService', () => {
 		const hidden = service.isSessionListed(scheduled);
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
-		const restored = service.isSessionListed(scheduled, undefined, true);
+		const restored = service.isSessionListed(scheduled);
 		service.showAutomationSessions([scheduled]);
 		assert.deepStrictEqual({ hidden, restored, shown: service.isSessionListed(scheduled) }, { hidden: false, restored: false, shown: true });
 	});
@@ -687,25 +710,6 @@ suite('SessionsListModelService', () => {
 					]
 				},
 			],
-		});
-	});
-
-	test('fires a listing change when hiding an automation run shown only by the list filter', () => {
-		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
-		const events: ISessionListModelChangeEvent[] = [];
-		disposables.add(service.onDidChange(e => events.push(e)));
-		const before = service.isSessionListed(automation, undefined, true);
-
-		service.hideAutomationSessions([automation]);
-
-		assert.deepStrictEqual({
-			before,
-			after: service.isSessionListed(automation, undefined, true),
-			events,
-		}, {
-			before: true,
-			after: false,
-			events: [{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] }],
 		});
 	});
 
@@ -815,7 +819,7 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
-	test('show automation runs overrides listing policies without changing explicit choices', () => {
+	test('each listing mode keeps explicit choices', () => {
 		const hidden = createSession('hidden', SessionStatus.Completed, { isAutomation: true });
 		const shown = createSession('shown', SessionStatus.Completed, { isAutomation: true });
 		const policy = createSession('policy', SessionStatus.Completed, { isAutomation: true });
@@ -832,37 +836,28 @@ suite('SessionsListModelService', () => {
 				source: ConfigurationTarget.USER,
 			});
 		};
-		const listed = (showAutomationRuns: boolean) => sessions
-			.filter(session => service.isSessionListed(session, undefined, showAutomationRuns))
+		const listed = () => sessions
+			.filter(session => service.isSessionListed(session))
 			.map(session => session.sessionId);
 		service.hideAutomationSessions([hidden]);
 		service.showAutomationSessions([shown]);
 		service.showRepliedAutomationSession(replied);
 
 		setMode(AutomationSessionsListMode.Never);
-		const never = { off: listed(false), on: listed(true) };
+		const never = listed();
 		setMode(AutomationSessionsListMode.AfterReply);
-		const afterReply = { off: listed(false), on: listed(true) };
+		const afterReply = listed();
 		setMode(AutomationSessionsListMode.Always);
-		const always = { off: listed(false), on: listed(true) };
+		const always = listed();
 		const stored = {
 			shown: storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE),
 			hidden: storageService.get('sessionsListControl.hiddenAutomationSessions', StorageScope.PROFILE),
 		};
 
 		assert.deepStrictEqual({ never, afterReply, always, stored }, {
-			never: {
-				off: ['shown', 'replied', 'regular'],
-				on: ['shown', 'policy', 'replied', 'regular'],
-			},
-			afterReply: {
-				off: ['shown', 'replied', 'regular'],
-				on: ['shown', 'policy', 'replied', 'regular'],
-			},
-			always: {
-				off: ['shown', 'policy', 'replied', 'regular'],
-				on: ['shown', 'policy', 'replied', 'regular'],
-			},
+			never: ['shown', 'replied', 'regular'],
+			afterReply: ['shown', 'replied', 'regular'],
+			always: ['shown', 'policy', 'replied', 'regular'],
 			stored: {
 				shown: JSON.stringify(['shown', 'replied']),
 				hidden: JSON.stringify(['hidden']),

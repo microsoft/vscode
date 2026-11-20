@@ -1189,7 +1189,7 @@ export class PromptValidator {
 				continue;
 			}
 			if (name === 'url') {
-				if (property.value.type !== 'scalar' || !/^https?:\/\//i.test(property.value.value)) {
+				if (property.value.type !== 'scalar' || !isHttpUrl(property.value.value)) {
 					report(toMarker(localize('promptValidator.httpHookUrlInvalid', "The 'url' property in an HTTP hook action must be an HTTP or HTTPS URL."), property.value.range, MarkerSeverity.Error));
 				}
 			} else if (name === 'headers') {
@@ -1548,9 +1548,15 @@ export class PromptValidator {
 				}
 				case 'command':
 				case 'cwd':
+					if (property.value.type !== 'scalar') {
+						report(toMarker(localize('promptValidator.mcpServerPropertyMustBeString', "The '{0}' property for MCP server '{1}' must be a string.", propertyName, name), property.value.range, MarkerSeverity.Error));
+					}
+					break;
 				case 'url':
 					if (property.value.type !== 'scalar') {
 						report(toMarker(localize('promptValidator.mcpServerPropertyMustBeString', "The '{0}' property for MCP server '{1}' must be a string.", propertyName, name), property.value.range, MarkerSeverity.Error));
+					} else if (!isHttpUrl(property.value.value)) {
+						report(toMarker(localize('promptValidator.mcpServerUrlInvalid', "The 'url' property for MCP server '{0}' must be an HTTP or HTTPS URL.", name), property.value.range, MarkerSeverity.Error));
 					}
 					break;
 				case 'args':
@@ -1623,6 +1629,14 @@ function isNullScalar(value: IValue): boolean {
 	return value.type === 'scalar' && value.value === 'null' && value.format === 'none';
 }
 
+function isHttpUrl(value: string): boolean {
+	if (!URL.canParse(value)) {
+		return false;
+	}
+	const url = new URL(value);
+	return (url.protocol === 'http:' || url.protocol === 'https:') && !!url.hostname;
+}
+
 function formatAttributeTypes(types: readonly IValue['type'][], allowNull = false): string {
 	const labels: string[] = types.map(type => {
 		switch (type) {
@@ -1640,7 +1654,7 @@ function formatAttributeTypes(types: readonly IValue['type'][], allowNull = fals
 const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.modelPolicy, PromptHeaderAttributes.reasoningEffort, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.modelPolicy, PromptHeaderAttributes.reasoningEffort, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, PromptHeaderAttributes.vscode, GithubPromptHeaderAttributes.github],
 	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, PromptHeaderAttributes.context],
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };

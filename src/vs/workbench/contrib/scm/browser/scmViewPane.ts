@@ -57,7 +57,7 @@ import { getFlatContextMenuActions } from '../../../../platform/actions/browser/
 import { Button, ButtonWithDescription, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { RepositoryContextKeys } from './scmViewService.js';
-import { defaultButtonStyles, defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, getCountBadgeStyle } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IDragAndDropData } from '../../../../base/browser/dnd.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
@@ -434,7 +434,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 			actionRunner: this.actionRunner
 		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		const countContainer = append(element, $('.count'));
-		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
+		const count = new CountBadge(countContainer, {}, getCountBadgeStyle({ badgeBackground: undefined, badgeBorder: undefined }));
 		const disposables = combinedDisposable(actionBar, count);
 
 		return { name, count, actionBar, elementDisposables: new DisposableStore(), disposables };
@@ -609,7 +609,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		const matches = createMatches(node.filterData as FuzzyScore | undefined);
 		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
-			fileDecorations: { colors: false, badges: true },
+			fileDecorations: { colors: false, badges: true, alignBadgeLastCharacter: true },
 			fileKind,
 			matches,
 			separator: this.labelService.getSeparator(folder.uri.scheme)
@@ -658,7 +658,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		template.fileLabel.setFile(data.uri, {
 			...data.fileLabelOptions,
-			fileDecorations: { colors: false, badges: !icon },
+			fileDecorations: { colors: false, badges: !icon, alignBadgeLastCharacter: true },
 		});
 
 		if (icon) {
@@ -1033,6 +1033,7 @@ interface RepositoryVisibilityItem {
 class RepositoryVisibilityActionController {
 
 	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
+	private readonly hiddenListeners = new DisposableMap<ISCMRepository>();
 	private repositoryCountContextKey: IContextKey<number>;
 	private repositoryVisibilityCountContextKey: IContextKey<number>;
 	private readonly disposables = new DisposableStore();
@@ -1055,7 +1056,23 @@ class RepositoryVisibilityActionController {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		if (repository.provider.isHidden) {
+		// A provider can be hidden and shown again while it is registered
+		this.hiddenListeners.set(repository, autorun(reader => {
+			if (repository.provider.isHidden.read(reader)) {
+				this.removeItem(repository);
+			} else {
+				this.addItem(repository);
+			}
+		}));
+	}
+
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		this.hiddenListeners.deleteAndDispose(repository);
+		this.removeItem(repository);
+	}
+
+	private addItem(repository: ISCMRepository): void {
+		if (this.items.has(repository)) {
 			return;
 		}
 
@@ -1079,8 +1096,13 @@ class RepositoryVisibilityActionController {
 		this.updateRepositoryContextKeys();
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		this.items.get(repository)?.dispose();
+	private removeItem(repository: ISCMRepository): void {
+		const item = this.items.get(repository);
+		if (!item) {
+			return;
+		}
+
+		item.dispose();
 		this.items.delete(repository);
 		this.updateRepositoryContextKeys();
 	}
@@ -1108,6 +1130,7 @@ class RepositoryVisibilityActionController {
 
 	dispose(): void {
 		this.disposables.dispose();
+		this.hiddenListeners.dispose();
 		dispose(this.items.values());
 		this.items.clear();
 	}
@@ -1323,6 +1346,16 @@ registerAction2(SetSortByNameAction);
 registerAction2(SetSortByPathAction);
 registerAction2(SetSortByStatusAction);
 
+type StructuralDiffToggledEvent = {
+	enabled: 0 | 1;
+};
+
+type StructuralDiffToggledClassification = {
+	owner: 'dbaeumer';
+	comment: 'Reports when the user shows or hides structural diffs in the Source Control view, to understand whether they are used.';
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: '1 if structural diffs are shown after the toggle, otherwise 0.' };
+};
+
 class ToggleShowStructuralDiffAction extends ViewAction<SCMViewPane> {
 	constructor() {
 		super({
@@ -1338,8 +1371,11 @@ class ToggleShowStructuralDiffAction extends ViewAction<SCMViewPane> {
 		});
 	}
 
-	runInView(_: ServicesAccessor, view: SCMViewPane): void {
-		view.showStructuralDiff = !view.showStructuralDiff;
+	runInView(accessor: ServicesAccessor, view: SCMViewPane): void {
+		const show = !view.showStructuralDiff;
+		view.showStructuralDiff = show;
+		// Reported here rather than in the setter, which also runs when another window changes the choice.
+		accessor.get(ITelemetryService).publicLog2<StructuralDiffToggledEvent, StructuralDiffToggledClassification>('scmStructuralDiffToggled', { enabled: show ? 1 : 0 });
 	}
 }
 
@@ -1543,7 +1579,7 @@ export class SCMViewPane extends ViewPane {
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.structuralDiff = this.disposables.add(instantiationService.createInstance(SCMStructuralDiffModel));
-		this._showStructuralDiff = this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, false);
+		this._showStructuralDiff = this.getShowStructuralDiff();
 
 		// View mode and sort key
 		this._viewMode = this.getViewMode();
@@ -1576,7 +1612,7 @@ export class SCMViewPane extends ViewPane {
 					this.viewSortKey = this.getViewSortKey();
 					break;
 				case 'scm.showStructuralDiff':
-					this.showStructuralDiff = this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, false);
+					this.showStructuralDiff = this.getShowStructuralDiff();
 					break;
 			}
 		}, this, this.disposables);
@@ -1588,7 +1624,7 @@ export class SCMViewPane extends ViewPane {
 			this.storeTreeViewState();
 		}, this, this.disposables);
 
-		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
+		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository, this.scmViewService.onDidChangeRepositories)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
 
 		this.disposables.add(this.revealResourceThrottler);
 		this.disposables.add(this.updateChildrenThrottler);
@@ -2080,6 +2116,11 @@ export class SCMViewPane extends ViewPane {
 		return viewSortKey;
 	}
 
+	/** Structural diffs are shown by default once `scm.structuralDiff.enabled` is set, unless the user hid them in this workspace. */
+	private getShowStructuralDiff(): boolean {
+		return this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, true);
+	}
+
 	private loadTreeViewState(): IAsyncDataTreeViewState | undefined {
 		const storageViewState = this.storageService.get('scm.viewState2', StorageScope.WORKSPACE);
 		if (!storageViewState) {
@@ -2289,7 +2330,8 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		return this.scmService.repositoryCount === 0;
+		// Hidden repositories are not shown, for example while a provider swaps the repository of a workspace folder
+		return this.scmViewService.repositories.length === 0;
 	}
 
 	override getActionsContext(): unknown {

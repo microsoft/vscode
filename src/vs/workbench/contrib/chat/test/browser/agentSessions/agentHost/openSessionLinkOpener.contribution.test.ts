@@ -80,7 +80,8 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 					opened: [{
 						resource: client.with({ fragment: chatId ?? '' }).toString(),
 						target: openToSide ? SIDE_GROUP : ChatViewPaneTarget,
-						options: { pinned: true, preserveFocus: true, revealIfOpened: !openToSide }
+						// In the Chat view's host, the window's folder stays where it is
+						options: { pinned: true, preserveFocus: true, revealIfOpened: !openToSide, ...(openToSide ? {} : { keepFolder: true }) }
 					}]
 				});
 			});
@@ -193,6 +194,36 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 		assert.ok(opener);
 		const result = await opener.open(URI.parse(buildOpenSessionLinkUri(backend, 'peer', undefined, 'other-host')));
 		assert.deepStrictEqual({ result, listings, opened }, { result: true, listings: 1, opened: [remote.with({ fragment: 'peer' }).toString()] });
+	});
+
+	test('claims an agent session link it cannot open, so it never falls through to the OS or an editor, but not other links', async () => {
+		let opener: IOpener | undefined;
+		let opened = 0;
+		store.add(new AgentHostOpenSessionLinkOpenerContribution(
+			new class extends mock<IOpenerService>() {
+				override registerOpener(value: IOpener): IDisposable { opener = value; return Disposable.None; }
+			}(),
+			new class extends mock<IChatWidgetService>() {
+				override async openSession(): Promise<IChatWidget | undefined> { opened++; return undefined; }
+			}(),
+			new class extends mock<IChatSessionsService>() { override async activateChatSessionItemProvider(): Promise<void> { } }(),
+			store.add(new ChatRequestOriginService()),
+			new class extends mock<ILinkPresentationService>() { override registerLinkPresentationProvider(): IDisposable { return Disposable.None; } }(),
+			new NullLogService(),
+			new class extends mock<ISessionSummaryHoverService>() { override registerProvider(): IDisposable { return Disposable.None; } }(),
+			new class extends mock<IPathService>() { }(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override findSessionResource(): URI | undefined { return undefined; }
+				override resolveSessionResource() { return undefined; }
+			}(),
+			new TestConfigurationService(),
+		));
+		assert.ok(opener);
+		assert.deepStrictEqual({
+			malformed: await opener.open(URI.parse('agent-host-session://not-a-session')),
+			other: await opener.open(URI.parse('https://example.com/')),
+			opened,
+		}, { malformed: true, other: false, opened: 0 });
 	});
 
 	for (const [name, defaultChat, peerChat, defaultId, peerId, cached] of ([

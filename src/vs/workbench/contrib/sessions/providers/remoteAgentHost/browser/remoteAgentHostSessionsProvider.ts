@@ -19,6 +19,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { agentHostUri } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { readCloudSandboxProjects } from '../../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, normalizeRemoteAgentHostAddress, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -155,6 +156,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly hostGroup?: IAgentHostGroup;
 	/** Source workspace represented by this Dev Container provider. */
 	readonly devContainerSourceWorkspaceUri?: URI;
+	/** Address of the host that runs the Dev Container environment represented by this provider. */
+	readonly devContainerEnvironmentHost?: string;
 	readonly devContainerWorktreeScope?: string;
 	/** Controls the stopped/removed container while this runtime provider remains registered. */
 	readonly devContainerLifecycle?: {
@@ -207,10 +210,18 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	get devContainerSourceWorkspace(): URI | undefined { return this._devContainerSourceWorkspaceUri; }
+	readonly devContainerEnvironmentHost: string | undefined;
 	readonly remoteLocationPreferenceKey: string;
 	readonly hostGroup: IAgentHostGroup | undefined;
 	private _browseActions: readonly ISessionWorkspaceBrowseAction[];
-	get browseActions(): readonly ISessionWorkspaceBrowseAction[] { return this._browseActions; }
+	/**
+	 * Offered unless the connected host has no folder of its own to start browsing from, such as a host
+	 * that lists sessions but advertises no default directory. A disconnected host keeps it, since
+	 * browsing connects on demand.
+	 */
+	get browseActions(): readonly ISessionWorkspaceBrowseAction[] {
+		return this._connection && !this._folderBrowseUri() ? [] : this._browseActions;
+	}
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
 	readonly showConnectionLog?: () => Promise<void>;
@@ -370,6 +381,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
+		this.devContainerEnvironmentHost = config.devContainerEnvironmentHost;
 		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
 			connectionAddress: config.address,
 			sessionSchemeAlias: this._sessionSchemeAlias,
@@ -923,8 +935,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return remoteAgentHostSessionTypeId(this._connectionAuthority, provider);
 	}
 
-	override getSessions(): ISession[] {
-		return this._unpublished ? [] : super.getSessions();
+	override getAllSessions(): ISession[] {
+		return this._unpublished ? [] : super.getAllSessions();
 	}
 
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
@@ -984,6 +996,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return;
 		}
 		this._remoteAgentHostService.reconnect(this.remoteAddress);
+		await this._remoteAgentHostService.waitForConnection(this.remoteAddress);
 	}
 
 	reconnectNow(): void {
@@ -1109,7 +1122,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
-	protected override _mapBackendSessionResource(resource: URI): URI {
+	protected override _mapBackendSessionResource(resource: URI): URI | undefined {
 		return this._mapSessionResource?.(resource) ?? super._mapBackendSessionResource(resource);
 	}
 
@@ -1172,6 +1185,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return;
 		}
 
+		this._sessionListVersion.set(0, undefined);
 		const wasUnpublished = this._unpublished;
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
@@ -1213,6 +1227,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * host is unreachable should follow up with {@link unpublishCachedSessions}.
 	 */
 	clearConnection(): void {
+		this._sessionListVersion.set(0, undefined);
 		this._devContainerIdleScheduler.cancel();
 		this._devContainerIdleSince = undefined;
 		this._connectionListeners.clear();
@@ -1280,6 +1295,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * entries.
 	 */
 	unpublishCachedSessions(): void {
+		// Abandon a listing in flight, so it can't mark the hidden list ready, then invalidate readiness
+		// before observers can sample the hidden list as an authoritative empty result.
+		this._cancelSessionRefreshRetry();
+		this._sessionListVersion.set(0, undefined);
 		if (this._unpublished) {
 			return;
 		}
@@ -1375,18 +1394,26 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
-		if (repositoryUri.scheme !== AGENT_HOST_SCHEME) {
-			return undefined;
-		}
-		// Only claim URIs that belong to *this* connection. Without this
-		// check, every agent-host provider matches every agent-host URI
-		// and the workspace picker's first-match-wins lookup attributes
-		// the folder to whichever provider is iterated first — so a folder
-		// picked from WSL ends up labelled with another host's name.
-		if (repositoryUri.authority !== this._connectionAuthority) {
-			return undefined;
-		}
-		return this._buildWorkspaceFromUri(repositoryUri);
+		return this._isOnThisHost(repositoryUri) ? this._buildWorkspaceFromUri(repositoryUri) : undefined;
+	}
+
+	/**
+	 * Whether a URI is a resource of this connection. Every agent-host provider shares the
+	 * agent-host scheme, so without the authority check the workspace picker's first-match-wins
+	 * lookup would attribute a folder picked on one host to whichever provider is iterated first.
+	 */
+	private _isOnThisHost(uri: URI): boolean {
+		return uri.scheme === AGENT_HOST_SCHEME && uri.authority === this._connectionAuthority;
+	}
+
+	/**
+	 * Whether this host clones repositories: a cloud sandbox's agent host, which manages projects, as
+	 * {@link cloneRepository} requires.
+	 */
+	get canCloneRepository(): boolean {
+		const connection = this.connection;
+		const root = connection instanceof AgentHostProtocolClient ? connection.rootState.value : undefined;
+		return !!root && !(root instanceof Error) && readCloudSandboxProjects(root) !== undefined;
 	}
 
 	async cloneRepository(repository: URI, token: CancellationToken): Promise<ISessionWorkspace> {
@@ -1422,17 +1449,24 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	// -- Browse --------------------------------------------------------------
 
-	private _folderBrowseUri(): URI {
+	/**
+	 * Where folder browsing starts: the host's default directory, or else a folder of one of its
+	 * sessions. Folders outside this connection, such as the repository URL a host reports as a
+	 * session's project, are not on the host, and the file dialog would fall back to local files for
+	 * them; a session with such a project still offers its working directory.
+	 */
+	private _folderBrowseUri(): URI | undefined {
 		if (this._defaultDirectory) {
 			return agentHostUri(this._connectionAuthority, this._defaultDirectory);
 		}
 		for (const session of this.getSessions()) {
-			const root = session.workspace.get()?.folders[0]?.root;
-			if (root) {
-				return root;
+			const folder = session.workspace.get()?.folders[0];
+			const start = [folder?.root, folder?.workingDirectory].find(uri => uri && this._isOnThisHost(uri));
+			if (start) {
+				return start;
 			}
 		}
-		return agentHostUri(this._connectionAuthority, '/');
+		return undefined;
 	}
 
 	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
@@ -1451,10 +1485,14 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return undefined;
 		}
 
-		if (!this._defaultDirectory && this.getSessions().length === 0) {
+		if (!this._folderBrowseUri()) {
 			await this._refreshSessions();
 		}
 		const defaultUri = this._folderBrowseUri();
+		if (!defaultUri) {
+			this._notificationService.info(localize('noRemoteFolders', "'{0}' does not offer folders to browse.", this.label));
+			return undefined;
+		}
 
 		try {
 			const selected = await this._fileDialogService.showOpenDialog({
@@ -1507,6 +1545,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 
 		const rootAgentHostUri = this._folderBrowseUri();
+		if (!rootAgentHostUri) {
+			return [];
+		}
 
 		// Parse path navigation out of the query. Anything before the
 		// last `/` is a relative directory we descend into; the part

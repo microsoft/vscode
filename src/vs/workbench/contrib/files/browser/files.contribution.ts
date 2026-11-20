@@ -38,6 +38,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { TextFileEditor } from './editors/textFileEditor.js';
 import { IUntitledDocumentTelemetryService } from '../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { UntitledDocumentTelemetry } from './untitledDocumentTelemetry.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { URI } from '../../../../base/common/uri.js';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -115,6 +117,9 @@ class UntitledDocumentTelemetryContribution implements IWorkbenchContribution {
 	constructor(@IUntitledDocumentTelemetryService _untitledDocumentTelemetryService: IUntitledDocumentTelemetryService) { }
 }
 registerWorkbenchContribution2(UntitledDocumentTelemetryContribution.ID, UntitledDocumentTelemetryContribution, WorkbenchPhase.BlockStartup);
+// Lets extensions (e.g. the Markdown editor) correlate their telemetry with the untitled document funnel
+CommandsRegistry.registerCommand('_workbench.getUntitledDocumentId', (accessor, resource: unknown) =>
+	URI.isUri(resource) ? accessor.get(IUntitledDocumentTelemetryService).getUntitledDocumentId(resource) : undefined);
 
 // Register Text File Save Error Handler
 registerWorkbenchContribution2(TextFileSaveErrorHandler.ID, TextFileSaveErrorHandler, WorkbenchPhase.BlockStartup);

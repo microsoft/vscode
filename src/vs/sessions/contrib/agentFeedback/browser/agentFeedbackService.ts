@@ -8,9 +8,8 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { derived, IObservable, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
+import { derived, IObservable, runOnChange } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -481,12 +480,6 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return this._backendForSession(sessionResource).getItems(sessionResource);
 	}
 
-	getFeedbackObservable(sessionResource: URI): IObservable<readonly IAgentFeedback[]> {
-		return this.isAgentHostSession(sessionResource)
-			? this._getAnnotationsBackend().getItemsObservable(sessionResource)
-			: observableFromEvent(this, this.onDidChangeFeedback, () => this._inMemoryBackend.getItems(sessionResource));
-	}
-
 	showFeedbackInEditor(sessionResource: URI, feedbackIds: readonly string[]): void {
 		const resolvedFeedbackIds = new Set(
 			this.getFeedback(sessionResource)
@@ -741,33 +734,6 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	async submitFeedback(sessionResource: URI, options?: ISubmitFeedbackOptions): Promise<boolean> {
-		if (options?.background) {
-			const session = this._sessionsManagementService.getSession(sessionResource);
-			const chat = session?.chats.get().find(chat => isEqual(chat.resource, options.targetChat));
-			if (!session || !chat) {
-				throw new Error(localize('agentFeedback.targetUnavailable', "The target session or chat is no longer available."));
-			}
-			const agentHost = this.isAgentHostSession(sessionResource);
-			const feedbackIds = agentHost ? options.feedbackIds : undefined;
-			const selectedItems = this.getFeedback(sessionResource).filter(item =>
-				(item.state === AgentFeedbackState.Accepted && (!feedbackIds || feedbackIds.includes(item.id)))
-				|| (item.state === AgentFeedbackState.Created && options.feedbackIds?.includes(item.id)));
-			if (!selectedItems.length) {
-				throw new Error(localize('agentFeedback.commentsUnavailable', "The selected comments are no longer available."));
-			}
-			const annotationsResource = agentHost ? this._getAnnotationsBackend().getAnnotationsChannelResource(sessionResource) : undefined;
-			await this._sessionsManagementService.sendRequestInBackground(session, chat, {
-				query: options.query ?? '/act-on-feedback',
-				attachedContext: [createAgentFeedbackVariableEntry(sessionResource, selectedItems, annotationsResource)],
-			});
-			for (const item of selectedItems) {
-				this.acceptFeedback(sessionResource, item.id);
-			}
-			this.markFeedbackSubmitted(sessionResource, feedbackIds);
-			options.onRequestAccepted?.();
-			return true;
-		}
-
 		if (isEqual(sessionResource, AGENT_FEEDBACK_NEW_SESSION_RESOURCE)) {
 			if (!this.getFeedback(sessionResource).some(item => item.state === AgentFeedbackState.Accepted)) {
 				return false;

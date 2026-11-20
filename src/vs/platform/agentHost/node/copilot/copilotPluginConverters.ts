@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
+import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@microsoft/copilot-sdk';
 import { StringSHA1 } from '../../../../base/common/hash.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
@@ -186,6 +186,12 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
 	return hooks.length > 0 ? Object.fromEntries(hooks) : undefined;
 }
 
+/** Whether a custom agent file declares hooks in its frontmatter. */
+export function customAgentFileDeclaresHooks(content: string): boolean {
+	const md = parseFrontMatter(content);
+	return !!md && getCustomAgentHooks(md) !== undefined;
+}
+
 function customAgentDescription(name: string, description?: string): string {
 	return (description ? `${name}: ${description}` : name).replace(/\s+/g, ' ').trim();
 }
@@ -207,6 +213,7 @@ export async function toSdkCustomAgents(
 	fileService: IFileService,
 	availableModelIds?: ReadonlySet<string>,
 	clientToolNames?: ReadonlyMap<string, string>,
+	includeHooks = true,
 ): Promise<ICopilotCustomAgentConfig[]> {
 	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
@@ -226,7 +233,7 @@ export async function toSdkCustomAgents(
 				const description = md.getStringValue('description');
 				const tools = md.getStringArrayValue('tools');
 				const skills = md.getStringArrayValue('skills');
-				const hooks = getCustomAgentHooks(md);
+				const hooks = includeHooks ? getCustomAgentHooks(md) : undefined;
 				const reasoningEffort = md.getStringValue('reasoning-effort');
 				let infer = md.getBooleanValue('infer');
 				const disableModelInvocation = resolveAgentDisableModelInvocation(infer, md.getBooleanValue('disable-model-invocation'));

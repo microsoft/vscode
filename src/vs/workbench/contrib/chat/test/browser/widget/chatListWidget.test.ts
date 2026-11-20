@@ -17,7 +17,7 @@ import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -28,6 +28,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
+import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { createCodeEditorServices } from '../../../../../../editor/test/browser/testCodeEditor.js';
+import { instantiateTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -60,7 +63,7 @@ import { IChatResponseFileChangesService } from '../../../browser/chatResponseFi
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
-import { ChatListItemRenderer } from '../../../browser/widget/chatListRenderer.js';
+import { ChatListItemRenderer, IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
@@ -68,7 +71,7 @@ import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatViewModel, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatScheduledRequestEditing, IChatScheduledRequestViewModel, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
@@ -246,6 +249,44 @@ suite('ChatListWidget', () => {
 		}
 	});
 
+	test('scheduled hover toolbars only receive pointer input while visible', async () => {
+		const { disposables, viewModel, container, widget } = createWidget({}, undefined, true);
+		container.classList.add('interactive-list');
+		const host = dom.append(mainWindow.document.body, dom.$('.part.sessionspart', undefined,
+			dom.$('.sessions-chat', undefined, container.parentElement!)));
+		disposables.add(toDisposable(() => host.remove()));
+		viewModel.setScheduledRequests([
+			{
+				id: 'editing', text: 'Editing', description: 'Tomorrow', attachments: [], actions: [],
+				editing: {
+					text: 'Editing', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
+					selectTime: toAction({ id: 'time', label: 'Time', run: () => { } }),
+					save: async () => { }, cancel: () => { },
+				},
+			},
+			{
+				id: 'following', text: 'Next message', description: 'Tomorrow', attachments: [],
+				actions: [toAction({ id: 'edit', label: 'Edit', class: ThemeIcon.asClassName(Codicon.edit), run: () => { } })],
+			},
+		]);
+		widget.refresh();
+		for (const width of [300, 700]) {
+			container.style.width = `${width}px`;
+			widget.layout(300, width);
+			await waitForStableLayout(widget);
+			const time = container.querySelector<HTMLElement>('.scheduled-request-edit-time')!;
+			const toolbar = container.querySelector<HTMLElement>('.scheduled-request-actions')!;
+			const receivesPointer = () => {
+				const bounds = toolbar.getBoundingClientRect();
+				return toolbar.contains(mainWindow.document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2));
+			};
+			time.focus();
+			const resting = receivesPointer();
+			toolbar.querySelector<HTMLElement>('.action-label')!.focus();
+			assert.deepStrictEqual({ width, resting, focused: receivesPointer() }, { width, resting: false, focused: true });
+		}
+	});
+
 	test('scheduled message editing retains the edit state across time changes and cancellation', async () => {
 		const { viewModel, container, widget } = createWidget({}, undefined, true);
 		const request = { id: 'later', text: 'Original', description: 'Tomorrow', attachments: [], actions: [] };
@@ -280,6 +321,91 @@ suite('ChatListWidget', () => {
 		assert.deepStrictEqual({
 			retained, text: editing.text, description: editing.description, editing: !!container.querySelector('.scheduled-request-editing'),
 		}, { retained: true, text: 'Unsaved change', description: 'Next week', editing: false });
+	});
+
+	test('revealing a virtualized scheduled edit focuses its inline editor and preserves the main composer draft', async () => {
+		const { disposables, model, viewModel, container, widget } = createWidget({}, undefined, true);
+		container.style.position = 'fixed';
+		for (let index = 0; index < 12; index++) {
+			const text = `Earlier question ${index}`;
+			const request = model.addRequest({
+				text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Earlier response') });
+			request.response!.complete();
+		}
+		const request = { id: 'later', text: 'Scheduled message', description: 'Tomorrow', attachments: [], actions: [] };
+		const following = { ...request, id: 'following', text: 'A different scheduled message' };
+		viewModel.setScheduledRequests([request, following]);
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		widget.scrollTop = 0;
+		await waitForStableLayout(widget);
+		assert.strictEqual(container.querySelector('.scheduled-request'), null, 'The scheduled rows must start outside the virtualized viewport');
+
+		const editorServices = createCodeEditorServices(disposables);
+		const createEditor = (element: HTMLElement, text: string) => {
+			const editor = disposables.add(editorServices.createInstance(CodeEditorWidget, element, { dimension: { width: 450, height: 80 } }, { isSimpleWidget: true, contributions: [] }));
+			editor.setModel(disposables.add(instantiateTextModel(editorServices, text)));
+			return editor;
+		};
+		const composerElement = dom.append(mainWindow.document.body, dom.$('div', { style: 'position:fixed;top:320px;width:450px;height:80px' }));
+		disposables.add(toDisposable(() => composerElement.remove()));
+		const composer = createEditor(composerElement, 'Unrelated composer draft');
+		const inputContainer = dom.$('.chat-edit-input-container');
+		const editor = createEditor(dom.append(inputContainer, dom.$('div')), '');
+		const attachments: IChatRequestVariableEntry[] = [];
+		const input = {
+			inputEditor: editor, onDidChangeDraft: Event.None,
+			attachmentModel: { attachments, onDidChange: Event.None, addContext: (...entries: IChatRequestVariableEntry[]) => attachments.push(...entries) },
+			setValue: (text: string) => editor.setValue(text),
+			focus: () => editor.focus(),
+		};
+		const chatWidget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_viewModel: viewModel, listWidget: widget, inputContainer,
+			_editingDisposables: disposables.add(new MutableDisposable<DisposableStore>()),
+			_editingAutoScrollHold: disposables.add(new MutableDisposable<IDisposable>()),
+			getContrib: () => undefined,
+			createInlineInput: (item: IChatListItemTemplate) => item.requestTimestampContainer.before(inputContainer),
+		});
+		Object.defineProperties(chatWidget, {
+			inlineInputPart: { value: input },
+			inputPart: {
+				value: {
+					inputEditor: composer, focus: () => composer.focus(), setValue: (text: string) => composer.setValue(text),
+					toggleChatInputOverlay: () => { }, dnd: { setDisabledOverlay: () => { } }, onDidClickOverlay: Event.None,
+				}
+			},
+		});
+		const render = Reflect.get(ChatWidget.prototype, 'renderScheduledRequestInput') as (this: ChatWidget, item: IChatListItemTemplate, request: IChatScheduledRequestViewModel) => void;
+		disposables.add(widget.onDidRerender(item => {
+			if (isScheduledRequestVM(item.currentElement) && item.currentElement.editing) {
+				render.call(chatWidget, item, item.currentElement);
+			}
+		}));
+		const editing: IChatScheduledRequestEditing = {
+			text: request.text, runAt: '2099-01-15T10:00:00Z', description: request.description,
+			selectTime: toAction({ id: 'time', label: 'Time', run: () => { } }),
+			save: async () => { }, cancel: () => { },
+		};
+		// Do not refresh here: ChatWidget must flush the batched model change before revealing.
+		viewModel.setScheduledRequests([{ ...request, editing }, following]);
+		chatWidget.revealScheduledRequest(request.id);
+		await waitForStableLayout(widget);
+		const row = widget.getTemplateDataForRequestId('scheduled:later');
+		assert.ok(row?.rowContainer.contains(editor.getDomNode()!) && editor.hasTextFocus());
+		editor.setValue('Unsaved scheduled edit');
+		composer.focus();
+		chatWidget.revealScheduledRequest(request.id);
+		await waitForStableLayout(widget);
+		assert.deepStrictEqual({
+			scrolled: widget.scrollTop > 0, inlineFocused: editor.hasTextFocus(),
+			inline: editor.getValue(), editing: editing.text, composer: composer.getValue(),
+		}, {
+			scrolled: true, inlineFocused: true,
+			inline: 'Unsaved scheduled edit', editing: 'Unsaved scheduled edit', composer: 'Unrelated composer draft',
+		});
 	});
 
 	test('provides registered menu commands with the link context', async () => {
@@ -1450,6 +1576,74 @@ suite('ChatListWidget', () => {
 			dataIdAfterRemove: firstDataId,
 			remainingRequestId: firstRequest.id,
 		});
+	});
+
+	test('loads older history from the focused short list, coalescing gestures and discarding stale navigation', async () => {
+		const { model, viewModel, container, widget } = createWidget();
+		const page = new DeferredPromise<void>();
+		let loads = 0;
+		model.loadOlderHistory = () => { loads++; return page.p; };
+		model.addRequest({ text: 'Recent', parts: [] }, { variables: [] }, 0).response!.complete();
+		widget.layout(300, 500);
+		widget.refresh();
+		widget.focusItem(viewModel.getItems()[0]);
+		const tree = container.querySelector<HTMLElement>('.monaco-list')!;
+		const wheel = (deltaY: number) => tree.dispatchEvent(new WheelEvent('wheel', { deltaY, bubbles: true }));
+		wheel(10);
+		await nextFrame();
+		const before = { loads, scrollable: widget.scrollHeight > widget.renderHeight };
+		const event = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true });
+		Object.defineProperty(event, 'keyCode', { get: () => 38 });
+		tree.dispatchEvent(event);
+		await nextFrame();
+		const keyboardLoads = loads;
+		wheel(-10);
+		await nextFrame();
+		const whileLoading = loads;
+		await page.complete();
+		await nextFrame();
+		wheel(-10);
+		widget.setViewModel(undefined);
+		await nextFrame();
+		assert.deepStrictEqual({ before, keyboardLoads, whileLoading, final: loads }, {
+			before: { loads: 0, scrollable: false }, keyboardLoads: 1, whileLoading: 1, final: 1,
+		});
+	});
+
+	test('loads older history by wheel without losing the reading row or tree focus', async () => {
+		const { model, viewModel, widget, container } = createWidget();
+		const question = model.addRequest({ text: 'Recent', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(question, { kind: 'markdownContent', content: new MarkdownString('Recent paragraph\n\n'.repeat(30)) });
+		question.response!.complete();
+		widget.layout(300, 500);
+		widget.refresh();
+		const focused = viewModel.getItems()[1];
+		widget.focusItem(focused);
+		const page = new DeferredPromise<void>();
+		let loads = 0;
+		model.loadOlderHistory = () => { loads++; return page.p; };
+		const tree = container.querySelector<HTMLElement>('.monaco-list')!;
+		widget.scrollToEnd();
+		tree.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
+		await nextFrame();
+		const awayFromTop = loads;
+		widget.scrollTop = widget.getElementTop(focused)! + 12;
+		tree.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
+		await nextFrame();
+		// The user continues reading while the request is in flight.
+		widget.scrollTop = widget.getElementTop(focused)! + 32;
+		const anchor = widget.getScrollAnchor();
+		const insertion: Parameters<ChatModel['addRequest']> = [{ text: 'Older', parts: [] }, { variables: [] }, 0];
+		insertion[24] = { index: 0 };
+		const older = model.addRequest(...insertion);
+		model.acceptResponseProgress(older, { kind: 'markdownContent', content: new MarkdownString('Older paragraph\n\n'.repeat(30)) });
+		older.response!.complete();
+		widget.refresh();
+		await page.complete();
+		await waitForStableLayout(widget);
+		assert.deepStrictEqual({
+			awayFromTop, loads, anchor: widget.getScrollAnchor(), focused: widget.getFocus()[0] === focused && widget.isDOMFocused(),
+		}, { awayFromTop: 0, loads: 1, anchor, focused: true });
 	});
 
 	test('restores the row at the top of the viewport after switching to another chat and back', async () => {

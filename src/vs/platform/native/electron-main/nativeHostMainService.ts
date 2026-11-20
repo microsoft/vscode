@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, desktopCapturer, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, nativeImage, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, desktopCapturer, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, nativeImage, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -27,7 +27,10 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeAppWindow, INativeAppWindows, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { excludeOwnWindowSources, getScreenWindowId, getWindowSourceId, OrderedAppWindow, orderAppWindows } from '../common/appWindows.js';
+import { AppWindowCaptureFeedback, IAppWindowCaptureFeedbackOptions, IAppWindowCaptureOverlay } from './appWindowCaptureFeedback.js';
+import { captureMacWindow, getMacScreenWindows } from './macScreenWindows.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -55,6 +58,14 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { GPUCompositingState } from './gpuCompositingState.js';
 import { AgentHostEditorUpdate, AgentsWindowInvitationState, IAgentHostEditorState, IAgentsWindowInvitation } from '../../chat/common/agentsWindowInvitation.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
+import { isOnBatteryPower, isPowerSaveBlockerStarted, onDidChangeOnBatteryPower, startPowerSaveBlocker, stopPowerSaveBlocker } from './power.js';
+import { MouseMoveForwarder } from './mouseMoveForwarder.js';
+
+/**
+ * Whether a window that ignores mouse events needs a {@link MouseMoveForwarder} to receive mouse moves: on Windows, Electron 43
+ * forwards none to a window opened with `window.open`, such as an auxiliary window (electron/electron#55098, fixed in Electron 44).
+ */
+const needsMouseMoveForwarder = isWindows && parseInt(process.versions.electron, 10) < 44;
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -65,6 +76,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private readonly gpuCompositingState: GPUCompositingState;
 	private readonly agentsWindowInvitations: AgentsWindowInvitationState;
+	/** The mouse move forwarders of windows that ignore mouse events, by window ID, see {@link needsMouseMoveForwarder}. */
+	private readonly mouseMoveForwarders = this._register(new DisposableMap<number>());
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -139,11 +152,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			this.onDidSuspendOS = Event.fromNodeEventEmitter(powerMonitor, 'suspend');
 			this.onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
 
-			// Battery power events (macOS and Windows only)
-			this.onDidChangeOnBatteryPower = Event.any(
-				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-ac'), () => false),
-				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-battery'), () => true)
-			);
+			this.onDidChangeOnBatteryPower = onDidChangeOnBatteryPower;
 
 			// Thermal state events (macOS only)
 			this.onDidChangeThermalState = Event.map(
@@ -429,11 +438,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.handleTitleDoubleClick();
 	}
 
-	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
+	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle; readonly workArea: IRectangle }> {
 		const point = screen.getCursorScreenPoint();
 		const display = screen.getDisplayNearestPoint(point);
 
-		return { point, display: display.bounds };
+		return { point, display: display.bounds, workArea: display.workArea };
 	}
 
 	async isMaximized(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
@@ -526,6 +535,32 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async setWindowOpacity(windowId: number | undefined, opacity: number, options?: INativeHostOptions): Promise<void> {
 		this.exactWindowById(windowId, options)?.win?.setOpacity(Math.min(1, Math.max(0, opacity)));
+	}
+
+	async setWindowIgnoreMouseEvents(windowId: number | undefined, ignore: boolean, options?: INativeHostOptions): Promise<void> {
+		const win = this.exactWindowById(windowId, options)?.win;
+		if (!win) {
+			return;
+		}
+		win.setIgnoreMouseEvents(ignore, { forward: true });
+		if (!ignore) {
+			this.mouseMoveForwarders.deleteAndDispose(win.id);
+		} else if (needsMouseMoveForwarder && !this.mouseMoveForwarders.has(win.id)) {
+			this.mouseMoveForwarders.set(win.id, this.forwardMouseMoves(win));
+		}
+	}
+
+	private forwardMouseMoves(win: BrowserWindow): DisposableStore {
+		const id = win.id;
+		const store = new DisposableStore();
+		store.add(new MouseMoveForwarder({
+			onDidChangeVisibility: Event.any(Event.fromNodeEventEmitter(win, 'show'), Event.fromNodeEventEmitter(win, 'hide')),
+			isVisible: () => win.isVisible(),
+			getContentBounds: () => win.getContentBounds(),
+			sendMouseMove: (x, y) => win.webContents.sendInputEvent({ type: 'mouseMove', x, y }),
+		}, () => screen.getCursorScreenPoint()));
+		store.add(Event.fromNodeEventEmitter(win, 'closed')(() => this.mouseMoveForwarders.deleteAndDispose(id)));
+		return store;
 	}
 
 	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
@@ -913,6 +948,96 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// Electron has no screen-permission request API; enumerate screens in the application process to request access.
 		await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
 		return systemPreferences.getMediaAccessStatus('screen') === 'granted';
+	}
+
+	async getAppWindows(windowId: number | undefined, options?: { readonly interactive?: boolean }): Promise<INativeAppWindows> {
+		const interactive = !!options?.interactive;
+		// Chromium lets the user pick a window in the system's picker in Wayland sessions, even under XWayland. The test is
+		// WebRTC's own (`DesktopCapturer::IsRunningUnderWayland`): without it, Chromium lists the windows through X11.
+		if (isLinux && process.env['XDG_SESSION_TYPE']?.startsWith('wayland') && process.env['WAYLAND_DISPLAY'] && !interactive) {
+			return { kind: 'systemPicker' };
+		}
+		// Listing the windows asks for the permission the first time.
+		if (isMacintosh && systemPreferences.getMediaAccessStatus('screen') !== 'granted' && !interactive) {
+			return { kind: 'permissionRequired' };
+		}
+
+		// Only macOS tells where windows are, and which application is in front.
+		const screenWindows = isMacintosh ? getMacScreenWindows(this.logService) : undefined;
+		let sources: Electron.DesktopCapturerSource[];
+		try {
+			// Thumbnails would capture every window, so none are made.
+			sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: true });
+		} catch (error) {
+			if (isMacintosh && systemPreferences.getMediaAccessStatus('screen') !== 'granted') {
+				return { kind: 'permissionRequired' };
+			}
+			throw error;
+		}
+
+		const ownSourceIds = BrowserWindow.getAllWindows().filter(window => !window.isDestroyed()).map(window => window.getMediaSourceId());
+		const others = excludeOwnWindowSources(sources, ownSourceIds);
+		const screen = await screenWindows;
+		const ordered: OrderedAppWindow<Electron.DesktopCapturerSource>[] = screen ? orderAppWindows(others, screen, process.pid) : others.map(source => ({ source, window: undefined }));
+		// Desktop media sources leave out the windows that the screen doesn't show, which take their application's icon.
+		const appPaths = new Set<string>();
+		for (const { source, window } of ordered) {
+			if (!source && window.appPath) {
+				appPaths.add(window.appPath);
+			}
+		}
+		const appIcons = new Map(await Promise.all(Array.from(appPaths, async path => [path, await this.getAppIconDataUrl(path)] as const)));
+		const windows = ordered.map(({ source, window }): INativeAppWindow => source ? {
+			sourceId: source.id,
+			title: source.name,
+			iconDataUrl: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32, height: 32, quality: 'best' }).toDataURL() : undefined,
+			bounds: window?.bounds,
+		} : {
+			sourceId: getWindowSourceId(window),
+			title: window.title ?? '',
+			iconDataUrl: window.appPath ? appIcons.get(window.appPath) : undefined,
+			bounds: window.bounds,
+		});
+		return { kind: 'windows', windows };
+	}
+
+	/** Returns the icon of the application at the path, at the size of the icons of desktop media sources, as a PNG `data:` URL. */
+	private async getAppIconDataUrl(path: string): Promise<string | undefined> {
+		try {
+			const icon = await app.getFileIcon(path, { size: 'normal' });
+			return icon.isEmpty() ? undefined : icon.toDataURL();
+		} catch (error) {
+			this.logService.trace('[AppWindows] Getting the icon of an application failed:', error);
+			return undefined;
+		}
+	}
+
+	private appWindowCaptureFeedback: AppWindowCaptureFeedback | undefined;
+
+	async captureAppWindow(windowId: number | undefined, window: INativeAppWindow, options?: { readonly feedback?: IAppWindowCaptureFeedbackOptions }): Promise<VSBuffer | undefined> {
+		let overlay: IAppWindowCaptureOverlay | undefined;
+		if (options?.feedback && window.bounds) {
+			this.appWindowCaptureFeedback ??= this._register(new AppWindowCaptureFeedback(this.logService));
+			overlay = this.appWindowCaptureFeedback.show(window.bounds, options.feedback);
+		}
+		const screenWindowId = isMacintosh ? getScreenWindowId(window.sourceId) : undefined;
+		const image = screenWindowId !== undefined ? await captureMacWindow(screenWindowId, this.logService) : undefined;
+		if (!image) {
+			// The caller captures the window another way, which shows the window meanwhile.
+			void overlay?.dim();
+			return undefined;
+		}
+		await overlay?.reveal(image);
+		return VSBuffer.wrap(image);
+	}
+
+	async endAppWindowCaptureFeedback(windowId: number | undefined, screenshot?: { readonly image?: string; readonly destination?: IRectangle; readonly radius?: number }, options?: INativeHostOptions): Promise<void> {
+		let destination: IRectangle | undefined;
+		const content = screenshot?.destination && this.windowById(options?.targetWindowId, windowId)?.win?.getContentBounds();
+		if (screenshot?.destination && content) {
+			destination = { ...screenshot.destination, x: content.x + screenshot.destination.x, y: content.y + screenshot.destination.y };
+		}
+		await this.appWindowCaptureFeedback?.end(screenshot && { image: screenshot.image, destination, radius: screenshot.radius });
 	}
 
 	async isAdmin(): Promise<boolean> {
@@ -1765,19 +1890,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async isOnBatteryPower(windowId: number | undefined): Promise<boolean> {
-		return powerMonitor.isOnBatteryPower();
+		return isOnBatteryPower();
 	}
 
 	async startPowerSaveBlocker(windowId: number | undefined, type: PowerSaveBlockerType): Promise<number> {
-		return powerSaveBlocker.start(type);
+		return startPowerSaveBlocker(type);
 	}
 
 	async stopPowerSaveBlocker(windowId: number | undefined, id: number): Promise<boolean> {
-		return powerSaveBlocker.stop(id);
+		return stopPowerSaveBlocker(id);
 	}
 
 	async isPowerSaveBlockerStarted(windowId: number | undefined, id: number): Promise<boolean> {
-		return powerSaveBlocker.isStarted(id);
+		return isPowerSaveBlockerStarted(id);
 	}
 
 	//#endregion

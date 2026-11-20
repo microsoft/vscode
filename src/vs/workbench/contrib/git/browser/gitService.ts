@@ -59,7 +59,7 @@ export class GitService extends Disposable implements IGitService {
 	}
 }
 
-export class GitRepository extends Disposable implements IGitRepository {
+export class GitRepository implements IGitRepository {
 	readonly rootUri: URI;
 
 	readonly state: ISettableObservable<GitRepositoryState>;
@@ -72,8 +72,6 @@ export class GitRepository extends Disposable implements IGitRepository {
 		initialState: GitRepositoryState,
 		private readonly delegate: IGitExtensionDelegate
 	) {
-		super();
-
 		this.rootUri = rootUri;
 		this.state = observableValueOpts({ owner: this, equalsFn: structuralEquals }, initialState);
 	}

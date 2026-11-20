@@ -24,10 +24,26 @@ import { IAgentModelPreferences } from '../../chat/common/promptSyntax/languageP
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 
 /**
  * Event fired when sessions change within a provider.
  */
+/**
+ * The scope a sessions provider lists its sessions in, such as the folders of an editor window's workspace: the sessions
+ * working in one of its folders, and the sessions of the same git or GitHub repositories, such as of their worktrees, as
+ * `SessionsListingScopeFilter` matches them. With no folders, it lists every session.
+ */
+export interface ISessionsListingScope {
+	/**
+	 * The folders of the scope, such as an editor window's: a session working in one, or whose root or repository is one, is
+	 * in the scope.
+	 */
+	readonly folders: IObservable<readonly URI[]>;
+	/** The GitHub repositories, as `owner/repo`, of the {@link folders}' `origin`, whose sessions on GitHub are in the scope. */
+	readonly gitHubRepositories?: IObservable<readonly string[]>;
+}
+
 export interface ISessionChangeEvent {
 	readonly added: readonly ISession[];
 	readonly removed: readonly ISession[];
@@ -277,6 +293,8 @@ export interface ISessionWorktreeConfiguration {
  * the provider or session type.
  */
 export interface ISessionModelPickerOptions {
+	/** The provider's catalog is authoritative even for model IDs not registered with the language models service. */
+	readonly hasLiveModelCatalog?: boolean;
 	/** Whether to surface featured models that are currently unavailable. */
 	readonly showUnavailableFeatured: boolean;
 	/** Whether to offer the "Manage Models" action in the picker. */
@@ -401,9 +419,24 @@ export interface ISessionsProvider {
 	readonly onDidChangeSessionTypes: Event<void>;
 
 	/**
-	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
+	 * The sessions the provider lists, within its listing scope ({@link setListingScope}); without one, every session it
+	 * knows. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
+
+	/**
+	 * Every session known to the provider, also those outside its listing scope, which {@link getSessions} leaves out,
+	 * such as the sessions of other folders in an editor window; for looking sessions up, not for listing. Without it,
+	 * {@link getSessions} lists every session.
+	 */
+	getAllSessions?(): ISession[];
+
+	/**
+	 * Lists only the sessions of `scope` from then on, in {@link getSessions} and {@link onDidChangeSessions}, such as those
+	 * of an editor window's folders; {@link getAllSessions} still finds every session. Without it, the provider lists every
+	 * session also where a window scopes its listing.
+	 */
+	setListingScope?(scope: ISessionsListingScope): void;
 
 	/** Returns an already acquired execution provider without doing work during catalog reads. */
 	getSessionProvider?(sessionId: string): ISessionsProvider | undefined;
@@ -418,6 +451,12 @@ export interface ISessionsProvider {
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
+
+	/**
+	 * Event that fires when any of its sessions changes, also one its listing scope hides: see {@link getAllSessions}.
+	 * Without it, {@link onDidChangeSessions} reports every change.
+	 */
+	readonly onDidChangeAllSessions?: Event<ISessionChangeEvent>;
 
 	/**
 	 * Fires when a chat moved between this provider's sessions, after both
@@ -546,6 +585,9 @@ export interface ISessionsProvider {
 	/** Clones or reuses a repository on this provider's host, returning its ready workspace. */
 	cloneRepository?(repository: URI, token: CancellationToken): Promise<ISessionWorkspace>;
 
+	/** Whether {@link cloneRepository} can clone on the host it is connected to now. Absent when it always can. */
+	readonly canCloneRepository?: boolean;
+
 	/** An alternate creation context for New Session gestures from an existing session. */
 	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
 
@@ -647,7 +689,7 @@ export interface ISessionsProvider {
 	listCanvases?(sessionId: string, chatResource: URI): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
-	openCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
+	openCanvas?(sessionId: string, chatResource: URI, canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 
 	/** Close one live canvas of a chat, notifying the extension that provides it. */
 	closeCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void>;
@@ -767,8 +809,11 @@ export interface ISessionsProvider {
 	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
 	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
 
-	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
+	/** Whether the connected host supports preparing and scheduling session worktree cleanup. */
+	readonly supportsWorktreeCleanup?: boolean;
+	readonly supportsManagedWorktreeCleanup?: boolean;
 	readonly supportsForceWorktreeCleanup?: boolean;
+	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	prepareSessionWorktreeCleanup?(sessionId: string): Promise<void>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;

@@ -994,6 +994,27 @@ suite('Artifact Integration Presentation', () => {
 		});
 	});
 
+	test('a pill label shortens the artifact\'s own pill, while its label still names it for screen readers and dropdown rows', () => {
+		const f = fixture();
+		const a = f.artifact();
+		updateContribution(a, c => ({ ...c, view: { ...c.view, main: { ...c.view.main!, label: 'Use the theme\'s minimap background', pillLabel: 'PR #42', description: undefined } } }));
+		const hover = f.hovers.get(a.main);
+		assert.ok(typeof hover === 'function');
+		assert.deepStrictEqual({
+			label: a.main.querySelector('.chat-pill-label')?.textContent,
+			ariaLabel: a.main.getAttribute('aria-label'),
+			description: a.main.getAttribute('aria-description'),
+			hover: hover().content,
+			row: a.entry.get().label,
+		}, {
+			label: 'PR #42',
+			ariaLabel: 'Open Use the theme\'s minimap background',
+			description: null,
+			hover: 'Use the theme\'s minimap background',
+			row: 'Use the theme\'s minimap background',
+		});
+	});
+
 	test('the main part shows its entry\'s rich hover, such as a pull request card, in place of the integration description', () => {
 		const f = fixture();
 		const card = $('.rich-card');
@@ -1680,6 +1701,33 @@ suite('Artifact Integration Presentation', () => {
 			same: true, checked: true, configured: [
 				{ integrationId: 'test', revision: 4, values: { fix: true } }, { integrationId: 'test', revision: 5, values: { fix: false } },
 			], errors: ['The artifact operation failed: Consent failed'], invoked: [],
+		});
+	});
+
+	test('switches change at once and can be clicked in quick succession while the provider saves and refreshes', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		const panel = await open(f, a);
+		const toggles = [...panel.querySelectorAll<HTMLButtonElement>('.artifact-autopilot-rule [role="switch"]')];
+		const state = () => toggles.map(toggle => ({ checked: toggle.getAttribute('aria-checked'), disabled: toggle.disabled }));
+		const write = new DeferredPromise<void>();
+		a.setConfigureResult(write.p);
+		toggles[0].click();
+		// Every Autopilot change makes the provider refresh the resource, which keeps showing its last known state.
+		updateContribution(a, c => ({ ...c, view: { ...c.view, availability: { kind: 'stale', reason: 'Refreshing.' } } }));
+		await settle(f);
+		toggles[1].click();
+		toggles[2].click();
+		await settle(f);
+		const saving = { toggles: state(), writes: a.configured.length };
+		await write.complete();
+		await settle(f);
+		const on = { checked: 'true', disabled: false };
+		assert.deepStrictEqual({ saving, saved: state(), configured: a.configured, errors: f.errors }, {
+			saving: { toggles: [on, on, on], writes: 1 }, saved: [on, on, on],
+			configured: [
+				{ integrationId: 'test', revision: 4, values: { fix: true } }, { integrationId: 'test', revision: 5, values: { reviews: true, merge: true } },
+			], errors: [],
 		});
 	});
 
@@ -2714,6 +2762,68 @@ suite('Artifact Integration Presentation', () => {
 				value: 'Always', grant: 'always', writes: [],
 				errors: ['The artifact operation failed: This Autopilot rule changed while selecting a policy. Choose the policy again.'],
 				pickerClosed: true,
+			});
+		});
+
+		test('a policy picked for an enabled rule cannot re-enable it after another update turns it off', async () => {
+			const f = fixture();
+			const quickInput = store.add(f.instantiation.createInstance(QuickInputService));
+			f.instantiation.stub(IQuickInputService, quickInput);
+			const a = f.artifact();
+			useEnumAutomation(a, 'always');
+			updateContribution(a, contribution => ({
+				...contribution,
+				options: [{ id: 'fix', kind: 'boolean', label: 'Auto Fix CI', description: 'Repair failed checks.', actionIds: ['fix'], maxAttempts: 3, defaultValue: false }, ...contribution.options],
+				configuration: { ...contribution.configuration, revision: 5, values: { fix: false, merge: 'always' } },
+			}));
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			const choose = async (label: string) => {
+				button(panel, label).click();
+				await settle(f);
+				return () => {
+					const choice = f.host.querySelectorAll<HTMLElement>('.quick-input-widget .monaco-list-row')[1];
+					choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+					choice.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, button: 0 }));
+				};
+			};
+			const turnOffMerge = (revision: number) => updateContribution(a, contribution => ({
+				...contribution, configuration: { ...contribution.configuration, revision, values: { ...contribution.configuration.values, merge: 'off' } },
+			}));
+
+			// Turned off while the picker is open.
+			const pickWhileOpen = await choose('Always');
+			turnOffMerge(6);
+			pickWhileOpen();
+			await settle(f);
+			const whilePicking = { writes: a.configured.length, merge: a.snapshot.get().contributions[0].configuration.values.merge };
+
+			// Turned off after the pick, while its write waits for an earlier write.
+			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, revision: 7, values: { ...contribution.configuration.values, merge: 'always' } } }));
+			await settle(f);
+			const earlierWrite = new DeferredPromise<void>();
+			a.setConfigureResult(earlierWrite.p);
+			panel.querySelectorAll<HTMLElement>('.artifact-autopilot-rule [role="switch"]')[0].click();
+			await settle(f);
+			const pickBeforeWrite = await choose('Always');
+			pickBeforeWrite();
+			await settle(f);
+			turnOffMerge(8);
+			await earlierWrite.complete();
+			await settle(f);
+
+			assert.deepStrictEqual({
+				whilePicking, writes: a.configured, values: a.snapshot.get().contributions[0].configuration.values,
+				merge: panel.querySelectorAll('.artifact-autopilot-rule [role="switch"]')[1].getAttribute('aria-checked'),
+				policy: panel.querySelector('.artifact-autopilot-policy')?.textContent, errors: f.errors,
+			}, {
+				whilePicking: { writes: 0, merge: 'off' },
+				writes: [{ integrationId: 'test', revision: 7, values: { fix: true } }],
+				values: { fix: true, merge: 'off' }, merge: 'false', policy: 'When No Changes Were Made',
+				errors: [
+					'The artifact operation failed: This Autopilot rule changed while selecting a policy. Choose the policy again.',
+					'The artifact operation failed: Merge Automatically When Ready was turned off before its new policy was saved, so it stays off. Turning it on again uses the selected policy.',
+				],
 			});
 		});
 

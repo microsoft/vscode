@@ -592,7 +592,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message, tags: m.tags })),
 				[
-					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, model-policy, name, reasoning-effort, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
+					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, model-policy, name, reasoning-effort, target, tools, user-invocable, vscode.`, tags: [MarkerTag.Unnecessary] },
 				]
 			);
 		});
@@ -974,6 +974,37 @@ suite('PromptValidator', () => {
 				assert.deepStrictEqual(results, [expected, expected]);
 			});
 		}
+
+		test('github-copilot reports malformed HTTP hook and remote MCP URLs', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				'  preToolUse:',
+				'    - type: http',
+				'      url: "not-a-url"',
+				'    - type: http',
+				'      url: "https://"',
+				'mcp-servers:',
+				'  invalid:',
+				'    type: http',
+				'    url: "not-a-url"',
+				'    tools: [fetch]',
+				'  missingHost:',
+				'    type: http',
+				'    url: "https://"',
+				'    tools: [fetch]',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'url' property in an HTTP hook action must be an HTTP or HTTPS URL.`,
+				`The 'url' property in an HTTP hook action must be an HTTP or HTTPS URL.`,
+				`The 'url' property for MCP server 'invalid' must be an HTTP or HTTPS URL.`,
+				`The 'url' property for MCP server 'missingHost' must be an HTTP or HTTPS URL.`,
+			]);
+		});
 
 		const githubCopilotSchemaCases: [name: string, header: string[], expected: string[]][] = [
 			['github-copilot agent rejects invalid hook action combinations', [

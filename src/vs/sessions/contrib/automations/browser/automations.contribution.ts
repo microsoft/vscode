@@ -35,9 +35,9 @@ import { ProviderAutomationService } from './providerAutomationService.js';
 import { AutomationToolsContribution } from './automationTools.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../../../platform/agentHost/common/automationConfig.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { AUTOMATIONS_MODAL_SETTING } from './automationsEditorInput.js';
 
 const initialProvidersSettled = observableFromPromise(
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored.then(() => true)
@@ -70,7 +70,7 @@ registerAction2(class RunAutomationAction extends Action2 {
 		const providersService = accessor.get(ISessionsProvidersService);
 		const notificationService = accessor.get(INotificationService);
 		const sessionsService = accessor.get(ISessionsService);
-		const customViewService = accessor.get(ICustomViewService);
+		const commandService = accessor.get(ICommandService);
 		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true
 			&& !configurationService.getValue<boolean>(ChatAIDisabledSettingId);
 		if (!isEnabled()) {
@@ -142,7 +142,7 @@ registerAction2(class RunAutomationAction extends Action2 {
 			return;
 		}
 		const dispatch = await automationRunner.runOnce(automation).whenDispatched;
-		if (dispatch.kind !== 'accepted' && dispatch.kind !== 'started' && dispatch.kind !== 'alreadyRunning') {
+		if (dispatch.kind !== 'accepted' && dispatch.kind !== 'started' && dispatch.kind !== 'queued' && dispatch.kind !== 'alreadyRunning') {
 			return;
 		}
 		const sessionResource = dispatch.kind === 'started' ? dispatch.sessionResource
@@ -161,7 +161,7 @@ registerAction2(class RunAutomationAction extends Action2 {
 						if (sessionResource) {
 							await sessionsService.openSession(sessionResource, { preserveFocus: false, source: 'automation' });
 						} else {
-							customViewService.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
+							await commandService.executeCommand('sessionsView.manageAutomations');
 						}
 					} catch (error) {
 						logService.error('[RunAutomationAction] Failed to open automation run', error);
@@ -181,6 +181,13 @@ registerAction2(class RunAutomationAction extends Action2 {
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
 	properties: {
+		[AUTOMATIONS_MODAL_SETTING]: {
+			type: 'boolean',
+			default: false,
+			included: false,
+			scope: ConfigurationScope.MACHINE,
+			description: localize('chat.automations.modal', "Opens Automations in an alternative modal catalogue. The default cards and history view is unchanged when disabled."),
+		},
 		[CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING]: {
 			type: 'boolean',
 			default: true,

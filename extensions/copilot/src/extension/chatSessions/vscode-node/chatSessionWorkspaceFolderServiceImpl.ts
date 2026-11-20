@@ -110,12 +110,6 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 		this.invalidateSessionCache(sessionId);
 	}
 
-	async hasCachedChanges(sessionId: string): Promise<boolean> {
-		const existingRepoKey = this.sessionRepoKeys.get(sessionId);
-		const cachedChanges = existingRepoKey ? this.workspaceFolderChanges.get(existingRepoKey) : undefined;
-		return !!cachedChanges;
-	}
-
 	async refreshWorkspaceChanges(sessionId: string): Promise<void> {
 		// Clear the cache
 		this.clearWorkspaceChanges(sessionId);

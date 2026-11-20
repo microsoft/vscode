@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { VSBuffer, encodeBase64 } from '../../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -25,9 +25,9 @@ import { GitHubAuthorizationContext, GitHubRequestError } from '../../../../../p
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
-import { BrowserPluginGitCommandService } from '../../browser/pluginGitCommandService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../services/github/common/githubService.js';
 import { parseGitHubCloneUrl } from '../../browser/githubRepoFetcher.js';
+import { BrowserPluginGitCommandService } from '../../browser/pluginGitCommandService.js';
 
 suite('BrowserPluginGitCommandService', () => {
 	const disposables = new DisposableStore();
@@ -151,7 +151,7 @@ suite('BrowserPluginGitCommandService', () => {
 				grants: github.leases.map(lease => lease.authorization), prompts: authentication.createSessionCalls,
 				content: (await fileService.readFile(URI.joinPath(targetDir, 'private.txt'))).value.toString(),
 			}, {
-				grants: [undefined, { providerId: 'github', sessionId: 'created', accountId: 'octocat', scopes: ['repo'] }],
+				grants: [undefined, { providerId: 'github', sessionId: 'created', accountId: 'octocat', scopes: ['repo'], authorizationServer: undefined }],
 				prompts: 1, content: 'secret',
 			});
 		});
@@ -164,7 +164,7 @@ suite('BrowserPluginGitCommandService', () => {
 				requestGrants: github.requests.map(request => request.authorization?.sessionId),
 				prompts: authentication.createSessionCalls,
 			}, {
-				grants: [{ providerId: 'github', sessionId: 'repository', accountId: 'octocat', scopes: ['repo', 'read:user'] }],
+				grants: [{ providerId: 'github', sessionId: 'repository', accountId: 'octocat', scopes: ['repo', 'read:user'], authorizationServer: undefined }],
 				requestGrants: ['repository', 'repository', 'repository'], prompts: 0,
 			});
 		});
@@ -304,7 +304,7 @@ suite('BrowserPluginGitCommandService', () => {
 			await started.p;
 			await timeout(0);
 			const settledBeforePeer = settled;
-			const peerCancelled = github.requests.find(value => value.request.path.endsWith('/blobs/late'))?.signal.aborted;
+			const peerCancelled = github.requests.find(value => value.request.path.endsWith('/blobs/late'))?.cancellationToken.isCancellationRequested;
 			await release.complete();
 			await rejected;
 			assert.deepStrictEqual({
@@ -319,9 +319,9 @@ suite('BrowserPluginGitCommandService', () => {
 			await clone();
 			queueResolve(github, sha2);
 			queueTree(github, sha2, [{ path: 'a.txt', mode: GitTreeEntryMode.File, type: 'blob', sha: 'revoked' }]);
-			github.queue(/\/git\/blobs\/revoked$/, async signal => {
+			github.queue(/\/git\/blobs\/revoked$/, async cancellationToken => {
 				github.leases.at(-1)!.invalidate();
-				signal.throwIfAborted();
+				CancellationToken.throwIfCanceled(cancellationToken);
 				return jsonResponse(blob('revoked', VSBuffer.fromString('new')));
 			});
 			github.queue(/\/commits\/main$/, new GitHubRequestError('Unauthorized', 'authentication', 401));
@@ -476,11 +476,11 @@ suite('BrowserPluginGitCommandService', () => {
 	});
 });
 
-type ResponseFactory = ApiResponse<string> | Error | ((signal: AbortSignal) => Promise<ApiResponse<string>>);
+type ResponseFactory = ApiResponse<string> | Error | ((cancellationToken: CancellationToken) => Promise<ApiResponse<string>>);
 
 class StubGitHubService extends mock<IWorkbenchGitHubService>() {
 	private readonly responses: { path: RegExp; response: ResponseFactory }[] = [];
-	readonly requests: { request: Omit<ApiRequest, 'body'>; authorization: GitHubAuthorizationContext | undefined; signal: AbortSignal }[] = [];
+	readonly requests: { request: Omit<ApiRequest, 'body'>; authorization: GitHubAuthorizationContext | undefined; cancellationToken: CancellationToken }[] = [];
 	readonly leases: { authorization: GitHubAuthorizationContext | undefined; invalidate: () => void; disposed: boolean }[] = [];
 
 	constructor(private readonly store: DisposableStore) {
@@ -491,14 +491,17 @@ class StubGitHubService extends mock<IWorkbenchGitHubService>() {
 		this.responses.push({ path, response });
 	}
 
-	override async acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<AccountClient> {
-		signal.throwIfAborted();
+	override async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>): Promise<AccountClient> {
+		assert.ok(args.length === 3);
+		const [providerId, session, cancellationToken] = args;
+		const authorization = toGitHubAuthorizationContext(providerId, session);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const { provider, lifetime, invalidated } = this.providers(authorization);
 		return this.store.add(new AccountClient(authorization, { rest: provider, graphql: provider, onDidInvalidate: invalidated.event }, lifetime));
 	}
 
-	override async acquireAnonymousApiClient(signal: AbortSignal): Promise<AnonymousClient> {
-		signal.throwIfAborted();
+	override async acquireAnonymousApiClient(cancellationToken: CancellationToken): Promise<AnonymousClient> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const { provider, lifetime } = this.providers(undefined);
 		return this.store.add(new AnonymousClient(provider, undefined, lifetime));
 	}
@@ -506,31 +509,31 @@ class StubGitHubService extends mock<IWorkbenchGitHubService>() {
 	private providers(authorization: GitHubAuthorizationContext | undefined) {
 		const lifetime = new DisposableStore();
 		const invalidated = lifetime.add(new Emitter<void>());
-		const controller = new AbortController();
+		const controller = lifetime.add(new CancellationTokenSource());
 		const lease = {
 			authorization, disposed: false,
 			invalidate: () => {
-				controller.abort(new GitHubRequestError('GitHub client grant is no longer available', 'authentication'));
+				controller.cancel();
 				invalidated.fire();
 			},
 		};
 		this.leases.push(lease);
-		lifetime.add(toDisposable(() => { lease.disposed = true; controller.abort(); }));
-		const take = async (request: Omit<ApiRequest, 'body'>, signal: AbortSignal): Promise<ApiResponse<string>> => {
-			this.requests.push({ request, authorization, signal });
+		lifetime.add(toDisposable(() => { lease.disposed = true; controller.cancel(); }));
+		const take = async (request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken): Promise<ApiResponse<string>> => {
+			this.requests.push({ request, authorization, cancellationToken });
 			const index = this.responses.findIndex(value => value.path.test(request.path));
 			assert.notStrictEqual(index, -1, `Unexpected ${request.method} ${request.path}`);
 			const [{ response }] = this.responses.splice(index, 1);
 			if (response instanceof Error) {
 				throw response;
 			}
-			return typeof response === 'function' ? response(signal) : response;
+			return typeof response === 'function' ? response(cancellationToken) : response;
 		};
 		const provider = new class extends BufferedApiRequestProvider {
-			protected override execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal): Promise<ApiResponse<string>> {
-				return take(request, signal);
+			protected override execute(request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken): Promise<ApiResponse<string>> {
+				return take(request, cancellationToken);
 			}
-		}(controller.signal);
+		}(controller.token);
 		return { provider, lifetime, invalidated };
 	}
 }

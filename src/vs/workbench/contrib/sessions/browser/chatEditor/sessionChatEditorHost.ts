@@ -59,9 +59,15 @@ export async function waitForSessionChat(sessionsManagementService: ISessionsMan
 	const store = new DisposableStore();
 	try {
 		return await raceTimeout(new Promise<IResolvedSessionChat | undefined>(resolve => {
-			store.add(sessionsManagementService.onDidChangeSessions(() => {
+			// Of every session, also one outside a listing scope, such as of another folder, which a host can show
+			store.add(sessionsManagementService.onDidChangeSession(changes => {
+				if (store.isDisposed || (changes.length > 0 && changes.every(({ kind }) => kind === 'removed'))) {
+					return;
+				}
 				const loaded = resolveSessionChat(sessionsManagementService, resource);
 				if (loaded) {
+					// Stop following the sessions as soon as it resolves
+					store.dispose();
 					resolve(loaded);
 				}
 			}));
@@ -117,7 +123,7 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 	readonly content: IObservable<ISessionPaneContent | undefined>;
 	readonly composer: IObservable<IChatEditorComposer | undefined> = derived(this, reader => {
 		const composer = this._composer.read(reader);
-		return composer && { draftHost: composer, session: composer.session };
+		return composer && { draftHost: composer, session: composer.session, close: () => this.closeShown(this.chat.read(undefined)) };
 	});
 	/** Whether it is a new-session composer that has not sent its session yet, which cannot leave its window. */
 	readonly isUnsentComposer: IObservable<boolean> = derived(this, reader => !!this._composer.read(reader));
@@ -125,6 +131,8 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 	get isComposer(): boolean { return !!this._composer.get(); }
 	/** Whether it is a new-session composer whose closing loses nothing (see {@link ChatWindowComposerModel.isPristine}). */
 	get isPristineComposer(): boolean { return !!this._composer.get()?.isPristine(); }
+	/** Whether it is a new-session composer with nothing typed or attached, and no send of it under way. */
+	get isIdleComposer(): boolean { return !!this._composer.get()?.isIdle(); }
 	/** The custom group of the sessions list that the sessions of its new-session composer join, while it is one. */
 	get composerGroupId(): string | undefined { return this._composer.get()?.groupId; }
 
@@ -153,7 +161,12 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
-		this.input = this._register(new ChatEditorInput(chatResource));
+		this.input = new ChatEditorInput(chatResource);
+		// It disposes its editor's input, unless the input is disposed first, such as by its group as its tab closes: what
+		// then disposes this entry as the input disposes does not dispose the input again from within its own dispose
+		const input = this._register(new MutableDisposable<ChatEditorInput>());
+		input.value = this.input;
+		this._register(Event.once(this.input.onWillDispose)(() => input.clearAndLeak()));
 		this._register(registerSessionChatViewHost(this.input, this));
 		this.title = derived(this, reader => {
 			if (this._composer.read(reader)) {
@@ -229,12 +242,13 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 			}
 		}));
 
-		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
+		// Of every session, also one outside a listing scope, such as of another folder, which its host can show
+		this._register(this.sessionsManagementService.onDidChangeSession(changes => {
 			const known = this._knownSession;
-			if (known && e.removed.some(removed => isEqual(removed.resource, known.resource))) {
+			if (known && changes.some(({ session, kind }) => kind === 'removed' && isEqual(session.resource, known.resource))) {
 				this._knownSessionRemoved = true;
 			}
-			if (!known || e.added.length || e.removed.length || e.changed.some(changed => changed !== known && changed.sessionId === known.sessionId)) {
+			if (!known || changes.some(({ session, kind }) => kind !== 'changed' || (session !== known && session.sessionId === known.sessionId))) {
 				sessionsChanged.trigger(undefined);
 			}
 		}));
@@ -253,12 +267,18 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 	/** Called as it shows `composer`, with what it disposes once the composer goes. */
 	protected onDidSetComposer(_composer: ChatWindowComposerModel, _store: DisposableStore): void { }
 
+	/**
+	 * Whether its editor's pane gives its title while it is a composer, such as with a session header of its own (see
+	 * `ISessionViewHostOptions.showComposerHeader`): otherwise its tab shows, also alone in its group.
+	 */
+	protected get composerRendersTitle(): boolean { return false; }
+
 	private _setComposer(composer: ChatWindowComposerModel): void {
 		const store = new DisposableStore();
 		store.add(composer);
 		// Its tab shows while it is a composer, also alone in its group, so it can be closed there: until its session's chat
-		// shows, it has no title of its own, as its session header hides.
-		this.input.setRendersTitle(false);
+		// shows, it has no title of its own, as its session header hides, unless its host shows it for the composer too.
+		this.input.setRendersTitle(this.composerRendersTitle);
 		store.add(toDisposable(() => this.input.setRendersTitle(true)));
 		store.add(composer.onDidStart(session => {
 			const main = session.mainChat.get().resource;

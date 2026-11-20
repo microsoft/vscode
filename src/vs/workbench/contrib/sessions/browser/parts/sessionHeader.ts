@@ -13,6 +13,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
 import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 
 /**
  * Session-scoped header whose title follows the session's active chat.
@@ -69,9 +70,29 @@ export class SessionHeader extends Disposable {
 		}));
 	}
 
+	/**
+	 * Shows `session`, a new session not created yet, such as of a composer, titled as new, with the actions of its session;
+	 * nothing while undefined. `close` closes what shows it, such as on a middle-click of its title, as a chat's header does.
+	 */
+	setDraftSession(session: ISession | undefined, close?: () => void): void {
+		this._sessionDisposables.clear();
+		if (!session) {
+			this.setSession(undefined);
+			return;
+		}
+		this._headerTargetsChatKey.set(false);
+		this._toolbarShowsSessionKey.set(true);
+		this._bar.setContext({ session, chat: session.mainChat, isDraft: true, closeSession: close });
+	}
+
 	/** See {@link SessionHeaderBar.setDragsEditor}. */
 	setDragsEditor(dragsEditor: boolean): void {
 		this._bar.setDragsEditor(dragsEditor);
+	}
+
+	/** See {@link SessionHeaderBar.setShowsWorkingProgress}. */
+	setShowsWorkingProgress(shows: boolean): void {
+		this._bar.setShowsWorkingProgress(shows);
 	}
 
 	setVisible(visible: boolean): void {

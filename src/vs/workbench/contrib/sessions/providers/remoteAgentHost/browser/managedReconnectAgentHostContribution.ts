@@ -163,6 +163,7 @@ export abstract class ManagedReconnectAgentHostContribution extends EntryDrivenP
 	 * Type-specific behaviour is provided via {@link IManagedReconnectAttemptOptions}.
 	 */
 	protected async _attemptManagedReconnect(opts: IManagedReconnectAttemptOptions): Promise<void> {
+		let userFailure: { error: unknown } | undefined;
 		// Wrap the body so we can store our own promise in `_pendingReconnects`
 		// for concurrent on-demand callers to join.
 		const runPromise = (async () => {
@@ -196,6 +197,9 @@ export abstract class ManagedReconnectAgentHostContribution extends EntryDrivenP
 				this._reconnectStates.deleteAndDispose(opts.key);
 				this._logService.info(`[RemoteAgentHost] ${opts.kind} connection re-established for ${opts.key}`);
 			} catch (err) {
+				if (opts.userInitiated) {
+					userFailure = { error: err };
+				}
 				if (!this._enabled) {
 					this._reconnectStates.deleteAndDispose(opts.key);
 					return;
@@ -249,6 +253,9 @@ export abstract class ManagedReconnectAgentHostContribution extends EntryDrivenP
 			await runPromise;
 		} finally {
 			this._pendingReconnects.delete(opts.key);
+		}
+		if (userFailure) {
+			throw userFailure.error;
 		}
 	}
 }

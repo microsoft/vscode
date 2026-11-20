@@ -9,13 +9,24 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IsNewChatSessionContext, SessionIsCreatedContext, SessionProviderIdContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { COPILOT_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/common/copilotChatSessions.js';
+import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { WorkbenchContributionsRegistry } from '../../../../../../workbench/common/contributions.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { LifecyclePhase } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
-import { ModelPickerToolbarsContribution } from '../../../../chat/browser/modelPicker.js';
-import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../../../chat/browser/sharedChatInputComposer.contribution.js';
+import { ModelPickerToolbarsContribution } from '../../../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
+import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposerToolbar.js';
 import '../../browser/copilotChatSessionsActions.js';
+import '../../../../chat/browser/modelPicker.js';
+import '../../../../chat/browser/sharedChatInputComposer.contribution.js';
 
 suite('Copilot chat composer picker registration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,5 +73,25 @@ suite('Copilot chat composer picker registration', () => {
 			`${Menus.NewSessionControl.id}/sessions.sandbox.modePicker`,
 			`${Menus.NewSessionControl.id}/sessions.sandbox.approvalPicker`,
 		].sort());
+	});
+
+	test('shows the cloud mode and approvals pickers in the composer of a new session, also while the Agents window shows a created one', () => {
+		const windowContext = store.add(new ContextKeyService(new TestConfigurationService()));
+		ChatContextKeys.enabled.bindTo(windowContext).set(true);
+		IsNewChatSessionContext.bindTo(windowContext).set(false);
+		SessionIsCreatedContext.bindTo(windowContext).set(true);
+		const menuService = store.add(new MenuService(new class extends mock<ICommandService>() { }(), new MockKeybindingService(), store.add(new TestStorageService())));
+		const pickers = (created: boolean) => {
+			const composerContext = store.add(windowContext.createScoped(document.createElement('div')));
+			SessionProviderIdContext.bindTo(composerContext).set(COPILOT_PROVIDER_ID);
+			SessionIsCreatedContext.bindTo(composerContext).set(created);
+			const menu = store.add(menuService.createMenu(Menus.NewSessionControl, composerContext));
+			return menu.getActions().flatMap(([, actions]) => actions).map(action => action.id).filter(id => id.startsWith('sessions.sandbox.'));
+		};
+
+		assert.deepStrictEqual({ newSession: pickers(false), createdSession: pickers(true) }, {
+			newSession: ['sessions.sandbox.modePicker', 'sessions.sandbox.approvalPicker'],
+			createdSession: [],
+		});
 	});
 });

@@ -14,7 +14,6 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { autorun, derived, IObservable, observableValue } from '../../../base/common/observable.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILabelService } from '../../label/common/label.js';
 import { ILogService } from '../../log/common/log.js';
@@ -22,7 +21,7 @@ import { observableConfigValue } from '../../observable/common/platformObservabl
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { hasKey } from '../../../base/common/types.js';
 
-import { AgentHostAhpJsonlLoggingSettingId, type IAgentConnection } from '../common/agentService.js';
+import { type IAgentConnection } from '../common/agentService.js';
 import {
 	IRemoteAgentHostService,
 	RemoteAgentHostConnectionStatus,
@@ -44,8 +43,6 @@ import {
 } from '../common/remoteAgentHostService.js';
 import { computeReconnectDelay, hasExhaustedReconnectAttempts } from '../common/reconnectPolicy.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../common/state/sessionTransport.js';
-import { AgentHostProtocolClient } from './agentHostProtocolClient.js';
-import { WebSocketClientTransport } from './webSocketClientTransport.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, agentHostLabelFormatter, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
@@ -53,8 +50,9 @@ import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from
 import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getAgentHostPathStyle } from '../common/agentHostPathStyle.js';
-import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../common/agentHostAdvertisedAuthentication.js';
+import { AgentHostAuthenticationPendingError } from '../common/agentHostAdvertisedAuthentication.js';
 import { PathStyle } from '../common/state/protocol/common/commands.js';
+import { WebSocketConnectionFactory } from './webSocketConnectionFactory.js';
 
 const DISPLAY_NAME_STORAGE_PREFIX = 'remoteAgentHost.displayName.';
 
@@ -107,56 +105,6 @@ function isTerminalConnectError(err: unknown): boolean {
 
 function isAuthenticationFailureReason(reason: AgentHostTransportFailureReason | undefined): boolean {
 	return reason === AgentHostTransportFailureReason.AuthenticationFailed || reason === AgentHostTransportFailureReason.SSHAuthenticationFailed;
-}
-
-/** Builds WebSocket-backed protocol clients without performing their handshake. */
-class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostConnectionFactory {
-	readonly kind = RemoteAgentHostEntryType.WebSocket;
-	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
-
-	constructor(
-		settingId: string,
-		private readonly _clientInfo: () => typeof editorWindowAgentHostClientInfo,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IAgentHostAdvertisedAuthenticationResolver private readonly _authenticationResolver: IAgentHostAdvertisedAuthenticationResolver,
-	) {
-		super();
-		const rawEntries = observableConfigValue<unknown>(settingId, [], this._configurationService);
-		this.entries = derived(this, reader => parseWebSocketRemoteAgentHostEntries(rawEntries.read(reader)));
-	}
-
-	createConnection(entry: IRemoteAgentHostEntry, _options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
-		if (entry.connection.type !== RemoteAgentHostEntryType.WebSocket) {
-			throw new Error(`WebSocket factory cannot create a ${entry.connection.type} connection.`);
-		}
-
-		const address = entry.connection.address;
-		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-		// The protocol client creates a transport for every soft-reconnect attempt.
-		const transportFactory = () => this._instantiationService.createInstance(
-			WebSocketClientTransport,
-			address,
-			entry.connectionToken,
-			ahpLoggingEnabled
-				? { logsHome: this._environmentService.logsHome, logId: address, connectionId: address, transport: 'websocket' }
-				: undefined,
-		);
-		const authentication = this._authenticationResolver.createResolver(address);
-		try {
-			const connection = this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, {
-				clientInfo: this._clientInfo(),
-				resolveAdvertisedAuthentication: agents => authentication.resolve(agents),
-				onDispose: () => authentication.dispose(),
-			});
-			return Promise.resolve({ connection });
-		} catch (error) {
-			authentication.dispose();
-			throw error;
-		}
-	}
-
 }
 
 export class RemoteAgentHostService extends Disposable implements IRemoteAgentHostService {
@@ -269,8 +217,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// The service creates these built-in factories, so it owns their
 		// lifetime too; `registerConnectionFactory` only manages registry
 		// membership so externally-supplied factories stay owned by their producer.
+		const rawWebSocketEntries = observableConfigValue<unknown>(this.webSocketEntriesSettingId, [], this._configurationService);
 		this._register(this.registerConnectionFactory(this._register(this._instantiationService.createInstance(WebSocketConnectionFactory,
-			this.webSocketEntriesSettingId,
+			RemoteAgentHostEntryType.WebSocket,
+			derived(this, reader => parseWebSocketRemoteAgentHostEntries(rawWebSocketEntries.read(reader))),
 			() => this.clientInfo,
 		))));
 		this._register(autorun(reader => {
@@ -1238,7 +1188,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 export class EditorWindowRemoteAgentHostService extends RemoteAgentHostService {
 
-	/** Editor windows dial only the hosts their workspace lists; user-level hosts belong to the Agents window. */
+	/** Editor windows dial the WebSocket hosts their workspace lists; the user's belong to the Agents window. */
 	protected override get webSocketEntriesSettingId(): string {
 		return WorkspaceRemoteAgentHostsSettingId;
 	}
@@ -1248,15 +1198,5 @@ export class AgentsWindowRemoteAgentHostService extends RemoteAgentHostService {
 
 	protected override get clientInfo() {
 		return agentsWindowAgentHostClientInfo;
-	}
-
-	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILogService logService: ILogService,
-		@ILabelService labelService: ILabelService,
-		@IStorageService storageService: IStorageService,
-	) {
-		super(configurationService, instantiationService, logService, labelService, storageService);
 	}
 }

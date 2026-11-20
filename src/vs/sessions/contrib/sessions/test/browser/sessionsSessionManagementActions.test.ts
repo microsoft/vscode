@@ -33,14 +33,15 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ARCHIVE_SESSION_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionItemIsMultiSelectionContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionItemIsMultiSelectionContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
+import { ArchiveSessionAction, registerSessionsListReadStateMenus } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../../workbench/common/chatSessionCommands.js';
 import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -49,6 +50,7 @@ import { createTestSession, TestSessionsManagementService } from './sessionsList
 import '../../browser/sessionsActions.js';
 import { ITestSessionsService, ITestSessionWithChat, stubPaneHost, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import '../../browser/views/sessionsViewActions.js';
 
 const DELETE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.deleteChat';
 
@@ -65,13 +67,14 @@ function getKeybindingRule(commandId: string, keybinding: number, operatingSyste
 suite('Sessions - Session management actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('offers Open Customizations for one selected session and hides it when AI is disabled', () => {
+	test('offers Open Customizations for one desktop session and hides it on phones or when AI is disabled', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu).filter(isIMenuItem).find(item => item.command.id === 'sessionsViewPane.openCustomizations');
 		assert.ok(item);
-		const evaluate = (enabled: boolean, multipleSelection: boolean) => {
+		const evaluate = (enabled: boolean, multipleSelection: boolean, phone = false) => {
 			const values = {
 				[ChatContextKeys.enabled.key]: enabled,
 				[SessionItemIsMultiSelectionContext.key]: multipleSelection,
+				[IsPhoneLayoutContext.key]: phone,
 			};
 			const itemContext = context(values);
 			return { visible: item.when?.evaluate(itemContext), enabled: item.command.precondition?.evaluate(itemContext) };
@@ -81,11 +84,13 @@ suite('Sessions - Session management actions', () => {
 			single: evaluate(true, false),
 			multiple: evaluate(true, true),
 			aiDisabled: evaluate(false, false),
+			phone: evaluate(true, false, true),
 		}, {
 			group: 'navigation',
 			single: { visible: true, enabled: true },
 			multiple: { visible: true, enabled: false },
 			aiDisabled: { visible: false, enabled: false },
+			phone: { visible: false, enabled: false },
 		});
 	});
 
@@ -187,6 +192,46 @@ suite('Sessions - Session management actions', () => {
 		assert.deepStrictEqual(calls, [
 			{ commandId: 'agentSession.markRead', args: [session] },
 			{ commandId: 'agentSession.markUnread', args: [session] },
+		]);
+	});
+
+	test('the read state menus of an editor window run the list commands, which take the session, sessions or chat a menu is shown for', async () => {
+		const first = createTestSession('First').session;
+		const second = createTestSession('Second').session;
+		const peer = upcastPartial<IChat>({ resource: URI.parse('test:/peer') });
+		const active = upcastPartial<ITestSessionWithChat>(createTestSession('Other active').session);
+		const harness = createActionHarness([], active);
+		const calls: string[] = [];
+		harness.instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			markRead: async session => { calls.push(`markRead ${session.sessionId}`); },
+			markUnread: async session => { calls.push(`markUnread ${session.sessionId}`); },
+			markChatRead: async (session, chat) => { calls.push(`markChatRead ${session.sessionId} ${chat.resource.path}`); },
+			markChatUnread: async (session, chat) => { calls.push(`markChatUnread ${session.sessionId} ${chat.resource.path}`); },
+		}));
+
+		const registration = registerSessionsListReadStateMenus();
+		try {
+			const commandIds = [SessionItemContextMenuId, Menus.SessionChatItemContext].flatMap(menu => MenuRegistry.getMenuItems(menu)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id === SESSIONS_LIST_MARK_READ_COMMAND_ID || item.command.id === SESSIONS_LIST_MARK_UNREAD_COMMAND_ID)
+				.map(item => item.command.id));
+			assert.deepStrictEqual(commandIds, [SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID]);
+		} finally {
+			registration.dispose();
+		}
+
+		for (const commandId of [SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID]) {
+			const handler = CommandsRegistry.getCommand(commandId)?.handler;
+			assert.ok(handler);
+			await handler(harness.instantiationService, first);
+			await handler(harness.instantiationService, [first, second]);
+			await handler(harness.instantiationService, { session: first, chat: peer });
+		}
+
+		const [one, two] = [first.sessionId, second.sessionId];
+		assert.deepStrictEqual(calls, [
+			`markRead ${one}`, `markRead ${one}`, `markRead ${two}`, `markChatRead ${one} /peer`,
+			`markUnread ${one}`, `markUnread ${one}`, `markUnread ${two}`, `markChatUnread ${one} /peer`,
 		]);
 	});
 

@@ -9,7 +9,7 @@ import { $, append, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { Menu, unthemedMenuStyles } from '../../../../base/browser/ui/menu/menu.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
-import { toAction } from '../../../../base/common/actions.js';
+import { Separator, toAction } from '../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
@@ -17,7 +17,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../commands/common/commands.js';
-import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../contextkey/common/contextkey.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
 import { ContextMenuService } from '../../../contextview/browser/contextMenuService.js';
@@ -124,8 +124,9 @@ suite('DropdownWithDefaultActionViewItem', () => {
 		readonly storageService: InMemoryStorageService;
 		readonly executed: string[];
 		completePending(): void;
-		createItem(togglePrimaryAction?: boolean): DropdownWithDefaultActionViewItem;
+		createItem(togglePrimaryAction?: boolean, excludePrimaryActionFromDropdown?: boolean): DropdownWithDefaultActionViewItem;
 		runFromDropdown(item: DropdownWithDefaultActionViewItem, actionId: string): Promise<void>;
+		dropdownActionIds(item: DropdownWithDefaultActionViewItem): string[];
 		clickPrimary(item: DropdownWithDefaultActionViewItem): Promise<void>;
 	}
 
@@ -165,7 +166,16 @@ suite('DropdownWithDefaultActionViewItem', () => {
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 
-		const actions = ['first', 'second'].map(id => new MenuItemAction({ id, title: id }, undefined, undefined, undefined, undefined, contextKeyService, commandService));
+		// `first` is a toggle that is on, like a primary toggle action.
+		const actionContextKeyService = new class extends MockContextKeyService {
+			override contextMatchesRules(rules: ContextKeyExpression): boolean {
+				return rules.evaluate({ getValue: () => undefined });
+			}
+		}();
+		const [first, second] = [{ id: 'first', title: 'first', toggled: ContextKeyExpr.true() }, { id: 'second', title: 'second' }]
+			.map(item => new MenuItemAction(item, undefined, undefined, undefined, undefined, actionContextKeyService, commandService));
+		// Separated like the groups of a submenu.
+		const actions = [first, new Separator(), second];
 		const submenu = new MenuId(`test.dropdownWithDefault.${generateUuid()}`);
 
 		const completePending = () => {
@@ -173,29 +183,34 @@ suite('DropdownWithDefaultActionViewItem', () => {
 				deferred.complete();
 			}
 		};
+		const openDropdown = (item: DropdownWithDefaultActionViewItem): IContextMenuDelegate => {
+			menuDelegate = undefined;
+			item.focus(true);
+			const label = item.element!.querySelector<HTMLElement>('.dropdown-action-container .action-label')!;
+			label.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+			const delegate = menuDelegate as IContextMenuDelegate | undefined;
+			assert.ok(delegate?.actionRunner, 'dropdown did not open a context menu with an action runner');
+			delegate.onHide?.(false);
+			return delegate;
+		};
 
 		return {
 			storageService,
 			executed,
 			completePending,
-			createItem: (togglePrimaryAction = true) => {
+			createItem: (togglePrimaryAction = true, excludePrimaryActionFromDropdown = false) => {
 				const submenuAction = new SubmenuItemAction({ title: 'Run', submenu, isSplitButton: { togglePrimaryAction: true } }, undefined, actions);
-				const item = instantiationService.createInstance(DropdownWithDefaultActionViewItem, submenuAction, { togglePrimaryAction });
+				const item = instantiationService.createInstance(DropdownWithDefaultActionViewItem, submenuAction, { togglePrimaryAction, excludePrimaryActionFromDropdown });
 				const container = append(mainWindow.document.body, $('div'));
 				disposables.add(toDisposable(() => container.remove()));
 				item.render(container);
 				return item;
 			},
 			runFromDropdown: async (item, actionId) => {
-				menuDelegate = undefined;
-				item.focus(true);
-				const label = item.element!.querySelector<HTMLElement>('.dropdown-action-container .action-label')!;
-				label.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
-				const delegate = menuDelegate as IContextMenuDelegate | undefined;
-				assert.ok(delegate?.actionRunner, 'dropdown did not open a context menu with an action runner');
-				delegate.onHide?.(false);
-				await delegate.actionRunner.run(actions.find(action => action.id === actionId)!);
+				const delegate = openDropdown(item);
+				await delegate.actionRunner!.run(actions.find(action => action.id === actionId)!);
 			},
+			dropdownActionIds: item => openDropdown(item).getActions().map(action => action.id),
 			clickPrimary: async item => {
 				const label = item.element!.querySelector<HTMLElement>('.action-container .action-label')!;
 				label.dispatchEvent(new MouseEvent('click', { button: 0, bubbles: true }));
@@ -257,5 +272,32 @@ suite('DropdownWithDefaultActionViewItem', () => {
 		await fixture.clickPrimary(toggling);
 
 		assert.deepStrictEqual(fixture.executed, ['first', 'first', 'first', 'second']);
+	});
+
+	test('omits the current primary action and its separator from the dropdown when excluding it', async () => {
+		const fixture = createFixture();
+		const excluding = disposables.add(fixture.createItem(true, true));
+		const initial = fixture.dropdownActionIds(excluding);
+		await fixture.runFromDropdown(excluding, 'second');
+		const promoted = fixture.dropdownActionIds(excluding);
+		const including = disposables.add(fixture.createItem(false));
+
+		assert.deepStrictEqual({ initial, promoted, including: fixture.dropdownActionIds(including) }, {
+			initial: ['second'],
+			promoted: ['first'],
+			including: ['first', Separator.ID, 'second'],
+		});
+	});
+
+	test('shows the toggled state of its primary action across the whole split button', async () => {
+		const fixture = createFixture();
+		const item = disposables.add(fixture.createItem());
+		const toggledPrimary = item.element!.classList.contains('primary-checked');
+		await fixture.runFromDropdown(item, 'second');
+
+		assert.deepStrictEqual({ toggledPrimary, untoggledPrimary: item.element!.classList.contains('primary-checked') }, {
+			toggledPrimary: true,
+			untoggledPrimary: false,
+		});
 	});
 });

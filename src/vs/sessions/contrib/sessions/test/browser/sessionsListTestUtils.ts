@@ -27,6 +27,7 @@ import { ISessionAttentionService } from '../../../../../workbench/contrib/sessi
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
+import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
 import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
@@ -83,12 +84,15 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.sessions = sessions;
 	}
 
+	/** The sessions a provider's listing scope hides, such as of other folders: lookups find them, the listing does not. */
+	unlistedSessions: ISession[] = [];
+
 	override getSessions(): ISession[] {
 		return this.sessions;
 	}
 
 	override getSession(resource: URI): ISession | undefined {
-		return this.sessions.find(session => session.resource.toString() === resource.toString());
+		return [...this.sessions, ...this.unlistedSessions].find(session => session.resource.toString() === resource.toString());
 	}
 
 	override getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
@@ -343,6 +347,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation(new class extends mock<IPinnedCanvasService>() { }()));
+	instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane: constObservable(false) });
 	instantiationService.stub(ICommandService, commandService);
 	stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 		readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
@@ -436,6 +441,14 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			appearanceChanges.fire({ groupsChanged: false, membershipChanged: new Set() });
 		}
 		override getGroups() { return [...groups]; }
+		override setGroupColor(groupId: string, color: string | undefined): void {
+			const index = groups.findIndex(group => group.id === groupId);
+			if (index < 0) {
+				throw new Error(`Unknown test group: ${groupId}`);
+			}
+			groups[index] = { ...groups[index], color };
+			appearanceChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
+		}
 		override getTree() { return new SessionGroupTree(groups); }
 		override getGroup(groupId: string) { return groups.find(group => group.id === groupId); }
 		override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }

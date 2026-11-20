@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IOtlpLogRecord, OtlpLogLevelName } from './otlp/otlpLogEmitter.js';
 import { Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
@@ -26,7 +27,7 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
-import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type AnnotationsSummary, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, type IModelRoutedInfo } from './state/sessionState.js';
 import type { IAgentDecisionsRequest, IAgentDecisionsResult } from './agentDecisions.js';
@@ -232,6 +233,12 @@ export interface IAgentImportedChat {
 export interface IAgentChatHistoryChange {
 	readonly chat: URI;
 	readonly turns: readonly Turn[];
+	/**
+	 * The provider reloaded the chat from storage, so {@link turns} replace the host's turns instead of being merged
+	 * with them: turns that ran live have host-generated ids, while reloaded turns take the provider's. The turn running
+	 * when the change arrives, and any later turn, is kept after them.
+	 */
+	readonly replace?: boolean;
 }
 
 /** Returns the candidate session URI keys already present in the host registry. */
@@ -264,6 +271,7 @@ export interface IAgentSessionChatMetadata {
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
+	readonly annotations?: AnnotationsSummary;
 	/** Host-advertised agent identity; older cached metadata may omit it. */
 	readonly provider?: string;
 	readonly origin?: SessionOrigin;
@@ -345,6 +353,8 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 	/** Explicit repository override; null inherits global state, absent means unavailable. */
 	readonly repositoryEnabled?: boolean | null;
 	readonly managedDesiredEnabled?: boolean;
+	/** Set when the signed-in account's GitHub Team assigns this plugin. Provenance only: the user's own enablement choices still apply. Absent when the runtime doesn't report it. */
+	readonly team?: boolean;
 	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
 	readonly resource?: URI;
 	/** Host-owned installed-content revision; activation-only changes preserve it. */
@@ -395,6 +405,8 @@ export interface IAgentCanvasInfo {
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;
+	/** The canvas's icon as a PNG data URI, which the host read from its extension; absent when it has none it can show. */
+	readonly icon?: string;
 	readonly requiresInput: boolean;
 	readonly actionCount: number;
 }
@@ -408,6 +420,59 @@ export interface IAgentCanvasOpenRequest {
 	readonly extensionId?: string;
 	readonly instanceId: string;
 }
+
+/** The choices a user can make about a Copilot extension that needs consent before it loads. */
+export const enum AgentExtensionConsentOption {
+	/** Allows the extension for the rest of the chat's runtime sessions. */
+	Allow = 'allow-once',
+	AlwaysAllow = 'allow-extension-always',
+	NotNow = 'not-now',
+	Never = 'deny-extension-always',
+}
+
+/**
+ * A Copilot extension that waits for the user's consent before it loads: to read sensitive
+ * environment variables, or to load with privileged capabilities. Carries names only, never values.
+ */
+export interface IAgentExtensionConsentRequest {
+	/** Identifies this request until it is answered. */
+	readonly id: string;
+	readonly kind: 'environment' | 'capabilities';
+	/** Source-qualified extension identifier, such as `user:my-canvas`. */
+	readonly extensionName: string;
+	/** Short extension name for display. */
+	readonly displayName: string;
+	/** The requested environment variable names, or the requested capabilities. */
+	readonly items: readonly string[];
+	/** Whether the decision can be remembered for all sessions ({@link AgentExtensionConsentOption.AlwaysAllow} and {@link AgentExtensionConsentOption.Never}). */
+	readonly persistable: boolean;
+}
+
+/** Continues a canvas open that returned {@link AgentCanvasOpenResult} `consentRequired`, or retries one that was denied. */
+export type AgentCanvasOpenAnswer =
+	| { readonly kind: 'consent'; readonly consentId: string; readonly optionId: AgentExtensionConsentOption }
+	| { readonly kind: 'retry' };
+
+/**
+ * Why a canvas did not open, when the runtime said why:
+ * - `dismissed`: the canvas was closed while it opened or was restored, which needs no notice;
+ * - `reloaded`: its extensions were reloaded or reconfigured while its extension started, so opening it again can succeed;
+ * - `mismatchedDeclaration`: its extension registered the canvas differently from the declaration it started from, so the runtime withdrew the canvas;
+ * - `startFailed`: its extension did not start;
+ * - `unavailable`: the canvas or its extension is no longer available, for example because the extension was disabled or failed earlier.
+ */
+export type AgentCanvasOpenFailure = 'dismissed' | 'reloaded' | 'mismatchedDeclaration' | 'startFailed' | 'unavailable';
+
+/**
+ * The outcome of opening a canvas. `consentRequired` leaves the open pending until it is answered;
+ * `consentDenied` means the extension was not allowed to load, and `retryable` whether asking again can help.
+ * `failed` is an open the runtime declined for a known {@link AgentCanvasOpenFailure reason}; other failures throw.
+ */
+export type AgentCanvasOpenResult =
+	| { readonly kind: 'opened' }
+	| { readonly kind: 'consentRequired'; readonly consent: IAgentExtensionConsentRequest }
+	| { readonly kind: 'consentDenied'; readonly consent: IAgentExtensionConsentRequest; readonly retryable: boolean }
+	| { readonly kind: 'failed'; readonly failure: AgentCanvasOpenFailure };
 
 /** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
 export interface IAgentCanvasCloseRequest {
@@ -649,6 +714,8 @@ export interface IAgentPluginMarketplace {
 	readonly isDefault: boolean;
 	readonly managed: boolean;
 	readonly available: boolean;
+	/** Set when the signed-in account's GitHub Team provides this marketplace. Absent when the runtime doesn't report it. */
+	readonly team?: boolean;
 }
 
 export interface IAgentPluginMarketplaceItem {
@@ -682,6 +749,16 @@ export interface IAgentTokenUsageSummary {
 	readonly knownInputTokens?: number;
 	readonly knownOutputTokens?: number;
 	readonly knownCacheReadTokens?: number;
+}
+
+/** Observed provider interactions and steering lineage. */
+export interface IAgentTurnInteraction {
+	readonly sdkSessionId: string;
+	readonly originalTurnId?: string;
+	readonly steeredFromTurn?: string;
+	readonly interactionIds: readonly string[];
+	readonly interactionIdsTruncated: boolean;
+	readonly steeringDelivery?: 'steering' | 'idle' | 'queued' | 'unknown';
 }
 
 /** A point-in-time snapshot; missing counters and missing snapshots remain unknown. */
@@ -758,6 +835,8 @@ export interface AuthenticateParams {
 	readonly expiresIn?: number;
 	/** The single consumer this token is for; when absent, tokens match by resource and scopes. */
 	readonly target?: AuthenticateTarget;
+	/** Unverified client-local account selection, stable across token renewals. */
+	readonly accountId?: string;
 	/** Optional client metadata. Hosts must remain usable when it is absent. */
 	readonly _meta?: Record<string, unknown>;
 }
@@ -999,7 +1078,7 @@ export interface IAgentChatContext {
 	 * reason when the send used it, or with the bounded reason it was discarded
 	 * and the send launched one instead.
 	 */
-	readonly reportPrewarmedSession?: (discardReason?: string) => void;
+	readonly reportPrewarmedSession?: (discardReason?: string, claim?: IAgentPrewarmClaim) => void;
 	/**
 	 * Records, before progress can complete the addressed turn, that its send
 	 * materialized a deferred provider session without a pre-warmed one to
@@ -1036,6 +1115,12 @@ export interface IAgentChatContext {
 	readonly originalMessageText?: string;
 	/** Records provider timing for the current send or resumed execution. */
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
+	/**
+	 * The still-pending turn-start checkpoint capture, supplied only for the send of a
+	 * provider that sets {@link IAgentChats.awaitsTurnStartCheckpoint}. The provider
+	 * must await it before any tool of the turn runs and must not run tools if it rejects.
+	 */
+	readonly turnStartCheckpoint?: Promise<void>;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
 	/**
@@ -1398,6 +1483,24 @@ export interface IAgentChatReleaseOptions {
 	readonly canContinue?: () => boolean;
 }
 
+/** What a deferred chat's composer would send with, used to shape its warm runtime ({@link IAgentChats.warmChat}). */
+export interface IAgentWarmChatSelection {
+	/** The model to warm with; `undefined` keeps the chat's current model. */
+	readonly model: ModelSelection | undefined;
+	/** The custom agent to warm with; `undefined` is the default agent. */
+	readonly agent: AgentSelection | undefined;
+}
+
+/** How a send found the pre-warmed provider session it used, for turn telemetry ({@link IAgentChatContext.reportPrewarmedSession}). */
+export interface IAgentPrewarmClaim {
+	/** When the used launch became ready, as `Date.now()` in the reporting process. */
+	readonly readyAt: number;
+	/** The draft's warm launches so far, including the used one; more than one means it was warmed again. */
+	readonly launchCount: number;
+	/** Whether the launch's background warm-up, such as MCP startup and tool initialization, had finished. */
+	readonly warmUpComplete: boolean;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -1409,10 +1512,18 @@ export interface IAgentChatReleaseOptions {
  */
 export interface IAgentChats {
 	/**
+	 * Whether the provider awaits the turn-start checkpoint itself, before the
+	 * turn's first tool runs, via {@link IAgentChatContext.turnStartCheckpoint}.
+	 * The host then sends without waiting for the capture; otherwise it awaits
+	 * the capture before {@link sendMessage}.
+	 */
+	readonly awaitsTurnStartCheckpoint?: boolean;
+
+	/**
 	 * Optional pre-send preparation, such as materializing a deferred provider
 	 * session, after the turn's model/agent selection and working directories
 	 * are resolved. The host may run it concurrently with the turn-start
-	 * checkpoint capture and awaits both before {@link sendMessage} for the same
+	 * checkpoint capture and awaits it before {@link sendMessage} for the same
 	 * `turnId`, so implementations must not send a prompt or modify the working
 	 * tree. Preparation that is not needed must resolve without doing work.
 	 */
@@ -1436,8 +1547,15 @@ export interface IAgentChats {
 	 * disposing the chat discards it. Resolves `true` when a warm runtime is
 	 * live afterwards; a chat that cannot be warmed resolves `false` without
 	 * doing work.
+	 *
+	 * The host calls it again while the user composes. A warm runtime that
+	 * still matches `selection` is kept and its unclaimed lifetime extended;
+	 * one launched with another model or agent is replaced; and a chat whose
+	 * warm runtime expired or was torn down is warmed again. `selection` only
+	 * shapes the warm launch: the first send still selects its own model and
+	 * agent and replaces a launch that does not match them.
 	 */
-	warmChat?(chat: URI, context: IAgentChatContext): Promise<boolean>;
+	warmChat?(chat: URI, context: IAgentChatContext, selection?: IAgentWarmChatSelection): Promise<boolean>;
 
 	/**
 	 * Records why the host is not (yet) warming a deferred chat
@@ -1940,6 +2058,8 @@ export interface IAgentChatAdoptionResult {
 	};
 	/** Set when the adopted chat ran in a worktree that no longer exists and can be recreated. */
 	readonly worktree?: IAgentAdoptedWorktree;
+	/** The adopted chat's own creation and last-modified times, so registration does not stamp it with the adoption time. */
+	readonly timestamps?: { readonly startTime: number; readonly modifiedTime: number };
 	/** Diagnostic reason behind {@link adopted}. */
 	readonly reason?: AgentChatAdoptionReason;
 	/** Bounded provenance evidence; a missing marker alone does not prove an external session. */
@@ -2063,8 +2183,8 @@ export interface IAgent {
 	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
 
-	/** Open or focus one canvas instance in an initialized provider chat. */
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+	/** Open or focus one canvas instance in an initialized provider chat, or continue one that waits for the user's consent. */
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult>;
 
 	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
@@ -2142,9 +2262,6 @@ export interface IAgent {
 
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
-
-	/** Native snapshots can arrive after host cancellation or steering has already ended a turn. */
-	readonly onDidStoreTurnEdits?: Event<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
 
 	/** Host-wide progress for provider setup, including work without a chat yet. */
 	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;
@@ -2237,6 +2354,9 @@ export interface IAgent {
 
 	/** Read observed usage at terminal dispatch for this exact owning turn, excluding descendants and later delivery. */
 	getTurnTokenUsage?(chat: URI, turnId: string, parentToolCallId?: string): IAgentTurnTokenUsage | undefined;
+
+	/** Capture bounded provider interaction and steering lineage from cached state. */
+	getTurnInteraction?(chat: URI, turnId: string): IAgentTurnInteraction | undefined;
 
 	/** Record the host-remapped turn for a completed provider model call. */
 	recordModelCallTurnCorrelation?(chat: URI, modelCallId: string, turnId: string): void;
@@ -2444,6 +2564,9 @@ export interface IAgent {
 
 	/** Optional `mcp://` router for providers that advertise chat-scoped MCP side-channel resources. */
 	handleMcpRequest?(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+
+	/** Streams per-server diagnostics without exporting them through host logging or telemetry. */
+	subscribeMcpServerLogs?(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable;
 
 	/** Optional notification stream paired with {@link handleMcpRequest}. */
 	readonly onMcpNotification?: Event<IMcpNotification>;

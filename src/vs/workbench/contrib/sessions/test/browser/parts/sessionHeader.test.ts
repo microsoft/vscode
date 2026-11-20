@@ -15,6 +15,8 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { LocalSelectionTransfer } from '../../../../../../platform/dnd/browser/dnd.js';
@@ -27,7 +29,7 @@ import { ToggleMenuAction } from '../../../../../../base/browser/ui/toolbar/tool
 import { ChatHeader } from '../../../browser/parts/chatHeader.js';
 import { SessionHeader } from '../../../browser/parts/sessionHeader.js';
 import { SessionHeaderBar } from '../../../browser/parts/sessionHeaderBar.js';
-import { CLOSE_CHAT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
@@ -35,6 +37,10 @@ import { ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } 
 import { LegacyFakePaneState, testPaneContentOf } from '../sessionHostTestUtils.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ISessionHost, isSessionHostCommandContext } from '../../../../../services/sessions/browser/sessionHost.js';
+import { IChatService } from '../../../../chat/common/chatService/chatService.js';
+import { ChatConfiguration, ChatResponseStats } from '../../../../chat/common/constants.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../chat/common/model/chatModel.js';
+import { MockChatService } from '../../../../chat/test/common/chatService/mockChatService.js';
 import '../../../browser/parts/media/chatCompositeBar.css';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }, mainChatStatus = SessionStatus.Completed) {
@@ -655,6 +661,61 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('shows the stats of its chat\'s running response, found by the chat\'s resource, right after the title', () => {
+		const { instantiationService, session, mainChat, secondChat } = createHarness(disposables);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ResponseStats]: ChatResponseStats.Title }));
+		const chatService = new MockChatService();
+		instantiationService.stub(IChatService, chatService);
+		const bar = disposables.add(instantiationService.createInstance(SessionHeaderBar, undefined));
+		const chat = observableValue<IChat | undefined>('chat', mainChat);
+		bar.setContext({ session, chat });
+		bar.setVisible(true);
+		// Laid out, with the stats set well apart in size from the title.
+		bar.element.style.setProperty('--vscode-fontSize-label1', '9px');
+		mainWindow.document.body.appendChild(bar.element);
+		disposables.add(toDisposable(() => bar.element.remove()));
+		const stats = bar.element.querySelector<HTMLElement>('.chat-live-response-stats');
+		assert.ok(stats);
+		const shown = () => stats.hidden ? undefined : stats.textContent;
+		const baseline = (element: HTMLElement) => {
+			const probe = element.appendChild($('span', { style: 'display: inline-block; width: 0; height: 0;' }));
+			const y = probe.getBoundingClientRect().bottom;
+			probe.remove();
+			return y;
+		};
+
+		const chatNotLoaded = shown();
+		// Waiting for a confirmation keeps the time still.
+		const response = upcastPartial<IChatResponseModel>({
+			isIncomplete: constObservable(true),
+			confirmationAdjustedTimestamp: constObservable(1000),
+			isPendingConfirmation: constObservable({ startedWaitingAt: 84_000 }),
+			usageObs: constObservable({ kind: 'usage', promptTokens: 900, completionTokens: 310, latestModelCall: { duration: 5000 } }),
+		});
+		chatService.addSession(upcastPartial<IChatModel>({
+			sessionResource: secondChat.resource,
+			lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({ response })),
+		}));
+		const otherChatRunning = shown();
+		chat.set(secondChat, undefined);
+
+		assert.deepStrictEqual({
+			chatNotLoaded,
+			otherChatRunning,
+			chatRunning: shown(),
+			betweenTitleAndActions: stats.previousElementSibling?.classList.contains('chat-composite-bar-session-title') && stats.parentElement?.nextElementSibling?.classList.contains('chat-composite-bar-title-actions'),
+			sharedBaseline: Math.abs(baseline(stats) - baseline(bar.element.querySelector<HTMLElement>('.chat-composite-bar-session-title .label-name')!)) < 0.25,
+			separator: mainWindow.getComputedStyle(stats, '::before').content,
+		}, {
+			chatNotLoaded: undefined,
+			otherChatRunning: undefined,
+			chatRunning: '1m 23s \u00b7 62 tk/s',
+			betweenTitleAndActions: true,
+			sharedBaseline: true,
+			separator: '"\u00b7"',
+		});
+	});
+
 	test('shows the read state of the active chat instead of the session aggregate', () => {
 		const { session, activeChat, mainChat, secondChat, statusIconReads } = createHarness(disposables);
 		session.isRead.set(false, undefined);
@@ -698,6 +759,27 @@ suite('Sessions - Headers', () => {
 			bothInProgress: { main: true, second: true },
 			secondCompleted: { main: true, second: false },
 		});
+	});
+
+	test('shows a spinning working indicator at the end of the header while its chat is in progress, only when asked to', () => {
+		const { header, mainChat } = createHarness(disposables);
+		const indicatorShows = () => {
+			const indicator = header.element.querySelector<HTMLElement>('.chat-composite-bar-working-progress');
+			return !!indicator && indicator.style.display !== 'none' && indicator.classList.contains('codicon-modifier-spin');
+		};
+		const states: Record<string, boolean> = {};
+
+		mainChat.status.set(SessionStatus.InProgress, undefined);
+		states.inProgressByDefault = indicatorShows();
+		header.setShowsWorkingProgress(true);
+		states.inProgress = indicatorShows();
+		mainChat.status.set(SessionStatus.Completed, undefined);
+		states.completed = indicatorShows();
+		mainChat.status.set(SessionStatus.InProgress, undefined);
+		header.setShowsWorkingProgress(false);
+		states.turnedOff = indicatorShows();
+
+		assert.deepStrictEqual(states, { inProgressByDefault: false, inProgress: true, completed: false, turnedOff: false });
 	});
 
 	for (const kind of [ChatOriginKind.User, ChatOriginKind.Fork, ChatOriginKind.SideChat, ChatOriginKind.Tool]) {
@@ -802,66 +884,68 @@ suite('Sessions - Headers', () => {
 		assert.strictEqual(header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text .label-name')?.textContent, 'New Session');
 	});
 
-	test('renders the overflow action before the small close control', () => {
-		const { store, instantiationService, session, secondChat } = createHarness(disposables);
-		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
-			override createMenu(_menuId: MenuId): IMenu {
-				return {
-					onDidChange: Event.None,
-					dispose: () => { },
-					getActions: menuOptions => [[
-						'navigation',
-						[
-							instantiationService.createInstance(MenuItemAction, { id: 'sessions.pin', title: 'Pin', icon: Codicon.pin }, undefined, menuOptions, undefined, undefined),
-							instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close', icon: Codicon.closeSmall }, undefined, menuOptions, undefined, undefined),
-						],
-					], [
-						'secondary/4_manage',
-						[
-							instantiationService.createInstance(MenuItemAction, { id: 'sessions.rename', title: 'Rename' }, undefined, menuOptions, undefined, undefined),
-						],
-					]],
-				};
-			}
-		});
-		const bar = store.add(instantiationService.createInstance(SessionHeaderBar, undefined));
-		bar.setContext({ session, chat: constObservable(secondChat), actionsTargetChat: true });
-		bar.setVisible(true);
-		const toolbar = Reflect.get(bar, '_toolbar') as MenuWorkbenchToolBar;
-		const root = mainWindow.document.createElement('div');
-		root.classList.add('monaco-workbench', 'agent-sessions-workbench');
-		root.style.setProperty('--vscode-spacing-size200', '20px');
-		root.appendChild(bar.element);
-		mainWindow.document.body.appendChild(root);
+	for (const closeCommandId of [CLOSE_CHAT_COMMAND_ID, AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID]) {
+		test(`renders the overflow action before the small close control (${closeCommandId})`, () => {
+			const { store, instantiationService, session, secondChat } = createHarness(disposables);
+			instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+				override createMenu(_menuId: MenuId): IMenu {
+					return {
+						onDidChange: Event.None,
+						dispose: () => { },
+						getActions: menuOptions => [[
+							'navigation',
+							[
+								instantiationService.createInstance(MenuItemAction, { id: 'sessions.pin', title: 'Pin', icon: Codicon.pin }, undefined, menuOptions, undefined, undefined),
+								instantiationService.createInstance(MenuItemAction, { id: closeCommandId, title: 'Close', icon: Codicon.closeSmall }, undefined, menuOptions, undefined, undefined),
+							],
+						], [
+							'secondary/4_manage',
+							[
+								instantiationService.createInstance(MenuItemAction, { id: 'sessions.rename', title: 'Rename' }, undefined, menuOptions, undefined, undefined),
+							],
+						]],
+					};
+				}
+			});
+			const bar = store.add(instantiationService.createInstance(SessionHeaderBar, undefined));
+			bar.setContext({ session, chat: constObservable(secondChat), actionsTargetChat: true });
+			bar.setVisible(true);
+			const toolbar = Reflect.get(bar, '_toolbar') as MenuWorkbenchToolBar;
+			const root = mainWindow.document.createElement('div');
+			root.classList.add('monaco-workbench', 'agent-sessions-workbench');
+			root.style.setProperty('--vscode-spacing-size200', '20px');
+			root.appendChild(bar.element);
+			mainWindow.document.body.appendChild(root);
 
-		disposables.add(toDisposable(() => root.remove()));
-		const actionIds = Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
-		const labels = Array.from(toolbar.getElement().querySelectorAll<HTMLElement>('.action-label')).map(label => label.getAttribute('aria-label'));
-		const closeLabel = toolbar.getElement().querySelector<HTMLElement>('.action-label.codicon-close-small');
-		const closeStyle = closeLabel ? mainWindow.getComputedStyle(closeLabel) : undefined;
+			disposables.add(toDisposable(() => root.remove()));
+			const actionIds = Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
+			const labels = Array.from(toolbar.getElement().querySelectorAll<HTMLElement>('.action-label')).map(label => label.getAttribute('aria-label'));
+			const closeLabel = toolbar.getElement().querySelector<HTMLElement>('.action-label.codicon-close-small');
+			const closeStyle = closeLabel ? mainWindow.getComputedStyle(closeLabel) : undefined;
 
-		assert.deepStrictEqual({
-			actionIds,
-			labels,
-			closeControl: closeStyle ? {
-				width: closeStyle.width,
-				height: closeStyle.height,
-				paddingInline: closeStyle.paddingInline,
-				alignItems: closeStyle.alignItems,
-				justifyContent: closeStyle.justifyContent,
-			} : undefined,
-		}, {
-			actionIds: ['sessions.pin', ToggleMenuAction.ID, CLOSE_CHAT_COMMAND_ID],
-			labels: ['Pin', 'More Actions...', 'Close'],
-			closeControl: {
-				width: '20px',
-				height: '20px',
-				paddingInline: '0px',
-				alignItems: 'center',
-				justifyContent: 'center',
-			},
+			assert.deepStrictEqual({
+				actionIds,
+				labels,
+				closeControl: closeStyle ? {
+					width: closeStyle.width,
+					height: closeStyle.height,
+					paddingInline: closeStyle.paddingInline,
+					alignItems: closeStyle.alignItems,
+					justifyContent: closeStyle.justifyContent,
+				} : undefined,
+			}, {
+				actionIds: ['sessions.pin', ToggleMenuAction.ID, closeCommandId],
+				labels: ['Pin', 'More Actions...', 'Close'],
+				closeControl: {
+					width: '20px',
+					height: '20px',
+					paddingInline: '0px',
+					alignItems: 'center',
+					justifyContent: 'center',
+				},
+			});
 		});
-	});
+	}
 
 	test('uses a full-width backing surface with evenly inset titles and controls and no separator', () => {
 		const { header } = createHarness(disposables);
