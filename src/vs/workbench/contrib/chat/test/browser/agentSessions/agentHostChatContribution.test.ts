@@ -5199,6 +5199,8 @@ suite('AgentHostChatContribution', () => {
 				const input = Object.assign(Object.create(ChatInputPart.prototype), {
 					_inputEditor: editor, _attachmentModel: attachments, _inputModel: inputModel,
 					_inputModelSessionResource: sessionResource,
+					environmentService: { isSessionsWindow: false },
+					options: { isSessionsWindow: false },
 					_currentModeObservable: constObservable({ id: 'agent', kind: ChatModeKind.Agent }),
 					_currentLanguageModel: constObservable(undefined),
 					_currentPermissionLevel: observableValue('permission', ChatPermissionLevel.Default),
