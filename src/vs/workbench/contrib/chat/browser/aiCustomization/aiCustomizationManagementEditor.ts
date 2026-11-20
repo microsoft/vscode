@@ -1900,7 +1900,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 
 			const recoveryBundleFolder = URI.joinPath(this.getCustomizationMigrationRecoveryRoot(), migrationFlowId);
-			const hookScriptSources = await this.getHookScriptRecoverySources(customizations.map(({ customization }) => customization));
+			const hookScripts = await this.getHookScriptRecoverySources(customizations.map(({ customization }) => customization));
 			const recovery = await prepareCustomizationMigrationRecovery(
 				this.fileService,
 				recoveryBundleFolder,
@@ -1914,11 +1914,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 							storage: customization.storage,
 							type: customization.type,
 						}),
-					...hookScriptSources,
+					...[...hookScripts].flatMap(([hookFile, scripts]) => scripts.map(uri => ({ uri, storage: hookFile.storage, type: PromptsType.hook }))),
 				],
 			);
 
-			const prompt = createCustomizationMigrationAgentPrompt(harness, migrationFlowId, customizations, new Map(targetFolderEntries));
+			const prompt = createCustomizationMigrationAgentPrompt(harness, migrationFlowId, customizations, new Map(targetFolderEntries), new ResourceMap([...hookScripts].map(([hookFile, scripts]) => [hookFile.uri, scripts] as const)));
 			if (!await this.closeCustomizationEditor()) {
 				return;
 			}
@@ -1963,21 +1963,24 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	/**
 	 * Hook migrations rewrite the scripts a hook runs as well as its hook file, so the scripts
-	 * named in each hook's commands are backed up too.
+	 * named in each hook's commands are backed up too. Returns the scripts backed up for each hook
+	 * file; the agent may edit only those in place.
 	 */
-	private async getHookScriptRecoverySources(customizations: readonly CustomizationMigrationCandidate[]): Promise<{ readonly uri: URI; readonly storage: PromptsStorage; readonly type: PromptsType }[]> {
+	private async getHookScriptRecoverySources(customizations: readonly CustomizationMigrationCandidate[]): Promise<Map<MigratableConfiguration, readonly URI[]>> {
 		const hookFiles = customizations.filter(isFileCustomizationMigrationCandidate).filter(customization => customization.type === PromptsType.hook);
 		if (hookFiles.length === 0) {
-			return [];
+			return new Map();
 		}
 		const userHomeUri = await this.pathService.userHome();
 		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
-		const workspaceRoot = this.workspaceService.activeProjectRoot.get();
-		const scripts = await Promise.all(hookFiles.map(async hookFile =>
-			(await resolveHookCommandFiles(hookFile.uri, workspaceRoot, userHome, this.fileService))
-				.filter(uri => !hookFiles.some(other => isEqual(other.uri, uri)))
-				.map(uri => ({ uri, storage: hookFile.storage, type: PromptsType.hook }))));
-		return scripts.flat();
+		const activeRoot = this.workspaceService.activeProjectRoot.get();
+		return new Map(await Promise.all(hookFiles.map(async hookFile => {
+			// Like hook discovery, resolve commands against the workspace folder that contains the hook file.
+			const workspaceRoot = this.workspaceContextService.getWorkspaceFolder(hookFile.uri)?.uri ?? activeRoot;
+			const scripts = (await resolveHookCommandFiles(hookFile.uri, workspaceRoot, userHome, this.fileService))
+				.filter(uri => !hookFiles.some(other => isEqual(other.uri, uri)));
+			return [hookFile, scripts] as const;
+		})));
 	}
 
 	private async closeCustomizationEditor(): Promise<boolean> {
@@ -2904,7 +2907,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			id: manifest.migrationFlowId,
 			label: localize('agentMigrationRecoveryLabel', "{0} migration from {1}", manifest.harnessLabel, new Date(manifest.createdAt).toLocaleString()),
 			description: manifest.sources.some(source => source.types.includes(PromptsType.hook))
-				? localize('agentMigrationRecoveryDescriptionWithHooks', "{0} original sources backed up, including the scripts named in hook commands. Files that those scripts load are not backed up. Status: {1}.", manifest.sources.length, statusLabel)
+				? localize('agentMigrationRecoveryDescriptionWithHooks', "{0} original sources backed up, including the scripts named in hook commands that are in the workspace or next to the hook file. Other files that hooks run or load are not backed up. Status: {1}.", manifest.sources.length, statusLabel)
 				: localize('agentMigrationRecoveryDescription', "{0} original sources backed up. Status: {1}.", manifest.sources.length, statusLabel),
 			canModify: manifest.status !== 'running',
 		};

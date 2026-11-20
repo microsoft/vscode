@@ -15,7 +15,8 @@ import { PluginFormat } from '../../../../../platform/agentPlugins/common/plugin
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { AICustomizationSource, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin } from '../../common/plugins/agentPluginService.js';
-import { getLocalFormatHookEvents, parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
+import { getLocalFormatHookEvents } from '../../common/promptSyntax/hookCompatibility.js';
+import { extractHookCommandsFromItem } from '../../common/promptSyntax/hookSchema.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 
 interface ILocalFormatHookMarkable {
@@ -55,8 +56,10 @@ export async function readLocalFormatHookEvents(uris: readonly URI[], fileServic
 
 /**
  * Returns the existing files named in a hook file's commands, such as `scripts/guard.sh` in
- * `bash scripts/guard.sh`, so they can be backed up with the hook file. Only files inside the
- * workspace root or next to the hook file are included. Files that a script loads itself are not found.
+ * `bash scripts/guard.sh`, so they can be backed up with the hook file. Commands are read from
+ * every event in the file, including events VS Code does not run. Only files inside
+ * `workspaceRootUri` (the workspace folder that contains the hook file) or next to the hook file
+ * are included. Files that a script loads itself are not found.
  */
 export async function resolveHookCommandFiles(hookFileUri: URI, workspaceRootUri: URI | undefined, userHome: string, fileService: IFileService): Promise<URI[]> {
 	let json: unknown;
@@ -67,7 +70,12 @@ export async function resolveHookCommandFiles(hookFileUri: URI, workspaceRootUri
 	}
 	const allowedRoots = [dirname(hookFileUri), ...(workspaceRootUri ? [workspaceRootUri] : [])];
 	const found = new ResourceMap<URI>();
-	for (const { hooks } of parseHooksFromFile(hookFileUri, json, workspaceRootUri, userHome).hooks.values()) {
+	const events = json && typeof json === 'object' ? (json as Record<string, unknown>).hooks : undefined;
+	if (!events || typeof events !== 'object' || Array.isArray(events)) {
+		return [];
+	}
+	for (const items of Object.values(events)) {
+		const hooks = Array.isArray(items) ? items.flatMap(item => extractHookCommandsFromItem(item, workspaceRootUri, userHome)) : [];
 		for (const hook of hooks) {
 			const baseUri = hook.cwd ?? workspaceRootUri ?? dirname(hookFileUri);
 			for (const command of [hook.command, hook.windows, hook.linux, hook.osx]) {

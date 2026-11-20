@@ -91,10 +91,15 @@ suite('Local-format hook marking', () => {
 				PostToolUse: [{ type: 'command', command: 'python3 lint_hook.py "$HOME/x.py"', cwd: 'tools/hooks' }],
 				Stop: [{ type: 'command', command: 'node /usr/bin/outside.js && node missing.mjs' }],
 				SessionStart: [{ type: 'command', command: 'bash ~/hooks/start.sh && bash "$HOME/hooks/also.sh"' }],
+				// An event VS Code does not run, and a native name next to its capitalised alias.
+				Notification: [{ type: 'command', command: 'bash hooks/notify.sh' }],
+				preToolUse: [{ type: 'command', bash: 'bash hooks/native.sh' }],
 			},
 		}));
 		await write('hooks/guard.sh', 'exit 0');
 		await write('hooks/guard.ps1', 'exit 0');
+		await write('hooks/notify.sh', 'exit 0');
+		await write('hooks/native.sh', 'exit 0');
 		await write('hooks/paths.txt', 'secrets/*');
 		await write('tools/hooks/lint_hook.py', 'pass');
 		await write('home/hooks/start.sh', 'exit 0');
@@ -102,6 +107,6 @@ suite('Local-format hook marking', () => {
 
 		const files = await resolveHookCommandFiles(URI.joinPath(root, '.github/hooks/guard.json'), root, '/repo/home', fileService);
 
-		assert.deepStrictEqual(files.map(uri => uri.path).sort(), ['/repo/home/hooks/also.sh', '/repo/home/hooks/start.sh', '/repo/hooks/guard.ps1', '/repo/hooks/guard.sh', '/repo/tools/hooks/lint_hook.py']);
+		assert.deepStrictEqual(files.map(uri => uri.path).sort(), ['/repo/home/hooks/also.sh', '/repo/home/hooks/start.sh', '/repo/hooks/guard.ps1', '/repo/hooks/guard.sh', '/repo/hooks/native.sh', '/repo/hooks/notify.sh', '/repo/tools/hooks/lint_hook.py']);
 	});
 });

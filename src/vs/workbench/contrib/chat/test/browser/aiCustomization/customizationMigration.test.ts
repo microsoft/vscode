@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -181,7 +182,7 @@ suite('customizationMigration', () => {
 		});
 	});
 
-	test('builds an agent prompt from discovered sources and harness-reported targets', () => {
+	test('builds an agent prompt from discovered sources, harness-reported targets and backed-up hook scripts', () => {
 		const prompt = createCustomizationMigrationAgentPrompt(
 			{ id: 'agent-host-copilotcli', label: 'Copilot' },
 			'migration-flow-id',
@@ -206,6 +207,14 @@ suite('customizationMigration', () => {
 					category: CustomizationMigrationType.ConfiguredLocations,
 					customization: { uri: URI.file('/workspace/custom/review.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions },
 				},
+				{
+					category: CustomizationMigrationType.Hooks,
+					customization: { uri: URI.file('/workspace/.github/hooks/guard.json'), storage: PromptsStorage.local, type: PromptsType.hook },
+				},
+				{
+					category: CustomizationMigrationType.Hooks,
+					customization: { uri: URI.file('/home/.copilot/hooks/audit.json'), storage: PromptsStorage.user, type: PromptsType.hook },
+				},
 			],
 			new Map([
 				[PromptsType.skill, [
@@ -213,6 +222,7 @@ suite('customizationMigration', () => {
 					{ uri: URI.file('/home/.copilot/skills'), label: 'User skills', source: 'user' },
 				]],
 			]),
+			new ResourceMap([[URI.file('/workspace/.github/hooks/guard.json'), [URI.file('/workspace/scripts/guard.sh')]]]),
 		);
 
 		assert.strictEqual(prompt.replace(/\\/g, '/'), [
@@ -225,6 +235,10 @@ suite('customizationMigration', () => {
 			'- promptFiles: prompt (workspace): file:///workspace/.github/prompts/review.prompt.md',
 			'- mcpServers: MCP server "Server" (user): file:///profile/mcp.json -> file:///home/.copilot/mcp-config.json',
 			'- configuredLocations: instructions (workspace): file:///workspace/custom/review.instructions.md',
+			'- hooks: hook (workspace): file:///workspace/.github/hooks/guard.json',
+			'  - Scripts backed up with it: file:///workspace/scripts/guard.sh',
+			'- hooks: hook (user): file:///home/.copilot/hooks/audit.json',
+			'  - Scripts backed up with it: none',
 			'',
 			'Valid target folders reported by the selected harness:',
 			'- skill (workspace, Workspace skills): file:///workspace/.github/skills',
