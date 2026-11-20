@@ -26,8 +26,12 @@ suite('Chat view sessions list title actions', () => {
 				collapse: title.includes('sessionsViewPane.collapseAllGroups'),
 				filter: title.includes(Menus.SessionsViewFilter.id),
 				onlyForChatView: titleItems.every(item => item.when?.serialize().includes(`view == 'workbench.panel.chat.view.copilot'`)),
+				gatedOnAiAndVisibleList: titleItems.every(item => {
+					const when = item.when?.serialize() ?? '';
+					return when.includes('chatIsEnabled') && when.includes('agentSessionsViewerVisible');
+				}),
 				headerKept: header.includes('sessionsViewPane.find'),
-			}, { find: true, compact: true, collapse: true, filter: true, onlyForChatView: true, headerKept: true });
+			}, { find: true, compact: true, collapse: true, filter: true, onlyForChatView: true, gatedOnAiAndVisibleList: true, headerKept: true });
 		} finally {
 			store.dispose();
 		}

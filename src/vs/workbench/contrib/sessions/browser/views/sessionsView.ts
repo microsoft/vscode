@@ -171,7 +171,7 @@ export const SessionsViewSortingContext = new RawContextKey<string>('sessionsVie
 /** Whether the Chat view shows the shared sessions list, whose actions contribute to the title of the Chat view. */
 export const ChatViewSessionsListContext = new RawContextKey<boolean>('chatViewSessionsList', false);
 /** The `when` of the actions of the shared sessions list in the title of the Chat view. */
-export const ChatViewSessionsListTitleContext = ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatViewSessionsListContext)!;
+export const ChatViewSessionsListTitleContext = ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatViewSessionsListContext, ChatContextKeys.enabled, ChatContextKeys.agentSessionsViewerVisible)!;
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
 /** The groupings a Sessions view offers by default, as the Agents window's does: all but {@link SessionsGrouping.Worktree}. */
