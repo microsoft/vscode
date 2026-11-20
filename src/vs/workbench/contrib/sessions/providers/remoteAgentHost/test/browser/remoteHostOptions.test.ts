@@ -308,6 +308,7 @@ suite('remoteHostOptions', () => {
 			});
 			instantiationService.stub(IRemoteAgentHostService, {
 				getEntryByAddress: () => undefined,
+				getConnection: () => undefined,
 				setDisplayName: (address, name) => {
 					if (fail) {
 						throw new Error('Storage unavailable');
