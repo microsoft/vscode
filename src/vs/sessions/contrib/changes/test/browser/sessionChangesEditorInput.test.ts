@@ -47,7 +47,7 @@ import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionCh
 import { ChangesPickerActionItem, ChangesPickerSummary } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
-import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { ActiveSessionState, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 suite('SessionChangesEditorInput', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -555,6 +555,7 @@ suite('SessionChangesEditorInput', () => {
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
 			override readonly activeSessionChangesSummaryObs = summary;
+			override readonly activeSessionStateObs = constObservable<ActiveSessionState | undefined>(undefined);
 		}());
 		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService { override isMotionReduced() { return true; } }());
 		const layoutService = { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None, isVisible: () => true };
