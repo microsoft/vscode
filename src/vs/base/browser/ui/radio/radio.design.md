@@ -1,3 +1,11 @@
+---
+title: "Radio group"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/radio/radio-design.md"
+---
+
 # Radio
 
 ## Overview

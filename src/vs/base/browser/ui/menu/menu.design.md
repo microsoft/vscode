@@ -1,3 +1,11 @@
+---
+title: "Menu"
+kind: "composite"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/menu/menu-design.md"
+---
+
 # Menu
 
 ## Overview

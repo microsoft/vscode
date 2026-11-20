@@ -1,3 +1,11 @@
+---
+title: "Button bar"
+kind: "composite"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/button/button-bar-design.md"
+---
+
 # ButtonBar
 
 ## Overview

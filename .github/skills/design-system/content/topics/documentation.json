@@ -1,0 +1,8 @@
+{
+	"version": 1,
+	"id": "documentation",
+	"renderer": "documents",
+	"source": ".github/skills/design-system/references/document-library.md",
+	"content": {},
+	"sources": []
+}

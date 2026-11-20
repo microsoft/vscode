@@ -1,3 +1,12 @@
+---
+title: "Multi-select"
+kind: "composite"
+status: "draft"
+legacyPaths:
+  - "src/vs/platform/actionWidget/browser/dropdown-design.md"
+  - "src/vs/platform/actionWidget/browser/dropdown.design.md"
+---
+
 # MultiSelectDropdown
 
 ## Overview

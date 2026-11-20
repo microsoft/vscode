@@ -264,7 +264,7 @@ For deterministic component fixtures, focus the actual element through the fixtu
 
 ### Explaining unavailable options
 
-Follow the [discoverable unavailable-feature pattern](../design-philosophy/SKILL.md#make-unavailable-features-understandable): a feature promoted in documentation should not become inexplicably absent solely because the user cannot enable it. Announce both the disabled state and its reason using the control's supported ARIA semantics; a grey label, briefcase icon, or hover alone is insufficient. Keep icons decorative when text already conveys their meaning.
+Follow the [discoverable unavailable-feature pattern](../design-system/foundations/principles.design.md#make-unavailable-features-understandable): a feature promoted in documentation should not become inexplicably absent solely because the user cannot enable it. Announce both the disabled state and its reason using the control's supported ARIA semantics; a grey label, briefcase icon, or hover alone is insufficient. Keep icons decorative when text already conveys their meaning.
 
 Explanatory links must remain independently mouse- and keyboard-operable without activating the disabled option. Verify actual Tab/Shift+Tab and Enter behavior, not just `tabIndex` or a programmatic `focus()`; list navigation may skip disabled rows. Preserve focus/selection on policy refresh, guard stale actions, and update the feature's accessibility help with the available explanation and next step. Reuse the settings, model, harness, and permission-picker examples linked in the design guidance.
 

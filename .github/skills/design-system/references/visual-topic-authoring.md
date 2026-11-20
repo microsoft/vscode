@@ -28,7 +28,7 @@ For each important teaching goal, establish:
 
 Use this as a working checklist, not a new required metadata schema or planning file. Existing examples may satisfy several goals. Add only missing artifacts, and preserve the useful parts of a topic when changing its prose.
 
-The [book authoring conventions](../../../design-system/authoring.md) remain authoritative for file ownership and supported bindings. In particular:
+The [book authoring conventions](authoring-conventions.md) remain authoritative for file ownership and supported bindings. In particular:
 
 - Keep design rules and authored explanations with their owning documents; sample labels and curation can use the existing structured format.
 - Keep current values and executable behavior in product sources. Resolve them into specimens instead of maintaining copied token tables.

@@ -1,0 +1,65 @@
+[
+	{
+		"id": "product",
+		"title": "Product documentation",
+		"root": "src/vs",
+		"origin": "product",
+		"excludeDirectories": [
+			"__snapshots__",
+			"fixtures"
+		]
+	},
+	{
+		"id": "extensions",
+		"title": "Built-in extension documentation",
+		"root": "extensions",
+		"origin": "product",
+		"excludeDirectories": [
+			"test",
+			"tests",
+			"fixtures",
+			"test-workspace",
+			"testWorkspace"
+		]
+	},
+	{
+		"id": "instructions",
+		"title": "Repository instructions",
+		"root": ".github/instructions",
+		"origin": "instruction"
+	},
+	{
+		"id": "skills",
+		"title": "Authoring workflows",
+		"root": ".github/skills",
+		"origin": "skill",
+		"excludeDirectories": [
+			"design-system"
+		]
+	},
+	{
+		"id": "design-system-entry",
+		"title": "Design-system skill",
+		"root": ".github/skills/design-system",
+		"origin": "skill",
+		"fileName": "SKILL.md"
+	},
+	{
+		"id": "design-system-references",
+		"title": "Design-system authoring workflows",
+		"root": ".github/skills/design-system/references",
+		"origin": "skill"
+	},
+	{
+		"id": "design-foundations",
+		"title": "Design foundations",
+		"root": ".github/skills/design-system/foundations",
+		"origin": "book"
+	},
+	{
+		"id": "design-patterns",
+		"title": "Design patterns",
+		"root": ".github/skills/design-system/patterns",
+		"origin": "book"
+	}
+]

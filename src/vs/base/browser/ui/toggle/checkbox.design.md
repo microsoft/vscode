@@ -1,3 +1,11 @@
+---
+title: "Checkbox"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/toggle/checkbox-design.md"
+---
+
 # Checkbox
 
 ## Overview

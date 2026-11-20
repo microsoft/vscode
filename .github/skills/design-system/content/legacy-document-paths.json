@@ -1,0 +1,12 @@
+{
+	".github/design-system/guidance/documentation.md": ".github/skills/design-system/references/document-library.md",
+	".github/design-system/guidance/overview.md": ".github/skills/design-system/references/component-overview.md",
+	"src/vs/platform/theme/common/motion/motion-examples.md": ".github/skills/design-system/foundations/motion/examples.md",
+	".github/design-system/README.md": ".github/skills/design-system/SKILL.md",
+	".github/design-system/authoring.md": ".github/skills/design-system/references/authoring-conventions.md",
+	".github/design-system/components.md": ".github/skills/design-system/references/component-qualification.md",
+	".github/design-system/components-overview.md": ".github/skills/design-system/references/component-overview.md",
+	".github/design-system/foundations.md": ".github/skills/design-system/references/token-qualification.md",
+	".github/design-system/patterns.md": ".github/skills/design-system/references/pattern-authoring.md",
+	".github/design-system/documentation.md": ".github/skills/design-system/references/document-library.md"
+}

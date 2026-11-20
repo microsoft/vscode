@@ -5,7 +5,7 @@ description: VS Code theming, color tokens, composited surfaces, interaction-sta
 
 This skill covers color registration, CSS variable usage, widget style patterns, focus indicators, and high-contrast theme requirements.
 
-For choosing an overlay, shadow ownership, popup nesting, and modal/stacking behavior, use the [elevation guide](../../design-system/elevation.design.md). A theme token alone does not establish those interaction contracts.
+For choosing an overlay, shadow ownership, popup nesting, and modal/stacking behavior, use the [elevation guide](../design-system/foundations/elevation.design.md). A theme token alone does not establish those interaction contracts.
 
 ---
 
@@ -198,26 +198,11 @@ Test runtime theme changes and custom color overrides, including transitions whe
 - In missing-token tests, distinguish local removal from inherited values. If an ancestor supplies the property, use a scoped guaranteed-invalid value such as a self-reference to exercise `var()` fallback without changing global theme state. A fallback does not repair a defined value with the wrong CSS type.
 - Hit-test the intended action region, allowing the hit element to be the control or one of its descendants, then activate it and assert the behavior or ARIA change. Exact root equality is brittle; CSS styling alone does not prove that labels, chevrons, or edge padding remain clickable.
 
-## 7. No Hardcoded Visual Values
+## 7. Use semantic theme values
 
-Reviewers will always flag hardcoded colors, shadows, sizes that should use theme tokens or CSS variables.
+Use registered theme colors or their CSS variables instead of hardcoded color literals. Choose by purpose and foreground/background pairing; a matching current hex value does not establish a shared role.
 
-| Hardcoded (flagged) | Correct |
-|---------------------|---------|
-| `rgba(0, 0, 0, 0.12)` | `var(--vscode-widget-shadow)` or theme-aware variable |
-| `#252526` | `var(--vscode-editor-background)` |
-| `color: white` | `var(--vscode-button-foreground)` |
-| `border: 1px solid #ccc` | `var(--vscode-editorWidget-border)` |
-| `border: 1px solid …` (width) | `var(--vscode-strokeThickness)` for the 1px width |
-| `border-radius: 6px` | `var(--vscode-cornerRadius-medium)` (radius ramp) |
-| `padding: 8px 12px` (off-scale) | spacing ramp (`--vscode-spacing-size*`) |
-| `font-size: 14px` (arbitrary) | size ramp (`--vscode-fontSize-*`) |
-| `font-weight: 500` | `--vscode-fontWeight-semiBold` (no 500) |
-| codicon `font-size: 14px` | `--vscode-codiconFontSize` (16) / `-compact` (12) |
-
-**Rule:** If a value relates to color, shadow, or border — it must come from a CSS variable or registered color token. The only exception is `0` (zero) values and purely structural measurements like `100%`.
-
-**Size, spacing, radius, font and stroke** values have their own design-system **size** tokens (and decision logic — snap maps, the pill→`circle` rule, and the compact-glyph convention). Those live in the **ux-css-layout** skill (§10 Design-System Size Tokens) and the auto-injected `.github/instructions/design-tokens.instructions.md`. Reach for those when a flag is about *how big / how round / how bold* something is rather than *what color*.
+Use the owning guidance for adjacent decisions: [Colors](../design-system/foundations/colors.design.md) for color roles and component aliases, [Elevation](../design-system/foundations/elevation.design.md) for surface and shadow ownership, and [Stroke](../design-system/foundations/stroke.design.md) for boundaries. Follow [design-token CSS guidance](../../instructions/design-tokens.instructions.md) for variables, sizing tokens, and validation.
 
 ---
 

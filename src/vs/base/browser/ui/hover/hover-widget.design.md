@@ -1,3 +1,12 @@
+---
+title: "Hover card"
+kind: "composite"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/hover/hover-design.md"
+  - "src/vs/base/browser/ui/hover/hover.design.md"
+---
+
 # HoverWidget
 
 ## Overview

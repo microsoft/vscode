@@ -1,3 +1,12 @@
+---
+title: "Spinner"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/pixelSpinner/spinner-design.md"
+  - "src/vs/base/browser/ui/pixelSpinner/spinner.design.md"
+---
+
 # createPixelSpinner
 
 ## Overview

@@ -21,13 +21,13 @@ Keep a compact plan in task context:
 - Topic boundary, authoritative owner, category, and neighboring topics.
 - Primary decisions, teaching examples, reference needs, and discovery paths.
 
-Choose topic scope, source location, and navigation separately. Foundations teach shared choices; components teach reusable contracts, not every variant or feature composition. [Patterns](../../../design-system/patterns.md) teach reusable task compositions, navigation, and behavior across scenarios.
+Choose topic scope, source location, and navigation separately. Foundations teach shared choices; components teach reusable contracts, not every variant or feature composition. [Patterns](pattern-authoring.md) teach reusable task compositions, navigation, and behavior across scenarios.
 
-Use [component qualification](../../../design-system/components.md) when creating or consolidating a component topic. Recommend placement improvements with their compatibility implications; do not turn an editorial task into an unrequested reorganization.
+Use [component qualification](component-qualification.md) when creating or consolidating a component topic. Recommend placement improvements with their compatibility implications; do not turn an editorial task into an unrequested reorganization.
 
 ## 2. Inherit the design contract
 
-Consult the [design philosophy](../../design-philosophy/SKILL.md), relevant specifications, and owning token registrations. Discover current sources rather than relying on cached topic assessments.
+Consult the [design philosophy](../foundations/principles.design.md), relevant specifications, and owning token registrations. Discover current sources rather than relying on cached topic assessments.
 
 The philosophy owns shared values and principles. Topics apply them to specific decisions; they do not need a separate principles section.
 
@@ -90,7 +90,7 @@ Repair reading order and hierarchy before polishing sentences. Consolidate repet
 
 ## 5. Deliver the needed artifacts
 
-Follow the existing owners in [authoring conventions](../../../design-system/authoring.md). Keep guidance and captions in source documents, facts in product code, selection in curation, and presentation mechanics in the viewer.
+Follow the existing owners in [authoring conventions](authoring-conventions.md). Keep guidance and captions in source documents, facts in product code, selection in curation, and presentation mechanics in the viewer.
 
 Preserve useful demonstrations or replace them with equally effective explanations. Captions describe the design relationship, independently of sample labels or preview controls.
 

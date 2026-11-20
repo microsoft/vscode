@@ -1,3 +1,11 @@
+---
+title: "Toolbar"
+kind: "composite"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/actionbar/action-bar-design.md"
+---
+
 # ActionBar
 
 ## Overview

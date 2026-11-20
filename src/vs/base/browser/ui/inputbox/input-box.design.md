@@ -1,3 +1,12 @@
+---
+title: "Text field"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/inputbox/input-design.md"
+  - "src/vs/base/browser/ui/inputbox/input.design.md"
+---
+
 # InputBox
 
 ## Overview

@@ -1,3 +1,11 @@
+---
+title: "Icon label"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/iconLabel/icon-label-design.md"
+---
+
 # IconLabel
 
 ## Overview

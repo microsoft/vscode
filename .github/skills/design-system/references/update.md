@@ -6,7 +6,8 @@ Keep guidance in step with code. Run this when a change alters behavior, appeara
 
 - List the changed UI files from the diff or the named change.
 - Read any `*.design.md` beside them.
-- Look up each changed area in the [topic map](../../../design-system/README.md#find-the-owning-guidance). A foundation or pattern spec may describe code elsewhere.
+- Use `node .github/skills/design-system/scripts/validate.mts --list` to locate shared foundations and patterns. A foundation or pattern may describe code elsewhere.
+- Do not infer a spec from a class name or assume every component directory needs one.
 - Search headless documents for the component or token names: `node <viewer>/scripts/book.mjs documents --root <checkout> --query "<subject>"`.
 
 Record each candidate spec and the section the change touches. If none applies and the change adds a reusable component or pattern, continue with [author](author.md) to create one.
@@ -26,6 +27,7 @@ For each candidate, classify the change:
 
 - Edit the owning section once, following [author](author.md) writing limits.
 - Update bindings, fixtures, and links only if the selected content or paths changed.
-- Run the fast check with the installed viewer or source clone: `node .github/design-system/scripts/validate.mts --viewer <viewer> --sources-only`.
+- Run the product validator and its source checks: `node .github/skills/design-system/scripts/validate.mts`.
+- Run focused viewer tests when extraction, discovery, or reader behavior changed.
 
 Return the specs changed, the specs checked and left alone, and any contradiction for a human to decide. Agents keep guidance located and current; people own whether a rule is right.

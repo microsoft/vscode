@@ -1,0 +1,26 @@
+{
+	"version": 1,
+	"id": "theming",
+	"renderer": "theming",
+	"source": ".github/skills/design-system/foundations/theming.design.md",
+	"content": {
+		"specimen": "Semantic roles stay the same while theme values change."
+	},
+	"sources": [
+		{
+			"file": ".github/skills/ux-theming/SKILL.md"
+		}
+	],
+	"sections": [
+		{
+			"id": "theming-guidance",
+			"key": "guidance",
+			"heading": "Keep meaning in high contrast"
+		},
+		{
+			"id": "theming-comparison",
+			"key": "comparison",
+			"heading": "Theme comparisons"
+		}
+	]
+}

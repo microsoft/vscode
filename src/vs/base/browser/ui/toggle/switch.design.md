@@ -1,3 +1,11 @@
+---
+title: "Switch"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/toggle/switch-design.md"
+---
+
 # Switch
 
 ## Overview

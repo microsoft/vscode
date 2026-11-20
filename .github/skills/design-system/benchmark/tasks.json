@@ -1,0 +1,331 @@
+{
+	"version": 1,
+	"description": "Reusable tasks for measuring how well agents find, maintain, add and audit VS Code design guidance. Expectations name specs by file name, not path, so the same tasks can be rerun after guidance moves.",
+	"convention": {
+		"specSuffix": ".design.md",
+		"placement": {
+			"primitive": "^src/vs/.+\\.design\\.md$",
+			"composite": "^src/vs/.+\\.design\\.md$",
+			"foundation": "^\\.github/skills/design-system/foundations/[^/]+\\.design\\.md$",
+			"pattern": "^\\.github/skills/design-system/patterns/[^/]+\\.design\\.md$"
+		},
+		"requiredFrontMatter": [
+			"title",
+			"kind",
+			"status"
+		],
+		"genericGuidance": [
+			"design-system.instructions.md",
+			"design-system/SKILL.md",
+			"principles.design.md",
+			"design-tokens.instructions.md",
+			".github/design-system/README.md"
+		]
+	},
+	"prompts": {
+		"find": "You are working in this Visual Studio Code repository checkout.\n\nUpcoming task: {task}\n\nDo not implement the task and do not modify any files. First, locate the repository's design guidance that you must follow to do this task correctly. Design guidance can be a design specification, a design skill, or a design instruction file. Open candidates as needed to confirm they apply.\n\nEnd your reply with exactly one line in this form, listing repository-relative paths of the design guidance documents only (not source code):\nGUIDANCE: <path>, <path>, ...\n",
+		"update": "You are working in this Visual Studio Code repository checkout.\n\nTask: {task}\n\nImplement the change by editing the repository files directly. Don't run builds, type checks, installs, linters, or tests, and don't commit. When you are done, list the files you changed.\n",
+		"add": "You are working in this Visual Studio Code repository checkout.\n\nTask: {task}\n\nFollow this repository's conventions for design guidance. Keep it concise (under 60 lines). Don't run builds, installs, linters, or tests, and don't commit. When you are done, list the files you changed.\n",
+		"audit": "You are working in this Visual Studio Code repository checkout, helping a designer audit the repository's design guidance.\n\nQuestion: {task}\n\nDo not modify any files. End your reply with exactly one line in this form, using repository-relative paths or names:\n{answer}\n",
+		"ciCheck": "Design guidance check failed: this change modifies reusable UI or design-token code ({files}) but does not add or update the design guidance that owns it. Following this repository's design-guidance conventions, update the owning guidance document (or add one for new reusable UI, including anything the convention requires to register it). Don't run builds or tests. When you are done, list the files you changed."
+	},
+	"suites": {
+		"find": {
+			"goal": "Find the guidance that applies before building UI. Read-only. Pass when every expected group is cited (any name in a group counts).",
+			"tasks": [
+				{
+					"id": "toggle-state",
+					"kind": "component",
+					"expect": [
+						[
+							"toggle.design.md"
+						]
+					],
+					"prompt": "You are editing src/vs/base/browser/ui/toggle/toggle.ts to add a new visual state to the Toggle widget (the icon toggle button used in find widgets)."
+				},
+				{
+					"id": "onoff-setting",
+					"kind": "component",
+					"expect": [
+						[
+							"switch.design.md"
+						]
+					],
+					"prompt": "In the Agents window settings panel, let users turn auto-approve on or off; the change applies immediately."
+				},
+				{
+					"id": "confirm-delete",
+					"kind": "component",
+					"expect": [
+						[
+							"dialog.design.md"
+						]
+					],
+					"prompt": "Ask the user to confirm before permanently deleting a chat session."
+				},
+				{
+					"id": "rich-tooltip",
+					"kind": "component",
+					"expect": [
+						[
+							"hover-widget.design.md"
+						]
+					],
+					"prompt": "Show a rich tooltip with a title, a description, and a link when hovering over a status item in the session list."
+				},
+				{
+					"id": "chat-animation",
+					"kind": "foundation",
+					"expect": [
+						[
+							"motion.design.md"
+						]
+					],
+					"prompt": "Add an entrance animation when a chat response card appears."
+				},
+				{
+					"id": "status-colors",
+					"kind": "foundation",
+					"expect": [
+						[
+							"colors.design.md",
+							"theming.design.md"
+						]
+					],
+					"prompt": "Choose theme colors for a new 'Experimental' status label in the extensions list so it reads correctly in light, dark, and high-contrast themes."
+				},
+				{
+					"id": "weak-heading",
+					"kind": "foundation",
+					"expect": [
+						[
+							"typography.design.md"
+						]
+					],
+					"prompt": "A new section header in the session details view looks too weak next to its body text. Choose its text style."
+				},
+				{
+					"id": "uneven-gaps",
+					"kind": "foundation",
+					"expect": [
+						[
+							"spacing.design.md"
+						]
+					],
+					"prompt": "Fix uneven gaps between items in the chat attachment row: some gaps are 3px, others 5px."
+				},
+				{
+					"id": "popup-shadow",
+					"kind": "foundation",
+					"expect": [
+						[
+							"elevation.design.md"
+						]
+					],
+					"prompt": "A new floating command-preview popup should look like it sits above the editor. Choose its shadow and how it is visually separated from the editor."
+				},
+				{
+					"id": "toast-over-modal",
+					"kind": "foundation",
+					"expect": [
+						[
+							"elevation.design.md"
+						]
+					],
+					"prompt": "A notification toast can appear while a modal editor is open. Decide which surface sits on top and how the two are visually separated."
+				},
+				{
+					"id": "empty-illustration",
+					"kind": "foundation",
+					"expect": [
+						[
+							"illustration.design.md"
+						]
+					],
+					"prompt": "Add an empty-state illustration to the Testing view when no tests are found."
+				},
+				{
+					"id": "mcp-modal",
+					"kind": "pattern",
+					"expect": [
+						[
+							"modal.design.md"
+						]
+					],
+					"prompt": "Build a new full-window management modal for browsing and configuring MCP servers."
+				},
+				{
+					"id": "busy-panel",
+					"kind": "cross-cutting",
+					"expect": [
+						[
+							"principles.design.md"
+						]
+					],
+					"prompt": "A reviewer says a new sidebar panel 'feels busy'. Explain which design principle it breaks and what to change."
+				},
+				{
+					"id": "keyboard-reorder",
+					"kind": "cross-cutting",
+					"expect": [
+						[
+							"accessibility.design.md",
+							"accessibility/SKILL.md"
+						]
+					],
+					"prompt": "Make a new drag-to-reorder list in the Agents window usable without a mouse and with a screen reader."
+				},
+				{
+					"id": "button-labels",
+					"kind": "cross-cutting",
+					"expect": [
+						[
+							"content.design.md",
+							"coding-guidelines.instructions.md"
+						]
+					],
+					"prompt": "Write the labels and tooltip text for three new buttons in the Source Control view."
+				},
+				{
+					"id": "narrow-pane",
+					"kind": "cross-cutting",
+					"expect": [
+						[
+							"layout.design.md",
+							"ux-css-layout/SKILL.md"
+						]
+					],
+					"prompt": "Make a new two-column session details view usable when the side bar is very narrow."
+				}
+			]
+		},
+		"update": {
+			"goal": "Keep guidance current. The prompt is a code change and never mentions guidance. Misses get one simulated CI follow-up (prompts.ciCheck).",
+			"tasks": [
+				{
+					"id": "button-danger",
+					"kind": "component",
+					"spec": "button.design.md",
+					"prompt": "Add a `danger` option to `IButtonOptions` in src/vs/base/browser/ui/button/button.ts that renders a destructive-styled button, for confirmations such as permanently deleting a chat session. Register any new theme colors it needs."
+				},
+				{
+					"id": "switch-compact",
+					"kind": "component",
+					"spec": "switch.design.md",
+					"prompt": "Add a compact size option to the Switch widget in src/vs/base/browser/ui/toggle/toggle.ts so it can be used in dense list rows."
+				},
+				{
+					"id": "new-chip",
+					"kind": "component",
+					"newSpec": "chip",
+					"prompt": "Create a reusable Chip widget in src/vs/base/browser/ui/chip/: a compact token that shows a label, an optional leading icon, and an optional remove button, used to display active filters."
+				},
+				{
+					"id": "shape-xxlarge",
+					"kind": "foundation",
+					"spec": "shape.design.md",
+					"prompt": "Register a new `cornerRadius.xxLarge` size (16px) in src/vs/platform/theme/common/sizes/baseSizes.ts for full-window modal surfaces."
+				},
+				{
+					"id": "weight-bold",
+					"kind": "foundation",
+					"spec": "typography.design.md",
+					"prompt": "Register a new `fontWeight.bold` (700) size in src/vs/platform/theme/common/sizes/baseSizes.ts for emphasized numeric counters."
+				},
+				{
+					"id": "shadow-2xl",
+					"kind": "foundation",
+					"spec": "elevation.design.md",
+					"prompt": "Add a new, larger `--vscode-shadow-2xl` level to the workbench shadow ramp in src/vs/workbench/browser/media/style.css for full-window modal surfaces, and use it for the modal editor part."
+				},
+				{
+					"id": "modal-compact",
+					"kind": "pattern",
+					"spec": "modal.design.md",
+					"prompt": "Add a 'compact' size option to the modal editor part (src/vs/workbench/browser/parts/editor/modalEditorPart.ts) for short, confirmation-style content."
+				},
+				{
+					"id": "use-progress",
+					"kind": "control",
+					"prompt": "In the Testing view (src/vs/workbench/contrib/testing/browser/), show the standard progress bar at the top of the view while tests are being discovered."
+				}
+			]
+		},
+		"add": {
+			"goal": "Place new guidance where the convention says (convention.placement). Foundations and patterns are discovered from specification front matter; code-local primitive and composite guidance is discovered beside its implementation.",
+			"tasks": [
+				{
+					"id": "add-sash",
+					"kind": "component",
+					"newSpec": "sash",
+					"prompt": "Write design guidance for the existing Sash widget (src/vs/base/browser/ui/sash/sash.ts), the draggable divider between resizable panes."
+				},
+				{
+					"id": "add-focus",
+					"kind": "foundation",
+					"newSpec": "focus",
+					"prompt": "Write foundation design guidance for keyboard focus indicators: the `focusBorder` theme color and the focus outline width and offset used across the product."
+				},
+				{
+					"id": "add-empty",
+					"kind": "pattern",
+					"newSpec": "empty",
+					"prompt": "Write shared design guidance for empty states: what a view shows when it has no content yet, across the product."
+				},
+				{
+					"id": "add-l10n",
+					"kind": "foundation",
+					"newSpec": "locali",
+					"prompt": "Write design guidance on designing UI for localization: text expansion, truncation, and right-to-left languages."
+				}
+			]
+		},
+		"audit": {
+			"goal": "Help a designer find gaps, list guidance and trace guidance to code. Read-only. Truth is computed from the checkout under test, so it stays correct as guidance is added.",
+			"tasks": [
+				{
+					"id": "gap-widgets",
+					"kind": "gaps",
+					"answer": "MISSING: <folder>, <folder>, ...",
+					"truth": "Folders in the list with no *.design.md inside src/vs/base/browser/ui/<folder>/. Shared foundation or pattern guidance does not count as a component-local specification. Score: share of the 20 folders classified correctly.",
+					"prompt": "Which of these widget folders in src/vs/base/browser/ui/ have no authored design guidance document yet? Folders: breadcrumbs, button, countBadge, dialog, dropdown, findinput, hover, inputbox, list, menu, progressbar, radio, sash, scrollbar, selectBox, splitview, table, toggle, toolbar, tree."
+				},
+				{
+					"id": "list-foundations",
+					"kind": "inventory",
+					"answer": "GUIDANCE: <path>, <path>, ...",
+					"truth": "Every discovered shared specification whose front matter declares kind 'foundation' and status other than 'deprecated'. Score: (hits - wrong) / expected.",
+					"prompt": "List every authored foundation design guidance document (for example typography, color, motion). Exclude component guidance and patterns."
+				},
+				{
+					"id": "review-pr",
+					"kind": "review",
+					"answer": "GUIDANCE: <path>, <path>, ...",
+					"truth": {
+						"names": [
+							"progress-bar.design.md",
+							"shape.design.md"
+						],
+						"neutral": [
+							"size.design.md",
+							"tokens.design.md"
+						]
+					},
+					"prompt": "A pull request changes src/vs/base/browser/ui/progressbar/progressbar.ts and adds a corner radius token in src/vs/platform/theme/common/sizes/baseSizes.ts. Which design guidance documents should the reviewer check are still accurate?"
+				},
+				{
+					"id": "doc-owner",
+					"kind": "trace",
+					"answer": "CODE: <path>, <path>",
+					"truth": {
+						"names": [
+							"radio/radio.ts",
+							"sizes/baseSizes.ts"
+						]
+					},
+					"prompt": "A designer edited the Radio guidance and the Shape (corner radius) guidance. Which source files implement or register what each of those two documents describes? Give one source file per document."
+				}
+			]
+		}
+	}
+}

@@ -1,3 +1,12 @@
+---
+title: "Progress bar"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/progressbar/progress-design.md"
+  - "src/vs/base/browser/ui/progressbar/progress.design.md"
+---
+
 # ProgressBar
 
 ## Overview

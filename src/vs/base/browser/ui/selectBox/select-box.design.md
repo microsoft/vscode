@@ -1,3 +1,12 @@
+---
+title: "Select box"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/selectBox/select-design.md"
+  - "src/vs/base/browser/ui/selectBox/select.design.md"
+---
+
 # SelectBox
 
 ## Overview

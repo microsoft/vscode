@@ -1,8 +1,8 @@
 # Motion implementation
 
-For purpose, pattern selection, token roles, and accessibility, read [Motion design](../../../../../../.github/design-system/motion.design.md). This document owns integration contracts, derivation, implementation recipes, and technical validation.
+For purpose, pattern selection, token roles, and accessibility, read [Motion design](../../../../../../.github/skills/design-system/foundations/motion.design.md). This document owns integration contracts, derivation, implementation recipes, and technical validation.
 
-## Preset contract
+## Implementation preset contract
 
 Each preset declares applicability, property tracks, semantic timing prefixes, phases, and a reduced alternative. Its requirements describe the geometry, state, focus, interruption, and lifecycle obligations of the consuming component.
 
@@ -39,7 +39,7 @@ Some deliberate easing curves have an unbounded derivative at an endpoint even t
 
 The [composition tests](../../test/common/motionRecipes.test.ts) and [controller tests](../../../../base/test/browser/ui/animations/motion.test.ts) cover implementation behavior. They don't establish a perceptual threshold or substitute for scenario checks.
 
-## Validate the product scenario
+## Validate implementation behavior
 
 Validate the entire interaction at normal speed in its actual host. Slow playback is for inspecting mechanics, not judging responsiveness.
 

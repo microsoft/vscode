@@ -5,7 +5,7 @@ applyTo: src/vs/**/*.css
 
 # Design-token usage in CSS
 
-Choose the design role before the implementation value. Use the [design philosophy](../skills/design-philosophy/SKILL.md) to explain the intended hierarchy, relationship, or surface role; use the product registries to find its current token.
+Choose the design role before the implementation value. Use the [design philosophy](../skills/design-system/foundations/principles.design.md) to explain the intended hierarchy, relationship, or surface role; use the product registries to find its current token.
 
 ## Read definitions from their owners
 
@@ -13,7 +13,7 @@ Choose the design role before the implementation value. Use the [design philosop
 
 Read current IDs, values, units, deprecation messages, and replacements from these sources. Do not infer a value from a token name or maintain another numeric table, token catalog, or alias map in instructions.
 
-The [design-system book](../design-system/README.md) provides source-backed references and checkout-owned Markdown guidance. The separately installed private viewer also provides a headless interface for agents. A visible canvas is not required.
+The [design-system book](../skills/design-system/SKILL.md) provides source-backed references and checkout-owned Markdown guidance. The separately installed private viewer also provides a headless interface for agents. A visible canvas is not required.
 
 ## Choose by role
 
@@ -29,7 +29,7 @@ When normalizing off-scale spacing, select the nearest registered step, rounding
 
 ## Corner radius
 
-Choose the radius by the surface's [elevation role](../skills/design-philosophy/SKILL.md#elevation-tiers), not by numeric proximity. Preserve fully rounded pills and circles rather than replacing them with the largest fixed-radius token.
+Choose the radius by the surface's [elevation role](../skills/design-system/foundations/principles.design.md#elevation-tiers), not by numeric proximity. Preserve fully rounded pills and circles rather than replacing them with the largest fixed-radius token.
 
 ## Font size
 
@@ -57,7 +57,7 @@ Use the registered base stroke for standard borders and separators. Preserve str
 
 ## Motion
 
-Follow the [motion specification and authoring method](../design-system/motion.design.md#authoring-and-validation). Choose by intent and reuse the owning component or recipe before composing properties. Keep state and focus immediate, honor effective reduced motion, and preserve theme-owned colors and anchor geometry.
+Follow the [motion specification and authoring method](../skills/design-system/foundations/motion.design.md#authoring-and-validation). Choose by intent and reuse the owning component or recipe before composing properties. Keep state and focus immediate, honor effective reduced motion, and preserve theme-owned colors and anchor geometry.
 
 Preserve shipped timing and curves when centralizing existing behavior. Compatibility parameters must not be snapped to the ordinary duration ramp.
 
@@ -66,6 +66,8 @@ Preserve shipped timing and curves when centralizing existing behavior. Compatib
 Follow the [CSS variable validator](../../build/lib/stylelint/validateVariableNames.ts) and its existing product-icon exemptions. Referenced variables must be recognized by [vscode-known-variables.json](../../build/lib/stylelint/vscode-known-variables.json); custom properties without a product registry belong in `others`.
 
 After adding a size registration, use [the documentation tests](../../scripts/test-documentation.sh) to update the generated size-variable inventory. Review generated changes rather than maintaining a second list here.
+
+At a supported standalone or fixture boundary where size tokens may be absent, provide valid length fallbacks for required padding, insets, radii, and outlines. A `var()` fallback handles an unavailable custom property, not a defined value of the wrong type or a unitless length. Follow the host contract rather than adding speculative fallbacks to every token.
 
 ## `.monaco-editor-background` must be opaque
 

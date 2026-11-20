@@ -1,3 +1,12 @@
+---
+title: "Count badge"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/countBadge/badge-design.md"
+  - "src/vs/base/browser/ui/countBadge/badge.design.md"
+---
+
 # CountBadge
 
 ## Overview

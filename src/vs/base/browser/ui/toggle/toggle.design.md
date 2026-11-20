@@ -1,3 +1,11 @@
+---
+title: "Toggle"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/toggle/toggle-design.md"
+---
+
 # Toggle
 
 ## Overview

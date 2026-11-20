@@ -1,0 +1,93 @@
+{
+	"version": 1,
+	"id": "typography",
+	"renderer": "typography",
+	"source": ".github/skills/design-system/foundations/typography.design.md",
+	"content": {
+		"sampleText": "Code with precision, collaborate with or orchestrate a team of agents, and continue your work wherever you are.",
+		"baseline": "Workbench baseline: {fontSize} text with {lineHeight} line-height. Individual widgets can override this.",
+		"composition": [
+			[
+				"fontSize.heading2",
+				"Review your workspace"
+			],
+			[
+				"fontSize.body1",
+				{
+					"$text": "Hierarchy in practice"
+				}
+			],
+			[
+				"fontSize.body2",
+				"Supporting description · body2"
+			],
+			[
+				"fontSize.label1",
+				"Section label · label1"
+			],
+			[
+				"fontSize.label3",
+				"Metadata badge · label3"
+			]
+		]
+	},
+	"sources": [
+		{
+			"file": ".github/skills/design-system/foundations/principles.design.md"
+		},
+		{
+			"file": ".github/instructions/design-tokens.instructions.md"
+		}
+	],
+	"guidance": [
+		{
+			"id": "typography-accessibility",
+			"title": "Accessibility",
+			"anchor": "accessibility"
+		},
+		{
+			"id": "typography-review",
+			"title": "Build and review",
+			"anchor": "build-and-review"
+		}
+	],
+	"sections": [
+		{
+			"id": "typography-composition",
+			"key": "composition",
+			"heading": "Hierarchy and reading rhythm",
+			"label": "Hierarchy"
+		},
+		{
+			"id": "typography-styles",
+			"key": "styles",
+			"heading": "UI type roles",
+			"label": "Type roles",
+			"aliases": [
+				"typography-role-guidance"
+			]
+		},
+		{
+			"id": "typography-emphasis",
+			"key": "emphasis",
+			"heading": "Weight and emphasis",
+			"label": "Emphasis",
+			"aliases": [
+				"typography-weight-guidance"
+			]
+		},
+		{
+			"id": "typography-metrics",
+			"key": "metrics",
+			"heading": "Reading metrics",
+			"aliases": [
+				"typography-reading-guidance"
+			]
+		},
+		{
+			"id": "typography-families",
+			"key": "families",
+			"heading": "Font families"
+		}
+	]
+}

@@ -1,3 +1,11 @@
+---
+title: "Button"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/button/button-design.md"
+---
+
 # Button / ButtonBar
 
 Authored usage and accessibility guidance for the Button family. API declarations come from the implementation, and live examples come from its existing fixtures.

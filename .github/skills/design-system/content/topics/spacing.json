@@ -1,0 +1,110 @@
+{
+	"version": 1,
+	"id": "spacing",
+	"renderer": "foundations",
+	"source": ".github/skills/design-system/foundations/spacing.design.md",
+	"content": {
+		"relationships": [
+			[
+				"Within a group",
+				{
+					"$text": "Within a group"
+				}
+			],
+			[
+				"Between groups",
+				{
+					"$text": "Between groups"
+				}
+			],
+			[
+				"Inside a surface",
+				{
+					"$text": "Inside a surface"
+				}
+			]
+		],
+		"ownership": [
+			[
+				"Padding · inside a surface",
+				{
+					"$text": "Padding ownership"
+				}
+			],
+			[
+				"Gap · between siblings",
+				{
+					"$text": "Gap ownership"
+				}
+			],
+			[
+				"Margin · outside an element",
+				{
+					"$text": "Margin ownership"
+				}
+			]
+		],
+		"preview": {
+			"control": "button",
+			"summary": "Related actions in light and dark themes."
+		}
+	},
+	"sources": [
+		{
+			"file": ".github/skills/design-system/foundations/principles.design.md"
+		},
+		{
+			"file": ".github/instructions/design-tokens.instructions.md"
+		},
+		{
+			"file": ".github/skills/ux-css-layout/SKILL.md"
+		}
+	],
+	"guidance": [
+		{
+			"id": "spacing-review",
+			"heading": "Build and review"
+		}
+	],
+	"sections": [
+		{
+			"id": "spacing-grouping",
+			"key": "grouping",
+			"heading": "Make relationships visible",
+			"label": "Relationships"
+		},
+		{
+			"id": "spacing-ownership",
+			"key": "ownership",
+			"heading": "Give each interval one owner",
+			"label": "Padding, gap, and margin",
+			"aliases": [
+				"spacing-guidance"
+			]
+		},
+		{
+			"id": "spacing-patterns",
+			"key": "patterns",
+			"heading": "Choose a spacing pattern",
+			"label": "Usage patterns"
+		},
+		{
+			"id": "spacing-product",
+			"key": "product",
+			"heading": "Spacing between controls",
+			"label": "Live example"
+		},
+		{
+			"id": "spacing-responsive",
+			"key": "responsive",
+			"heading": "When space gets tight",
+			"label": "Narrow layouts"
+		},
+		{
+			"id": "layout-spacing",
+			"key": "ramp",
+			"heading": "Spacing ramp",
+			"label": "Spacing tokens"
+		}
+	]
+}

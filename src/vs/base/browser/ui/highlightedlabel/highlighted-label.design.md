@@ -1,3 +1,12 @@
+---
+title: "Label"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/highlightedlabel/label-design.md"
+  - "src/vs/base/browser/ui/highlightedlabel/label.design.md"
+---
+
 # HighlightedLabel / IconLabel
 
 ## Overview

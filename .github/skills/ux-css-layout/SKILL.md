@@ -287,82 +287,11 @@ For `IconLabel` and list/tree renderers, this is handled automatically. For cust
 
 ---
 
-## 10. Design-System Size Tokens (spacing, radius, font, codicon, stroke)
+## 10. Design-system size tokens
 
-VS Code ships a design-system **size** ramp, registered in `src/vs/platform/theme/common/sizes/baseSizes.ts` and emitted as `--vscode-*` CSS variables. When writing or editing CSS, prefer the token var over a raw px value wherever a token exists. The full tables + rationale live in the auto-injected `.github/instructions/design-tokens.instructions.md` (canonical source — keep this section in sync with it). This section captures the **decision logic** for deeper styling tasks.
+Use the shared foundations for design decisions: [spacing](../design-system/foundations/spacing.design.md), [shape](../design-system/foundations/shape.design.md), [typography](../design-system/foundations/typography.design.md), [icon size](../design-system/foundations/size.design.md), and [stroke](../design-system/foundations/stroke.design.md). Their registrations live in [baseSizes.ts](../../../src/vs/platform/theme/common/sizes/baseSizes.ts).
 
-> Every `var()` you reference, except product-icon `--vscode-icon-*-content` and `--vscode-icon-*-font-family` variables, must exist in `build/lib/stylelint/vscode-known-variables.json` or stylelint/hygiene fails. After registering a *new* token in `baseSizes.ts`, run `./scripts/test-documentation.sh` to regenerate the `"sizes"` array; CSS-only custom properties belong in `"others"`.
-
-### Spacing — `padding`, `margin`, `gap`
-
-Scale (px): `0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40` → `--vscode-spacing-sizeNone`, `--vscode-spacing-size20` … `--vscode-spacing-size400` (token number = px × 10, so `size200` = 20px).
-
-**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale**. What breaks rhythm is an **off-scale** value (3, 5, 7, 14, 26px…). Snap off-scale values to the nearest scale value, **ties round up** (`5px → 6px`, `3px → 4px`, `1px → 2px`, `26px → 28px`). Each length of a shorthand is checked independently (`0 5px → 0 6px`). Leave `auto`, `%`, `em`/`rem`, `var()`/`calc()` untouched.
-
-### Corner radius — `border-radius`
-
-| px | Variable | Use |
-|----|----------|-----|
-| 2  | `--vscode-cornerRadius-xSmall` | very compact elements |
-| 4  | `--vscode-cornerRadius-small` | controls (buttons, inputs) |
-| 6  | `--vscode-cornerRadius-medium` | base / inner surfaces |
-| 8  | `--vscode-cornerRadius-large` | prominent / outer surfaces |
-| 12 | `--vscode-cornerRadius-xLarge` | very prominent surfaces |
-| 9999 | `--vscode-cornerRadius-circle` | fully rounded (pills, dots) |
-
-**Snap map** for off-scale literals (ties round **up**): `2→xSmall`, `3,4→small`, `5,6→medium`, `7,8→large`, `10,11,12→xLarge`, `14,16,18,20→xLarge`, `999→circle`.
-
-- **Pills** (radius ≈ half the element height — e.g. `28h`/`14r`, `36h`/`18r`, `22×22`/`11r`) → `--vscode-cornerRadius-circle`, **not** xLarge. The literal-nearest token would square them and lose the fully-rounded intent.
-- **Leave untouched:** `50%`, `0`, `0px`, `inherit`, any `calc()`/`var()`. Preserve `!important`.
-
-The ramp describes generic design defaults, not a replacement for component-specific geometry. When a panel exposes a semantic size customization, its frame and dependent paint must consume that resolved value, including `0`, rather than snapping it back to a generic radius. Keep native-window radii and control/overlay tiers separate from panel preferences.
-
-At supported standalone or fixture boundaries where size tokens may be absent, provide valid length fallbacks for required padding, insets, radii, and outlines. A `var()` fallback handles an unavailable custom property, not a defined value of the wrong type or a unitless length. Follow the existing host contract rather than adding speculative fallbacks to every token.
-
-### Font size & weight
-
-Generic UI ramp — pair a **size** token with a **weight** token ("Strong" = matching size token + `semiBold`, never a separate size):
-
-| px | Size var | Weight |
-|----|----------|--------|
-| 26 | `--vscode-fontSize-heading1` | semiBold |
-| 18 | `--vscode-fontSize-heading2` | semiBold |
-| 13 | `--vscode-fontSize-heading3` | semiBold |
-| 13 | `--vscode-fontSize-body1` | regular |
-| 11 | `--vscode-fontSize-body2` | regular |
-| 12 | `--vscode-fontSize-label1` | regular |
-| 11 | `--vscode-fontSize-label2` | regular |
-| 10 | `--vscode-fontSize-label3` | regular |
-
-Generic weights: `--vscode-fontWeight-regular` (400), `--vscode-fontWeight-semiBold` (600).
-
-**Deprecated** — `--vscode-bodyFontSize` (13) → `--vscode-fontSize-body1`, `--vscode-bodyFontSize-small` (12) → `--vscode-fontSize-label1`, `--vscode-bodyFontSize-xSmall` (11) → `--vscode-fontSize-body2`.
-
-The legacy Agents-specific `--vscode-agents-fontSize-*` and `--vscode-agents-fontWeight-*` tokens are also deprecated; use the matching generic tokens.
-
-- **No medium (500).** `font-weight: 500` is off the ramp — snap to `semiBold`. Likewise `700`/`bold` → round to the nearer of 400/600.
-- **"Strong" is not a separate size.** "Body 1 Strong" = the matching `--vscode-fontSize-*` size token + `semiBold`. Never add a strong *size*.
-- `normal` ≡ 400 → `regular`. Leave `inherit`, `lighter`, `bolder`, `var()`/`calc()` untouched.
-
-### Codicon size — icon `font-size`
-
-Codicons are **only ever 16px or 12px** — never `14px` or any in-between value.
-
-| px | Variable | Use |
-|----|----------|-----|
-| 16 | `--vscode-codiconFontSize` (base) | default icon size |
-| 12 | `--vscode-codiconFontSize-compact` | dense/inline chrome |
-
-**Compact-glyph convention:** when sizing an icon at the compact 12px size, also swap the registered glyph to its `*Compact` variant (e.g. `Codicon.close` → `Codicon.closeCompact`, `Codicon.add` → `Codicon.addCompact`). CSS `font-size` alone only scales the icon — it does **not** change to the visually-optimized compact glyph; that requires changing the registered icon (Action2 `icon:` / `renderIcon`). **Only swap the glyph when no CSS selector targets the original glyph class** (e.g. `.codicon-close`); selectors keyed on the glyph class (`.codicon-add`, `.codicon-chevron-down`) break when the class becomes `-compact`, so update those selectors too (or size via a glyph-independent wrapper class like `.monaco-button`). Some icons (settings/sliders, agent, vm, info, lock, plus) have **no** compact variant — keep the regular glyph at 12px.
-
-### Stroke — border width
-
-A **single** stroke thickness: `1px` → `--vscode-strokeThickness`. Applies to the `border: 1px solid <color>` shorthand and `border-width: 1px`. Other widths have no token — leave them.
-
-```css
-/* prefer */  border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
-/* avoid  */  border: 1px solid var(--vscode-widget-border);
-```
+For CSS application, deprecated aliases, variable validation, and size-inventory generation, follow [design-token instructions](../../instructions/design-tokens.instructions.md). Do not keep a second token table in this layout workflow.
 
 ---
 

@@ -1,0 +1,143 @@
+{
+	"version": 1,
+	"domains": [
+		{
+			"id": "spacing",
+			"title": "Spacing",
+			"description": {
+				"$text": {
+					"file": ".github/skills/design-system/foundations/spacing.design.md",
+					"heading": "Introduction"
+				}
+			},
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "## Spacing"
+		},
+		{
+			"id": "typography",
+			"title": "Typography",
+			"description": {
+				"$text": {
+					"file": ".github/skills/design-system/foundations/typography.design.md",
+					"heading": "Introduction"
+				}
+			},
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "## Font size"
+		},
+		{
+			"id": "shape",
+			"title": "Corner radius",
+			"description": {
+				"$text": {
+					"file": ".github/skills/design-system/foundations/shape.design.md",
+					"heading": "Introduction"
+				}
+			},
+			"file": ".github/skills/design-system/foundations/shape.design.md",
+			"anchor": "## Round by surface role"
+		},
+		{
+			"id": "iconography",
+			"title": "Icon size",
+			"description": {
+				"$text": {
+					"file": ".github/skills/design-system/foundations/iconography.design.md",
+					"heading": "Introduction"
+				}
+			},
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "## Codicon size"
+		},
+		{
+			"id": "stroke",
+			"title": "Stroke",
+			"description": {
+				"$text": {
+					"file": ".github/skills/design-system/foundations/stroke.design.md",
+					"heading": "Introduction"
+				}
+			},
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "## Stroke"
+		},
+		{
+			"id": "colors",
+			"title": "Color roles",
+			"description": {
+				"$text": {
+					"file": ".github/skills/design-system/foundations/colors.design.md",
+					"heading": "Introduction"
+				}
+			},
+			"file": ".github/skills/design-system/foundations/colors.design.md",
+			"anchor": "## Introduction"
+		},
+		{
+			"id": "elevation",
+			"title": "Elevation",
+			"description": {
+				"$text": {
+					"file": ".github/skills/design-system/foundations/elevation.design.md",
+					"heading": "Introduction"
+				}
+			},
+			"file": ".github/skills/ux-theming/SKILL.md",
+			"anchor": "## 6. High Contrast Theme Rules"
+		},
+		{
+			"id": "motion",
+			"title": "Motion",
+			"description": {
+				"$text": {
+					"file": ".github/skills/design-system/foundations/motion.design.md",
+					"heading": "Choose by intent"
+				}
+			},
+			"file": ".github/skills/design-system/foundations/motion.design.md",
+			"anchor": "## Foundations"
+		},
+		{
+			"id": "layout",
+			"title": "Scoped layout tokens",
+			"description": {
+				"$text": {
+					"file": ".github/skills/design-system/references/token-qualification.md",
+					"heading": "Scoped layout tokens"
+				}
+			},
+			"file": ".github/skills/design-system/references/token-qualification.md",
+			"anchor": "## Scoped layout tokens"
+		},
+		{
+			"id": "legacy",
+			"title": "Deprecated aliases",
+			"description": {
+				"$text": {
+					"file": ".github/instructions/design-tokens.instructions.md",
+					"heading": "Deprecated aliases"
+				}
+			},
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "## Deprecated aliases"
+		}
+	],
+	"palettes": [
+		{
+			"id": "Light 2026",
+			"label": "Light"
+		},
+		{
+			"id": "Dark 2026",
+			"label": "Dark"
+		},
+		{
+			"id": "Default High Contrast",
+			"label": "High contrast dark"
+		},
+		{
+			"id": "Default High Contrast Light",
+			"label": "High contrast light"
+		}
+	]
+}

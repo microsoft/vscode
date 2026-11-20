@@ -1,0 +1,31 @@
+{
+	"version": 1,
+	"id": "illustration",
+	"renderer": "guidance",
+	"source": ".github/skills/design-system/foundations/illustration.design.md",
+	"content": {},
+	"sources": [],
+	"guidance": [
+		{
+			"id": "illustration-usage",
+			"heading": "Usage"
+		},
+		{
+			"id": "illustration-principles",
+			"heading": "Principles",
+			"title": "Explain one idea"
+		},
+		{
+			"id": "illustration-style",
+			"heading": "Visual style"
+		},
+		{
+			"id": "illustration-accessibility",
+			"heading": "Accessibility"
+		},
+		{
+			"id": "illustration-review",
+			"heading": "Build and review"
+		}
+	]
+}

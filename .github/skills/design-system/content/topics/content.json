@@ -1,0 +1,18 @@
+{
+	"version": 1,
+	"id": "content",
+	"renderer": "guidance",
+	"source": ".github/skills/design-system/foundations/content.design.md",
+	"content": {
+		"headingOrder": [
+			"UI labels",
+			"Strings",
+			"Localization"
+		]
+	},
+	"sources": [
+		{
+			"file": ".github/instructions/coding-guidelines.instructions.md"
+		}
+	]
+}

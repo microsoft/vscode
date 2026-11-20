@@ -1,27 +1,12 @@
 ---
-description: VS Code design philosophy — the shared Values→Principles→Moves vocabulary for reasoning about UI in design terms rather than raw pixels. Use when creating, editing, or reviewing any visual surface (CSS, DOM, theming, icons, motion). Name the value/principle before reaching for a token.
+description: VS Code design philosophy — reason about visual surfaces through shared values, principles, and moves rather than isolated pixel adjustments.
 applyTo: "src/vs/**/browser/**/*.{ts,css}"
 ---
 
 # Design philosophy
 
-When you touch a visual surface, reason about it in **design terms, not pixels**. Design-system spacing, radii, type roles, and colors use named tokens/ramps where available. Raw literals remain valid for structural measurements or when no token exists.
+When creating, editing, or reviewing a visual surface, reason in design terms rather than pixels. Name the intended feeling, identify the principle it breaks, then choose the move that restores it. Use a named token when one expresses the role; retain intentional structural measurements and component-owned geometry.
 
-Work in three layers - name the **feeling**, find the **principle** it breaks, then reach for the **move** that restores it:
+The [design philosophy specification](../skills/design-system/foundations/principles.design.md) owns the shared values, principles, and examples. [Design-token instructions](./design-tokens.instructions.md) own CSS variable usage and validation.
 
-- **Values (how it should feel):** **Calm** · **Focused** · **Consistent** · **Delightful**
-- **Principles (questions to ask):**
-  1. *Quiet at rest, present on intent* - is anything shouting when nothing's happening?
-  2. *Room to breathe* - does this feel cramped, tight, or jagged?
-  3. *The interface explains itself* - could someone understand this at a glance?
-  4. *One thing leads; the rest supports* - where does the eye go first?
-  5. *Elevation is encoded, not eyeballed* - does surface treatment explain ownership, overlap, and the next action?
-  6. *Sameness signals sameness* - do two like things look identical, and is any difference intentional?
-  7. *Delight earns its keep* - what does this help the user do?
-- **Moves (the mechanics):** surface families (Control / Inner / Outer; preserve component-owned geometry), the spacing ramp, the type ramp (roles + `regular`/`semiBold` only, no 500), two icon sizes (16 base / 12 compact), a 1px token for standard strokes, `--vscode-*` theme color, reveal-on-intent chrome, prefer a word to a mystery glyph.
-
-Reach for a **move** only *after* naming the feeling and the principle - never instead. Describe a bug by its role/tier/ramp (*"this overlay is rounded at the control tier"*), not its number (*"border-radius should be 6"*).
-
-**Full reference** (values, principles, moves, worked examples, phrasebook, and feedback guidance): the [`design-philosophy` skill](../skills/design-philosophy/SKILL.md). **Token mechanics:** [design-tokens.instructions.md](./design-tokens.instructions.md).
-
-For shadows, popup chains, modal decisions, and paint order, follow the [elevation guide](../design-system/elevation.design.md). Visual lift, stacking, and modality are separate contracts; reuse their existing owners instead of copying CSS from a similar-looking surface.
+For shadows, popup chains, modal decisions, and paint order, follow the [elevation foundation](../skills/design-system/foundations/elevation.design.md). Visual lift, stacking, and modality are separate contracts.

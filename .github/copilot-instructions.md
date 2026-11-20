@@ -110,9 +110,9 @@ We use tabs, not spaces.
 - Don't capitalize prepositions of four or fewer letters unless it's the first or last word (e.g. "in", "with", "for").
 
 ### Designing UI
-- Before building or updating UI, find and read the owning component's `*.design.md` beside its implementation and the relevant foundation specifications in the [design topic map](design-system/README.md#find-the-owning-guidance). These documents explain intended usage and pitfalls that APIs alone do not describe. The viewer is optional; read the Markdown directly when it is unavailable.
+- Before building or updating UI, find and read the owning component's `*.design.md` beside its implementation and the relevant foundation specifications in the [design topic map](skills/design-system/SKILL.md#find-the-owning-guidance). These documents explain intended usage and pitfalls that APIs alone do not describe. The viewer is optional; read the Markdown directly when it is unavailable.
 - When creating, editing, or reviewing any visual surface, reason in **design terms, not pixels**: name the **feeling** (Calm, Focused, Consistent, Delightful), find the **principle** it breaks, then reach for the **move** (token/tier/ramp) that restores it. Describe a bug by its role/tier/ramp (e.g. "this overlay is rounded at the control tier"), not its number.
-- See the [`design-philosophy` skill](skills/design-philosophy/SKILL.md) for the full Values→Principles→Moves vocabulary, worked examples, and feedback guidance, and [design-tokens.instructions.md](instructions/design-tokens.instructions.md) for the token reference.
+- See the [`design-philosophy` skill](skills/design-system/foundations/principles.design.md) for the full Values→Principles→Moves vocabulary, worked examples, and feedback guidance, and [design-tokens.instructions.md](instructions/design-tokens.instructions.md) for the token reference.
 
 ### Style
 

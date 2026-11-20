@@ -1,3 +1,11 @@
+---
+title: "Keybinding label"
+kind: "primitive"
+status: "draft"
+legacyPaths:
+  - "src/vs/base/browser/ui/keybindingLabel/keybinding-label-design.md"
+---
+
 # KeybindingLabel
 
 ## Overview
