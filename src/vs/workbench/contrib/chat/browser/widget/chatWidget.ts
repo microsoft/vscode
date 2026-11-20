@@ -2332,13 +2332,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return { message: historyStatus?.message ?? this.readOnlyBannerMessage, action: historyStatus?.action };
 	}
 
-	/** Restores the archived Agent Host session shown in this widget, or the session that owns the shown subagent chat. */
+	/**
+	 * Restores the archived Agent Host session that owns the shown chat. Like the Agents window, an archived chat
+	 * of a session that is not archived is restored on its own, and keeps its own archived state otherwise.
+	 */
 	private restoreArchivedSession(sessionResource: URI): void {
-		for (const resource of [sessionResource, getAgentHostSessionResource(sessionResource)]) {
-			const session = this.agentSessionsService.getSession(resource);
-			if (session?.isArchived() && (!isAgentSessionChild(session) || session.canArchive === true)) {
-				session.setArchived(false);
-			}
+		const owner = this.agentSessionsService.getSession(getAgentHostSessionResource(sessionResource));
+		const session = owner?.isArchived() ? owner : this.agentSessionsService.getSession(sessionResource);
+		if (session?.isArchived() && (!isAgentSessionChild(session) || session.canArchive === true)) {
+			session.setArchived(false);
 		}
 	}
 

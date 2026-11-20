@@ -2176,6 +2176,29 @@ suite('ChatWidget', () => {
 		});
 	});
 
+	test('restoring an archived chat restores its archived session alone, keeping the chat\'s own archived state', () => {
+		const parentResource = URI.parse('remote-agent-host-test:/session?owner=one');
+		const peerResource = getSubagentEditorResource({ parentSessionResource: parentResource.toString(), chatResource: 'custom-chat:/peer' });
+		assert.ok(peerResource);
+		const restore = (parentArchived: boolean) => {
+			const archived = new ResourceMap<boolean>([[parentResource, parentArchived], [peerResource, true]]);
+			const sessions = new ResourceMap([parentResource, peerResource].map(resource => [resource, {
+				isArchived: () => archived.get(resource)!,
+				setArchived: (value: boolean) => archived.set(resource, value),
+			}] as const));
+			const widget: { restoreArchivedSession(resource: URI): void } = Object.assign(Object.create(ChatWidget.prototype), {
+				agentSessionsService: { getSession: (resource: URI) => sessions.get(resource) },
+			});
+			widget.restoreArchivedSession(peerResource);
+			return { parent: archived.get(parentResource), peer: archived.get(peerResource) };
+		};
+
+		assert.deepStrictEqual({ bothArchived: restore(true), peerArchived: restore(false) }, {
+			bothArchived: { parent: false, peer: true },
+			peerArchived: { parent: false, peer: false },
+		});
+	});
+
 	test('read-only banner disables its action while it is running', async () => {
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IHoverService, NullHoverService);
