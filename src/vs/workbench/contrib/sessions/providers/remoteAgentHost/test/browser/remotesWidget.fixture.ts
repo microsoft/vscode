@@ -36,7 +36,7 @@ import { INewSessionComposerService } from '../../../../browser/newSessionCompos
 import '../../../../../../browser/media/style.css';
 
 const remotes: ICustomizationRemote[] = [
-	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, copyableAddress: 'build', availability: 'unknown', connectionStatus: RemoteAgentHostConnectionStatus.connected, metadata: { operatingSystem: OperatingSystem.Linux, architecture: 'x64', cpuCount: 8, memoryBytes: 16 * 1024 ** 3, observedSessionCount: 3, observedAt: 0 } },
+	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, copyableAddress: 'build', availability: 'unknown', canUpdateServer: true, connectionStatus: RemoteAgentHostConnectionStatus.connected, metadata: { operatingSystem: OperatingSystem.Linux, architecture: 'x64', cpuCount: 8, memoryBytes: 16 * 1024 ** 3, observedSessionCount: 3, observedAt: 0 } },
 	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: true, canDelete: true, hidden: true, availability: 'unknown', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 	{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connecting },
 	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected, pickerUnavailableReason: 'Connect once to add this remote to the environment picker.' },

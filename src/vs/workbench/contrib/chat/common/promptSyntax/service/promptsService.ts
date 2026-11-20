@@ -270,14 +270,19 @@ export namespace IAgentSource {
 export type ICustomAgentVisibility = {
 	readonly userInvocable: boolean;
 	readonly agentInvocable: boolean;
+	/**
+	 * The agent picker offers the agent only while it is selected. Agents that use experimental
+	 * VS Code-only options (`vscode:` in their agent file) are meant to be opened by an extension.
+	 */
+	readonly pickerWhenSelected?: boolean;
 };
 
 export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibility {
 	if (typeof obj !== 'object' || obj === null) {
 		return false;
 	}
-	const v = obj as { userInvocable?: unknown; agentInvocable?: unknown };
-	return typeof v.userInvocable === 'boolean' && typeof v.agentInvocable === 'boolean';
+	const v = obj as { userInvocable?: unknown; agentInvocable?: unknown; pickerWhenSelected?: unknown };
+	return typeof v.userInvocable === 'boolean' && typeof v.agentInvocable === 'boolean' && (v.pickerWhenSelected === undefined || typeof v.pickerWhenSelected === 'boolean');
 }
 
 export interface ICustomAgent {

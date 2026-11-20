@@ -1310,7 +1310,7 @@ registerAction2(class extends Action2 {
  * Update the server of a remote agent host through its hosting VS Code CLI.
  * A host that rejected our protocol version because it runs an old build
  * advertises an upgrade method in the rejection, a connected host in its
- * `initialize` result. This command invokes that method via the shared
+ * `initialize` result while a newer build is available. This command invokes that method via the shared
  * {@link runServerUpgrade} flow, which asks first unless the host rejected our protocol version.
  * Exposed in the command palette so the update is reachable without
  * first opening the host's options quickpick.
@@ -1332,6 +1332,7 @@ registerAction2(class extends Action2 {
 		const notificationService = accessor.get(INotificationService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+		const productService = accessor.get(IProductService);
 
 		const remoteHosts = sessionsProvidersService.getProviders()
 			.filter(isAgentHostProvider)
@@ -1343,7 +1344,7 @@ registerAction2(class extends Action2 {
 				if (RemoteAgentHostConnectionStatus.isIncompatible(status)) {
 					incompatibleCount++;
 				}
-				const method = getRemoteHostUpgradeMethod(status, remoteAgentHostService.getConnection(provider.remoteAddress!));
+				const method = getRemoteHostUpgradeMethod(status, remoteAgentHostService.getConnection(provider.remoteAddress!), productService);
 				return method ? { provider, method } : undefined;
 			})
 			.filter((entry): entry is { provider: IAgentHostSessionsProvider; method: string } => !!entry);

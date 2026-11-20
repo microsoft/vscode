@@ -25,7 +25,7 @@ import { IConfigurationResolverService } from '../../../../../services/configura
 import { SYNCED_CUSTOMIZATION_SCHEME, type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
-import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
+import { PromptFileParser, PromptHeaderAttributes } from '../../../common/promptSyntax/promptFileParser.js';
 import { AgentHostMcpServerDelivery, resolveMcpServersForAgentHostDelivery } from './agentHostMcpServerSupport.js';
 
 /**
@@ -290,6 +290,7 @@ export async function resolveLocalCustomAgents(
 			let description = pluginAgent?.description;
 			let disableUserInvocation: boolean | undefined;
 			let welcomeMessage: string | undefined;
+			let pickerWhenSelected: true | undefined;
 			try {
 				const content = await fileService.readFile(agent.uri);
 				const header = parser.parse(agent.uri, content.value.toString()).header;
@@ -297,6 +298,7 @@ export async function resolveLocalCustomAgents(
 				description = header?.description ?? description;
 				disableUserInvocation = header?.userInvocable === false || undefined;
 				welcomeMessage = header?.welcomeMessage;
+				pickerWhenSelected = header?.getAttribute(PromptHeaderAttributes.vscode) ? true : undefined;
 			} catch {
 				// The host will parse the full agent after session creation. Keep the
 				// discovery metadata as a best-effort draft fallback if the file moved.
@@ -308,7 +310,7 @@ export async function resolveLocalCustomAgents(
 				name,
 				description,
 				disableUserInvocation,
-				...(welcomeMessage ? { _meta: toAgentCustomizationMeta({ 'vscode.welcomeMessage': welcomeMessage }) } : {}),
+				...(welcomeMessage || pickerWhenSelected ? { _meta: toAgentCustomizationMeta({ 'vscode.welcomeMessage': welcomeMessage, 'vscode.pickerWhenSelected': pickerWhenSelected }) } : {}),
 			});
 		})());
 	}

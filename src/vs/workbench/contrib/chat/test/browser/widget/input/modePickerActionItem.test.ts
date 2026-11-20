@@ -184,6 +184,15 @@ suite('ModePickerActionItem Add Context', () => {
 		});
 	});
 
+	test('offers an agent meant to be opened by an extension only while it is selected', () => {
+		const fixer: IChatMode = { ...custom, id: 'client-agent:/fixer', name: constObservable('Agent Fix'), label: constObservable('Agent Fix'), visibility: constObservable({ userInvocable: true, agentInvocable: true, pickerWhenSelected: true }) };
+		const fixture = createPicker(false, true, [custom, fixer]);
+		const labels = () => { fixture.open(); return fixture.items.map(item => item.label).filter(label => label === 'Custom' || label === 'Agent Fix'); };
+		const unselected = labels();
+		fixture.mode.set(fixer, undefined);
+		assert.deepStrictEqual({ unselected, selected: labels() }, { unselected: ['Custom'], selected: ['Agent Fix', 'Custom'] });
+	});
+
 	for (const enabled of [false, true]) {
 		for (const supported of [false, true]) {
 			test(`keeps non-default selections visible with setting ${enabled} and supported host ${supported}`, async () => {

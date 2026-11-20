@@ -3008,8 +3008,8 @@ suite('RemotesWidget', () => {
 
 	}
 
-	test('Update Server follows the update capability on incompatible and connected rows', () => {
-		const { parent, model } = createWidget();
+	test('Update Server and the update indicator follow the update capability on incompatible and connected rows', () => {
+		const { parent, model, hoverContents } = createWidget();
 		const remote = model.remotes.get()[0];
 		const rows: Partial<ICustomizationRemote>[] = [
 			{ connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], ['2'], 'vendor/update'), canUpdateServer: true },
@@ -3017,15 +3017,21 @@ suite('RemotesWidget', () => {
 			{ connectionStatus: RemoteAgentHostConnectionStatus.connected, canUpdateServer: true },
 			{ connectionStatus: RemoteAgentHostConnectionStatus.connected },
 		];
-		const menus = rows.map(row => {
+		const update = 'A server update is available. Select Update Server in More Actions to install it.';
+		const states = rows.map(row => {
 			model.remotes.set([{ ...remote, ...row }], undefined);
-			return getMenuActions(parent, remote.id).map(action => action.label).filter(label => ['New Session', 'Connect', 'Disconnect', 'Update Server'].includes(label));
+			const indicator = parent.querySelector<HTMLElement>(`[data-remote-id="${remote.id}"] .remotes-server-update`)!;
+			return {
+				menu: getMenuActions(parent, remote.id).map(action => action.label).filter(label => ['New Session', 'Connect', 'Disconnect', 'Update Server'].includes(label)),
+				indicator: indicator.hidden ? undefined : hoverContents.get(indicator),
+				announced: !!indicator.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes(update),
+			};
 		});
-		assert.deepStrictEqual(menus, [
-			['Connect', 'Update Server'],
-			['Connect'],
-			['New Session', 'Disconnect', 'Update Server'],
-			['New Session', 'Disconnect'],
+		assert.deepStrictEqual(states, [
+			{ menu: ['Connect', 'Update Server'], indicator: undefined, announced: false },
+			{ menu: ['Connect'], indicator: undefined, announced: false },
+			{ menu: ['New Session', 'Disconnect', 'Update Server'], indicator: update, announced: true },
+			{ menu: ['New Session', 'Disconnect'], indicator: undefined, announced: false },
 		]);
 	});
 

@@ -32,6 +32,8 @@ export interface IAgentCustomizationMeta {
 	/** Authored hint shown in the empty chat input while the agent is selected (`argument-hint`). */
 	readonly 'vscode.argumentHint'?: string;
 	readonly 'vscode.welcomeMessage'?: string;
+	/** The agent file uses experimental VS Code-only options (`vscode:`); pickers offer it only while it is selected. */
+	readonly 'vscode.pickerWhenSelected'?: boolean;
 	/** Client-supplied file URI before host materialization, used only to recover local provenance. */
 	readonly 'vscode.sourceUri'?: string;
 }
@@ -61,6 +63,9 @@ export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCus
 	}
 	if (typeof meta?.['vscode.welcomeMessage'] === 'string' && meta['vscode.welcomeMessage'].trim()) {
 		result['vscode.welcomeMessage'] = meta['vscode.welcomeMessage'];
+	}
+	if (meta?.['vscode.pickerWhenSelected'] === true) {
+		result['vscode.pickerWhenSelected'] = true;
 	}
 	if (meta?.['vscode.chatMode'] === 'ask') {
 		result['vscode.chatMode'] = 'ask';

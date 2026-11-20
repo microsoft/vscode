@@ -117,7 +117,7 @@ export interface ICustomizationRemote {
 	readonly canCreateDevContainer?: boolean;
 	/** Whether this remote connects and disconnects with its host, so it has no connect action of its own. */
 	readonly connectsWithHost?: boolean;
-	/** Whether this remote's server can be updated from here, either to connect again or to a newer version while connected. */
+	/** Whether this remote's server can be updated from here, either to connect again or, while connected, because a newer version is available. */
 	readonly canUpdateServer?: boolean;
 }
 
@@ -568,7 +568,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
 		}
 		const status = provider.connectionStatus?.get() ?? remote.connectionStatus;
-		const upgradeMethod = getRemoteHostUpgradeMethod(status, this.remoteAgentHostService.getConnection(id));
+		const upgradeMethod = getRemoteHostUpgradeMethod(status, this.remoteAgentHostService.getConnection(id), this.productService);
 		if (!upgradeMethod) {
 			throw new Error(localize('remotes.updateUnavailable', "This remote does not support updating its server."));
 		}
@@ -1281,7 +1281,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					...(shares.has(id) ? { gitHubEnvironment: shares.get(id) } : {}),
 				} : {}),
 				connectionStatus,
-				...(getRemoteHostUpgradeMethod(connectionStatus, this.remoteAgentHostService.getConnection(id), reader) ? { canUpdateServer: true } : {}),
+				...(getRemoteHostUpgradeMethod(connectionStatus, this.remoteAgentHostService.getConnection(id), this.productService, reader) ? { canUpdateServer: true } : {}),
 				...(lastConnectionError ? { lastConnectionError } : {}),
 			});
 		}

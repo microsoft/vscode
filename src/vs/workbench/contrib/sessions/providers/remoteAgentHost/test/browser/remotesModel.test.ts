@@ -151,7 +151,7 @@ suite('RemotesModel', () => {
 			getPreference: key => locationPreferences.get(key),
 			setPreference: (key, preference) => { locationPreferences.set(key, preference); },
 		});
-		instantiationService.stub(IProductService, { nameShort: 'Code - OSS' });
+		instantiationService.stub(IProductService, { nameShort: 'Code - OSS', commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z' });
 		instantiationService.stub(IProgressService, new TestProgressService());
 		instantiationService.stub(IRemoteTunnelService, {
 			onDidChangeTunnelStatus: tunnelStatusChanged.event,
@@ -1102,17 +1102,28 @@ suite('RemotesModel', () => {
 		assert.deepStrictEqual(upgrades, []);
 	});
 
-	test('connected hosts offer Update Server when they advertise the method, and ask before updating', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('connected hosts offer Update Server only while they run an older build, and ask before updating', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { model, providers, upgrade, upgrades, confirmations, connectionChanges, environmentState, setInitializeResultMeta } = setup();
 		await model.refresh(CancellationToken.None);
 		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
-		const canUpdate = () => model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canUpdateServer;
-		const absent = canUpdate();
 		await assert.rejects(model.updateServer('tunnel:laptop'), /does not support updating/);
-		setInitializeResultMeta('tunnel:laptop', { 'vscode.upgradeMethod': 42 });
-		const malformed = canUpdate();
-		setInitializeResultMeta('tunnel:laptop', { 'vscode.upgradeMethod': 'vendor/update' });
-		const advertised = canUpdate();
+		const canUpdate = (meta: Record<string, unknown> | undefined) => {
+			setInitializeResultMeta('tunnel:laptop', meta);
+			return model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canUpdateServer ?? false;
+		};
+		const method = { 'vscode.upgradeMethod': 'vendor/update' };
+		const olderBuild = { commit: 'host-commit', quality: 'insider', date: '2026-11-19T00:00:00.000Z' };
+		const offered = {
+			absent: canUpdate(undefined),
+			methodWithoutBuild: canUpdate(method),
+			buildWithoutMethod: canUpdate({ 'vscode.build': olderBuild }),
+			malformedMethod: canUpdate({ 'vscode.upgradeMethod': 42, 'vscode.build': olderBuild }),
+			malformedBuild: canUpdate({ ...method, 'vscode.build': { ...olderBuild, date: 'yesterday' } }),
+			sameBuild: canUpdate({ ...method, 'vscode.build': { ...olderBuild, commit: 'client-commit' } }),
+			newerBuild: canUpdate({ ...method, 'vscode.build': { ...olderBuild, date: '2026-11-21T00:00:00.000Z' } }),
+			otherQuality: canUpdate({ ...method, 'vscode.build': { ...olderBuild, quality: 'stable' } }),
+			olderBuild: canUpdate({ ...method, 'vscode.build': olderBuild }),
+		};
 		const declined = new DeferredPromise<IConfirmationResult>();
 		void declined.complete({ confirmed: false });
 		environmentState.pendingConfirmation = declined;
@@ -1123,10 +1134,14 @@ suite('RemotesModel', () => {
 		const start = Date.now();
 		await model.updateServer('tunnel:laptop');
 		assert.deepStrictEqual({
-			absent, malformed, advertised, afterDecline, upgrades, connectionChanges, elapsed: Date.now() - start,
+			offered, afterDecline, upgrades, connectionChanges, elapsed: Date.now() - start,
 			confirmations: confirmations.map(({ message, primaryButton }) => ({ message, primaryButton })),
 		}, {
-			absent: undefined, malformed: undefined, advertised: true, afterDecline: [],
+			offered: {
+				absent: false, methodWithoutBuild: false, buildWithoutMethod: false, malformedMethod: false, malformedBuild: false,
+				sameBuild: false, newerBuild: false, otherQuality: false, olderBuild: true,
+			},
+			afterDecline: [],
 			upgrades: [{ address: 'tunnel:laptop', method: 'vendor/update' }],
 			// The connection stayed up through the restart delay, so the update reconnects explicitly.
 			connectionChanges: [{ id: 'tunnel:laptop', connected: true }], elapsed: 3000,
@@ -1139,7 +1154,7 @@ suite('RemotesModel', () => {
 		await model.refresh(CancellationToken.None);
 		const provider = providers.get('tunnel:laptop')!;
 		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
-		setInitializeResultMeta('tunnel:laptop', { 'vscode.upgradeMethod': '_vscodeUpgrade' });
+		setInitializeResultMeta('tunnel:laptop', { 'vscode.upgradeMethod': '_vscodeUpgrade', 'vscode.build': { commit: 'host-commit', quality: 'insider', date: '2026-11-19T00:00:00.000Z' } });
 		upgrade.result = { ok: true, upgradeStarted: true, restartDelayMs: 1000 };
 		setTimeout(() => provider.connectionStatus.set(RemoteAgentHostConnectionStatus.reconnecting, undefined), 1500);
 		const start = Date.now();
