@@ -13,6 +13,7 @@ import { IInlineChatSessionService } from '../../../../inlineChat/browser/inline
 import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IEditorResolverService } from '../../../../../services/editor/common/editorResolverService.js';
 
 export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribution {
 	public static readonly CONTRIB_ID = 'notebook.editor.contrib.emptyCellEditorHint';
@@ -22,14 +23,16 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
 		@IChatAgentService chatAgentService: IChatAgentService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditorResolverService editorResolverService: IEditorResolverService,
 	) {
 		super(
 			editor,
 			configurationService,
 			inlineChatSessionService,
 			chatAgentService,
-			instantiationService
+			instantiationService,
+			editorResolverService,
 		);
 
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
