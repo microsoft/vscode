@@ -372,7 +372,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		})(() => this.updateViewPaneClasses(true)));
 
-		// The title follows the list that is or is to be provided, also while the body is not rendered, such as of a view restored collapsed
+		this.registerSessionsListTitle();
+	}
+
+	/** The title follows the list that is or is to be provided, also while the body is not rendered, such as of a view restored collapsed. */
+	private registerSessionsListTitle(): void {
 		this._register(autorun(reader => this.setSessionsListTitleActive(!!(this.chatViewHostService.sessionsList.read(reader) ?? this.chatViewHostService.sessionsListExpected.read(reader)))));
 	}
 

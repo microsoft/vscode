@@ -25,7 +25,7 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
-import { IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
+import { IChatViewSessionsList, IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { IChatWidgetViewModelChangeEvent } from '../../../../browser/chat.js';
 import { IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
@@ -297,6 +297,34 @@ suite('ChatViewPane sessions refresh', () => {
 			{ ownLists: 0, control: undefined },
 			{ ownLists: 0, control: providedControl },
 		]);
+	});
+
+	test('the title follows the provided sessions list without the body rendered, as of a view restored collapsed', () => {
+		const seam = createSeam();
+		seam.sessionsListExpected.set(true, undefined);
+		const titles: string[] = [];
+		const host = {
+			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			chatViewHostService: seam,
+			title: 'Chat',
+			chatTitle: undefined as string | undefined,
+			sessionsListTitleActive: false,
+			sessionsListTitle: 'Sessions',
+			updateTitle(title: string) { titles.push(title); },
+			updateActions: () => { },
+		};
+		const callOnHost = (name: string, ...args: unknown[]) => (Reflect.get(ChatViewPane.prototype, name) as (...args: unknown[]) => void).apply(host, args);
+		Reflect.set(host, 'setSessionsListTitleActive', (active: boolean) => callOnHost('setSessionsListTitleActive', active));
+		callOnHost('registerSessionsListTitle');
+		const steps = [[...titles]];
+
+		const registration = seam.provide(upcastPartial<IChatViewSessionsListProvider>({ create: () => upcastPartial<IChatViewSessionsList>({}) }), false);
+		seam.sessionsListExpected.set(false, undefined);
+		steps.push([...titles]);
+		registration.dispose();
+		steps.push([...titles]);
+
+		assert.deepStrictEqual(steps, [['Sessions'], ['Sessions'], ['Sessions', 'Chat']]);
 	});
 
 	test('when the provided sessions list is no longer expected and none registered, the Chat view creates its own list', () => {
