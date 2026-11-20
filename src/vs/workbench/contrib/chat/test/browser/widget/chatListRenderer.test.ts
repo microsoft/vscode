@@ -38,7 +38,7 @@ import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHo
 import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ConfirmationOptionKind, McpServerStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IFileDialogService, ISaveDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -11446,6 +11446,29 @@ suite('ChatListRenderer', () => {
 			chainReferences,
 			counts: stats ? [...stats.children].map(child => child.textContent) : undefined,
 		}, { chainReferences: 3, counts: ['+10', '-2'] });
+	});
+
+	test('a warning with a mute action shows a bell-slash button on the right that runs its command', async () => {
+		const { instantiationService, model, request, node, createRenderer } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const commands: unknown[][] = [];
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: (...args: unknown[]) => { commands.push(args); return Promise.resolve(undefined); } }));
+		const { renderer, template } = createRenderer(undefined);
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('The Session Start hook failed.'), mute: { commandId: 'test.muteWarnings', commandArgs: ['arg'], tooltip: 'Disable Test Warnings' } });
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Ordinary warning') });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		const widgets = [...template.value.querySelectorAll<HTMLElement>('.chat-notification-widget')];
+		const button = widgets[0]?.querySelector<HTMLElement>('.chat-notification-widget-action .action-label');
+		button?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			buttons: widgets.map(widget => [...widget.querySelectorAll<HTMLElement>('.chat-notification-widget-action .action-label')].map(action => ({ label: action.getAttribute('aria-label'), bellSlash: action.classList.contains('codicon-bell-slash-compact') || action.classList.contains('codicon-bell-slash'), last: widget.lastElementChild?.contains(action) }))),
+			commands,
+		}, {
+			buttons: [[{ label: 'Disable Test Warnings', bellSlash: true, last: true }], []],
+			commands: [['test.muteWarnings', 'arg']],
+		});
 	});
 
 	test('completed edit totals include diffs that were available before the chain attached', async () => {

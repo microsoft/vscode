@@ -4012,6 +4012,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 6px;
 }
 
+/* The mute button uses the chat input notice action's styles; it sits on the right. */
+.chat-notification-widget .chat-notification-widget-action {
+	margin-left: auto;
+}
+
 .interactive-item-container .chat-confirmation-widget .interactive-result-code-block,
 .interactive-item-container .chat-confirmation-widget .chat-attached-context {
 	margin-bottom: 8px;
