@@ -28,7 +28,10 @@ registerAction2(class DisableHookWarningsAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const commandService = accessor.get(ICommandService);
 
-		await configurationService.updateValue(ChatConfiguration.HooksShowWarnings, false, ConfigurationTarget.USER);
+		// Write where the value comes from, so a workspace or remote value does not keep warnings on.
+		const { workspaceValue, userRemoteValue } = configurationService.inspect<boolean>(ChatConfiguration.HooksShowWarnings);
+		const target = workspaceValue !== undefined ? ConfigurationTarget.WORKSPACE : userRemoteValue !== undefined ? ConfigurationTarget.USER_REMOTE : ConfigurationTarget.USER;
+		await configurationService.updateValue(ChatConfiguration.HooksShowWarnings, false, target);
 		await commandService.executeCommand('workbench.action.openSettings', ChatConfiguration.HooksShowWarnings);
 	}
 });

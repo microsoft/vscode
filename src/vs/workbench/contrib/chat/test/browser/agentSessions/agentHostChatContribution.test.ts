@@ -60,7 +60,7 @@ import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKeyService, type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -10435,25 +10435,30 @@ suite('AgentHostChatContribution', () => {
 			}));
 		}
 
-		test('Disable Hook Warnings turns hook warnings off and opens the setting', async () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			const updates: unknown[][] = [];
-			instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
-				override updateValue(key: string, value: unknown, ...rest: unknown[]): Promise<void> {
-					updates.push([key, value, ...rest]);
-					return Promise.resolve();
-				}
-			}());
-			const commandService = new MockCommandService();
-			instantiationService.stub(ICommandService, commandService);
+		for (const workspaceValue of [undefined, true]) {
+			test(`Disable Hook Warnings turns hook warnings off where they are set and opens the setting (workspace value ${workspaceValue})`, async () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				const updates: unknown[][] = [];
+				instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
+					override inspect<T>(key: string): IConfigurationValue<T> {
+						return { ...super.inspect<T>(key), workspaceValue: workspaceValue as T | undefined };
+					}
+					override updateValue(key: string, value: unknown, ...rest: unknown[]): Promise<void> {
+						updates.push([key, value, ...rest]);
+						return Promise.resolve();
+					}
+				}());
+				const commandService = new MockCommandService();
+				instantiationService.stub(ICommandService, commandService);
 
-			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENT_HOST_DISABLE_HOOK_WARNINGS_COMMAND_ID)!.handler(accessor));
+				await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENT_HOST_DISABLE_HOOK_WARNINGS_COMMAND_ID)!.handler(accessor));
 
-			assert.deepStrictEqual({ updates, commands: commandService.calls }, {
-				updates: [[ChatConfiguration.HooksShowWarnings, false, ConfigurationTarget.USER]],
-				commands: [{ commandId: 'workbench.action.openSettings', args: [ChatConfiguration.HooksShowWarnings] }],
+				assert.deepStrictEqual({ updates, commands: commandService.calls }, {
+					updates: [[ChatConfiguration.HooksShowWarnings, false, workspaceValue === undefined ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE]],
+					commands: [{ commandId: 'workbench.action.openSettings', args: [ChatConfiguration.HooksShowWarnings] }],
+				});
 			});
-		});
+		}
 
 		test('Auto model routing metadata becomes a live resolution part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
