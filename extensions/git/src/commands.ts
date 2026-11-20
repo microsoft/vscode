@@ -888,24 +888,38 @@ export class CommandCenter {
 			const oursDiffFile = oursDiff?.find(diff => diff.uri.fsPath === uri.fsPath);
 			const theirsDiffFile = theirsDiff?.find(diff => diff.uri.fsPath === uri.fsPath);
 
+			// use the original uri in case the file was renamed by theirs/ours
+			const currentFileUri = theirsDiffFile?.originalUri ?? uri;
+			const incomingFileUri = oursDiffFile?.originalUri ?? uri;
+
+			// The file might not exist at that path in the commit (ex: git placed it there
+			// because of a directory rename), in which case we keep using the index stage
+			const existsInCommit = async (fileUri: Uri, ref: string): Promise<boolean> => {
+				try {
+					await repo.getObjectDetails(ref, fileUri.fsPath);
+					return true;
+				} catch {
+					return false;
+				}
+			};
+
+			const [currentExists, incomingExists] = await Promise.all([
+				existsInCommit(currentFileUri, head.hash),
+				existsInCommit(incomingFileUri, rebaseOrMergeHead.hash)
+			]);
+
 			// ours (current branch and commit)
 			current.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
 			current.description = '$(git-commit) ' + head.hash.substring(0, 7);
-			if (theirsDiffFile) {
-				// use the original uri in case the file was renamed by theirs
-				current.uri = toGitUri(theirsDiffFile.originalUri, head.hash);
-			} else {
-				current.uri = toGitUri(uri, head.hash);
+			if (currentExists) {
+				current.uri = toGitUri(currentFileUri, head.hash);
 			}
 
 			// theirs
 			incoming.detail = rebaseOrMergeHead.refNames.join(', ');
 			incoming.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
-			if (oursDiffFile) {
-				// use the original uri in case the file was renamed by ours
-				incoming.uri = toGitUri(oursDiffFile.originalUri, rebaseOrMergeHead.hash);
-			} else {
-				incoming.uri = toGitUri(uri, rebaseOrMergeHead.hash);
+			if (incomingExists) {
+				incoming.uri = toGitUri(incomingFileUri, rebaseOrMergeHead.hash);
 			}
 
 		} catch (error) {
