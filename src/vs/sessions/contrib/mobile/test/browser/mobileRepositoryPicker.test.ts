@@ -162,7 +162,7 @@ suite('MobileRepositoryPicker', () => {
 			if (choices === 'multiple providers') {
 				browseActions.push({ label: 'Other', icon: Codicon.folder, providerId: 'second', run: async () => undefined });
 			}
-			let dispatched = 0;
+			const dispatched: (number | undefined)[] = [];
 			const result = showMobileWorkspacePickerSheet(
 				upcastPartial<IWorkbenchLayoutService>({ mainContainer: container }),
 				trigger,
@@ -176,21 +176,27 @@ suite('MobileRepositoryPicker', () => {
 						group: { title: '', icon: action.icon }, item: { browseActionIndex: index },
 					})),
 				],
-				() => { dispatched++; },
+				item => { dispatched.push(item.browseActionIndex); },
 				browseActions,
 				true,
 			);
 			await clock.tickAsync(0);
 			const title = container.querySelector('[role="dialog"]')?.ariaLabel;
 			const headers = container.querySelectorAll('.mobile-picker-sheet-header-action').length;
-			container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
+			const browseRows = [...container.querySelectorAll<HTMLButtonElement>('.mobile-picker-sheet-item')].filter(row => row.querySelector('.mobile-picker-sheet-label')?.textContent === 'Other');
+			if (choices === 'multiple providers') {
+				assert.strictEqual(browseRows.length, 1);
+				browseRows[0].click();
+			} else {
+				container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
+			}
 			await clock.tickAsync(180);
 			await result;
 
 			assert.deepStrictEqual({ title, headers, dispatched }, {
 				title: 'Choose Workspace',
-				headers: choices === 'multiple providers' ? 2 : choices === 'inline folders' ? 0 : 1,
-				dispatched: 0,
+				headers: choices === 'recent workspace' ? 1 : 0,
+				dispatched: choices === 'multiple providers' ? [1] : [],
 			});
 		});
 	}

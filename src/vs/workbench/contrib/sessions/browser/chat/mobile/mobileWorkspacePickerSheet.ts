@@ -198,11 +198,15 @@ export async function showMobileWorkspacePickerSheet(
 	}
 
 	let rows = buildMobileWorkspacePickerRows(rowItems, dispatch);
-	const headerActions: IMobilePickerSheetHeaderAction[] = headerBrowseActions.map((b, i) => ({
-		id: String(i),
-		label: b.label,
-		icon: b.icon,
-	}));
+	const headerActions: IMobilePickerSheetHeaderAction[] = [];
+	const browseRows: IMobilePickerSheetItem[] = [];
+	for (const [index, action] of headerBrowseActions.entries()) {
+		if (headerBrowseActions.some(other => other !== action && other.icon.id === action.icon.id)) {
+			browseRows.push({ id: MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX + index, label: action.label, description: action.description, icon: action.icon, navigates: true });
+		} else {
+			headerActions.push({ id: String(index), label: action.label, icon: action.icon });
+		}
+	}
 
 	// Build the inline search source and a parallel id→dispatch map so
 	// the sheet can resolve folder taps back to a provider selection.
@@ -229,13 +233,10 @@ export async function showMobileWorkspacePickerSheet(
 				folderRunById.clear();
 				folderLabelById.clear();
 				const normalizedQuery = query.trim().toLocaleLowerCase();
-				const filteredRows = showSearch
-					? rows
-						.map(row => row.sheetItem)
-						.filter(item => !normalizedQuery
-							|| item.label.toLocaleLowerCase().includes(normalizedQuery)
-							|| item.description?.toLocaleLowerCase().includes(normalizedQuery))
-					: [];
+				const candidates = [...browseRows, ...(showSearch ? rows.map(row => row.sheetItem) : [])];
+				const filteredRows = candidates.filter(item => !normalizedQuery
+					|| item.label.toLocaleLowerCase().includes(normalizedQuery)
+					|| item.description?.toLocaleLowerCase().includes(normalizedQuery));
 				const results = await Promise.all(
 					inlineFolderActions.map(async action => {
 						try {
@@ -293,7 +294,7 @@ export async function showMobileWorkspacePickerSheet(
 		result = await showMobilePickerSheet(
 			layoutService.mainContainer,
 			localize('mobileWorkspacePicker.title', "Choose Workspace"),
-			showSearch ? [] : rows.map(r => r.sheetItem),
+			[...(search ? [] : browseRows), ...(showSearch ? [] : rows.map(r => r.sheetItem))],
 			{
 				cancellationToken,
 				headerActions,
@@ -304,6 +305,9 @@ export async function showMobileWorkspacePickerSheet(
 				stayOpenOnSelect: true,
 				doneLabel: localize('mobileWorkspacePicker.cancel', "Cancel"),
 				onDidSelect: (id) => {
+					if (id.startsWith(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX)) {
+						return MOBILE_PICKER_SHEET_CONFIRM;
+					}
 					if (id.startsWith(SEARCH_RESULT_ID_PREFIX)) {
 						// Drill down: build a path query from the current
 						// query prefix + this folder's name, e.g.
@@ -360,6 +364,7 @@ interface IPartitionedItems {
  */
 interface IBrowseHeaderAction {
 	readonly label: string;
+	readonly description?: string;
 	readonly icon: ThemeIcon;
 	readonly invoke: () => void;
 }
@@ -420,6 +425,7 @@ function partitionItems(
 			const data = item.item;
 			headerBrowseActions.push({
 				label: item.label ?? '',
+				description: descriptionToString(item.description),
 				icon: item.group?.icon ?? Codicon.folderOpened,
 				invoke: () => dispatch(data),
 			});
