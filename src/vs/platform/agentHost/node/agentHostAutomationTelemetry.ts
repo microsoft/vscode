@@ -69,7 +69,7 @@ export type IAutomationDefinitionTelemetry = IAutomationConfigurationTelemetry &
 };
 
 type AutomationCreatedClassification = AutomationConfigurationClassification & {
-	owner: 'ulugbekna';
+	owner: 'benvillalobos';
 	comment: 'Records newly persisted automation definitions, excluding migration and replay.';
 	automationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 of the complete automation resource URI, stable across ownership migration.' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic execution is enabled at creation.' };
@@ -99,13 +99,13 @@ type AutomationDeletedClassification = Omit<AutomationCreatedClassification, 'co
 
 type AutomationRunCreatedEvent = IAutomationRunTelemetry & IAutomationConfigurationTelemetry;
 type AutomationRunCreatedClassification = AutomationRunClassification & Omit<AutomationConfigurationClassification, 'provider'> & {
-	owner: 'ulugbekna';
+	owner: 'benvillalobos';
 	comment: 'Records a new durable Agent Host automation run claim, including runs that fail before a session exists. Replays, suppressed overlaps and restored claims do not emit.';
 };
 
 type AutomationRunStartedEvent = IAutomationRunTelemetry & IAutomationConfigurationTelemetry;
 type AutomationRunStartedClassification = AutomationRunClassification & Omit<AutomationConfigurationClassification, 'provider'> & {
-	owner: 'ulugbekna';
+	owner: 'benvillalobos';
 	comment: 'Records the first durable session linkage of a non-terminal automation run, with its saved configuration.';
 };
 
@@ -114,7 +114,7 @@ type AutomationRunCompletedEvent = IAutomationRunTelemetry & {
 	durationMs: number;
 };
 type AutomationRunCompletedClassification = AutomationRunClassification & {
-	owner: 'ulugbekna';
+	owner: 'benvillalobos';
 	comment: 'Records the first persisted terminal transition of an Agent Host automation run, including pre-session failures and restart interruptions.';
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Run outcome: success, error, cancelled or interrupted.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock milliseconds from durable run claim to terminal state.' };
