@@ -112,7 +112,7 @@ function getUpdateLabel(update: NonNullable<NonNullable<IRemoteTroubleshootingIn
  * PowerShell and cmd, so pasting it can't run anything else. `--` keeps the destination from being read as an option.
  */
 function getSSHTestCommand(ssh: IRemoteTroubleshootingInfo['ssh'], address: string): string | undefined {
-	const destination = ssh?.alias ?? `${ssh?.user ? `${ssh.user}@` : ''}${ssh?.hostName ?? address}`;
+	const destination = ssh?.alias ?? `${ssh?.user ? `${ssh.user}@` : ''}${ssh?.host ?? ssh?.hostName ?? address}`;
 	const port = !ssh?.alias && ssh?.port !== undefined && ssh.port !== 22 ? ssh.port : undefined;
 	if (!/^\w[\w.@:-]*$/.test(destination) || port !== undefined && !Number.isSafeInteger(port)) {
 		return undefined;

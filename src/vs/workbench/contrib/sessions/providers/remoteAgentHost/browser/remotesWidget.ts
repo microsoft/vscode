@@ -668,6 +668,8 @@ export class RemotesWidget extends Disposable {
 			void this.refresh();
 		} else {
 			this.cancelRefresh();
+			// Troubleshoot actions of failure notifications can't open the page while it's hidden.
+			this.connectionFailures.clearAndDisposeAll();
 		}
 	}
 
@@ -1150,10 +1152,12 @@ export class RemotesWidget extends Disposable {
 			if (!isCancellationError(error)) {
 				const remote = this.model.remotes.get().find(remote => remote.id === id);
 				if (connected && remote) {
+					// The page can only open while Remote Environments is open; the error itself stays in the notification.
+					const troubleshoot = this.visible && !this._store.isDisposed;
 					const handle = this.notificationService.notify({
 						severity: Severity.Error,
 						message: localize('remotes.connectionFailureFor', "Connection to {0} failed: {1}", remote.name, toErrorMessage(error)),
-						actions: {
+						actions: troubleshoot ? {
 							primary: [toAction({
 								id: 'remotes.troubleshootFailure', label: localize('remotes.troubleshootAction', "Troubleshoot"),
 								run: () => {
@@ -1165,10 +1169,11 @@ export class RemotesWidget extends Disposable {
 									}
 								},
 							})],
-						},
+						} : undefined,
 					});
-					// The page can only open while Remote Environments is open; the error itself stays in the notification.
-					this.connectionFailures.set(id, toDisposable(() => handle.updateActions()));
+					if (troubleshoot) {
+						this.connectionFailures.set(id, toDisposable(() => handle.updateActions()));
+					}
 				} else {
 					this.notificationService.error(error);
 				}

@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
-import { isObject } from '../../../../../../base/common/types.js';
+import { isDefined, isObject } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { normalizeRemoteAgentHostAddress } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -167,6 +167,8 @@ export interface IRemoteTroubleshootingInfo {
 	readonly ssh?: {
 		/** The SSH configuration alias used to connect, if any. */
 		readonly alias?: string;
+		/** The saved host of a connection without an alias, which SSH configuration resolves to {@link hostName}. */
+		readonly host?: string;
 		readonly hostName?: string;
 		readonly user?: string;
 		readonly port?: number;
@@ -1124,29 +1126,34 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	}
 
 	/**
-	 * Resolves an SSH host from local configuration, and the identity its host key is trusted under:
-	 * like the SSH connector, `HostKeyAlias` or else the resolved host name, with the saved entry's port before the configured one.
+	 * Resolves an SSH host from local configuration like the SSH connector, which also resolves saved hosts without an alias,
+	 * and the identity its host key is trusted under: `HostKeyAlias` or else the resolved host name, falling back to the
+	 * resolved host name when the alias has no saved key, with the saved entry's port before the configured one.
 	 */
 	private async resolveSSHHostKeyIdentity(entry: IRemoteAgentHostEntry): Promise<{ readonly info: NonNullable<IRemoteTroubleshootingInfo['ssh']>; readonly trusted?: { readonly host: string; readonly port: number } }> {
 		const connection = entry.connection.type === RemoteAgentHostEntryType.SSH ? entry.connection : undefined;
 		const alias = connection?.sshConfigHost;
+		const configHost = alias ?? connection?.hostName;
 		let resolved: ISSHResolvedConfig | undefined;
-		if (alias) {
+		if (configHost) {
 			try {
-				resolved = await this.sshService.resolveSSHConfig(alias);
+				resolved = await this.sshService.resolveSSHConfig(configHost);
 			} catch (error) {
-				this.logService.trace(`[Remotes] Couldn't resolve SSH configuration for ${alias}`, error);
+				this.logService.trace(`[Remotes] Couldn't resolve SSH configuration for ${configHost}`, error);
 			}
 		}
 		const hostName = resolved?.hostname ?? connection?.hostName;
 		const port = connection?.port ?? resolved?.port;
-		const user = resolved?.user ?? connection?.user;
-		const trustHost = resolved?.hostKeyAlias ?? hostName;
-		const identity = trustHost ? { host: trustHost, port: port ?? 22 } : undefined;
-		const trusted = identity && this.hostKeyTrustService.getTrustedKeys(identity.host, identity.port).length > 0 ? identity : undefined;
+		// The connector uses the saved user of a connection without an alias.
+		const user = alias ? resolved?.user ?? connection?.user : connection?.user ?? resolved?.user;
+		const trusted = [resolved?.hostKeyAlias ?? hostName, hostName]
+			.filter(isDefined)
+			.map(host => ({ host, port: port ?? 22 }))
+			.find(identity => this.hostKeyTrustService.getTrustedKeys(identity.host, identity.port).length > 0);
 		return {
 			info: {
-				...(alias ? { alias } : {}), ...(hostName ? { hostName } : {}), ...(user ? { user } : {}), ...(port !== undefined ? { port } : {}),
+				...(alias ? { alias } : connection?.hostName ? { host: connection.hostName } : {}),
+				...(hostName ? { hostName } : {}), ...(user ? { user } : {}), ...(port !== undefined ? { port } : {}),
 				...(resolved?.identityFile.length ? { identityFiles: resolved.identityFile } : {}),
 				...(resolved?.proxyCommand ? { proxyCommand: resolved.proxyCommand } : {}),
 				hasSavedHostKey: !!trusted,

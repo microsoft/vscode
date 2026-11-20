@@ -19,7 +19,7 @@ import { RootState } from '../../../../../../../platform/agentHost/common/state/
 import { ExtensionRemoteAgentHostsService, IExtensionRemoteAgentHostsService } from '../../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHRemoteAgentHostService, ISSHResolvedConfig } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ISSHHostKeyTrustService, ISSHTrustedHostKey } from '../../../../../../../platform/agentHost/common/sshHostKeyTrust.js';
 import { IRemoteConnectionDiagnosticEvent } from '../../../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
@@ -85,6 +85,8 @@ suite('RemotesModel', () => {
 		const dismissed = new Set<string>();
 		const removals: string[] = [];
 		const sshDisconnects: string[] = [];
+		const resolvedSSHHosts: string[] = [];
+		const sshConfigs = new Map<string, Partial<ISSHResolvedConfig>>();
 		const removedConnections: string[] = [];
 		const connectionChanges: { id: string; connected: boolean }[] = [];
 		const reconnects: string[] = [];
@@ -284,7 +286,10 @@ suite('RemotesModel', () => {
 				}
 				removeSSHRemoteAgentHostEntry(storage, key);
 			},
-			resolveSSHConfig: async () => ({ hostname: 'build.example', user: 'developer', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined }),
+			resolveSSHConfig: async host => {
+				resolvedSSHHosts.push(host);
+				return { hostname: 'build.example', user: 'developer', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined, ...sshConfigs.get(host) };
+			},
 		});
 		instantiationService.stub(IWSLRemoteAgentHostService, {
 			onDidChangeConnections: wslConnectionsChanged.event,
@@ -421,7 +426,7 @@ suite('RemotesModel', () => {
 		return {
 			model, storage, configuration, removals, sshDisconnects, removedConnections, logEntries, providers, providersChanged, connectionChanges, reconnects, signIns,
 			copiedAddresses, locationPromptResult, locationPreferences, notifications, upgrades, upgrade,
-			wslState, wslConnectionsChanged, terminatedDistros, diagnosticEvents, trustedHostKeys, forgottenHosts,
+			wslState, wslConnectionsChanged, terminatedDistros, diagnosticEvents, trustedHostKeys, forgottenHosts, resolvedSSHHosts, sshConfigs,
 			setConnections: (value: readonly IRemoteAgentHostConnectionInfo[]) => { connections = value; connectionsChanged.fire(); },
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
 			getCachedTunnels: () => tunnels,
@@ -809,6 +814,25 @@ suite('RemotesModel', () => {
 			forgotten: false,
 			forgetAgain: 'No host key is saved for this remote.',
 			connectionChanges: [],
+		});
+	});
+
+	test('troubleshooting info resolves saved SSH hosts without an alias, and falls back from a HostKeyAlias without keys like the connector', async () => {
+		const { model, storage, trustedHostKeys, forgottenHosts, resolvedSSHHosts, sshConfigs } = setup();
+		addSSHRemoteAgentHostEntry(storage, {
+			name: 'Direct host', connectionToken: undefined,
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:dev@direct.example:2222', hostName: 'direct.example', user: 'dev', port: 2222 },
+		});
+		sshConfigs.set('direct.example', { hostname: 'direct.internal', hostKeyAlias: 'direct-key', port: 22 });
+		trustedHostKeys.set('direct.internal:2222', [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:legacy', addedAt: 0 }]);
+		const legacy = await model.getTroubleshootingInfo('ssh:dev@direct.example:2222');
+		trustedHostKeys.set('direct-key:2222', [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:alias', addedAt: 0 }]);
+		await model.forgetSSHHostKey('ssh:dev@direct.example:2222');
+		assert.deepStrictEqual({ ssh: legacy.ssh, resolvedSSHHosts, forgottenHosts, remainingTrust: [...trustedHostKeys.keys()] }, {
+			ssh: { host: 'direct.example', hostName: 'direct.internal', user: 'dev', port: 2222, hasSavedHostKey: true },
+			resolvedSSHHosts: ['direct.example', 'direct.example'],
+			forgottenHosts: ['direct-key:2222'],
+			remainingTrust: ['direct.internal:2222'],
 		});
 	});
 

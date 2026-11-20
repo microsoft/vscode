@@ -3528,13 +3528,18 @@ suite('RemotesWidget', () => {
 		model.connectionFailure = new Error('Connection refused');
 		getConnectionAction(parent, 'tunnel:laptop').click();
 		await timeout(0);
-		const [failure] = notifications;
+		widget.setVisible(true);
+		getConnectionAction(parent, 'tunnel:laptop').click();
+		await timeout(0);
+		const [hiddenFailure, failure] = notifications;
 		const labels = failure.actions().map(action => action.label);
 		await failure.actions()[0].run();
 		await timeout(0);
 		const page = readTroubleshooting(parent);
+		widget.setVisible(false);
+		const actionsWhenHidden = failure.actions().length;
 		widget.dispose();
-		assert.deepStrictEqual({ message: failure.notification.message, labels, page, actionsAfterClose: failure.actions().length }, {
+		assert.deepStrictEqual({ message: failure.notification.message, labels, page, actionsWhenHidden, hiddenFailure: { message: hiddenFailure.notification.message, actions: hiddenFailure.actions().length } }, {
 			message: 'Connection to Laptop failed: Connection refused',
 			labels: ['Troubleshoot'],
 			page: {
@@ -3543,10 +3548,10 @@ suite('RemotesWidget', () => {
 				feedback: 'Connection failed: Connection refused', guidance: [], command: undefined,
 				actions: ['Retry Connection'], links: ['Dev Tunnel connection guide', 'Open Diagnostic Report'],
 			},
-			actionsAfterClose: 0,
+			actionsWhenHidden: 0,
+			hiddenFailure: { message: 'Connection to Laptop failed: Connection refused', actions: 0 },
 		});
 	});
-
 	test('the troubleshooting page reports failed actions on the page and restarts a WSL distribution', async () => {
 		const { parent, model, errors } = createWidget(OperatingSystem.Windows);
 		model.remotes.set(model.remotes.get().map(remote => remote.id === 'wsl:Ubuntu' ? { ...remote, lastConnectionError: 'The agent host exited' } : remote), undefined);
