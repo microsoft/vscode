@@ -7,6 +7,7 @@ import type { LanguageModelToolApprovalClassification, LanguageModelToolInvokedC
 import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
+import { createHash } from 'crypto';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentSession, type AgentCanvasOpenFailure, type AgentSubagentKind, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary, type IAgentTelemetryContext, type IAgentTurnInteraction } from '../common/agent.js';
 import { isReasoningEffortLevel } from '../common/reasoningEffort.js';
@@ -34,6 +35,34 @@ import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { toCopilotTelemetryData } from './shared/copilotSkuTelemetry.js';
 import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codex/codexAccountTelemetry.js';
 import { groupAgentHostProviderTimings, sanitizeAgentHostProviderTiming, type AgentHostProviderTimingMeasurement, type AgentHostProviderTimingMeasurements, type IAgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
+import { COPILOT_ENABLED_BUILTIN_TOOL_NAMES } from './copilot/copilotBuiltinToolAllowlist.js';
+import { ArtifactIntegrationServerToolName, ArtifactServerToolName, SessionServerToolName } from '../common/serverToolNames.js';
+
+// AHP does not carry the runtime's safeForTelemetry flag. Only code-defined names may remain readable.
+const telemetryToolNames = new Set<string>([
+	...COPILOT_ENABLED_BUILTIN_TOOL_NAMES,
+	'extensions_reload', 'enable_computer_use',
+	// Claude built-ins.
+	'Bash', 'BashOutput', 'KillBash', 'Read', 'Glob', 'Grep', 'LS', 'NotebookRead',
+	'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'TodoWrite', 'WebFetch',
+	'Task', 'Agent', 'ExitPlanMode', 'AskUserQuestion', 'Skill', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet',
+	// Codex's code-defined protocol item names.
+	'shell', 'web_search', 'image_gen.imagegen', 'file_edit', 'compact',
+	'spawnAgent', 'sendInput', 'resumeAgent', 'wait', 'closeAgent',
+	SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.SetWorkspace,
+	SessionServerToolName.IsolateSession, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat,
+	SessionServerToolName.RenameChat, SessionServerToolName.ArchiveChat, SessionServerToolName.SendMessage,
+	SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession, SessionServerToolName.MoveSession,
+	ArtifactServerToolName.AddArtifactOrReference, ArtifactServerToolName.RemoveArtifactOrReference, ArtifactServerToolName.ListArtifactsAndReferences,
+	ArtifactIntegrationServerToolName.GetArtifactStatus, ArtifactIntegrationServerToolName.RunArtifactAction,
+	ArtifactIntegrationServerToolName.SetArtifactAutomation, ArtifactIntegrationServerToolName.DisableArtifactAutomation,
+	'addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments',
+	'setAgentMergeEnabled', 'readAgentMergeCI', 'replyToAgentMergeReviewThread', 'rerunAgentMergeWorkflow',
+]);
+
+function toTelemetryToolId(toolId: string): string {
+	return telemetryToolNames.has(toolId) ? toolId : createHash('sha256').update(toolId, 'utf8').digest('hex');
+}
 
 /* __GDPR__
 	"copilot-chat/conversation.messageText": {
@@ -861,7 +890,7 @@ export type IAgentHostTurnHungClassification = IAgentHostEventClassification & C
 	providerSessionState?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded provider session state when the hang watchdog fired.' };
 	initiatorClientConnectionState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the client that initiated the turn was still connected when the hang watchdog fired, or unknown when the client could not be identified.' };
 	blockedOn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of outstanding user-blocking session input request, when there is one. Client tool execution is not counted, since it is delegated work rather than a prompt.' };
-	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the tool the turn appears to be stuck on. When hangReason is waitingOnUser this is the tool gated by the blocking request, which is exact; when it is runningTool this is the longest-running in-flight tool call, which is a best guess when several are running. Undefined when no tool explains the hang.' };
+	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted tool name or SHA-256 hash of any other name. Identifies the blocking tool for waitingOnUser or the longest-running tool for runningTool; undefined when no tool explains the hang.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stuck tool is provided by the agent host, an MCP server, or a client.' };
 	inFlightToolCallCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of tool calls that had started but not completed when the watchdog fired. When hangReason is runningTool, a value above one means toolId is a best guess among several running tools; when it is waitingOnUser, toolId comes from the blocking request and is exact regardless of this count.' };
 	quietTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds since the last observed turn activity.' };
@@ -1161,7 +1190,8 @@ type IAgentHostLanguageModelToolInvokedEvent = LanguageModelToolInvokedEvent & I
 	mcpSourceKind?: McpServerSource;
 };
 
-type IAgentHostLanguageModelToolInvokedClassification = LanguageModelToolInvokedClassification & IAgentHostEventClassification & {
+type IAgentHostLanguageModelToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'toolId'> & IAgentHostEventClassification & {
+	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Allowlisted tool name or SHA-256 hash of any other name.' };
 	mcpSourceKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configuration source of an MCP tool: user, workspace, plugin, builtin, managed, or account. Managed MCP tools include Copilot connectors.' };
 };
 
@@ -1194,7 +1224,8 @@ export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentH
 	mcpSourceKind?: McpServerSource;
 };
 
-export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'provider' | 'chatSessionId' | 'owner' | 'comment'> & IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
+export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'provider' | 'chatSessionId' | 'toolId' | 'owner' | 'comment'> & IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
+	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Allowlisted tool name or SHA-256 hash of any other name.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that invoked the tool.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the Agent Host session.' };
@@ -1358,7 +1389,8 @@ export interface IAgentHostToolApprovalEvent extends IAgentHostEventTelemetry {
 	requestUnsandboxedExecution: boolean | undefined;
 }
 
-export type IAgentHostToolApprovalClassification = IAgentHostEventClassification & LanguageModelToolApprovalClassification & {
+export type IAgentHostToolApprovalClassification = IAgentHostEventClassification & Omit<LanguageModelToolApprovalClassification, 'toolId'> & {
+	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Allowlisted tool name or SHA-256 hash of any other name.' };
 	decisionSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK permission decision source. human_response is explicit human attribution; missing is unattributed, not human.' };
 	permissionResult?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK permission result category, distinguishing rule, hook, policy, cancellation and unavailable-responder outcomes.' };
 	approvalTelemetryVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Version of the approval classification. Version 2 requires explicit human attribution for userAction.' };
@@ -1494,7 +1526,7 @@ export type IAgentHostToolCallStalledClassification = IAgentHostEventClassificat
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the stalled tool call belongs to a subagent session.' };
 	blockerKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the tool call is waiting for confirmation or client execution.' };
 	toolCallId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The tool call identifier, matching agentHost.toolInvoked and the eventual stalled completion event.' };
-	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the stalled tool.' };
+	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted tool name or SHA-256 hash of any other name for the stalled tool.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stalled tool is provided by the agent host, an MCP server, or a client.' };
 	executorClientConnectionState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the delegated executor client was connected when a client-execution stall was reported; unknown when the client had not been observed and omitted for other blocker kinds.' };
 	stalledTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds that the tool call has remained blocked.' };
@@ -1537,7 +1569,7 @@ export type IAgentHostStalledToolCallCompletedClassification = IAgentHostEventCl
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the completed tool call belongs to a subagent session.' };
 	blockerKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the tool call had stalled waiting for confirmation or client execution.' };
 	toolCallId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The tool call identifier, matching the originating stall and agentHost.toolInvoked events.' };
-	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the completed tool.' };
+	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted tool name or SHA-256 hash of any other name for the completed tool.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the completed tool is provided by the agent host, an MCP server, or a client.' };
 	executorClientConnectionState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The delegated executor client connection state captured when the client-execution stall was reported; omitted for other blocker kinds.' };
 	result: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stalled tool call eventually completed successfully, with an error, or through user cancellation.' };
@@ -2151,7 +2183,7 @@ export class AgentHostTelemetryReporter {
 			isSubagentSession: isSubagentSession(session),
 			chatSessionId: agentSessionId,
 			requestId: report.turnId,
-			toolId: report.toolId,
+			toolId: toTelemetryToolId(report.toolId),
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
 			confirmKind: report.confirmKind,
@@ -2510,7 +2542,7 @@ export class AgentHostTelemetryReporter {
 			} : {}),
 			initiatorClientConnectionState: report.initiatorClientConnectionState,
 			blockedOn: report.blockedOn,
-			toolId: report.toolId,
+			toolId: report.toolId === undefined ? undefined : toTelemetryToolId(report.toolId),
 			toolSourceKind: report.toolSourceKind,
 			inFlightToolCallCount: report.inFlightToolCallCount,
 			quietTimeMs: report.quietTimeMs,
@@ -2606,12 +2638,13 @@ export class AgentHostTelemetryReporter {
 		// by their chat-channel URI, so normalize it back to the session URI.
 		const session = report.owner;
 		const isSubagent = report.subagentKind !== undefined || isSubagentSession(session);
+		const toolId = toTelemetryToolId(report.toolId);
 		this._telemetryService.publicLog2<IAgentHostLanguageModelToolInvokedEvent, IAgentHostLanguageModelToolInvokedClassification>('languageModelToolInvoked', {
 			...toInitiatorTelemetry(report.clientContext),
 			...toCopilotTelemetryData(report.telemetryContext),
 			result: report.result,
 			chatSessionId: session,
-			toolId: report.toolId,
+			toolId,
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
 			...(report.mcpSourceKind ? { mcpSourceKind: report.mcpSourceKind } : {}),
@@ -2630,7 +2663,7 @@ export class AgentHostTelemetryReporter {
 			chatSessionId: getTelemetryChatSessionId(report.session),
 			isSubagentSession: isSubagent,
 			...toSubagentKindTelemetry(isSubagent, report.subagentKind),
-			toolId: report.toolId,
+			toolId,
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
 			...(report.mcpSourceKind ? { mcpSourceKind: report.mcpSourceKind } : {}),
@@ -2678,7 +2711,7 @@ export class AgentHostTelemetryReporter {
 			...toSubagentKindTelemetry(isSubagent, report.subagentKind),
 			blockerKind: report.blockerKind,
 			toolCallId: report.toolCallId,
-			toolId: report.toolId,
+			toolId: toTelemetryToolId(report.toolId),
 			toolSourceKind: report.toolSourceKind,
 			executorClientConnectionState: report.executorClientConnectionState,
 			stalledTimeMs: report.stalledTimeMs,
@@ -2697,7 +2730,7 @@ export class AgentHostTelemetryReporter {
 			...toSubagentKindTelemetry(isSubagent, report.subagentKind),
 			blockerKind: report.blockerKind,
 			toolCallId: report.toolCallId,
-			toolId: report.toolId,
+			toolId: toTelemetryToolId(report.toolId),
 			toolSourceKind: report.toolSourceKind,
 			executorClientConnectionState: report.executorClientConnectionState,
 			result: report.result,
