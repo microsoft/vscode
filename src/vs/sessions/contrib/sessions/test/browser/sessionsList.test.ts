@@ -9202,8 +9202,51 @@ suite('Sessions - SessionsList', () => {
 				list.closeFind();
 				await timeout(350);
 			};
-			return { harness, list, rows, search, closeSearch };
+			return { harness, container, findWidgetContainer, list, rows, search, closeSearch };
 		}
+
+		test('phone search keeps the empty result after blur until the results or query change', async () => {
+			const { harness, container, findWidgetContainer, list, search, closeSearch } = renderSearch([createSession('First')], instantiationService => {
+				const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				IsPhoneLayoutContext.bindTo(context).set(true);
+				instantiationService.stub(IContextKeyService, context);
+			});
+			container.prepend(findWidgetContainer);
+			const status = container.querySelector('.sessions-list-primary [role="status"]');
+			assert.ok(status);
+			try {
+				search('second');
+				const input = findWidgetContainer.querySelector<HTMLInputElement>('input')!;
+				assert.strictEqual(mainWindow.document.activeElement, input);
+				const focused = status.textContent;
+				const warning = !!findWidgetContainer.querySelector('.monaco-inputbox.warning');
+				input.blur();
+				assert.notStrictEqual(mainWindow.document.activeElement, input);
+				const blurred = status.textContent;
+				const announcement = status.firstChild;
+				list.refresh();
+				assert.strictEqual(status.firstChild, announcement, 'refreshing unchanged results should not repeat the announcement');
+
+				harness.managementService.sessions.push(createSession('Second'));
+				list.refresh();
+				const arrived = status.textContent;
+				harness.managementService.sessions.pop();
+				list.refresh();
+				const removed = status.textContent;
+				search('first');
+				const matched = status.textContent;
+				search('absent');
+				search('');
+				const cleared = status.textContent;
+				search('absent');
+				list.closeFind();
+				assert.deepStrictEqual({ focused, warning, blurred, arrived, removed, matched, cleared, closed: status.textContent }, {
+					focused: 'No sessions found', warning: false, blurred: 'No sessions found', arrived: '', removed: 'No sessions found', matched: '', cleared: '', closed: '',
+				});
+			} finally {
+				await closeSearch();
+			}
+		});
 
 		test('matches every word in any order, not scattered letters', async () => {
 			const { search, closeSearch } = renderSearch([

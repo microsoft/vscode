@@ -546,6 +546,11 @@
 	overflow: hidden;
 }
 
+.sessions-list-search-empty:not(:empty) {
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+}
+
 .sessions-list-control.inbox-layout {
 	&:not(.compact) .session-item:not(.quick-chat, .session-comparison-attempt) {
 		padding-top: var(--vscode-spacing-size40);
