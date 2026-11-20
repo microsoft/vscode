@@ -28,7 +28,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { EmptyEditorHintActionsWidget } from '../../browser/emptyTextEditorHint/emptyEditorHintActions.js';
-import { emptyEditorHintOpenInMarkdownEditorSetting, EmptyTextEditorHintContentWidget, EmptyTextEditorHintContribution } from '../../browser/emptyTextEditorHint/emptyTextEditorHint.js';
+import { emptyEditorHintOpenInMarkdownEditorSetting, EmptyTextEditorHintContentWidget, EmptyTextEditorHintContribution } from '../../browser/emptyTextEditorHint/emptyTextEditorHintController.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
