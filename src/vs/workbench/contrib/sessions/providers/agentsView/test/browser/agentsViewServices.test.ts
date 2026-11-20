@@ -40,7 +40,7 @@ import { ChatHeader } from '../../../../browser/parts/chatHeader.js';
 import { RemoteHostUnavailableEmptyState } from '../../../../browser/parts/remoteHostUnavailableEmptyState.js';
 import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionActivityBar.js';
 import { SessionHeader } from '../../../../browser/parts/sessionHeader.js';
-import { SessionReadOnlyBanner } from '../../../../browser/parts/sessionReadOnlyBanner.js';
+import { ChatReadOnlyBanner } from '../../../../../chat/browser/widget/chatReadOnlyBanner.js';
 import { SessionRemoteConnection } from '../../../../browser/parts/sessionRemoteConnection.js';
 import { SessionsInboxScope } from '../../../../browser/views/sessionsInboxScope.js';
 import { SessionsListFilters } from '../../../../browser/views/sessionsListFilters.js';
@@ -105,7 +105,7 @@ function editorWindowSessionsSingletons(): readonly IEditorWindowSessionsSinglet
 const SESSIONS_UI = [
 	SessionsView, SessionsList, ChatView, ChatGroupView, ChatEditorView, ChatEditorContent, NewChatWidget, NewChatInSessionWidget, SharedChatInputComposer, AgentsChatViewHost, EditorWindowChatPartService,
 	NewChatView, SessionChatInputToolbar, SessionInputBanners, SessionArchiveNudge, SessionStatusIcon, ResponseSelectionSideChatController,
-	SessionHeader, ChatCompositeBar, ChatHeader, ChatViewSessionActivityBar, RemoteHostUnavailableEmptyState, SessionReadOnlyBanner, SessionRemoteConnection,
+	SessionHeader, ChatCompositeBar, ChatHeader, ChatViewSessionActivityBar, RemoteHostUnavailableEmptyState, ChatReadOnlyBanner, SessionRemoteConnection,
 	SessionsListNotification, SessionsInboxScope, SessionStorageCleanupNotice, SessionsListFilters,
 ];
 
