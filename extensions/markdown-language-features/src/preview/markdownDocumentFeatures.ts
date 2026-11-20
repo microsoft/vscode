@@ -22,9 +22,14 @@ export interface MarkdownDocumentFeatures {
 export const MAX_SCANNED_DOCUMENT_LENGTH = 100_000;
 
 const fenceRe = /^ {0,3}(`{3,}|~{3,})\s*([\w-]*)/;
+const closingFenceRe = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
 const headingRe = /^ {0,3}#{1,6}(\s|$)/;
+const setextUnderlineRe = /^ {0,3}(?:=+|-+)[ \t]*$/;
+/** Lines that end a paragraph, so an underline after them is not a Setext heading. */
+const nonParagraphRe = /^\s*$|^ {0,3}(?:#|>|[-*+]\s|\d+[.)]\s)/;
 const htmlBlockRe = /^ {0,3}<(?:[a-zA-Z][\w-]*[\s>/]|!--)/;
-const tableSeparatorRe = /^ {0,3}\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/;
+// Whitespace runs are separated by pipes or dashes, so they cannot overlap and backtrack.
+const tableSeparatorRe = /^ {0,3}\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)+(?:\|[ \t]*)?$/;
 const footnoteDefinitionRe = /^ {0,3}\[\^[^\]\s]+\]:/;
 const taskListRe = /^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]\s/;
 const mathBlockRe = /^ {0,3}\$\$/;
@@ -39,29 +44,39 @@ export function scanMarkdownFeatures(text: string): MarkdownDocumentFeatures {
 	let hasMermaid = false, hasMath = false, hasHtmlBlock = false, hasTable = false, hasFootnote = false, hasTaskList = false;
 	let headingCount = 0;
 	let fence: string | undefined;
+	let afterParagraphText = false;
 
 	const lines = text.split(/\r?\n/);
-	const hasFrontMatter = lines[0] === '---' && lines.indexOf('---', 1) > 0;
-	for (const line of lines) {
-		const fenceMatch = fenceRe.exec(line);
+	const frontMatterEnd = lines[0] === '---' ? lines.indexOf('---', 1) : -1;
+	const hasFrontMatter = frontMatterEnd > 0;
+	for (let i = hasFrontMatter ? frontMatterEnd + 1 : 0; i < lines.length; i++) {
+		const line = lines[i];
 		if (fence) {
-			if (fenceMatch && fenceMatch[1].startsWith(fence[0]) && fenceMatch[1].length >= fence.length && !fenceMatch[2]) {
+			const closingMatch = closingFenceRe.exec(line);
+			if (closingMatch && closingMatch[1].startsWith(fence[0]) && closingMatch[1].length >= fence.length) {
 				fence = undefined;
 			}
 			continue;
 		}
+		const fenceMatch = fenceRe.exec(line);
 		if (fenceMatch) {
 			fence = fenceMatch[1];
 			const info = fenceMatch[2].toLowerCase();
 			hasMermaid ||= info === 'mermaid';
 			hasMath ||= info === 'math' || info === 'latex';
+			afterParagraphText = false;
 			continue;
 		}
-		if (headingRe.test(line)) {
+		const isTableSeparator = line.includes('-') && tableSeparatorRe.test(line);
+		const isHtmlBlock = htmlBlockRe.test(line);
+		if (headingRe.test(line) || (afterParagraphText && setextUnderlineRe.test(line))) {
 			headingCount++;
+			afterParagraphText = false;
+		} else {
+			afterParagraphText = !isTableSeparator && !isHtmlBlock && !nonParagraphRe.test(line);
 		}
-		hasHtmlBlock ||= htmlBlockRe.test(line);
-		hasTable ||= line.includes('-') && tableSeparatorRe.test(line);
+		hasHtmlBlock ||= isHtmlBlock;
+		hasTable ||= isTableSeparator;
 		hasFootnote ||= line.includes('[^') && footnoteDefinitionRe.test(line);
 		hasTaskList ||= line.includes('[') && taskListRe.test(line);
 		hasMath ||= (line.includes('$') || line.includes('\\(')) && (mathBlockRe.test(line) || inlineMathRe.test(line));

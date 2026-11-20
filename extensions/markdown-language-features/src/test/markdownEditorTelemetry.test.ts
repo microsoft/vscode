@@ -112,9 +112,26 @@ suite('Markdown document features', () => {
 	});
 
 	test('finds nothing in plain prose and ignores prices', () => {
-		assert.deepStrictEqual(scanMarkdownFeatures('Just text.\nIt costs $5 and $ 10.\n---\n'), {
+		assert.deepStrictEqual(scanMarkdownFeatures('Just text.\nIt costs $5 and $ 10.\n\n---\n'), {
 			hasMermaid: false, hasMath: false, hasHtmlBlock: false, hasFrontMatter: false, hasTable: false, hasFootnote: false, hasTaskList: false, headingCountBucket: '0',
 		});
+	});
+
+	test('counts Setext headings only below paragraph text', () => {
+		assert.strictEqual(scanMarkdownFeatures('Title\n=====\n\nSection\n-------\n').headingCountBucket, '1-5');
+		assert.strictEqual(scanMarkdownFeatures('---\ntitle: x\n---\n\n- item\n---\n\n> quote\n---\n').headingCountBucket, '0');
+	});
+
+	test('closes a code fence only on a line with just the fence', () => {
+		const features = scanMarkdownFeatures('```js\n```!\n| a | b |\n| --- | --- |\n```\n# Heading\n');
+		assert.strictEqual(features.hasTable, false);
+		assert.strictEqual(features.headingCountBucket, '1-5');
+	});
+
+	test('scans a long almost-table line quickly', () => {
+		const start = performance.now();
+		assert.strictEqual(scanMarkdownFeatures('| --- | ---' + ' '.repeat(90_000) + 'x').hasTable, false);
+		assert.ok(performance.now() - start < 50);
 	});
 
 	test('scans the largest scanned document quickly', () => {

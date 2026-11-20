@@ -839,9 +839,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			viewState: getViewState(),
 		});
 		this.#telemetrySessions.add(session);
-		// Off the open path: scan after the editor has opened, and only documents small enough to scan quickly.
-		const featureScan = textLength < MAX_SCANNED_DOCUMENT_LENGTH
-			? setTimeout(() => session.setDocumentFeatures(scanMarkdownFeatures(document.getText())), FEATURE_SCAN_DELAY_MS)
+		// Off the open path: scan the text as opened after the editor has opened, and only documents small enough to scan quickly.
+		const openedText = textLength < MAX_SCANNED_DOCUMENT_LENGTH ? document.getText() : undefined;
+		const featureScan = openedText !== undefined
+			? setTimeout(() => session.setDocumentFeatures(scanMarkdownFeatures(openedText)), FEATURE_SCAN_DELAY_MS)
 			: undefined;
 		if (document.uri.scheme === 'untitled') {
 			// Links the session with the untitled document funnel of the workbench
