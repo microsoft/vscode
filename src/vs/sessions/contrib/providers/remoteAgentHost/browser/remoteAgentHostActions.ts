@@ -1311,7 +1311,7 @@ registerAction2(class extends Action2 {
  * A host that rejected our protocol version because it runs an old build
  * advertises an upgrade method in the rejection, a connected host in its
  * `initialize` result. This command invokes that method via the shared
- * {@link runServerUpgrade} flow, which asks first for connected hosts.
+ * {@link runServerUpgrade} flow, which asks first unless the host rejected our protocol version.
  * Exposed in the command palette so the update is reachable without
  * first opening the host's options quickpick.
  */

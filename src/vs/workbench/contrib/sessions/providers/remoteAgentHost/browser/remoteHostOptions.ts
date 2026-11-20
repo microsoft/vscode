@@ -246,11 +246,12 @@ export function getRemoteHostUpgradeMethod(status: RemoteAgentHostConnectionStat
 }
 
 /**
- * Asks before updating the server of a connected host, because the update restarts it.
- * A host that rejected this client's protocol version runs nothing for this client to interrupt.
+ * Asks before updating a host's server, because the update restarts it. A host that rejected
+ * this client's protocol version runs nothing for this client to interrupt. Any other host may
+ * be serving sessions, including one that is reconnecting: the request waits for the connection.
  */
 export async function confirmRemoteHostServerUpdate(dialogService: IDialogService, label: string, status: RemoteAgentHostConnectionStatus | undefined): Promise<boolean> {
-	if (!RemoteAgentHostConnectionStatus.isConnected(status)) {
+	if (RemoteAgentHostConnectionStatus.isIncompatible(status)) {
 		return true;
 	}
 	const { confirmed } = await dialogService.confirm({
