@@ -65,9 +65,3 @@ export interface IClipboardService {
 	 */
 	readImage(): Promise<Uint8Array>;
 }
-
-export const enum ClipboardType {
-	Selection = 'selection',
-	Clipboard = 'clipboard'
-}
-
