@@ -436,7 +436,7 @@ export class AgentsWindow {
 			try {
 				await picker.click();
 				if (usesEnvironmentPicker) {
-					const container = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('Dev Container', { exact: true }) });
+					const container = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('Dev Container for Folder', { exact: true }) });
 					await container.waitFor({ state: 'visible', timeout: 5_000 });
 					await container.click();
 				} else {
