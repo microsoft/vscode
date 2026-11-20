@@ -1351,6 +1351,7 @@ suite('CopilotChatSessionsProvider', () => {
 				override readonly onDidChangeDefaultAccount = accountChanged.event;
 				override get currentDefaultAccount(): IDefaultAccount {
 					return upcastPartial<IDefaultAccount>({
+						authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
 						entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: cloudSessionsEnabled }),
 					});
 				}
@@ -1412,6 +1413,7 @@ suite('CopilotChatSessionsProvider', () => {
 			disposables.add(provider.onDidChangeSessionTypes(() => changes.push(getSessionCreationEnvironments([provider]).map(environment => environment.id))));
 			disposables.add(provider.onDidChangeCapabilities(() => capabilityChanges++));
 			account = upcastPartial<IDefaultAccount>({
+				authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
 				entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: false }),
 			});
 			await initialization.complete(account);
@@ -1428,6 +1430,7 @@ suite('CopilotChatSessionsProvider', () => {
 				override readonly onDidChangeDefaultAccount = Event.None;
 				override get currentDefaultAccount(): IDefaultAccount {
 					return upcastPartial<IDefaultAccount>({
+						authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
 						entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: cloudSessionsEnabled }),
 					});
 				}
