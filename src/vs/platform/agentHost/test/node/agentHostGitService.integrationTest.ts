@@ -634,7 +634,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
-	(hasGit ? test : test.skip)('getBranchBase prefers vscode-merge-base, then an upstream tracking a different branch', async () => {
+	(hasGit ? test : test.skip)('getBranchBase returns an existing upstream that tracks a different branch', async () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-branch-base-'));
 		const origin = join(tmpRoot, 'origin.git');
 		const clone = join(tmpRoot, 'clone');
@@ -646,7 +646,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		run(clone, 'init', '-q', '-b', 'main');
 		run(clone, 'commit', '-q', '--allow-empty', '-m', 'initial');
 		run(clone, 'remote', 'add', 'origin', origin);
-		run(clone, 'push', '-q', 'origin', 'main', 'main:dev', 'main:own');
+		run(clone, 'push', '-q', 'origin', 'main', 'main:dev', 'main:own', 'main:gone');
 		run(clone, 'fetch', '-q', 'origin');
 		const baseOf = async (...checkout: string[]) => {
 			run(clone, 'checkout', '-q', ...checkout);
@@ -654,22 +654,19 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		};
 
 		const differentUpstream = await baseOf('-b', 'feat/test', '--track', 'origin/dev');
-		run(clone, 'config', 'branch.feat/test.vscode-merge-base', 'origin/main');
-		const mergeBaseConfig = await baseOf('feat/test');
-		run(clone, 'config', 'branch.feat/test.vscode-merge-base', 'origin/missing');
-		const missingMergeBaseConfig = await baseOf('feat/test');
+		run(clone, 'checkout', '-q', '-b', 'feat/gone', '--track', 'origin/gone');
+		run(clone, 'update-ref', '-d', 'refs/remotes/origin/gone');
+		const missingUpstreamRef = await baseOf('feat/gone');
 
 		assert.deepStrictEqual({
 			differentUpstream,
-			mergeBaseConfig,
-			missingMergeBaseConfig,
+			missingUpstreamRef,
 			sameNameUpstream: await baseOf('-b', 'own', '--track', 'origin/own'),
 			noUpstream: await baseOf('-b', 'local'),
 			detached: await baseOf('--detach'),
 		}, {
 			differentUpstream: 'origin/dev',
-			mergeBaseConfig: 'origin/main',
-			missingMergeBaseConfig: 'origin/dev',
+			missingUpstreamRef: undefined,
 			sameNameUpstream: undefined,
 			noUpstream: undefined,
 			detached: undefined,

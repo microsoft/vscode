@@ -157,17 +157,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (head?.kind !== GitRefType.Head) {
 			return undefined;
 		}
-		const configuredBase = (await this._runGit(workingDirectory, ['config', '--get', `branch.${head.name}.vscode-merge-base`]))?.trim();
-		for (const candidate of [configuredBase, head.upstream?.name]) {
-			if (!candidate) {
-				continue;
-			}
-			const branch = await this.getBranch(workingDirectory, `refs/remotes/${candidate}`);
-			if (branch?.kind === GitRefType.RemoteHead && branch.name.substring(branch.remote.length + 1) !== head.name) {
-				return branch;
-			}
+		if (!head.upstream) {
+			return undefined;
 		}
-		return undefined;
+		const branch = await this.getBranch(workingDirectory, head.upstream.ref);
+		return branch?.kind === GitRefType.RemoteHead && branch.name.substring(branch.remote.length + 1) !== head.name ? branch : undefined;
 	}
 
 	async getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]> {
