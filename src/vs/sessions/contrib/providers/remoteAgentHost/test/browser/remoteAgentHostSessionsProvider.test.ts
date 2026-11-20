@@ -4276,6 +4276,60 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	for (const rejected of [false, true]) {
+		test(`overlapping Dev Container archives wait for sibling confirmation before teardown, rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			connection.echoDispatchedActions = true;
+			connection.addSession(createSession('bulk-first', { summary: 'Bulk First' }));
+			connection.addSession(createSession('bulk-second', { summary: 'Bulk Second' }));
+			const lifecycleCalls: string[] = [];
+			const provider = createProvider(disposables, connection, {
+				configurationService: new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 0 }),
+				devContainerLifecycle: {
+					connect: async () => { lifecycleCalls.push('connect'); },
+					stop: async () => { lifecycleCalls.push('stop'); return true; },
+					remove: async () => { lifecycleCalls.push('remove'); return true; },
+				},
+			});
+			await timeout(0);
+			const sessions = provider.getSessions();
+			let active = 0;
+			let maximumActive = 0;
+			let dispatches = 0;
+			sinon.stub(connection, 'dispatch').callsFake((channel, action) => {
+				const index = dispatches++;
+				active++;
+				maximumActive = Math.max(maximumActive, active);
+				void (async () => {
+					await timeout(index === 0 ? 10 : 20);
+					active--;
+					connection.fireAction({
+						channel, action, serverSeq: index + 1, origin: undefined,
+						...(rejected && index === 1 ? { rejectionReason: 'archive denied' } : {}),
+					});
+				})();
+			});
+
+			const first = provider.archiveSessions([sessions[0].sessionId]);
+			const second = provider.archiveSessions([sessions[1].sessionId]);
+			await timeout(15);
+			const whileSiblingPending = [...lifecycleCalls];
+			const results = await Promise.all([first, second]);
+
+			assert.deepStrictEqual({
+				whileSiblingPending, lifecycleCalls,
+				active, maximumActive, dispatches,
+				outcomes: results.map(batch => batch.map(result => result.status)),
+				archived: sessions.map(session => session.isArchived.get()),
+			}, {
+				whileSiblingPending: [],
+				lifecycleCalls: rejected ? [] : ['stop'],
+				active: 0, maximumActive: 1, dispatches: 2,
+				outcomes: [['fulfilled'], [rejected ? 'rejected' : 'fulfilled']],
+				archived: [true, !rejected],
+			});
+		}));
+	}
+
 	test('does not remove a Dev Container or worktree when the host rejects archive', async () => {
 		const handle = '00000000-0000-4000-8000-000000000001';
 		const metadata = { 'vscode.devContainerWorktree': { version: 1, handle } };
