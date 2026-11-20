@@ -114,10 +114,11 @@ export function linkSessionMentions(message: IParsedChatRequest, detector: ChatI
 	const positions = new PositionOffsetTransformer(message.text);
 	// Code renders as written, and authored links, images and link reference definitions keep their own text and target.
 	const keptRanges = getMarkdownTokenRanges(message.text, token => token.type === 'code' || token.type === 'codespan' || token.type === 'link' || token.type === 'image', true);
+	const htmlCodeRanges = getMarkdownHtmlCodeRanges(message.text);
 	const matches = links.map(({ range, link }) => ({
 		link,
 		offset: new OffsetRange(positions.getOffset(range.getStartPosition()), positions.getOffset(range.getEndPosition())),
-	})).filter(match => isPlainMarkdownLink(message.text, match.offset) && !keptRanges.some(range => range.intersects(match.offset)));
+	})).filter(match => isPlainMarkdownLink(message.text, match.offset) && !keptRanges.some(range => range.intersects(match.offset)) && !htmlCodeRanges.some(range => range.intersects(match.offset)));
 	let changed = false;
 	const parts = message.parts.map(part => {
 		if (!(part instanceof ChatRequestTextPart)) {
@@ -141,6 +142,44 @@ export function linkSessionMentions(message: IParsedChatRequest, detector: ChatI
 		return new ChatRequestTextPart(part.range, part.editorRange, markdown + message.text.slice(copiedUntil, part.range.endExclusive));
 	});
 	return changed ? { text: message.text, parts } : message;
+}
+
+function getMarkdownHtmlCodeRanges(text: string): OffsetRange[] {
+	const htmlRanges = getMarkdownTokenRanges(text, token => token.type === 'html');
+	const codeRanges: OffsetRange[] = [];
+	const openTags: { name: string; contentStart: number }[] = [];
+	const codeTags = /<!--[\s\S]*?-->|<\/?(?:code|pre)\b[^>]*>/gi;
+	for (const htmlRange of htmlRanges) {
+		const html = text.slice(htmlRange.start, htmlRange.endExclusive);
+		let match: RegExpExecArray | null;
+		while ((match = codeTags.exec(html))) {
+			if (match[0].startsWith('<!--')) {
+				continue;
+			}
+			const tag = /^<\s*(\/?)\s*(code|pre)\b/i.exec(match[0]);
+			if (!tag) {
+				continue;
+			}
+			const name = tag[2].toLowerCase();
+			if (tag[1]) {
+				let openIndex = openTags.length - 1;
+				while (openIndex >= 0 && openTags[openIndex].name !== name) {
+					openIndex--;
+				}
+				if (openIndex >= 0) {
+					codeRanges.push(new OffsetRange(openTags[openIndex].contentStart, htmlRange.start + match.index));
+					openTags.splice(openIndex);
+				}
+			} else if (!/\/\s*>$/.test(match[0])) {
+				openTags.push({ name, contentStart: htmlRange.start + match.index + match[0].length });
+			}
+		}
+		codeTags.lastIndex = 0;
+	}
+	for (const openTag of openTags) {
+		codeRanges.push(new OffsetRange(openTag.contentStart, text.length));
+	}
+	return codeRanges;
 }
 
 /**
