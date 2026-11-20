@@ -16,6 +16,8 @@ import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common
 import { normalizeRemoteAgentHostAddress } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { formatConnectionDiagnosticError, sanitizeConnectionDiagnosticText } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { readAgentHostResources } from '../../../../../../platform/agentHost/common/meta/agentHostResources.js';
+import { IAgentHostBuild, readAgentHostBuild, readAgentHostUpgradeMethod } from '../../../../../../platform/agentHost/common/meta/agentHostUpgradeMeta.js';
+import type { Implementation, InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IExtensionRemoteAgentHost, IExtensionRemoteAgentHostsService } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -61,6 +63,10 @@ export interface IRemoteMetadata {
 	readonly lastActivityAt?: number;
 	/** When this window last confirmed the remote was online. */
 	readonly lastOnlineAt?: number;
+	/** How the server identified itself on the last connection. */
+	readonly server?: Implementation;
+	/** The VS Code build the server advertised on the last connection, when it did. */
+	readonly serverBuild?: IAgentHostBuild;
 	readonly observedAt: number;
 }
 
@@ -76,6 +82,26 @@ export type RemoteAvailability = 'online' | 'offline' | 'pending' | 'unknown';
 /** Minimum time between persisted updates of {@link IRemoteMetadata.lastOnlineAt}. */
 const lastOnlineWriteIntervalMs = 60_000;
 const sshConfigResolveConcurrency = 8;
+
+function readCachedServer(value: unknown): Implementation | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+	const { name, title, version } = value as Partial<Record<keyof Implementation, unknown>>;
+	return typeof name === 'string' && name && (title === undefined || typeof title === 'string') && (version === undefined || typeof version === 'string')
+		? { name, ...(title ? { title } : {}), ...(version ? { version } : {}) }
+		: undefined;
+}
+
+function readCachedBuild(value: unknown): IAgentHostBuild | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+	const { commit, quality, date } = value as Partial<Record<keyof IAgentHostBuild, unknown>>;
+	return typeof commit === 'string' && commit && typeof quality === 'string' && quality && typeof date === 'string' && !isNaN(Date.parse(date))
+		? { commit, quality, date }
+		: undefined;
+}
 
 export const remoteKindLabels: Record<RemoteKind, string> = {
 	ssh: localize('remotes.ssh', "SSH"),
@@ -167,6 +193,13 @@ export interface IRemoteTroubleshootingInfo {
 	readonly canRestartDistribution?: boolean;
 	/** Whether this remote's connection log can be shown. */
 	readonly canShowLog?: boolean;
+	readonly versions?: {
+		/** The server as it identified itself on the current connection, or else on the last one. */
+		readonly server?: { readonly name: string; readonly version?: string; readonly build?: IAgentHostBuild; readonly current: boolean };
+		readonly client: { readonly name: string; readonly version: string; readonly build?: IAgentHostBuild };
+		/** Whether updating the connected server from here would install a newer build; undefined when that can't be told. */
+		readonly update?: 'available' | 'upToDate' | 'otherQuality' | 'unavailable';
+	};
 }
 
 export interface IRemotesModel extends IDisposable {
@@ -990,7 +1023,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
 		const lastStep = this.getLastConnectionStep(id);
-		const common: IRemoteTroubleshootingInfo = { ...(lastStep ? { lastStep } : {}), ...(provider?.showConnectionLog ? { canShowLog: true } : {}) };
+		const common: IRemoteTroubleshootingInfo = {
+			...(lastStep ? { lastStep } : {}), ...(provider?.showConnectionLog ? { canShowLog: true } : {}),
+			versions: this.getVersions(id),
+		};
 		switch (target.kind) {
 			case 'ssh': {
 				const { info } = await this.resolveSSHHostKeyIdentities(target.entry);
@@ -1027,6 +1063,32 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			case 'environment':
 				return common;
 		}
+	}
+
+	/** The server's and this client's versions, and for a connected server whether updating it from here installs a newer build. */
+	private getVersions(id: string): NonNullable<IRemoteTroubleshootingInfo['versions']> {
+		const remote = this._remotes.get().find(remote => remote.id === id);
+		const result = RemoteAgentHostConnectionStatus.isConnected(remote?.connectionStatus) ? this.remoteAgentHostService.getConnection(id)?.initializeResult.get() : undefined;
+		const server = remote?.metadata?.server;
+		const serverBuild = remote?.metadata?.serverBuild;
+		const { nameLong, version, commit, quality, date } = this.productService;
+		const hostBuild = readAgentHostBuild(result);
+		// Servers that don't identify themselves predate update offers, so their update state is unknown.
+		const update = !result?.serverInfo ? undefined
+			: remote?.canUpdateServer ? 'available'
+				: !readAgentHostUpgradeMethod(result) ? 'unavailable'
+					: !hostBuild || !commit || !date ? undefined
+						: hostBuild.quality !== quality ? 'otherQuality' : 'upToDate';
+		return {
+			...(server ? {
+				server: {
+					name: server.title || server.name, ...(server.version ? { version: server.version } : {}), ...(serverBuild ? { build: serverBuild } : {}),
+					current: !!result?.serverInfo,
+				},
+			} : {}),
+			client: { name: nameLong, version, ...(commit && quality && date ? { build: { commit, quality, date } } : {}) },
+			...(update ? { update } : {}),
+		};
 	}
 
 	/** The last connection step the remote connection service observed, skipping informational events such as closed relays. */
@@ -1239,11 +1301,15 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			|| value.observedSessionCount !== undefined && (!validNumber(value.observedSessionCount) || !Number.isInteger(value.observedSessionCount))
 			|| value.lastConnectedAt !== undefined && !validNumber(value.lastConnectedAt)
 			|| value.lastActivityAt !== undefined && !validNumber(value.lastActivityAt)
-			|| value.lastOnlineAt !== undefined && !validNumber(value.lastOnlineAt)) {
+			|| value.lastOnlineAt !== undefined && !validNumber(value.lastOnlineAt)
+			|| value.server !== undefined && !readCachedServer(value.server)
+			|| value.serverBuild !== undefined && !readCachedBuild(value.serverBuild)) {
 			this.logService.warn('[Remotes] Invalid cached environment metadata');
 			this.storageService.remove(key, StorageScope.PROFILE);
 			return undefined;
 		}
+		const server = readCachedServer(value.server);
+		const serverBuild = readCachedBuild(value.serverBuild);
 		return {
 			observedAt: value.observedAt,
 			operatingSystem: value.operatingSystem,
@@ -1255,6 +1321,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			lastConnectedAt: value.lastConnectedAt,
 			lastActivityAt: value.lastActivityAt,
 			lastOnlineAt: value.lastOnlineAt,
+			...(server ? { server } : {}),
+			...(serverBuild ? { serverBuild } : {}),
 		};
 	}
 
@@ -1262,7 +1330,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		this.onlineObservations.set(this.getPickerKey(target), Date.now());
 	}
 
-	private getMetadata(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, status: RemoteAgentHostConnectionStatus, reader?: IReader): Pick<ICustomizationRemote, 'metadata' | 'metadataIsStale'> {
+	private getMetadata(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, status: RemoteAgentHostConnectionStatus, initializeResult: InitializeResult | undefined, reader?: IReader): Pick<ICustomizationRemote, 'metadata' | 'metadataIsStale'> {
 		const pickerKey = this.getPickerKey(target);
 		const key = `${metadataKeyPrefix}${pickerKey}`;
 		const previous = this.readMetadata(key);
@@ -1284,6 +1352,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				lastActivityAt = updatedAt;
 			}
 		}
+		// Each connection replaces the server identity of the previous one, including a build it no longer advertises.
+		const liveServer = live && initializeResult ? readCachedServer(initializeResult.serverInfo) : undefined;
+		const server = liveServer ?? previous?.server;
+		const serverBuild = liveServer ? readAgentHostBuild(initializeResult) : previous?.serverBuild;
 		const next = {
 			// A host's advertised path style does not identify its operating system.
 			operatingSystem: operatingSystem ?? previous?.operatingSystem,
@@ -1296,14 +1368,17 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			lastActivityAt,
 			lastOnlineAt: onlineAt !== undefined && (previous?.lastOnlineAt === undefined || onlineAt - previous.lastOnlineAt >= lastOnlineWriteIntervalMs)
 				? onlineAt : previous?.lastOnlineAt,
+			...(server ? { server } : {}),
+			...(serverBuild ? { serverBuild } : {}),
 		};
-		if (next.operatingSystem === undefined && next.architecture === undefined && next.cpuCount === undefined && next.memoryBytes === undefined && next.activeSessionCount === undefined && next.observedSessionCount === undefined && next.lastConnectedAt === undefined && next.lastActivityAt === undefined && next.lastOnlineAt === undefined) {
+		if (next.operatingSystem === undefined && next.architecture === undefined && next.cpuCount === undefined && next.memoryBytes === undefined && next.activeSessionCount === undefined && next.observedSessionCount === undefined && next.lastConnectedAt === undefined && next.lastActivityAt === undefined && next.lastOnlineAt === undefined && !server) {
 			return {};
 		}
 		let metadata = previous;
 		const observedChanged = !previous || previous.operatingSystem !== next.operatingSystem || previous.activeSessionCount !== next.activeSessionCount || previous.observedSessionCount !== next.observedSessionCount
 			|| previous.architecture !== next.architecture || previous.cpuCount !== next.cpuCount || previous.memoryBytes !== next.memoryBytes
-			|| previous.lastConnectedAt !== next.lastConnectedAt || previous.lastActivityAt !== next.lastActivityAt;
+			|| previous.lastConnectedAt !== next.lastConnectedAt || previous.lastActivityAt !== next.lastActivityAt
+			|| JSON.stringify(previous.server) !== JSON.stringify(server) || JSON.stringify(previous.serverBuild) !== JSON.stringify(serverBuild);
 		if (observedChanged || previous.lastOnlineAt !== next.lastOnlineAt) {
 			// A new online observation does not refresh retained system details.
 			metadata = { ...next, observedAt: observedChanged ? now : previous.observedAt };
@@ -1455,7 +1530,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				...(target.kind === 'environment' ? {
 					lastHeartbeatAt: target.host.lastHeartbeatAt, reportedSessionCount: target.host.reportedSessionCount,
 				} : {}),
-				...this.getMetadata(target, provider, connectionStatus, reader),
+				...this.getMetadata(target, provider, connectionStatus, this.remoteAgentHostService.getConnection(id)?.initializeResult.read(reader), reader),
 				...(target.kind === 'extension' ? { contributedBy: { extensionId: target.host.extensionId, displayName: target.host.extensionDisplayName } } : {}),
 				...(description ? { description } : {}),
 				...(isDevContainerHost && devContainersEnabled ? { canCreateDevContainer: true } : {}),

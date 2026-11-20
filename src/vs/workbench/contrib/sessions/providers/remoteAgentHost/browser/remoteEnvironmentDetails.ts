@@ -298,8 +298,10 @@ export class RemoteEnvironmentDetails extends Disposable {
 			this.taskError = undefined;
 		}
 		if (this.mode === 'troubleshoot' && !this.busy) {
-			if (remote.connectionStatus.kind !== previous.connectionStatus.kind || remote.lastConnectionError !== previous.lastConnectionError) {
-				// Connection steps and resolved facts may have changed with the connection.
+			if (remote.connectionStatus.kind !== previous.connectionStatus.kind || remote.lastConnectionError !== previous.lastConnectionError
+				|| remote.canUpdateServer !== previous.canUpdateServer
+				|| JSON.stringify([remote.metadata?.server, remote.metadata?.serverBuild]) !== JSON.stringify([previous.metadata?.server, previous.metadata?.serverBuild])) {
+				// Connection steps, resolved facts and versions may have changed with the connection.
 				void this.loadTroubleshootingInfo();
 			}
 			if (JSON.stringify(this.getGuide()) !== JSON.stringify(this.guide)) {

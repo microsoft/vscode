@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../nls.js';
+import { IAgentHostBuild } from '../../../../../../platform/agentHost/common/meta/agentHostUpgradeMeta.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { canConnectToRemote, ICustomizationRemote, IRemoteTroubleshootingInfo } from './remotesModel.js';
 
@@ -61,6 +62,51 @@ const sshErrors: readonly (readonly [RegExp, () => string, RemoteTroubleshooting
 		() => localize('remotes.sshRemoteSetup', "Signing in worked, but starting the agent host on the remote computer failed. The remote computer needs internet access to download VS Code. Collect a diagnostic report for details."), []],
 ];
 
+function getQualityName(quality: string): string {
+	switch (quality) {
+		case 'stable': return localize('remotes.qualityStable', "Stable");
+		case 'insider': return localize('remotes.qualityInsiders', "Insiders");
+		case 'exploration': return localize('remotes.qualityExploration', "Exploration");
+		default: return quality;
+	}
+}
+
+function formatVersion(name: string, version: string | undefined, build: IAgentHostBuild | undefined): string {
+	const named = version ? localize('remotes.namedVersion', "{0} {1}", name, version) : name;
+	return build
+		? localize('remotes.versionWithBuild', "{0}, {1} build {2} from {3}", named, getQualityName(build.quality), build.commit.slice(0, 7), new Date(build.date).toLocaleDateString())
+		: named;
+}
+
+/** The server's and this client's versions, which explain incompatible servers and available updates. */
+function getVersionFacts(versions: IRemoteTroubleshootingInfo['versions']): { label: string; value: string }[] {
+	if (!versions) {
+		return [];
+	}
+	const facts: { label: string; value: string }[] = [];
+	const { server, client, update } = versions;
+	if (server) {
+		const value = formatVersion(server.name, server.version, server.build);
+		facts.push({ label: localize('remotes.serverVersion', "Server version"), value: server.current ? value : localize('remotes.lastKnownVersion', "{0} (as of the last connection)", value) });
+	}
+	facts.push({ label: localize('remotes.clientVersion', "Client version"), value: formatVersion(client.name, client.version, client.build) });
+	if (update) {
+		facts.push({ label: localize('remotes.serverUpdate', "Server update"), value: getUpdateLabel(update, server?.build, client.build) });
+	}
+	return facts;
+}
+
+function getUpdateLabel(update: NonNullable<NonNullable<IRemoteTroubleshootingInfo['versions']>['update']>, server: IAgentHostBuild | undefined, client: IAgentHostBuild | undefined): string {
+	switch (update) {
+		case 'available': return localize('remotes.serverUpdateAvailableFact', "A newer version is available");
+		case 'upToDate': return localize('remotes.serverUpToDate', "Up to date");
+		case 'unavailable': return localize('remotes.serverUpdateUnavailable', "Not available over this connection");
+		case 'otherQuality': return server && client
+			? localize('remotes.serverOtherQuality', "Not compared: the server's build is {0}, this client's is {1}", getQualityName(server.quality), getQualityName(client.quality))
+			: localize('remotes.serverOtherQualityGeneric', "Not compared: the server and this client are different kinds of builds");
+	}
+}
+
 /** The remote's state and connection error, explained per connection type with the actions that may unblock it. */
 export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info: IRemoteTroubleshootingInfo, error: string | undefined): IRemoteTroubleshootingGuide {
 	const status = remote.connectionStatus;
@@ -82,6 +128,7 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 		}
 		if (remote.canUpdateServer) {
 			actions.push('updateServer');
+			guidance.push(localize('remotes.serverUpdateGuidance', "Update Server installs the newer server version, which restarts the server and interrupts sessions running on it."));
 		}
 	} else if (pending) {
 		guidance.push(RemoteAgentHostConnectionStatus.isReconnecting(status)
@@ -95,6 +142,7 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 	} else if (!remote.connectsWithHost && canConnectToRemote(remote)) {
 		primary = failed || incompatible ? 'retry' : 'connect';
 	}
+	facts.push(...getVersionFacts(info.versions));
 	if (RemoteAgentHostConnectionStatus.isIncompatible(status)) {
 		facts.push({
 			label: localize('remotes.protocolVersions', "Protocol versions"),

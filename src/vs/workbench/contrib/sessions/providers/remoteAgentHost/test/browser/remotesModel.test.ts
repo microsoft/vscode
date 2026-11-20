@@ -27,7 +27,7 @@ import { IExtensionService } from '../../../../../../services/extensions/common/
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
-import { InitializeResult, PathStyle } from '../../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
+import { Implementation, InitializeResult, PathStyle } from '../../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IVscodeUpgradeResult } from '../../../../../../../platform/agentHost/common/state/protocolUpgrade.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
 import { IWSLCachedDistro, IWSLDistro, IWSLRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
@@ -157,7 +157,7 @@ suite('RemotesModel', () => {
 			getPreference: key => locationPreferences.get(key),
 			setPreference: (key, preference) => { locationPreferences.set(key, preference); },
 		});
-		instantiationService.stub(IProductService, { nameShort: 'Code - OSS', commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z' });
+		instantiationService.stub(IProductService, { nameShort: 'Code - OSS', nameLong: 'Code - OSS', version: '1.140.0', commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z' });
 		instantiationService.stub(IProgressService, new TestProgressService());
 		instantiationService.stub(IRemoteTunnelService, {
 			onDidChangeTunnelStatus: tunnelStatusChanged.event,
@@ -441,7 +441,7 @@ suite('RemotesModel', () => {
 			},
 			addEnvironmentProvider: (id: string, localRegistration?: LocalAgentHostRegistration) => addProvider(cloudSandboxAddress(id), localRegistration),
 			addProvider,
-			setInitializeResultMeta: (address: string, meta: Record<string, unknown> | undefined) => initializeResultFor(address).set({ protocolVersion: '1.0.0', serverSeq: 0, snapshots: [], _meta: meta }, undefined),
+			setInitializeResultMeta: (address: string, meta: Record<string, unknown> | undefined, serverInfo?: Implementation) => initializeResultFor(address).set({ protocolVersion: '1.0.0', serverSeq: 0, snapshots: [], _meta: meta, ...(serverInfo ? { serverInfo } : {}) }, undefined),
 		};
 	}
 
@@ -794,6 +794,7 @@ suite('RemotesModel', () => {
 			saved: {
 				lastStep: { phase: 'transport.connect', outcome: 'failed', timestamp: 2, error: 'Error: Host key verification failed' },
 				ssh: { alias: 'removed', hostName: 'build.example', user: 'developer', port: 22, hasSavedHostKey: true },
+				versions: { client: { name: 'Code - OSS', version: '1.140.0', build: { commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z' } } },
 			},
 			forgottenHosts: ['build.example:22'],
 			confirmations: [{
@@ -815,16 +816,50 @@ suite('RemotesModel', () => {
 		devContainers.hosts.set(new Set(['ssh:build']), undefined);
 		await model.setConnected('ssh:build', true);
 		await model.createDevContainer('ssh:build');
-		const hostConnected = await model.getTroubleshootingInfo('devcontainer:ssh:build');
+		const hostConnected = (await model.getTroubleshootingInfo('devcontainer:ssh:build')).devContainer;
 		await model.setConnected('ssh:build', false);
-		const hostDisconnected = await model.getTroubleshootingInfo('devcontainer:ssh:build');
-		const info = { tunnel: await model.getTroubleshootingInfo('tunnel:laptop'), extension: await model.getTroubleshootingInfo('127.0.0.1:8445'), hostConnected, hostDisconnected };
+		const hostDisconnected = (await model.getTroubleshootingInfo('devcontainer:ssh:build')).devContainer;
+		const info = {
+			tunnel: (await model.getTroubleshootingInfo('tunnel:laptop')).tunnel, extension: (await model.getTroubleshootingInfo('127.0.0.1:8445')).extension,
+			hostConnected, hostDisconnected,
+		};
 		registration.dispose();
 		assert.deepStrictEqual(info, {
-			tunnel: { tunnel: { authProvider: 'github', inLastDiscovery: true, hostConnectionCount: 1 } },
-			extension: { extension: { version: '1.4.2', issuesUrl: 'https://github.com/publisher/jobs/issues' } },
-			hostConnected: { devContainer: { hostId: 'ssh:build', hostName: 'build', hostConnected: true, dockerAvailable: true } },
-			hostDisconnected: { devContainer: { hostId: 'ssh:build', hostName: 'build', hostConnected: false } },
+			tunnel: { authProvider: 'github', inLastDiscovery: true, hostConnectionCount: 1 },
+			extension: { version: '1.4.2', issuesUrl: 'https://github.com/publisher/jobs/issues' },
+			hostConnected: { hostId: 'ssh:build', hostName: 'build', hostConnected: true, dockerAvailable: true },
+			hostDisconnected: { hostId: 'ssh:build', hostName: 'build', hostConnected: false },
+		});
+	});
+
+	test('troubleshooting info shows the server version of the current or last connection and whether an update is available', async () => {
+		const { model, providers, setInitializeResultMeta } = setup();
+		await model.refresh(CancellationToken.None);
+		const provider = providers.get('tunnel:laptop')!;
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		const serverInfo: Implementation = { name: 'vscode-agent-host', title: 'VS Code Agent Host', version: '1.140.0' };
+		const build = { commit: 'host-commit', quality: 'insider', date: '2026-11-19T00:00:00.000Z' };
+		const method = { 'vscode.upgradeMethod': '_vscodeUpgrade' };
+		const versions = async (meta: Record<string, unknown> | undefined) => {
+			setInitializeResultMeta('tunnel:laptop', meta, serverInfo);
+			return (await model.getTroubleshootingInfo('tunnel:laptop')).versions;
+		};
+		const results = {
+			relay: await versions(undefined),
+			otherQuality: await versions({ ...method, 'vscode.build': { ...build, quality: 'stable' } }),
+			sameBuild: await versions({ ...method, 'vscode.build': { ...build, commit: 'client-commit' } }),
+			olderBuild: await versions({ ...method, 'vscode.build': build }),
+		};
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+		const lastConnection = (await model.getTroubleshootingInfo('tunnel:laptop')).versions;
+		const client = { name: 'Code - OSS', version: '1.140.0', build: { commit: 'client-commit', quality: 'insider', date: '2026-11-20T00:00:00.000Z' } };
+		const server = { name: 'VS Code Agent Host', version: '1.140.0', current: true };
+		assert.deepStrictEqual({ ...results, lastConnection }, {
+			relay: { server, client, update: 'unavailable' },
+			otherQuality: { server: { ...server, build: { ...build, quality: 'stable' } }, client, update: 'otherQuality' },
+			sameBuild: { server: { ...server, build: { ...build, commit: 'client-commit' } }, client, update: 'upToDate' },
+			olderBuild: { server: { ...server, build }, client, update: 'available' },
+			lastConnection: { server: { ...server, build, current: false }, client },
 		});
 	});
 
@@ -838,8 +873,8 @@ suite('RemotesModel', () => {
 		const cancelled = await model.restartWSLDistribution('wsl:Ubuntu').then(() => false, isCancellationError);
 		environmentState.pendingConfirmation = undefined;
 		await model.restartWSLDistribution('wsl:Ubuntu');
-		assert.deepStrictEqual({ info, cancelled, terminatedDistros, connectionChanges, confirmations: confirmations.map(confirmation => confirmation.message) }, {
-			info: { canRestartDistribution: true },
+		assert.deepStrictEqual({ canRestart: info.canRestartDistribution, cancelled, terminatedDistros, connectionChanges, confirmations: confirmations.map(confirmation => confirmation.message) }, {
+			canRestart: true,
 			cancelled: true,
 			terminatedDistros: ['Ubuntu'],
 			connectionChanges: [{ id: 'wsl:Ubuntu', connected: true }],

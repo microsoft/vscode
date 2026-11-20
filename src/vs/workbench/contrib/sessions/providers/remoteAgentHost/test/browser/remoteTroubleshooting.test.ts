@@ -34,7 +34,6 @@ suite('getRemoteTroubleshootingGuide', () => {
 			connecting: summarize(remote('tunnel', { connectionStatus: RemoteAgentHostConnectionStatus.connecting })),
 			connected: summarize(connected),
 			connectedNotInPicker: summarize({ ...connected, pickerUnavailableReason: 'Not selectable.' }),
-			connectedOutdated: summarize({ ...connected, canUpdateServer: true }),
 			connectedWithHost: summarize({ ...connected, kind: 'devContainer', connectsWithHost: true }),
 			updateServer: summarize(remote('tunnel', { connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Version mismatch', ['1'], ['2'], 'vendor/update') })),
 			signIn: summarize(remote('tunnel', { requiresTunnelSignIn: true })),
@@ -44,13 +43,50 @@ suite('getRemoteTroubleshootingGuide', () => {
 			connecting: { primary: undefined, actions: [], guidance: ['Connecting'] },
 			connected: { primary: 'newSession', actions: ['disconnect'], guidance: [] },
 			connectedNotInPicker: { primary: undefined, actions: ['disconnect'], guidance: [] },
-			connectedOutdated: { primary: 'newSession', actions: ['disconnect', 'updateServer'], guidance: [] },
 			connectedWithHost: { primary: 'newSession', actions: [], guidance: [] },
 			updateServer: {
 				primary: 'updateServer', actions: [], guidance: ['The server on this environment needs an update before you can connect'],
 				facts: { 'Protocol versions': 'This computer supports 1. The server offers 2.' },
 			},
 			signIn: { primary: 'signIn', actions: [], guidance: ['Sign in with the GitHub or Microsoft account that shares this tunnel.'] },
+		});
+	});
+
+	test('shows the server and client versions, and how to install an available server update', () => {
+		const date = (iso: string) => new Date(iso).toLocaleDateString();
+		const client = { name: 'Code - OSS', version: '1.140.0', build: { commit: 'client1234567', quality: 'insider', date: '2026-11-20T00:00:00.000Z' } };
+		const server = { name: 'VS Code Agent Host', version: '1.139.0', build: { commit: 'host12345678', quality: 'insider', date: '2026-11-19T00:00:00.000Z' }, current: true };
+		const connected = remote('tunnel', { connectionStatus: RemoteAgentHostConnectionStatus.connected, availability: 'online' });
+		assert.deepStrictEqual({
+			available: summarize({ ...connected, canUpdateServer: true }, { versions: { server, client, update: 'available' } }),
+			otherQuality: summarize(connected, { versions: { server: { ...server, build: { ...server.build, quality: 'stable' } }, client, update: 'otherQuality' } }).facts,
+			relayOfDevelopmentClient: summarize(connected, { versions: { server: { ...server, build: undefined }, client: { name: 'Code - OSS', version: '1.140.0' }, update: 'unavailable' } }).facts,
+			incompatibleSinceLastConnection: summarize(remote('tunnel', { connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Version mismatch', ['2'], ['1']) }), { versions: { server: { ...server, current: false }, client } }).facts,
+		}, {
+			available: {
+				primary: 'newSession', actions: ['disconnect', 'updateServer'],
+				guidance: ['Update Server installs the newer server version, which restarts the server and interrupts sessions running on it.'],
+				facts: {
+					'Server version': `VS Code Agent Host 1.139.0, Insiders build host123 from ${date(server.build.date)}`,
+					'Client version': `Code - OSS 1.140.0, Insiders build client1 from ${date(client.build.date)}`,
+					'Server update': 'A newer version is available',
+				},
+			},
+			otherQuality: {
+				'Server version': `VS Code Agent Host 1.139.0, Stable build host123 from ${date(server.build.date)}`,
+				'Client version': `Code - OSS 1.140.0, Insiders build client1 from ${date(client.build.date)}`,
+				'Server update': 'Not compared: the server\'s build is Stable, this client\'s is Insiders',
+			},
+			relayOfDevelopmentClient: {
+				'Server version': 'VS Code Agent Host 1.139.0',
+				'Client version': 'Code - OSS 1.140.0',
+				'Server update': 'Not available over this connection',
+			},
+			incompatibleSinceLastConnection: {
+				'Server version': `VS Code Agent Host 1.139.0, Insiders build host123 from ${date(server.build.date)} (as of the last connection)`,
+				'Client version': `Code - OSS 1.140.0, Insiders build client1 from ${date(client.build.date)}`,
+				'Protocol versions': 'This computer supports 2. The server offers 1.',
+			},
 		});
 	});
 

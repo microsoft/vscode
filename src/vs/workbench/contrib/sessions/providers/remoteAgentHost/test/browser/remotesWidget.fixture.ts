@@ -52,11 +52,13 @@ const extensionRemotes: ICustomizationRemote[] = [
 ];
 
 const sshInfo: IRemoteTroubleshootingInfo = { ssh: { alias: 'build', hostName: 'build.example.com', user: 'dev', port: 22, identityFiles: ['~/.ssh/id_ed25519'], hasSavedHostKey: true } };
+const clientVersion = { name: 'Visual Studio Code - Insiders', version: '1.140.0', build: { commit: 'd9cccddf6b34357c58b5bbfb60ea03d4c4d1df65', quality: 'insider', date: '2026-11-20T08:00:00.000Z' } };
+const serverVersion = { name: 'VS Code Agent Host', version: '1.140.0', build: { commit: '0157e0b26b9a2a0f2d4c1e9b8f7a6c5d4e3b2a10', quality: 'insider', date: '2026-11-18T08:00:00.000Z' } };
 const failedSSH: ICustomizationRemote = { ...remotes[0], canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: 'All configured authentication methods failed' };
 const troubleshooting: Record<string, { readonly remote: ICustomizationRemote; readonly info: IRemoteTroubleshootingInfo }> = {
 	SSHAuthentication: { remote: failedSSH, info: sshInfo },
 	SSHHostKey: { remote: { ...failedSSH, lastConnectionError: 'Host key verification failed: the host key for build.example.com changed' }, info: sshInfo },
-	SSHConnected: { remote: remotes[0], info: sshInfo },
+	SSHConnected: { remote: { ...remotes[0], canUpdateServer: true }, info: { ...sshInfo, versions: { server: { ...serverVersion, current: true }, client: clientVersion, update: 'available' } } },
 	WSLStopped: {
 		remote: { id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: false, availability: 'offline', startsOnConnect: true, unavailableReason: 'This distribution is stopped.', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 		info: { canRestartDistribution: true },
@@ -69,7 +71,10 @@ const troubleshooting: Record<string, { readonly remote: ICustomizationRemote; r
 		remote: { id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, canDelete: true, availability: 'offline', unavailableReason: 'No computer is sharing this tunnel.', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 		info: { tunnel: { authProvider: 'github', inLastDiscovery: true, hostConnectionCount: 0 } },
 	},
-	TunnelIncompatible: { remote: remotes[5], info: { tunnel: { authProvider: 'microsoft', inLastDiscovery: true, hostConnectionCount: 1 } } },
+	TunnelIncompatible: {
+		remote: remotes[5],
+		info: { tunnel: { authProvider: 'microsoft', inLastDiscovery: true, hostConnectionCount: 1 }, versions: { server: { ...serverVersion, version: '1.138.0', current: false }, client: clientVersion } },
+	},
 	GitHubEnvironmentOffline: { remote: remotes[7], info: {} },
 	Extension: {
 		remote: { ...extensionRemotes[1], hidden: false, lastConnectionError: 'connect ECONNREFUSED 127.0.0.1:8446' },
