@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -579,9 +579,19 @@ suite('AgentService - chats with their own agent', () => {
 		const { service, second } = createService(true);
 		const { session, chat } = await createSessionWithSecondChat(service);
 		const subagent = URI.parse(buildChatUri(session, 'subagent'));
+		// The spawn records the subagent's agent in the background, so wait for that write rather than a fixed delay.
+		const database = getTestAgentHostDatabase(service);
+		const recordChatAgentProvider = database.recordChatAgentProvider!.bind(database);
+		const subagentRecorded = new DeferredPromise<void>();
+		database.recordChatAgentProvider = async (recordedChat, provider) => {
+			await recordChatAgentProvider(recordedChat, provider);
+			if (recordedChat === subagent.toString()) {
+				void subagentRecorded.complete();
+			}
+		};
 		second.spawnEmitter.fire({ session, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
-		await timeout(10);
-		const recorded = await getTestAgentHostDatabase(service).readChatAgentProviders?.();
+		await subagentRecorded.p;
+		const recorded = await database.readChatAgentProviders?.();
 
 		assert.deepStrictEqual({
 			stateProvider: getTestAgentStateManager(service).getChatProvider(subagent.toString()),
