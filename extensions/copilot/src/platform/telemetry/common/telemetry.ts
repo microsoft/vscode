@@ -120,6 +120,11 @@ export interface ITelemetryService extends IExperimentationTelemetry, IDisposabl
 	sendGHTelemetryErrorEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendGHTelemetryException(maybeError: unknown, origin: string): void;
 	/**
+	 * When defined, indicates whether any restricted telemetry sink will accept events.
+	 * Callers can skip expensive restricted payload preparation when this is `false`.
+	 */
+	readonly isRestrictedTelemetryActive?: boolean;
+	/**
 	 * Send restricted GitHub telemetry only for opted-in external users.
 	 * Microsoft and GitHub organization members are excluded.
 	 */

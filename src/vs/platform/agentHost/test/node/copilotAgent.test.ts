@@ -81,7 +81,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnable
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentPrewarmClaim, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -22840,6 +22840,7 @@ suite('CopilotAgent', () => {
 				URI.joinPath(additionalWorkspace, '.github', 'instructions').toString(),
 				URI.joinPath(userHome, '.copilot', 'instructions').toString(),
 				URI.joinPath(workspace, '.github', 'hooks').toString(),
+				URI.joinPath(additionalWorkspace, '.github', 'hooks').toString(),
 				URI.joinPath(userHome, '.copilot', 'hooks').toString(),
 				buildCopilotBuiltinAgentsContainer().uri,
 				buildCopilotBuiltinSkillsContainer().uri,
@@ -23209,9 +23210,19 @@ suite('CopilotAgent', () => {
 			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e)));
 			// What each send reported: 'used', the reason it discarded the early launch, or why it found none.
 			const prewarm: string[] = [];
-			const sendContext: IAgentChatContext = { ...context, reportPrewarmedSession: discardReason => prewarm.push(discardReason ?? 'used'), reportPrewarmSkipped: reason => prewarm.push(`skipped:${reason}`) };
+			const claims: IAgentPrewarmClaim[] = [];
+			const sendContext: IAgentChatContext = {
+				...context, reportPrewarmedSession: (discardReason, claim) => {
+					prewarm.push(discardReason ?? 'used');
+					if (claim) {
+						claims.push(claim);
+					}
+				}, reportPrewarmSkipped: reason => prewarm.push(`skipped:${reason}`)
+			};
 			return {
 				agent, client, chat, context, sendContext, sdkSessions, launchConfigs, materialized, resolvedWorkingDirectory: result.resolvedWorkingDirectory, warmSteps,
+				/** What each send that used a warm launch reported about it, without the time it became ready. */
+				claims: () => claims.map(({ launchCount, warmUpComplete }) => ({ launchCount, warmUpComplete })),
 				sdkSessionId: () => chatBackings(agent).get(chat.toString())?.sdkSessionId,
 				state: () => ({ creates: sdkSessions.length, mcpLists, materialized: materialized.length, prewarm: [...prewarm], deleted: client.deletedSessionIds.length, live: hasLiveChat(agent, chat) }),
 			};
@@ -23349,11 +23360,12 @@ suite('CopilotAgent', () => {
 			const afterWarm = { warmed, ...h.state() };
 			await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
 
-			assert.deepStrictEqual({ afterWarm, afterSend: h.state(), warmSteps: h.warmSteps, sends: h.sdkSessions[0].sendCalls }, {
+			assert.deepStrictEqual({ afterWarm, afterSend: h.state(), warmSteps: h.warmSteps, sends: h.sdkSessions[0].sendCalls, claims: h.claims() }, {
 				afterWarm: { warmed: true, creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
 				afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true },
 				warmSteps: ['mcpList', 'toolsInitialized'],
 				sends: 1,
+				claims: [{ launchCount: 1, warmUpComplete: true }],
 			});
 		});
 
@@ -23366,7 +23378,7 @@ suite('CopilotAgent', () => {
 			mcpListed.complete();
 			await timeout(0);
 
-			assert.deepStrictEqual({ warmSteps: h.warmSteps, prewarm: h.state().prewarm }, { warmSteps: ['mcpList'], prewarm: ['used'] });
+			assert.deepStrictEqual({ warmSteps: h.warmSteps, prewarm: h.state().prewarm, claims: h.claims() }, { warmSteps: ['mcpList'], prewarm: ['used'], claims: [{ launchCount: 1, warmUpComplete: false }] });
 		});
 
 		test('composing does not hold the chat behind the runtime reads that check the warm session\'s customizations', async () => {
@@ -23398,13 +23410,15 @@ suite('CopilotAgent', () => {
 			await h.agent.chats.changeModel(h.chat, { id: 'gpt-x' }, h.context);
 			await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
 
-			assert.deepStrictEqual({ replaced, kept, afterRewarm: { creates, deleted, live }, prewarm: h.state().prewarm, creates: h.state().creates, models: h.launchConfigs.map(config => config.model) }, {
+			assert.deepStrictEqual({ replaced, kept, afterRewarm: { creates, deleted, live }, prewarm: h.state().prewarm, creates: h.state().creates, models: h.launchConfigs.map(config => config.model), launchCounts: h.claims().map(claim => claim.launchCount) }, {
 				replaced: true,
 				kept: true,
 				afterRewarm: { creates: 2, deleted: 1, live: true },
 				prewarm: ['used'],
 				creates: 2,
 				models: ['claude-sonnet', 'gpt-x'],
+				// The used launch is the draft's second.
+				launchCounts: [2],
 			});
 		});
 

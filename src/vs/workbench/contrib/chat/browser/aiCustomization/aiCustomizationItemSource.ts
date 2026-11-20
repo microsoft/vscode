@@ -58,6 +58,9 @@ export interface ICustomizationHookItem extends ICustomizationItem {
 	readonly isHookAction?: boolean;
 }
 
+/** Prefix of the item keys of hooks declared in a custom agent file, which are edited in that file rather than deleted. */
+export const CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX = 'agent-hook:';
+
 /**
  * Identifies who supplied a customization within its scope.
  * Items sharing an origin `id` are shown together under one separator.
@@ -109,6 +112,8 @@ export interface IAICustomizationListItem {
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
 	readonly statusMessage?: string;
+	/** True when this hook file uses the deprecated Local hook format; {@link statusMessage} explains what to do. */
+	readonly localFormatHook?: boolean;
 	/** Set when the user's organization manages this item. */
 	readonly organizationControl?: ICustomizationOrganizationControl;
 	/** When true, this item can be selected for syncing to a remote harness. */
@@ -223,6 +228,8 @@ export async function expandHookFileItems(
 							pluginLabel: item.pluginLabel,
 							status: item.status,
 							statusMessage: item.statusMessage,
+							badge: item.badge,
+							badgeTooltip: item.badgeTooltip,
 							disabledReason: item.disabledReason,
 							organizationControl: item.organizationControl,
 							userInvocable: item.userInvocable,

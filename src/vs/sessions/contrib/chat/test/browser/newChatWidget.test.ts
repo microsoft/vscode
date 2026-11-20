@@ -6322,16 +6322,27 @@ suite('NewChatWidget', () => {
 					});
 				});
 
-				test('an agent that cannot work in a new worktree is reported for the installed draft, not made a chat in the folder silently', async () => {
-					const unavailable = placementHarness({ resolved: true, available: false });
+				test('an agent that cannot work in a new worktree, such as of a folder without Git, is reported once for the installed draft, which is not sent in its folder until it can work in a new worktree or the user picks a workspace', async () => {
+					const agent = { resolved: true, available: false };
+					const unavailable = placementHarness(agent);
 					await unavailable.install();
+					unavailable.configChanged();
+					const whileUnavailable = { pending: !!unavailable.harness._pendingWorktreePlacement.get(), calls: [...unavailable.calls] };
+					agent.available = true;
+					unavailable.configChanged();
 					const notOffered = placementHarness('noNewWorktree');
 					await notOffered.install();
+					notOffered.configChanged();
+					const notOfferedWhileUnavailable = { pending: !!notOffered.harness._pendingWorktreePlacement.get(), calls: [...notOffered.calls] };
+					onUserWorkspaceSelection.call(notOffered.harness);
 
-					assert.deepStrictEqual([unavailable, notOffered].map(({ harness, calls }) => ({ pending: !!harness._pendingWorktreePlacement.get(), calls })), [
-						{ pending: false, calls: ['warning for b'] },
-						{ pending: false, calls: ['warning for b'] },
-					]);
+					assert.deepStrictEqual({
+						unavailable: { whileUnavailable, pending: !!unavailable.harness._pendingWorktreePlacement.get(), calls: unavailable.calls },
+						notOffered: { whileUnavailable: notOfferedWhileUnavailable, pending: !!notOffered.harness._pendingWorktreePlacement.get() },
+					}, {
+						unavailable: { whileUnavailable: { pending: true, calls: ['warning for b'] }, pending: false, calls: ['warning for b', 'New Worktree true for b'] },
+						notOffered: { whileUnavailable: { pending: true, calls: ['warning for b'] }, pending: false },
+					});
 				});
 			});
 
@@ -6492,6 +6503,7 @@ suite('NewChatWidget', () => {
 					_workspaceOptOutTarget: constObservable(undefined),
 					_pendingPreferredUpgrade: disposables.add(new MutableDisposable()),
 					_pendingRequestedAgent: disposables.add(new MutableDisposable()),
+					_pendingRequestedModel: disposables.add(new MutableDisposable()),
 					_applyingRequestedSelection: undefined,
 					// Its requested targets work in their folders: New Worktree is tested on its own
 					_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),

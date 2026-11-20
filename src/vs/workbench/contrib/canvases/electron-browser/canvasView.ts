@@ -14,7 +14,9 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { matchesScheme } from '../../../../base/common/network.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -26,6 +28,7 @@ import { IContextKeyService, RawContextKey } from '../../../../platform/contextk
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -149,6 +152,7 @@ export class CanvasView extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -470,10 +474,14 @@ export class CanvasView extends Disposable {
 
 	private async _openExternalLink(url: string): Promise<void> {
 		try {
+			// A link to an agent session is internal: it never goes to the OS, and only opens while AI features are shown.
+			const isSessionLink = matchesScheme(url, AGENT_HOST_SESSION_LINK_SCHEME);
+			if (isSessionLink && this.entitlementService.sentiment.hidden) {
+				return;
+			}
 			const opened = await this.openerService.open(url, {
-				openExternal: true,
+				...(isSessionLink ? {} : { openExternal: true, allowContributedOpeners: true }),
 				fromUserGesture: true,
-				allowContributedOpeners: true,
 				// In the window of the canvas: focus is in its page, outside the workbench, so it cannot tell the window.
 				sourceWindowId: this.targetWindow.vscodeWindowId,
 			});

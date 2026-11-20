@@ -375,7 +375,7 @@ suite('ChatSystemNotificationContentPart', () => {
 		});
 	}
 
-	test('keeps the disclosure chevron compact under the workbench codicon size', () => {
+	test('keeps the disclosure icon and chevron compact under the workbench codicon size', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
 		const container = $('.monaco-workbench');
@@ -384,14 +384,17 @@ suite('ChatSystemNotificationContentPart', () => {
 		store.add(toDisposable(() => container.remove()));
 		const part = store.add(instantiationService.createInstance(
 			ChatSystemNotificationContentPart,
-			{ kind: 'systemNotification', icon: Codicon.gitPullRequest, collapsible: true, content: new MarkdownString('Autopilot updated\n\n- Automatically Fix CI enabled') },
+			{ kind: 'systemNotification', icon: Codicon.circleSlash, collapsible: true, content: new MarkdownString('Autopilot updated\n\n- Automatically Fix CI disabled') },
 			renderer,
 			undefined,
 		));
 		container.appendChild(part.domNode);
-		const chevron = part.domNode.querySelector<HTMLElement>('.chat-collapsible-hover-chevron')!;
+		const fontSize = (selector: string) => mainWindow.getComputedStyle(part.domNode.querySelector<HTMLElement>(selector)!).fontSize;
 
-		assert.strictEqual(mainWindow.getComputedStyle(chevron).fontSize, '12px');
+		assert.deepStrictEqual({
+			icon: fontSize('.chat-system-notification-disclosure-icon'),
+			chevron: fontSize('.chat-collapsible-hover-chevron'),
+		}, { icon: '12px', chevron: '12px' });
 	});
 
 	test('uses the ordinary compact icon and avoids a disclosure without details', () => {

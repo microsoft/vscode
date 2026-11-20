@@ -204,6 +204,10 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 	}
 }
 
+function devContainerWorkspaceLabel(workspaceUri: URI, hostLabel: string): string {
+	return `${basename(workspaceUri)} [${hostLabel}]`;
+}
+
 /** Registers Dev Container Agent Hosts as persistent remote Sessions providers. */
 export class DevContainerAgentHostService extends Disposable implements IDevContainerAgentHostService {
 	declare readonly _serviceBrand: undefined;
@@ -295,6 +299,10 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 
 	getSandboxSupported(workspaceUri: URI): boolean | undefined {
 		return this._knownSandboxSupport.get(getComparisonKey(workspaceUri));
+	}
+
+	getWorkspaceLabel(workspaceUri: URI): string {
+		return devContainerWorkspaceLabel(workspaceUri, this._getWorkspaceHostLabel(workspaceUri));
 	}
 
 	private _setSandboxSupported(workspaceUri: URI, supported: boolean | undefined): void {
@@ -500,15 +508,17 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 
 	/** Names the container, and the source host for a remote source, in place of the container provider's label in its workspace labels. */
 	private _workspaceHostLabel(workspaceUri: URI): IObservable<string> {
-		return observableFromEvent(this, Event.any<unknown>(this._remoteAgentHostService.onDidChangeConfiguredEntries, this._remoteAgentHostService.onDidChangeDisplayName), () => {
-			const entry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
-			if (!entry) {
-				return localize('devContainerAgentHost.workspaceHost', "Dev Container");
-			}
-			const address = getEntryAddress(entry);
-			const host = this._remoteAgentHostService.getDisplayNameOverride(address) ?? (entry.name || address);
-			return localize('devContainerAgentHost.workspaceHostOnSource', "Dev Container on {0}", host);
-		});
+		return observableFromEvent(this, Event.any<unknown>(this._remoteAgentHostService.onDidChangeConfiguredEntries, this._remoteAgentHostService.onDidChangeDisplayName), () => this._getWorkspaceHostLabel(workspaceUri));
+	}
+
+	private _getWorkspaceHostLabel(workspaceUri: URI): string {
+		const entry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
+		if (!entry) {
+			return localize('devContainerAgentHost.workspaceHost', "Dev Container");
+		}
+		const address = getEntryAddress(entry);
+		const host = this._remoteAgentHostService.getDisplayNameOverride(address) ?? (entry.name || address);
+		return localize('devContainerAgentHost.workspaceHostOnSource', "Dev Container on {0}", host);
 	}
 
 	private _ensureProvider(workspaceUri: URI, name: string, address = devContainerAddress(workspaceUri)): RemoteAgentHostSessionsProvider {
@@ -524,7 +534,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		};
 		// Names the container like its workspaces, so groupings that show the environment, not the workspace, still say Dev Container.
 		const workspaceHostLabel = this._workspaceHostLabel(workspaceUri);
-		const providerLabel = (hostLabel: string) => `${basename(workspaceUri)} [${hostLabel}]`;
+		const providerLabel = (hostLabel: string) => devContainerWorkspaceLabel(workspaceUri, hostLabel);
 		const provider = store.add(this._createProvider({
 			address,
 			name: providerLabel(workspaceHostLabel.get()),

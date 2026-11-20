@@ -1151,12 +1151,14 @@ suite('Dev Container Agent Host Service', () => {
 				worktreeScope: service.provider?.config.devContainerWorktreeScope,
 				workspaceHostLabels,
 				providerLabels: [service.provider?.config.name, ...service.provider?.labels ?? []],
+				workspaceLabel: service.getWorkspaceLabel(source),
 			}, {
 				connection: { type: RemoteAgentHostEntryType.DevContainer, address: devContainerAddress(source), hostPath: '/native/project', hostAuthority },
 				remoteWorktree: true,
 				worktreeScope: getComparisonKey(URI.file('/project')),
 				workspaceHostLabels: [`Dev Container on ${entry.name}`, 'Dev Container on Renamed'],
 				providerLabels: [`project [Dev Container on ${entry.name}]`, 'project [Dev Container on Renamed]'],
+				workspaceLabel: 'project [Dev Container on Renamed]',
 			});
 			await target.release();
 		});

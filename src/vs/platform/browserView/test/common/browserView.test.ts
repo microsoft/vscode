@@ -96,6 +96,10 @@ suite('BrowserView', () => {
 			customScheme: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'vscode://settings', true),
 			blank: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'about:blank', true),
 			remote: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'https://example.com/', true, true),
+			sessionLink: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'agent-host-session://copilotcli/abc?chat=def', true, false, true),
+			sessionLinkNoGesture: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'agent-host-session://copilotcli/abc', false, false, true),
+			sessionLinkNotAllowed: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'agent-host-session://copilotcli/abc', true),
+			sessionLinkRemote: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'agent-host-session://copilotcli/abc', true, true, true),
 		}, {
 			listed: { action: 'integrated', consumeUserGesture: false },
 			https: { action: 'external', consumeUserGesture: true },
@@ -104,6 +108,10 @@ suite('BrowserView', () => {
 			customScheme: { action: 'deny', consumeUserGesture: false },
 			blank: { action: 'deny', consumeUserGesture: false },
 			remote: { action: 'deny', consumeUserGesture: true },
+			sessionLink: { action: 'external', consumeUserGesture: true },
+			sessionLinkNoGesture: { action: 'deny', consumeUserGesture: false },
+			sessionLinkNotAllowed: { action: 'deny', consumeUserGesture: false },
+			sessionLinkRemote: { action: 'deny', consumeUserGesture: true },
 		});
 	});
 

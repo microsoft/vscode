@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
+import { localize } from '../../../../../../nls.js';
 
 /** What a folder that a picker offers is: a folder of the window, such as its primary checkout, or a worktree of it. */
 export type FolderLocationKind = 'folder' | 'worktree';
@@ -23,7 +23,7 @@ export interface IFolderLocationPickerSection<T> {
 }
 
 /**
- * The sections of a picker that offers a window's folders and their worktrees, as every such picker shows them: after New
+ * The sections of a picker that offers a window's folders and their worktrees, as the chat input pickers of sessions show them: after New
  * Worktree, which comes first, a Folder section (Folders with several) and a Worktrees section. Each lists the folder that
  * the window's folder is at now first, which shows {@link getCurrentFolderLocationDescription} as its description, and
  * then the others in their order. A section without items is left out.
@@ -37,13 +37,8 @@ export function groupFolderLocations<T>(entries: readonly IFolderLocationPickerE
 		}
 	};
 	section('folder', count => count > 1 ? localize('folderLocations.folders', "Folders") : localize('folderLocations.folder', "Folder"));
-	section('worktree', () => getWorktreesLabel());
+	section('worktree', () => localize('folderLocations.worktrees', "Worktrees"));
 	return sections;
-}
-
-/** The label of the worktrees of a folder, as a section or a submenu of a picker of its locations. */
-export function getWorktreesLabel(): string {
-	return localize('folderLocations.worktrees', "Worktrees");
 }
 
 /** The description of the folder that the window's folder is at now, in a picker of {@link groupFolderLocations}. */

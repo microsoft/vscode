@@ -622,7 +622,7 @@ export function setup(logger: Logger, quality: Quality) {
 				this.skip();
 			}
 			try {
-				await app.workbench.agentsWindow.waitForRemoteAction(fixture.name, `Share ${fixture.name} as GitHub Environment`, 2 * 60 * 1000);
+				await app.workbench.agentsWindow.waitForRemoteAction(fixture.name, 'Share as GitHub Environment', 2 * 60 * 1000);
 			} catch (error) {
 				logger.log(`Agents Window (WSL GitHub Environment) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL GitHub Environment)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
