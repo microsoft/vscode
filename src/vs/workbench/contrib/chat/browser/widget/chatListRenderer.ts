@@ -5311,17 +5311,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	/**
-	 * Whether `request` is settled: answered, skipped or dismissed, through any widget that shows its chat, or elsewhere. Its
-	 * model part tells; an extension's question, which is not one of the model's own, is settled as the chat service hears
-	 * its answer.
+	 * Whether `request` is settled: answered, skipped or dismissed, through any widget that shows its chat, or elsewhere.
 	 */
-	private observeInputRequestUsed(request: IChatQuestionCarousel | IChatPlanReview, element: IChatResponseViewModel): IObservable<boolean> {
+	private observeInputRequestUsed(request: IChatQuestionCarousel | IChatPlanReview): IObservable<boolean> {
 		if (request instanceof ChatQuestionCarouselData || request instanceof ChatPlanReviewData) {
 			return request.used;
-		}
-		if (request.kind === 'questionCarousel' && request.resolveId) {
-			const resolveId = request.resolveId;
-			return observableFromEvent(this, Event.filter(this.chatService.onDidReceiveQuestionCarouselAnswer, e => e.requestId === element.requestId && e.resolveId === resolveId), () => !!request.isUsed);
 		}
 		return constObservable(!!request.isUsed);
 	}
@@ -5332,7 +5326,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * renders it again, such as in the list instead, or as its summary. `isStale` then tells the row's part so.
 	 */
 	private watchInputRequest(request: IChatQuestionCarousel | IChatPlanReview, element: IChatResponseViewModel, context: IChatContentPartRenderContext, widget: IChatWidget | undefined, clear: () => void): IDisposable & { isStale(): boolean } {
-		const used = this.observeInputRequestUsed(request, element);
+		const used = this.observeInputRequestUsed(request);
 		const docking = observableFromEvent(this, this.onDidChangeInputRequestWidgets(), () => this.getDockingWidget(element.sessionResource));
 		// A request that is not one of the model's own can be settled where nothing tells: its row renders it again as it next renders
 		const renderedUsed = !!request.isUsed;

@@ -2745,7 +2745,7 @@ suite('ChatResponseModel', () => {
 			response.updateContent(createTool('tool', 'Tool approval'));
 			const snapshots = [pending(response)];
 
-			for (const part of [confirmation, carousel, plan]) {
+			for (const part of response.response.value.filter((part): part is IChatConfirmation | IChatQuestionCarousel | IChatPlanReview => part.kind === 'confirmation' || part.kind === 'questionCarousel' || part.kind === 'planReview')) {
 				part.isUsed = true;
 				response.setResult({});
 				snapshots.push(pending(response));

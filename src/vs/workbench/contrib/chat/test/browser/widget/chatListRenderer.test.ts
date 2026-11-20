@@ -7243,8 +7243,9 @@ suite('ChatListRenderer', () => {
 				await questionIn('b', key)(new Map([['q1', 'Weave']]), true);
 			}
 			await renderAgain(a.node, a, b);
+			const part = a.request.response!.response.value.find((part): part is IChatQuestionCarousel | IChatPlanReview => part.kind === request.kind)!;
 
-			assert.deepStrictEqual({ first, moved, settled: { docked: dockedIn(key), inline: state().inline, used: request.isUsed, notified: answered.callCount } }, {
+			assert.deepStrictEqual({ first, moved, settled: { docked: dockedIn(key), inline: state().inline, used: part.isUsed, notified: answered.callCount } }, {
 				first: { docked: 'a', inline: ['b'] },
 				moved: { docked: 'b', inline: ['a'] },
 				settled: { docked: [], inline: [], used: true, notified: kind === 'question' || kind === 'extension question' ? 1 : 0 },
@@ -7275,27 +7276,21 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ pending: inline(b.template), settled: !!b.template.value.querySelector('.chat-question-carousel-used') }, { pending: false, settled: true });
 	});
 
-	test('an extension question that another widget renders in its list settles there as the chat service hears its answer, its own only, while its part lives', async () => {
+	test('an extension question that another widget renders in its list settles there when it is settled where the renderers do not see it', async () => {
 		const session = URI.from({ scheme: 'vscode-chat-session', path: '/heard' });
 		const { chatWidgetService, widgets } = createInputRequestWidgets(session, ['a', 'b']);
 		const a = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
 		const b = a.createRenderer(() => widgets.get('b'), ownedHost());
-		const answers = hearQuestionAnswers(a.instantiationService.get(IChatService));
-		const question: IChatQuestionCarousel = { kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true, resolveId: 'heard' };
-		a.model.acceptResponseProgress(a.request, question);
+		a.model.acceptResponseProgress(a.request, { kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true, resolveId: 'heard' });
 		await renderAgain(a.node, a, b);
-		const listening = answers.hasListeners();
+		const pending = inline(b.template);
 
-		// Answered where the renderers do not see it, such as by voice, which marks it used and tells the chat service
+		// Answered where the renderers do not see it, such as by voice, which marks the model's part used
+		const question = a.request.response!.response.value.find((part): part is IChatQuestionCarousel => part.kind === 'questionCarousel')!;
 		question.isUsed = true;
-		answers.fire({ requestId: a.request.id, resolveId: 'other', answers: undefined });
-		answers.fire({ requestId: 'another-request', resolveId: 'heard', answers: undefined });
-		await timeout(0);
-		const othersHeard = inline(b.template);
-		answers.fire({ requestId: a.request.id, resolveId: 'heard', answers: { q1: 'Weave' } });
 		await timeout(0);
 
-		assert.deepStrictEqual({ listening, othersHeard, settled: inline(b.template), listeningAfter: answers.hasListeners() }, { listening: true, othersHeard: true, settled: false, listeningAfter: false });
+		assert.deepStrictEqual({ pending, settled: inline(b.template) }, { pending: true, settled: false });
 	});
 
 	for (const names of [['view', 'editor'], ['editor']]) {

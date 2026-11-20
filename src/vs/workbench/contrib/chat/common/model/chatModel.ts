@@ -946,6 +946,17 @@ function isChatResponseConfirmationPart(part: IChatProgressResponseContent): par
 		|| part.kind === 'elicitation2';
 }
 
+/** A live carousel needs an observable settled state, so that settling it updates the pending confirmations. */
+function toQuestionCarouselData(part: IChatQuestionCarousel): ChatQuestionCarouselData {
+	if (part instanceof ChatQuestionCarouselData) {
+		return part;
+	}
+	const carousel = new ChatQuestionCarouselData(part.questions, part.allowSkip, part.resolveId, part.data, part.isUsed, part.message, part.source, part.terminalId, part.answerPresentation);
+	carousel.answeredExternally = part.answeredExternally;
+	carousel.autoReply = part.autoReply;
+	return carousel;
+}
+
 export class Response extends AbstractResponse implements IDisposable {
 	private readonly _store = new DisposableStore();
 	private readonly _toolInvocationDisposables = this._store.add(new DisposableStore());
@@ -960,7 +971,7 @@ export class Response extends AbstractResponse implements IDisposable {
 
 	constructor(value: IMarkdownString | ReadonlyArray<SerializedChatResponsePart>) {
 		super(asArray(value).map((v) => (
-			'kind' in v ? v :
+			'kind' in v ? (v.kind === 'questionCarousel' ? toQuestionCarouselData(v) : v) :
 				isMarkdownString(v) ? { content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
 					{ kind: 'treeData', treeData: v }
 		)));
@@ -1233,9 +1244,10 @@ export class Response extends AbstractResponse implements IDisposable {
 			}
 			this._contentChanged(quiet);
 		} else {
-			this._responseParts.push(progress);
-			if (isChatResponseConfirmationPart(progress)) {
-				this._pendingConfirmationCandidates.add(progress);
+			const part = progress.kind === 'questionCarousel' ? toQuestionCarouselData(progress) : progress;
+			this._responseParts.push(part);
+			if (isChatResponseConfirmationPart(part)) {
+				this._pendingConfirmationCandidates.add(part);
 			}
 			this._contentChanged(quiet);
 		}
