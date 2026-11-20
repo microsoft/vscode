@@ -126,18 +126,27 @@ function readCreatedDevContainer(request: readonly unknown[]): { readonly hostId
 	return { hostId, workspace };
 }
 
-function listDevContainerEnvironmentVolumes(): string[] {
-	return cp.execFileSync('docker', ['volume', 'ls', '-q', '--filter', `label=${DEV_CONTAINER_ENVIRONMENT_LABEL}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
+function listLabeledContainers(label: string): string[] {
+	return cp.execFileSync('docker', ['ps', '-aq', '--filter', `label=${label}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
 }
 
-/** Removes the containers and volumes of Dev Container environments, which are identified by their volume's name. */
-function removeDevContainerEnvironments(volumes: readonly string[]): void {
-	for (const volume of volumes) {
-		const containerIds = cp.execFileSync('docker', ['ps', '-aq', '--filter', `label=vsc.devcontainer.volume.name=${volume}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
-		if (containerIds.length) {
-			cp.execFileSync('docker', ['rm', '--force', ...containerIds], { stdio: 'pipe' });
+/**
+ * Removes the Dev Container environments whose containers have the label, with all volumes labeled with their
+ * environment, so environments that others create on the same Docker host in the meantime are kept.
+ */
+function removeLabeledDevContainerEnvironments(label: string): void {
+	const containerIds = listLabeledContainers(label);
+	if (!containerIds.length) {
+		return;
+	}
+	const volumes = containerIds.map(id => cp.execFileSync('docker', ['inspect', '--format', '{{index .Config.Labels "vsc.devcontainer.volume.name"}}', id], { encoding: 'utf8' }).trim()).filter(Boolean);
+	const environmentIds = volumes.map(volume => cp.execFileSync('docker', ['volume', 'inspect', '--format', `{{index .Labels "${DEV_CONTAINER_ENVIRONMENT_LABEL}"}}`, volume], { encoding: 'utf8' }).trim()).filter(Boolean);
+	cp.execFileSync('docker', ['rm', '--force', ...containerIds], { stdio: 'pipe' });
+	for (const environmentId of environmentIds) {
+		const environmentVolumes = cp.execFileSync('docker', ['volume', 'ls', '-q', '--filter', `label=${DEV_CONTAINER_ENVIRONMENT_LABEL}=${environmentId}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
+		if (environmentVolumes.length) {
+			cp.execFileSync('docker', ['volume', 'rm', '--force', ...environmentVolumes], { stdio: 'pipe' });
 		}
-		cp.execFileSync('docker', ['volume', 'rm', '--force', volume], { stdio: 'pipe' });
 	}
 }
 
@@ -392,7 +401,8 @@ export function setup(logger: Logger, quality: Quality) {
 	(runDevContainerSuite ? describe : describe.skip)('Agents Window (Dev Container handoff)', () => {
 		installDockerPrerequisite(logger, process.platform === 'linux');
 
-		let volumesBefore: ReadonlySet<string> | undefined;
+		// Identifies the containers of this run, so cleanup leaves environments that others create on the same Docker host.
+		const runLabel = `vscode.smoke.devContainerHandoff=${randomUUID()}`;
 		const handoff = setupAgentHostSuite(logger, {
 			serverLabel: 'Dev Container handoff AgentHost',
 			mockServerHost: '0.0.0.0',
@@ -415,22 +425,17 @@ export function setup(logger: Logger, quality: Quality) {
 			extraEnv: options => ({
 				VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({
 					containerEnv: devContainerMockEnvironment(handoff.mockServer.port),
-					runArgs: ['--add-host=vscode-smoke.test:host-gateway'],
+					runArgs: ['--add-host=vscode-smoke.test:host-gateway', `--label=${runLabel}`],
 					postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
 				}),
 			}),
 			// Runs once the app exited, and before the mock server closes, which waits for the containers' connections.
-			cleanupWorkspace: () => {
-				if (volumesBefore) {
-					removeDevContainerEnvironments(listDevContainerEnvironmentVolumes().filter(volume => !volumesBefore!.has(volume)));
-				}
-			},
+			cleanupWorkspace: () => removeLabeledDevContainerEnvironments(runLabel),
 		});
 
 		it('Continues a task in a new Dev Container session', async function () {
 			this.timeout(10 * 60 * 1000);
 			const app = this.app as Application;
-			volumesBefore = new Set(listDevContainerEnvironmentVolumes());
 
 			try {
 				const requestsBefore = handoff.mockServer.getRequests().length;
@@ -444,8 +449,8 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.waitForAssistantText(DEV_CONTAINER_HANDOFF_REPLY, 8 * 60 * 1000, { acceptToolConfirmations: true });
 				// Only the Agent Host in the container reaches the mock server through vscode-smoke.test.
 				await waitForPromptRequest(handoff.mockServer, requestsBefore, `[scenario:${DEV_CONTAINER_HANDOFF_CHILD_SCENARIO_ID}]`, 2 * 60 * 1000);
-				const created = listDevContainerEnvironmentVolumes().filter(volume => !volumesBefore!.has(volume));
-				assert.strictEqual(created.length, 1, `Expected one new Dev Container environment volume, found: ${created.join(', ')}`);
+				const created = listLabeledContainers(runLabel);
+				assert.strictEqual(created.length, 1, `Expected one new Dev Container environment container, found: ${created.join(', ')}`);
 				const rendererLogs = await waitForLogContent(
 					() => readRendererLogs(handoff.logsPath),
 					/\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/,

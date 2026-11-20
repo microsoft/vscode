@@ -96,6 +96,8 @@ export class CreateDevContainerTool implements IToolImpl {
 			),
 			runsInWorkspace: false,
 			canBeReferencedInPrompt: false,
+			// Calls from a background chat wait for a chat to confirm them instead of opening a window-wide dialog.
+			canRequestPreApproval: true,
 			inputSchema: {
 				type: 'object',
 				additionalProperties: false,

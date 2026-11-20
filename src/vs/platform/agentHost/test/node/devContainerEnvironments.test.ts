@@ -104,6 +104,37 @@ suite('Dev Container environments', () => {
 		assert.deepStrictEqual({ created, workspace: prepared.remoteWorkspaceFolder }, { created: ['ubuntu-2', 'ubuntu-3'], workspace: '/workspaces/ubuntu-3' });
 	});
 
+	test('never gives a new environment a name whose state volume exists, nor mounts a state volume of another environment', async () => {
+		const stateOf = (name: string) => getDevContainerStateVolumeName([`vsc.devcontainer.volume.name=${name}`, `vsc.devcontainer.volume.folder=${name}`]);
+		const created: string[] = [];
+		const prepared = await prepareDevContainerEnvironment({ environmentId, image: devContainerEnvironmentImage }, cacheDirectory, {
+			onContainerStarted: () => { },
+			docker: async args => {
+				if (args[1] === 'create') {
+					created.push(args.at(-1)!);
+				}
+				// `ubuntu` was removed, but its state volume was left behind.
+				const stdout = args[1] === 'ls' ? (args.includes('--filter') ? '' : stateOf('ubuntu'))
+					: args[1] === 'inspect' ? JSON.stringify({ [devContainerEnvironmentLabel]: environmentId }) : '';
+				return { stdout, stderr: '', code: 0 };
+			},
+			devcontainer: async () => ({ stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: '/workspaces/ubuntu-2' }), stderr: '', code: 0 }),
+		});
+		const idLabels = [`vsc.devcontainer.volume.name=${volumeName}`, `vsc.devcontainer.volume.folder=${volumeName}`];
+		const otherEnvironmentState = prepareDevContainerEnvironment({ environmentId, image: devContainerEnvironmentImage }, cacheDirectory, {
+			onContainerStarted: () => { },
+			docker: async args => {
+				// The environment's workspace volume exists, and a state volume with its name was created for another environment.
+				const stdout = args[1] === 'ls' ? (args.includes('--filter') ? volumeName : `${volumeName}\n${stateOf(volumeName)}`)
+					: args[1] === 'inspect' ? JSON.stringify({ ...Object.fromEntries(getDevContainerStateVolumeLabels(idLabels).map(label => [label.slice(0, label.indexOf('=')), label.slice(label.indexOf('=') + 1)])), [devContainerEnvironmentLabel]: 'other' }) : '';
+				return { stdout, stderr: '', code: 0 };
+			},
+			devcontainer: async () => { throw new Error('not reached'); },
+		}, false, true);
+		assert.deepStrictEqual({ created, workspace: prepared.remoteWorkspaceFolder }, { created: ['ubuntu-2'], workspace: '/workspaces/ubuntu-2' });
+		await assert.rejects(otherEnvironmentState, /is not the state volume of this Dev Container environment/);
+	});
+
 	test('keeps user state on its own state volume, linked before lifecycle commands run', async () => {
 		const calls: string[] = [];
 		const reports: string[] = [];

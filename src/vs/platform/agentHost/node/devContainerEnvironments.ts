@@ -109,13 +109,16 @@ async function findEnvironmentVolume(docker: DockerCommand, environmentId: strin
 	return (await listVolumes(docker, [`${devContainerVolumeLabel}=true`, `${devContainerEnvironmentLabel}=${environmentId}`]))[0];
 }
 
-/** Creates the environment's workspace volume with the first free name, as New Dev Container names it: `ubuntu`, then `ubuntu-2`, and so on. */
+/**
+ * Creates the environment's workspace volume with the first free name, as New Dev Container names it: `ubuntu`, then
+ * `ubuntu-2`, and so on. A name whose state volume exists is not free, since a new environment would mount another's state.
+ */
 async function createEnvironmentVolume(docker: DockerCommand, environmentId: string, image: string, existingVolumes: readonly string[]): Promise<string> {
 	const baseName = getVolumeBaseName(image);
 	const taken = new Set(existingVolumes);
 	for (let index = 1; index <= 1000; index++) {
 		const volumeName = index === 1 ? baseName : `${baseName}-${index}`;
-		if (taken.has(volumeName)) {
+		if (taken.has(volumeName) || taken.has(getDevContainerStateVolumeName(getIdLabels(volumeName)))) {
 			continue;
 		}
 		checked(await docker(['volume', 'create', '--label', `${devContainerVolumeLabel}=true`, '--label', `${devContainerEnvironmentLabel}=${environmentId}`, volumeName]), 'docker volume create');
@@ -133,8 +136,11 @@ function getIdLabels(volumeName: string): readonly string[] {
 	return [`${devContainerVolumeNameLabel}=${volumeName}`, `${devContainerVolumeFolderLabel}=${volumeName}`];
 }
 
-async function isEnvironmentStateVolume(docker: DockerCommand, volumeName: string, idLabels: readonly string[]): Promise<boolean> {
-	return isDevContainerStateVolumeFor(JSON.parse(checked(await docker(['volume', 'inspect', '--format', '{{json .Labels}}', volumeName]), 'docker volume inspect')), idLabels);
+/** Whether the state volume is the one of this workspace volume, and was not created for another environment with its name. */
+async function isEnvironmentStateVolume(docker: DockerCommand, volumeName: string, idLabels: readonly string[], environmentId: string): Promise<boolean> {
+	const labels: unknown = JSON.parse(checked(await docker(['volume', 'inspect', '--format', '{{json .Labels}}', volumeName]), 'docker volume inspect'));
+	// State volumes created before they got the environment's label have none.
+	return isDevContainerStateVolumeFor(labels, idLabels) && isRecord(labels) && (labels[devContainerEnvironmentLabel] === undefined || labels[devContainerEnvironmentLabel] === environmentId);
 }
 
 /**
@@ -159,7 +165,7 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 			if (!existingVolumes.includes(stateVolumeName)) {
 				// The environment's label lets its removal find the state volume.
 				checked(await commands.docker(['volume', 'create', ...[...getDevContainerStateVolumeLabels(idLabels), `${devContainerEnvironmentLabel}=${source.environmentId}`].flatMap(label => ['--label', label]), stateVolumeName]), 'docker volume create');
-			} else if (!await isEnvironmentStateVolume(commands.docker, stateVolumeName, idLabels)) {
+			} else if (!await isEnvironmentStateVolume(commands.docker, stateVolumeName, idLabels, source.environmentId)) {
 				throw new Error(localize('devContainerEnvironment.stateVolumeConflict', "The Docker volume '{0}' is not the state volume of this Dev Container environment.", stateVolumeName));
 			}
 		} catch (error) {
@@ -234,7 +240,7 @@ export async function removeDevContainerEnvironment(environmentId: string, cache
 		}
 		// State volumes created before they got the environment's label are found by their name and identity labels.
 		const stateVolumeName = getDevContainerStateVolumeName(idLabels);
-		if (!volumes.has(stateVolumeName) && (await listVolumes(docker)).includes(stateVolumeName) && await isEnvironmentStateVolume(docker, stateVolumeName, idLabels)) {
+		if (!volumes.has(stateVolumeName) && (await listVolumes(docker)).includes(stateVolumeName) && await isEnvironmentStateVolume(docker, stateVolumeName, idLabels, environmentId)) {
 			volumes.add(stateVolumeName);
 		}
 	}
