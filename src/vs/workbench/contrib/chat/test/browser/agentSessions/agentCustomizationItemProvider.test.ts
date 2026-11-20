@@ -248,6 +248,31 @@ suite('AgentCustomizationItemProvider', () => {
 			[{ name: 'Hooks', status: 'error', message: 'SDK hook discovery failed', readable: false }]);
 	});
 
+	test('shows hook load diagnostics as their own row without marking the hooks that loaded', async () => {
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [{
+					type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
+					name: 'Copilot hooks', contents: CustomizationType.Hook, enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Loaded },
+					children: [{ type: CustomizationType.Hook, id: 'guard', uri: 'file:///workspace/.github/hooks/guard.json', name: 'preToolUse', enabled: true, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository', hookType: 'preToolUse' }) }],
+				}, {
+					type: CustomizationType.Directory, id: 'diagnostics', uri: 'agent-discovery://copilot/hooks/diagnostics',
+					name: 'Couldn\'t load some hook files', contents: CustomizationType.Hook, enabled: true, writable: false, children: [],
+					load: { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json' },
+				}];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		assert.deepStrictEqual(items.map(item => ({ name: item.name, status: item.status, message: item.statusMessage, enabled: item.enabled })), [
+			{ name: 'Pre-Tool Use', status: 'loaded', message: undefined, enabled: true },
+			{ name: 'Couldn\'t load some hook files', status: 'degraded', message: 'Invalid hook configuration in broken.json\nInvalid hook configuration in other.json', enabled: true },
+		]);
+	});
+
 	test('shows host-discovered plugin hooks without reading client files and preserves individual enablement', async () => {
 		let readCount = 0;
 		const fileService = upcastPartial<IFileService>({ readFile: async () => { readCount++; throw new Error('Must not read client files'); } });
@@ -432,6 +457,13 @@ suite('AgentCustomizationItemProvider', () => {
 			beforeHostInventory: await notRunning({ customizations: [] }),
 			hostDiscoveryFailed: await notRunning({ customizations: hostHooks({ kind: CustomizationLoadStatus.Error, message: 'failed' }) }),
 			hostDiscoveryLoading: await notRunning({ customizations: hostHooks({ kind: CustomizationLoadStatus.Loading }) }),
+			// Files that failed to load are reported in their own directory and are missing from the host's inventory.
+			hostLoadErrors: await notRunning({
+				customizations: [...hostHooks({ kind: CustomizationLoadStatus.Loaded }), {
+					type: CustomizationType.Directory, id: 'diagnostics', uri: 'agent-discovery://copilot/hooks/diagnostics', name: 'Couldn\'t load some hook files',
+					contents: CustomizationType.Hook, enabled: true, writable: false, children: [], load: { kind: CustomizationLoadStatus.Degraded, message: 'Invalid hook configuration' },
+				}],
+			}),
 			worktreeSession: await notRunning({ roots: [URI.file('/worktrees/workspace-1')] }),
 		}, {
 			message: { source: AICustomizationSources.local, enabled: false, status: 'degraded', statusMessage: 'Copilot doesn\'t read hooks from folders added in chat.hookFilesLocations. Move the file to .github/hooks or ~/.copilot/hooks, and check that its scripts work with Copilot.' },
@@ -441,6 +473,7 @@ suite('AgentCustomizationItemProvider', () => {
 			beforeHostInventory: [],
 			hostDiscoveryFailed: [],
 			hostDiscoveryLoading: [],
+			hostLoadErrors: [],
 			// Files of the workspace folder belong to its repository, not the worktree; a shared configured folder applies to both.
 			worktreeSession: ['/shared-hooks/guard.json'],
 		});

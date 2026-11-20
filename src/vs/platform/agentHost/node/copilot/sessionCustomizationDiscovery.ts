@@ -128,6 +128,13 @@ const fixedDiscoveryFiles: { workspace: IFixedDiscoveryFile[]; user: IFixedDisco
 	user: [],
 };
 
+interface IDiscoveredRuntimeHooks {
+	/** The hooks the runtime loaded, or a failed discovery with no hooks. */
+	readonly discovered?: DirectoryCustomization;
+	/** Hook files the runtime reported as failing to load, or loading with warnings. */
+	readonly diagnostics?: DirectoryCustomization;
+}
+
 /** The runtime reports a user or plugin hook once per requested project path. */
 function withUniqueHookIds(discovered: HooksDiscoveryResult): HooksDiscoveryResult {
 	const seen = new Set<string>();
@@ -607,6 +614,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			const sortedResult: SessionDiscoveredCustomization[] = [
 				...result.sort(compareDirectoryCustomization),
 				...(remainingHooks && (remainingHooks.children?.length || remainingHooks.load?.kind !== CustomizationLoadStatus.Loaded) ? [remainingHooks] : []),
+				...(hooks.diagnostics ? [hooks.diagnostics] : []),
 				...(notRunningHooks ? [notRunningHooks] : []),
 				...(mcpDiscovery.error ? [mcpDiscovery.error] : []),
 				...pluginCustomizations.sort((a, b) => compareStrings(a.uri, b.uri)),
@@ -871,14 +879,14 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 	}
 
-	private async discoverHooks(client: CopilotClient, token: CancellationToken): Promise<{ readonly discovered?: DirectoryCustomization; readonly untrusted: readonly URI[]; readonly enabled: boolean }> {
+	private async discoverHooks(client: CopilotClient, token: CancellationToken): Promise<IDiscoveredRuntimeHooks & { readonly untrusted: readonly URI[]; readonly enabled: boolean }> {
 		const enabled = this._hooksEnabled();
 		const untrustedRoots = this._untrustedHookWorkingDirectories();
-		const [discovered, untrusted] = await Promise.all([
+		const [runtimeHooks, untrusted] = await Promise.all([
 			this.discoverRuntimeHooks(client, untrustedRoots, token),
 			this.discoverUntrustedHookFiles(untrustedRoots, token),
 		]);
-		return { discovered, untrusted, enabled };
+		return { ...runtimeHooks, untrusted, enabled };
 	}
 
 	private _untrustedHookWorkingDirectories(): readonly URI[] {
@@ -908,7 +916,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		return declaring.filter(uri => uri !== undefined);
 	}
 
-	private async discoverRuntimeHooks(client: CopilotClient, untrustedRoots: readonly URI[], token: CancellationToken): Promise<DirectoryCustomization | undefined> {
+	private async discoverRuntimeHooks(client: CopilotClient, untrustedRoots: readonly URI[], token: CancellationToken): Promise<IDiscoveredRuntimeHooks> {
 		const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks' });
 		try {
 			const discovered = await raceCancellationError(client.rpc.hooks.discover({
@@ -922,23 +930,22 @@ export class SessionCustomizationDiscovery extends Disposable {
 			for (const error of result.errors) {
 				this._logService.error(`[SessionCustomizationDiscovery] Hook discovery: ${error}`);
 			}
-			const diagnostics = [...result.errors, ...result.warnings];
-			if (result.hooks.length === 0 && diagnostics.length === 0) {
-				return undefined;
-			}
 			return {
-				type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
-				name: localize('copilot.discoveredHooks', "Copilot hooks"), contents: CustomizationType.Hook,
-				enabled: true, writable: false,
-				load: diagnostics.length ? { kind: CustomizationLoadStatus.Degraded, message: diagnostics.join('\n') } : { kind: CustomizationLoadStatus.Loaded },
-				children: result.hooks.map(hook => ({
-					type: CustomizationType.Hook,
-					id: hook.id,
-					uri: hook.definitionFileUri ? this._definitionUri(hook.definitionFileUri).toString() : uri.with({ fragment: hook.id }).toString(),
-					name: hook.hookType,
-					enabled: hook.enabled,
-					_meta: withCustomizationDiscoveryMeta(undefined, { source: hook.origin, sourceLabel: hook.source, hookType: hook.hookType, pluginId: hook.pluginId }),
-				})),
+				discovered: result.hooks.length === 0 ? undefined : {
+					type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
+					name: localize('copilot.discoveredHooks', "Copilot hooks"), contents: CustomizationType.Hook,
+					enabled: true, writable: false,
+					load: { kind: CustomizationLoadStatus.Loaded },
+					children: result.hooks.map(hook => ({
+						type: CustomizationType.Hook,
+						id: hook.id,
+						uri: hook.definitionFileUri ? this._definitionUri(hook.definitionFileUri).toString() : uri.with({ fragment: hook.id }).toString(),
+						name: hook.hookType,
+						enabled: hook.enabled,
+						_meta: withCustomizationDiscoveryMeta(undefined, { source: hook.origin, sourceLabel: hook.source, hookType: hook.hookType, pluginId: hook.pluginId }),
+					})),
+				},
+				diagnostics: this.toHookDiagnosticsDirectory(result.errors, result.warnings),
 			};
 		} catch (error) {
 			if (error instanceof CancellationError) {
@@ -947,11 +954,33 @@ export class SessionCustomizationDiscovery extends Disposable {
 			const message = error instanceof Error ? error.message : String(error);
 			this._logService.error(`[SessionCustomizationDiscovery] Hook discovery failed: ${message}`);
 			return {
-				type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
-				name: localize('copilot.discoveredHooks', "Copilot hooks"), contents: CustomizationType.Hook,
-				enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Error, message }, children: [],
+				discovered: {
+					type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
+					name: localize('copilot.discoveredHooks', "Copilot hooks"), contents: CustomizationType.Hook,
+					enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Error, message }, children: [],
+				},
 			};
 		}
+	}
+
+	/**
+	 * Reports partial hook discovery diagnostics in their own empty directory, so that they describe the files that
+	 * failed rather than each hook that loaded. The runtime's messages are shown as they are, one per line.
+	 */
+	private toHookDiagnosticsDirectory(errors: readonly string[], warnings: readonly string[]): DirectoryCustomization | undefined {
+		if (errors.length === 0 && warnings.length === 0) {
+			return undefined;
+		}
+		const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks/diagnostics' }).toString();
+		return {
+			type: CustomizationType.Directory, id: customizationId(uri), uri,
+			name: errors.length
+				? localize('copilot.hookLoadErrors', "Couldn't load some hook files")
+				: localize('copilot.hookLoadWarnings', "Some hook files have warnings"),
+			contents: CustomizationType.Hook, enabled: true, writable: false,
+			load: { kind: CustomizationLoadStatus.Degraded, message: [...errors, ...warnings].join('\n') },
+			children: [],
+		};
 	}
 
 	/**
