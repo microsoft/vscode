@@ -159,7 +159,8 @@ suite('sendConversationalMessageTelemetry', () => {
 
 		await vi.waitFor(() => expect(enhanced).toHaveBeenCalledTimes(1));
 		const emitted = enhanced.mock.calls[0][1]!;
-		assert.deepStrictEqual(JSON.parse(emitted.messageText), {
+		assert.strictEqual(typeof emitted.messageText, 'string');
+		assert.deepStrictEqual(JSON.parse(String(emitted.messageText)), {
 			role: 'assistant',
 			content: 'I renamed `getUser` to `fetchUser`.',
 			reasoning_text: 'The user wants to rename the function.',

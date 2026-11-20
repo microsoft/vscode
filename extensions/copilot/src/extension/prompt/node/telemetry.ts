@@ -238,8 +238,10 @@ function extractInlineReasoning(text: string): { content: string; reasoningText:
 	let atLineStart = true;
 	let activeFence: { char: string; length: number } | undefined;
 	let foundTag = false;
+	let hasNonWhitespaceContent = false;
 	let nextThink = text.indexOf('<think', 0);
 	let nextAnalysis = text.indexOf('<analysis>', 0);
+	let nextNewline = text.indexOf('\n', 0);
 	const contentParts: string[] = [];
 	const reasoningParts: string[] = [];
 
@@ -253,11 +255,13 @@ function extractInlineReasoning(text: string): { content: string; reasoningText:
 					atLineStart = true;
 					continue;
 				}
-				const nl = text.indexOf('\n', pos);
-				if (nl === -1) {
+				if (nextNewline !== -1 && nextNewline < pos) {
+					nextNewline = text.indexOf('\n', pos);
+				}
+				if (nextNewline === -1) {
 					break;
 				}
-				pos = nl + 1;
+				pos = nextNewline + 1;
 				atLineStart = true;
 				continue;
 			}
@@ -284,7 +288,9 @@ function extractInlineReasoning(text: string): { content: string; reasoningText:
 		if (nextTag === -1) {
 			break;
 		}
-		const nextNewline = text.indexOf('\n', pos);
+		if (nextNewline !== -1 && nextNewline < pos) {
+			nextNewline = text.indexOf('\n', pos);
+		}
 		if (nextNewline !== -1 && nextNewline < nextTag) {
 			pos = nextNewline + 1;
 			atLineStart = true;
@@ -300,9 +306,9 @@ function extractInlineReasoning(text: string): { content: string; reasoningText:
 
 		foundTag = true;
 		const before = text.slice(chunkStart, nextTag);
-		const hasNonWhitespaceContent = contentParts.some(p => p.trim().length > 0);
 		if (before.length > 0 && (hasNonWhitespaceContent || before.trim().length > 0)) {
 			contentParts.push(before);
+			hasNonWhitespaceContent = true;
 		}
 
 		const innerStart = nextTag + matchedTag.open.length;
@@ -398,7 +404,7 @@ export function sendConversationalMessageTelemetry(
 	baseTelemetry: ConversationalBaseTelemetryData
 ): TelemetryData {
 
-	const isModelMessage = (properties.source ?? baseTelemetry.properties.source) === 'model';
+	const isModelMessage = (properties.source ?? baseTelemetry.raw.properties.source) === 'model';
 	const enhancedProperties: { [key: string]: string } = {
 		...(messageText ? { messageText: messageText } : {}),
 		...properties,
