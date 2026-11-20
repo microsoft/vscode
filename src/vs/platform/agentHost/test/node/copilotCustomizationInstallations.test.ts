@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, InstallationConfirmationRequest, McpInstallationReview } from '@github/copilot-sdk';
+import type { CopilotClient, InstallationConfirmationRequest, McpInstallationReview } from '@microsoft/copilot-sdk';
 import assert from 'assert';
 import { createHash } from 'crypto';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -2519,26 +2519,61 @@ suite('CopilotCustomizationInstallations', () => {
 			assert.deepStrictEqual(added.map(entry => entry.config), [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', '--include', 'src', '--include', 'test', '.'], tools: ['*'] }]);
 		});
 
+		test('does not ask for a fixed flag, and takes a repeated argument\'s variable once per value', async () => {
+			// Arguments as the Serena and Azure DevOps MCP cards declare them, with the values a plan asks for them.
+			const install = async (domains: readonly string[]) => {
+				const { service, request, added } = createPackageFixture({
+					requiredValues: [
+						{ kind: 'scalar', key: '--context', category: 'package-argument', valueType: 'string', required: true, isRepeated: false },
+						{ kind: 'scalar', key: 'organization', category: 'package-argument', valueType: 'string', required: true, isRepeated: false },
+						{ kind: 'scalar', key: '-d', category: 'package-argument', valueType: 'string', required: false, title: '-d', isRepeated: false },
+						{ kind: 'scalar', key: 'domain', category: 'package-argument', valueType: 'string', required: false, isRepeated: false },
+					],
+					packageArguments: [
+						{ type: 'named', name: '--context', format: 'string', isRequired: true },
+						{ type: 'positional', value: 'ide-assistant', isRequired: true },
+						{ type: 'positional', value: '{organization}', isRequired: true, variables: { organization: { isRequired: true } } },
+						{ type: 'named', name: '-d', format: 'string' },
+						{ type: 'positional', value: '{domain}', isRepeated: true, variables: { domain: { description: 'Domain to enable' } } },
+					],
+				});
+				const configuration = await service.prepare(request);
+				assert.strictEqual(configuration.kind, 'configuration');
+				const inputs = [{ key: 'organization', value: 'contoso' }, ...domains.map(value => ({ key: 'domain', value }))].map(input => ({ ...input, category: 'package-argument' as const }));
+				await service.apply({ hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs, secrets: [] } });
+				return {
+					asked: configuration.choices[0].values.map(value => `${value.key}: ${value.required ? 'required' : 'optional'}${value.isRepeated ? ', repeated' : ''}`),
+					written: added.map(entry => entry.config),
+				};
+			};
+			const asked = ['organization: required', 'domain: optional, repeated'];
+			assert.deepStrictEqual([await install(['core', 'work']), await install([])], [
+				{ asked, written: [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', '--context', 'ide-assistant', 'contoso', '-d', 'core', 'work'], tools: ['*'] }] },
+				// Without domains the flag that introduces them is left out too.
+				{ asked, written: [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', '--context', 'ide-assistant', 'contoso'], tools: ['*'] }] },
+			]);
+		});
+
 		test('fails closed for package secrets, variable references and values the card cannot place', async () => {
 			const results: string[] = [];
 			const withSecret = createPackageFixture({ requiredValues: declaredValues, secret: true });
 			results.push(await withSecret.service.prepare(withSecret.request).then(prepared => prepared.kind, errorMessage));
-			const cases: [McpInstallPlan['transportChoices'][number]['requiredValues'], IAgentCustomizationInstallationAnswers['inputs']][] = [
-				[declaredValues, submitted.map(input => input.key === 'directory' ? { ...input, value: '${env:HOME}' } : input)],
-				[[...declaredValues, { kind: 'scalar', key: 'UNPLACED', category: 'environment-variable', valueType: 'string', required: false, defaultValue: 'x', isRepeated: false }], submitted],
-			];
-			for (const [requiredValues, inputs] of cases) {
-				const { service, request, added } = createPackageFixture({ requiredValues });
-				const configuration = await service.prepare(request);
-				assert.strictEqual(configuration.kind, 'configuration');
-				results.push(await service.apply({ hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs, secrets: [] } }).then(() => 'accepted', errorMessage));
-				assert.deepStrictEqual(added, []);
-			}
-			assert.deepStrictEqual(results, [
-				'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
-				'The value for \'directory\' is invalid.',
-				'This MCP package requires additional configuration that Browse cannot collect yet.',
-			]);
+			const { service, request, added } = createPackageFixture({ requiredValues: declaredValues });
+			const configuration = await service.prepare(request);
+			assert.strictEqual(configuration.kind, 'configuration');
+			const inputs = submitted.map(input => input.key === 'directory' ? { ...input, value: '${env:HOME}' } : input);
+			results.push(await service.apply({ hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs, secrets: [] } }).then(() => 'accepted', errorMessage));
+			// A value the card has no place for is refused before anything is asked.
+			const unplaced = createPackageFixture({ requiredValues: [...declaredValues, { kind: 'scalar', key: 'UNPLACED', category: 'environment-variable', valueType: 'string', required: false, defaultValue: 'x', isRepeated: false }] });
+			results.push(await unplaced.service.prepare(unplaced.request).then(prepared => prepared.kind, errorMessage));
+			assert.deepStrictEqual({ results, added: [...withSecret.added, ...added, ...unplaced.added] }, {
+				results: [
+					'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
+					'The value for \'directory\' is invalid.',
+					'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
+				],
+				added: [],
+			});
 		});
 	});
 

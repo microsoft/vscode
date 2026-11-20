@@ -715,26 +715,31 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 	// modified file" entirely. The fix is the scheme allowlist in stat().
 
 	for (const authority of ['local', 'remote']) {
-		test(`opens MCP skill content read-only without filesystem resolution (${authority})`, async () => {
-			const provider = disposables.add(new AgentHostFileSystemProvider());
-			const connection = new StubConnection();
-			disposables.add(provider.registerAuthority(authority, connection));
-			const content = URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly'));
-			const wrapped = toAgentHostUri(content, authority);
+		for (const content of [
+			URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly')),
+			URI.parse('agent-builtin-skill:/troubleshoot/SKILL.md'),
+			URI.parse('agent-builtin:/skill/troubleshoot'),
+		]) {
+			test(`opens skill content read-only without filesystem resolution (${authority}, ${content.scheme})`, async () => {
+				const provider = disposables.add(new AgentHostFileSystemProvider());
+				const connection = new StubConnection();
+				disposables.add(provider.registerAuthority(authority, connection));
+				const wrapped = toAgentHostUri(content, authority);
 
-			const stat = await provider.stat(wrapped);
-			const path = await provider.realpath(wrapped);
-			const bytes = await provider.readFile(wrapped);
+				const stat = await provider.stat(wrapped);
+				const path = await provider.realpath(wrapped);
+				const bytes = await provider.readFile(wrapped);
 
-			assert.deepStrictEqual({
-				type: stat.type, readonly: stat.permissions === FilePermission.Readonly, path,
-				content: VSBuffer.wrap(bytes).toString(), resources: connection.readCalls.map(uri => uri.toString()),
-				resolved: connection.resolveCalls, listed: connection.listCalls,
-			}, {
-				type: FileType.File, readonly: true, path: '/Friendly', content: 'stub-content',
-				resources: [content.toString()], resolved: [], listed: [],
+				assert.deepStrictEqual({
+					type: stat.type, readonly: stat.permissions === FilePermission.Readonly, path,
+					content: VSBuffer.wrap(bytes).toString(), resources: connection.readCalls.map(uri => uri.toString()),
+					resolved: connection.resolveCalls, listed: connection.listCalls,
+				}, {
+					type: FileType.File, readonly: true, path: content.path, content: 'stub-content',
+					resources: [content.toString()], resolved: [], listed: [],
+				});
 			});
-		});
+		}
 	}
 
 	test('stat returns File for git-blob: URIs without listing the parent', async () => {

@@ -225,6 +225,14 @@ export async function acceptAndAwaitSentRequest(result: ChatSendResult, onReques
 	return ChatSendResult.isSent(sent) ? sent : undefined;
 }
 
+/**
+ * Whether the last request waits on an unanswered question, such as one asked with the ask questions tool.
+ * MCP form elicitations are not questions here: like tool confirmations, a new message cancels them.
+ */
+function hasUnansweredQuestion(model: IChatModel): boolean {
+	return !!model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed && part.source?.type !== 'mcp');
+}
+
 export function shouldUnlockChatPetRequestRevision(isEditing: boolean, isUserQuery: boolean): boolean {
 	return isEditing && isUserQuery;
 }
@@ -1291,8 +1299,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewOptions.enableFind) {
 			const host: IChatFindHost = {
 				transcriptDomNode: this.listWidget.domNode,
+				activeModel: this._viewModelObs.map(viewModel => viewModel?.model),
+				transcriptVisible: this._visible,
 				getItems: () => this.viewModel?.getItems() ?? [],
 				onDidChangeContent: this._onDidChangeFindableContent.event,
+				hasElement: item => this.listWidget.hasElement(item),
 				reveal: (item, relativeTop) => this.reveal(item, relativeTop),
 				getTemplateDataForRequestId: (requestId) => this.getTemplateDataForRequestId(requestId),
 				onDidRerenderRow: this.onDidRerenderRow,
@@ -1584,6 +1595,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Update list widget state and refresh
 			this.listWidget.setVisibleChangeCount(this.visibleChangeCount);
 			this.listWidget.refresh(changes);
+			this._onDidChangeFindableContent.fire();
 
 			if (this._pendingFirstRenderSessionResource && this.viewModel && isEqual(this.viewModel.sessionResource, this._pendingFirstRenderSessionResource)) {
 				this._pendingFirstRenderSessionResource = undefined;
@@ -3405,7 +3417,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (events?.some(e => e?.kind === 'addRequest') && this.visible && !this.listWidget.isAutoScrollHeld) {
 				this.listWidget.scrollToEnd();
 			}
-			this._onDidChangeFindableContent.fire();
 		})));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
@@ -3443,9 +3454,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._updateAgentCapabilitiesContextKeys(e.agent);
 			}
 			if (e.kind === 'addRequest') {
-				this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, false);
 				this._sessionIsEmptyContextKey.set(false);
-				this.chatSuggestNextWidget.hide();
+				if (e.index === undefined) {
+					this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, false);
+					this.chatSuggestNextWidget.hide();
+				}
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {
@@ -4237,13 +4250,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			options.queue = undefined;
 		}
 		const requestInProgress = model.requestInProgress.get();
-		// Cancel the request if the user chooses to take a different path.
-		// This is a bit of a heuristic for the common case of tool confirmation+reroute.
-		// But we don't do this if there are queued messages, because we would either
-		// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
-		// which could be a surprising behavior if the user finishes typing a steering
-		// request just as confirmation is triggered.
-		if (!options.cancelCurrentRequest && model.requestNeedsInput.get() && !model.getPendingRequests().length) {
+		const requestNeedsInput = !options.cancelCurrentRequest && !!model.requestNeedsInput.get();
+		if (requestNeedsInput && hasUnansweredQuestion(model)) {
+			// An open question stays open: the message waits in the queue until the
+			// question is answered and the request completes.
+			options.queue ??= ChatRequestQueueKind.Queued;
+		} else if (requestNeedsInput && !model.getPendingRequests().length) {
+			// Cancel the request if the user chooses to take a different path.
+			// This is a bit of a heuristic for the common case of tool confirmation+reroute.
+			// But we don't do this if there are queued messages, because we would either
+			// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
+			// which could be a surprising behavior if the user finishes typing a steering
+			// request just as confirmation is triggered.
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -88,6 +89,13 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			if (focusedSession && focusedChat) {
 				// A chat window restores and reconciles its canvases without taking focus, as an unfocused one does.
 				add(focusedSession, focusedChat, getWindowHost(focusedHost)?.kind === SessionHostKind.ChatWindow);
+			}
+			// The main window presents the canvases of its chat while another window has focus.
+			const mainWindowHost = this.sessionHostService.getHostOfWindow(mainWindow.vscodeWindowId, reader);
+			const mainSession = mainWindowHost?.session.read(reader);
+			const mainChat = mainWindowHost?.chat.read(reader);
+			if (mainSession && mainChat) {
+				add(mainSession, mainChat, true);
 			}
 			// Every chat of every chat window presents its canvases there, whichever chat is active or focused.
 			for (const resource of this.chatWindowChats.read(reader)) {

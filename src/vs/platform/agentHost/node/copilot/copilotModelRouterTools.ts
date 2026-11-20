@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Tool, ToolResultObject } from '@github/copilot-sdk';
+import type { Tool, ToolResultObject } from '@microsoft/copilot-sdk';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';

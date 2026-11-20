@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stubChatViewHostServiceDependencies } from '../../../../chat/test/common/chatViewSessionsListServiceTestUtils.js';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -21,7 +22,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptor, IViewDescriptorService, ViewContainer } from '../../../../../common/views.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
@@ -31,7 +32,8 @@ import { ChatViewHostService } from '../../../../chat/browser/widgetHosts/viewPa
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
-import { IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
+import { IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
+import { ChatEditorInput } from '../../../../chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ChangesMultiDiffSourceResolver } from '../../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -42,8 +44,8 @@ import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys
 import { isUntitledChatSession, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { IChatRequestVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { IEditorWindowShownChat, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
-import { ChatConfiguration, getDefaultNewChatSessionTypeAndReason } from '../../../../chat/common/constants.js';
+import { IEditorWindowShownChat, IEditorWindowShownChatBindOptions, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
+import { ChatConfiguration, ChatViewSessionsOpenChatIn, getDefaultNewChatSessionTypeAndReason } from '../../../../chat/common/constants.js';
 import { NewChatAction } from '../../../../chat/browser/actions/chatNewActions.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../chat/common/chatSessionsService.js';
 import { MockChatSessionsService } from '../../../../chat/test/common/mockChatSessionsService.js';
@@ -79,12 +81,17 @@ class FakeChatWidget {
 	get state() { return { input: this._input, attachments: this._attachments.map(entry => entry.id) }; }
 }
 
+/** The value of the setting for the chat area being on or off. */
+function openChatIn(chatArea: boolean): ChatViewSessionsOpenChatIn {
+	return chatArea ? ChatViewSessionsOpenChatIn.ChatArea : ChatViewSessionsOpenChatIn.ChatPanel;
+}
+
 suite('ChatViewOpenInChatPartContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean; localChatsShown?: boolean; partComposerInput?: string; viewOpenShows?: URI | null; duringNewChat?: () => void; duringReveal?: () => void; partParks?: boolean } = {}) {
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? false, [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
+	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean; localChatsShown?: boolean; partComposerInput?: string; viewOpenShows?: URI | null; duringNewChat?: () => void; duringReveal?: () => void; partParks?: boolean; chatOpenIn?: string; chatPartEnabledByOther?: boolean } = {}) {
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenChatIn]: options.chatOpenIn ?? openChatIn(options.setting ?? false), [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(options.chatEnabled ?? true);
 		RemoteNameContext.bindTo(contextKeyService).set('');
@@ -98,6 +105,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: options.remote ? 'remote' : undefined, isSessionsWindow: !!options.sessionsWindow }));
 		const handovers: string[] = [];
 		instantiationService.stub(IEditorWindowChatPartService, upcastPartial<IEditorWindowChatPartService>({
+			enabled: constObservable(!!options.chatPartEnabledByOther),
 			enable: (o: IEditorWindowChatPartOptions): IDisposable => { chatPartOptions.push(o); return toDisposable(() => { }); },
 			closeChat: async resource => { handovers.push(`part closes ${resource.path}`); },
 			parkComposerInput: () => {
@@ -124,8 +132,34 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const partComposer = options.partComposerInput !== undefined ? new FakeChatWidget(options.partComposerInput) : undefined;
 		const widgets = new Map<string, FakeChatWidget>();
 		const widgetOf = (resource: URI | undefined) => (resource && widgets.get(resource.toString())) as IChatWidget | undefined;
-		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: resource => widgetOf(resource) }));
+		const editorOpens: { resource: URI; target: unknown; revealIfOpened: boolean | undefined }[] = [];
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+			getWidgetBySessionResource: resource => widgetOf(resource),
+			openSession: async (resource, target, openOptions) => { editorOpens.push({ resource, target, revealIfOpened: openOptions?.revealIfOpened }); return undefined; },
+		}));
+		const presenters: IEditorWindowSessionsPresenter[] = [];
+		instantiationService.stub(IEditorWindowSessionsPresenterService, upcastPartial<IEditorWindowSessionsPresenterService>({
+			registerPresenter: presenter => { presenters.push(presenter); return toDisposable(() => presenters.splice(presenters.indexOf(presenter), 1)); },
+		}));
+		// The chat editors that are open, the active one last, with the chat they show
+		const chatEditors: { editor: ChatEditorInput }[] = [];
+		const closedEditors: string[] = [];
+		const activeEditorChanged = store.add(new Emitter<void>());
+		const chatOfResource = (resource: URI) => upcastPartial<IEditorWindowShownChat>({ session: upcastPartial<ISession>({ mainChat: constObservable(upcastPartial<IChat>({ resource })), loading: constObservable(true) }), chat: upcastPartial<IChat>({ resource, isRead: constObservable(true) }) });
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+			onDidActiveEditorChange: activeEditorChanged.event,
+			get activeEditor() { return chatEditors.at(-1)?.editor; },
+			getEditors: () => chatEditors.map(({ editor }) => ({ editor, groupId: 1 })),
+			closeEditors: async editors => { closedEditors.push(...editors.map(({ editor }) => (editor as ChatEditorInput).sessionResource!.path)); },
+		}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSession: Event.None,
+			getSessionForChatResource: chatOfResource,
+			markRead: async () => true,
+		}));
+		const bindings: { shown: IObservable<IEditorWindowShownChat | undefined>; options: IEditorWindowShownChatBindOptions | undefined }[] = [];
 		instantiationService.stub(IEditorWindowShownChatService, upcastPartial<IEditorWindowShownChatService>({
+			bind: (shown, bindOptions) => { bindings.push({ shown, options: bindOptions }); return toDisposable(() => bindings.splice(bindings.findIndex(binding => binding.shown === shown), 1)); },
 			shown: derived(reader => {
 				const resource = shown.part.read(reader);
 				return resource && upcastPartial<IEditorWindowShownChat>({ session: upcastPartial<ISession>({ status: constObservable(isUntitledChatSession(resource) ? SessionStatus.Untitled : SessionStatus.Completed) }), chat: upcastPartial<IChat>({ resource }) });
@@ -201,13 +235,74 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			runtimeHeld,
 		});
 		const setSetting = async (value: boolean) => {
-			await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, value);
-			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+			await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenChatIn, openChatIn(value));
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenChatIn]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenChatIn }));
 			// The handover runs once the hosts changed
 			await timeout(0);
 		};
-		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer };
+		const activateChatEditor = (resource: URI | undefined) => {
+			if (!resource) {
+				chatEditors.length = 0;
+			} else {
+				chatEditors.push({ editor: Object.assign(Object.create(ChatEditorInput.prototype) as ChatEditorInput, { _sessionResource: resource }) });
+			}
+			activeEditorChanged.fire();
+		};
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting, hostReady, request, partComposer, presenters, editorOpens, bindings, closedEditors, activateChatEditor };
 	}
+
+	test('editorArea opens the chats of sessions as editors, revealing one that is open, and does not use the chat part', async () => {
+		const chat = URI.parse('agent-host-copilot:/session-1');
+		const session = upcastPartial<ISession>({ mainChat: constObservable(upcastPartial<IChat>({ resource: chat })) });
+		const run = async (value: string, window?: { remote?: boolean; sessionsWindow?: boolean }) => {
+			const fixture = setup({ ...window });
+			await fixture.configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenChatIn, value);
+			fixture.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenChatIn]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenChatIn }));
+			await fixture.presenters.at(-1)?.openChat(session, undefined);
+			await fixture.presenters.at(-1)?.openChat(session, undefined, { sideBySide: true });
+			return { presenters: fixture.presenters.length, chatPartOn: fixture.chatPartOptions[0].enabled.get(), opens: fixture.editorOpens.map(open => `${open.resource.path} ${open.target === SIDE_GROUP ? 'side' : open.target === ACTIVE_GROUP ? 'active' : 'other'} ${open.revealIfOpened}`) };
+		};
+		assert.deepStrictEqual({
+			editorArea: await run('editorArea'),
+			chatArea: await run('chatArea'),
+			chatPanel: await run('chatPanel'),
+		}, {
+			editorArea: { presenters: 1, chatPartOn: false, opens: ['/session-1 active true', '/session-1 side false'] },
+			chatArea: { presenters: 0, chatPartOn: true, opens: [] },
+			chatPanel: { presenters: 0, chatPartOn: false, opens: [] },
+		});
+	});
+
+	test('editorArea shows the chat of the active chat editor as the window chat, and closes the editors of a chat', () => {
+		const first = URI.parse('agent-host-copilot:/session-1');
+		const second = URI.parse('agent-host-copilot:/session-2');
+		const fixture = setup({ chatOpenIn: 'editorArea', chatViewShows: URI.parse('agent-host-copilot:/in-chat-view') });
+		const shown = () => fixture.bindings.at(-1)?.shown.get()?.chat.resource.path;
+		const states = [shown()];
+		fixture.activateChatEditor(first);
+		states.push(shown());
+		fixture.activateChatEditor(undefined);
+		states.push(shown());
+		fixture.activateChatEditor(first);
+		fixture.activateChatEditor(second);
+		states.push(shown());
+		return fixture.presenters[0].closeChat(first).then(() => {
+			assert.deepStrictEqual({ states, options: fixture.bindings.map(binding => binding.options), isShowingFirst: fixture.presenters[0].isShowing(first), isShowingSecond: fixture.presenters[0].isShowing(second), closed: fixture.closedEditors }, {
+				states: ['/in-chat-view', '/session-1', '/in-chat-view', '/session-2'],
+				options: [{ override: true, priority: 1 }],
+				isShowingFirst: true,
+				isShowingSecond: true,
+				closed: ['/session-1'],
+			});
+		});
+	});
+
+	test('editorArea does not take over from the presenter of a chat part that another feature enabled', () => {
+		assert.deepStrictEqual({
+			free: setup({ chatOpenIn: 'editorArea' }).presenters.length,
+			chatPartEnabledByOther: setup({ chatOpenIn: 'editorArea', chatPartEnabledByOther: true }).presenters.length,
+		}, { free: 1, chatPartEnabledByOther: 0 });
+	});
 
 	test('is on only while the setting is on and the configured orientation is side by side', async () => {
 		const enabledFor = (setting: boolean, orientation: string) => setup({ setting, orientation }).chatPartOptions[0].enabled.get();
@@ -264,8 +359,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 	test('local chat is hidden while it is on, and back once it is off', async () => {
 		const { configurationService, localChatAvailability } = setup({ setting: false });
 		const setSetting = async (value: boolean) => {
-			await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, value);
-			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+			await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenChatIn, openChatIn(value));
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenChatIn]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenChatIn }));
 		};
 		const steps = [localChatAvailability.hidden.get()];
 		await setSetting(true);
@@ -280,11 +375,11 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		ActiveAuxiliaryContext.bindTo(contextKeyService).set(ChatViewContainerId);
 		const hidden = () => maximizeClaims() > 0;
 		const steps = [hidden()];
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, true);
-		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenChatIn, openChatIn(true));
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenChatIn]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenChatIn }));
 		steps.push(hidden());
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, false);
-		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenChatIn, openChatIn(false));
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenChatIn]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenChatIn }));
 		steps.push(hidden());
 		assert.deepStrictEqual(steps, [false, true, false]);
 	});
@@ -310,8 +405,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly: sessionsOnlyState } = setup({ setting: false });
 		const enabled = (): IObservable<boolean> => chatPartOptions[0].enabled;
 		const steps: boolean[] = [enabled().get()];
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, true);
-		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenChatIn, openChatIn(true));
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenChatIn]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenChatIn }));
 		steps.push(enabled().get());
 		const sessionsOnly = [sessionsOnlyState.get()];
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
@@ -327,7 +422,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		/** The contribution over the real chat part service and Chat view host service, recording where chats are opened. */
 		function setupServices(options: { agentEnabled: boolean; setting?: boolean; orientation?: string; chatViewShows?: URI; chatViewNewChat?: () => Promise<void>; chatViewHasView?: boolean; localDefault?: boolean }) {
 			const calls: string[] = [];
-			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? true, [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled, [ChatConfiguration.DefaultToCopilotHarness]: !options.localDefault });
+			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenChatIn]: openChatIn(options.setting ?? true), [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled, [ChatConfiguration.DefaultToCopilotHarness]: !options.localDefault });
 			const contextKeyService = store.add(new ContextKeyService(configurationService));
 			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 			RemoteNameContext.bindTo(contextKeyService).set('');
@@ -387,6 +482,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			const createInstance = instantiationService.createInstance.bind(instantiationService) as (ctor: unknown, ...args: unknown[]) => unknown;
 			instantiationService.createInstance = ((ctor: unknown, ...args: unknown[]) => ctor === ChangesMultiDiffSourceResolver ? Disposable.None : createInstance(ctor, ...args)) as typeof instantiationService.createInstance;
 
+			stubChatViewHostServiceDependencies(instantiationService, { environmentStubbed: true });
 			const hostService = instantiationService.createInstance(ChatViewHostService);
 			stub(IChatViewHostService, hostService);
 			const chatPartService = store.add(instantiationService.createInstance(EditorWindowChatPartService));
@@ -395,8 +491,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			// The host service goes last, as the hosts that registered in it unregister first
 			store.add(hostService);
 			const setSetting = async (value: boolean) => {
-				await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, value);
-				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+				await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenChatIn, openChatIn(value));
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenChatIn]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenChatIn }));
 			};
 			return { hostService, calls, loadingModel, setSetting, chatViewWidget, widgets, partShows, instantiationService };
 		}

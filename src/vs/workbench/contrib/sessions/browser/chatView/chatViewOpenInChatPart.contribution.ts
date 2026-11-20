@@ -5,9 +5,9 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, observableFromEvent, runOnChange, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, runOnChange, waitForState } from '../../../../../base/common/observable.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
@@ -25,25 +25,39 @@ import { ChatViewId, IChatWidget, IChatWidgetService } from '../../../chat/brows
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { localChatSessionType } from '../../../chat/common/chatSessionsService.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../chat/common/model/chatUri.js';
-import { isSessionCreated } from '../../../../services/sessions/common/session.js';
+import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 import { IEditorWindowShownChatService } from '../agentsView/editorWindowMainSessionHost.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../../../chat/common/constants.js';
+import { ChatConfiguration, ChatViewSessionsOpenChatIn } from '../../../chat/common/constants.js';
 import { ILocalChatAvailabilityService } from '../../../chat/common/localChatAvailability.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { AgentsViewAvailable } from '../agentsView/agentsChatPartContext.js';
 import { IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
+import { IEditorWindowPresentedChat, IEditorWindowPresenterOpenOptions, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
+import { shouldRevealSessionEditor } from '../../../chat/browser/agentSessions/agentSessionsOpener.js';
+import { INewSessionTarget } from '../parts/chatView.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { EditorsOrder } from '../../../../common/editor.js';
+import { ChatEditorInput } from '../../../chat/browser/widgetHosts/editor/chatEditorInput.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ShownChatReadMarker } from '../shownChatReadMarker.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
 	properties: {
-		[ChatConfiguration.ChatViewSessionsOpenInChatPart]: {
-			type: 'boolean',
-			default: false,
+		[ChatConfiguration.ChatViewSessionsOpenChatIn]: {
+			type: 'string',
+			enum: [ChatViewSessionsOpenChatIn.ChatPanel, ChatViewSessionsOpenChatIn.ChatArea, ChatViewSessionsOpenChatIn.EditorArea],
+			enumDescriptions: [
+				localize('chat.viewSessions.openChatIn.chatPanel', "Open the chat of a session in the Chat view."),
+				localize('chat.viewSessions.openChatIn.chatArea', "Open the chat of a session in the chat area beside the Chat view, which then shows only its sessions. Applies while {0} is `sideBySide`.", '`#chat.viewSessions.orientation#`'),
+				localize('chat.viewSessions.openChatIn.editorArea', "Open the chat of a session as an editor in the editor area. A chat that is already open is revealed instead of opened again."),
+			],
+			default: ChatViewSessionsOpenChatIn.ChatPanel,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			markdownDescription: localize('chat.viewSessions.openInChatPart', "Controls whether chats open in the chat area beside the Chat view, which then shows only its sessions, instead of in the Chat view. Applies while {0} is `sideBySide`.", '`#chat.viewSessions.orientation#`'),
+			markdownDescription: localize('chat.viewSessions.openChatIn', "Controls where the chat of a session opens when it is selected in the sessions of the Chat view."),
 			layoutOverridable: true
 		},
 	},
@@ -66,9 +80,42 @@ type ChatHandover =
 /** The chat part docks beside the Chat view: the Agents viewlet docks it beside its own view, over this. */
 const CHAT_VIEW_ANCHOR_PRIORITY = 1;
 
+/** Shows the chats of sessions as editors in the editor area, while the setting is `editorArea`; an open one is revealed. */
+class EditorAreaSessionsPresenter implements IEditorWindowSessionsPresenter {
+
+	constructor(
+		readonly activeChat: IObservable<IEditorWindowPresentedChat | undefined>,
+		private readonly _chatWidgetService: IChatWidgetService,
+		private readonly _chatViewHostService: IChatViewHostService,
+		private readonly _editorService: IEditorService,
+	) { }
+
+	async openChat(session: ISession, chatResource: URI | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
+		const resource = chatResource ?? session.mainChat.get().resource;
+		await this._chatWidgetService.openSession(resource, options?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP, { preserveFocus: options?.preserveFocus, revealIfOpened: !options?.sideBySide && shouldRevealSessionEditor(this._chatWidgetService, resource) });
+	}
+
+	async openComposer(target: INewSessionTarget | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
+		const aimed = target && { folder: target.folderUri, providerId: target.providerId, sessionType: target.sessionTypeId, modelId: target.modelId, modeId: target.modeId, requireDevContainer: target.requireDevContainer };
+		await this._chatViewHostService.newChat(aimed, { ownChat: true, preserveFocus: options?.preserveFocus });
+	}
+
+	async closeChat(chatResource: URI): Promise<void> {
+		await this._editorService.closeEditors(this._editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => editor instanceof ChatEditorInput && isEqual(editor.sessionResource, chatResource)));
+	}
+
+	isShowing(chatResource: URI): boolean {
+		return this._editorService.getEditors(EditorsOrder.SEQUENTIAL).some(({ editor }) => editor instanceof ChatEditorInput && isEqual(editor.sessionResource, chatResource));
+	}
+
+	focus(): void {
+		void this._chatViewHostService.reveal(false);
+	}
+}
+
 /**
- * Opens the chats of agent sessions in the chat part beside the Chat view while {@link ChatConfiguration.ChatViewSessionsOpenInChatPart}
- * is on and the configured sessions orientation is side by side (not the width-based layout),
+ * Opens the chats of agent sessions in the chat part beside the Chat view while {@link ChatConfiguration.ChatViewSessionsOpenChatIn}
+ * is `chatArea` and the configured sessions orientation is side by side (not the width-based layout),
  * in local editor windows: what would show a chat in the Chat view, such as opening a session or New Chat, shows it in
  * the chat part, as the Agents viewlet does, and the Chat view shows only its sessions. While it is off, the chat part does not
  * show and the Chat view is unchanged.
@@ -89,6 +136,9 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IEditorWindowShownChatService private readonly _shownChatService: IEditorWindowShownChatService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IEditorWindowSessionsPresenterService presenterService: IEditorWindowSessionsPresenterService,
 	) {
 		super();
 
@@ -96,15 +146,51 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 			return;
 		}
 
-		const openInChatPart = observableConfigValue(ChatConfiguration.ChatViewSessionsOpenInChatPart, false, configurationService);
+		const openChatIn = observableConfigValue<string>(ChatConfiguration.ChatViewSessionsOpenChatIn, ChatViewSessionsOpenChatIn.ChatPanel, configurationService);
 		const orientation = observableConfigValue<unknown>(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide', configurationService);
 		// What the chat part's host needs to show chats: not with AI features disabled, nor with agents disabled
 		const available = ContextKeyExpr.and(ChatContextKeys.enabled, AgentsViewAvailable)!;
 		const availableKeys = new Set(available.keys());
 		const chatAvailable = observableFromEvent(this, Event.filter(_contextKeyService.onDidChangeContext, e => e.affectsSome(availableKeys)), () => _contextKeyService.contextMatchesRules(available));
 		// As configured: its setting, with the sessions side by side (not the width-based layout)
-		const configured = derived(this, reader => openInChatPart.read(reader) && orientation.read(reader) !== 'stacked');
+		const configured = derived(this, reader => openChatIn.read(reader) === ChatViewSessionsOpenChatIn.ChatArea && orientation.read(reader) !== 'stacked');
 		const enabled = derived(this, reader => configured.read(reader) && chatAvailable.read(reader));
+		// The chat of the active chat editor, with its session
+		const activeEditor = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorService.activeEditor);
+		const sessionsChanged = observableSignalFromEvent(this, this._sessionsManagementService.onDidChangeSession);
+		const editorChat = derived(this, reader => {
+			const editor = activeEditor.read(reader);
+			const resource = editor instanceof ChatEditorInput ? editor.sessionResource : undefined;
+			sessionsChanged.read(reader);
+			return resource && this._sessionsManagementService.getSessionForChatResource(resource);
+		});
+		this._register(autorun(reader => {
+			// Not over the presenter of the chat part, which the Agents viewlet enables: its chats open there
+			if (openChatIn.read(reader) === ChatViewSessionsOpenChatIn.EditorArea && chatAvailable.read(reader) && !this._chatPartService.enabled.read(reader)) {
+				reader.store.add(presenterService.registerPresenter(new EditorAreaSessionsPresenter(editorChat, this._chatWidgetService, this._chatViewHostService, this._editorService)));
+				// The window shows the chat of the active chat editor, in place of the chat of the Chat view while there is one
+				const shown = derived(this, reader => {
+					const chat = editorChat.read(reader);
+					if (chat) {
+						return chat;
+					}
+					const shownSession = this._chatViewHostService.shownSession.read(reader);
+					sessionsChanged.read(reader);
+					return shownSession && this._sessionsManagementService.getSessionForChatResource(shownSession.resource);
+				});
+				reader.store.add(this._shownChatService.bind(shown, { override: true, priority: 1 }));
+				// A chat that shows in an editor is read, as one that shows in the Chat view is
+				const readMarker = new ShownChatReadMarker(this._sessionsManagementService, extUri);
+				reader.store.add(autorun(reader => {
+					const chat = editorChat.read(reader);
+					if (chat) {
+						readMarker.update(chat.session, chat.chat, reader);
+					} else {
+						readMarker.reset();
+					}
+				}));
+			}
+		}));
 		this._register(this._chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled }));
 		// The sessions that the chat part shows are known while the Chat view lists them
 		this._register(autorun(reader => {

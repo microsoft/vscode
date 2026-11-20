@@ -43,6 +43,7 @@ import {
 	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
 	type TunnelGatewayServerType,
+	TUNNEL_DISCOVERY_UNAUTHORIZED,
 } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AhpJsonlLogger } from '../../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
@@ -235,7 +236,16 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		});
 
 		const additionalNames = this._configurationService.getValue<string[]>(TunnelAgentHostsSettingId) ?? [];
-		return traceConnectionOperation(options?.onDiagnostic, 'discovery.enumeration', () => this._mainService.listTunnels(auth.token, auth.provider, additionalNames.length > 0 ? additionalNames : undefined));
+		return traceConnectionOperation(options?.onDiagnostic, 'discovery.enumeration', async () => {
+			try {
+				return await this._mainService.listTunnels(auth.token, auth.provider, additionalNames.length > 0 ? additionalNames : undefined);
+			} catch (error) {
+				if (error instanceof Error && error.name === TUNNEL_DISCOVERY_UNAUTHORIZED) {
+					throw new TunnelAuthenticationRequiredError(auth.provider);
+				}
+				throw error;
+			}
+		});
 	}
 
 	getAutoConnectMode(tunnel: ITunnelInfo): TunnelAutoConnectMode {

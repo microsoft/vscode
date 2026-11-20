@@ -23,8 +23,8 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { EditorsOrder, GroupIdentifier, IEditorPane } from '../../../../common/editor.js';
-import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { EditorCloseContext, EditorsOrder, GroupIdentifier, IEditorPane } from '../../../../common/editor.js';
+import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -47,6 +47,7 @@ import { getChatViewHostOpenReason, IChatViewHostService, IChatViewHostShownSess
 import { IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
+import { applyRememberedNewSessionPicks, EditorWindowNewSessionPicks } from './editorWindowNewSessionPicks.js';
 import { INewSessionTarget, ISessionViewHostOptions } from '../parts/chatView.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
@@ -80,6 +81,8 @@ export interface IAgentsChatPartOpenOptions {
 	readonly sideBySide?: boolean;
 	/** Opens a new composer, also while the active tab is one that has not sent its session yet. */
 	readonly newComposer?: boolean;
+	/** Starts a new composer with what the user picked last for what the target leaves open: for a default new session only. */
+	readonly useRememberedPicks?: boolean;
 	/** Shows the chat as one the chat part restores, not one the user opens (see `IChatViewHostOpenOptions.restore`). */
 	readonly restore?: boolean;
 	/** Shows the chat as the session that its first send created, not one the user opens (see `IChatViewHostOpenOptions.commit`). */
@@ -140,7 +143,7 @@ export interface IAgentsChatPartService {
 	 * Shows the chat part with the chats it had as it closed, also those of before a reload, and moves focus into it unless
 	 * `preserveFocus`. Without any, it shows a new-session composer, aimed at `target`.
 	 */
-	show(target: INewSessionTarget | undefined, options?: { readonly preserveFocus?: boolean }): Promise<void>;
+	show(target: INewSessionTarget | undefined, options?: { readonly preserveFocus?: boolean; readonly useRememberedPicks?: boolean }): Promise<void>;
 
 	/** The chat widget of the input of the composer in the active tab, once it shows: its submits create the session. */
 	getComposerWidget(): Promise<IChatWidget | undefined>;
@@ -256,6 +259,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 	/** The composer of each composer's tab, which the tab disposes. */
 	private readonly _composerModels = new Map<EditorInput, ChatWindowComposerModel>();
+	/** What the user picked last in its composers: the next new composer starts with it. */
+	private readonly _picks: EditorWindowNewSessionPicks;
 	/**
 	 * In Single, what was typed in its new-session composers as they closed or parked their input, the latest last: each new
 	 * composer takes the latest, as it has one new session at a time. Not loaded from what it stored until first needed
@@ -264,6 +269,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private _kept: IChatDraft[] | undefined;
 	/** What was typed in each composer whose tab is closing, kept once it closed: not when its close is vetoed. */
 	private readonly _closingComposerInputs = new WeakMap<EditorInput, IChatDraft>();
+	/** Its tabs as they were last active, the latest first, across its groups. */
+	private _recentInputs: EditorInput[] = [];
+	/** While it closes all its chats, what their composers kept as they closed, to keep in the order they were used. */
+	private _closingAllKept: { readonly input: EditorInput; readonly draft: IChatDraft }[] | undefined;
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
 
 	private _part: IContentPart | undefined;
@@ -308,6 +317,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
 	) {
 		super();
+		this._picks = new EditorWindowNewSessionPicks(this._storageService);
 		this._chatTabsMode = observableConfigValue<string>(SESSIONS_CHAT_TABS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, this._configurationService);
 		// What a closed composer kept is for the next one in Single only
 		this._register(autorun(reader => {
@@ -406,13 +416,21 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		await this._open(chat, options);
 	}
 
+	/** `target` with what the user picked last for what it leaves open, such as its agent and model. */
+	private _withRememberedPicks(target: INewSessionTarget | undefined): INewSessionTarget | undefined {
+		return applyRememberedNewSessionPicks(target, this._picks.read(), {
+			toAllowedFolder: uri => this._composerFolders.toAllowedFolder(uri),
+			isAgentAvailable: (providerId, sessionTypeId) => this._sessionsManagementService.getAllProviderSessionTypes().some(offered => offered.providerId === providerId && (!sessionTypeId || offered.sessionType.id === sessionTypeId)),
+		});
+	}
+
 	async openComposer(target: INewSessionTarget | undefined, options?: IAgentsChatPartOpenOptions): Promise<void> {
 		// A new session in the active tab while it is a composer that has not sent its session yet, as a chat window does
 		const active = this._activeInput.get();
 		const activeChat = active && this._chats.get(active);
 		// In Single, its one new-session composer that has not sent its session yet, also behind the chat it shows
 		const unsentComposer = this._isSingle() && !options?.sideBySide ? [...this._chats.values()].find(chat => chat.isComposer && !isSessionCreated(chat.session.get()) && !!this._groupOf(chat.input)) : undefined;
-		if (unsentComposer && (unsentComposer !== activeChat || options?.newComposer) && this._aimReusedComposer(unsentComposer.input, target, options)) {
+		if (unsentComposer && (unsentComposer !== activeChat || options?.newComposer) && this._aimReusedComposer(unsentComposer.input, options?.useRememberedPicks ? this._withRememberedPicks(target) : target, options)) {
 			return this._open(unsentComposer, options);
 		}
 		if (activeChat?.isComposer && !options?.sideBySide && !options?.newComposer) {
@@ -426,7 +444,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		const resource = createChatWindowComposerResource();
 		// What was typed in the composer it closed or parked last, in Single
 		const input = this._isSingle() ? this._keptComposerInputs().pop() : undefined;
-		const composer = this.composers.create(resource, { target, ...this.getComposerFolderOptions(), ...(input ? { input: { input } } : {}) }, session => this.openChat(session, undefined));
+		const composer = this.composers.create(resource, { target: options?.useRememberedPicks ? this._withRememberedPicks(target) : target, ...this.getComposerFolderOptions(), ...(input ? { input: { input } } : {}) }, session => this.openChat(session, undefined));
 		await this._open(this._addChat(resource, composer), options);
 	}
 
@@ -481,12 +499,22 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	async closeAllChats(): Promise<void> {
+		const groups = this._part?.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE) ?? [];
+		// Its tabs, the most recently active first: as they were active, then as each group, the most recent first, orders the others
+		const recency = [...this._recentInputs, ...groups.flatMap(group => group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE))];
+		const rank = (input: EditorInput) => {
+			const index = recency.indexOf(input);
+			return index < 0 ? recency.length : index;
+		};
+		const kept: { readonly input: EditorInput; readonly draft: IChatDraft }[] = this._closingAllKept = [];
 		this._closingAll = true;
 		try {
-			// The least recently active first: in Single, the composer used last keeps its draft last, for the next to take first
-			await Promise.all((this._part?.groups ?? []).map(group => group.closeEditors([...group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)].reverse())));
+			await Promise.all(groups.map(group => group.closeAllEditors()));
 		} finally {
 			this._closingAll = false;
+			this._closingAllKept = undefined;
+			// In Single, the least recently used first: the composer used last keeps its draft last, for the next to take first
+			this._keptComposerInputs().push(...kept.sort((a, b) => rank(b.input) - rank(a.input)).map(entry => entry.draft));
 		}
 		this._hideIfEmpty();
 	}
@@ -523,10 +551,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._part?.activeGroup.focus();
 	}
 
-	async show(target: INewSessionTarget | undefined, options?: { readonly preserveFocus?: boolean }): Promise<void> {
+	async show(target: INewSessionTarget | undefined, options?: { readonly preserveFocus?: boolean; readonly useRememberedPicks?: boolean }): Promise<void> {
 		await this.restore();
 		if (!this._tabCount()) {
-			return this.openComposer(target, { preserveFocus: options?.preserveFocus });
+			return this.openComposer(target, { preserveFocus: options?.preserveFocus, useRememberedPicks: options?.useRememberedPicks });
 		}
 		this._layoutService.setPartHidden(false, Parts.CHAT_PART);
 		if (!options?.preserveFocus) {
@@ -749,7 +777,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			this._composerTabs.set(new Set([...this._composerTabs.get(), chat.input]), undefined);
 			this._composerModels.set(chat.input, composer);
 			// It follows the window's folder with the window's other composers, until its tab disposes it
-			const registration = this._composerFolders.registerComposer(composer);
+			const registration = new DisposableStore();
+			registration.add(this._composerFolders.registerComposer(composer));
+			registration.add(composer.onDidPickTarget(picked => this._picks.store(picked)));
 			Event.once(composer.onWillDispose)(() => registration.dispose());
 		}
 		// It stays in the chat part: its editor shows there
@@ -813,6 +843,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._partStore.add(toDisposable(() => {
 			this._closingAll = true;
 			this._partClosing = true;
+			this._recentInputs = [];
 			part.forceClose();
 			this._kept = [];
 		}));
@@ -836,12 +867,19 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 						this._settleComposerTab(active, tx);
 					}
 				});
+				if (active) {
+					this._recentInputs = [active, ...this._recentInputs.filter(input => input !== active)];
+				}
 			}
 		};
 		const trackGroup = (group: IEditorGroup) => {
 			const store = new DisposableStore();
-			// Before the tab disposes, which its chat goes with
-			store.add(group.onWillCloseEditor(({ editor }) => {
+			// Before the tab disposes, which its chat goes with. A tab that moves to another of its groups stays open: it keeps its
+			// chat, its draft and when it was active
+			store.add(group.onWillCloseEditor(({ editor, context }) => {
+				if (context === EditorCloseContext.MOVE) {
+					return;
+				}
 				if (this._chats.get(editor) && !this._chats.get(editor)?.isComposer) {
 					this._closingChatTabs.set(editor, { focused: this._layoutService.hasFocus(Parts.CHAT_PART) });
 				}
@@ -851,12 +889,21 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				updateActive();
 				this._hideIfEmpty();
 			}));
-			store.add(group.onDidCloseEditor(({ editor }) => {
+			store.add(group.onDidCloseEditor(({ editor, context }) => {
+				if (context === EditorCloseContext.MOVE) {
+					updateActive();
+					return;
+				}
 				const kept = this._closingComposerInputs.get(editor);
 				if (kept) {
 					this._closingComposerInputs.delete(editor);
-					this._keptComposerInputs().push(kept);
+					if (this._closingAllKept) {
+						this._closingAllKept.push({ input: editor, draft: kept });
+					} else {
+						this._keptComposerInputs().push(kept);
+					}
 				}
+				this._recentInputs = this._recentInputs.filter(input => input !== editor);
 				const closedChat = this._closingChatTabs.get(editor);
 				this._closingChatTabs.delete(editor);
 				updateActive();
@@ -904,7 +951,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private _didCloseTab(closedChat: { readonly focused: boolean } | undefined): void {
 		// Not while it is hidden, such as as its chat moves to the Chat view: that would show it
 		if (closedChat && this._isSingle() && !this._closingAll && !this._lifecycleService.willShutdown && this._layoutService.isVisible(Parts.CHAT_PART) && this._part?.groups.every(group => group.isEmpty)) {
-			this.openComposer(getEditorWindowComposerTarget(this._workspaceContextService, this._editorService), { preserveFocus: !closedChat.focused }).catch(onUnexpectedError);
+			this.openComposer(getEditorWindowComposerTarget(this._workspaceContextService, this._editorService), { preserveFocus: !closedChat.focused, useRememberedPicks: true }).catch(onUnexpectedError);
 			return;
 		}
 		this._hideIfEmpty();

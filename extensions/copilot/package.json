@@ -167,7 +167,7 @@
         "label": "Agentic",
         "settings": {
 	        "chat.viewSessions.orientation": "sideBySide",
-	        "chat.viewSessions.openInChatPart": true,
+	        "chat.viewSessions.openChatIn": "chatArea",
 	        "chat.viewSessions.sessionsList.enabled": true
         },
         "sideBar": { "visible": true, "size": 0.21, "activeViewContainer": "workbench.panel.chat" },

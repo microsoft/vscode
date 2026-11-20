@@ -14,7 +14,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { isTunnelGatewaySelectionRejectedError, TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME } from '../../common/tunnelAgentHost.js';
+import { isTunnelGatewaySelectionRejectedError, TUNNEL_DISCOVERY_UNAUTHORIZED, TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME } from '../../common/tunnelAgentHost.js';
 import type { ITunnelRelayClient } from '../../common/tunnelAgentHostConnector.js';
 import type { ITunnelMessageSocket } from '../../common/tunnelMessageSocket.js';
 import {
@@ -86,6 +86,30 @@ class FakeRelayClient implements ITunnelRelayClient {
 suite('TunnelAgentHostService - correlation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
+
+	for (const additionalLookup of [false, true]) {
+		test(`rejects failed discovery rather than returning an authoritative empty or partial inventory (additional=${additionalLookup})`, async () => {
+			const list = sinon.stub(TunnelManagementHttpClient.prototype, 'listTunnels');
+			if (additionalLookup) {
+				list.onFirstCall().resolves([]);
+				list.onSecondCall().rejects(new Error('Enumeration failed'));
+			} else {
+				list.rejects(new Error('Enumeration failed'));
+			}
+			const service = store.add(new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService));
+			await assert.rejects(service.listTunnels('token', 'github', ['additional-tunnel']), /Enumeration failed/);
+		});
+	}
+
+	test('only an HTTP 401 on account discovery is classified as a sign-in gate', async () => {
+		const list = sinon.stub(TunnelManagementHttpClient.prototype, 'listTunnels');
+		list.onFirstCall().rejects(Object.assign(new Error('Unauthorized'), { response: { status: 401 } }));
+		const forbidden = Object.assign(new Error('Forbidden'), { response: { status: 403 } });
+		list.onSecondCall().rejects(forbidden);
+		const service = store.add(new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService));
+		await assert.rejects(service.listTunnels('token', 'github'), { name: TUNNEL_DISCOVERY_UNAUTHORIZED });
+		await assert.rejects(service.listTunnels('token', 'github'), error => error === forbidden);
+	});
 
 	test('uses the injected telemetry session and retains the operation across enumeration requests', async () => {
 		const requests: Record<string, string>[] = [];

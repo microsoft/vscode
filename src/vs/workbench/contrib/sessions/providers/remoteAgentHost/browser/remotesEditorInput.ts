@@ -9,15 +9,26 @@ import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../..
 import { EditorInputCapabilities, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 
+export interface IRemotesSharingViewState {
+	readonly expanded: boolean;
+	readonly selectedMethod: 'githubEnvironment' | 'devTunnel' | undefined;
+	readonly failedMethod: 'githubEnvironment' | 'devTunnel';
+	readonly failure: string | undefined;
+}
+
 export class RemotesEditorInput extends EditorInput implements IModalEditorOptionsProvider {
 	static readonly ID = 'sessions.input.remotes';
 	private static instance: RemotesEditorInput | undefined;
+	/** One-shot continuation when opening diagnostics closes the management modal. */
+	sharingState: IRemotesSharingViewState | undefined;
 
 	readonly resource = undefined;
 
 	static getOrCreate(): RemotesEditorInput {
 		if (!RemotesEditorInput.instance || RemotesEditorInput.instance.isDisposed()) {
+			const sharingState = RemotesEditorInput.instance?.sharingState;
 			RemotesEditorInput.instance = new RemotesEditorInput();
+			RemotesEditorInput.instance.sharingState = sharingState;
 		}
 		return RemotesEditorInput.instance;
 	}

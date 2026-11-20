@@ -27,11 +27,12 @@ import { IRepositoriesClient, Repository } from '../../../../../../platform/gith
 import { AutomationDetail, AutomationRepositoryConfiguration, AutomationToolGroup, AutomationTriggerDefinition, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { PaginatedResponse } from '../../../../../../platform/github/common/missionControl/missionControl.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
+import { IModelsClient, ListModelsResponse } from '../../../../../../platform/github/common/missionControl/models.js';
 import { ITasksClient, ListTasksResponse, Task, TaskListOptions } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationHandle, INotificationService, IPromptChoice } from '../../../../../../platform/notification/common/notification.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IRepositoryPickResult, RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
@@ -44,7 +45,7 @@ import { IScheduledChatsService } from '../../../../../../workbench/contrib/sess
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING } from '../../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { setShowSharedAutomationsByOthers } from '../../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/cloudAutomationStore.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -168,6 +169,8 @@ class TestApi extends mock<IAutomationsClient>() {
 		return {};
 	}
 	toolsError: Error | undefined;
+	modelsError: Error | undefined;
+	models: ListModelsResponse = { data: [] };
 	triggersError: Error | undefined;
 	triggerDefinitions: readonly AutomationTriggerDefinition[] = [{ name: 'issues', title: 'Issue created', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }] }];
 	override async listTriggers(): Promise<readonly AutomationTriggerDefinition[]> {
@@ -210,9 +213,14 @@ suite('CloudAutomationStore', () => {
 			}
 		}();
 		const sentimentChanged = disposables.add(new Emitter<void>());
+		const quotaRemainingChanged = disposables.add(new Emitter<void>());
+		const usageBasedBillingChanged = disposables.add(new Emitter<void>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
 			override sentiment: IChatSentiment = {};
 			override onDidChangeSentiment = sentimentChanged.event;
+			override quotas: IChatEntitlementService['quotas'] = {};
+			override readonly onDidChangeQuotaRemaining = quotaRemainingChanged.event;
+			override readonly onDidChangeUsageBasedBilling = usageBasedBillingChanged.event;
 		}();
 		const api = new TestApi();
 		const credentialLifetime = disposables.add(new CancellationTokenSource());
@@ -222,6 +230,15 @@ suite('CloudAutomationStore', () => {
 			override dispose(): void { }
 			override readonly authorization = { providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] };
 			override readonly automations = api;
+			override readonly missionControlModels = new class extends mock<IModelsClient>() {
+				override async list(): Promise<ListModelsResponse> {
+					api.calls.push('models');
+					if (api.modelsError) {
+						throw api.modelsError;
+					}
+					return api.models;
+				}
+			}();
 			override readonly repositories = upcastPartial<IRepositoriesClient>({
 				get: async repository => {
 					api.repositoryMetadataRequests.push(repository.repo);
@@ -242,9 +259,20 @@ suite('CloudAutomationStore', () => {
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IDefaultAccountService, accounts);
 		instantiation.stub(IChatEntitlementService, entitlement);
-		instantiation.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		const storageService = disposables.add(new InMemoryStorageService());
+		instantiation.stub(IStorageService, storageService);
 		instantiation.stub(ILogService, logService);
 		instantiation.stub(IGitHubService, gitHubService);
+		const prompts: { message: string; choices: readonly IPromptChoice[]; closed: boolean }[] = [];
+		const prompted = new DeferredPromise<void>();
+		instantiation.stub(INotificationService, upcastPartial<INotificationService>({
+			prompt: (_severity, message, choices) => {
+				const prompt = { message: String(message), choices, closed: false };
+				prompts.push(prompt);
+				void prompted.complete();
+				return upcastPartial<INotificationHandle>({ close: () => { prompt.closed = true; } });
+			},
+		}));
 		instantiation.stub(ISessionsRecentWorkspacesService, upcastPartial<ISessionsRecentWorkspacesService>({
 			getRecentWorkspaces: () => [{ workspace: { uri: workspace, label: 'private', icon: Codicon.repo, requiresWorkspaceTrust: false, folders: [{ root: workspace, workingDirectory: workspace, name: 'private', description: undefined }], isVirtualWorkspace: true }, providerId: 'cloud', checked: true, source: 'agents' }],
 		}));
@@ -256,7 +284,112 @@ suite('CloudAutomationStore', () => {
 			await configuration.setUserConfiguration(key, value);
 			configuration.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set([key]), change: { keys: [key], overrides: [] }, source: ConfigurationTarget.USER });
 		};
-		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, set, instantiation, configuration };
+		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, quotaRemainingChanged, usageBasedBillingChanged, set, instantiation, configuration, storageService, prompts, prompted };
+	}
+
+	test('model changes do not fire for quota updates', () => {
+		const { provider, quotaRemainingChanged, usageBasedBillingChanged } = setup();
+		let modelChanges = 0;
+		disposables.add(provider.onDidChangeModels(() => modelChanges++));
+		quotaRemainingChanged.fire();
+		const changesAfterQuotaUpdate = modelChanges;
+		usageBasedBillingChanged.fire();
+		assert.deepStrictEqual({ changesAfterQuotaUpdate, modelChanges }, { changesAfterQuotaUpdate: 0, modelChanges: 1 });
+	});
+
+	async function waitForModels(provider: CloudAutomationStore): Promise<void> {
+		if (provider.getModelsSnapshot('requested-model').desiredModelResolution.kind === 'pending') {
+			await Event.toPromise(Event.filter(provider.onDidChangeModels, () => provider.getModelsSnapshot('requested-model').desiredModelResolution.kind !== 'pending'));
+		}
+	}
+
+	test('core model discovery is gated and preserves cloud metadata without sandbox configuration', async () => {
+		const { provider, api, set, entitlement } = setup();
+		api.models = {
+			data: [
+				{ id: 'auto', name: 'Copilot Fusion' },
+				{
+					id: 'cloud-model', name: 'Cloud Model', version: '2',
+					capabilities: {
+						family: 'cloud', limits: { max_prompt_tokens: 100, max_output_tokens: 20, max_context_window_tokens: 120 },
+						supports: { vision: true, tool_calls: true, reasoning_effort: ['low', 'high'] },
+					},
+					billing: { multiplier: 2, token_prices: { default: { input_price: 3, output_price: 5 } } },
+				},
+				{ id: 'hidden-model', name: 'Hidden', model_picker_enabled: false },
+				{ id: 'disabled-model', name: 'Disabled', policy: { state: 'disabled' } },
+			]
+		};
+		const disabled = provider.getModelsSnapshot('cloud-model');
+		const callsBeforeEnablement = [...api.calls];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await waitForModels(provider);
+		const snapshot = provider.getModelsSnapshot('cloud-model');
+		const metadata = snapshot.models.find(model => model.identifier === 'cloud-model')!.metadata;
+		const autoName = snapshot.models.find(model => model.identifier === 'auto')?.metadata.name;
+		entitlement.quotas = { usageBasedBilling: true };
+		assert.deepStrictEqual({
+			disabled: { models: disabled.models, resolution: disabled.desiredModelResolution.kind, calls: callsBeforeEnablement },
+			ids: snapshot.models.map(model => model.identifier), autoName, resolution: snapshot.desiredModelResolution.kind, target: snapshot.modelTarget,
+			metadata: {
+				id: metadata.id, family: metadata.family, version: metadata.version, vendor: metadata.vendor,
+				maxInputTokens: metadata.maxInputTokens, maxOutputTokens: metadata.maxOutputTokens, maxContextWindowTokens: metadata.maxContextWindowTokens,
+				capabilities: metadata.capabilities, pricing: metadata.pricing, inputCost: metadata.inputCost, outputCost: metadata.outputCost,
+				configurationSchema: metadata.configurationSchema,
+			},
+			usageBasedPricing: provider.getModelsSnapshot().models.find(model => model.identifier === 'cloud-model')?.metadata.pricing,
+			modelRequests: api.calls.filter(call => call === 'models').length, mutations: { created: api.created, patch: api.patch, dispatches: api.dispatchRequests },
+		}, {
+			disabled: { models: [], resolution: 'pending', calls: [] },
+			ids: ['auto', 'cloud-model'], autoName: 'Auto', resolution: 'available', target: 'cloud-agent',
+			metadata: {
+				id: 'cloud-model', family: 'cloud', version: '2', vendor: 'copilot',
+				maxInputTokens: 100, maxOutputTokens: 20, maxContextWindowTokens: 120,
+				capabilities: { vision: true, toolCalling: true }, pricing: '2x', inputCost: 3, outputCost: 5,
+				configurationSchema: undefined,
+			},
+			usageBasedPricing: undefined, modelRequests: 1, mutations: { created: undefined, patch: undefined, dispatches: [] },
+		});
+	});
+
+	test('model discovery failure stays pending until an explicit retry and does not disable definition management', async () => {
+		const { provider, api, set, prompts, prompted } = setup();
+		api.modelsError = new Error('Model catalog unavailable');
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		provider.getModelsSnapshot('saved-model');
+		await prompted.p;
+		const failed = provider.getModelsSnapshot('saved-model');
+		provider.getModelsSnapshot('saved-model');
+		const beforeRetry = {
+			requests: api.calls.filter(call => call === 'models').length, resolution: failed.desiredModelResolution.kind,
+			canManage: provider.canCreateAutomation.get(), message: prompts[0].message, retry: prompts[0].choices[0].label,
+		};
+		api.modelsError = undefined;
+		api.models = { data: [{ id: 'saved-model', name: 'Saved Model' }] };
+		await prompts[0].choices[0].run();
+		await waitForModels(provider);
+		assert.deepStrictEqual({
+			beforeRetry, prompts: prompts.length, closed: prompts[0].closed,
+			requests: api.calls.filter(call => call === 'models').length,
+			resolution: provider.getModelsSnapshot('saved-model').desiredModelResolution.kind,
+		}, {
+			beforeRetry: { requests: 1, resolution: 'pending', canManage: true, message: 'Could not load models for cloud automations.', retry: 'Retry' },
+			prompts: 1, closed: true, requests: 2, resolution: 'available',
+		});
+	});
+
+	for (const models of [
+		[{ id: 'auto', name: 'Auto', policy: { state: 'disabled' } }, { id: 'allowed', name: 'Allowed' }],
+		[{ id: 'hidden', name: 'Hidden', model_picker_enabled: false }],
+	]) {
+		test(`does not synthesize Auto around catalog restrictions (${models[0].id})`, async () => {
+			const { provider, api, set } = setup();
+			api.models = { data: models };
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			await waitForModels(provider);
+			assert.deepStrictEqual(provider.getModelsSnapshot().models.map(model => model.identifier), models[0].id === 'auto' ? ['allowed'] : []);
+		});
 	}
 
 	function setupTools() {
@@ -1571,7 +1704,7 @@ suite('CloudAutomationStore', () => {
 	});
 
 	test('creator visibility filters history requests and published runs without filtering the catalogue', async () => {
-		const { provider, service, api, set } = setupTools();
+		const { provider, service, api, set, storageService } = setupTools();
 		api.definitions = [
 			{ ...definition, id: 'mine', ownership: 'repository', created_by: { login: 'UsEr' } },
 			{ ...definition, id: 'other', owner_type: 'repository', created_by: { login: 'teammate' } },
@@ -1590,12 +1723,12 @@ suite('CloudAutomationStore', () => {
 		const hidden = snapshot();
 		api.historyRequests.length = 0;
 		api.taskRequests.length = 0;
-		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
+		setShowSharedAutomationsByOthers(storageService, true);
 		await waitForState(provider.isRefreshing, refreshing => !refreshing);
 		const shown = snapshot();
 		api.historyRequests.length = 0;
 		api.taskRequests.length = 0;
-		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, false);
+		setShowSharedAutomationsByOthers(storageService, false);
 		const immediatelyHidden = service.runs.get().map(run => JSON.parse(run.automationId).at(-1));
 		await waitForState(provider.isRefreshing, refreshing => !refreshing);
 		assert.deepStrictEqual({ hidden, shown, immediatelyHidden, hiddenAgain: snapshot() }, {
@@ -1609,10 +1742,10 @@ suite('CloudAutomationStore', () => {
 	test('hiding shared automations during history loading skips queued requests and active polling', async () => {
 		const clock = useFakeTimers();
 		disposables.add(toDisposable(() => clock.restore()));
-		const { provider, api, set } = setup();
+		const { provider, api, set, storageService } = setup();
 		api.definitions = Array.from({ length: 6 }, (_, index) => ({ ...definition, id: `other-${index}`, ownership: 'repository' as const, created_by: { login: 'teammate' } }));
 		api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
-		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
+		setShowSharedAutomationsByOthers(storageService, true);
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
 		api.historyRequests.length = 0;
@@ -1621,7 +1754,7 @@ suite('CloudAutomationStore', () => {
 		api.pendingHistory = pending.p;
 		const refresh = provider.refresh();
 		await clock.tickAsync(0);
-		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, false);
+		setShowSharedAutomationsByOthers(storageService, false);
 		const immediatelyHidden = provider.runs.get();
 		await pending.complete();
 		await refresh;
@@ -1715,8 +1848,8 @@ suite('CloudAutomationStore', () => {
 	});
 
 	test('unavailable collaborator history does not remove its Repository automation or block healthy history', async () => {
-		const { provider, api, set } = setup();
-		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
+		const { provider, api, set, storageService } = setup();
+		setShowSharedAutomationsByOthers(storageService, true);
 		api.definitions = [
 			{ ...definition, id: 'shared', ownership: 'repository', created_by: { login: 'teammate' } },
 			{ ...definition, id: 'owned', ownership: 'repository' },

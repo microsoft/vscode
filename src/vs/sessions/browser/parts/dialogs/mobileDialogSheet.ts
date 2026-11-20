@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -64,13 +64,13 @@ export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutServi
 	let chosenButton = cancelIndex;
 	let checkboxChecked = options.checkbox?.checked;
 
-	const previouslyFocused = getActiveElement();
-
 	await showMobileContentSheet(
 		layoutService.mainContainer,
 		options.title,
 		(body, api) => {
 			const store = new DisposableStore();
+			const focusTargets: HTMLElement[] = [];
+			api.overlay.classList.add('mobile-dialog-sheet-overlay');
 
 			const id = `mobile-dialog-${++idSeed}`;
 			const describedBy: string[] = [];
@@ -97,6 +97,7 @@ export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutServi
 				const checkbox = append(row, $('input')) as HTMLInputElement;
 				checkbox.type = 'checkbox';
 				checkbox.checked = !!options.checkbox.checked;
+				focusTargets.push(checkbox);
 				append(row, $('span')).textContent = options.checkbox.label;
 				store.add(addDisposableListener(checkbox, 'change', () => { checkboxChecked = checkbox.checked; }));
 			}
@@ -107,6 +108,7 @@ export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutServi
 			options.buttons.forEach((descriptor, index) => {
 				const button = store.add(new Button(actions, { ...defaultButtonStyles, secondary: descriptor.isCancel }));
 				button.label = descriptor.label;
+				focusTargets.push(button.element);
 				store.add(button.onDidClick(() => {
 					chosenButton = index;
 					api.close();
@@ -117,16 +119,13 @@ export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutServi
 			});
 
 			// Move focus into the modal sheet for keyboard / screen reader users.
+			api.setBodyFocusTargets(focusTargets);
 			buttonToFocus?.focus();
 
 			return store;
 		},
-		{ hideDoneButton: true },
+		{ hideDoneButton: true, trapFocus: true },
 	);
-
-	if (isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
-		previouslyFocused.focus();
-	}
 
 	return { button: chosenButton, checkboxChecked };
 }

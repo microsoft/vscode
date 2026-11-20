@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CopilotClient } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient } from '@microsoft/copilot-sdk';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -21,8 +21,18 @@ import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationD
 import { CustomizationType, McpServerStatus } from '../../common/state/protocol/state.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
 import { initTestGitRepo } from './e2e/harness/agentHostE2ETestHarness.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
+
+/** A configuration in which every folder is trusted, as when VS Code's workspace trust is off. */
+function trustedConfiguration(store: DisposableStore, log: NullLogService): AgentConfigurationService {
+	const configuration = store.add(new AgentConfigurationService(store.add(new AgentHostStateManager(log)), log));
+	configuration.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } });
+	return configuration;
+}
 
 suite('Copilot SDK - customization discovery', function () {
 	this.timeout(60_000);
@@ -33,11 +43,17 @@ suite('Copilot SDK - customization discovery', function () {
 		const home = await realpath(await mkdtemp(join(tmpdir(), 'copilot-workspace-hooks-')));
 		const workspace = join(home, 'workspace');
 		const client = new CopilotClient({
-			mode: 'copilot-cli', baseDirectory: home, useLoggedInUser: false,
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
-				PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
-				COPILOT_TELEMETRY_ENABLED: 'false',
-			})),
+			mode: 'coding-agent',
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: home,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+					PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				})),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
 		});
 		try {
 			await mkdir(join(workspace, '.github', 'hooks'), { recursive: true });
@@ -52,7 +68,7 @@ suite('Copilot SDK - customization discovery', function () {
 			store.add(files.registerProvider(Schemas.file, store.add(new class extends DiskFileSystemProvider {
 				override watch(): IDisposable { return Disposable.None; }
 			}(log))));
-			const discovery = store.add(new SessionCustomizationDiscovery([URI.file(workspace)], URI.file(home), URI.file, files, log));
+			const discovery = store.add(new SessionCustomizationDiscovery([URI.file(workspace)], URI.file(home), URI.file, files, log, trustedConfiguration(store, log)));
 			const result = await discovery.discover(client, CancellationToken.None);
 			// Remove the native-gap assertion with the workaround when runtime #30644 is fixed.
 			assert.deepStrictEqual({
@@ -79,11 +95,17 @@ suite('Copilot SDK - customization discovery', function () {
 		const store = disposables.add(new DisposableStore());
 		const home = await realpath(await mkdtemp(join(tmpdir(), 'copilot-discovery-')));
 		const client = new CopilotClient({
-			mode: 'copilot-cli', baseDirectory: home, useLoggedInUser: false,
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
-				PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
-				COPILOT_TELEMETRY_ENABLED: 'false',
-			})),
+			mode: 'coding-agent',
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: home,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+					PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				})),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
 		});
 		try {
 			for (const name of ['hooks-inventory', 'mcp-inventory']) {
@@ -109,7 +131,7 @@ suite('Copilot SDK - customization discovery', function () {
 				// This test refreshes explicitly; filesystem watch behavior has separate unit coverage.
 				override watch(): IDisposable { return Disposable.None; }
 			}(log))));
-			const discovery = store.add(new SessionCustomizationDiscovery([URI.file(home)], URI.file(home), URI.file, files, log));
+			const discovery = store.add(new SessionCustomizationDiscovery([URI.file(home)], URI.file(home), URI.file, files, log, trustedConfiguration(store, log)));
 			const customizations = await discovery.discover(client, CancellationToken.None);
 			const children = customizations.flatMap(item => item.type === CustomizationType.McpServer ? [item] : item.children ?? []);
 			assert.deepStrictEqual({

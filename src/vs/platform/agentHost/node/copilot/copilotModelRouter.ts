@@ -8,7 +8,7 @@ import { ILogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo, IAgentTurnModelResolution } from '../../common/agent.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
-import { modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, routeListsModel, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
+import { modelContextSizes, modelContextSizeTokens, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, routeListsModel, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
 import { describeModelRouterModel, describeModelRouterSituation, modelRouterSituationFor, type IModelRouterSituation } from '../../common/modelRouterSituation.js';
 import { isReasoningEffortLevel, ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { ResponsePartKind, ToolCallStatus, type IModelRoutedInfo, type ModelSelection, type Turn } from '../../common/state/sessionState.js';
@@ -311,7 +311,7 @@ export class CopilotModelRouter {
 		if (outcome === 'stay' || !target) {
 			return decision(context, current, { kept: true }, [], effort);
 		}
-		return decision(context, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router, target)], this._effortFor(context, target, pick.effortScore));
+		return decision(context, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [], this._effortFor(context, target, pick.effortScore));
 	}
 }
 
@@ -324,7 +324,7 @@ function decision({ router, keepLongContext }: IRouteContext, route: IResolvedMo
 	const contextSizes = modelContextSizes(route.model);
 	const largest = contextSizes.length > 1 ? contextSizes[contextSizes.length - 1] : undefined;
 	// With no size from the router the model runs on its own default, which for some models is the larger window.
-	const tokensFor = (size: ModelRouterContextSize | undefined) => size === undefined ? modelDefaultContextSize(route.model) : size === 'long' ? largest : contextSizes[0];
+	const tokensFor = (size: ModelRouterContextSize | undefined) => size === undefined ? modelDefaultContextSize(route.model) : modelContextSizeTokens(route.model, size);
 	// A chat on a long window keeps it, so a route that would run on a smaller one is moved up.
 	const contextSize = keepLongContext && largest !== undefined && tokensFor(route.contextSize) !== largest ? 'long' : route.contextSize;
 	const contextTokens = contextSize ? tokensFor(contextSize) : undefined;
@@ -391,13 +391,6 @@ function keptEffort(route: IResolvedModelRoute, effort: string | undefined): str
 function preferenceOf(route: IResolvedModelRoute): Partial<IModelRoutedInfo> {
 	const line = route.route.when.trim().replace(/\s+/g, ' ');
 	return { preference: line.length > PREFERENCE_CHARS ? `${line.slice(0, PREFERENCE_CHARS).trimEnd()}\u2026` : line };
-}
-
-function describeSwitch(router: IModelRouter, { route, model }: IResolvedModelRoute): string {
-	// Two named routes can run on the same model, so the model alone would not say what changed.
-	return route.name
-		? localize('modelRouter.switchedToNamedRoute', "This request fits another route, so the model router {0} moved this chat to its {1} route on {2}.", modelRouterLabel(router), route.name, model.name)
-		: localize('modelRouter.switched', "This request fits another route, so the model router {0} moved this chat to {1}.", modelRouterLabel(router), model.name);
 }
 
 function describeFailure(router: IModelRouter, error: unknown, model: string): string {

@@ -14,9 +14,11 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { getShowSharedAutomationsByOthers } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { automationTriggerSummary } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
@@ -24,11 +26,11 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatUnavailableAutomationsMessage, getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
+import { formatAutomationRunStatus as formatRunStatus, formatUnavailableAutomationsMessage, getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
@@ -44,15 +46,16 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const configurationService = accessor.get(IConfigurationService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		const templates = readAutomationTemplates(agentPluginService.plugins.get());
-		const automations = getVisibleAutomations(getAutomationsViewContent(
+		const { automations } = getAutomationsViewContent(
 			automationService.automations.get(), [],
-			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
-		).automations, configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true);
+			getShowSharedAutomationsByOthers(accessor.get(IStorageService)),
+			configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
+		);
 		const builtInTemplatesVisible = hasEmptyAutomationSection(automations) && templates.some(template => !template.source);
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
-			localize('automationsCustomView.help.settings', "By default, Shared automations and run history only include shared automations you created. When cloud automations are enabled, the View options menu in the view header offers Refresh cloud automations to reload definitions and history. When shared automations created by others or with unknown creators are discovered, this menu also offers Show automations created by others to include their automations and runs. This preference is remembered. Use the arrow keys to reach View options, Enter or Space to open its menu, and Escape to close it."),
+			localize('automationsCustomView.help.settings', "By default, Shared automations and run history only include shared automations you created. When cloud automations are enabled, the View options menu in the view header offers Refresh cloud automations to reload definitions and history. When shared automations created by others or with unknown creators are discovered, this menu also offers Show automations created by others to include their automations and runs. This preference is remembered on this machine. Use the arrow keys to reach View options, Enter or Space to open its menu, and Escape to close it."),
 			localize('automationsCustomView.help.manageRemotes', "When a dev tunnel is disconnected and remote management is enabled, the unavailable message shows how many dev tunnels are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage dev tunnels. GitHub Environments do not appear in Automations warnings or this count."),
 			localize('automationsCustomView.help.disabled', "Disabled automations sort last within Your automations or Shared automations. The View options menu always offers Show disabled automations, even when cloud automations are disabled. It starts unchecked; activate it to show or hide your disabled automations. Your choice is remembered on this machine. When no cards remain visible, the empty state and Built-in Templates are shown. Shared automations, run history, and the Accessible View are not filtered."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected provider, not in this window. Creation and changes require an available provider that supports automations. Run now requests execution from that provider; a disconnected or unsupported provider never falls back to local execution. To use another provider, duplicate the automation. The original history stays with its provider, and an enabled original keeps scheduling until you disable it."),
@@ -82,6 +85,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 				localize('automationsCustomView.help.cloudDialog', "When creating an automation and cloud automations are enabled, a Run in the cloud switch, described as Preview, follows the Name field; press Space to turn it on or off. If cloud automations cannot be reached when you turn it on, the switch turns back off and a message asks you to try again in a few moments. When it is on, Cloud is the agent and the workspace picker lists Git-backed workspaces. Only GitHub repositories that support cloud automation management can be selected; unavailable repositories are announced with the reason. Choose Add repository to search for a repository or paste its URL. A matching local folder is retained. If cloud automations become unavailable while the switch is on, Cloud stays selected and Create is unavailable until they return or, for a new automation, you turn the switch off. Turning the switch off restores the previous local workspace and agent, or otherwise selects Copilot when it is available. Cloud models are configured in the prompt section. In the Tools section, the button shows All tools allowed or the number of tools allowed. Activate it to open a searchable checklist of the tools GitHub offers, grouped by category. Categories start collapsed; use Right Arrow to expand one. Press Space to toggle a tool or category. Each change applies immediately to the dialog; Enter or Escape closes the checklist without discarding changes. Save or Create saves the automation. New automations start with every listed tool selected. While the list loads the button is unavailable, and if it cannot be loaded a Retry button appears. Trigger follows the tools controls. Scheduled triggers display local time; GitHub stores a fixed UTC schedule, so the local run time may shift when daylight saving time changes. When editing a cloud automation, the switch and workspace picker are disabled because changing the repository or provider requires duplication. Editing preserves enabled state; enable or disable an automation from its card."),
 			] : []),
 			localize('automationsCustomView.help.history', "Run history is grouped by date. While a run is waiting for its session, its automation card reports Running. Once the session is available, use Up Arrow and Down Arrow to navigate the Sessions list, Enter to open, and Tab to reach Stop, the configured Archive or Mark as Done action, or Delete when available. Open a row's context menu, for example with Shift+F10, to rename it, change its active or read state, or delete it. Delete permanently deletes the session and removes it from run history after confirmation. When a removed automation retains history, the context menu also offers Delete Run History. The row says Deleting... while deletion is in progress. If deletion is interrupted, it offers Retry Delete Run History."),
+			localize('automationsCustomView.help.historyPages', "History initially shows the ten most recent entries, plus sessions that are running or need input. Tab to Show More and press Enter or Space to reveal twenty more entries and move focus to the first newly shown entry. Show More is unavailable while Mark all as read is in progress. Reopening Automations returns to recent history. No history is deleted. Mark all as read and the Accessible View still include older history."),
 			localize('automationsCustomView.help.sessionsList', "Run sessions are listed here rather than in the Sessions list. Open a run's context menu and choose Show in Sessions List to also list its session there, or Hide from Sessions List to list it only here again, even after later messages. The {0} setting controls when run sessions automatically also appear in the Sessions list: always, after you send a message in one, or never.", SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING),
 			localize('automationsCustomView.help.cloudHistory', "Cloud history shows the repository, status, and last updated time even when no local session is available. When a cloud run has a session on GitHub that is not yet loaded in VS Code, click its row, or Tab to its title and press Enter or Space, to open that exact session. Tab to a row's toolbar and use Left Arrow and Right Arrow to reach Open on GitHub and Stop when supported. Archive or Mark as Done is unavailable until the cloud run and its conversation have finished. It changes local session state, not the task on GitHub. Stop requests remote cancellation; the status changes when GitHub reports it. Follow-up requests show conversation progress and restart bounded history discovery. Use Refresh in the view header to reload definitions and history. Active cloud runs refresh every 15 seconds without moving the history rows; idle definitions do not poll."),
 			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read in the history header, or focus the Automations sidebar shortcut and press Shift+F10 to choose Mark All as Read from its context menu. This marks available completed and failed runs as read, except cloud runs with an active follow-up."),
@@ -112,6 +116,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 		const configurationService = accessor.get(IConfigurationService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const missionControlEnvironmentService = accessor.get(IMissionControlEnvironmentService);
+		const storageService = accessor.get(IStorageService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Automations,
@@ -119,7 +124,8 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 			() => {
 				const { automations, runs } = getAutomationsViewContent(
 					automationService.automations.get(), automationService.runs.get(),
-					configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+					getShowSharedAutomationsByOthers(storageService),
+					configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 				);
 				const sessions = sessionsManagementService.getSessions();
 				const hasCatalogedSession = (resource: URI) => sessions.some(session => isEqual(session.resource, resource));
@@ -139,7 +145,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 					remoteManagementEnabled,
 				);
 				return buildAutomationsAccessibleContent(
-					getVisibleAutomations(automations, configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true),
+					automations,
 					runs.filter(run => {
 						const retainedHistory = automationService.getAutomationHistoryState?.(run.automationId) !== undefined;
 						return retainedHistory || (
@@ -339,25 +345,6 @@ function formatSchedule(schedule: IAutomationSchedule): string {
 function formatTime(hour: number, minute: number): string {
 	const date = new Date(Date.UTC(2000, 0, 1, Math.max(0, Math.min(23, hour | 0)), Math.max(0, Math.min(59, minute | 0))));
 	return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
-}
-
-function formatRunStatus(run: IAutomationRun): string {
-	if (run.statusDescription) {
-		return run.statusDescription;
-	}
-	if (run.needsInput) {
-		return localize('automationsAccessibleView.needsInput', "Needs input");
-	}
-	switch (run.status) {
-		case 'pending':
-			return localize('automationsAccessibleView.pending', "Pending");
-		case 'running':
-			return localize('automationsAccessibleView.running', "Running");
-		case 'completed':
-			return localize('automationsAccessibleView.completed', "Completed");
-		case 'failed':
-			return localize('automationsAccessibleView.failed', "Failed");
-	}
 }
 
 AccessibleViewRegistry.register(new AutomationsCustomViewAccessibilityHelp());

@@ -1582,6 +1582,31 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		});
 	});
 
+	test('finds and creates with the push remote owner when the branch has no upstream', async () => {
+		const gitService = new TestGitService();
+		gitService.gitState = {
+			branchName: 'feature/test',
+			baseBranchName: 'main',
+			githubOwner: 'microsoft',
+			githubHeadOwner: 'fork-owner',
+			githubRepo: 'vscode',
+		};
+		const gitHubClient = new TestGitHubClient();
+		const { handler, session } = setup(disposables, gitService, gitHubClient);
+
+		await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			pushOptions: gitService.pushOptions,
+			findRequests: gitHubClient.findRequests,
+			createHead: gitHubClient.lastHead,
+		}, {
+			pushOptions: [{ remote: undefined, ref: 'feature/test', setUpstream: true }],
+			findRequests: [{ branch: 'feature/test', headOwner: 'fork-owner' }],
+			createHead: 'fork-owner:feature/test',
+		});
+	});
+
 	// GitHub returns 422 when a PR already exists for the branch. The handler
 	// should preflight the branch and return/open the existing PR instead of
 	// trying to create a duplicate.

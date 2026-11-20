@@ -93,6 +93,8 @@ export interface ArtifactAutomationNoticeChange {
 	readonly kind: 'enabled' | 'changed' | 'disabled';
 	/** Plain-text paragraphs that explain the new state of the rule. */
 	readonly details: readonly string[];
+	/** The name of the agent that made the change, such as Copilot. Absent when a person or the integration made it. */
+	readonly agent?: string;
 }
 
 /** Labels of the rules of one artifact integration that remain enabled. */
@@ -112,9 +114,11 @@ export interface ArtifactAutomationNotice {
 	/** Rendered text, used as is only when the notice carries no `changes`. */
 	readonly content: string;
 	readonly iconId?: string;
+	/** A short name for the kind of artifact, such as "PR", that the notice shows before the artifact's label. */
+	readonly artifactKind?: string;
 	/** The rule changes of the notice. Only notices that carry them are rendered from them and merged with later changes. */
 	readonly changes?: readonly ArtifactAutomationNoticeChange[];
-	/** The enabled rules of each integration that `changes` belong to, after the changes. */
+	/** The enabled rules of each integration of the artifact after the changes, including the integrations that `changes` belong to. */
 	readonly enabledRules?: readonly ArtifactAutomationEnabledRules[];
 }
 
@@ -129,6 +133,8 @@ export interface IArtifactRuntime {
 	readonly chat: IArtifactChatAccess;
 	/** Publishes a system-authored transcript notice when supported; never sends it to an agent. */
 	postNotice?(notice: ArtifactAutomationNotice): Promise<void>;
+	/** Names the agent of a chat, such as Copilot, for notices about automation changes it made. */
+	getAgentName?(chat: string): string | undefined;
 	isOwner(): boolean;
 	acquireSession(session: string): Promise<IReference<IObservable<ArtifactSessionState>>>;
 	/** Fires when a session is permanently deleted, not merely unloaded, so its bindings can be removed. */

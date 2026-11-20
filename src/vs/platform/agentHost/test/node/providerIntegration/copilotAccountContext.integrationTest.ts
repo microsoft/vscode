@@ -7,7 +7,7 @@ import assert from 'assert';
 import { once } from 'events';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient, CopilotRequestHandler, RuntimeConnection, type CopilotSession } from '@github/copilot-sdk';
+import { CopilotClient, CopilotRequestHandler, RuntimeConnection, type CopilotSession } from '@microsoft/copilot-sdk';
 import { join } from '../../../../../base/common/path.js';
 import { isLinux } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -97,8 +97,19 @@ suite('Copilot account context native SDK', () => {
 			accounts = store.add(instantiation.createInstance(CopilotAccountService));
 			const accountService = accounts;
 			const createClient = () => new CopilotClient({
-				connection: RuntimeConnection.forStdio(), env, useLoggedInUser: false,
-				requestHandler: new LocalAccountRequests(origin), logLevel: 'error',
+				mode: 'coding-agent',
+				runtime: RuntimeConnection.forSpawnedStdio({
+					env: env,
+				}),
+				github: {
+					useLoggedInUser: false,
+				},
+				models: {
+					requestHandler: new LocalAccountRequests(origin),
+				},
+				observability: {
+					logLevel: 'error',
+				},
 				entra: accountService.authenticationOptions,
 			});
 			client = createClient();
