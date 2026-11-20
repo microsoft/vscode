@@ -363,6 +363,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		const oldConfig = this._windowConfigurations.get(windowId);
 		const didThemeChange = !equals(oldConfig?.theme, config.theme);
 		const didProxyChange = !equals(getProxies(oldConfig), getProxies(config));
+		const didUserAgentChange = oldConfig?.userAgent !== config.userAgent;
 
 		this._windowConfigurations.set(windowId, config);
 		this._ensureWindowCloseSubscription(windowId);
@@ -371,6 +372,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			if (view.host.windowId === windowId) {
 				if (didThemeChange) {
 					view.inspector.setTheme(config.theme);
+				}
+				if (didUserAgentChange) {
+					view.emulator.setBaseUserAgent(config.userAgent);
 				}
 				// A network without a proxy keeps its previous one rather than use the local network.
 				const proxyInfo = didProxyChange ? getSessionProxyInfo(view.session, config) : undefined;
@@ -459,6 +463,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		view.presentation = presentation;
 		if (windowConfiguration?.theme) {
 			view.inspector.setTheme(windowConfiguration.theme);
+		}
+		if (windowConfiguration?.userAgent) {
+			view.emulator.setBaseUserAgent(windowConfiguration.userAgent);
 		}
 
 		Event.once(view.onDidClose)(() => {

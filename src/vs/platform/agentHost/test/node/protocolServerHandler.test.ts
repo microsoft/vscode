@@ -31,6 +31,7 @@ import { supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryD
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { readAgentHostAuthenticationEncryption } from '../../common/meta/agentHostAuthenticationEncryption.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
+import { readAgentHostBuild, readAgentHostUpgradeMethod } from '../../common/meta/agentHostUpgradeMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -1388,7 +1389,7 @@ suite('ProtocolServerHandler', () => {
 		transport.dispose();
 	});
 
-	test('initialize advertises the upgrade method to direct clients only when a managing CLI is present', () => {
+	test('initialize advertises the upgrade method and build to direct clients only when a managing CLI is present', () => {
 		const originalEnv = process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
 		disposables.add(toDisposable(() => {
 			if (originalEnv === undefined) {
@@ -1397,19 +1398,29 @@ suite('ProtocolServerHandler', () => {
 				process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = originalEnv;
 			}
 		}));
+		const build = { commit: 'host-commit', quality: 'insider', date: '2026-11-19T00:00:00.000Z' };
+		const buildServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, buildServer, { build },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+		));
 		const advertised = (clientId: string, relay: boolean) => {
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, relay ? clientId : undefined));
-			server.simulateConnection(transport);
+			buildServer.simulateConnection(transport);
 			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }));
-			const response = findResponse(transport.sent, 1) as { result?: InitializeResult };
+			const { result } = findResponse(transport.sent, 1) as { result: InitializeResult };
 			transport.simulateClose();
-			return response.result?._meta?.['vscode.upgradeMethod'];
+			return { method: readAgentHostUpgradeMethod(result), build: readAgentHostBuild(result), serverInfo: result.serverInfo?.name };
 		};
 		delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
 		const withoutCli = advertised('client-without-cli', false);
 		process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = '/tmp/mock-supervisor.sock';
 		assert.deepStrictEqual({ withoutCli, direct: advertised('client-direct', false), relay: advertised('client-relay', true) }, {
-			withoutCli: undefined, direct: '_vscodeUpgrade', relay: undefined,
+			withoutCli: { method: undefined, build: undefined, serverInfo: 'vscode-agent-host' },
+			direct: { method: '_vscodeUpgrade', build, serverInfo: 'vscode-agent-host' },
+			relay: { method: undefined, build: undefined, serverInfo: 'vscode-agent-host' },
 		});
 	});
 

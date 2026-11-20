@@ -38,7 +38,7 @@ import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactI
 import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostCopilotExtensionsCapabilityMetaKey } from './meta/agentHostCopilotExtensionsMeta.js';
 import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from './meta/agentHostGitHubEnvironmentMeta.js';
-import { AgentHostUpgradeMethodCapabilityMetaKey } from './meta/agentHostUpgradeMeta.js';
+import { AgentHostBuildMetaKey, AgentHostUpgradeMethodCapabilityMetaKey, type IAgentHostBuild } from './meta/agentHostUpgradeMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
@@ -189,6 +189,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostGitHubEnvironmentCapabilityMetaKey]?: IAgentHostGitHubEnvironmentStatus;
 	/** Present when a managing VS Code CLI can update this server; the method to request it. */
 	readonly [AgentHostUpgradeMethodCapabilityMetaKey]?: string;
+	/** Present with the upgrade method when this server knows its build. */
+	readonly [AgentHostBuildMetaKey]?: IAgentHostBuild;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 	/** Present when removing an Automation can keep or delete its run history. */

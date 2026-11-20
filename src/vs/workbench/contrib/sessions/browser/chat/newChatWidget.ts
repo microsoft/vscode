@@ -55,7 +55,7 @@ import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
 import { INewChatComposerInputOptions, NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatComposerInput.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
-import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getPickedSessionCreationEnvironment, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from './sessionEnvironmentPicker.js';
+import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getFolderDevContainerEnvironmentLabel, getPickedSessionCreationEnvironment, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from './sessionEnvironmentPicker.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
@@ -108,6 +108,7 @@ import type { INewSessionInputController } from '../newSessionInputPresentation.
 import { NewChatConnectorRecommendations } from './newChatConnectorRecommendations.js';
 import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { WelcomeName } from './welcomeName.js';
+import { NewSessionWelcomeGraphic } from './newSessionWelcomeGraphic.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -411,7 +412,7 @@ export class NewChatWidget extends Disposable {
 			const source = getDefaultSessionCreationEnvironment(environments, folderUri, providerId);
 			const sourceProvider = source?.kind !== 'cloud' && source && folderUri && getEnvironmentWorkspaceProvider(source, providers, folderUri);
 			if (source && folderUri && sourceProvider && this._workspacePicker.getDevContainerWorkspaceAvailability(folderUri, sourceProvider.id) === true) {
-				environments.push({ id: `container:${source.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote, providerIds: source.providerIds });
+				environments.push({ id: `container:${source.id}`, kind: 'container', label: getFolderDevContainerEnvironmentLabel(), icon: Codicon.remote, providerIds: source.providerIds });
 			} else if (picked?.kind === 'container' && environments.some(environment => environment.providerIds.some(id => picked.providerIds.includes(id)))) {
 				environments.push(picked);
 			}
@@ -786,7 +787,7 @@ export class NewChatWidget extends Disposable {
 			const environment = this._environment.get();
 			this._preferredDevContainerFolderUri = preferDevContainer || environment?.kind === 'container' ? folderUri : undefined;
 			if (preferDevContainer && environment && environment.kind !== 'container') {
-				this._pickedEnvironment.set({ ...environment, id: `container:${environment.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote }, undefined);
+				this._pickedEnvironment.set({ ...environment, id: `container:${environment.id}`, kind: 'container', label: getFolderDevContainerEnvironmentLabel(), icon: Codicon.remote }, undefined);
 			}
 		}));
 		this._register(this._workspacePicker.onDidSelectContext(context => {
@@ -953,6 +954,14 @@ export class NewChatWidget extends Disposable {
 		const chatWidgetContent = this._inputContentElement = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 		this._presentation = this._register(this.options.newSessionPresentation.create(false, this.instantiationService));
 		this._presentation.render(chatWidgetContainer, chatWidgetContent);
+		if (!this._inEditorWindow && !this._detached) {
+			this._register(this.instantiationService.createInstance(NewSessionWelcomeGraphic, {
+				content: chatWidgetContent,
+				layoutRoot: chatWidgetContainer,
+				visible: this.options.inputVisible ?? constObservable(true),
+				composing: observableFromEvent(this, this._newChatInput.onDidChangeInput, () => !!this._newChatInput.getInputValue().trim()),
+			}));
+		}
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
 		const welcomeMessageTitle = dom.append(welcomeMessage, dom.$('h2.new-session-welcome-message-title'));
 		this._welcomeMessageTitle = welcomeMessageTitle;
@@ -3735,7 +3744,7 @@ export class NewChatWidget extends Disposable {
 		const environment = this._getProviderEnvironment(providerId);
 		if (environment) {
 			this._pickedEnvironment.set(options.preferDevContainer
-				? { ...environment, id: `container:${environment.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote }
+				? { ...environment, id: `container:${environment.id}`, kind: 'container', label: getFolderDevContainerEnvironmentLabel(), icon: Codicon.remote }
 				: environment, undefined);
 		}
 	}

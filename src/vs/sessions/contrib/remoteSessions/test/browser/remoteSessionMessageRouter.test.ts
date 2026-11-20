@@ -52,6 +52,7 @@ import { SendRemoteMessageTool } from '../../browser/sendRemoteMessageTool.js';
 import { resolveRemoteSessionSource } from '../../browser/remoteSessionSource.js';
 import { IRemoteSessionChatService, RemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
+import { DevContainerHandoffEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { mintedTestChatOwner } from '../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
 class TestSubscription<T> implements IAgentSubscription<T> {
@@ -935,12 +936,12 @@ suite('RemoteSessionMessageRouter', () => {
 		const text = confirmation.value.replace(/\\/g, '');
 		assert.deepStrictEqual({
 			name: data.toolReferenceName, runsInWorkspace: data.runsInWorkspace, requestsApproval: data.canRequestPreApproval,
-			keys: data.when?.keys().sort(), confirmedHost: text.includes('agenthost-first'),
+			keys: [...new Set(data.when?.keys())].sort(), confirmedHost: text.includes('agenthost-first'),
 			confirmedChat: text.includes('original-chat'), trusted: confirmation.isTrusted,
 			dispatches: first.dispatched.length,
 		}, {
 			name: 'send_remote_message', runsInWorkspace: false, requestsApproval: true,
-			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`].sort(),
+			keys: [ChatContextKeys.enabled.key, `config.${RemoteAgentHostsEnabledSettingId}`, `config.${RemoteSessionToolsEnabledSettingId}`, `config.${DevContainerHandoffEnabledSettingId}`].sort(),
 			confirmedHost: true, confirmedChat: true, trusted: false, dispatches: 0,
 		});
 		const result = await tool.invoke(invocation, async () => 0, { report: () => { } }, CancellationToken.None);
