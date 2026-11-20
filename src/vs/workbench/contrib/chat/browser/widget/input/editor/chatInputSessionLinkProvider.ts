@@ -21,7 +21,7 @@ import { AGENT_HOST_SESSION_LINK_SCHEME, parseExternalOpenSessionLinkUri, parseO
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
-import { getMarkdownCodeRanges } from '../../../../common/attachments/chatInlineAttachments.js';
+import { getMarkdownTokenRanges } from '../../../../common/attachments/chatInlineAttachments.js';
 import { chatInputSchemes } from '../../../../common/constants.js';
 import { ChatRequestTextPart, IParsedChatRequest } from '../../../../common/requestParser/chatParserTypes.js';
 
@@ -112,11 +112,12 @@ export function linkSessionMentions(message: IParsedChatRequest, detector: ChatI
 	}
 
 	const positions = new PositionOffsetTransformer(message.text);
-	const codeRanges = getMarkdownCodeRanges(message.text);
+	// Code renders as written, and authored links and images keep their own text and target.
+	const keptRanges = getMarkdownTokenRanges(message.text, token => token.type === 'code' || token.type === 'codespan' || token.type === 'link' || token.type === 'image');
 	const matches = links.map(({ range, link }) => ({
 		link,
 		offset: new OffsetRange(positions.getOffset(range.getStartPosition()), positions.getOffset(range.getEndPosition())),
-	})).filter(match => isPlainMarkdownLink(message.text, match.offset) && !codeRanges.some(range => range.intersects(match.offset)));
+	})).filter(match => isPlainMarkdownLink(message.text, match.offset) && !keptRanges.some(range => range.intersects(match.offset)));
 	let changed = false;
 	const parts = message.parts.map(part => {
 		if (!(part instanceof ChatRequestTextPart)) {
@@ -151,7 +152,7 @@ function isPlainMarkdownLink(text: string, range: OffsetRange): boolean {
 	const lineStart = text.lastIndexOf('\n', range.start - 1) + 1;
 	const before = text.slice(lineStart, range.start);
 	const after = text.charAt(range.endExclusive);
-	return /(?:^|\s|[^\]]\()$/.test(before)
+	return /(?:^|\s|(?:^|[^\]])\()$/.test(before)
 		&& !/^ {0,3}(?:>\s*)*\[[^\]]+\]:\s*$/.test(before)
 		&& /^[\s).,;:!?]?$/.test(after);
 }

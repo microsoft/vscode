@@ -141,6 +141,14 @@ suite('ChatInputSessionLinkProvider', () => {
 		});
 	});
 
+	test('links a parenthesized session link at the start of a line', () => {
+		const text = `(${internalLink})`;
+		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+		assert.deepStrictEqual(linkSessionMentions(message, new ChatInputSessionLinkDetector('code-oss', store.add(new NullLogService()))).parts.map(part => part.text), [
+			`([${internalLink.replace(/_/g, '\\_')}](${internalLink}))`,
+		]);
+	});
+
 	test('does not replace session links in code, authored links, images or unrelated URLs', () => {
 		const text = [
 			`\`${internalLink}\``,
@@ -148,6 +156,7 @@ suite('ChatInputSessionLinkProvider', () => {
 			internalLink,
 			'```',
 			`[Session](${internalLink}) ![Session](${internalLink}) <${internalLink}>`,
+			`[see ${internalLink} here](https://example.com) ![see ${internalLink} here](https://example.com/a.png) [Session]( ${internalLink} )`,
 			`<a href="${internalLink}">Session</a>`,
 			`<a href="https://example.com">${internalLink}</a> <code>${internalLink}</code>`,
 			`https://example.com/?next=${internalLink}`,
@@ -161,6 +170,7 @@ suite('ChatInputSessionLinkProvider', () => {
 			'| Session |',
 			'| --- |',
 			`| \`${internalLink}\` |`,
+			`| \`a \\| review ${internalLink} now\` |`,
 		].join('\n');
 		const positions = new PositionOffsetTransformer(text);
 		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), Range.fromPositions(positions.getPosition(0), positions.getPosition(text.length)), text)] };
