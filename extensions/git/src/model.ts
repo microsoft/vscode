@@ -63,6 +63,16 @@ interface OpenRepository extends Disposable {
 	detach(): void;
 }
 
+function isSameRepositoryLocation(repository: Repository, dotGit: IDotGit, rootRealPath: string | undefined): boolean {
+	const samePath = (a: string | undefined, b: string | undefined) => a === undefined || b === undefined ? a === b : pathEquals(a, b);
+
+	return samePath(repository.dotGit.path, dotGit.path)
+		&& samePath(repository.dotGit.commonPath, dotGit.commonPath)
+		&& samePath(repository.dotGit.superProjectPath, dotGit.superProjectPath)
+		&& repository.dotGit.isBare === dotGit.isBare
+		&& samePath(repository.rootRealPath, rootRealPath);
+}
+
 class ClosedRepositoriesManager {
 
 	private _repositories: Set<string>;
@@ -787,12 +797,17 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				return;
 			}
 
-			const detachedRepository = this.detachedRepositories.find(r => pathEquals(r.root, repositoryRoot));
-
 			// Get .git path and real path
-			const [dotGit, repositoryRootRealPath]: [IDotGit, string | undefined] = detachedRepository
-				? [detachedRepository.dotGit, detachedRepository.rootRealPath]
-				: await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
+			const [dotGit, repositoryRootRealPath]: [IDotGit, string | undefined] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
+
+			// Reuse a detached repository only while its git directories are the same, because the trust request and the file watchers use them
+			let detachedRepository = this.detachedRepositories.find(r => pathEquals(r.root, repositoryRoot));
+			if (detachedRepository && !isSameRepositoryLocation(detachedRepository, dotGit, repositoryRootRealPath)) {
+				this.logger.trace(`[Model][openRepository] Git directory of detached repository changed: ${repositoryRoot}`);
+				this.detachedRepositories = this.detachedRepositories.filter(r => r !== detachedRepository);
+				detachedRepository.dispose();
+				detachedRepository = undefined;
+			}
 
 			// Check that the folder containing the .git folder is trusted
 			const dotGitPath = dotGit.commonPath ?? dotGit.path;

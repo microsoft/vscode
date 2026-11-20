@@ -342,7 +342,9 @@ suite('git smoke test', function () {
 			assert.strictEqual(await detachedChange, false);
 
 			const reopenedRepository = (await git.openRepository(Uri.file(repositoryPath)))!;
-			await reopenedRepository.status();
+
+			// The first status of the new source control, not of the first one, fills the cleared groups
+			await internalRepository.whenFirstStatus;
 
 			assert.strictEqual(model.getRepository(repositoryPath), internalRepository);
 			assert.ok(internalRepository.sourceControl);
@@ -351,6 +353,33 @@ suite('git smoke test', function () {
 			model.detachRepository(internalRepository);
 		} finally {
 			fs.rmSync(repositoryPath, { recursive: true, force: true });
+		}
+	});
+
+	test('reopening a detached repository whose git directory moved uses the new directory', async function () {
+		const model = getModel();
+		const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-smoke-')));
+		const repositoryPath = path.join(base, 'repository');
+		const movedGitDirectory = path.join(base, 'moved.git');
+		fs.mkdirSync(repositoryPath);
+		cp.execSync('git init -b main', { cwd: repositoryPath });
+		cp.execSync('git -c user.name=testuser -c user.email=monacotools@example.com commit --allow-empty -m "initial commit"', { cwd: repositoryPath });
+
+		try {
+			await git.openRepository(Uri.file(repositoryPath));
+			model.detachRepository(model.getRepository(repositoryPath)!);
+
+			// Move the git directory out of the working tree, and leave a .git file that points to it
+			cp.execSync(`git init --separate-git-dir "${movedGitDirectory}"`, { cwd: repositoryPath });
+			await git.openRepository(Uri.file(repositoryPath));
+			const repository = model.getRepository(repositoryPath)!;
+
+			// The trust request and the file watchers use this directory
+			assert.strictEqual(repository.dotGit.path, movedGitDirectory);
+
+			model.detachRepository(repository);
+		} finally {
+			fs.rmSync(base, { recursive: true, force: true });
 		}
 	});
 

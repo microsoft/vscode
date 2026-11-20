@@ -860,11 +860,12 @@ export class Repository implements Disposable {
 	private readonly onDidChangeWarm: Event<boolean> = this._onDidChangeWarm.event;
 
 	private didRunFirstStatus!: () => void;
+	private _whenFirstStatus = new Promise<void>(resolve => this.didRunFirstStatus = resolve);
 
 	/**
-	 * Resolves once git status ran for the first time.
+	 * Resolves once git status ran for the first time since the source control was attached.
 	 */
-	readonly whenFirstStatus = new Promise<void>(resolve => this.didRunFirstStatus = resolve);
+	get whenFirstStatus(): Promise<void> { return this._whenFirstStatus; }
 
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
@@ -1040,6 +1041,7 @@ export class Repository implements Disposable {
 		this.indexGroup.resourceStates = [];
 		this.workingTreeGroup.resourceStates = [];
 		this.untrackedGroup.resourceStates = [];
+		this._whenFirstStatus = new Promise<void>(resolve => this.didRunFirstStatus = resolve);
 	}
 
 	validateInput(text: string, _: number): SourceControlInputBoxValidation | undefined {
@@ -2978,6 +2980,10 @@ export class Repository implements Disposable {
 	}
 
 	private async _updateModelState(optimisticResourcesGroups?: GitResourceGroups, cancellationToken?: CancellationToken): Promise<void> {
+		// An update publishes only into the attachment that started it, so a detach (or a detach and an
+		// attach) while git runs drops its results
+		const attachment = this._attachment;
+
 		try {
 			// Optimistically update resource groups
 			if (optimisticResourcesGroups) {
@@ -2995,6 +3001,10 @@ export class Repository implements Disposable {
 					this.isCherryPickInProgress(),
 					this.getInputTemplate(),
 					this.initIsUsingVirtualFileSystem()]);
+
+			if (this._attachment !== attachment) {
+				throw new CancellationError();
+			}
 
 			// Reset the list of unpublished commits if HEAD has
 			// changed (ex: checkout, fetch, pull, push, publish, etc.).
@@ -3024,8 +3034,7 @@ export class Repository implements Disposable {
 					this.getStatus(cancellationToken),
 					this.getRefs({}, cancellationToken)]);
 
-			// A repository that detached while the update was running does not publish it
-			if (!this._attachment) {
+			if (this._attachment !== attachment) {
 				throw new CancellationError();
 			}
 
