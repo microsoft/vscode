@@ -177,11 +177,11 @@ export class ChatWindowComposerBackgroundSends extends Disposable {
 	}
 }
 
-/** Whether `a` and `b` aim a new session at the same folder, provider, session type, model, mode and placement. */
+/** Whether `a` and `b` aim a new session at the same folder, provider, session type, model, mode, placement and whether it is a preference. */
 function isSameNewSessionTarget(a: INewSessionTarget, b: INewSessionTarget, extUri: IExtUri): boolean {
 	return (a.folderUri && b.folderUri ? extUri.isEqual(a.folderUri, b.folderUri) : a.folderUri === b.folderUri)
 		&& a.providerId === b.providerId && a.sessionTypeId === b.sessionTypeId && a.modelId === b.modelId && a.modeId === b.modeId
-		&& a.requireDevContainer === b.requireDevContainer && a.placement === b.placement;
+		&& a.requireDevContainer === b.requireDevContainer && a.placement === b.placement && !!a.placementIsPreference === !!b.placementIsPreference;
 }
 
 /** What a composer of a chat window starts with. */

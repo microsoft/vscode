@@ -496,6 +496,20 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('an explicit New Worktree request is not taken for the remembered preference that otherwise matches it', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/preference'), { target: { folderUri: URI.file('/repo'), placement: 'worktree', placementIsPreference: true } }, async () => { }));
+		const retargets: (boolean | undefined)[] = [];
+		store.add(composer.onDidRetarget(target => retargets.push(target.placementIsPreference)));
+
+		const same = composer.requestTarget({ folderUri: URI.file('/repo'), placement: 'worktree', placementIsPreference: true });
+		const explicit = composer.requestTarget({ folderUri: URI.file('/repo'), placement: 'worktree' });
+
+		assert.deepStrictEqual({ same, explicit, retargets, now: composer.requestedTarget.get()?.placementIsPreference }, { same: true, explicit: true, retargets: [undefined], now: undefined });
+	});
+
 	test('a composer that aims at the folder its host aimed it at follows its host to another folder, such as where the window\'s folder moved; not once the user picked another folder, nor from a folder it does not aim at', () => {
 		const store = disposables.add(new DisposableStore());
 		const { instantiationService } = createServices(store);
