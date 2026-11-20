@@ -126,6 +126,8 @@ export interface IDevContainerAgentHostService {
 	connect(workspaceUri: URI, token: CancellationToken, options?: { readonly sandboxEnabled: boolean }): Promise<IDevContainerAgentHostTarget>;
 	/** Known Docker support for a workspace's current container, if already connected. */
 	getSandboxSupported?(workspaceUri: URI): boolean | undefined;
+	/** The label of the workspace's Dev Container, as its sessions show it, e.g. `foo [Dev Container on Ubuntu]`. */
+	getWorkspaceLabel?(workspaceUri: URI): string;
 	showLog(workspaceUri: URI): Promise<void>;
 	disconnect(workspaceUri: URI): Promise<void>;
 

@@ -7,7 +7,7 @@ import { raceCancellationError } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isEqualOrParent, relativePath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -61,6 +61,8 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 	private readonly _devContainerDrafts = new Set<string>();
 	private readonly _requiredDevContainerDrafts = new Set<string>();
 	private readonly _pendingDevContainerEnablement = new Set<string>();
+	/** The host workspace labels of drafts listed with their Dev Container's sessions while a request starts them. */
+	private readonly _hostWorkspaceLabels = new Map<string, string>();
 	private readonly _devContainerAvailability = new Map<string, Promise<void>>();
 	private readonly _devContainerAvailabilityListener = this._register(new MutableDisposable());
 	private readonly _onDidChangeDevContainerAvailability = this._register(new Emitter<void>());
@@ -229,9 +231,29 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 	}
 
 	override startNewSessionRequest(sessionId: string, activity?: string): IDisposable {
-		return super.startNewSessionRequest(sessionId, activity ?? (this.isDevContainerEnabled(sessionId)
+		const devContainer = this.isDevContainerEnabled(sessionId);
+		const request = super.startNewSessionRequest(sessionId, activity ?? (devContainer
 			? localize('devContainerAgentHost.starting', "Starting Dev Container")
 			: undefined));
+		const draft = this._getNewSession(sessionId);
+		const workspace = draft?.session.workspace.get();
+		const sourceWorkspace = workspace?.folders[0]?.root;
+		const label = devContainer && sourceWorkspace ? this._devContainerSupport?.service.getWorkspaceLabel?.(sourceWorkspace) : undefined;
+		if (draft && workspace && label && !this._hostWorkspaceLabels.has(sessionId)) {
+			// List the draft with its Dev Container's sessions while the container starts, not with the host's.
+			this._hostWorkspaceLabels.set(sessionId, workspace.label);
+			draft.setWorkspaceLabel(label);
+		}
+		return toDisposable(() => {
+			request.dispose();
+			const hostLabel = this._hostWorkspaceLabels.get(sessionId);
+			if (hostLabel !== undefined && !draft?.session.isNewSessionRequestInProgress?.get()) {
+				this._hostWorkspaceLabels.delete(sessionId);
+				if (this._getNewSession(sessionId) === draft) {
+					draft?.setWorkspaceLabel(hostLabel);
+				}
+			}
+		});
 	}
 
 	async prepareNewSession(sessionId: string, token: CancellationToken, query: string): Promise<IPreparedNewSession> {
@@ -258,6 +280,9 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			}, undefined);
 		};
 		progress(localize('devContainerAgentHost.preparing', "Preparing Dev Container"));
+		// Title the draft like a sent request while the container starts, which can take a while.
+		const title = draft.session.title.get();
+		draft.setRequestTitle(query);
 		try {
 			if (awaitingAvailability) {
 				await raceCancellationError(availability, preparation.token);
@@ -272,6 +297,11 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 				return { session: draft.session };
 			}
 			return await this._prepareDevContainerSession(sessionId, preparation.token, query, progress);
+		} catch (error) {
+			if (this._getNewSession(sessionId) === draft) {
+				draft.setTitle(title);
+			}
+			throw error;
 		} finally {
 			draft.preparationProgress.set(undefined, undefined);
 			preparation.dispose();
@@ -459,6 +489,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		this._devContainerDrafts.delete(sessionId);
 		this._requiredDevContainerDrafts.delete(sessionId);
 		this._pendingDevContainerEnablement.delete(sessionId);
+		this._hostWorkspaceLabels.delete(sessionId);
 		super.deleteNewSession(sessionId);
 	}
 
@@ -468,6 +499,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		this._devContainerDrafts.clear();
 		this._requiredDevContainerDrafts.clear();
 		this._pendingDevContainerEnablement.clear();
+		this._hostWorkspaceLabels.clear();
 		super._disposeAllNewSessions();
 	}
 }
