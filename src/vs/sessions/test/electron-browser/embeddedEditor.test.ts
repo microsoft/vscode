@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestStorageService } from '../../../workbench/test/common/workbenchTestServices.js';
-import { EmbeddedEditorMemory, IEmbeddedEditorContent, shouldSwitchEditorFolders } from '../../electron-browser/embeddedEditor.js';
+import { EmbeddedEditorMemory, getEmbeddedEditorOpenable, IEmbeddedEditorContent, shouldSwitchEditorFolders } from '../../electron-browser/embeddedEditor.js';
 
 suite('EmbeddedEditor', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,6 +20,7 @@ suite('EmbeddedEditor', () => {
 				{ folderUri: URI.parse('vscode-remote://ssh-remote+host/work'), label: 'work [SSH: host]' },
 			],
 			repositories: ['file:///repo', 'vscode-remote://ssh-remote%2Bhost/work'],
+			repository: { folderUri: URI.file('/repo') },
 		});
 
 		const restarted = new EmbeddedEditorMemory(storage);
@@ -29,6 +30,7 @@ suite('EmbeddedEditor', () => {
 		assert.deepStrictEqual({
 			folders: content?.folders.map(folder => ({ folderUri: folder.folderUri.toString(), label: folder.label })),
 			repositories: content?.repositories,
+			repository: content?.repository?.folderUri.toString(),
 			afterForget: new EmbeddedEditorMemory(storage).content,
 		}, {
 			folders: [
@@ -36,6 +38,7 @@ suite('EmbeddedEditor', () => {
 				{ folderUri: 'vscode-remote://ssh-remote%2Bhost/work', label: 'work [SSH: host]' },
 			],
 			repositories: ['file:///repo', 'vscode-remote://ssh-remote%2Bhost/work'],
+			repository: 'file:///repo',
 			afterForget: undefined,
 		});
 	});
@@ -48,12 +51,38 @@ suite('EmbeddedEditor', () => {
 			otherRepository: shouldSwitchEditorFolders(shown, content('/other', 'file:///other')),
 			nothingShown: shouldSwitchEditorFolders(undefined, content('/worktrees/b', 'file:///repo')),
 			repositoryUnknown: shouldSwitchEditorFolders({ folders: shown.folders, repositories: [] }, content('/worktrees/b', 'file:///repo')),
+			// A window that shows the local repository moves its folder to the worktree itself
+			otherWorktreeOfShownRepository: shouldSwitchEditorFolders(
+				{ ...shown, repository: { folderUri: URI.file('/repo') } },
+				{ ...content('/worktrees/b', 'file:///repo'), repository: { folderUri: URI.file('/repo') } }),
 		}, {
 			otherWorktree: true,
 			sameWorktree: false,
 			otherRepository: false,
 			nothingShown: false,
 			repositoryUnknown: false,
+			otherWorktreeOfShownRepository: false,
+		});
+	});
+});
+
+suite('EmbeddedEditor openable', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('opens a single local folder as its repository at the folder, so that it switches between worktrees in place', () => {
+		const describe = (value: IEmbeddedEditorContent) => {
+			const { toOpen, folderLocation } = getEmbeddedEditorOpenable(value);
+			return { toOpen: toOpen.map(folder => folder.folderUri.toString()), folderLocation: typeof folderLocation === 'object' ? folderLocation.uri : folderLocation };
+		};
+		const repository = { folderUri: URI.file('/repo') };
+		assert.deepStrictEqual({
+			worktree: describe({ ...content('/worktrees/a', 'file:///repo'), repository }),
+			primary: describe({ ...content('/repo', 'file:///repo'), repository }),
+			noRepository: describe(content('/worktrees/a', 'file:///repo')),
+		}, {
+			worktree: { toOpen: ['file:///repo'], folderLocation: 'file:///worktrees/a' },
+			primary: { toOpen: ['file:///repo'], folderLocation: 'primary' },
+			noRepository: { toOpen: ['file:///worktrees/a'], folderLocation: undefined },
 		});
 	});
 });

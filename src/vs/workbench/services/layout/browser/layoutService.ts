@@ -799,6 +799,13 @@ export function setEmbeddedMainWindow(embedded: boolean): void {
 	isEmbeddedMainWindow = embedded;
 }
 
+/**
+ * Whether the main window is embedded in another window, such as an editor window that the Agents window shows.
+ */
+export function isMainWindowEmbedded(): boolean {
+	return isEmbeddedMainWindow;
+}
+
 export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
 	if (isEmbeddedMainWindow && !isAuxiliaryWindow(window)) {
 		return false;

@@ -346,10 +346,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		const workspaceToOpen = pathToOpen.workspace;
 		const workspaceUri = isWorkspaceIdentifier(workspaceToOpen) ? workspaceToOpen.configPath : workspaceToOpen.uri;
+		const folderLocation = isSingleFolderWorkspaceIdentifier(workspaceToOpen) && !pathToOpen.remoteAuthority ? options.folderLocation : undefined;
 		let window = findWindowOnWorkspaceOrFolder([...embeddingWindow.embeddedWindows], workspaceUri);
 		if (!window) {
 			window = await this.openInBrowserWindow({
 				workspace: workspaceToOpen,
+				...(folderLocation && folderLocation !== 'primary' ? await this.folderLocationsMainService.validateFolderLocation(workspaceUri, folderLocation) : {}),
 				remoteAuthority: pathToOpen.remoteAuthority,
 				cli: this.environmentMainService.args,
 				forceNewWindow: true,

@@ -678,9 +678,16 @@ export interface IEmbeddedWindowBounds extends IRectangle {
 export interface IEmbeddedEditorWindowOptions {
 
 	/**
-	 * The chat session to open in a newly created editor window.
+	 * The chat session to open in the chat view of the editor window.
 	 */
 	readonly chatSessionToOpen?: URI;
+
+	/**
+	 * Where the single local folder to open starts when a new editor window opens for it: an alternate location of it,
+	 * such as a worktree of the repository it is, or `'primary'` for the folder itself. An editor window that already
+	 * shows the folder keeps its location: it follows the chat it shows (`chat.editorWindow.enableWorktree`).
+	 */
+	readonly folderLocation?: IWindowFolderLocation | 'primary';
 
 	readonly bounds: IEmbeddedWindowBounds;
 }

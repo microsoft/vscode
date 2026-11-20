@@ -19,7 +19,7 @@ import { IChat, ISession, isSessionCreated } from '../../workbench/services/sess
 
 export type EditorWindowTarget =
 	| { readonly kind: 'empty'; readonly options: IOpenEmptyWindowOptions | undefined }
-	| { readonly kind: 'folders'; readonly folders: IFolderToOpen[]; readonly repositories: string[]; readonly chatSessionToOpen: URI | undefined };
+	| { readonly kind: 'folders'; readonly folders: IFolderToOpen[]; readonly repositories: string[]; readonly repository: IFolderToOpen | undefined; readonly chatSessionToOpen: URI | undefined };
 
 /**
  * Provisional sessions remain owned by the Agents composer and may be replaced or disposed, so only materialized sessions are safe to share across windows.
@@ -68,7 +68,12 @@ export class EditorWindowTargetResolver {
 
 		// The roots of the folders, which are the same for the worktrees of a repository
 		const repositories = folders.map(folder => folder.root.toString());
-		return { kind: 'folders', folders: foldersToOpen, repositories, chatSessionToOpen: this.resolveChatSession(session, chat, options) };
+
+		// A single local folder can open as its repository at the worktree, which then switches to other worktrees in place
+		const repositoryUri = folders.length === 1 ? resolveRemoteFolderUri(folders[0].root, session.providerId, this.sessionsProvidersService, this.remoteAgentHostService) : undefined;
+		const repository = repositoryUri?.scheme === Schemas.file && foldersToOpen[0].folderUri.scheme === Schemas.file ? { folderUri: repositoryUri } : undefined;
+
+		return { kind: 'folders', folders: foldersToOpen, repositories, repository, chatSessionToOpen: this.resolveChatSession(session, chat, options) };
 	}
 
 	/**

@@ -25,7 +25,8 @@ import { INativeHostService } from '../../platform/native/common/native.js';
 import { IQuickInputService } from '../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
-import { EMBEDDED_EDITOR_WINDOW_CHANGED_CHANNEL, IEmbeddedWindowBounds, IFolderToOpen } from '../../platform/window/common/window.js';
+import { EMBEDDED_EDITOR_WINDOW_CHANGED_CHANNEL, IEmbeddedWindowBounds, IFolderToOpen, IWindowFolderLocation } from '../../platform/window/common/window.js';
+import { basename, isEqual } from '../../base/common/resources.js';
 import { ILifecycleService } from '../../workbench/services/lifecycle/common/lifecycle.js';
 import { ISessionsService } from '../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
@@ -77,15 +78,51 @@ const EMBEDDED_EDITOR_STORAGE_KEY = 'sessions.embeddedEditor.folders';
 export interface IEmbeddedEditorContent {
 	readonly folders: readonly IFolderToOpen[];
 	readonly repositories: readonly string[];
+
+	/**
+	 * The repository to open for a single local folder, at the folder as its location, so that the editor window
+	 * switches between the worktrees of the repository in place.
+	 */
+	readonly repository?: IFolderToOpen;
+}
+
+/**
+ * The provider expected to confirm a worktree location of a session: the one of the worktrees that local agent host
+ * sessions work in. It is only a description: a window confirms its location with any provider that knows it.
+ */
+const SESSION_WORKTREES_PROVIDER_ID = 'agentHost.sessionWorktrees';
+
+/**
+ * What to open in an editor window to show `content`: its repository at the folder as its location where it has one.
+ */
+export function getEmbeddedEditorOpenable(content: IEmbeddedEditorContent): { readonly toOpen: IFolderToOpen[]; readonly folderLocation?: IWindowFolderLocation | 'primary' } {
+	const repository = content.repository;
+	const folder = content.folders[0]?.folderUri;
+	if (!repository || content.folders.length !== 1 || !folder) {
+		return { toOpen: [...content.folders] };
+	}
+
+	const folderLocation = isEqual(folder, repository.folderUri)
+		? 'primary'
+		: { uri: folder.toString(), label: basename(folder), providerId: SESSION_WORKTREES_PROVIDER_ID };
+	return { toOpen: [repository], folderLocation };
+}
+
+/**
+ * Whether `shown` and `next` are worktrees of the same single local repository: an editor window that shows the
+ * repository moves its folder to the worktree of the chat it shows, in place.
+ */
+export function isSameEditorRepository(shown: IEmbeddedEditorContent | undefined, next: IEmbeddedEditorContent): boolean {
+	return !!shown?.repository && !!next.repository && isEqual(shown.repository.folderUri, next.repository.folderUri);
 }
 
 /**
  * Whether selecting a session that shows `next` switches the editor window from `shown` to its folders: the
- * session works in another worktree of the same repositories.
+ * session works in another worktree of the same repositories, which the editor window cannot move to in place.
  */
 export function shouldSwitchEditorFolders(shown: IEmbeddedEditorContent | undefined, next: IEmbeddedEditorContent): boolean {
 	const folderKeys = (content: IEmbeddedEditorContent) => content.folders.map(folder => folder.folderUri.toString());
-	return !!shown && shown.repositories.length > 0 && equals(shown.repositories, next.repositories) && !equals(folderKeys(shown), folderKeys(next));
+	return !!shown && !isSameEditorRepository(shown, next) && shown.repositories.length > 0 && equals(shown.repositories, next.repositories) && !equals(folderKeys(shown), folderKeys(next));
 }
 
 /**
@@ -104,6 +141,7 @@ export class EmbeddedEditorMemory {
 					.filter((folder): folder is { folderUri: string; label?: string } => typeof (folder as { folderUri?: unknown })?.folderUri === 'string')
 					.map(folder => ({ folderUri: URI.parse(folder.folderUri), label: typeof folder.label === 'string' ? folder.label : undefined })),
 				repositories: Array.isArray(value?.repositories) ? value.repositories.filter((repository: unknown): repository is string => typeof repository === 'string') : [],
+				repository: typeof value?.repository === 'string' ? { folderUri: URI.parse(value.repository) } : undefined,
 			};
 			return content.folders.length ? content : undefined;
 		} catch {
@@ -115,6 +153,7 @@ export class EmbeddedEditorMemory {
 		const value = {
 			folders: content.folders.map(folder => ({ folderUri: folder.folderUri.toString(), label: folder.label })),
 			repositories: content.repositories,
+			repository: content.repository?.folderUri.toString(),
 		};
 		this.storageService.store(EMBEDDED_EDITOR_STORAGE_KEY, JSON.stringify(value), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
@@ -211,8 +250,9 @@ class EmbeddedEditorService extends Disposable implements IEmbeddedEditorService
 			}
 		}));
 
-		// While the editor window shows, selecting a chat shows it in the chat view of the editor window, and the
-		// editor window switches to the worktree of the chat when it works in another worktree of the same repository
+		// While the editor window shows, selecting a chat shows it in the chat view of the editor window. An editor window
+		// that shows a local repository moves its folder to the worktree of the chat it shows; another one switches to
+		// the window of the worktree of the chat when it works in another worktree of the same repositories
 		this._register(autorun(reader => {
 			const active = activeChat.read(reader);
 			if (!active || this.visibleWindowId.read(reader) === undefined) {
@@ -225,6 +265,11 @@ class EmbeddedEditorService extends Disposable implements IEmbeddedEditorService
 			if (target.kind === 'folders' && shouldSwitchEditorFolders(this.shown, target)) {
 				void this.showContent(target, target.chatSessionToOpen).catch(error => this.logService.error('[EmbeddedEditor] could not switch the editor window to the worktree of the chat', error));
 				return;
+			}
+			if (target.kind === 'folders' && isSameEditorRepository(this.shown, target)) {
+				// A restart opens the repository at the worktree it moves to
+				this.shown = { folders: target.folders, repositories: target.repositories, repository: target.repository };
+				this.memory.remember(this.shown);
 			}
 
 			const chatSessionToOpen = this.targetResolver.resolveChatSession(active.session, active.chat, { notify: false });
@@ -252,10 +297,11 @@ class EmbeddedEditorService extends Disposable implements IEmbeddedEditorService
 			return;
 		}
 
-		this.shown = { folders: content.folders, repositories: content.repositories };
+		this.shown = { folders: content.folders, repositories: content.repositories, repository: content.repository };
 		this.memory.remember(this.shown);
 		this.handedChat = chatSessionToOpen?.toString();
-		await this.nativeHostService.showEmbeddedEditorWindow([...content.folders], { chatSessionToOpen, bounds });
+		const { toOpen, folderLocation } = getEmbeddedEditorOpenable(content);
+		await this.nativeHostService.showEmbeddedEditorWindow(toOpen, { chatSessionToOpen, folderLocation, bounds });
 	}
 
 	async hide(): Promise<void> {
