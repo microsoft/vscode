@@ -1189,10 +1189,12 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			const message: Message = { text: 'follow-up', origin: { kind: MessageKind.User } };
 			applyClientAction({ type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'pending', message }, chat);
 			fire(chatTurnComplete(first, 1), chat);
-			Object.assign(agent, { getTurnInteraction: (_chat: URI, id: string) => id === next ? {
-				sdkSessionId: 'sdk', interactionIds: [], interactionIdsTruncated: false, steeringDelivery: delivery,
-				originalTurnId: delivery === 'steering' ? first : delivery === 'unknown' ? undefined : next,
-			} : undefined });
+			Object.assign(agent, {
+				getTurnInteraction: (_chat: URI, id: string) => id === next ? {
+					sdkSessionId: 'sdk', interactionIds: [], interactionIdsTruncated: false, steeringDelivery: delivery,
+					originalTurnId: delivery === 'steering' ? first : delivery === 'unknown' ? undefined : next,
+				} : undefined
+			});
 			fire({ type: ActionType.ChatTurnStarted, turnId: next, startedAt: new Date().toISOString(), message, queuedMessageId: 'pending' }, chat);
 			fire(chatTurnComplete(next, 1), chat);
 			const row = telemetry.events.find(event => event.eventName === 'agentHost.turnCompleted' && event.data?.turnId === next)?.data;
