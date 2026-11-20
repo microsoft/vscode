@@ -16,7 +16,6 @@ import { stubChatViewHostServiceDependencies } from '../../../common/chatViewSes
 import { ChatViewHostService } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { ViewMenuActions } from '../../../../../../browser/parts/views/viewMenuActions.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -231,11 +230,10 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsTitleContainer: undefined as HTMLElement | undefined,
 			titleActive: false,
 			setSessionsListTitleActive: (active: boolean) => { host.titleActive = active; },
-			menuActions: { addActions: () => toDisposable(() => { }) },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
 		createControl.call(host, document.createElement('div'));
-		const providedControl = Object.assign(control('provided'), { titleActions: upcastPartial<ViewMenuActions>({}) });
+		const providedControl = control('provided');
 		const state = () => ({ control: host.sessionsControl === providedControl ? 'provided' : `own ${ownLists}`, sessionsOnly: seam.sessionsOnly.get(), sessionsOnlyClass: viewPaneContainer.classList.contains('sessions-only'), title: host.sessionsTitleContainer?.style.display !== 'none', titleActive: host.titleActive, disposed: disposed.splice(0) });
 		const steps = [state()];
 
@@ -283,7 +281,6 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsTitleContainer: undefined as HTMLElement | undefined,
 			titleActive: false,
 			setSessionsListTitleActive: (active: boolean) => { host.titleActive = active; },
-			menuActions: { addActions: () => toDisposable(() => { }) },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
 		createControl.call(host, document.createElement('div'));
@@ -293,7 +290,7 @@ suite('ChatViewPane sessions refresh', () => {
 	test('while a provided sessions list is expected but not registered yet, the Chat view creates no list of its own, so none shows that the provided one replaces', () => {
 		const seam = createSeam();
 		const { host, counts } = createExpectedListHost(seam);
-		const providedControl = Object.assign(upcastPartial<AgentSessionsControl>({ dispose: () => { }, setVisible: () => { } }), { titleActions: upcastPartial<ViewMenuActions>({}) });
+		const providedControl = upcastPartial<AgentSessionsControl>({ dispose: () => { }, setVisible: () => { } });
 		const steps = [{ ownLists: counts.ownLists, control: host.sessionsControl, titleActive: host.titleActive }];
 
 		store.add(seam.provide(upcastPartial<IChatViewSessionsListProvider>({ create: () => ({ control: providedControl, hasHeader: true }) }), true));

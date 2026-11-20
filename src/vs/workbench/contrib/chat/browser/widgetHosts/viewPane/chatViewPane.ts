@@ -988,12 +988,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.setSessionsListTitleActive(true);
 				return { sessionsControl: undefined, store };
 			}
-			// The actions of a list that has none of its own header are those of the Chat view's title, with its own
-			const titleActions = provided?.control.titleActions;
-			if (titleActions) {
-				store.add(this.menuActions.addActions(titleActions));
-			}
-			this.setSessionsListTitleActive(!!titleActions);
+			// A list without a header of its own has its actions in the Chat view's title, which they contribute to it
+			this.setSessionsListTitleActive(!!provided);
 			// A list of its own header and actions, in place of those of the Chat view's list
 			setVisibility(!provided || !provided.hasHeader, sessionsTitleContainer);
 			setVisibility(!provided, newSessionButtonContainer);
