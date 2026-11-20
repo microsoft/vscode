@@ -243,6 +243,10 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
+	private readonly _onDidPickTarget = this._register(new Emitter<INewSessionTarget>());
+	/** Fires with what it aims for as the user changes it, such as picks another folder, agent, model or mode. */
+	readonly onDidPickTarget = this._onDidPickTarget.event;
+
 	private readonly _onDidRetarget = this._register(new Emitter<INewSessionTarget>());
 	/** Fires as its host aims it at another folder ({@link retargetFolder}) or target ({@link requestTarget}), for which it creates its draft. */
 	readonly onDidRetarget = this._onDidRetarget.event;
@@ -320,6 +324,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		this._requestedTarget.set(target, undefined);
 		if (reason === 'user') {
 			this._targetGeneration++;
+			this._onDidPickTarget.fire(target);
 		}
 	}
 

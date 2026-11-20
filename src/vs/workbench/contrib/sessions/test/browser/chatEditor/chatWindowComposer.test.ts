@@ -518,6 +518,20 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('a composer announces the targets the user picked, not the ones its host or restoration set', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/picks'), { target: { folderUri: URI.file('/repo'), providerId: 'provider' } }, async () => { }));
+		const picked: string[] = [];
+		store.add(composer.onDidPickTarget(target => picked.push(`${target.folderUri?.path} ${target.modelId}`)));
+
+		composer.setRequestedTarget({ folderUri: URI.file('/host'), modelId: 'host' }, 'background');
+		composer.setRequestedTarget({ folderUri: URI.file('/user'), modelId: 'user' }, 'user');
+
+		assert.deepStrictEqual(picked, ['/user user']);
+	});
+
 	test('a requested target that differs only by the case of a remote folder retargets the composer: its folders are told apart as their provider does', () => {
 		const store = disposables.add(new DisposableStore());
 		const { instantiationService } = createServices(store);

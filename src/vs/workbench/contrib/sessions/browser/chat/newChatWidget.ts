@@ -168,6 +168,8 @@ interface IPendingWorktreePlacement {
 	readonly previousSessionId: string | undefined;
 	/** Whether it was reported that the draft cannot work in a new worktree. */
 	readonly unavailableReported?: boolean;
+	/** Whether the placement is a remembered preference: where it cannot apply, it is dropped without a report. */
+	readonly isPreference?: boolean;
 }
 
 /**
@@ -1625,8 +1627,19 @@ export class NewChatWidget extends Disposable {
 		return {
 			isAvailable: () => !this._newWorktreeCheckboxVisible.get() && newWorktree.isAvailable(),
 			isSelected: () => newWorktree.isSelected(),
-			setSelected: selected => newWorktree.setSelected(selected),
+			setSelected: selected => this._setNewWorktreeByUser(newWorktree, selected),
 		};
+	}
+
+	/** The user's choice of New Worktree, which the requested target keeps as its placement for the composer's next draft. */
+	private async _setNewWorktreeByUser(newWorktree: NewWorktreeChoice, selected: boolean): Promise<boolean> {
+		const setPlacement = (placement: boolean) => this._requestTarget(target => ({ ...target, placement: placement ? 'worktree' : undefined, placementIsPreference: undefined }));
+		setPlacement(selected);
+		const applied = await newWorktree.setSelected(selected);
+		if (!applied) {
+			setPlacement(!selected);
+		}
+		return applied;
 	}
 
 	/**
@@ -1660,7 +1673,7 @@ export class NewChatWidget extends Disposable {
 			}
 			// Not persisted: the main composer's last workspace stays its own.
 			this._workspacePicker.setSelectedWorkspace(target.folderUri, { fireEvent: false, providerId: target.providerId, ...(target.requireDevContainer ? { preferDevContainer: true } : {}), persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
-			const placement: IPendingWorktreePlacement | undefined = target.placement === 'worktree' ? { folderUri: target.folderUri, sessionId: undefined, previousSessionId: this._session.get()?.sessionId } : undefined;
+			const placement: IPendingWorktreePlacement | undefined = target.placement === 'worktree' ? { folderUri: target.folderUri, sessionId: undefined, previousSessionId: this._session.get()?.sessionId, isPreference: target.placementIsPreference } : undefined;
 			this._pendingWorktreePlacement.set(placement, undefined);
 			const creation = this._createNewSession(target.folderUri, pick);
 			if (placement) {
@@ -1839,6 +1852,8 @@ export class NewChatWidget extends Disposable {
 		if (this._newWorktree?.isAvailable()) {
 			this._pendingWorktreePlacement.set(undefined, undefined);
 			this._newWorktree.setSelected(true);
+		} else if ((!this._newWorktree || this._newWorktree.isResolved()) && placement.isPreference) {
+			this._pendingWorktreePlacement.set(undefined, undefined);
 		} else if ((!this._newWorktree || this._newWorktree.isResolved()) && !placement.unavailableReported) {
 			this._pendingWorktreePlacement.set({ ...placement, unavailableReported: true }, undefined);
 			this.notificationService.warn(localize('newChatWidget.requestedWorktreeUnavailable', "This new chat cannot work in a new worktree of this folder, so it cannot be sent. Pick another workspace to send it."));
@@ -2630,8 +2645,9 @@ export class NewChatWidget extends Disposable {
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
 		], undefined, this._newChatInput.pickerHoverDelegate);
-		if (this._newWorktree) {
-			this._newWorktreeCheckbox = store.add(new NewWorktreeCheckbox(row, this._newWorktree, this._newWorktreeCheckboxVisible, reader => {
+		const newWorktreeChoice = this._newWorktree;
+		if (newWorktreeChoice) {
+			this._newWorktreeCheckbox = store.add(new NewWorktreeCheckbox(row, { isSelected: () => newWorktreeChoice.isSelected(), setSelected: selected => this._setNewWorktreeByUser(newWorktreeChoice, selected) }, this._newWorktreeCheckboxVisible, reader => {
 				this._environmentWorkspaceChanged.read(reader);
 				this._session.read(reader);
 			}, this.hoverService, this._newChatInput.pickerHoverDelegate));
