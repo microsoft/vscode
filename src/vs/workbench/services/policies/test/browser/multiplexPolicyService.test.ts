@@ -71,6 +71,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	}
 
 	async signOut(): Promise<void> { }
+	async rememberMicrosoftAccount(): Promise<void> { }
+	async forgetMicrosoftAccount(): Promise<void> { }
 }
 
 suite('MultiplexPolicyService', () => {
