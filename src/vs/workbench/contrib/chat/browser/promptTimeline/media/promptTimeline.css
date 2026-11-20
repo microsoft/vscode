@@ -741,6 +741,15 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+.monaco-enable-motion .prompt-timeline-gutter-older .codicon-ellipsis {
+	animation: prompt-timeline-loading-dots 1.2s steps(3, jump-start) infinite;
+}
+
+@keyframes prompt-timeline-loading-dots {
+	from { clip-path: inset(0 100% 0 0); }
+	to { clip-path: inset(0); }
+}
+
 .prompt-timeline-gutter-older:not(.disabled):hover {
 	background: var(--vscode-list-hoverBackground);
 }

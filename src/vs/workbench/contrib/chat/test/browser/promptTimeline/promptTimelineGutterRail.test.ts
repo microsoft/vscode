@@ -110,11 +110,42 @@ suite('PromptTimelineGutterRail', () => {
 		const pending = { loads, disabled: button.ariaDisabled };
 		await firstPage.complete();
 		await Promise.resolve();
-		const first = { top: panel.scrollTop, prompt: rowParts(rail)[0].jump.textContent, focused: document.activeElement === button };
+		const first = { top: panel.scrollTop, prompt: rowParts(rail)[0].jump.textContent, focused: document.activeElement === button, chevron: !!button.querySelector('.codicon-chevron-up-compact') };
 		keydown(button, 'Enter', 13);
 		await Promise.resolve();
 		assert.deepStrictEqual({ pending, first, loads, selected, hidden: !button.getClientRects().length, focused: document.activeElement?.textContent },
-			{ pending: { loads: 1, disabled: 'true' }, first: { top: 0, prompt: '11', focused: true }, loads: 2, selected: [], hidden: true, focused: '1' });
+			{ pending: { loads: 1, disabled: 'true' }, first: { top: 0, prompt: '11', focused: true, chevron: true }, loads: 2, selected: [], hidden: true, focused: '1' });
+	});
+
+	test('cycles one, two, three loading dots, keeps all three for reduced motion and restores the chevron on failure', async () => {
+		const rail = createRail([tick(1), tick(2)]);
+		rail.domNode.classList.add('monaco-enable-motion');
+		append(rail.domNode, $('style')).textContent = store.add(getIconsStyleSheet(undefined)).getCSS().toString();
+		const page = new DeferredPromise<void>();
+		rail.setOlderHistoryLoader(() => page.p);
+		const panel = rail.domNode.querySelector<HTMLElement>('.prompt-timeline-gutter-panel')!;
+		panel.style.transition = 'none';
+		panel.style.setProperty('--vscode-spacing-size240', '24px');
+		panel.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		const button = panel.querySelector<HTMLElement>('[role=button]')!;
+		button.click();
+		const busy = button.ariaBusy;
+		const dots = button.querySelector<HTMLElement>('.codicon-ellipsis')!;
+		const visibleDots = () => {
+			const { left, top, width, height } = dots.getBoundingClientRect();
+			return [0.25, 0.5, 0.75].filter(x => document.elementFromPoint(left + width * x, top + height / 2) === dots).length;
+		};
+		const [animation] = dots.getAnimations();
+		animation.pause();
+		const cycle = [0.1, 0.4, 0.8, 1.1].map(fraction => {
+			animation.currentTime = Number(animation.effect!.getTiming().duration) * fraction;
+			return visibleDots();
+		});
+		rail.domNode.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
+		const reduced = { dots: visibleDots(), animations: dots.getAnimations().length };
+		await page.error(new Error('offline'));
+		assert.deepStrictEqual({ busy, cycle, reduced, retry: button.ariaDisabled, idle: button.ariaBusy, chevron: !!button.querySelector('.codicon-chevron-up-compact') },
+			{ busy: 'true', cycle: [1, 2, 3, 1], reduced: { dots: 3, animations: 0 }, retry: 'false', idle: 'false', chevron: true });
 	});
 
 	test('loads one older page at the gutter boundary and preserves the focused row and column', async () => {

@@ -286,9 +286,9 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			if (loadOlder && !this._olderButton) {
 				this._olderButton = this._createOlderButton();
 			}
-			if (loadOlder && this._olderButton && this._loadingOlder !== loadOlder) {
+			if (loadOlder && this._loadingOlder !== loadOlder) {
 				this._loadingFromButton = false;
-				this._olderButton.enabled = true;
+				this._setOlderButtonLoading(false);
 			}
 			this._historyError?.remove();
 			this._historyError = undefined;
@@ -302,8 +302,6 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		const label = localize('promptTimeline.gutter.loadEarlier', "Load Earlier Prompts");
 		const button = this._register(new Button(this._list, { ariaLabel: label, title: label }));
 		button.element.classList.add('prompt-timeline-gutter-older');
-		const icon = button.element.appendChild(renderIcon(Codicon.chevronUpCompact));
-		icon.ariaHidden = 'true';
 		this._list.prepend(button.element);
 		this._register(addDisposableListener(button.element, EventType.FOCUS, () => {
 			this._open = true;
@@ -315,6 +313,17 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		}));
 		this._register(button.onDidEscape(() => this._close()));
 		return button;
+	}
+
+	private _setOlderButtonLoading(loading: boolean): void {
+		const button = this._olderButton;
+		if (button) {
+			const icon = renderIcon(loading ? Codicon.ellipsis : Codicon.chevronUpCompact);
+			icon.ariaHidden = 'true';
+			button.element.replaceChildren(icon);
+			button.element.ariaBusy = String(loading);
+			button.enabled = !loading;
+		}
 	}
 
 	private _atHistoryStart(): boolean {
@@ -340,9 +349,7 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		}
 		this._loadingOlder = load;
 		this._loadingFromButton = fromButton;
-		if (this._olderButton) {
-			this._olderButton.enabled = false;
-		}
+		this._setOlderButtonLoading(true);
 		this._historyError?.remove();
 		this._historyError = undefined;
 		try {
@@ -357,8 +364,8 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			if (this._loadingOlder === load) {
 				this._loadingOlder = undefined;
 				this._loadingFromButton = false;
-				if (this._olderButton && !this._store.isDisposed) {
-					this._olderButton.enabled = true;
+				if (!this._store.isDisposed) {
+					this._setOlderButtonLoading(false);
 					this._updateOlderHistoryChevron();
 				}
 			}
