@@ -127,6 +127,7 @@ export class ModelPicker extends Disposable {
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,
 				showModelIcon: true,
+				singleButton: phonePresenter.supportsUnifiedConfiguration,
 			}),
 			isCacheWarm: () => {
 				const session = this._sessionHost.session.get();
