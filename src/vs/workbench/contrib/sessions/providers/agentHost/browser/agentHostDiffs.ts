@@ -9,10 +9,10 @@ import { SessionStatus as ProtocolSessionStatus, type ChangesetFile } from '../.
 import { ISessionFileDiff } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { canonicalizeSessionDbUri } from '../../../../../../platform/agentHost/common/sessionDbUri.js';
-import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../chat/common/chatSessionsService.js';
-import { ISessionFileChange, SessionStatus } from '../../../common/session.js';
+import { ISessionFileChange, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { readChangesetFileMeta } from '../../../../../../platform/agentHost/common/meta/agentChangesetFileMeta.js';
 import type { AgentHostUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../common/chatSessionFileChange.js';
 
 /**
  * Maps the protocol-layer session status bitset to the UI-layer

@@ -19,14 +19,16 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatModelReference, IChatService, IChatUsage } from '../../../chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../chat/common/model/chatModel.js';
+import { ILanguageModelChatMetadata } from '../../../chat/common/languageModels.js';
 import { getChatNotificationResource } from '../../../chat/common/chatNotification.js';
 import { hashSessionIdForTelemetry } from '../../common/sessionsTelemetry.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { getSessionComparisonHarnessDisplayLabel, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonHarness, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { IChatDeletedEvent, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { SessionComparisonService } from '../../browser/sessionComparisonService.js';
+import { createSessionComparisonHarness } from '../../browser/sessionComparisonConfiguration.js';
 
 suite('SessionComparisonService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,6 +42,24 @@ suite('SessionComparisonService', () => {
 			getSessionComparisonHarnessDisplayLabel({ ...harness, modelLabel: 'Opus', modelConfigurationLabel: 'High' }, false),
 			getSessionComparisonHarnessDisplayLabel({ ...harness, modelLabel: 'Opus', modelConfigurationLabel: 'High' }),
 		], ['Copilot', 'Opus', 'Balance', 'Opus · High', 'Copilot · Opus · High']);
+	});
+
+	test('saves Fusion effort labels from the model schema, including the default', () => {
+		const effort = { type: 'string' as const, group: 'navigation', enum: ['standard', 'high'], enumItemLabels: ['Standard', 'High'], default: 'standard' };
+		const create = (configuration: Record<string, string>) => createSessionComparisonHarness(
+			'local-agent-host',
+			upcastPartial<ISessionType>({ id: 'copilotcli', label: 'Copilot' }),
+			{ identifier: 'fusion', metadata: upcastPartial<ILanguageModelChatMetadata>({ name: 'Copilot Fusion', autoModelFusion: true, configurationSchema: { properties: { tier: effort } } }) },
+			configuration,
+			{ id: 'default', label: 'Manual', description: 'Ask before running tools' },
+		);
+		const high = create({ tier: 'high' });
+		const standard = create({});
+		effort.enumItemLabels[1] = 'Changed after launch';
+		assert.deepStrictEqual([
+			getSessionComparisonHarnessDisplayLabel(high),
+			getSessionComparisonHarnessDisplayLabel(standard),
+		], ['Copilot · Copilot Fusion · High', 'Copilot · Copilot Fusion · Standard']);
 	});
 
 	test('workspace validation requires available Git branch information', () => {
@@ -638,7 +658,54 @@ suite('SessionComparisonService', () => {
 			restoredParticipants: comparison.participants.map(participant => participant.sessionResource?.toString()),
 			canRetryJudge: false,
 		});
-		await assert.rejects(service.startComparison({ ...options, judgeHarness: startOptions().judgeHarness }), /Folderless comparisons/);
+	});
+
+	test('folderless comparisons judge responses and synthesize into a new quick chat', async () => {
+		const { service, sessionsManagementService, groupsService, storageService } = createServices();
+		const status = observableValue('status', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('one', status));
+		sessionsManagementService.enqueue(stubSession('two', status));
+		sessionsManagementService.enqueue(stubSession('judge'));
+		sessionsManagementService.enqueue(stubSession('synthesis'));
+		const comparison = await service.startComparison({ ...startOptions(), workspace: undefined });
+		const beforeCompletion = sessionsManagementService.createCalls.length;
+		status.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		service.submitVerdict(comparison.id, verdict('attempt-one', ['attempt-one', 'attempt-two']));
+		service.setSynthesisPlan(comparison.id, { instructions: 'Keep the answer concise.' });
+		await service.synthesize(comparison.id);
+		const restored = createServices(storageService).service.getComparison(comparison.id);
+		assert.deepStrictEqual({
+			beforeCompletion,
+			requests: sessionsManagementService.createCalls.map(call => ({
+				workspace: call.folderUri,
+				model: call.createOptions?.modelId,
+				isolation: call.createOptions?.isolationMode,
+				branch: call.createOptions?.branch,
+			})),
+			judgeReadsResponses: sessionsManagementService.createCalls[2].options.query.includes('Read every attempt\'s response using `get_session_context`'),
+			synthesisAnswersTask: sessionsManagementService.createCalls[3].options.query.includes('into a new answer to the original task'),
+			synthesisInstructions: sessionsManagementService.createCalls[3].options.query.includes('Keep the answer concise.'),
+			evaluatorsReadAllPages: sessionsManagementService.createCalls.slice(2).map(call => call.options.query.includes('follow `nextResponseOffset` until `truncated` is false')),
+			grouped: groupsService.groupedSessionIds,
+			restoredWorkspace: restored?.workspace,
+			restoredRoles: restored?.participants.map(participant => participant.role),
+			restoredWinner: restored?.verdict?.recommendedParticipantId,
+		}, {
+			beforeCompletion: 2,
+			requests: ['model-one', 'model-two', 'judge-model', 'synthesis-model'].map(model => ({
+				workspace: undefined, model, isolation: undefined, branch: undefined,
+			})),
+			judgeReadsResponses: true,
+			synthesisAnswersTask: true,
+			synthesisInstructions: true,
+			evaluatorsReadAllPages: [true, true],
+			grouped: ['one', 'two', 'judge', 'synthesis'],
+			restoredWorkspace: undefined,
+			restoredRoles: [SessionComparisonParticipantRole.Attempt, SessionComparisonParticipantRole.Attempt, SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis],
+			restoredWinner: 'attempt-one',
+		});
 	});
 
 	test('a Judge without a Synthesizer can submit a verdict but cannot synthesize', async () => {
@@ -1577,6 +1644,10 @@ suite('SessionComparisonService', () => {
 			completions: completionEvents.map(event => ({
 				attemptIndex: event.data.attemptIndex,
 				elapsedMs: event.data.elapsedMs,
+				inputTokens: event.data.inputTokens,
+				cachedTokens: event.data.cachedTokens,
+				outputTokens: event.data.outputTokens,
+				tokenCountIsComplete: event.data.tokenCountIsComplete,
 			})),
 			outcomes: outcomeEvents.map(event => ({
 				attemptIndex: event.data.attemptIndex,
@@ -1602,8 +1673,8 @@ suite('SessionComparisonService', () => {
 			persistedCompletionCount: JSON.parse(storageService.get('sessions.comparisonAttemptTelemetry', StorageScope.PROFILE) ?? '[]').length,
 		}, {
 			completions: [
-				{ attemptIndex: 0, elapsedMs: 95_000 },
-				{ attemptIndex: 1, elapsedMs: 120_000 },
+				{ attemptIndex: 0, elapsedMs: 95_000, inputTokens: 30, cachedTokens: 12, outputTokens: 8, tokenCountIsComplete: true },
+				{ attemptIndex: 1, elapsedMs: 120_000, inputTokens: 20, cachedTokens: undefined, outputTokens: 5, tokenCountIsComplete: false },
 			],
 			outcomes: [
 				{ attemptIndex: 0, attemptCount: 2, providerId: 'other', agentId: 'type-one', modelId: 'model-one', recommended: false, judgeProviderId: 'other', judgeAgentId: 'judge-type', judgeModelId: 'judge-model' },
@@ -1621,6 +1692,46 @@ suite('SessionComparisonService', () => {
 			eventCount: 4,
 			persistedCompletionCount: 2,
 		});
+	});
+
+	test('reports first-turn tokens without follow-up usage and distinguishes zero from missing usage', async () => {
+		const { service, sessionsManagementService, chatService, telemetryService } = createServices();
+		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
+		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
+		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus));
+		chatService.setUsage(URI.parse('test-chat:/attempt-one'), [{
+			kind: 'usage',
+			promptTokens: 0,
+			completionTokens: 0,
+			modelTotals: [{ model: 'model-one', inputTokens: 0, cachedTokens: 0, outputTokens: 0 }],
+		}, {
+			kind: 'usage',
+			promptTokens: 100,
+			completionTokens: 50,
+			modelTotals: [{ model: 'model-one', inputTokens: 100, cachedTokens: 20, outputTokens: 50 }],
+		}], 10);
+		chatService.setUsage(URI.parse('test-chat:/attempt-two'), [undefined], 20);
+
+		await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined });
+		firstStatus.set(SessionStatus.Completed, undefined);
+		secondStatus.set(SessionStatus.Error, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events
+			.filter(event => event.name === 'agents/sessionComparisonAttemptCompleted')
+			.map(event => ({
+				attemptIndex: event.data.attemptIndex,
+				elapsedMs: event.data.elapsedMs,
+				inputTokens: event.data.inputTokens,
+				cachedTokens: event.data.cachedTokens,
+				outputTokens: event.data.outputTokens,
+				tokenCountIsComplete: event.data.tokenCountIsComplete,
+			})), [
+			{ attemptIndex: 0, elapsedMs: 10, inputTokens: 0, cachedTokens: 0, outputTokens: 0, tokenCountIsComplete: true },
+			{ attemptIndex: 1, elapsedMs: 20, inputTokens: undefined, cachedTokens: undefined, outputTokens: undefined, tokenCountIsComplete: false },
+		]);
 	});
 
 	test('removes remote connection details from comparison model telemetry', async () => {
@@ -1828,6 +1939,23 @@ suite('SessionComparisonService', () => {
 			{ id: 'first-run', harness },
 			{ id: 'second-run', harness },
 		]);
+	});
+
+	test('preserves the exact initiating chat independently of participants across reload', async () => {
+		const { service, sessionsManagementService, storageService, groupsService, chatService } = createServices();
+		sessionsManagementService.enqueue(stubSession('attempt-one'));
+		sessionsManagementService.enqueue(stubSession('attempt-two'));
+		const originatingChatResource = URI.parse('test:/evaluator#nested-chat');
+		const comparison = await service.startComparison({
+			...startOptions(), originatingChatResource, judgeHarness: undefined, synthesisHarness: undefined,
+		});
+		service.dispose();
+		const restored = disposables.add(new SessionComparisonService(sessionsManagementService, groupsService, storageService, new NullLogService(), chatService, new RecordingTelemetryService()));
+		assert.deepStrictEqual({
+			created: comparison.originatingChatResource?.toString(),
+			restored: restored.getComparison(comparison.id)?.originatingChatResource?.toString(),
+			legacyParent: restored.getComparison(comparison.id)?.sessionResource,
+		}, { created: originatingChatResource.toString(), restored: originatingChatResource.toString(), legacyParent: undefined });
 	});
 
 	test('restores persisted URI fields', () => {
@@ -2359,12 +2487,12 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 }
 
 class TestChatService extends mock<IChatService>() {
-	private readonly _responses = new Map<string, readonly { usage: IChatUsage; elapsedMs?: number }[]>();
+	private readonly _responses = new Map<string, readonly { usage: IChatUsage | undefined; elapsedMs?: number }[]>();
 	readonly releasedModels: string[] = [];
 	readonly acquiredModels: IChatModel[] = [];
 	readonly requestInProgress = observableValue('requestInProgress', true);
 
-	setUsage(resource: URI, usages: readonly IChatUsage[], firstTurnElapsedMs?: number): void {
+	setUsage(resource: URI, usages: readonly (IChatUsage | undefined)[], firstTurnElapsedMs?: number): void {
 		this._responses.set(resource.toString(), usages.map((usage, index) => ({
 			usage,
 			elapsedMs: index === 0 ? firstTurnElapsedMs : undefined,

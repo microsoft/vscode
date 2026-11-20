@@ -13,6 +13,11 @@ import { ConfigurationResolverExpression } from './configurationResolverExpressi
 
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
+/**
+ * The result of resolving a config: the value of a {@link ConfigurationResolverExpression}, otherwise the config's type.
+ */
+export type ResolvedConfiguration<T> = T extends ConfigurationResolverExpression<infer R> ? R : T;
+
 export interface IConfigurationResolverService {
 	readonly _serviceBrand: undefined;
 
@@ -25,7 +30,7 @@ export interface IConfigurationResolverService {
 	 * Recursively resolves all variables in the given config and returns a copy of it with substituted values.
 	 * Command variables are only substituted if a "commandValueMapping" dictionary is given and if it contains an entry for the command.
 	 */
-	resolveAsync<T>(folder: IWorkspaceFolderData | undefined, config: T): Promise<T extends ConfigurationResolverExpression<infer R> ? R : T>;
+	resolveAsync<T>(folder: IWorkspaceFolderData | undefined, config: T): Promise<ResolvedConfiguration<T>>;
 
 	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.

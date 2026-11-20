@@ -12,7 +12,7 @@ import { IDialogService } from '../../dialogs/common/dialogs.js';
 import { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 
 /**
- * Id of the `Chat: Change Preferred Remote Agent Location` command, which
+ * Id of the `Chat: Configure Remote Agent Run Behavior` command, which
  * lets the user revisit the choice made in {@link promptRemoteAgentHostLocationPreference}.
  *
  * The command itself is registered in the sessions layer (which platform
@@ -29,14 +29,11 @@ interface IRemoteAgentHostLocationOption {
 }
 
 /**
- * Appends a localized "(Current)" marker to `detail` when `preference`
- * matches `currentPreference`, so the saved choice is visible and announced
- * regardless of button order (order alone has no accessible "current"
- * semantics). No marker is added when there is no current preference.
+ * Marks the saved preference independently of button order.
  */
 function withCurrentPreferenceMarker(detail: string, preference: RemoteAgentHostLocationPreference, currentPreference: RemoteAgentHostLocationPreference | undefined): string {
 	return preference === currentPreference
-		? detail + localize('remoteAgentHostLocation.current', " (Current)")
+		? detail + localize('remoteAgentHostLocation.current', " (Saved preference)")
 		: detail;
 }
 
@@ -44,22 +41,19 @@ function remoteAgentHostLocationOptions(productName: string, currentPreference: 
 	return [
 		{
 			preference: 'dedicated',
-			label: localize('remoteAgentHostLocation.dedicated', "Keep My Agents Running in a Dedicated Process"),
-			detail: withCurrentPreferenceMarker(localize('remoteAgentHostLocation.dedicated.detail', "Agents continue after you close {0} and stop when their work finishes.", productName), 'dedicated', currentPreference),
+			label: localize('remoteAgentHostLocation.dedicated', "Run in the Background"),
+			detail: withCurrentPreferenceMarker(localize('remoteAgentHostLocation.dedicated.detail', "For tasks you want to leave running. Agents can keep working after you close {0} on the remote computer.", productName), 'dedicated', currentPreference),
 		},
 		{
 			preference: 'editor',
-			label: localize('remoteAgentHostLocation.editor', "Stop My Agents if I Close {0}", productName),
-			detail: withCurrentPreferenceMarker(localize('remoteAgentHostLocation.editor.detail', "Agents are available only while the remote {0} window is open.", productName), 'editor', currentPreference),
+			label: localize('remoteAgentHostLocation.editor', "Use Remote {0}", productName),
+			detail: withCurrentPreferenceMarker(localize('remoteAgentHostLocation.editor.detail', "Uses an open {0} window on the remote computer when available. Agents stop when that window closes.", productName), 'editor', currentPreference),
 		},
 	];
 }
 
 /**
- * Order the location options so the host's current preference, if any, is
- * offered first, and mark that option's detail with a localized "(Current)"
- * suffix. Ordering alone communicates nothing to screen readers, so the
- * marker (not position) is what actually conveys the saved preference.
+ * Offers the saved preference first and marks its detail for visual and screen reader users.
  */
 export function orderRemoteAgentHostLocationOptions(productName: string, currentPreference: RemoteAgentHostLocationPreference | undefined): IRemoteAgentHostLocationOption[] {
 	const options = remoteAgentHostLocationOptions(productName, currentPreference);
@@ -97,7 +91,7 @@ export async function promptRemoteAgentHostLocationPreference(
 	// this platform module cannot depend on. Bold and linked so the
 	// discoverable "you can change this later" reminder stands out; trust is
 	// scoped to only this one command via `enabledCommands`.
-	const changeCommandLabel = localize('remoteAgentHostLocation.changeCommandLabel', "Chat: Change Preferred Remote Agent Location");
+	const changeCommandLabel = localize('remoteAgentHostLocation.changeCommandLabel', "Chat: Configure Remote Agent Run Behavior");
 	const changeCommandLink = createMarkdownCommandLink({
 		text: changeCommandLabel,
 		id: ChangeRemoteAgentHostLocationPreferenceCommandId,
@@ -106,9 +100,9 @@ export async function promptRemoteAgentHostLocationPreference(
 
 	const { result } = await dialogService.prompt<RemoteAgentHostLocationPreference>({
 		type: Severity.Info,
-		message: localize('remoteAgentHostLocation.message', "How long should agents keep running on {0}?", hostLabel),
+		message: localize('remoteAgentHostLocation.message', "How should agents run on {0}?", hostLabel),
 		detail: new MarkdownString(
-			localize('remoteAgentHostLocation.reminder', "You can change this later with the **{0}** command.", changeCommandLink),
+			localize('remoteAgentHostLocation.reminder', "Keep the remote computer awake and online while agents work. You can change this later with the **{0}** command.", changeCommandLink),
 			{ isTrusted: { enabledCommands: [ChangeRemoteAgentHostLocationPreferenceCommandId] } },
 		),
 		cancelButton: true,

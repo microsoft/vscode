@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { through } from './streams.ts';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import fs from 'fs';
@@ -112,7 +112,7 @@ export function createReporter(id?: string): IReporter {
 		errors.length = 0;
 		errorLog.onStart();
 
-		return es.through(undefined, function () {
+		return through(undefined, function () {
 			errorLog.onEnd();
 
 			if (emitError && errors.length > 0) {

@@ -23,7 +23,7 @@ import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVar
 import { IChatModelReference, IChatService } from '../../chat/common/chatService/chatService.js';
 import { aggregateChatUsage } from '../../chat/common/chatUsage.js';
 import { setChatNotificationResource } from '../../chat/common/chatNotification.js';
-import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
+import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
@@ -34,10 +34,11 @@ interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonPar
 	readonly chatResource?: string;
 }
 
-interface IStoredSessionComparison extends Omit<ISessionComparison, 'workspace' | 'sessionResource' | 'attachedContext' | 'participants'> {
+interface IStoredSessionComparison extends Omit<ISessionComparison, 'workspace' | 'sessionResource' | 'originatingChatResource' | 'attachedContext' | 'participants'> {
 	readonly version?: number;
 	readonly workspace?: string;
 	readonly sessionResource?: string;
+	readonly originatingChatResource?: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly participants: readonly IStoredSessionComparisonParticipant[];
 }
@@ -141,9 +142,6 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		if (options.synthesisHarness && !options.judgeHarness) {
 			throw new Error('A synthesis model requires a Judge model.');
 		}
-		if (!options.workspace && (options.judgeHarness || options.synthesisHarness)) {
-			throw new Error('Folderless comparisons do not support a Judge or Synthesizer.');
-		}
 		if (new Set(options.attempts.map(attempt => attempt.id)).size !== options.attempts.length) {
 			throw new Error('Session comparison attempt identifiers must be unique.');
 		}
@@ -160,6 +158,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		let comparison: ISessionComparison = {
 			id,
 			groupId: group.id,
+			originatingChatResource: options.originatingChatResource,
 			title,
 			createdAt: Date.now(),
 			workspace: options.workspace,
@@ -450,7 +449,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			const otherAttemptStrengthsPrompt = this._getOtherAttemptStrengthsPrompt(comparison);
 			const synthesisPlanPrompt = this._getSynthesisPlanPrompt(comparison);
 			const session = await this._createAndSendRequest(comparison.workspace, {
-				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison `{0}` into a new implementation.\n\n## Process\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If `changedFilesStatus` is unavailable, read the Git diff from that worktree.\n3. Treat additional instructions below and in the manifest as explicit user requirements. Reconcile the strongest approaches coherently instead of copying hunks mechanically.\n4. When provided, consider the strong points from other attempts below and incorporate them when they improve the solution without conflicting with user requirements.\n5. Call `get_session_context` only with an exact `sessionContextTarget` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n6. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\n{1}{2}{3}\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.", comparison.id, this._getVerdictRecommendation(comparison), otherAttemptStrengthsPrompt, synthesisPlanPrompt),
+				query: comparison.workspace
+					? localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison `{0}` into a new implementation.\n\n## Process\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If `changedFilesStatus` is unavailable, read the Git diff from that worktree.\n3. Treat additional instructions below and in the manifest as explicit user requirements. Reconcile the strongest approaches coherently instead of copying hunks mechanically.\n4. When provided, consider the strong points from other attempts below and incorporate them when they improve the solution without conflicting with user requirements.\n5. Call `get_session_context` only with an exact `sessionContextTarget` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n6. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\n{1}{2}{3}\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.", comparison.id, this._getVerdictRecommendation(comparison), otherAttemptStrengthsPrompt, synthesisPlanPrompt)
+					: localize('sessionComparison.chatSynthesisPrompt', "Synthesize the strongest responses to comparison `{0}` into a new answer to the original task.\n\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Read each attempt's response using `get_session_context` with its exact manifest `sessionContextTarget`. All detail levels return bounded excerpts. When `assistantTruncated` is true, call again with that reply's `responseTurnId`, initially at `responseOffset: 0`, then follow `nextResponseOffset` until `truncated` is false. Do not treat an excerpt as a fully reviewed answer. An in-progress reply or unavailable pagination remains incomplete evidence; report that limitation instead of guessing. These are workspace-less chats; do not look for worktrees or Git diffs.\n3. Consider the Judge recommendation and the strongest points from other attempts. Resolve conflicts and treat additional synthesis instructions as explicit user requirements.\n4. Answer the original task directly without modifying the original attempts, discovering sessions, or guessing references.\n\n## Judge recommendation\n{1}{2}{3}", comparison.id, this._getVerdictRecommendation(comparison), otherAttemptStrengthsPrompt, synthesisPlanPrompt),
 				attachedContext: comparison.attachedContext?.slice(),
 				title: localize('sessionComparison.synthesisTitle', "Synthesis: {0}", comparison.title),
 				background: true,
@@ -767,10 +768,15 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			if (this._reportedAttemptTelemetry.has(key) || completion.elapsedMs === undefined) {
 				continue;
 			}
+			const firstTurnUsage = aggregateChatUsage([requests[0]?.response?.usage]);
 			logSessionComparisonAttemptCompleted(this.telemetryService, {
 				comparisonId: hashSessionIdForTelemetry(comparison.id),
 				attemptIndex,
 				elapsedMs: completion.elapsedMs,
+				inputTokens: firstTurnUsage?.inputTokens,
+				cachedTokens: firstTurnUsage?.cachedTokens,
+				outputTokens: firstTurnUsage?.outputTokens,
+				tokenCountIsComplete: firstTurnUsage?.isComplete ?? false,
 			});
 			this._reportedAttemptTelemetry.add(key);
 			telemetryChanged = true;
@@ -837,7 +843,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		}
 		const harness = judge.harness;
 		const session = await this._createAndSendRequest(comparison.workspace, {
-			query: createSessionComparisonJudgePrompt(comparison.id),
+			query: comparison.workspace
+				? createSessionComparisonJudgePrompt(comparison.id)
+				: localize('sessionComparison.chatJudgePrompt', "Judge response comparison `{0}`.\n\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Read every attempt's response using `get_session_context` with its exact manifest `sessionContextTarget`. All detail levels return bounded excerpts. When `assistantTruncated` is true, call again with that reply's `responseTurnId`, initially at `responseOffset: 0`, then follow `nextResponseOffset` until `truncated` is false. Do not treat an excerpt as a fully reviewed answer. An in-progress reply or unavailable pagination remains incomplete evidence; report that limitation instead of guessing. Compare correctness, completeness, clarity, and how well each response answers the original task. These are workspace-less chats; do not look for worktrees or Git diffs.\n3. Record validation categories that do not apply with `notApplicable` for both `state` and `source`. Do not claim validation passed without evidence.\n4. Keep `explanation` to one sentence. Fill `rationale` with exactly four concise points: `comparison`, `validation`, `codeQuality`, and `solution`. Use `codeQuality` to assess response quality when no code is involved. Record other attempts' strongest reusable points in `notableDifferences`.\n5. Do not modify attempts, discover sessions, or guess references.\n6. Call `#completeAttemptComparison` with the recommendation and supporting evidence. Refer to attempts only by the manifest's `attemptNumber` values. If input is rejected, correct the reported fields and retry; do not submit again after success.\n7. Identify the winner and summarize the rationale and strongest reusable points from other attempts.", comparison.id),
 			attachedContext: comparison.attachedContext?.slice(),
 			title: localize('sessionComparison.judgeTitle', "Judge: {0}", comparison.title),
 			background: true,
@@ -1245,6 +1253,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				launching: undefined,
 				workspace: comparison.workspace ? URI.parse(comparison.workspace) : undefined,
 				sessionResource: comparison.sessionResource ? URI.parse(comparison.sessionResource) : undefined,
+				originatingChatResource: comparison.originatingChatResource ? URI.parse(comparison.originatingChatResource) : undefined,
 				attachedContext: comparison.attachedContext?.map(IChatRequestVariableEntry.fromExport),
 				participants: comparison.participants.map(participant => ({
 					...participant,
@@ -1268,6 +1277,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			version: 1,
 			workspace: comparison.workspace?.toString(),
 			sessionResource: comparison.sessionResource?.toString(),
+			originatingChatResource: comparison.originatingChatResource?.toString(),
 			attachedContext: comparison.attachedContext?.map(IChatRequestVariableEntry.toExport),
 			participants: comparison.participants.map(participant => ({
 				...participant,

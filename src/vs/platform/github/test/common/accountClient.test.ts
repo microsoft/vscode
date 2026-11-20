@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import assert from 'assert';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -10,16 +11,17 @@ import { AccountClient } from '../../common/account/accountClient.js';
 import { ApiRequest, ApiRequestOptions, ApiResponse, IApiRequestProvider, PaginationOptions } from '../../common/client/request.js';
 import { parse } from '../../common/client/schema.js';
 
+
 suite('GitHub account client', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const authorization = { providerId: 'github', sessionId: 'selected', scopes: ['repo'] };
-	const signal = () => new AbortController().signal;
+	const cancellationToken = () => CancellationToken.None;
 
 	test('composes the full facade over one provider and owns its lease', async () => {
 		const requests: ApiRequest[] = [];
 		let disposed = false;
 		const provider: IApiRequestProvider = {
-			request: async <T>(request: ApiRequest, _signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => {
+			request: async <T>(request: ApiRequest, _signal: CancellationToken, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => {
 				requests.push(request);
 				const data = request.responseBody === 'none' ? undefined : parser?.({ total_count: 0, workflow_runs: [] });
 				return { data, status: request.method === 'POST' ? 202 : 200 };
@@ -27,8 +29,8 @@ suite('GitHub account client', () => {
 		};
 		const client = store.add(new AccountClient(authorization, { rest: provider, graphql: provider }, toDisposable(() => { disposed = true; })));
 		const options = { caller: 'test.account', deadline: Date.now() + 10_000 };
-		const runs = await client.actions.listRuns({ owner: 'o', repo: 'r' }, signal(), { ...options, query: { per_page: 10, event: 'push' } });
-		const cancelled = await client.actions.cancel({ owner: 'o', repo: 'r' }, 42, signal(), options);
+		const runs = await client.actions.listRuns({ owner: 'o', repo: 'r' }, cancellationToken(), { ...options, query: { per_page: 10, event: 'push' } });
+		const cancelled = await client.actions.cancel({ owner: 'o', repo: 'r' }, 42, cancellationToken(), options);
 		client.dispose();
 		assert.deepStrictEqual({
 			authorization: client.authorization,
@@ -37,7 +39,7 @@ suite('GitHub account client', () => {
 		}, {
 			authorization,
 			domains: [
-				'actions', 'authorization', 'automations', 'checks', 'connectors', 'content', 'environments', 'gist', 'issues', 'notifications',
+				'actions', 'authorization', 'automations', 'checks', 'connectors', 'content', 'environments', 'gist', 'issues', 'missionControlModels', 'notifications',
 				'onDidChangeCredentials', 'onDidInvalidate', 'organizations', 'pullRequests', 'repositories', 'reviews', 'search', 'tasks', 'users',
 			],
 			runs: { total_count: 0, workflow_runs: [] },
@@ -65,24 +67,25 @@ suite('GitHub account client', () => {
 		const repository = { owner: 'o', repo: 'r' };
 		const options: ApiRequestOptions = { caller: 'same.caller', priority: 'background' };
 		const operations = [
-			{ domain: 'actions', run: () => client.actions.listRuns(repository, signal(), options) },
-			{ domain: 'checks', run: () => client.checks.listRuns(repository, 'main', signal(), options) },
-			{ domain: 'connectors', run: () => client.connectors.getCatalog(signal(), options) },
-			{ domain: 'content', run: () => client.content.resolveRef(repository, 'main', signal(), options) },
-			{ domain: 'gists', run: () => client.gist.get('gist', signal(), options) },
-			{ domain: 'issues', run: () => client.issues.get(repository, 1, signal(), options) },
-			{ domain: 'notifications', run: () => client.notifications.list(signal(), options) },
-			{ domain: 'organizations', run: () => client.organizations.get('o', signal(), options) },
-			{ domain: 'pullRequests', run: () => client.pullRequests.list(repository, signal(), options) },
-			{ domain: 'repositories', run: () => client.repositories.listForAuthenticatedUser(signal(), options) },
-			{ domain: 'reviews', run: () => client.reviews.list(repository, 1, signal(), options) },
-			{ domain: 'search', run: () => client.search.repositories('query', signal(), options) },
-			{ domain: 'users', run: () => client.users.getAuthenticated(signal(), options) },
-			{ domain: 'automations', run: () => client.automations.list(repository, signal(), options) },
-			{ domain: 'environments', run: () => client.environments.list(signal(), options) },
-			{ domain: 'tasks', run: () => client.tasks.list(signal(), options) },
-			{ domain: 'reviews', run: () => client.reviews.listThreadSummaries('PR_1', signal(), options) },
-			{ domain: 'content', run: () => client.content.getRawFile(repository, 'a'.repeat(40), 'README.md', signal(), options) },
+			{ domain: 'actions', run: () => client.actions.listRuns(repository, cancellationToken(), options) },
+			{ domain: 'checks', run: () => client.checks.listRuns(repository, 'main', cancellationToken(), options) },
+			{ domain: 'connectors', run: () => client.connectors.getCatalog(cancellationToken(), options) },
+			{ domain: 'content', run: () => client.content.resolveRef(repository, 'main', cancellationToken(), options) },
+			{ domain: 'gists', run: () => client.gist.get('gist', cancellationToken(), options) },
+			{ domain: 'issues', run: () => client.issues.get(repository, 1, cancellationToken(), options) },
+			{ domain: 'notifications', run: () => client.notifications.list(cancellationToken(), options) },
+			{ domain: 'organizations', run: () => client.organizations.get('o', cancellationToken(), options) },
+			{ domain: 'pullRequests', run: () => client.pullRequests.list(repository, cancellationToken(), options) },
+			{ domain: 'repositories', run: () => client.repositories.listForAuthenticatedUser(cancellationToken(), options) },
+			{ domain: 'reviews', run: () => client.reviews.list(repository, 1, cancellationToken(), options) },
+			{ domain: 'search', run: () => client.search.repositories('query', cancellationToken(), options) },
+			{ domain: 'users', run: () => client.users.getAuthenticated(cancellationToken(), options) },
+			{ domain: 'automations', run: () => client.automations.list(repository, cancellationToken(), options) },
+			{ domain: 'environments', run: () => client.environments.list(cancellationToken(), options) },
+			{ domain: 'models', run: () => client.missionControlModels.list(cancellationToken(), options) },
+			{ domain: 'tasks', run: () => client.tasks.list(cancellationToken(), options) },
+			{ domain: 'reviews', run: () => client.reviews.listThreadSummaries('PR_1', cancellationToken(), options) },
+			{ domain: 'content', run: () => client.content.getRawFile(repository, 'a'.repeat(40), 'README.md', cancellationToken(), options) },
 		];
 		for (const operation of operations) {
 			await assert.rejects(operation.run, dispatched);
@@ -104,21 +107,21 @@ suite('GitHub account client', () => {
 		const client = store.add(new AccountClient(authorization, { rest: provider, graphql: provider, rawContent: provider, missionControl: provider }, toDisposable(() => { })));
 		const repository = { owner: 'o', repo: 'r' };
 		const options: ApiRequestOptions = { caller: 'test.options', deadline: Date.now() + 10_000, priority: 'background' };
-		await assert.rejects(client.content.getContent(repository, 'folder/file name.json', signal(), { ...options, query: { ref: 'feature/branch' } }), dispatched);
-		await assert.rejects(client.content.getTree(repository, 'main', signal(), { ...options, query: { recursive: true } }), dispatched);
-		await assert.rejects(client.content.getBlob(repository, 'blob-sha', signal(), options), dispatched);
-		await assert.rejects(client.content.resolveRef(repository, 'feature/branch', signal(), options), dispatched);
-		await assert.rejects(client.content.getRawFile(repository, 'a'.repeat(40), 'folder/file name.json', signal(), options), dispatched);
-		await assert.rejects(client.actions.getRun(repository, 42, signal(), { ...options, attempt: 2 }), dispatched);
-		await assert.rejects(client.actions.rerunFailedJobs(repository, 42, signal(), { ...options, enableDebugLogging: true }), dispatched);
-		await assert.rejects(client.pullRequests.updateBranch(repository, 1, signal(), { ...options, expectedHeadSha: 'head-sha' }), dispatched);
-		await assert.rejects(client.reviews.replyToThread('thread', 'reply', signal(), { ...options, pullRequestReviewId: 'review' }), dispatched);
-		await assert.rejects(client.reviews.listThreads('PR_1', signal(), { ...options, query: { first: 2, commentsFirst: 1 } }), dispatched);
-		await assert.rejects(client.search.pullRequests('repo:o/r assignee:@me', signal(), { ...options, query: { first: 2, after: 'next' } }), dispatched);
-		await assert.rejects(client.issues.getClosingPullRequestCounts(repository, [7], signal(), options), dispatched);
-		await assert.rejects(client.tasks.list(signal(), { ...options, query: { page: 2, q: 'work', artifact_state: ['open', 'draft'] } }), dispatched);
-		await assert.rejects(client.environments.reconnect('environment', 'client', signal(), { ...options, query: { session_id: 'session' } }), dispatched);
-		await assert.rejects(client.issues.createLabel(repository, { name: 'label' }, signal(), options), dispatched);
+		await assert.rejects(client.content.getContent(repository, 'folder/file name.json', cancellationToken(), { ...options, query: { ref: 'feature/branch' } }), dispatched);
+		await assert.rejects(client.content.getTree(repository, 'main', cancellationToken(), { ...options, query: { recursive: true } }), dispatched);
+		await assert.rejects(client.content.getBlob(repository, 'blob-sha', cancellationToken(), options), dispatched);
+		await assert.rejects(client.content.resolveRef(repository, 'feature/branch', cancellationToken(), options), dispatched);
+		await assert.rejects(client.content.getRawFile(repository, 'a'.repeat(40), 'folder/file name.json', cancellationToken(), options), dispatched);
+		await assert.rejects(client.actions.getRun(repository, 42, cancellationToken(), { ...options, attempt: 2 }), dispatched);
+		await assert.rejects(client.actions.rerunFailedJobs(repository, 42, cancellationToken(), { ...options, enableDebugLogging: true }), dispatched);
+		await assert.rejects(client.pullRequests.updateBranch(repository, 1, cancellationToken(), { ...options, expectedHeadSha: 'head-sha' }), dispatched);
+		await assert.rejects(client.reviews.replyToThread('thread', 'reply', cancellationToken(), { ...options, pullRequestReviewId: 'review' }), dispatched);
+		await assert.rejects(client.reviews.listThreads('PR_1', cancellationToken(), { ...options, query: { first: 2, commentsFirst: 1 } }), dispatched);
+		await assert.rejects(client.search.pullRequests('repo:o/r assignee:@me', cancellationToken(), { ...options, query: { first: 2, after: 'next' } }), dispatched);
+		await assert.rejects(client.issues.getClosingPullRequestCounts(repository, [7], cancellationToken(), options), dispatched);
+		await assert.rejects(client.tasks.list(cancellationToken(), { ...options, query: { page: 2, q: 'work', artifact_state: ['open', 'draft'] } }), dispatched);
+		await assert.rejects(client.environments.reconnect('environment', 'client', cancellationToken(), { ...options, query: { session_id: 'session' } }), dispatched);
+		await assert.rejects(client.issues.createLabel(repository, { name: 'label' }, cancellationToken(), options), dispatched);
 		const parseVariables = parse.object({ variables: parse.jsonObject });
 		assert.deepStrictEqual(requests.map(request => ({
 			path: request.path,
@@ -149,7 +152,7 @@ suite('GitHub account client', () => {
 		for (const maxPages of [undefined, 1]) {
 			const requests: ApiRequest[] = [];
 			const provider: IApiRequestProvider = {
-				request: async <T>(request: ApiRequest, _signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => {
+				request: async <T>(request: ApiRequest, _signal: CancellationToken, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => {
 					requests.push(request);
 					const data = request.path === '/' ? { data: { node: { reviewThreads: connection } } }
 						: request.path === '/tasks' ? '{"tasks":[]}' : [];
@@ -159,9 +162,9 @@ suite('GitHub account client', () => {
 			const client = store.add(new AccountClient(authorization, { rest: provider, graphql: provider, missionControl: provider }, toDisposable(() => { })));
 			const options = { ...requestOptions, maxPages };
 			const results = [
-				await client.users.listEmails(signal(), options),
-				await client.reviews.listThreadSummaries('PR_1', signal(), options),
-				await client.tasks.list(signal(), options),
+				await client.users.listEmails(cancellationToken(), options),
+				await client.reviews.listThreadSummaries('PR_1', cancellationToken(), options),
+				await client.tasks.list(cancellationToken(), options),
 			];
 			assert.deepStrictEqual({ results, requests: requests.map(request => ({ path: request.path, domain: request.domain, options: request.options })) }, {
 				results: [[], connection, { data: { tasks: [] }, nextLink: undefined, serverDate: undefined }],
@@ -182,9 +185,9 @@ suite('GitHub account client', () => {
 			const options: PaginationOptions = { maxPages };
 			Object.assign(options, { pageLimitBehavior: 'invalid' });
 			const expected = maxPages === undefined ? dispatched : { kind: 'validation' };
-			await assert.rejects(client.users.listEmails(signal(), options), expected);
-			await assert.rejects(client.reviews.listThreadSummaries('PR_1', signal(), options), expected);
-			await assert.rejects(client.tasks.list(signal(), options), expected);
+			await assert.rejects(client.users.listEmails(cancellationToken(), options), expected);
+			await assert.rejects(client.reviews.listThreadSummaries('PR_1', cancellationToken(), options), expected);
+			await assert.rejects(client.tasks.list(cancellationToken(), options), expected);
 		}
 	});
 });

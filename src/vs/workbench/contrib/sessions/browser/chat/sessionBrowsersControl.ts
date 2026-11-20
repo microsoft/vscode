@@ -12,7 +12,7 @@ import { BrowserEditorInput } from '../../../browserView/common/browserEditorInp
 import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { getChatPillEntries, type IChatPillEntry, type IChatPillSection } from '../../../../browser/chatPills.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ChatOriginKind, IChat, ISession } from '../../common/session.js';
+import { ChatOriginKind, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 
 const NO_URLS: ReadonlySet<string> = new Set();

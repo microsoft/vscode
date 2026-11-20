@@ -29,7 +29,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB } from '../../common/session.js';
+import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { ISessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, MAX_NEW_PICKER_RECENT_WORKSPACES, WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -130,7 +130,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 
 	override showPicker(force = false, anchor?: HTMLElement, preferredGroup?: string, attachesContext?: boolean): void {
 		const trigger = anchor ?? this._triggerElement;
-		if (!trigger) {
+		if (!trigger || this._isReadOnly()) {
 			return;
 		}
 		// On phone, render the picker as a bottom sheet instead of the
@@ -155,7 +155,8 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			trigger,
 			items,
 			item => this._dispatchPickerItem(item),
-			this._getAllBrowseActions(),
+			// Restricted to its allowed folders, it offers no other workspace to browse to
+			this._getAllowedFolders() ? [] : this._getAllBrowseActions(),
 			attachesContext !== true,
 			cancellation.token,
 			undefined,
@@ -206,6 +207,10 @@ export class WebWorkspacePicker extends WorkspacePicker {
 	}
 
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
+		const restricted = this.options.allowedFolders && this._buildRestrictedItems();
+		if (restricted) {
+			return restricted;
+		}
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
 		const scoped = this._agentHostFilterService.selectedHost;

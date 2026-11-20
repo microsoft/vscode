@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ISessionChangesetOperation } from './session.js';
+import { ISessionChangesetOperation } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions } from './sessionsProvider.js';
 
 export type SessionPullRequestMergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';

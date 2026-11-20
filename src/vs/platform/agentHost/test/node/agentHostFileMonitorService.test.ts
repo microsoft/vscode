@@ -12,14 +12,14 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../files/common/files.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
+import { AgentHostFileMonitorCallback, AgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 
 suite('AgentHostFileMonitorService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 
-	function acquire(monitor: AgentHostFileMonitorService, folder: URI, callback: () => void, options?: { readonly excludes?: readonly string[]; readonly debounceMs?: number }): IDisposable {
+	function acquire(monitor: AgentHostFileMonitorService, folder: URI, callback: AgentHostFileMonitorCallback, options?: { readonly excludes?: readonly string[]; readonly debounceMs?: number }): IDisposable {
 		const registration = monitor.acquire(folder, callback, options);
 		assert.ok(registration, 'expected file monitor acquisition to succeed');
 		return registration;
@@ -84,6 +84,25 @@ suite('AgentHostFileMonitorService', () => {
 			fileService.fire(URI.file('/repo/src/a.ts'));
 			await timeout(11);
 			assert.strictEqual(calls, 1);
+		});
+	});
+
+	test('reports the distinct resources that changed since the last notification, without excluded ones', () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const fileService = new TestFileService();
+			const monitor = disposables.add(new AgentHostFileMonitorService(fileService.service, new NullLogService()));
+			const notifications: (string[] | undefined)[] = [];
+
+			disposables.add(acquire(monitor, URI.file('/repo'), changed => { notifications.push(changed?.map(resource => resource.path)); }, { debounceMs: 10 }));
+			fileService.fire(URI.file('/repo/src/a.ts'));
+			fileService.fire(URI.file('/repo/src/b.ts'));
+			fileService.fire(URI.file('/repo/src/a.ts'));
+			fileService.fire(URI.file('/repo/.git/index.lock'));
+			await timeout(11);
+			fileService.fire(URI.file('/repo/src/c.ts'));
+			await timeout(11);
+
+			assert.deepStrictEqual(notifications, [['/repo/src/a.ts', '/repo/src/b.ts'], ['/repo/src/c.ts']]);
 		});
 	});
 

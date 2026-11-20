@@ -12,11 +12,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { IChat, ISession, SessionStatus } from '../../common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../../common/sessionsProvider.js';
 import { getSessionGroupSectionId, SessionGroupsService, SessionGroupTree } from '../../browser/sessionGroupsService.js';
-import { ISessionSectionOrderService, SessionSectionOrderService } from '../../browser/sessionSectionOrderService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 
 function createSession(id: string, isArchived = false, creatorSession?: URI): ISession {
 	return {
@@ -68,9 +68,15 @@ suite('SessionGroupsService', () => {
 	let newDraftSessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let newSessionDiscardedEmitter: Emitter<ISession>;
 	let chatMovedEmitter: Emitter<IChatMovedEvent>;
+	let requestAcceptedEmitter: Emitter<INewSessionRequestAcceptedEvent>;
+	let requestEndedEmitter: Emitter<INewSessionRequestEndedEvent>;
+	/** The owners of drafts and accepted requests, as `getNewSessionOwner` reports them. */
+	let owners: Map<string, INewSessionDraftSlot>;
 	let instantiationService: TestInstantiationService;
 	let sessions: ISession[];
 	let inFlightSessions: ISession[];
+
+	const mainSlot = upcastPartial<INewSessionDraftSlot>({ id: 'composer' });
 
 	/** Simulate a new-session send: dispatch (`onWillSendRequest`) then start. */
 	function sendNewSession(draftId: string, committedId: string = draftId): void {
@@ -97,6 +103,9 @@ suite('SessionGroupsService', () => {
 		newDraftSessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		newSessionDiscardedEmitter = disposables.add(new Emitter<ISession>());
 		chatMovedEmitter = disposables.add(new Emitter<IChatMovedEvent>());
+		requestAcceptedEmitter = disposables.add(new Emitter<INewSessionRequestAcceptedEvent>());
+		requestEndedEmitter = disposables.add(new Emitter<INewSessionRequestEndedEvent>());
+		owners = new Map();
 		sessions = [];
 		inFlightSessions = [];
 		instantiationService.stub(ISessionsManagementService, {
@@ -114,8 +123,56 @@ suite('SessionGroupsService', () => {
 			onDidReplaceNewDraftSession: newDraftSessionReplacedEmitter.event,
 			onDidDiscardNewSession: newSessionDiscardedEmitter.event,
 			onDidMoveChat: chatMovedEmitter.event,
+			defaultNewSessionSlot: mainSlot,
+			getNewSessionOwner: sessionId => owners.get(sessionId),
+			onDidAcceptNewSessionRequest: requestAcceptedEmitter.event,
+			onDidEndNewSessionRequest: requestEndedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+	});
+
+	test('migrates group membership from a previous identity once and preserves later ungrouping', () => {
+		const previous = createSession('previous');
+		const group = service.createGroup('Work', [previous.sessionId]);
+		const current: ISession = {
+			...createSession('task'),
+			previousIdentities: [{ sessionId: previous.sessionId, resource: previous.resource }],
+		};
+		sessions = [current];
+		sessionsChangedEmitter.fire({ added: [current], changed: [], removed: [] });
+		const migrated = service.getGroupOfSession(current.sessionId);
+		service.removeFromGroup(current.sessionId);
+		sessionsChangedEmitter.fire({ added: [], changed: [current], removed: [] });
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		assert.deepStrictEqual({
+			migrated,
+			previous: service.getGroupOfSession(previous.sessionId),
+			current: service.getGroupOfSession(current.sessionId),
+			ungrouped: service.isExplicitlyUngrouped(current.sessionId),
+		}, { migrated: group.id, previous: undefined, current: undefined, ungrouped: true });
+	});
+
+	test('group membership follows a session replaced by one with another ID, and back', () => {
+		const local = createSession('local');
+		const relay = createSession('relay');
+		const group = service.createGroup('Work', [local.sessionId]);
+		const membershipChanged: string[][] = [];
+		disposables.add(service.onDidChange(e => membershipChanged.push([...e.membershipChanged ?? []].sort())));
+
+		sessionReplacedEmitter.fire({ from: local, to: relay });
+		const handedOff = { local: service.getGroupOfSession(local.sessionId), relay: service.getGroupOfSession(relay.sessionId) };
+		sessionReplacedEmitter.fire({ from: relay, to: local });
+
+		assert.deepStrictEqual({
+			handedOff,
+			handedBack: { local: service.getGroupOfSession(local.sessionId), relay: service.getGroupOfSession(relay.sessionId) },
+			membershipChanged,
+		}, {
+			handedOff: { local: undefined, relay: group.id },
+			handedBack: { local: group.id, relay: undefined },
+			membershipChanged: [['local', 'relay'], ['local', 'relay']],
+		});
 	});
 
 	test('create group with members and look up membership', () => {
@@ -1177,6 +1234,138 @@ suite('SessionGroupsService', () => {
 
 		assert.strictEqual(service.getGroupOfSession('s1'), undefined);
 		assert.deepStrictEqual(service.getSessionIdsInGroup(b.id), []);
+	});
+
+	suite('new-session draft slots', () => {
+
+		function slot(id: string): INewSessionDraftSlot {
+			return upcastPartial<INewSessionDraftSlot>({ id });
+		}
+
+		/** Accepts a request of `owner` for `draftId`, as the management service does before `onWillSendRequest`. */
+		function accept(owner: INewSessionDraftSlot, draftId: string, background = false): void {
+			owners.set(draftId, owner);
+			requestAcceptedEmitter.fire({ session: createSession(draftId), owner, background });
+			willSendRequestEmitter.fire(createSession(draftId));
+		}
+
+		/** Ends the request of `sessionId`, starting its session when `started`. */
+		function end(owner: INewSessionDraftSlot, sessionId: string, started: boolean): void {
+			if (started) {
+				sessionStartedEmitter.fire(createSession(sessionId));
+			}
+			requestEndedEmitter.fire({ session: createSession(sessionId), owner, started, readopted: false });
+			owners.delete(sessionId);
+		}
+
+		test('the main composer\'s pending group survives a send and a discard of a slot without a group, and its next send joins it', () => {
+			const a = service.createGroup('A');
+			const other = slot('other');
+			service.setPendingNewSessionGroup(a.id);
+
+			accept(other, 'other-sent');
+			end(other, 'other-sent', true);
+			owners.set('other-draft', other);
+			newSessionDiscardedEmitter.fire(createSession('other-draft'));
+			owners.set('main-draft', mainSlot);
+			sendNewSession('main-draft');
+
+			assert.deepStrictEqual({
+				otherSent: service.getGroupOfSession('other-sent'),
+				mainSent: service.getGroupOfSession('main-draft'),
+			}, {
+				otherSent: undefined,
+				mainSent: a.id,
+			});
+		});
+
+		test('every send of a slot joins its group, through preparation and graduation and in either completion order', () => {
+			const g = service.createGroup('G');
+			const s = slot('s');
+			disposables.add(service.setDraftSlotGroup(s.id, g.id));
+
+			accept(s, 'first', true);
+			accept(s, 'second', true);
+			newDraftSessionReplacedEmitter.fire({ from: createSession('first'), to: createSession('first-prepared') });
+			owners.set('first-prepared', s);
+			sessionReplacedEmitter.fire({ from: createSession('second'), to: createSession('second-committed') });
+			const whileSending = service.getSessionIdsInGroup(g.id).sort();
+			end(s, 'second-committed', true);
+			end(s, 'first-prepared', true);
+
+			assert.deepStrictEqual({
+				whileSending,
+				members: service.getSessionIdsInGroup(g.id).sort(),
+			}, {
+				whileSending: ['first-prepared', 'second-committed'],
+				members: ['first-prepared', 'second-committed'],
+			});
+		});
+
+		test('a failed send of a slot drops its group, and the retried send joins it once', () => {
+			const g = service.createGroup('G');
+			const s = slot('s');
+			disposables.add(service.setDraftSlotGroup(s.id, g.id));
+
+			accept(s, 'retried');
+			end(s, 'retried', false);
+			const afterFailure = service.getGroupOfSession('retried');
+			accept(s, 'retried');
+			end(s, 'retried', true);
+
+			assert.deepStrictEqual({ afterFailure, members: service.getSessionIdsInGroup(g.id) }, { afterFailure: undefined, members: ['retried'] });
+		});
+
+		test('a send of a slot keeps its group while its session is not listed', () => {
+			const g = service.createGroup('G');
+			const s = slot('s');
+			disposables.add(service.setDraftSlotGroup(s.id, g.id));
+
+			accept(s, 'unlisted', true);
+			sessionsChangedEmitter.fire({ added: [], removed: [], changed: [] });
+			const whileUnlisted = service.getGroupOfSession('unlisted');
+			end(s, 'unlisted', true);
+
+			assert.deepStrictEqual({ whileUnlisted, afterStart: service.getGroupOfSession('unlisted') }, { whileUnlisted: g.id, afterStart: g.id });
+		});
+
+		test('a send of a slot keeps its group while its session drops out of the list, such as while its provider is replaced, and joins it once started; one that ends without starting does not', () => {
+			const g = service.createGroup('G');
+			const s = slot('s');
+			disposables.add(service.setDraftSlotGroup(s.id, g.id));
+
+			accept(s, 'evicted', true);
+			sessionsChangedEmitter.fire({ added: [], removed: [createSession('evicted')], changed: [] });
+			const whileRemoved = service.getGroupOfSession('evicted');
+			end(s, 'evicted', true);
+			accept(s, 'deleted', true);
+			sessionsChangedEmitter.fire({ added: [], removed: [createSession('deleted')], changed: [] });
+			end(s, 'deleted', false);
+
+			assert.deepStrictEqual({ whileRemoved, started: service.getGroupOfSession('evicted'), ended: service.getGroupOfSession('deleted'), members: service.getSessionIdsInGroup(g.id) }, {
+				whileRemoved: g.id,
+				started: g.id,
+				ended: undefined,
+				members: ['evicted'],
+			});
+		});
+
+		test('a slot\'s sends stop joining its group once its group is disposed or deleted', () => {
+			const g = service.createGroup('G');
+			const h = service.createGroup('H');
+			const s = slot('s');
+			const t = slot('t');
+			service.setDraftSlotGroup(s.id, g.id).dispose();
+			disposables.add(service.setDraftSlotGroup(t.id, h.id));
+			service.deleteGroup(h.id);
+
+			accept(s, 's-sent');
+			end(s, 's-sent', true);
+			accept(t, 't-sent');
+			end(t, 't-sent', true);
+
+			assert.deepStrictEqual({ s: service.getGroupOfSession('s-sent'), t: service.getGroupOfSession('t-sent') }, { s: undefined, t: undefined });
+		});
 	});
 
 	suite('promoted chats', () => {

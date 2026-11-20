@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -36,21 +36,25 @@ suite('ChatWindowsRestoration', () => {
 		return new class extends mock<IChatWindow>() {
 			override readonly chat = constObservable(URI.parse(active));
 			override readonly chats = constObservable([chat, ...others].map(candidate => URI.parse(candidate)));
+			override readonly openedChats = this.chats;
 			override readonly mainPart = { groups: [] } as unknown as IContentPart;
 		}();
 	}
 
-	function createRestoration(options: { stored?: object[]; restoreEnabled?: boolean; registered?: boolean; gone?: string[]; order?: (window: IChatWindow) => readonly URI[] | undefined; layoutChat?: (window: IChatWindow) => URI | undefined; canRestore?: (chat: URI) => Promise<boolean>; createdParts?: (window: IChatWindow) => readonly IContentPart[]; windowState?: (window: IChatWindow) => IChatWindowBounds | undefined }) {
+	function createRestoration(options: { stored?: object[]; restoreEnabled?: boolean; registered?: boolean; gone?: string[]; order?: (window: IChatWindow) => readonly URI[] | undefined; layoutChat?: (window: IChatWindow) => URI | undefined; canRestore?: (chat: URI) => Promise<boolean>; createdParts?: (window: IChatWindow) => readonly IContentPart[]; windowState?: (window: IChatWindow) => IChatWindowBounds | undefined; failOpen?: string[]; canonicalChatOf?: (resource: URI) => URI | undefined; openAs?: (chat: URI, options: IChatWindowOpenOptions, windows: ISettableObservable<readonly IChatWindow[]>) => Promise<IChatWindow | undefined> }) {
 		const storageService = disposables.add(new TestStorageService());
 		if (options.stored) {
 			storageService.store(OPEN_CHAT_WINDOWS_STORAGE_KEY, JSON.stringify(options.stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 		const restoreEnabled = observableValue('restoreEnabled', options.restoreEnabled ?? true);
 		const onDidRemoveChats = disposables.add(new Emitter<readonly URI[]>());
+		const finished: string[][] = [];
 		const provider = new class extends mock<IChatWindowProvider>() {
 			override readonly restoreEnabled = restoreEnabled;
 			override readonly onDidRemoveChats = onDidRemoveChats.event;
 			override canRestore(chat: URI) { return options.canRestore?.(chat) ?? Promise.resolve(!options.gone?.includes(chat.toString())); }
+			override didFinishRestore(claimed: readonly URI[]) { finished.push(claimed.map(chat => chat.toString())); }
+			override canonicalChatOf(resource: URI) { return options.canonicalChatOf?.(resource); }
 		}();
 		const providerObs = observableValue<IChatWindowProvider | undefined>('provider', options.registered === false ? undefined : provider);
 		const windows = observableValue<readonly IChatWindow[]>('windows', []);
@@ -63,8 +67,17 @@ suite('ChatWindowsRestoration', () => {
 			provider: providerObs as IObservable<IChatWindowProvider | undefined>,
 			windows,
 			open: async (chat: URI, openOptions: IChatWindowOpenOptions) => {
+				if (options.failOpen?.includes(chat.toString())) {
+					throw new Error('The window failed to open');
+				}
 				opened.push({ chat: chat.toString(), options: openOptions });
-				return createWindow(chat.toString());
+				if (options.openAs) {
+					return options.openAs(chat, openOptions, windows);
+				}
+				// As the service does: the window it opens is one of the windows, with all its chats
+				const window = createWindow(chat.toString(), openOptions.chats?.map(other => other.toString()));
+				windows.set([...windows.get(), window], undefined);
+				return window;
 			},
 			activateChat: (_window: IChatWindow, chat: URI) => activated.push(chat.toString()),
 			chatsInOrder: window => options.order?.(window),
@@ -75,7 +88,7 @@ suite('ChatWindowsRestoration', () => {
 			windowState: window => options.windowState?.(window),
 		}));
 		const read = () => storageService.get(OPEN_CHAT_WINDOWS_STORAGE_KEY, StorageScope.WORKSPACE);
-		return { storageService, restoration, onDidRemoveChats, restoreEnabled, provider, providerObs, windows, opened, activated, read };
+		return { storageService, restoration, onDidRemoveChats, restoreEnabled, provider, providerObs, windows, opened, activated, read, finished };
 	}
 
 	const flush = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -156,6 +169,136 @@ suite('ChatWindowsRestoration', () => {
 		assert.deepStrictEqual({ unregistered: unregistered.read(), disabled: disabled.read(), openedOnceEnabled: disabled.opened.map(window => window.chat) }, {
 			unregistered: JSON.stringify(stored), disabled: JSON.stringify(stored), openedOnceEnabled: ['test:/chat'],
 		});
+	});
+
+	test('tells the provider once which chats it restored or tried to, also in a window that failed to open, which stays stored until its chat is removed; not while restoring is pending, and with none when nothing was stored', async () => {
+		const { storageService, restoreEnabled, windows, onDidRemoveChats, read, finished } = createRestoration({
+			stored: [{ chat: 'test:/a', chats: ['test:/gone'] }, { chat: 'test:/b', chats: ['test:/c'] }],
+			gone: ['test:/gone'],
+			failOpen: ['test:/b'],
+			restoreEnabled: false,
+		});
+		await flush();
+		const whilePending = [...finished];
+		restoreEnabled.set(true, undefined);
+		await flush();
+		windows.set([createWindow('test:/a')], undefined);
+		storageService.willSave();
+		const stored = JSON.parse(read()!).map((entry: { chat: string; chats?: string[] }) => [entry.chat, ...(entry.chats ?? [])]);
+		onDidRemoveChats.fire([URI.parse('test:/b')]);
+		storageService.willSave();
+		const afterRemoval = JSON.parse(read()!).map((entry: { chat: string; chats?: string[] }) => [entry.chat, ...(entry.chats ?? [])]);
+		const nothingStored = createRestoration({});
+		await flush();
+
+		assert.deepStrictEqual({ whilePending, finished, stored, afterRemoval, nothingStored: nothingStored.finished }, {
+			whilePending: [],
+			finished: [['test:/a', 'test:/b', 'test:/c']],
+			stored: [['test:/a'], ['test:/b', 'test:/c']],
+			afterRemoval: [['test:/a'], ['test:/c']],
+			nothingStored: [[]],
+		});
+	});
+
+	test('a window that failed to open is retired for good once its chat opens in a window, so that closing that window does not bring it back; other windows that failed stay stored', async () => {
+		const { storageService, windows, read } = createRestoration({ stored: [{ chat: 'test:/a' }, { chat: 'test:/b' }], failOpen: ['test:/a', 'test:/b'] });
+		await flush();
+		const chatsOf = () => JSON.parse(read()!).map((entry: { chat: string }) => entry.chat);
+		windows.set([createWindow('test:/a')], undefined);
+		storageService.willSave();
+		const whileOpen = chatsOf();
+		windows.set([], undefined);
+		storageService.willSave();
+
+		assert.deepStrictEqual({ whileOpen, afterClose: chatsOf() }, { whileOpen: ['test:/a', 'test:/b'], afterClose: ['test:/b'] });
+	});
+
+	test('each chat of a window that failed to open is retired once it opens in a window, and its other chats stay stored, also when one of those opens first; after a reload, the window restores with the chats that remain', async () => {
+		const stored = (restoration: ReturnType<typeof createRestoration>) => JSON.parse(restoration.read()!).map((entry: { chat: string; chats?: string[] }) => [entry.chat, ...(entry.chats ?? [])]);
+		const primaryOpens = createRestoration({ stored: [{ chat: 'test:/a', chats: ['test:/b', 'test:/c'] }], failOpen: ['test:/a'] });
+		await flush();
+		primaryOpens.windows.set([createWindow('test:/a')], undefined);
+		primaryOpens.storageService.willSave();
+		const whileOpen = stored(primaryOpens);
+		primaryOpens.windows.set([], undefined);
+		primaryOpens.storageService.willSave();
+		const afterClose = stored(primaryOpens);
+		const reloaded = createRestoration({ stored: JSON.parse(primaryOpens.read()!) });
+		await flush();
+
+		const secondaryOpens = createRestoration({ stored: [{ chat: 'test:/a', chats: ['test:/b'] }], failOpen: ['test:/a'] });
+		await flush();
+		secondaryOpens.windows.set([createWindow('test:/b')], undefined);
+		secondaryOpens.storageService.willSave();
+		secondaryOpens.windows.set([], undefined);
+		secondaryOpens.storageService.willSave();
+
+		assert.deepStrictEqual({ whileOpen, afterClose, reopened: reloaded.opened.map(({ chat, options }) => [chat, ...(options.chats ?? []).map(other => other.toString())]), secondaryOnly: stored(secondaryOpens) }, {
+			whileOpen: [['test:/a'], ['test:/b', 'test:/c']],
+			afterClose: [['test:/b', 'test:/c']],
+			reopened: [['test:/b', 'test:/c']],
+			secondaryOnly: [['test:/a']],
+		});
+	});
+
+	test('a window stored with its session that failed to open is retired once the session\'s main chat opens in a window, so that closing that window does not bring it back after a reload', async () => {
+		const canonicalChatOf = (resource: URI) => resource.toString() === 'test:/session' ? URI.parse('test:/session-main') : undefined;
+		const failed = createRestoration({ stored: [{ session: 'test:/session' }], failOpen: ['test:/session'], canonicalChatOf });
+		await flush();
+		failed.windows.set([createWindow('test:/session-main')], undefined);
+		failed.storageService.willSave();
+		failed.windows.set([], undefined);
+		failed.storageService.willSave();
+		const stored = failed.read();
+		const reloaded = createRestoration({ stored: stored ? JSON.parse(stored) : undefined, canonicalChatOf });
+		await flush();
+
+		assert.deepStrictEqual({ stored, reopened: reloaded.opened.map(window => window.chat) }, { stored: undefined, reopened: [] });
+	});
+
+	test('of a stored window, the chats that came up in any window, as themselves or as the chat they open as, are restored; those that did not stay stored, in their order, whether its opening returned or threw', async () => {
+		const stored = (restoration: ReturnType<typeof createRestoration>) => {
+			restoration.storageService.willSave();
+			return JSON.parse(restoration.read()!).map((entry: { chat: string; chats?: string[] }) => [entry.chat, ...(entry.chats ?? [])]);
+		};
+		// Its chat and the one beside it show as chats that other windows show already: both came up, in those windows.
+		const elsewhere = createRestoration({
+			stored: [{ chat: 'test:/c', chats: ['test:/b'] }],
+			canonicalChatOf: resource => ({ 'test:/c': URI.parse('test:/c-main'), 'test:/b': URI.parse('test:/b-main') } as Record<string, URI>)[resource.toString()],
+			openAs: async (_chat, _options, windows) => {
+				const [first, second] = [createWindow('test:/c-main'), createWindow('test:/b-main')];
+				windows.set([first, second], undefined);
+				return first;
+			},
+		});
+		await flush();
+		// Its window opens with its chat and one beside it, without the last; or opens them and then fails.
+		const partly = (fail: boolean) => createRestoration({
+			stored: [{ chat: 'test:/a', chats: ['test:/b', 'test:/c'], terminal: true }],
+			openAs: async (_chat, _options, windows) => {
+				windows.set([createWindow('test:/a', ['test:/b'])], undefined);
+				if (fail) {
+					throw new Error('The last chat failed to open');
+				}
+				return windows.get()[0];
+			},
+		});
+		const returned = partly(false);
+		const threw = partly(true);
+		await flush();
+
+		assert.deepStrictEqual({ elsewhere: stored(elsewhere), returned: stored(returned), threw: stored(threw) }, {
+			elsewhere: [['test:/c-main'], ['test:/b-main']],
+			returned: [['test:/a', 'test:/b'], ['test:/c']],
+			threw: [['test:/a', 'test:/b'], ['test:/c']],
+		});
+	});
+
+	test('restores its windows asking to open their other chats in the window that shows their chat already, if one does', async () => {
+		const { opened } = createRestoration({ stored: [{ chat: 'test:/a', chats: ['test:/b'] }] });
+		await flush();
+
+		assert.deepStrictEqual(opened.map(({ options }) => options.restoreChatsOnReveal), [true]);
 	});
 
 	test('forgets the stored chat window of a removed chat before the next save', () => {

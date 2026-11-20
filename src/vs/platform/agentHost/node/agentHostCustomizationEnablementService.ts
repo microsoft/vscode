@@ -70,6 +70,8 @@ export interface ICustomizationEnablementTarget {
 	readonly isClientBundled?: boolean;
 	/** Provider-discovered enablement inherited when no host or client decision exists. */
 	readonly defaultEnabled?: boolean;
+	/** Runtime-owned plugins never persist decisions in the host overlay. */
+	readonly runtimeOwned?: boolean;
 }
 
 /**
@@ -408,6 +410,9 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution {
+		if (target.runtimeOwned) {
+			throw new Error('Plugin enablement must be changed through its owning runtime');
+		}
 		if (target.type === CustomizationType.Skill) {
 			if (kind !== CustomizationEnablementKind.Session) {
 				throw new Error('MCP skills only support session enablement');
@@ -421,6 +426,9 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
+		if (target.runtimeOwned) {
+			throw new Error('Plugin enablement must be changed through its owning runtime');
+		}
 		if (target.type === CustomizationType.Skill) {
 			if (enablement.some(entry => entry.kind !== CustomizationEnablementKind.Session)) {
 				throw new Error('MCP skills only support session enablement');

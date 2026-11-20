@@ -9,8 +9,10 @@ import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IIterativePager } from '../../../base/common/paging.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IProductService } from '../../product/common/productService.js';
 import { IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IMcpServerIdentity } from './allowedMcpServers.js';
 import { IMcpSandboxConfiguration, IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
@@ -323,6 +325,21 @@ export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
 export const mcpAppsEnabledConfig = 'chat.mcp.apps.enabled';
+
+export function normalizeMcpGalleryUrl(value: string | undefined): string | undefined {
+	const normalized = typeof value === 'string' ? value.replace(/\/+$/, '') : undefined;
+	return normalized || undefined;
+}
+
+export function getConfiguredCustomMcpGalleryUrl(configurationService: IConfigurationService, productService: IProductService): string | undefined {
+	const configuredUrl = normalizeMcpGalleryUrl(configurationService.getValue<string>(mcpGalleryServiceUrlConfig));
+	const productUrl = normalizeMcpGalleryUrl(productService.mcpGallery?.serviceUrl);
+	return configuredUrl && configuredUrl !== productUrl ? configuredUrl : undefined;
+}
+
+export function isProductMcpGalleryEnabled(configurationService: IConfigurationService, productService: IProductService): boolean {
+	return !productService.mcpGallery || configurationService.getValue<boolean>(mcpGalleryServiceEnablementConfig) !== false;
+}
 
 export interface IMcpGalleryConfig {
 	readonly serviceUrl?: string;

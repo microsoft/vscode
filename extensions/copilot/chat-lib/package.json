@@ -1,7 +1,6 @@
 {
 	"name": "@vscode/chat-lib",
 	"version": "0.0.0",
-	"packageManager": "pnpm@12.16.0",
 	"description": "Chat and inline editing SDK extracted from VS Code Copilot Chat",
 	"main": "dist/src/main.js",
 	"types": "dist/src/main.d.ts",
@@ -29,6 +28,7 @@
 		"undici": "^7.24.1",
 		"vscode-languageserver-protocol": "^3.17.5",
 		"vscode-languageserver-textdocument": "^1.0.12",
+		"vscode-languageserver-types": "^3.17.5",
 		"web-tree-sitter": "^0.23.0",
 		"yaml": "^2.8.0"
 	},
@@ -67,7 +67,6 @@
 		"compile": "tsc6",
 		"copy": "copyfiles src/package.json \"src/**/*.tiktoken\" dist",
 		"package": "pnpm pack",
-		"postinstall": "tsx script/postinstall.js",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	}

@@ -5,7 +5,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent, EditorInputWithOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenuActionOptions, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -19,7 +19,7 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IWindowsConfiguration } from '../../../../platform/window/common/window.js';
 import { BooleanVerifier, EnumVerifier, NumberVerifier, ObjectVerifier, SetVerifier, verifyObject } from '../../../../base/common/verifier.js';
 import { IAuxiliaryWindowOpenOptions } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { ContextKeyValue, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import type { IEditorTransferVeto } from './editorTransferVeto.js';
 
@@ -243,6 +243,9 @@ export interface IEditorGroupsView {
 	readonly partOptions: IEditorPartOptions;
 	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
+	/** Whether the part was created asking for it (see `ICreateEditorPartOptions.singleTabTitleProvidedByEditor`). */
+	readonly singleTabTitleProvidedByEditor?: boolean;
+
 	readonly onDidVisibilityChange: Event<boolean>;
 
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
@@ -313,6 +316,13 @@ export interface IEditorGroupViewOptions {
 	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
 
 	/**
+	 * Whether the enabled group header of the active editor is laid out across the full group
+	 * width, including the content left and right insets. By default the header follows the
+	 * inset editor content.
+	 */
+	readonly headerSpansContentInset?: (editor: EditorInput | undefined) => boolean;
+
+	/**
 	 * Whether the enabled group header shows for the active editor, such as not for a terminal in a group that shows its
 	 * header only for other editors. When unset, it shows for every editor.
 	 */
@@ -341,6 +351,23 @@ export interface IEditorGroupMenuIds {
 	readonly tabsBarContext?: MenuId;
 	/** Menu whose actions populate the add-tab (`+`) control in the tab bar. */
 	readonly tabsBarAddTab?: MenuId;
+	/**
+	 * Whether the add-tab menu lists the entry picked last first, as its default entry that a second press of the
+	 * add-tab control picks.
+	 */
+	readonly tabsBarAddTabRecentFirst?: boolean;
+}
+
+/**
+ * The menu of an editor's own actions, with the context its actions show and run in, which the tab bar of its group
+ * shows in place of the group's editor actions, such as the actions of the title the editor renders itself.
+ */
+export interface IEditorPaneTitleMenu {
+	readonly menuId: MenuId;
+	/** The context the actions of the menu show in, such as the editor's own scope. */
+	readonly contextKeyService: IContextKeyService;
+	/** The options of the actions of the menu, such as the arguments their commands run with. */
+	readonly options: IMenuActionOptions;
 }
 
 /**
@@ -368,6 +395,9 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly titleHeight: IEditorGroupTitleHeight;
 
 	readonly disposed: boolean;
+
+	/** Whether the active editor is still being opened. */
+	readonly isOpeningEditor: boolean;
 
 	setActive(isActive: boolean): void;
 

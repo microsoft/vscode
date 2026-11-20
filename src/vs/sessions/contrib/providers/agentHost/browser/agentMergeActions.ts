@@ -24,8 +24,8 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, DesktopChangesEditorTransitionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../../../workbench/contrib/sessions/browser/changes/changesView.js';
-import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
+import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
@@ -183,7 +183,7 @@ abstract class AgentMergeActionBase extends Action2 {
 		}
 		const target = resolveSessionCommandTarget(accessor, [sessionArg]);
 		const session = target?.session;
-		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId);
+		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId, session.sessionId);
 		return session && provider && isAgentHostProvider(provider) ? { session, provider, chat: (target.chat ?? session.mainChat.get()).resource } : undefined;
 	}
 

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IOtlpLogRecord, OtlpLogLevelName } from '../common/otlp/otlpLogEmitter.js';
 import { Promises } from '../../../base/common/async.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, type IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -47,8 +48,9 @@ export interface IAgentHostProviderService {
 	/** Records the agent of a chat whose agent differs from its session's. A chat's agent never changes. */
 	associateChat(chat: URI | string, provider: AgentProvider): void;
 	releaseChat(chat: URI | string): void;
-	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult>;
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult>;
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+	subscribeMcpServerLogs(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable;
 	getNetworkDiagnostics(): Promise<IAgentHostProviderNetworkDiagnostics>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	shutdown(): Promise<void>;
@@ -180,8 +182,12 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		this._chatToProvider.delete(typeof chat === 'string' ? chat : chat.toString());
 	}
 
-	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
-		return this._authenticationController.authenticate(params, this._providers.values(), scope);
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult> {
+		return this._authenticationController.authenticate(params, this._providers.values(), scope, clientId);
+	}
+
+	subscribeMcpServerLogs(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable {
+		return this.getProviderForSession(session)?.subscribeMcpServerLogs?.(session, serverName, level, onRecords) ?? Disposable.None;
 	}
 
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {

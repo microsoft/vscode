@@ -782,6 +782,173 @@ suite('Workbench - Terminal Typeahead', () => {
 			assert.deepStrictEqual(state(), { lines: ['$ abxd', '', ''], cursorX: 6, cursorY: 0, baseY: 0 });
 		});
 
+		test('waits for the echo of a key typed while output is unparsed', async () => {
+			await input('b');
+			queueServer('b');
+			terminal.input('c');
+			await writeP(terminal, '');
+			await input('d');
+			const beforeEcho = state();
+			await server('c');
+			await server('d');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcd', '', ''], cursorX: 6, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('resynchronizes after multiple keys are typed while output is unparsed', async () => {
+			await input('b');
+			queueServer('b');
+			terminal.input('c');
+			terminal.input('d');
+			await writeP(terminal, '');
+			await server('c');
+			await input('e');
+			const beforeRemainingEchoes = state();
+			await server('d');
+			await server('e');
+			await input('f');
+			const beforeResynchronizingEcho = state();
+			await server('f');
+			await input('g');
+			const afterResynchronizing = state();
+			await server('g');
+			assert.deepStrictEqual([beforeRemainingEchoes, beforeResynchronizingEcho, afterResynchronizing, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ abc', '', ''], cursorX: 5, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcde', '', ''], cursorX: 7, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcdefg', '', ''], cursorX: 9, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcdefg', '', ''], cursorX: 9, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('waits for each echo of a repeated key typed while output is unparsed', async () => {
+			await input('b');
+			queueServer('b');
+			terminal.input('u');
+			terminal.input('l');
+			await writeP(terminal, '');
+			await server('u');
+			await input('l');
+			const beforeFirstL = state();
+			await server('l');
+			await input('x');
+			const beforeSecondL = state();
+			await server('l');
+			await server('x');
+			assert.deepStrictEqual([beforeFirstL, beforeSecondL, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ abu', '', ''], cursorX: 5, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abul', '', ''], cursorX: 6, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abullx', '', ''], cursorX: 8, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('waits for the echo of a key typed while a reconciled echo is unparsed', async () => {
+			await input('bc');
+			queueServer('b');
+			terminal.input('d');
+			await writeP(terminal, '');
+			await input('e');
+			const beforeEcho = state();
+			await server('c');
+			await server('d');
+			await server('e');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ abc', '', ''], cursorX: 5, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcde', '', ''], cursorX: 7, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('waits for the echo of a key typed while a partial echo is buffered', async () => {
+			await input('\x7f');
+			await server('\b');
+			await input('x');
+			await server(`${CSI}K`);
+			await input('y');
+			const beforeEcho = state();
+			await server('x');
+			await server('y');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ ', '', ''], cursorX: 2, cursorY: 0, baseY: 0 },
+				{ lines: ['$ xy', '', ''], cursorX: 4, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('waits for the echo of a key typed while an escape sequence is incomplete', async () => {
+			await input('b');
+			await server('b');
+			await server(`${CSI}0`);
+			await input('c');
+			await server('m');
+			await input('d');
+			const beforeEcho = state();
+			await server('c');
+			await server('d');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcd', '', ''], cursorX: 6, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		// Shift+F3 is encoded like a cursor position report; here the shell binds it to moving left.
+		for (const { name, key } of [{ name: 'a cursor key', key: `${CSI}D` }, { name: 'Shift+F3', key: `${CSI}1;2R` }]) {
+			test(`waits for the echo of ${name} typed while output is unparsed`, async () => {
+				await input('b');
+				queueServer('b');
+				terminal.input(key);
+				await writeP(terminal, '');
+				await input('X');
+				const beforeEcho = state();
+				await server('\b');
+				await server('Xb\b');
+				assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+					{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
+					{ lines: ['$ aXb', '', ''], cursorX: 4, cursorY: 0, baseY: 0, accuracy: 1 }
+				]);
+			});
+		}
+
+		test('waits for the echo of a paste while output is unparsed', async () => {
+			await input('b');
+			queueServer('b');
+			terminal.input(`${CSI}200~xyz${CSI}201~`);
+			await writeP(terminal, '');
+			await input('W');
+			const beforeEcho = state();
+			await server('xyz');
+			await server('W');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abxyzW', '', ''], cursorX: 8, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('does not wait for a terminal reply sent while output is unparsed', async () => {
+			await server(`${CSI}6n`);
+			await input('b');
+			const beforeEcho = state();
+			await server('b');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
+				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('does not wait for a clipboard reply sent while output is unparsed', async () => {
+			await input('b');
+			queueServer('b');
+			// The clipboard addon answers OSC 52 queries this way.
+			terminal.input('\x1b]52;c;eA==\x07', false);
+			await writeP(terminal, '');
+			await input('c');
+			const beforeEcho = state();
+			await server('c');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ abc', '', ''], cursorX: 5, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abc', '', ''], cursorX: 5, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
 		test('does not navigate on the previous row after a queued prompt', async () => {
 			await input('\rb', false);
 			queueServer('\r\n$ b');
@@ -1303,6 +1470,39 @@ suite('Workbench - Terminal Typeahead', () => {
 				});
 			});
 		}
+
+		test('shows a split PSReadLine echo of a key typed while a partial echo is buffered', async () => {
+			const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+			const control = ds.add(new TerminalCtor({ allowProposedApi: true, cols: 60, rows: 3 }));
+			const both = async (data: string) => {
+				await server(data);
+				await writeP(control, data);
+			};
+			// A pty read can end a render before its final cursor placement.
+			const splitRender = (text: string) => {
+				const render = psReadLineRender(text, 18 + text.length);
+				const placement = render.lastIndexOf(`${CSI}1;`);
+				return [render.slice(0, placement), render.slice(placement)];
+			};
+			terminal.resize(60, 3);
+			terminal.reset();
+			addon.reset();
+			addon.showPredictions(true);
+			await both(`${CSI}?1h\x1b=PS /private/tmp> `);
+			const [e, ec] = [splitRender('e'), splitRender('ec')];
+			await input('e');
+			await both(e[0]);
+			await input('c');
+			await both(e[1]);
+			await both(ec[0]);
+			const afterEcho = { line: state().lines[0], cursorX: state().cursorX };
+			await both(ec[1]);
+			assert.deepStrictEqual({ afterEcho, terminal: snapshotTerminal(terminal), accuracy: addon.stats?.accuracy }, {
+				afterEcho: { line: 'PS /private/tmp> ec', cursorX: 19 },
+				terminal: snapshotTerminal(control),
+				accuracy: 1
+			});
+		});
 
 		test('matches a fish mid-line backspace followed by its repaint', async () => {
 			const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
@@ -2199,6 +2399,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 	const cursor = { y: 1, x: 1 };
 	const onTitleChange = ds.add(new Emitter<string>());
 	const onData = ds.add(new Emitter<string>());
+	const onUserInput = ds.add(new Emitter<void>());
 	const onWriteParsed = ds.add(new Emitter<void>());
 
 	for (let y = 0; y < lines.length; y++) {
@@ -2219,7 +2420,10 @@ function createMockTerminal({ lines, cursorAttrs }: {
 			written.splice(0, written.length);
 		},
 		clearWritten: () => written.splice(0, written.length),
-		onData: (s: string) => onData.fire(s),
+		onData: (s: string) => {
+			onUserInput.fire();
+			onData.fire(s);
+		},
 		onTitleChange,
 		dispose: () => ds.dispose(),
 		terminal: {
@@ -2235,7 +2439,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 				written.push(line);
 			},
 			_core: {
-				coreService: { isCursorHidden: false },
+				coreService: { isCursorHidden: false, onUserInput: onUserInput.event },
 				_inputHandler: {
 					_curAttrData: mockCell('', cursorAttrs)
 				},

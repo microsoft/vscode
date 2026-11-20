@@ -19,30 +19,31 @@ import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../pl
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorPane, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { ChangesMultiDiffSourceResolver } from '../../../../workbench/contrib/sessions/browser/changes/changesMultiDiffSourceResolver.js';
-import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
-import { getFileActionEditorPane, IChangesEditorFileActionContext, SessionChangesEditor } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
+import { ChangesMultiDiffSourceResolver } from '../../../../workbench/contrib/sessionChanges/browser/changesMultiDiffSourceResolver.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { getFileActionEditorPane, IChangesEditorFileActionContext, SessionChangesEditor } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
-import { getChangesFileUri, isChangesFileResource } from '../../../../workbench/contrib/sessions/browser/changes/changesViewRenderer.js';
-import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
+import { getChangesFileUri, isChangesFileResource } from '../../../../workbench/contrib/sessionChanges/browser/changesViewRenderer.js';
+import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
-import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessions/browser/changes/changesViewService.js';
-import { readPaneSessions } from '../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
+import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
+import { DesktopLayoutContext, SessionIsCreatedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 function getWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[]): URI {
 	const change = changes.find(change => isChangesFileResource(change, resource));
@@ -415,6 +416,14 @@ function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unkn
 
 const CHANGESET_OPERATION_ACTION_PREFIX = 'workbench.contrib.sessions.changesetOperation.';
 const CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX = 'workbench.contrib.sessions.changesHeaderChangesetOperation.';
+const CHANGES_HEADER_COMMIT_ACTION_ID = `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`;
+
+/**
+ * Whether the desktop main window shows the Commit of a new session's uncommitted changes in the header row of its
+ * Changes editor, beside the changeset picker, instead of in its tab row. That row stays visible above the docked
+ * Details, also while the editor content is hidden.
+ */
+const commitInEditorHeader = ContextKeyExpr.and(DesktopLayoutContext, IsAuxiliaryWindowContext.toNegated(), SessionIsCreatedContext.negate())!;
 
 function registerChangesetOperationAction({ key, kind, operation, order }: IChangesetOperationEntry): IDisposable {
 	const shown = listHas(SessionChangesetOperationsContext, key);
@@ -457,6 +466,7 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 			}
 		});
 	}
+	const shownInChangesEditor = ContextKeyExpr.and(ActiveEditorContext.isEqualTo(SessionChangesEditor.ID), shown);
 	return registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -466,11 +476,21 @@ function registerChangesetOperationAction({ key, kind, operation, order }: IChan
 				icon: operation.icon,
 				precondition,
 				f1: false,
-				menu: {
+				menu: operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID ? [{
 					id: Menus.SessionsEditorTitle,
 					group: 'navigation',
 					order,
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(SessionChangesEditor.ID), shown),
+					when: ContextKeyExpr.and(shownInChangesEditor, commitInEditorHeader.negate()),
+				}, {
+					id: Menus.SessionsEditorHeaderSecondary,
+					group: 'navigation',
+					order,
+					when: ContextKeyExpr.and(shownInChangesEditor, commitInEditorHeader),
+				}] : {
+					id: Menus.SessionsEditorTitle,
+					group: 'navigation',
+					order,
+					when: shownInChangesEditor,
 				}
 			});
 		}
@@ -551,7 +571,10 @@ class CommitActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-/** Renders the Commit operation in the title of the Changes editor with its label, in every window. */
+/**
+ * Renders the Commit operation with its label in the title of the Changes editor, in every window, and in the header
+ * row of the desktop main window's Changes editor that shows it on the new session page.
+ */
 export class ChangesHeaderChangesetOperationsActionContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.sessions.changesHeaderChangesetOperationsAction';
 
@@ -559,11 +582,13 @@ export class ChangesHeaderChangesetOperationsActionContribution extends Disposab
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
 		super();
-		this._register(actionViewItemService.register(Menus.SessionsEditorTitle, `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, (action, options, instantiationService) => {
-			return action instanceof MenuItemAction
-				? instantiationService.createInstance(CommitActionViewItem, action, options)
-				: undefined;
-		}));
+		for (const menu of [Menus.SessionsEditorTitle, Menus.SessionsEditorHeaderSecondary]) {
+			this._register(actionViewItemService.register(menu, CHANGES_HEADER_COMMIT_ACTION_ID, (action, options, instantiationService) => {
+				return action instanceof MenuItemAction
+					? instantiationService.createInstance(CommitActionViewItem, action, options)
+					: undefined;
+			}));
+		}
 	}
 }
 

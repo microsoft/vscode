@@ -15,7 +15,7 @@ import { ContextKeyExpression, IContextKeyService } from '../../../../../../plat
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ChatSendResult, IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatInteractivity, IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -27,7 +27,7 @@ import { BaseAgentHostSessionsProvider } from '../../../../../../workbench/contr
 // which is the slot that hosts our skill buttons as a dropdown.
 import '../../../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService, stubSessionHostsFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionHostService, SessionHostKind } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
 
 function makeActiveSession(providerId: string): ITestSessionWithChat {
 	const chat = {

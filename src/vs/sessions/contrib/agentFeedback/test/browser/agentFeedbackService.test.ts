@@ -25,9 +25,9 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { ISessionGridPane } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { whenChatWidgetForSession } from '../../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
-import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -224,6 +224,25 @@ suite('AgentFeedbackService - Ordering', () => {
 		service.getNextFeedback(session, true);
 		bearing = service.getNavigationBearing(session);
 		assert.strictEqual(bearing.activeIdx, 2);
+	});
+
+	test('passive navigation anchors keep their reveal intent across feedback changes', () => {
+		const f1 = service.addFeedback(session, fileA, r(5), 'A:5');
+		service.addFeedback(session, fileA, r(20), 'A:20');
+		const reveals: boolean[] = [];
+		store.add(service.onDidChangeNavigation(event => reveals.push(event.reveal)));
+
+		service.setNavigationAnchor(session, f1.id, { reveal: false });
+		const passiveBearing = service.getNavigationBearing(session);
+		service.addFeedback(session, fileB, r(1), 'B:1');
+		service.getNextFeedback(session, true);
+		const revealedBearing = service.getNavigationBearing(session);
+
+		assert.deepStrictEqual({ passiveBearing, revealedBearing, reveals }, {
+			passiveBearing: { activeIdx: 0, totalCount: 2, reveal: false },
+			revealedBearing: { activeIdx: 1, totalCount: 3, reveal: true },
+			reveals: [false, false, true],
+		});
 	});
 
 	test('revealFeedback anchors the matching session editor comment so its widget expands', async () => {
@@ -1256,13 +1275,13 @@ suite('whenChatWidgetForSession', () => {
 		const host = createWidgetHost();
 		host.load();
 
-		assert.strictEqual(await whenChatWidgetForSession(host.service, session, 0), host.widget);
+		assert.strictEqual(await whenChatWidgetForSession(host.service, session, { timeoutMs: 0 }), host.widget);
 	});
 
 	test('resolves once a widget loads the session', async () => {
 		const host = createWidgetHost();
 
-		const pending = whenChatWidgetForSession(host.service, session, 5000);
+		const pending = whenChatWidgetForSession(host.service, session, { timeoutMs: 5000 });
 		await timeout(0);
 		host.load();
 
@@ -1272,7 +1291,7 @@ suite('whenChatWidgetForSession', () => {
 	test('resolves undefined when no widget loads the session in time', async () => {
 		const host = createWidgetHost();
 
-		assert.strictEqual(await whenChatWidgetForSession(host.service, session, 1), undefined);
+		assert.strictEqual(await whenChatWidgetForSession(host.service, session, { timeoutMs: 1 }), undefined);
 	});
 
 	test('resolves when a widget that already has the session is added later', async () => {
@@ -1286,7 +1305,7 @@ suite('whenChatWidgetForSession', () => {
 			override getWidgetBySessionResource(_resource: URI): IChatWidget | undefined { return widgets[0]; }
 		};
 
-		const pending = whenChatWidgetForSession(service, session, 5000);
+		const pending = whenChatWidgetForSession(service, session, { timeoutMs: 5000 });
 		await timeout(0);
 		widgets = [widget];
 		onDidAddWidget.fire(widget);

@@ -88,6 +88,7 @@ interface IRemoteSessionLoad {
 /** Input state of a restored remote session that is applied and logged once its model is published. */
 interface IRemoteSessionInputRestore {
 	readonly modelId: string | undefined;
+	readonly modelConfiguration: IStringDictionary<unknown> | undefined;
 	readonly agentUri: URI | undefined;
 	readonly historySelectedModel: string | undefined;
 	readonly storedInputState: ISerializableChatModelInputState | undefined;
@@ -221,6 +222,11 @@ export function backfillTransferredModel(
 		return transferredState;
 	}
 	return { ...transferredState, selectedModel: historyModel };
+}
+
+/** A restored model the input reclaims once its metadata publishes, with the configuration to restore it with. */
+function restoredIntendedModel(modelId: string, configuration: IStringDictionary<unknown> | undefined): IIntendedModelSelection {
+	return { modelId, reason: ModelSelectionReason.SessionRestore, ...(configuration ? { configuration } : {}) };
 }
 
 /**
@@ -387,10 +393,9 @@ export class ChatService extends Disposable implements IChatService {
 						logChangesToStateModel(model.inputModel, `disposing session ${model.sessionResource} (${localSessionId}) with title, storing to storage`, undefined, undefined, this.logService);
 						await this._chatSessionStore.storeSessions([model]);
 					}
-				} else if (!localSessionId && this.shouldStoreExternalSession(model) && (model.getRequests().length > 0 || hasDraftInput(model))) {
-					logChangesToStateModel(model.inputModel, `disposing external session ${model.sessionResource} with requests or draft input, storing metadata to storage`, undefined, undefined, this.logService);
-					// External sessions: persist metadata when there are requests, OR when the
-					// user has typed/attached unsent input we need to restore on next open.
+				} else if (!localSessionId && this.shouldStoreExternalSession(model) && (model.getRequests().length > 0 || hasDraftInput(model) || this._chatSessionStore.getMetadataForSessionSync(model.sessionResource)?.inputState)) {
+					logChangesToStateModel(model.inputModel, `disposing external session ${model.sessionResource} with requests, draft input or persisted input state, storing metadata to storage`, undefined, undefined, this.logService);
+					// Persist cleared drafts too, so background sends cannot restore stale input on reload.
 					await this._chatSessionStore.storeSessionsMetadataOnly([model]);
 				}
 			}
@@ -1057,23 +1062,26 @@ export class ChatService extends Disposable implements IChatService {
 		const storedMetadata = this._chatSessionStore.getMetadataForSessionSync(sessionResource);
 		const storedPermissionLevel = storedMetadata?.permissionLevel;
 		const storedInputState = storedMetadata?.inputState;
+		// The session request history only tells us which model id was last used, not the
+		// user's per-model configuration (e.g. thinking effort, context window). Take that
+		// configuration from the transferred draft, which carries the session's current one, else
+		// from the persisted draft when it refers to the same model, so reopening the session
+		// restores the full model config and not just the bare model id. Older drafts stored the
+		// configuration as a sibling of `selectedModel` (legacy top-level field) rather than nested
+		// within it, so fall back to that for backwards compatibility.
+		const transferredModelConfiguration = providedSession.transferredState?.selectedModelId === modelId
+			? providedSession.transferredState?.selectedModelConfiguration
+			: undefined;
+		const storedModelConfiguration = storedInputState?.selectedModel?.modelConfiguration
+			?? (storedInputState as { modelConfiguration?: IStringDictionary<unknown> } | undefined)?.modelConfiguration;
+		const modelConfiguration = transferredModelConfiguration
+			?? (storedInputState?.selectedModel?.identifier === modelId ? storedModelConfiguration : undefined);
 		let initialData: ISerializedChatDataReference | undefined = undefined;
 		let historySelectedModel: string | undefined = undefined;
 		let historyDerivedModel: ISerializableChatModelInputState['selectedModel'] = undefined;
 		if ((modelId || agentUri)) {
 			const mode: ISerializableChatModelInputState['mode'] = agentUri ? { kind: ChatModeKind.Agent, id: agentUri.toString() } : { kind: ChatModeKind.Agent, id: ChatMode.Agent.id };
 			const modelMetadata = modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined;
-			// The session request history only tells us which model id was last used, not the
-			// user's per-model configuration (e.g. thinking effort, context window). Preserve that
-			// configuration from the persisted draft when it refers to the same model, so reopening
-			// the session restores the full model config and not just the bare model id. Older drafts
-			// stored the configuration as a sibling of `selectedModel` (legacy top-level field) rather
-			// than nested within it, so fall back to that for backwards compatibility.
-			const storedModelConfiguration = storedInputState?.selectedModel?.modelConfiguration
-				?? (storedInputState as { modelConfiguration?: IStringDictionary<unknown> } | undefined)?.modelConfiguration;
-			const modelConfiguration = storedInputState?.selectedModel?.identifier === modelId
-				? storedModelConfiguration
-				: undefined;
 			// When the live model list has not loaded yet (cold restore) `lookupLanguageModel`
 			// returns undefined. Don't discard the known model: fall back to the session's saved
 			// draft model, which carries the full serialized metadata (including
@@ -1156,7 +1164,7 @@ export class ChatService extends Disposable implements IChatService {
 		// The id is known but no metadata was found for it. Record it anyway so the input reclaims
 		// the model once it publishes, rather than settling on the default.
 		if (modelId && !historySelectedModel) {
-			model.inputModel.setIntendedModel({ modelId, reason: ModelSelectionReason.SessionRestore });
+			model.inputModel.setIntendedModel(restoredIntendedModel(modelId, modelConfiguration));
 		}
 
 		// Restore permission level from metadata even when initialData was not constructed
@@ -1171,7 +1179,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		return {
 			model,
-			inputRestore: { modelId, agentUri, historySelectedModel, storedInputState, hasInitialData: !!initialData },
+			inputRestore: { modelId, modelConfiguration, agentUri, historySelectedModel, storedInputState, hasInitialData: !!initialData },
 		};
 	}
 
@@ -1179,9 +1187,9 @@ export class ChatService extends Disposable implements IChatService {
 	 * Applies the history-derived model again after the restored model is
 	 * published, and logs where the input state came from.
 	 */
-	private finishRemoteSessionInputState(model: ChatModel, providedSession: IChatSession, { modelId, agentUri, historySelectedModel, storedInputState, hasInitialData }: IRemoteSessionInputRestore): void {
+	private finishRemoteSessionInputState(model: ChatModel, providedSession: IChatSession, { modelId, modelConfiguration, agentUri, historySelectedModel, storedInputState, hasInitialData }: IRemoteSessionInputRestore): void {
 		if (modelId && !historySelectedModel) {
-			model.inputModel.setIntendedModel({ modelId, reason: ModelSelectionReason.SessionRestore });
+			model.inputModel.setIntendedModel(restoredIntendedModel(modelId, modelConfiguration));
 		}
 		logChangesToStateModel(model.inputModel, `loadRemoteSession inputState source: session=${model.sessionResource.toString()}, chatSessionType=${getChatSessionType(model.sessionResource)}, historyModelId=${modelId}, agentUri=${agentUri?.toString()}, historySelectedModel=${historySelectedModel}, transferredSelectedModel=${providedSession.transferredState?.inputState?.selectedModel?.identifier}, storedSelectedModel=${storedInputState?.selectedModel?.identifier}, finalSelectedModel=${model.inputModel.state.get()?.selectedModel?.identifier}, hasTransferredInputState=${!!providedSession.transferredState?.inputState}, hasStoredInputState=${!!storedInputState}, hasInitialData=${hasInitialData}`, model.inputModel.state.get(), undefined, this.logService);
 	}
@@ -1677,7 +1685,7 @@ export class ChatService extends Disposable implements IChatService {
 		const notifyAccepted = () => {
 			if (isSubmission && !options?.isSystemInitiated && !options?.hideFromTranscript) {
 				this._modelsWithAcceptedRequests.add(model);
-				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession });
+				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession, modeInfo: options?.modeInfo, agentHostMessageOrigin: options?.agentHostMessageOrigin });
 				const provider = this.chatSessionService.getChatSessionContribution(getChatSessionType(sessionResource))?.agentHostProviderId;
 				if (isCopilotAgentHostProvider(provider)) {
 					// Copilot harness submissions bypass the extension's legacy usage signal, including queued sends in either window.

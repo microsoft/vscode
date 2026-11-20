@@ -5,22 +5,22 @@
 
 import { equals } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { getOrSet } from '../../../../base/common/map.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISession } from '../common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOrder, restoreSectionOrderPositions, spliceSectionOrder } from './sessionSectionOrderService.js';
+import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOrder, restoreSectionOrderPositions, spliceSectionOrder } from '../../../services/sessions/browser/sessionSectionOrderService.js';
 
 /** Local icon and theme-color overrides for custom groups and grouping sections. */
 export interface ISessionGroupAppearance {
 	/** Theme icon id chosen by the user. */
 	readonly icon?: string;
-	/** Theme color id applied to the group icon. */
+	/** Theme color id applied to the group icon and name. */
 	readonly color?: string;
 }
 
@@ -211,7 +211,7 @@ export interface ISessionGroupsService {
 	/** Set a group's icon, or restore the default with `undefined`. */
 	setGroupIcon(groupId: string, icon: string | undefined): void;
 
-	/** Set a group's icon color, or restore the default with `undefined`. */
+	/** Set a group's icon and name color, or restore the default with `undefined`. */
 	setGroupColor(groupId: string, color: string | undefined): void;
 
 	/** Appearance of a workspace, repository, or environment section, keyed by its stable section id. */
@@ -220,7 +220,7 @@ export interface ISessionGroupsService {
 	/** Set a grouping section's icon, or restore its default with `undefined`. */
 	setSectionIcon(sectionId: string, icon: string | undefined): void;
 
-	/** Set a grouping section's icon color, or restore its default with `undefined`. */
+	/** Set a grouping section's icon and name color, or restore its default with `undefined`. */
 	setSectionColor(sectionId: string, color: string | undefined): void;
 
 	/**
@@ -288,7 +288,16 @@ export interface ISessionGroupsService {
 	 * and cleared if the new session is abandoned without sending. No-op when the
 	 * group does not exist.
 	 */
-	setPendingNewSessionGroup(groupId: string): void;
+	setPendingNewSessionGroup(groupId: string | undefined): void;
+	getPendingNewSessionGroup(): string | undefined;
+
+	/**
+	 * Record the group that sessions sent from the new-session draft slot with id `slotId` (see
+	 * `ISessionsManagementService.createNewSessionSlot`) join, or `undefined` for none. Unlike
+	 * {@link setPendingNewSessionGroup}, it applies to every send of the slot until the returned disposable is disposed,
+	 * and it never takes or clears the main composer's intent.
+	 */
+	setDraftSlotGroup(slotId: string, groupId: string | undefined): IDisposable;
 }
 
 export const ISessionGroupsService = createDecorator<ISessionGroupsService>('sessionGroupsService');
@@ -345,6 +354,15 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	 */
 	private readonly _inFlightSessionGroups = new Map<string, string>();
 
+	/** The groups of new-session draft slots ({@link setDraftSlotGroup}): slotId -> groupId. */
+	private readonly _draftSlotGroups = new Map<string, string>();
+
+	/**
+	 * The {@link _inFlightSessionGroups} of sends from independent draft slots. They are kept while the request runs,
+	 * also while its session is not listed, and dropped when it ends without starting.
+	 */
+	private readonly _slotSendSessionIds = new Set<string>();
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -353,6 +371,9 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		super();
 
 		this.load();
+		if (this.migratePreviousIdentities(this.sessionsManagementService.getSessions())) {
+			this.save();
+		}
 		const archivedMembershipChanged = new Set<string>();
 		const archivedStateChanged = this.removeArchivedMembership(this.sessionsManagementService.getSessions(), archivedMembershipChanged);
 		this.updateDefaultPlacement(this.sessionsManagementService.getSessions(), archivedMembershipChanged);
@@ -366,37 +387,41 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		// membership here would turn that transient gap into a permanent,
 		// unrecoverable loss of the user's grouping.
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
+			const identityChanges = new Set<string>();
+			const identitiesChanged = this.migratePreviousIdentities([...e.added, ...e.changed], identityChanges);
 			const transientMembershipChanged = new Set<string>();
 			const inFlightSessionIds = new Set(this.sessionsManagementService.getInFlightNewSessionRequests().map(session => session.sessionId));
 			for (const session of e.added) {
-				if (inFlightSessionIds.has(session.sessionId) && this.capturePendingNewSessionGroup(session.sessionId)) {
+				if (inFlightSessionIds.has(session.sessionId) && this.isMainComposerSession(session.sessionId) && this.capturePendingNewSessionGroup(session.sessionId)) {
 					transientMembershipChanged.add(session.sessionId);
 				}
 			}
 			for (const session of e.removed) {
-				if (this._inFlightSessionGroups.delete(session.sessionId)) {
+				// A send of a draft slot keeps its group until its request ends, also while its session drops out of the list.
+				if (!this._slotSendSessionIds.has(session.sessionId) && this.deleteInFlightSessionGroup(session.sessionId)) {
 					transientMembershipChanged.add(session.sessionId);
 				}
 			}
 			const visibleSessionIds = new Set(this.sessionsManagementService.getSessions().map(session => session.sessionId));
 			for (const sessionId of this._inFlightSessionGroups.keys()) {
-				if (!visibleSessionIds.has(sessionId)) {
+				if (!visibleSessionIds.has(sessionId) && !this._slotSendSessionIds.has(sessionId)) {
 					this._inFlightSessionGroups.delete(sessionId);
 					transientMembershipChanged.add(sessionId);
 				}
 			}
-			const changed = new Set<string>();
+			const changed = new Set(identityChanges);
 			const archivedStateChanged = this.removeArchivedMembership([...e.added, ...e.changed], changed);
 			this.updateDefaultPlacement(this.sessionsManagementService.getSessions(), changed);
-			if (archivedStateChanged || changed.size > 0) {
+			if (identitiesChanged || archivedStateChanged || changed.size > 0) {
 				this.save();
 			}
 			for (const sessionId of transientMembershipChanged) {
 				changed.add(sessionId);
 			}
-			if (changed.size > 0) {
+			if (identitiesChanged || changed.size > 0) {
 				this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
 			}
+
 		}));
 
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => {
@@ -426,14 +451,45 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		// can no longer rebind it. A send into an existing session discards the
 		// draft (firing the discard handler below) before this fires.
 		this._register(this.sessionsManagementService.onWillSendRequest(session => {
-			if (this.capturePendingNewSessionGroup(session.sessionId)) {
+			if (this.isMainComposerSession(session.sessionId) && this.capturePendingNewSessionGroup(session.sessionId)) {
+				this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([session.sessionId]) });
+			}
+		}));
+
+		// A send from an independent draft slot takes the slot's group when it is accepted, before the slot lets go of
+		// its draft, and keeps it until the request ends.
+		this._register(this.sessionsManagementService.onDidAcceptNewSessionRequest(({ session, owner }) => {
+			if (owner === this.sessionsManagementService.defaultNewSessionSlot) {
+				return;
+			}
+			const groupId = this._draftSlotGroups.get(owner.id);
+			if (groupId === undefined || !this._groups.has(groupId)) {
+				return;
+			}
+			this._inFlightSessionGroups.set(session.sessionId, groupId);
+			this._slotSendSessionIds.add(session.sessionId);
+			this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([session.sessionId]) });
+		}));
+		this._register(this.sessionsManagementService.onDidEndNewSessionRequest(({ session, started }) => {
+			if (!this._slotSendSessionIds.delete(session.sessionId) || started) {
+				return;
+			}
+			if (this._inFlightSessionGroups.delete(session.sessionId)) {
 				this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([session.sessionId]) });
 			}
 		}));
 
 		// Follow both pre-send draft replacement and committed-session graduation.
 		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this.replaceInFlightSession(from, to)));
-		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this.replaceInFlightSession(from, to)));
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			this.replaceInFlightSession(from, to);
+			// A session replaced by one with another ID, such as one its host hands off to another connection, continues as it
+			const changed = new Set<string>();
+			if (this.migrateIdentities([[from.sessionId, to.sessionId]], changed)) {
+				this.save();
+				this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([from.sessionId, ...changed]) });
+			}
+		}));
 
 		// The started session carries the committed id; record its group now.
 		this._register(this.sessionsManagementService.onDidStartSession(session => {
@@ -441,7 +497,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			if (groupId === undefined) {
 				return;
 			}
-			this._inFlightSessionGroups.delete(session.sessionId);
+			this.deleteInFlightSessionGroup(session.sessionId);
 			if (this._groups.has(groupId)) {
 				this.addToGroup(session.sessionId, groupId);
 			}
@@ -449,8 +505,10 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 		// Abandoning the composer draft drops the not-yet-dispatched intent so it
 		// never binds an unrelated session created later.
-		this._register(this.sessionsManagementService.onDidDiscardNewSession(() => {
-			this._pendingNewSessionGroupId = undefined;
+		this._register(this.sessionsManagementService.onDidDiscardNewSession(session => {
+			if (this.isMainComposerSession(session.sessionId)) {
+				this._pendingNewSessionGroupId = undefined;
+			}
 		}));
 
 		this._register(this.sessionsManagementService.onDidMoveChat(({ from, to }) => this.onDidMoveChat(from.session, from.chat, to.session, to.chat)));
@@ -510,6 +568,37 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 				}
 			}
 		} while (placed);
+	}
+
+	private migratePreviousIdentities(sessions: readonly ISession[], changedSessions?: Set<string>): boolean {
+		return this.migrateIdentities(sessions.flatMap(session => (session.previousIdentities ?? []).map((previous): [string, string] => [previous.sessionId, session.sessionId])), changedSessions);
+	}
+
+	/** Moves the custom-group membership of each `[from, to]` session ID to `to`, unless `to` has a placement of its own. */
+	private migrateIdentities(identities: readonly (readonly [from: string, to: string])[], changedSessions?: Set<string>): boolean {
+		let changed = false;
+		for (const [from, to] of identities) {
+			if (from === to) {
+				continue;
+			}
+			const group = this._membership.get(from);
+			if (group !== undefined) {
+				if (!this._membership.has(to) && !this._explicitlyUngroupedSessionIds.has(to)) {
+					this._membership.set(to, group);
+				}
+				this._membership.delete(from);
+				changedSessions?.add(to);
+				changed = true;
+			}
+			if (this._explicitlyUngroupedSessionIds.delete(from)) {
+				changedSessions?.add(to);
+				if (!this._membership.has(to)) {
+					this._explicitlyUngroupedSessionIds.add(to);
+				}
+				changed = true;
+			}
+		}
+		return changed;
 	}
 
 	getGroups(): ISessionGroup[] {
@@ -700,9 +789,14 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		if (this._pendingNewSessionGroupId !== undefined && deletedIds.has(this._pendingNewSessionGroupId)) {
 			this._pendingNewSessionGroupId = undefined;
 		}
+		for (const [slotId, gid] of this._draftSlotGroups) {
+			if (deletedIds.has(gid)) {
+				this._draftSlotGroups.delete(slotId);
+			}
+		}
 		for (const [sessionId, gid] of this._inFlightSessionGroups) {
 			if (deletedIds.has(gid)) {
-				this._inFlightSessionGroups.delete(sessionId);
+				this.deleteInFlightSessionGroup(sessionId);
 			}
 		}
 		const membership = new Map<string, string>();
@@ -780,7 +874,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 	removeFromGroup(sessionId: string): void {
 		const membershipDeleted = this._membership.delete(sessionId);
-		const transientMembershipDeleted = this._inFlightSessionGroups.delete(sessionId);
+		const transientMembershipDeleted = this.deleteInFlightSessionGroup(sessionId);
 		if (!membershipDeleted && !transientMembershipDeleted) {
 			return;
 		}
@@ -812,11 +906,39 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		return [...result];
 	}
 
-	setPendingNewSessionGroup(groupId: string): void {
-		this._pendingNewSessionGroupId = this._groups.has(groupId) ? groupId : undefined;
+	setPendingNewSessionGroup(groupId: string | undefined): void {
+		this._pendingNewSessionGroupId = groupId && this._groups.has(groupId) ? groupId : undefined;
+	}
+
+	getPendingNewSessionGroup(): string | undefined {
+		return this._pendingNewSessionGroupId;
+	}
+
+	setDraftSlotGroup(slotId: string, groupId: string | undefined): IDisposable {
+		if (groupId !== undefined && this._groups.has(groupId)) {
+			this._draftSlotGroups.set(slotId, groupId);
+		} else {
+			this._draftSlotGroups.delete(slotId);
+		}
+		return toDisposable(() => {
+			if (this._draftSlotGroups.get(slotId) === groupId) {
+				this._draftSlotGroups.delete(slotId);
+			}
+		});
 	}
 
 	// -- Helpers --
+
+	/** Whether a session is not owned by an independent new-session draft slot, so the main composer's intent applies. */
+	private isMainComposerSession(sessionId: string): boolean {
+		const owner = this.sessionsManagementService.getNewSessionOwner(sessionId);
+		return !owner || owner === this.sessionsManagementService.defaultNewSessionSlot;
+	}
+
+	private deleteInFlightSessionGroup(sessionId: string): boolean {
+		this._slotSendSessionIds.delete(sessionId);
+		return this._inFlightSessionGroups.delete(sessionId);
+	}
 
 	private capturePendingNewSessionGroup(sessionId: string): boolean {
 		if (this._pendingNewSessionGroupId === undefined) {
@@ -837,6 +959,9 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		}
 		this._inFlightSessionGroups.delete(from.sessionId);
 		this._inFlightSessionGroups.set(to.sessionId, groupId);
+		if (this._slotSendSessionIds.delete(from.sessionId)) {
+			this._slotSendSessionIds.add(to.sessionId);
+		}
 		this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([from.sessionId, to.sessionId]) });
 	}
 

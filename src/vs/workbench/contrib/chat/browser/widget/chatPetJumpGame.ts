@@ -7,6 +7,8 @@ import './media/chatPetJumpGame.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { ButtonBar } from '../../../../../base/browser/ui/button/button.js';
+import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
@@ -14,12 +16,13 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { clamp } from '../../../../../base/common/numbers.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { defaultKeybindingLabelStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultKeybindingLabelStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatPetJumpDirection, ChatPetJumpGameModel } from '../../common/chatPetJumpGame.js';
 
@@ -29,7 +32,8 @@ interface IChatPetJumpGameOptions {
 	readonly bounds: HTMLElement;
 	readonly platform: HTMLElement;
 	readonly motionReduced: boolean;
-	readonly onRender: (airborne: boolean, direction: ChatPetJumpDirection) => void;
+	readonly model?: ChatPetJumpGameModel;
+	readonly onRender: (airborne: boolean, direction: ChatPetJumpDirection, charge: number) => void;
 	readonly onExit: (reason: 'escape' | 'fall' | 'blur' | 'cancel') => void;
 }
 
@@ -37,7 +41,7 @@ const FADE_DURATION = 160;
 const HIGH_SCORE_STORAGE_KEY = 'chat.vscodePet.jumpGame.highScore';
 
 export class ChatPetJumpGame extends Disposable {
-	private readonly model: ChatPetJumpGameModel;
+	readonly model: ChatPetJumpGameModel;
 	private readonly effects: HTMLElement;
 	private readonly backdrop: HTMLElement;
 	private readonly stage: HTMLElement;
@@ -79,7 +83,7 @@ export class ChatPetJumpGame extends Disposable {
 		this.originalFacing = pet.dataset.facing;
 		const petBounds = pet.getBoundingClientRect();
 		this.bounds = options.bounds.getBoundingClientRect();
-		this.model = new ChatPetJumpGameModel(this.bounds.width, petBounds.width, petBounds.left + petBounds.width / 2 - this.bounds.left);
+		this.model = options.model ?? new ChatPetJumpGameModel(this.bounds.width, petBounds.width, petBounds.left + petBounds.width / 2 - this.bounds.left);
 		const root = this.originalParent.closest<HTMLElement>('.monaco-workbench') ?? dom.getWindow(pet).document.body;
 		this.effects = dom.append(root, dom.$('.chat-pet-jump-effects', { 'aria-hidden': 'true' }));
 		this.backdrop = dom.append(this.effects, dom.$('.chat-pet-jump-backdrop'));
@@ -93,11 +97,13 @@ export class ChatPetJumpGame extends Disposable {
 			['{1}', KeyCode.LeftArrow],
 			['{2}', KeyCode.RightArrow],
 			['{3}', KeyCode.Escape],
+			['{4}', KeyCode.KeyR],
+			['{5}', KeyCode.KeyZ],
 		]);
 		const controls = localize({
 			key: 'chatPet.jump.controlsWithKeybindings',
-			comment: ['{0}, {1}, {2}, and {3} are keybinding labels for Space, Left Arrow, Right Arrow, and Escape.'],
-		}, "Hold {0} to charge, release to jump. {1} / {2} to hop or aim. {3} to exit.");
+			comment: ['{0}, {1}, {2}, {3}, {4}, and {5} are keybinding labels for Space, Left Arrow, Right Arrow, Escape, R, and Z.'],
+		}, "Hold {0} to charge, release to jump. {1} / {2} to hop or aim. {3} to exit. After a fall: {4} to retry, {5} to reset.");
 		for (const part of controls.split(/(\{\d+\})/g)) {
 			const keyCode = hintKeys.get(part);
 			if (keyCode !== undefined) {
@@ -121,7 +127,7 @@ export class ChatPetJumpGame extends Disposable {
 		}
 		const scopedContext = this._register(contextKeyService.createScoped(overlay));
 		ChatPetJumpGameFocusedContext.bindTo(scopedContext).set(true);
-		let label = localize('chatPet.jump.label', "Blobby's jump game. Hold Space to charge and release to jump. Use Left and Right Arrow to hop or aim. Press Escape to exit.");
+		let label = localize('chatPet.jump.label', "Blobby's jump game. Hold Space to charge and release to jump. Use Left and Right Arrow to hop or aim. Press Escape to exit. After a fall, wait for Blobby to land. Retry or R returns to the last safe spot in the same game; Reset or Z starts a new game.");
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.ChatPetJumpGame)) {
 			const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 			if (helpKeybinding) {
@@ -240,6 +246,7 @@ export class ChatPetJumpGame extends Disposable {
 			this.model.advance(this.lastFrameTime === undefined ? 0 : now - this.lastFrameTime);
 			this.lastFrameTime = now;
 			if (this.model.hasFallen) {
+				this.model.cancelCharge();
 				this.render();
 				this.options.onExit('fall');
 				return;
@@ -333,12 +340,13 @@ export class ChatPetJumpGame extends Disposable {
 		this.pet.style.bottom = 'auto';
 		this.gauge.style.left = `${Math.round(clamp(player.x - 38, 0, this.bounds.width - 76))}px`;
 		this.gauge.style.top = `${Math.round(this.anchor - this.model.petSize - 28)}px`;
+		this.gauge.hidden = !this.model.charging;
 		this.gauge.classList.toggle('full', this.model.charge === 1);
 		for (let i = 0; i < this.cells.length; i++) {
 			this.cells[i].classList.toggle('filled', i < Math.ceil(this.model.charge * this.cells.length));
 		}
 		const direction = player.velocityX < 0 ? -1 : player.velocityX > 0 ? 1 : this.model.direction;
-		this.options.onRender(player.platform === undefined, direction);
+		this.options.onRender(player.platform === undefined, direction, this.model.charge);
 	}
 
 	private updateScore(): void {
@@ -400,12 +408,12 @@ export class ChatPetJumpGame extends Disposable {
 	getHelp(): string {
 		return [
 			localize('chatPet.jump.help.overview', "Blobby's jump game starts when you activate the pet while it is sitting on the new-session welcome text. You can also choose Play Jump Game from the pet's context menu to move to that perch and start, including with reduced motion enabled. The randomly generated platforms belong only to the game. Your session, draft, and workspace are not changed."),
-			localize('chatPet.jump.help.controls', "Hold Space to charge a jump, then release it to launch. A longer charge jumps higher and farther. Left and Right Arrow make short hops; while holding Space, they choose the jump direction. The direction is locked during flight. Walls bounce Blobby back. Missing a platform can drop Blobby onto a lower one. Falling past the starting platform ends the game and lets Blobby fall onto the input box or another surface. If no surface catches Blobby, the normal respawn plays."),
-			localize('chatPet.jump.help.camera', "The camera follows Blobby up and down. The platforms scroll, but the workbench does not. Landings and a full charge are announced."),
+			localize('chatPet.jump.help.controls', "Hold Space to charge a jump, then release it to launch. Blobby crouches as the charge builds. A longer charge jumps higher and farther. Left and Right Arrow make short hops; while holding Space, they choose the jump direction and turn Blobby's crouched pose. The direction is locked during flight. Walls bounce Blobby back. Missing a platform can drop Blobby onto a lower one. Falling past the starting platform ends the run and lets Blobby finish falling onto the input or another surface. If no surface catches Blobby, the normal respawn plays. Once Blobby has landed and recovered, Retry and Reset appear above the pet. Retry or R teleports Blobby to the last safe spot before the fall in the same game, restoring the platforms and progress from that point with no jump charge. All crumbling platforms are restored, including ones that fell earlier in the run. A crumbling launch platform gets a fresh timer. Reset or Z teleports Blobby to the start of a new game with new platforms and zero hops. The shortcuts work only while Blobby or a recovery button is focused. Tab or the arrow keys move between the buttons; Enter or Space activates the focused button. Your high score is kept. The recovery prompt and its shortcuts disappear after five idle seconds. Hovering or focusing a recovery button pauses this timeout, and leaving the buttons starts a new five-second timeout. With screen reader optimization enabled, the prompt stays until you dismiss it or choose an action. Press Escape to dismiss the prompt."),
+			localize('chatPet.jump.help.camera', "The camera follows Blobby up and down. The platforms scroll, but the workbench does not. The charge bar is visible only while holding Space on a platform. Landings and a full charge are announced."),
 			localize('chatPet.jump.help.difficulty', "As you climb, ledges become narrower. Moving ledges have arrow markings and carry Blobby while charging. Broken-line ledges crumble shortly after landing, then fall away; charge and leave before their remaining solid line disappears. Later sections add solid walls. Aim toward a wall to reflect your jump onto a nearby narrow ledge; hitting a side reverses horizontal travel without changing the vertical speed. The platforms and crumble timers pause with accessibility help and the accessible view."),
 			localize('chatPet.jump.help.score', "The top-right counter shows Hops, with High score underneath. Landing on a platform higher than any you have reached in this run adds one hop. Returning to old platforms or hopping in place does not add points. Only the high score is saved on this device; every run starts at zero."),
 			localize('chatPet.jump.help.view', "Inspect your height, charge, and nearby platforms with <keybinding:editor.action.accessibleView>. The game pauses while accessibility help or the accessible view is open."),
-			localize('chatPet.jump.help.exit', "Press Escape to leave the game and restore Blobby to its perch. Tab away, click into the input, or start typing to fade the platforms away and let Blobby fall straight down onto the surfaces below. The new-session content fades out visually while playing and returns on exit; its layout and draft are unchanged."),
+			localize('chatPet.jump.help.exit', "Press Escape to leave the game and restore Blobby to its perch. Tab away, click into the input, or start typing to fade the platforms away and let Blobby fall straight down onto the surfaces below. Tabbing away or clicking into an empty input also offers Retry and Reset after landing, without moving input focus. Typing dismisses recovery. The new-session content fades out visually while playing and returns on exit; its layout and draft are unchanged."),
 		].join('\n\n');
 	}
 
@@ -454,5 +462,104 @@ export class ChatPetJumpGame extends Disposable {
 		} else {
 			this.pet.dataset.facing = this.originalFacing;
 		}
+	}
+}
+
+export class ChatPetJumpGameRetry extends Disposable {
+	private readonly container: HTMLElement;
+
+	constructor(
+		private readonly overlay: HTMLElement,
+		private readonly pet: HTMLElement,
+		private readonly bounds: HTMLElement,
+		onRetry: () => void,
+		onReset: () => void,
+		onDismiss: () => void,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+	) {
+		super();
+		this.container = dom.append(overlay, dom.$('.chat-pet-jump-retry', {
+			role: 'group',
+			'aria-label': localize('chatPet.jump.recovery', "Jump Game Recovery"),
+		}));
+		this._register(toDisposable(() => this.container.remove()));
+		const buttonBar = this._register(new ButtonBar(this.container));
+		const hoverDelegate = this._register(createInstantHoverDelegate());
+		const addButton = (label: string, description: string, key: KeyCode, run: () => void) => {
+			const button = buttonBar.addButton({
+				...defaultButtonStyles, secondary: true, small: true,
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				ariaLabel: description, title: description, hoverDelegate,
+			});
+			button.label = label;
+			const keybindingLabel = this._register(new KeybindingLabel(button.element, OS, { ...defaultKeybindingLabelStyles, disableTitle: true }));
+			keybindingLabel.element.setAttribute('aria-hidden', 'true');
+			keybindingLabel.set(keybindingService.resolveKeybinding(new KeyCodeChord(false, false, false, false, key).toKeybinding())[0]);
+			this._register(button.onDidClick(event => {
+				if (event) {
+					dom.EventHelper.stop(event, true);
+				}
+				run();
+			}));
+		};
+		addButton(localize('chatPet.jump.retry', "Retry"), localize('chatPet.jump.retryLabel', "Retry Blobby's Jump from Before the Fall (R)"), KeyCode.KeyR, onRetry);
+		addButton(localize('chatPet.jump.reset', "Reset"), localize('chatPet.jump.resetLabel', "Reset Blobby's Jump Game to the Start (Z)"), KeyCode.KeyZ, onReset);
+		this._register(dom.addDisposableListener(overlay, dom.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.equals(KeyCode.KeyR)) {
+				dom.EventHelper.stop(event, true);
+				onRetry();
+			} else if (keyboardEvent.equals(KeyCode.KeyZ)) {
+				dom.EventHelper.stop(event, true);
+				onReset();
+			} else if (keyboardEvent.equals(KeyCode.Escape)) {
+				dom.EventHelper.stop(event, true);
+				onDismiss();
+				pet.focus({ preventScroll: true });
+			}
+		}, true));
+		this.layout();
+		const targetWindow = dom.getWindow(overlay);
+		const dismissal = this._register(new MutableDisposable());
+		let hovering = false;
+		const canDismiss = () => !hovering && !dom.isAncestorOfActiveElement(this.container) && !accessibilityService.isScreenReaderOptimized();
+		const scheduleDismissal = () => {
+			dismissal.clear();
+			if (!canDismiss()) {
+				return;
+			}
+			const timeout = targetWindow.setTimeout(() => {
+				dismissal.clear();
+				if (canDismiss()) {
+					onDismiss();
+				}
+			}, 5_000);
+			dismissal.value = toDisposable(() => targetWindow.clearTimeout(timeout));
+		};
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_ENTER, () => {
+			hovering = true;
+			dismissal.clear();
+		}));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_LEAVE, () => {
+			hovering = false;
+			scheduleDismissal();
+		}));
+		const focusTracker = this._register(dom.trackFocus(this.container));
+		this._register(focusTracker.onDidFocus(() => dismissal.clear()));
+		this._register(focusTracker.onDidBlur(scheduleDismissal));
+		this._register(accessibilityService.onDidChangeScreenReaderOptimized(scheduleDismissal));
+		scheduleDismissal();
+	}
+
+	layout(): void {
+		const bounds = this.bounds.getBoundingClientRect();
+		const overlay = this.overlay.getBoundingClientRect();
+		const pet = this.pet.getBoundingClientRect();
+		this.container.style.maxWidth = `${Math.max(0, bounds.width - 16)}px`;
+		const halfWidth = this.container.offsetWidth / 2;
+		this.container.style.left = `${clamp(pet.left + pet.width / 2, bounds.left + halfWidth + 8, bounds.right - halfWidth - 8) - overlay.left}px`;
+		this.container.style.top = `${Math.max(bounds.top + this.container.offsetHeight, pet.top - 8) - overlay.top}px`;
 	}
 }

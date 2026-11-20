@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CopilotClient, approveAll } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, approveAll } from '@microsoft/copilot-sdk';
 import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
@@ -39,6 +39,7 @@ suite('Agent Host Provider Integration - Copilot OTel concurrency', function () 
 			let modelCalls = 0;
 			disposables.add(registry.register('client', {
 				onDidChangeModels: models.event,
+				onDidDelta: Event.None,
 				chat: async () => {
 					const batch = modelCalls++;
 					return {
@@ -62,19 +63,25 @@ suite('Agent Host Provider Integration - Copilot OTel concurrency', function () 
 			const tracePath = join(directory, 'otel.jsonl');
 			const client = new CopilotClient({
 				mode: 'empty',
-				baseDirectory: join(directory, 'copilot'),
-				workingDirectory: directory,
-				useLoggedInUser: false,
-				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(directory, {
-					PATH: process.env.PATH,
-					SystemRoot: process.env.SystemRoot,
-					WINDIR: process.env.WINDIR,
-					ComSpec: process.env.ComSpec,
-					PATHEXT: process.env.PATHEXT,
-					COPILOT_TELEMETRY_ENABLED: 'false',
-					COPILOT_OTEL_ENABLED: String(otelEnabled),
-				})),
-				...(otelEnabled ? { telemetry: { exporterType: 'file', filePath: tracePath, captureContent: false } } : {}),
+				runtime: RuntimeConnection.forSpawnedStdio({
+					baseDirectory: join(directory, 'copilot'),
+					workingDirectory: directory,
+					env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(directory, {
+						PATH: process.env.PATH,
+						SystemRoot: process.env.SystemRoot,
+						WINDIR: process.env.WINDIR,
+						ComSpec: process.env.ComSpec,
+						PATHEXT: process.env.PATHEXT,
+						COPILOT_TELEMETRY_ENABLED: 'false',
+						COPILOT_OTEL_ENABLED: String(otelEnabled),
+					})),
+				}),
+				github: { useLoggedInUser: false },
+				...(otelEnabled ? {
+					observability: {
+						telemetry: { exporterType: 'file', filePath: tracePath, captureContent: false },
+					},
+				} : {}),
 			});
 			let stopLogging = false;
 			let logPumps: Promise<PromiseSettledResult<void>[]> = Promise.resolve([]);
@@ -85,16 +92,29 @@ suite('Agent Host Provider Integration - Copilot OTel concurrency', function () 
 				const session = await client.createSession({
 					sessionId,
 					workingDirectory: directory,
-					model: 'otel-model',
-					availableTools: [shell],
-					skipCustomInstructions: true,
-					skipEmbeddingRetrieval: true,
-					onPermissionRequest: approveAll,
-					provider: {
-						type: 'openai',
-						wireApi: 'responses',
-						baseUrl: handle.providerBaseUrl('test'),
-						bearerToken: `${handle.nonce}.${sessionId}`,
+					model: 'test/otel-model',
+					github: { capi: { enabled: false } },
+					tools: {
+						availableTools: [shell],
+					},
+					instructions: {
+						skipCustomInstructions: true,
+					},
+					state: {
+						skipEmbeddingRetrieval: true,
+					},
+					permissions: {
+						onRequest: approveAll,
+					},
+					inference: {
+						providers: [{
+							name: 'test',
+							type: 'openai',
+							wireApi: 'responses',
+							baseUrl: handle.providerBaseUrl('test'),
+							bearerToken: `${handle.nonce}.${sessionId}`,
+						}],
+						models: [{ provider: 'test', id: 'otel-model' }],
 					},
 				});
 				const errors: string[] = [];

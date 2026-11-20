@@ -21,8 +21,8 @@ import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../workbench/contrib/file
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { SessionsEmptyStateActions } from '../../../../workbench/contrib/sessions/browser/parts/sessionsEmptyStateActions.js';
-import { SessionsEmptyStateLayout } from '../../../../workbench/contrib/sessions/browser/parts/sessionsEmptyStateLayout.js';
+import { SessionsEmptyStateActions } from '../../../../workbench/browser/parts/sessions/sessionsEmptyStateActions.js';
+import { SessionsEmptyStateLayout } from '../../../../workbench/browser/parts/sessions/sessionsEmptyStateLayout.js';
 import { EmptyFileEditorSearch } from './emptyFileEditorSearch.js';
 import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 

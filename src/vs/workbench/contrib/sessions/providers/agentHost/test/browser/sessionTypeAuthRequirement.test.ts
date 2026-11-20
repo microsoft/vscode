@@ -10,7 +10,7 @@ import type { AgentInfo } from '../../../../../../../platform/agentHost/common/s
 import type { ProtectedResourceMetadata } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { resolveAgentAuthRequirement } from '../../browser/baseAgentHostSessionsProvider.js';
 import { areLocalModelsLoaded, getSignedOutModelsNotificationState, SignedOutModelsNotificationState } from '../../../../../chat/browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
-import { SessionTypeAuthRequirement } from '../../../../common/session.js';
+import { SessionTypeAuthRequirement } from '../../../../../../services/sessions/common/session.js';
 
 function agent(protectedResources: ProtectedResourceMetadata[] | undefined, modelCount: number): AgentInfo {
 	return {
@@ -98,6 +98,42 @@ suite('Agent Host - session type auth requirement', () => {
 			modelsAvailable: SignedOutModelsNotificationState.Hidden,
 			signedIn: SignedOutModelsNotificationState.Hidden,
 			setupDialogVisible: SignedOutModelsNotificationState.Hidden,
+		});
+	});
+
+	test('no-model notification distinguishes missing permissions from unavailable authentication', () => {
+		const signedIn = {
+			accountResolved: true,
+			entitlementResolved: true,
+			signedIn: true,
+			hasCopilotHarness: true,
+			hasModels: false,
+			localModelsLoaded: true,
+			gracePeriodElapsed: false,
+			setupDialogVisible: false,
+			copilotAuthentication: 'signedOut' as const,
+		};
+
+		assert.deepStrictEqual({
+			missingPermissions: getSignedOutModelsNotificationState(signedIn),
+			permissionsGranted: getSignedOutModelsNotificationState({ ...signedIn, copilotAuthentication: 'resolved' }),
+			providerUnavailable: getSignedOutModelsNotificationState({ ...signedIn, copilotAuthentication: 'unavailable' }),
+			authenticationLoading: getSignedOutModelsNotificationState({ ...signedIn, copilotAuthentication: undefined }),
+			byokAvailable: getSignedOutModelsNotificationState({ ...signedIn, hasModels: true }),
+			harnessUnavailable: getSignedOutModelsNotificationState({ ...signedIn, hasCopilotHarness: false }),
+			setupDialogVisible: getSignedOutModelsNotificationState({ ...signedIn, setupDialogVisible: true }),
+			modelsLoading: getSignedOutModelsNotificationState({ ...signedIn, localModelsLoaded: false }),
+			loadingPastGracePeriod: getSignedOutModelsNotificationState({ ...signedIn, localModelsLoaded: false, gracePeriodElapsed: true }),
+		}, {
+			missingPermissions: SignedOutModelsNotificationState.VisibleMissingPermissions,
+			permissionsGranted: SignedOutModelsNotificationState.Hidden,
+			providerUnavailable: SignedOutModelsNotificationState.Hidden,
+			authenticationLoading: SignedOutModelsNotificationState.Hidden,
+			byokAvailable: SignedOutModelsNotificationState.Hidden,
+			harnessUnavailable: SignedOutModelsNotificationState.Hidden,
+			setupDialogVisible: SignedOutModelsNotificationState.Hidden,
+			modelsLoading: SignedOutModelsNotificationState.Waiting,
+			loadingPastGracePeriod: SignedOutModelsNotificationState.VisibleMissingPermissions,
 		});
 	});
 

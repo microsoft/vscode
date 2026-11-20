@@ -24,7 +24,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IMobileContentSheetApi } from '../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
-import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
+import { isPhoneLayout } from '../../../../../workbench/browser/parts/sessions/mobileLayout.js';
 import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
 import { ConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';

@@ -9,6 +9,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatWindowBlurListener } from '../../../browser/widget/chatWindowBlurListener.js';
+import { registerTestIframe } from '../../../../../../base/test/browser/testWindow.js';
 
 suite('ChatWindowBlurListener', () => {
 
@@ -19,6 +20,7 @@ suite('ChatWindowBlurListener', () => {
 		// The other window of a chat, such as a chat window.
 		const frame = mainWindow.document.body.appendChild($('iframe')) as HTMLIFrameElement;
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		const otherWindow = frame.contentWindow!;
 		const blurs: string[] = [];
 		const blur = (name: string, targetWindow: Window) => {

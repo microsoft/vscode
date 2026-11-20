@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IReader } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,14 +17,16 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
+import { IAgentHostTerminalProfileInfo, IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { IChat, ISession, ISessionWorkspace } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IChat, ISession, ISessionWorkspace } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
@@ -99,7 +101,9 @@ function getSessionWorktreeCwd(session: ISession): URI | undefined {
 
 /**
  * Manages terminal instances in the sessions window, ensuring:
- * - A terminal exists for the active session's worktree (or repository if no worktree).
+ * - A terminal exists for the active session's worktree (or repository if no worktree)
+ *   while the terminal view is visible. Sessions whose terminal is never shown
+ *   do not get one, so they don't keep idle shells alive.
  * - Terminals are tracked per session id and shown/hidden based on that association.
  * - Terminals created before session-id tracking fall back to initial cwd matching
  *   until they are associated with a session in this window.
@@ -115,11 +119,17 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private _activeSessionId: string | undefined;
 	private readonly _sessionTerminals = new Map<string, Set<number>>();
 	private readonly _trackedTerminalScopes = new Map<number, ITrackedTerminalScope>();
-	private readonly _standaloneTerminalIds = new Set<number>();
 	/** Terminals that chat windows show, which the terminal panel leaves to them. */
 	private readonly _chatWindowTerminalIds = new Set<number>();
 	/** In-flight terminal work for drafts, retained only until each operation settles. */
 	private readonly _pendingTerminalOperations = new Map<string, IPendingTerminalOperation>();
+	/**
+	 * Set while the terminal view is open without terminals: it creates one
+	 * itself, which becomes the active session's terminal.
+	 */
+	private _terminalViewOpenedEmpty = false;
+	/** The Agent Host profile set as the default profile for the active session, if any. */
+	private readonly _defaultProfileOverride: IObservable<IAgentHostTerminalProfileInfo | undefined>;
 	private readonly _sessionTerminalGenerations = new Map<string, number>();
 
 	/**
@@ -144,6 +154,8 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		@IPathService private readonly _pathService: IPathService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
+		@IViewsService private readonly _viewsService: IViewsService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) {
 		super();
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
@@ -157,7 +169,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}
 
-		const profileOverride = derived(reader => {
+		this._defaultProfileOverride = derived(reader => {
 			const session = this._mainWindowHost.session.read(reader);
 			if (!session || session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
 				return; // no need to override local default profiles with the local AH
@@ -173,7 +185,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		});
 
 		this._register(autorun(reader => {
-			const profile = profileOverride.read(reader);
+			const profile = this._defaultProfileOverride.read(reader);
 			if (profile) {
 				reader.store.add(this._terminalProfileService.overrideDefaultProfile(
 					profile.extensionIdentifier, profile.profileId,
@@ -226,10 +238,40 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			this._onActiveSessionChanged(session, chat, info);
 		}));
 
+		// Terminals are created lazily: when the terminal view is shown, give the
+		// active session the terminal it skipped while the view was hidden.
+		this._register(this._viewsService.onDidChangeViewVisibility(e => {
+			if (e.id !== TERMINAL_VIEW_ID) {
+				return;
+			}
+			// The view creates a terminal when it opens empty; that terminal becomes
+			// the session's terminal, so do not create a second one.
+			this._terminalViewOpenedEmpty = e.visible && this._terminalGroupService.groups.length === 0;
+			if (e.visible && !this._terminalViewOpenedEmpty) {
+				this._onTerminalViewShown();
+			}
+		}));
+		this._register(this._terminalService.onDidCreateInstance(instance => {
+			if (this._terminalViewOpenedEmpty && this._couldBeTerminalViewShell(instance)) {
+				this._terminalViewOpenedEmpty = false;
+				// The terminal group fires this event before it registers the instance,
+				// synchronously after it; until then the terminal service does not know it.
+				queueMicrotask(() => this._adoptTerminalViewTerminal(instance));
+			}
+		}));
+
 		// Repeated New Session actions replace one draft with another. Transfer
-		// the old draft's terminals when both drafts use the same cwd and backend.
+		// the old draft's terminals when both drafts use the same cwd and backend;
+		// otherwise release them, like those of a discarded draft, so a later
+		// session in their cwd and backend reuses them instead of creating new ones.
 		this._register(this._sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => {
 			this._onDidReplaceNewDraftSession(from, to);
+		}));
+
+		// A discarded draft no longer owns its terminals: release them so the
+		// next session in the same cwd reuses them instead of creating new ones.
+		this._register(this._sessionsManagementService.onDidDiscardNewSession(session => {
+			this._onDidDiscardNewSession(session);
 		}));
 
 		// When a session is replaced (untitled → committed graduation), transfer
@@ -243,7 +285,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// (e.g. user closes a terminal tab) so the map doesn't hold stale entries.
 		this._register(this._terminalService.onDidDisposeInstance(instance => {
 			this._removeTerminalFromTrackedSessions(instance.instanceId);
-			this._standaloneTerminalIds.delete(instance.instanceId);
 			this._chatWindowTerminalIds.delete(instance.instanceId);
 		}));
 
@@ -350,7 +391,76 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
-	private async _ensureTerminal(cwd: URI, focus: boolean, session?: ISession, generation?: number, requireCwdMatch = false, location?: ITerminalLocationOptions): Promise<ITerminalInstance[]> {
+	/**
+	 * Gives the active session the terminal it skipped while the terminal view
+	 * was hidden, reusing a terminal in its cwd when there is one.
+	 */
+	private async _onTerminalViewShown(): Promise<ISession | undefined> {
+		const session = this._mainWindowHost.session.get();
+		if (!session || session.loading.get() || session.isArchived.get() || session.worktreePending?.get() || !this._isSessionRemoteHostAvailable(session)) {
+			return undefined;
+		}
+		this._activeKey = undefined;
+		this._activeAgentHostAddress = undefined;
+		this._activeSessionId = undefined;
+		await this._onActiveSessionChanged(session, this._mainWindowHost.chat.get());
+		return session;
+	}
+
+	/**
+	 * Whether the terminal could be the one the terminal view creates when it
+	 * opens empty: a shell in the panel that no editor, task, extension or
+	 * restored terminal session asked for. It may run on a custom pty, since
+	 * an Agent Host profile can be the default profile; the custom ptys of
+	 * tasks, extensions and revived Agent Host terminals carry the flags below.
+	 */
+	private _couldBeTerminalViewShell(instance: ITerminalInstance): boolean {
+		const config = instance.shellLaunchConfig;
+		return instance.target === TerminalLocation.Panel
+			&& !config.hideFromUser
+			&& !config.isFeatureTerminal
+			&& !config.isExtensionOwnedTerminal
+			&& config.type !== 'Task'
+			&& !config.extHostTerminalId
+			&& !config.attachPersistentProcess;
+	}
+
+	/**
+	 * Makes the terminal the terminal view created when it opened empty the
+	 * active session's terminal, then shows the session's terminals.
+	 */
+	private _adoptTerminalViewTerminal(instance: ITerminalInstance): void {
+		const session = this._mainWindowHost.session.get();
+		const sessionId = this._activeSessionId;
+		const key = this._activeKey;
+		const agentHostAddress = this._activeAgentHostAddress;
+		const available = this._getAvailableTerminal(instance, 'adopt the terminal view terminal');
+		if (available && session && sessionId === session.sessionId && key !== undefined && this._getTrackedTerminalsForSession(sessionId).length === 0) {
+			if (this._isTerminalViewShellOnBackend(available, agentHostAddress)) {
+				this._logService.trace(`[SessionsTerminal] Adopting terminal ${available.instanceId} the terminal view created for session ${sessionId}`);
+				this._trackTerminalsForSession(sessionId, [available], { sessionId, key, agentHostAddress });
+			} else {
+				this._logService.trace(`[SessionsTerminal] Not adopting terminal ${available.instanceId}; it does not run where session ${sessionId} runs its terminals`);
+			}
+		}
+		this._onTerminalViewShown();
+	}
+
+	/**
+	 * Whether the terminal the terminal view created runs on the given backend:
+	 * the session's Agent Host, or a local shell for a local session. A custom
+	 * pty whose Agent Host is unknown runs on neither.
+	 */
+	private _isTerminalViewShellOnBackend(instance: ITerminalInstance, agentHostAddress: string | undefined): boolean {
+		const instanceAgentHostAddress = this._agentHostTerminalService.getAgentHostAddress(instance);
+		if (instanceAgentHostAddress !== undefined) {
+			return instanceAgentHostAddress === agentHostAddress;
+		}
+		return !instance.shellLaunchConfig.customPtyImplementation
+			&& (agentHostAddress === undefined || agentHostAddress === LOCAL_AGENT_HOST_ADDRESS);
+	}
+
+	private async _ensureTerminal(cwd: URI, focus: boolean, session?: ISession, generation?: number, requireCwdMatch = false, location?: ITerminalLocationOptions, createIfMissing = true): Promise<ITerminalInstance[]> {
 		if (session && this._isTerminalOperationCancelled(session, generation)) {
 			return [];
 		}
@@ -367,6 +477,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (session && this._isTerminalOperationCancelled(session, generation)) {
 				return [];
 			}
+		}
+
+		if (existing.length === 0 && !createIfMissing) {
+			return [];
 		}
 
 		if (existing.length === 0) {
@@ -461,7 +575,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (!session) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}
@@ -477,7 +591,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (info || workspace) {
 			return info;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
 			return undefined;
 		}
@@ -519,7 +633,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			this._activeAgentHostAddress = targetAgentHostAddress;
 			this._activeSessionId = session.sessionId;
 
-			const instances = await this._ensureTerminal(targetPath, false, session, generation, true);
+			// Only create a terminal when the user can see it; otherwise reuse the
+			// session's existing terminals and let the view create one when shown.
+			const createIfMissing = this._viewsService.isViewVisible(TERMINAL_VIEW_ID);
+			const instances = await this._ensureTerminal(targetPath, false, session, generation, true, undefined, createIfMissing);
 
 			// If the active session or key changed while we were awaiting, a newer
 			// call has taken over — skip the visibility update to avoid flicker.
@@ -543,7 +660,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (instance.shellLaunchConfig.hideFromUser) {
 				continue;
 			}
-			if (options?.excludeTracked && (this._isTerminalTracked(instance.instanceId) || this._standaloneTerminalIds.has(instance.instanceId))) {
+			if (options?.excludeTracked && this._isTerminalTracked(instance.instanceId)) {
 				continue;
 			}
 			try {
@@ -609,23 +726,46 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (fromCwd === toCwd && fromAgentHostAddress === toAgentHostAddress) {
 			this._transferTerminals(from.sessionId, to.sessionId);
 		} else {
-			this._rehomeTerminals(from.sessionId);
+			this._releaseTerminals(from.sessionId, 'replaced');
 		}
 	}
 
-	private _rehomeTerminals(sessionId: string): void {
-		const terminals = this._getTrackedTerminalsForSession(sessionId);
-		for (const terminal of terminals) {
-			this._standaloneTerminalIds.add(terminal.instanceId);
-			this._trackedTerminalScopes.delete(terminal.instanceId);
+	private _onDidDiscardNewSession(session: ISession): void {
+		const pendingOperation = this._pendingTerminalOperations.get(session.sessionId);
+		if (pendingOperation) {
+			pendingOperation.replaced = true;
 		}
-		if (terminals.length > 0) {
-			this._logService.trace(`[SessionsTerminal] Rehomed ${terminals.length} terminal(s) from session ${sessionId}`);
+		this._releaseTerminals(session.sessionId, 'discarded');
+	}
+
+	/**
+	 * Releases the terminals of a draft that no longer owns them. They keep
+	 * their scope, so only a later session in the same cwd and on the same
+	 * backend reuses them, and the panel shows them only for such a session.
+	 */
+	private _releaseTerminals(sessionId: string, reason: 'discarded' | 'replaced'): void {
+		const terminalIds = this._sessionTerminals.get(sessionId);
+		if (!terminalIds) {
+			return;
 		}
-		this._sessionTerminals.delete(sessionId);
+		// Those a chat window shows stay the draft's: as the window moves on to another session, it gives them back to the
+		// panel, rather than taking them for that session, and no other session reuses them meanwhile.
+		const released = [...terminalIds].filter(id => !this._chatWindowTerminalIds.has(id));
+		released.forEach(id => terminalIds.delete(id));
+		if (released.length > 0) {
+			this._logService.trace(`[SessionsTerminal] Released ${released.length} terminal(s) of ${reason} session ${sessionId}`);
+		}
+		if (terminalIds.size === 0) {
+			this._sessionTerminals.delete(sessionId);
+		}
 	}
 
 	private _transferTerminals(fromSessionId: string, toSessionId: string): void {
+		// A session can be replaced by one with the same id (e.g. a draft that
+		// graduates in place): its terminals already belong to the target.
+		if (fromSessionId === toSessionId) {
+			return;
+		}
 		const terminalIds = this._sessionTerminals.get(fromSessionId);
 		if (terminalIds && terminalIds.size > 0) {
 			let targetIds = this._sessionTerminals.get(toSessionId);
@@ -683,9 +823,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private _removeTerminalFromTrackedSessions(instanceId: number): void {
+		// Also of a terminal no session tracks any longer, such as one of a discarded draft.
+		this._trackedTerminalScopes.delete(instanceId);
 		for (const [sessionId, terminalIds] of this._sessionTerminals) {
 			terminalIds.delete(instanceId);
-			this._trackedTerminalScopes.delete(instanceId);
 			if (terminalIds.size === 0) {
 				this._sessionTerminals.delete(sessionId);
 			}
@@ -737,7 +878,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		for (const instance of [...this._terminalService.instances]) {
 			// Skip hidden tool terminals — managed by the chat tool lifecycle
-			if (instance.shellLaunchConfig.hideFromUser || this._standaloneTerminalIds.has(instance.instanceId) || this._chatWindowTerminalIds.has(instance.instanceId)) {
+			if (instance.shellLaunchConfig.hideFromUser || this._chatWindowTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
 			const currentInstance = this._getAvailableTerminal(instance, 'update terminal visibility');
@@ -778,7 +919,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		let mostRecent: ITerminalInstance | undefined;
 		let mostRecentTimestamp = -1;
 		for (const instance of foreground) {
-			if (this._standaloneTerminalIds.has(instance.instanceId) || this._chatWindowTerminalIds.has(instance.instanceId)) {
+			if (this._chatWindowTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
 			if (!await this._terminalMatchesScope(instance, activeKey, activeAgentHostAddress)) {
@@ -859,7 +1000,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 			if (untrackedWorktreeTerminalIds.has(instance.instanceId)
 				&& (this._isTerminalTracked(instance.instanceId)
-					|| this._standaloneTerminalIds.has(instance.instanceId)
 					|| this._terminalService.activeInstance?.instanceId === instance.instanceId)) {
 				continue;
 			}
@@ -904,14 +1044,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		for (const instance of this._terminalService.instances) {
 			if (!instance.shellLaunchConfig.attachPersistentProcess
 				|| instance.shellLaunchConfig.hideFromUser
-				|| this._isTerminalTracked(instance.instanceId)
-				|| this._standaloneTerminalIds.has(instance.instanceId)) {
+				|| this._isTerminalTracked(instance.instanceId)) {
 				continue;
 			}
 			try {
 				if (isEqual(URI.file(await instance.getInitialCwd()), resource)
-					&& !this._isTerminalTracked(instance.instanceId)
-					&& !this._standaloneTerminalIds.has(instance.instanceId)) {
+					&& !this._isTerminalTracked(instance.instanceId)) {
 					result.push(instance);
 				}
 			} catch {
@@ -924,7 +1062,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	async dumpTracking(): Promise<void> {
 		console.log(`[SessionsTerminal] Active key: ${this._activeKey ?? '<none>'}`);
 		console.log(`[SessionsTerminal] Session terminals: ${JSON.stringify([...this._sessionTerminals.entries()].map(([sessionId, terminalIds]) => [sessionId, [...terminalIds]]))}`);
-		console.log(`[SessionsTerminal] Standalone terminals: ${JSON.stringify([...this._standaloneTerminalIds])}`);
 		console.log('[SessionsTerminal] === All Terminals ===');
 		for (const instance of this._terminalService.instances) {
 			let cwd = '<unknown>';
@@ -1000,7 +1137,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// or on another host than the session's, which matching the session's terminals checks then.
 		this._removeTerminalFromTrackedSessions(instance.instanceId);
 		this._trackedTerminalScopes.delete(instance.instanceId);
-		this._standaloneTerminalIds.delete(instance.instanceId);
 		this._trackTerminalsForSession(session.sessionId, [instance]);
 	}
 

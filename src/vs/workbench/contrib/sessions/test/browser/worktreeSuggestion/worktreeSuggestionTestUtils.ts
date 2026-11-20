@@ -7,7 +7,7 @@ import { constObservable, IReader, ISettableObservable, observableValue } from '
 import { basename } from '../../../../../../base/common/resources.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
-import { ISessionFileChange } from '../../../common/session.js';
+import { ISessionFileChange } from '../../../../../services/sessions/common/session.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
 import { getChangedFileUri } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService, WorktreeSpotlightChoice } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
@@ -38,6 +38,8 @@ export class TestWorktreeSuggestionService extends mock<IWorktreeSuggestionServi
 	/** What the user chooses in the next spotlight, or `undefined` when it cannot show. */
 	spotlightChoice: WorktreeSpotlightChoice | undefined;
 	private readonly _hintClosed = observableValue('hintClosed', false);
+	/** Whether the user started a session in a new worktree. */
+	readonly worktreeSessionCreated = observableValue('worktreeSessionCreated', false);
 	private readonly _declined = observableValue<ReadonlySet<string>>('declined', new Set());
 	private readonly _changes: ISettableObservable<readonly ISessionFileChange[] | undefined>;
 
@@ -104,6 +106,9 @@ export class TestWorktreeSuggestionService extends mock<IWorktreeSuggestionServi
 	override closeHint(): void {
 		this.calls.push('hintClosed');
 		this._hintClosed.set(true, undefined);
+	}
+	override hasCreatedWorktreeSession(reader: IReader | undefined): boolean {
+		return this.worktreeSessionCreated.read(reader);
 	}
 	override canShowSpotlight(): boolean {
 		return this.spotlightAvailable;

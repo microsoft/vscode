@@ -14,7 +14,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { getChatCapabilities } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getChatCapabilities } from '../../../../workbench/services/sessions/common/session.js';
 
 /**
  * Re-applies the archived state of every archived chat in the unarchived

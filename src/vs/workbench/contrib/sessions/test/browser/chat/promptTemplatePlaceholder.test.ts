@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { withTestCodeEditor } from '../../../../../../editor/test/browser/testCodeEditor.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { PromptTemplatePlaceholderController, REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID } from '../../../browser/chat/promptTemplatePlaceholder.js';
+import { PromptTemplatePlaceholderController, registerReplacePromptTemplatePlaceholderCommand, REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID } from '../../../browser/chat/promptTemplatePlaceholder.js';
 
 suite('PromptTemplatePlaceholderController', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -65,6 +65,7 @@ suite('PromptTemplatePlaceholderController', () => {
 		withTestCodeEditor('Help me complete [describe the coding task] in this project.', {}, editor => {
 			const disposables = new DisposableStore();
 			try {
+				disposables.add(registerReplacePromptTemplatePlaceholderCommand());
 				const placeholder = '[describe the coding task]';
 				const controller = disposables.add(new PromptTemplatePlaceholderController(editor, () => undefined));
 				controller.setPlaceholder(placeholder);

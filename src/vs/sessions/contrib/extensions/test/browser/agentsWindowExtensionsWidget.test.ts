@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -26,6 +29,11 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfirmation, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService, IContextKeyServiceTarget } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ResolutionResult, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -35,10 +43,13 @@ import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtens
 import { IExtensionManifestPropertiesService, SessionsWindowMissingFeature } from '../../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../../../../../workbench/services/history/common/history.js';
+import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { AgentsWindowExtensionGroup, AgentsWindowExtensionsWidget, getMissingFeaturesWarning, getSuggestedContributionLabels, groupAgentsWindowExtensions, IAgentsWindowExtensionsGroup } from '../../browser/agentsWindowExtensionsWidget.js';
+import { AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID, AgentsWindowExtensionGroup, AgentsWindowExtensionPageContext, AgentsWindowExtensionsWidget, getMissingFeaturesWarning, getSuggestedContributionLabels, groupAgentsWindowExtensions, IAgentsWindowExtensionsGroup } from '../../browser/agentsWindowExtensionsWidget.js';
 import { AGENTS_WINDOW_MARKETPLACE_QUERY_SOURCE } from '../../browser/agentsWindowExtensionsMarketplace.js';
+import { AgentsWindowExtensionPage } from '../../browser/agentsWindowExtensionPage.js';
 import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 interface ITestExtensionOptions {
@@ -107,6 +118,15 @@ function stubMarketplaceServices(instantiationService: TestInstantiationService,
 }
 
 /**
+ * The editor group of the Agent Customizations editor, which the extension pages that the section shows need.
+ */
+function anEditorGroup(): IEditorGroup {
+	return new class extends mock<IEditorGroup>() {
+		override readonly windowId = mainWindow.vscodeWindowId;
+	}();
+}
+
+/**
  * Returns the accessible names of the rendered tree rows in order, once `predicate` holds for them.
  */
 async function waitForRowLabels(container: HTMLElement, predicate: (labels: readonly string[]) => boolean): Promise<string[]> {
@@ -118,6 +138,15 @@ async function waitForRowLabels(container: HTMLElement, predicate: (labels: read
 		assert.ok(predicate(labels), labels.join('\n'));
 		return labels;
 	}, 100, 30);
+}
+
+/**
+ * Focuses a Marketplace row like right-clicking it does, as clicking it opens the extension's page. Unit tests don't
+ * dispatch the keybindings that move the focus of workbench lists.
+ */
+function focusRow(row: HTMLElement): void {
+	row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+	assert.ok(row.classList.contains('focused'), row.getAttribute('aria-label') ?? '');
 }
 
 function summarize(groups: readonly IAgentsWindowExtensionsGroup[]) {
@@ -235,7 +264,7 @@ suite('AgentsWindowExtensionsWidget', () => {
 			override dismissBadge() { dismissals++; }
 		});
 		stubMarketplaceServices(instantiationService);
-		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, mainWindow.document.createElement('div')));
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, mainWindow.document.createElement('div'), anEditorGroup()));
 
 		onChange.fire(undefined);
 		const beforeNavigation = dismissals;
@@ -301,7 +330,7 @@ suite('AgentsWindowExtensionsWidget', () => {
 			}
 		});
 		stubMarketplaceServices(instantiationService);
-		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container));
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container, anEditorGroup()));
 		widget.setVisible(true);
 
 		for (const name of ['Tools', 'Theme', 'Cancelled']) {
@@ -361,7 +390,7 @@ suite('AgentsWindowExtensionsWidget', () => {
 			override dismissBadge() { }
 		});
 		stubMarketplaceServices(instantiationService);
-		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container));
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container, anEditorGroup()));
 		widget.setVisible(true);
 
 		// Browser tests load component CSS asynchronously, and the tree only renders its rows once the CSS gives it a height.
@@ -447,7 +476,7 @@ suite('AgentsWindowExtensionsWidget', () => {
 			override canChangeWorkspaceEnablement() { return true; }
 		});
 		stubSectionServices(instantiationService);
-		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container));
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container, anEditorGroup()));
 		widget.setVisible(true);
 
 		widget.setSearchQuery('formatter');
@@ -523,7 +552,7 @@ suite('AgentsWindowExtensionsWidget', () => {
 			}
 		});
 		stubSectionServices(instantiationService);
-		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container));
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container, anEditorGroup()));
 		widget.setVisible(true);
 
 		widget.setSearchQuery('tools');
@@ -539,10 +568,10 @@ suite('AgentsWindowExtensionsWidget', () => {
 		return { button, menus, calls, events };
 	}
 
-	test('installs a Marketplace extension with Enter without opening the Extensions editor, and enables it in the Agents window as it installs it', async () => {
+	test('installs a Marketplace extension with Space without opening its page, and enables it in the Agents window as it installs it', async () => {
 		const result = await installFromMarketplace(false, row => {
-			row.click();
-			row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			focusRow(row);
+			row.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
 		});
 
 		assert.deepStrictEqual(result, {
@@ -599,7 +628,7 @@ suite('AgentsWindowExtensionsWidget', () => {
 			override canChangeWorkspaceEnablement() { return true; }
 		});
 		stubSectionServices(instantiationService, options.marketplaceStatus, options.onDidChangeMarketplaceStatus);
-		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container));
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container, anEditorGroup()));
 		widget.setVisible(true);
 		return { container, widget };
 	}
@@ -635,7 +664,7 @@ suite('AgentsWindowExtensionsWidget', () => {
 			override canChangeWorkspaceEnablement() { return true; }
 		});
 		stubSectionServices(instantiationService, () => marketplaceStatus, onDidChangeMarketplaceStatus.event);
-		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container));
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container, anEditorGroup()));
 		widget.setVisible(true);
 		const rows = (predicate: (labels: readonly string[]) => boolean) => retry(async () => {
 			const rendered = [...container.querySelectorAll<HTMLElement>('.agents-window-extension-row')].map(row => ({
@@ -695,13 +724,13 @@ suite('AgentsWindowExtensionsWidget', () => {
 
 		widget.setSearchQuery('tools');
 		const unfocused = await installButtonTabIndex(() => true);
-		unfocused.row.click();
+		focusRow(unfocused.row);
 		const focused = await installButtonTabIndex(tabIndex => tabIndex === 0);
 		widget.setSearchQuery('tool');
 		await retry(async () => assert.strictEqual(queries.length, 2), 100, 30);
 		// The list loses its focus when the new search replaces the focused row while it searches.
 		const searchedAgain = await installButtonTabIndex(() => true);
-		searchedAgain.row.click();
+		focusRow(searchedAgain.row);
 		const refocused = await installButtonTabIndex(tabIndex => tabIndex === 0);
 
 		assert.deepStrictEqual([unfocused, focused, searchedAgain, refocused].map(({ tabIndex }) => tabIndex), [-1, 0, -1, 0]);
@@ -715,7 +744,7 @@ suite('AgentsWindowExtensionsWidget', () => {
 
 		widget.setSearchQuery('tools');
 		const row = await waitForRow(container, 'Tools,', row => !!installButton(row));
-		row.click();
+		focusRow(row);
 		await timeout(0);
 		const whileResolving = { disabled: installButton(row)!.classList.contains('disabled'), tabIndex: installButton(row)!.tabIndex };
 		await installable.complete(true);
@@ -829,7 +858,7 @@ suite('AgentsWindowExtensionsWidget', () => {
 			}
 		});
 		stubSectionServices(instantiationService);
-		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container));
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container, anEditorGroup()));
 		widget.setVisible(true);
 		const moreActions = async (label: string) => (await waitForRow(container, label)).querySelector<HTMLElement>('.agents-window-extension-more-actions')!;
 
@@ -855,6 +884,143 @@ suite('AgentsWindowExtensionsWidget', () => {
 			calls: ['set extensions.experimental.agentsWindowConfirmUninstall to false', 'uninstall pub.tools', 'uninstall pub.theme'],
 			restart: 'Restart Extensions',
 			rows: 0,
+		});
+	});
+
+	test('opens the page of an extension in place of the list when the user clicks it or presses Enter, and returns to the list with the Back button, the mouse\'s Back button, or Go Back', async () => {
+		const container = createContainer();
+		const tools = anExtension('pub.tools', { displayName: 'Tools', description: 'Adds tools.' });
+		const configurationService = new TestConfigurationService({ [MOUSE_BACK_FORWARD_NAVIGATION_SETTING]: true });
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IConfigurationService, configurationService);
+		// Resolves the context of elements, where Go Back's keybindings return to the list while the page shows.
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+			override readonly local = [tools];
+			override readonly onChange = Event.None;
+			override canSetLanguage() { return false; }
+		});
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new class extends mock<IWorkbenchExtensionEnablementService>() {
+			override isEnabledEnablementState() { return false; }
+			override canChangeWorkspaceEnablement() { return true; }
+		});
+		// The pages that the section shows, which the Extensions editor renders like in editor windows.
+		const pages: string[] = [];
+		instantiationService.stubInstance(AgentsWindowExtensionPage, new class extends mock<AgentsWindowExtensionPage>() {
+			override async show(extension: IExtension) { pages.push(`show ${extension.identifier.id}`); }
+			override clear() { pages.push('clear'); }
+			override layout() { }
+			override dispose() { }
+		}());
+		stubSectionServices(instantiationService);
+		// Like on Windows, where Go Back's keybindings include Alt+Left while the page shows.
+		instantiationService.stub(IKeybindingService, 'softDispatch', (event: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult => event.altKey && event.keyCode === KeyCode.LeftArrow && contextKeyService.getContext(target).getValue(AgentsWindowExtensionPageContext.key)
+			? { kind: ResultKind.KbFound, commandId: AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID, commandArgs: undefined, isBubble: false }
+			: { kind: ResultKind.NoMatchingKb });
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container, anEditorGroup()));
+		widget.setVisible(true);
+		const section = container.querySelector<HTMLElement>('.agents-window-extensions')!;
+		const title = container.querySelector<HTMLElement>('.agents-window-extensions-title')!;
+		const backButton = container.querySelector<HTMLElement>('.agents-window-extensions-back-button')!;
+		// The keys that reach Agent Customizations, which stops the keys of most workbench commands.
+		const modalKeys: string[] = [];
+		disposables.add(addDisposableListener(container, 'keydown', event => modalKeys.push(`${event.altKey ? 'Alt+' : ''}${event.key}`)));
+		const pressAlt = (key: 'ArrowLeft' | 'ArrowRight') => {
+			backButton.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode: key === 'ArrowLeft' ? 37 : 39, altKey: true, bubbles: true, cancelable: true }));
+			return modalKeys.splice(0);
+		};
+		// The mouse buttons that reach the Agents window's own handling, which moves between sessions.
+		const windowMouseButtons: string[] = [];
+		disposables.add(addDisposableListener(container, 'mousedown', event => windowMouseButtons.push(`down ${event.button}`), true));
+		disposables.add(addDisposableListener(container, 'mouseup', event => windowMouseButtons.push(`up ${event.button}`), true));
+		const pressMouseBack = (target: HTMLElement) => {
+			target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 3 }));
+			target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 3 }));
+			return windowMouseButtons.splice(0);
+		};
+		// Whether the page shows in place of the list, what the page did, what has the focus, and whether Go Back returns to the list.
+		const state = () => ({
+			page: section.classList.contains('shows-extension-page'),
+			pages: pages.splice(0),
+			focus: mainWindow.document.activeElement === backButton ? 'Back button' : mainWindow.document.activeElement?.closest('.monaco-list')?.querySelector('.monaco-list-row.focused')?.getAttribute('aria-label')?.split(',')[0],
+			goBackReturns: contextKeyService.getContext(title).getValue<boolean>(AgentsWindowExtensionPageContext.key),
+		});
+
+		const row = await waitForRow(container, 'Tools,');
+		const listMouseBack = pressMouseBack(title);
+		row.click();
+		const clicked = state();
+		backButton.click();
+		const back = state();
+		row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		const entered = state();
+		const mouseBack = { windowMouseButtons: pressMouseBack(title), ...state() };
+		await configurationService.setUserConfiguration(MOUSE_BACK_FORWARD_NAVIGATION_SETTING, false);
+		row.click();
+		const mouseBackTurnedOff = { windowMouseButtons: pressMouseBack(title), page: state().page };
+		const otherKey = { modalKeys: pressAlt('ArrowRight'), page: state().page };
+		const goBackKey = { modalKeys: pressAlt('ArrowLeft'), ...state() };
+		const goBackKeyFromList = { modalKeys: pressAlt('ArrowLeft'), page: state().page };
+		// Like Go Back's keybindings in the webviews that show the content of the page.
+		row.click();
+		state();
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID)!.handler(accessor));
+		const goBack = state();
+
+		assert.deepStrictEqual({ listMouseBack, clicked, back, entered, mouseBack, mouseBackTurnedOff, otherKey, goBackKey, goBackKeyFromList, goBack }, {
+			// The Agents window keeps moving between sessions while the list shows.
+			listMouseBack: ['down 3', 'up 3'],
+			clicked: { page: true, pages: ['show pub.tools'], focus: 'Back button', goBackReturns: true },
+			// Like closing the Extensions editor, returns the focus to the extension.
+			back: { page: false, pages: ['clear'], focus: 'Tools', goBackReturns: false },
+			entered: { page: true, pages: ['show pub.tools'], focus: 'Back button', goBackReturns: true },
+			mouseBack: { windowMouseButtons: [], page: false, pages: ['clear'], focus: 'Tools', goBackReturns: false },
+			mouseBackTurnedOff: { windowMouseButtons: ['down 3', 'up 3'], page: true },
+			otherKey: { modalKeys: ['Alt+ArrowRight'], page: true },
+			goBackKey: { modalKeys: [], page: false, pages: ['clear'], focus: 'Tools', goBackReturns: false },
+			// The keybindings do something else while the list shows.
+			goBackKeyFromList: { modalKeys: ['Alt+ArrowLeft'], page: false },
+			goBack: { page: false, pages: ['clear'], focus: 'Tools', goBackReturns: false },
+		});
+	});
+
+	test('shows the page of an installed extension that another section links to, or searches for an extension that isn\'t installed', async () => {
+		const container = createContainer();
+		const tools = anExtension('pub.tools', { displayName: 'Tools' });
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+			override readonly local = [tools];
+			override readonly onChange = Event.None;
+			override canSetLanguage() { return false; }
+		});
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new class extends mock<IWorkbenchExtensionEnablementService>() {
+			override isEnabledEnablementState() { return false; }
+			override canChangeWorkspaceEnablement() { return true; }
+		});
+		const pages: string[] = [];
+		instantiationService.stubInstance(AgentsWindowExtensionPage, new class extends mock<AgentsWindowExtensionPage>() {
+			override async show(extension: IExtension) { pages.push(`show ${extension.identifier.id}`); }
+			override clear() { pages.push('clear'); }
+			override layout() { }
+			override dispose() { }
+		}());
+		stubSectionServices(instantiationService);
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container, anEditorGroup()));
+		widget.setVisible(true);
+		const section = container.querySelector<HTMLElement>('.agents-window-extensions')!;
+		const searchInput = container.querySelector<HTMLInputElement>('.agents-window-extensions-search input')!;
+		const state = () => ({ page: section.classList.contains('shows-extension-page'), pages: pages.splice(0), search: searchInput.value });
+
+		// Extension identifiers are case-insensitive.
+		widget.showExtension('PUB.Tools');
+		const installed = state();
+		widget.showExtension('pub.missing');
+		const missing = state();
+
+		assert.deepStrictEqual({ installed, missing }, {
+			installed: { page: true, pages: ['show pub.tools'], search: '' },
+			missing: { page: false, pages: ['clear'], search: 'pub.missing' },
 		});
 	});
 });

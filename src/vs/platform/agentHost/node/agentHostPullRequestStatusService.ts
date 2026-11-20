@@ -3,27 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { cancelOnDispose } from '../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../base/common/equals.js';
-import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
+import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../github/common/githubPullRequestService.js';
+import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../github/common/githubPullRequestService.js';
-import { IAgentHostGitHubService } from './agentHostGitHubService.js';
-import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
+import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { getSessionRelatedPullRequestUrls, isAhpChatChannel, hasSessionPullRequestForBranch, isSessionStatusArchived, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { isAgentMergePullRequestReadyForReview, readAgentMergeFolderState } from '../common/agentMerge.js';
 import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { isAgentMergePullRequestReadyForReview, readAgentMergeFolderState } from '../common/agentMerge.js';
-import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isAhpChatChannel, isSessionStatusArchived, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 /**
  * Merge states GitHub reports for a pull request that can still be merged
@@ -124,7 +125,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	private readonly _watches = new Map<string, IWatch>();
 	private readonly _pendingSyncs = new Map<string, Promise<void>>();
 	private readonly _staleSyncs = new Set<string>();
-	private readonly _abortController = new AbortController();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	private readonly _onDidChangePullRequestStatus = this._register(new Emitter<string>());
 	readonly onDidChangePullRequestStatus = this._onDidChangePullRequestStatus.event;
@@ -225,8 +226,8 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			if (source) {
 				const store = new DisposableStore();
 				try {
-					const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, watch.sessionUri)).object;
-					const { account } = await client.credentials.getCredential(this._abortController.signal);
+					const client = store.add(this._gitHubService.acquireRepositoryClient(this._disposeToken, source, watch.sessionUri)).object;
+					const { account } = await client.credentials.getCredential(this._disposeToken);
 					if (account.host !== watch.ref.host || account.accountId !== watch.ref.accountId) {
 						return;
 					}
@@ -253,9 +254,9 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		const store = new DisposableStore();
 		try {
 			source = this._gitHubService.captureSessionCredentialSource(sessionKey, source);
-			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, source ? sessionKey : undefined)).object;
-			const credential = await client.credentials.getCredential(this._abortController.signal);
-			if (this._abortController.signal.aborted || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
+			const client = store.add(this._gitHubService.acquireRepositoryClient(this._disposeToken, source, source ? sessionKey : undefined)).object;
+			const credential = await client.credentials.getCredential(this._disposeToken);
+			if (this._disposeToken.isCancellationRequested || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
 				return undefined;
 			}
 			const ref: PullRequestRef = { ...credential.account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
@@ -271,13 +272,12 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	}
 
 	override dispose(): void {
-		this._abortController.abort();
+		super.dispose();
 		this._staleSyncs.clear();
 		for (const watch of this._watches.values()) {
 			watch.dispose();
 		}
 		this._watches.clear();
-		super.dispose();
 	}
 
 	/** The folder whose pull request `key` refers to, or `undefined` when it has none. */
@@ -324,7 +324,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 				return;
 			}
 			this._pendingSyncs.delete(sessionKey);
-			if (this._staleSyncs.delete(sessionKey) && !this._abortController.signal.aborted) {
+			if (this._staleSyncs.delete(sessionKey) && !this._disposeToken.isCancellationRequested) {
 				this._runSync(sessionKey, source);
 			}
 		});
@@ -332,7 +332,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	}
 
 	private async _doSync(sessionKey: string, source: IAgentHostCredentialSource | undefined): Promise<void> {
-		if (this._abortController.signal.aborted) {
+		if (this._disposeToken.isCancellationRequested) {
 			return;
 		}
 
@@ -345,7 +345,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 		for (const folder of folders) {
 			await this._syncFolder(folder, source);
-			if (this._abortController.signal.aborted || this._staleSyncs.has(sessionKey)) {
+			if (this._disposeToken.isCancellationRequested || this._staleSyncs.has(sessionKey)) {
 				return;
 			}
 		}
@@ -393,12 +393,12 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		const store = new DisposableStore();
 		let installed = false;
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, source ? folder.sessionUri : undefined)).object;
-			const credential = await client.credentials.getCredential(this._abortController.signal);
-			if (this._abortController.signal.aborted) {
+			const client = store.add(this._gitHubService.acquireRepositoryClient(this._disposeToken, source, source ? folder.sessionUri : undefined)).object;
+			const credential = await client.credentials.getCredential(this._disposeToken);
+			if (this._disposeToken.isCancellationRequested) {
 				return;
 			}
-			if (credential.signal.aborted) {
+			if (credential.cancellationToken.isCancellationRequested) {
 				this._staleSyncs.add(folder.sessionUri);
 				return;
 			}

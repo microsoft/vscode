@@ -11,15 +11,22 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { IAction } from '../../../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
 import { defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../../services/progress/browser/progressIndicator.js';
-import { IChat, ISession } from '../../common/session.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { INewSessionDraftSlot } from '../../common/sessionsManagement.js';
+import { IComposerInputSnapshot } from '../../common/newChatDraftState.js';
+import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import { IChatWidget } from '../../../chat/browser/chat.js';
+import type { INewSessionInputPresentation } from '../newSessionInputPresentation.js';
+import type { INewSessionPresentation } from '../newSessionPresentation.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -37,15 +44,35 @@ export interface IChatViewRequestSubmission {
 	readonly completion: Promise<IChatViewRequestOutcome>;
 }
 
+export interface IChatViewBackgroundReplica extends IDisposable {
+	updateBackground(): void;
+	layout(): void;
+}
+
+/** Entry-owned background presentation, omitted when a composition does not support backgrounds. */
+export interface IChatViewBackground {
+	readonly onDidChange: Event<void>;
+	hasBackground(): boolean;
+	createReplica(chatElement: HTMLElement, container: HTMLElement): IChatViewBackgroundReplica | undefined;
+}
+
 /**
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	readonly newSessionInput?: INewSessionInputPresentation;
+	readonly newSessionPresentation?: INewSessionPresentation;
 	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	readonly showEmptyStateIcon?: boolean;
-	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
+	readonly background?: IChatViewBackground;
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
+	/**
+	 * Whether a new-session composer's chat widget is visible only while the composer is, rather than for as long as it
+	 * is rendered, so that a hidden composer is no foreground chat. For a host that keeps its composer rendered while
+	 * hidden, such as a floating window.
+	 */
+	readonly hideChatWidgetWhileHidden?: boolean;
 	/** Keep the custom view hosting this composer visible while preparing its draft. */
 	readonly preserveCustomView?: boolean;
 	/** Send new-session requests without navigating away from the hosting view. */
@@ -60,6 +87,99 @@ export interface IChatViewOptions {
 	readonly session?: IObservable<ISession | undefined>;
 	/** The chat the pane shows of {@link session}; its main chat while undefined. */
 	readonly chat?: IObservable<IChat | undefined>;
+	/**
+	 * Hosts a new-session composer outside the main window's grid, such as in a chat window. Its drafts are held in the
+	 * host's slot, so they never replace or take the main window composer's draft, and the grid is never changed.
+	 */
+	readonly newSessionDraft?: INewSessionDraftHost;
+}
+
+export interface INewSessionViewOptions extends IChatViewOptions {
+	readonly newSessionPresentation: INewSessionPresentation;
+}
+
+/**
+ * The host of a new-session composer outside the main window's grid ({@link IChatViewOptions.newSessionDraft}).
+ */
+export interface INewSessionDraftHost {
+	/** Holds the composer's drafts. */
+	readonly slot: INewSessionDraftSlot;
+	/** Keeps the composer's input, instead of the main composer's saved draft. */
+	readonly input?: IComposerInputSnapshot;
+	/**
+	 * What the composer creates its drafts for, such as the defaults inherited from another chat, instead of the main
+	 * composer's last workspace. The composer aims for it also when an agent becomes available only later.
+	 */
+	readonly requestedTarget?: IObservable<INewSessionTarget | undefined>;
+	/**
+	 * Replaces {@link requestedTarget}: the user changed the composer's workspace, agent, model or mode, or the composer
+	 * starts its next draft from the selection of a background send.
+	 */
+	setRequestedTarget?(target: INewSessionTarget, reason: 'user' | 'background'): void;
+	/**
+	 * The only folders the composer can create its sessions in, such as an editor window's folders: its workspace picker
+	 * offers no other. Unset, it offers any workspace.
+	 */
+	readonly allowedFolders?: IObservable<readonly URI[]>;
+	/**
+	 * Fires as the host aims the composer at another folder, such as the location the window's folder moved to: the composer
+	 * creates its draft for it, unless it sent its session already.
+	 */
+	readonly onDidRetarget?: Event<INewSessionTarget>;
+	/** How its workspace picker shows one of its {@link allowedFolders}, such as a linked checkout of a window's folder. */
+	getFolderPresentation?(folderUri: URI): IAllowedFolderPresentation | undefined;
+	/** Opens a session the composer started in the background, in the composer's own window. */
+	openStartedSession(session: ISession): Promise<void>;
+	/**
+	 * Called before the composer sends a request in the background. The host follows the request until it ends (see
+	 * `trackNewSessionRequestEnd`), also after the composer is gone, and reports a failure and recovers the prompt: the
+	 * management service does not notify failures of an independent slot. The composer disposes the result only when
+	 * the send is rejected before it is dispatched.
+	 */
+	trackBackgroundSend(send: INewSessionBackgroundSend): IDisposable;
+}
+
+/** What a hosted composer creates its drafts for ({@link INewSessionDraftHost.requestedTarget}). */
+export interface INewSessionTarget {
+	/** The folder of the drafts; none for a workspace-less quick chat, which only the Agents window has: an editor window's drafts work in its folder. */
+	readonly folderUri?: URI;
+	readonly providerId?: string;
+	readonly sessionTypeId?: string;
+	/** Applied when the session type offers it; otherwise the agent's default model. */
+	readonly modelId?: string;
+	/**
+	 * The mode the chat shows (`IChat.mode`): for an Agent Host agent, its custom agent's URI, which is selected when the
+	 * agent offers it. Not the session mode a creation takes. Undefined for the agent's default selection.
+	 */
+	readonly modeId?: string;
+	/**
+	 * Whether the drafts of {@link folderUri} run in a Dev Container, as the session they inherit from does, or as the user
+	 * picked; a draft that cannot is not created elsewhere.
+	 */
+	readonly requireDevContainer?: boolean;
+	/**
+	 * Whether the first draft of {@link folderUri} works in a new worktree of it (`worktree`), as the user chose New
+	 * Worktree for it. A draft whose agent cannot is reported, not created in the folder silently.
+	 */
+	readonly placement?: 'worktree';
+	/** Whether {@link placement} is a remembered preference, which the composer drops silently where it cannot apply it. */
+	readonly placementIsPreference?: boolean;
+}
+
+/** A background send of a composer ({@link INewSessionDraftHost.trackBackgroundSend}). */
+export interface INewSessionBackgroundSend {
+	/** The draft being sent; the request can replace it. */
+	readonly session: ISession;
+	/** The prompt as the user wrote it. */
+	readonly query: string;
+	readonly attachedContext: readonly IChatRequestVariableEntry[] | undefined;
+	/**
+	 * Whether the user sent it in the background, such as with Send in Background, rather than as an ordinary send that the
+	 * composer sends in the background because its view has it send all its requests so ({@link IChatViewOptions.backgroundSend}).
+	 */
+	readonly requestedInBackground: boolean;
+	/** Whether it is still the composer's latest send; never once the composer is gone. */
+	isLatest(): boolean;
 }
 
 /**
@@ -72,6 +192,11 @@ export interface IChatViewInputOptions {
 	readonly minLines?: number;
 	/** Whether the status pills of the session show above the input; `true` by default. */
 	readonly showPills?: boolean;
+	/**
+	 * Whether the changes of an Agent Host session show as a working set above the input, with Keep and Undo, in place of
+	 * its Changes pill, as the editor window's chat shows them. Never in the Agents window; `false` by default.
+	 */
+	readonly workingSet?: boolean;
 }
 
 /**
@@ -81,6 +206,16 @@ export interface IChatViewInputOptions {
 export interface ISessionViewHostOptions {
 	/** Whether the session header shows above the chats; `true` by default. */
 	readonly showHeader?: boolean;
+	/**
+	 * Whether a new-session composer shows the session header too, titled as a new session, rather than hiding it until its
+	 * session is created; `false` by default.
+	 */
+	readonly showComposerHeader?: boolean;
+	/**
+	 * Whether the session header shows that the chat is working, as the tab of a chat editor does, in place of the working
+	 * indicator below the chat; `false` by default.
+	 */
+	readonly showTitleProgress?: boolean;
 	/** Whether the Session Activity Bar shows beside the chats; `true` by default. */
 	readonly showActivityBar?: boolean;
 	/** Options of the inputs of the chats. */
@@ -99,7 +234,11 @@ export interface ISessionViewHostOptions {
  */
 export abstract class AbstractChatView extends Disposable implements ISerializableView {
 
-	readonly element: HTMLElement = $('.chat-view');
+	/**
+	 * The root of the chat: `.sessions-chat` is the class its styles are keyed on, so that it looks the same in every host,
+	 * such as the Agents window, a chat window or the chat part of an editor window, whatever the host's own classes.
+	 */
+	readonly element: HTMLElement = $('.chat-view.sessions-chat');
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
@@ -222,6 +361,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return 'notReady';
 	}
 
+	/** Start in the environment of a provider's sessions. Views without an Environment picker return notReady. */
+	selectEnvironment(_providerId: string): WorkspaceSelectionResult {
+		return 'notReady';
+	}
+
 	/**
 	 * Whether the view shows only its chat input, without the conversation. In that mode the view shows the
 	 * chat's progress and its approvals above the input, and shows the conversation again when the chat needs
@@ -263,6 +407,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	saveViewState(): void {
 		// no-op by default
+	}
+
+	/**
+	 * The chat widget of its input, which sends what it takes: of the chat it shows, or of its new-session composer, whose
+	 * sends create the session. Undefined while it has none.
+	 */
+	get chatWidget(): IChatWidget | undefined {
+		return undefined;
 	}
 
 	/**

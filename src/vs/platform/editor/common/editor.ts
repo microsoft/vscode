@@ -344,6 +344,11 @@ export interface IEditorOptions {
 		compact?: boolean;
 
 		/**
+		 * Keep a compact window compact when it is split, e.g. a chat with a document beside it.
+		 */
+		compactAllowsSplit?: boolean;
+
+		/**
 		 * Show the editor always on top of other windows.
 		 */
 		alwaysOnTop?: boolean;

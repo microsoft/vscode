@@ -19,11 +19,14 @@ import { IChatModel, IChatResponseModel } from '../../../../../workbench/contrib
 import { ChatRequestQueueKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IOpenNewSessionOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
 import { INewSessionComposer, INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
+import { INewChatComposerInputOptions } from '../../../../../workbench/contrib/sessions/browser/chat/newChatComposerInput.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { prepareNewVoiceSession, SessionsVoiceActiveSessionContribution, SessionsVoiceBridgeContribution, SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
@@ -520,6 +523,36 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		disposables.add(target.registerComposer(inSession));
 
 		assert.strictEqual(getDisconnectCount(), 0);
+	});
+
+	test('a composer of a host of its own, such as a chat window\'s, never takes Voice Mode from the main window\'s composer, as it mounts or gains focus, so a running Voice Mode stays connected; the main window\'s composers still do', () => {
+		const target = disposables.add(createTarget());
+		const isConnected = observableValue<boolean>('isConnected', false);
+		const { controller, getDisconnectCount } = createController(isConnected);
+		/** A shared input composer as it mounts, registering for Voice Mode as its options say; `focus` fires its focus. */
+		const mount = (options: Pick<INewChatComposerInputOptions, 'voiceTarget'>) => {
+			const focused = disposables.add(new Emitter<void>());
+			const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { options, newChatVoiceTargetService: target, onDidFocus: focused.event }) as SharedChatInputComposer;
+			disposables.add(Reflect.get(SharedChatInputComposer.prototype, '_registerVoiceTarget').call(input) as IDisposable);
+			return { input, focus: () => focused.fire() };
+		};
+
+		const main = mount({});
+		isConnected.set(true, undefined);
+		disposables.add(new SessionsVoiceNewComposerContribution(controller, target));
+		const hosted = mount({ voiceTarget: false });
+		const afterMount = { mainActive: target.activeComposer.get() === main.input, disconnects: getDisconnectCount() };
+		hosted.focus();
+		const afterFocus = { mainActive: target.activeComposer.get() === main.input, disconnects: getDisconnectCount() };
+		// Another main window composer, such as one of a new session, takes it as before.
+		const next = mount({});
+		const afterMainMount = { nextActive: target.activeComposer.get() === next.input, disconnects: getDisconnectCount() };
+
+		assert.deepStrictEqual({ afterMount, afterFocus, afterMainMount }, {
+			afterMount: { mainActive: true, disconnects: 0 },
+			afterFocus: { mainActive: true, disconnects: 0 },
+			afterMainMount: { nextActive: true, disconnects: 1 },
+		});
 	});
 
 	test('does not disconnect when voice is not connected', () => {

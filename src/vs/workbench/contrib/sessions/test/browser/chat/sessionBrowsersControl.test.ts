@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { ChatOriginKind, IChat, SessionStatus } from '../../../common/session.js';
+import { ChatOriginKind, IChat, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { SessionBrowsersControl } from '../../../browser/chat/sessionBrowsersControl.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 

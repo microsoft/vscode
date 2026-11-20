@@ -19,14 +19,6 @@
 	transform: translateZ(0);
 }
 
-/* Pause all dot animations while the spinner is scrolled out of view. The
- * `monaco-pixel-spinner-paused` class is toggled from JS by a per-window
- * IntersectionObserver. Continuous CSS animations otherwise force the
- * compositor to do work every vsync even for spinners that are offscreen. */
-.monaco-pixel-spinner.monaco-pixel-spinner-paused .monaco-pixel-spinner-dot {
-	animation-play-state: paused;
-}
-
 .monaco-pixel-spinner .monaco-pixel-spinner-dot {
 	display: block;
 	width: 2px;
@@ -158,6 +150,15 @@
 		opacity: 1;
 		transform: none;
 	}
+}
+
+/* Pause all dot animations while the spinner is scrolled out of view. The
+ * `monaco-pixel-spinner-paused` class is toggled from JS by a per-window
+ * IntersectionObserver. Continuous CSS animations otherwise force the
+ * compositor to do work every vsync even for spinners that are offscreen.
+ * Keep this after variant animation shorthands, which reset the play state. */
+.monaco-pixel-spinner.monaco-pixel-spinner-paused .monaco-pixel-spinner-dot {
+	animation-play-state: paused;
 }
 
 @media (prefers-reduced-motion: reduce) {

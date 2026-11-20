@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-interface IChangedFile {
+export interface IChangedFile {
 	readonly filename: string;
 	readonly previous_filename?: string;
 	readonly status?: string;
@@ -18,18 +18,31 @@ interface IListFilesParameters {
 	readonly per_page: number;
 }
 
-interface IGitHub {
-	readonly paginate: (method: object, parameters: IListFilesParameters) => Promise<readonly IChangedFile[]>;
-	readonly rest: { readonly pulls: { readonly listFiles: object } };
+interface ICompareCommitsParameters {
+	readonly owner: string;
+	readonly repo: string;
+	readonly basehead: string;
 }
 
-interface IContext {
+export interface IGitHub {
+	readonly paginate: (method: object, parameters: IListFilesParameters) => Promise<readonly IChangedFile[]>;
+	readonly rest: {
+		readonly pulls: { readonly listFiles: object };
+		readonly repos: { readonly compareCommitsWithBasehead: (parameters: ICompareCommitsParameters) => Promise<{ readonly data: { readonly files?: readonly IChangedFile[] } }> };
+	};
+}
+
+export interface IContext {
 	readonly repo: { readonly owner: string; readonly repo: string };
 	readonly issue: { readonly number: number };
-	readonly payload: { readonly pull_request?: { readonly changed_files?: number } };
+	readonly payload: {
+		readonly pull_request?: { readonly changed_files?: number };
+		/** The merge group whose checks a merge queue runs: the base branch (`refs/heads/main`) and its commit. */
+		readonly merge_group?: { readonly base_ref: string; readonly head_sha: string };
+	};
 }
 
-interface ICore {
+export interface ICore {
 	info(message: string): void;
 	warning(message: string): void;
 	setOutput(name: string, value: string): void;
@@ -82,15 +95,14 @@ const rules: readonly IChangeRule[] = [
 			'eslint.config.js',
 			'.eslint-ignore',
 			'.eslint-plugin-local/',
-			// The jobs install the root dependencies and restore cached node_modules.
+			// The jobs install the root dependencies from the cached pnpm store.
 			'package.json',
 			'pnpm-lock.yaml',
 			'pnpm-workspace.yaml',
 			'.pnpmfile.mjs',
 			'.github/actions/setup-pnpm/',
-			'.github/actions/restore-node-modules/',
-			'.github/workflows/node_modules_cache/',
-			'build/azure-pipelines/common/computeNodeModulesCacheKey.ts',
+			'.github/actions/restore-pnpm-store/',
+			'build/azure-pipelines/common/computePnpmStoreCacheKey.ts',
 			'build/azure-pipelines/common/cacheKeys.ts',
 			'build/npm/dirs.ts',
 			'build/azure-pipelines/win32/exec.ps1',
@@ -146,21 +158,23 @@ const eslintConfigurationPaths = [
  *   Hygiene also does. The Copilot checks lint with the same configuration, so the copilot rule lists these paths.
  * - The sanity tests in test/sanity/, which only the product builds run against the built packages (see
  *   build/azure-pipelines/common/sanity-tests.yml). In pull requests, only ESLint and hygiene check their sources.
+ * - The rulesets in .github/rulesets/, which the Rulesets workflow checks against the live rulesets on main. In pull
+ *   requests, only the build script tests and the linters read its script.
  */
 export function shouldSkipTestJobs(path: string): boolean {
 	const isAzurePipelinesDefinition = path.startsWith('build/azure-pipelines/') && /\.ya?ml$/.test(path);
 	const isWorkspaceConfiguration = path.startsWith('.vscode/');
 	const isEslintConfiguration = matchesAny(path, eslintConfigurationPaths);
 	const isSanityTest = path.startsWith('test/sanity/');
-	return isAzurePipelinesDefinition || isWorkspaceConfiguration || isEslintConfiguration || isSanityTest;
+	const isRuleset = path.startsWith('.github/rulesets/');
+	return isAzurePipelinesDefinition || isWorkspaceConfiguration || isEslintConfiguration || isSanityTest || isRuleset;
 }
 
 /**
  * Whether a change only updates the microsoft/vscode-distro commit in the `distro` field of package.json, as
  * `pnpm run update-distro` does. Only the product builds read the commit: they download the distro and mix it into the
  * build (see build/azure-pipelines/distro/). No pull request check downloads it, so such a change runs only Compile &
- * Hygiene, whose node_modules cache key includes the field. A change without a patch, which GitHub omits for large
- * diffs, counts as any other change to package.json.
+ * Hygiene. A change without a patch, which GitHub omits for large diffs, counts as any other change to package.json.
  */
 export function isDistroUpdate(file: IChangedFile): boolean {
 	if (file.filename !== 'package.json' || file.status !== 'modified' || file.patch === undefined) {
@@ -221,32 +235,56 @@ function matchesAny(path: string, patterns: readonly string[]): boolean {
 	return patterns.some(pattern => pattern.endsWith('/') ? path.startsWith(pattern) : path === pattern);
 }
 
-async function listChangedFiles(github: IGitHub, context: IContext, core: ICore): Promise<readonly IChangedFile[] | undefined> {
-	let files: readonly IChangedFile[];
+/** The changed files that GitHub listed, and when it did not list all of them, a description of what it listed. */
+export interface IChangedFiles {
+	readonly files: readonly IChangedFile[];
+	readonly incomplete?: string;
+}
+
+/** GitHub lists at most this many files of a comparison of two commits. */
+const comparisonFileLimit = 300;
+
+/**
+ * Lists the files that the pull request changes, or in a merge queue, those that the merge group changes since it forks
+ * from the base branch: its pull request, and those ahead of it in the queue that haven't merged yet. Its parent is the
+ * merge group ahead of it, which `merge_group.base_sha` may name, so this compares with the base branch instead. The test
+ * plan of pr.yml compares the same commits. Throws when GitHub cannot list them.
+ */
+export async function listChangedFiles(github: IGitHub, context: IContext): Promise<IChangedFiles> {
+	const { owner, repo } = context.repo;
+	const mergeGroup = context.payload.merge_group;
+	if (mergeGroup) {
+		const baseBranch = mergeGroup.base_ref.replace(/^refs\/heads\//, '');
+		const { data } = await github.rest.repos.compareCommitsWithBasehead({ owner, repo, basehead: `${baseBranch}...${mergeGroup.head_sha}` });
+		const files = data.files ?? [];
+		return { files, incomplete: files.length >= comparisonFileLimit ? `listed only the first ${files.length} changed files of the merge group` : undefined };
+	}
+
+	const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: context.issue.number, per_page: 100 });
+	const expectedFileCount = context.payload.pull_request?.changed_files;
+	return { files, incomplete: typeof expectedFileCount === 'number' && files.length < expectedFileCount ? `returned ${files.length} of ${expectedFileCount} changed files` : undefined };
+}
+
+async function lookUpChangedFiles(github: IGitHub, context: IContext, core: ICore): Promise<readonly IChangedFile[] | undefined> {
+	let changedFiles: IChangedFiles;
 	try {
-		files = await github.paginate(github.rest.pulls.listFiles, {
-			owner: context.repo.owner,
-			repo: context.repo.repo,
-			pull_number: context.issue.number,
-			per_page: 100,
-		});
+		changedFiles = await listChangedFiles(github, context);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		core.warning(`Unable to list pull request files; running all checks. ${message}`);
+		core.warning(`Unable to list the changed files; running all checks. ${message}`);
 		return undefined;
 	}
 
-	const expectedFileCount = context.payload.pull_request?.changed_files;
-	if (typeof expectedFileCount === 'number' && files.length < expectedFileCount) {
-		core.warning(`GitHub returned ${files.length} of ${expectedFileCount} changed files; running all checks.`);
+	if (changedFiles.incomplete) {
+		core.warning(`GitHub ${changedFiles.incomplete}; running all checks.`);
 		return undefined;
 	}
 
-	return files;
+	return changedFiles.files;
 }
 
 export async function detectChanges(github: IGitHub, context: IContext, core: ICore): Promise<void> {
-	const files = await listChangedFiles(github, context, core);
+	const files = await lookUpChangedFiles(github, context, core);
 	const paths = files && changedPaths(files);
 
 	for (const rule of rules) {

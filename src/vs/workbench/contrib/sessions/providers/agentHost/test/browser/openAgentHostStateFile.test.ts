@@ -23,7 +23,7 @@ import { OpenAgentHostStateFileAction as WorkbenchOpenAgentHostStateFileAction }
 import { ChatContextKeys } from '../../../../../chat/common/actions/chatContextKeys.js';
 import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../../../../../chat/browser/copilotCliEventsUri.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IChat } from '../../../../common/session.js';
+import { IChat } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../common/sessionsProvider.js';
 import { ISessionsService } from '../../../../browser/sessionsService.js';

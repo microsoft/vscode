@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatListItemRendererOptions } from '../../chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatListItemRendererOptions, IChatWidgetService } from '../../chat.js';
 import { IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
@@ -68,10 +68,24 @@ export interface IChatContentPartDiffSource {
 	readonly diffData: IChatContentPartDiffData | undefined;
 }
 
+/**
+ * Focuses the chat input once an input request of `context`'s chat is done: of the widget its renderer tells, such as the one
+ * whose list renders it, else of a widget that shows the chat.
+ */
+export function focusChatInput(context: IChatContentPartRenderContext, chatWidgetService: IChatWidgetService): void {
+	if (context.focusInput) {
+		context.focusInput();
+	} else {
+		chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
+	}
+}
+
 export interface IChatContentPartRenderContext {
 	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 	readonly readOnly?: boolean;
 	readonly renderInputRequests?: boolean;
+	/** Focuses the input of the widget the user is in, such as the one whose list renders it ({@link focusChatInput}). */
+	readonly focusInput?: () => void;
 	readonly elementIndex: number;
 	readonly container: HTMLElement;
 	/** Lazily provides an anchor that clips content overlays below floating list UI such as the sticky header. */

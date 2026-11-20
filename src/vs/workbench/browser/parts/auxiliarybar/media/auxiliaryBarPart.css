@@ -8,9 +8,13 @@
 	visibility: hidden !important;
 }
 
-.monaco-workbench .part.auxiliarybar > .content .monaco-editor,
-.monaco-workbench .part.auxiliarybar > .content .monaco-editor .margin,
-.monaco-workbench .part.auxiliarybar > .content .monaco-editor .monaco-editor-background {
+/*
+ * Editors blend into the part, except ones that show a document like the editor area does (`.keep-editor-background`).
+ * `:where()` keeps the rule's specificity, so rules for particular editors, such as the chat input's, still win over it.
+ */
+.monaco-workbench .part.auxiliarybar > .content .monaco-editor:where(:not(.keep-editor-background)),
+.monaco-workbench .part.auxiliarybar > .content .monaco-editor:where(:not(.keep-editor-background)) .margin,
+.monaco-workbench .part.auxiliarybar > .content .monaco-editor:where(:not(.keep-editor-background)) .monaco-editor-background {
 	background-color: var(--vscode-sideBar-background);
 }
 
@@ -66,18 +70,18 @@
 	left: 5px; /* place icon in center */
 }
 
-.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
 	border-top-color: var(--vscode-panelTitle-activeBorder) !important;
 }
 
-.monaco-workbench .part.auxiliarybar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-.monaco-workbench .part.auxiliarybar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .part.auxiliarybar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .part.auxiliarybar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
 	border-top-color: var(--vscode-activityBarTop-activeBorder) !important;
 }
 
-.monaco-workbench .part.auxiliarybar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-.monaco-workbench .part.auxiliarybar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .part.auxiliarybar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .part.auxiliarybar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
 	border-bottom-color: var(--vscode-activityBarTop-activeBorder) !important;
 }
 

@@ -60,9 +60,9 @@ function treeSitterWasmDir(): string {
 async function main() {
 	const platform = await platformDir();
 	if (!platform) {
-		// chat-lib is a member of Copilot's pnpm workspace, so every install of Copilot runs this
-		// script, also before `extract-chat-lib` created the sources. There is nothing to copy yet.
-		console.log('chat-lib: no sources yet (run `pnpm run extract-chat-lib` in extensions/copilot), skipping postinstall.');
+		// `extract-chat-lib` declares this script when it creates the sources, which can be deleted
+		// afterwards, for example by `git clean`. There is nothing to copy then.
+		console.log('chat-lib: no extracted sources (run `pnpm run extract-chat-lib` in extensions/copilot), skipping postinstall.');
 		return;
 	}
 	const vendoredTiktokenFiles = [`${platform}/tokenizer/node/cl100k_base.tiktoken`, `${platform}/tokenizer/node/o200k_base.tiktoken`];

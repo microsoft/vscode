@@ -33,10 +33,11 @@ import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomization
 import { ICustomizationMigrationTelemetryService } from '../../../../chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { PromptsStorage } from '../../../../chat/common/promptSyntax/service/promptsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../common/session.js';
+import { ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { NewChatMigrationNotice } from '../../../browser/chat/newChatMigrationNotice.js';
 import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, NewSessionBannerPriority, NewSessionBanners } from '../../../common/newSessionBanners.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 
 class TestMigrationService extends mock<ICustomizationMigrationService>() {
 	readonly requests: { resource: URI; token?: CancellationToken; ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] }[] = [];
@@ -129,6 +130,7 @@ suite('NewChatMigrationNotice', () => {
 		instantiation.stub(ILogService, { error: (...args: unknown[]) => { errors.push(args); } });
 		instantiation.stub(IHoverService, new class extends mock<IHoverService>() { }());
 		instantiation.stub(IOpenerService, new class extends mock<IOpenerService>() { }());
+		instantiation.stub(IWorkbenchLayoutService, { mainContainer: dom.$('div'), onDidLayoutMainContainer: Event.None });
 		const setCreatedSessions = (count: number) => storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, count, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		setCreatedSessions(createdSessions);
 		const banners = store.add(new NewSessionBanners(storage));
@@ -318,6 +320,7 @@ suite('NewChatMigrationNotice', () => {
 		const pending = new DeferredPromise<ICustomizationMigrationHint | undefined>();
 		env.migrations.result = resource => resource.path === '/one' ? pending.p : Promise.resolve(undefined);
 		const notice = env.create();
+		await timeout(0);
 		env.session.set(createSession('two'), undefined);
 		await timeout(0);
 		await pending.complete({
@@ -363,6 +366,60 @@ suite('NewChatMigrationNotice', () => {
 		await pending.complete(undefined);
 		await timeout(0);
 		assert.deepStrictEqual({ before, refreshing, after: snapshot(notice).visible }, { before: true, refreshing: true, after: false });
+	});
+
+	test('keeps the migration notice while a replacement draft in the same workspace loads', async () => {
+		const env = setup();
+		const loading = observableValue('loading', false);
+		const workspace = env.session.get()!.workspace;
+		const draft = (name: string) => new class extends mock<ITestSessionWithChat>() {
+			override readonly resource = URI.parse(`agent-host-copilotcli:/${name}`);
+			override readonly workspace = workspace;
+			override readonly loading = loading;
+			override readonly isCreated = constObservable(false);
+			override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
+		}();
+		env.session.set(draft('first'), undefined);
+		const notice = env.create();
+		await timeout(0);
+
+		const earlyResult = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = async () => earlyResult.p;
+		env.changed.fire();
+		await timeout(0);
+		loading.set(true, undefined);
+		const whileLoading = snapshot(notice).visible;
+		env.session.set(draft('replacement'), undefined);
+		const whileReplacing = snapshot(notice).visible;
+		await earlyResult.complete(undefined);
+		await timeout(0);
+		const afterEarlyDiscovery = snapshot(notice).visible;
+		const requestsWhileLoading = env.migrations.requests.length;
+
+		const pending = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = async () => pending.p;
+		loading.set(false, undefined);
+		const afterLoading = snapshot(notice).visible;
+		await pending.complete(undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			whileLoading,
+			whileReplacing,
+			afterEarlyDiscovery,
+			requestsWhileLoading,
+			afterLoading,
+			afterDiscovery: snapshot(notice).visible,
+			requests: env.migrations.requests.map(request => request.resource.path),
+		}, {
+			whileLoading: true,
+			whileReplacing: true,
+			afterEarlyDiscovery: true,
+			requestsWhileLoading: 2,
+			afterLoading: true,
+			afterDiscovery: false,
+			requests: ['/first', '/first', '/replacement'],
+		});
 	});
 
 	test('hides when migrations are disabled', async () => {

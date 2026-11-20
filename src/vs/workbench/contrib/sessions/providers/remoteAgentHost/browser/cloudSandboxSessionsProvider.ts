@@ -5,8 +5,9 @@
 
 import { disposableTimeout, Sequencer } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, transaction } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -14,7 +15,7 @@ import { AgentSession, type IAgentSessionMetadata } from '../../../../../../plat
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, isRetryableCloudSandboxError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { getGitHubRepositoryId } from '../../../../../../platform/github/common/githubUrls.js';
-import { GITHUB_REMOTE_FILE_SCHEME, type ISession } from '../../../common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, type ISession } from '../../../../../services/sessions/common/session.js';
 import type { ISessionCreationTarget } from '../../../common/sessionsProvider.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../copilotChatSessions/common/copilotChatSessions.js';
@@ -50,8 +51,12 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (!repository) {
 			return undefined;
 		}
+		return CloudSandboxSessionsProvider.creationTarget(repository, this.isWebPlatform);
+	}
+
+	static creationTarget(repository: string, web: boolean): ISessionCreationTarget {
 		return {
-			providerId: this.isWebPlatform ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID,
+			providerId: web ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID,
 			folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository}/HEAD` }),
 		};
 	}
@@ -88,6 +93,8 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	 * placeholder row for them. They stay reachable by resource, so opening one still works.
 	 */
 	private readonly _withheldSessions = new Set<string>();
+	private readonly _onDidPublishSessionSilently = this._register(new Emitter<ISession>());
+	readonly onDidPublishSessionSilently = this._onDidPublishSessionSilently.event;
 
 	/**
 	 * Backend session key → deadline after which eviction resumes, or `undefined` while the clock has not
@@ -312,6 +319,19 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return true;
 	}
 
+	/** Reconciles catalog read state without subscribing to host session state. */
+	restoreSessionReadState(sessionId: string, isRead: boolean): void {
+		const key = this._sessionKeyFromChatId(sessionId);
+		const session = key ? this._sessionCache.get(key) : undefined;
+		if (!session) {
+			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
+		}
+		transaction(tx => {
+			session.setChatRead(session.mainChat.get().resource, isRead, tx);
+			session.isRead.set(isRead && !session.hasUnreadChat(), tx);
+		});
+	}
+
 	setSessionArchived(rawId: string, archived: boolean): void {
 		const session = this._sessionCache.get(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString());
 		if (!session) {
@@ -356,9 +376,18 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			return;
 		}
 		const session = this.getCachedSession(rawId);
-		if (session && options?.announce !== false) {
-			this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
+		if (session) {
+			if (options?.announce === false) {
+				this._onDidPublishSessionSilently.fire(session);
+			} else {
+				this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
+			}
 		}
+	}
+
+	isSessionWithheld(resource: URI): boolean {
+		const key = this._sessionKeyFromChatId(resource.toString());
+		return key !== undefined && this._withheldSessions.has(key);
 	}
 
 	/**
@@ -369,8 +398,16 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return this._sessionCache.get(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString());
 	}
 
+	reconcileTaskResource(rawId: string): void {
+		this.rebindSessionResource(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId));
+	}
+
 	getSessionModifiedTime(rawId: string): number | undefined {
 		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
+	}
+
+	hasProvisionalSession(resource: URI): boolean {
+		return this._provisionalSessions.has(resource.toString());
 	}
 
 	removeDeletedSession(rawId: string): void {
@@ -388,8 +425,8 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		}
 	}
 
-	override getSessions(): ISession[] {
-		const sessions = super.getSessions();
+	override getAllSessions(): ISession[] {
+		const sessions = super.getAllSessions();
 		return this._withheldSessions.size === 0
 			? sessions
 			: sessions.filter(session => !this._withheldSessions.has(this._sessionKeyFromChatId(session.sessionId) ?? ''));

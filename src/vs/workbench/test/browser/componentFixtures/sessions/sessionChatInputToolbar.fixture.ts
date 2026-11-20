@@ -33,10 +33,10 @@ import { IGitHubService } from '../../../../contrib/sessions/browser/github/gith
 import { SessionInputBanners } from '../../../../contrib/sessions/browser/sessionInputBanners/sessionInputBanners.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/workbench.js';
-import { ISessionChangesService } from '../../../../contrib/sessions/browser/changes/sessionChangesService.js';
-import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../contrib/sessions/common/session.js';
+import { ISessionChangesService } from '../../../../contrib/sessionChanges/browser/sessionChangesService.js';
+import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
-import { ISessionHost, SessionHostKind } from '../../../../contrib/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';
@@ -307,7 +307,7 @@ export async function renderPills(ctx: ComponentFixtureContext, sessionMock: IMo
 	container.style.width = options?.width ?? 'auto';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 
-	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined, undefined));
+	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined, undefined, undefined));
 	// Mount and size the row before it gets pills, so it measures its overflow synchronously
 	// instead of on a later native ResizeObserver callback that can escape virtual time.
 	container.appendChild(pills.element);
@@ -342,7 +342,7 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 			}
 			: undefined,
 		decorateInputPart: (inputPart, instantiationService) => {
-			const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+			const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 			const updateChatPillsVisibility = (visible: boolean) => {
 				inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
 			};
@@ -663,7 +663,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				additionalServices: registration => registerSessionChatPillFixtureServices(registration, mock),
 				decorateInputPart: (inputPart, instantiationService) => {
-					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 					pills.setSession(mock.session, mock.chat);
 					inputPart.persistentContentContainerElement.appendChild(pills.element);
 				},

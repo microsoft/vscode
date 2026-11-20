@@ -9,6 +9,10 @@
 	background-color: transparent;
 }
 
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .session-view.chat-editor-content {
+	--session-view-background: var(--vscode-activeSessionView-background);
+}
+
 /* Keep each corner mask inside its frame so it cannot paint over neighboring panels. */
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .session-view,
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .chat-groups-view-has-gaps .chat-group-view-surface {
@@ -121,4 +125,25 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/*
+ * An editor part that shows chats over the chat surface, such as a chat part, paints the surface itself, whatever window
+ * it is in, as the Sessions part does: its content and editors show it through. A chat window's card paints it instead
+ * (`chatWindow.css`), with rules that take precedence.
+ */
+.monaco-workbench .part.editor.sessions-chat-surface {
+	/* Over the inline background of the part. */
+	background-color: var(--vscode-agentsPanel-background) !important;
+}
+
+/* The chat part of an editor window holds the background it paints, rather than whatever frame it is in. */
+.monaco-workbench .part.editor.agents-chat-part.sessions-chat-surface {
+	position: relative;
+}
+
+.monaco-workbench .part.editor.sessions-chat-surface > .content,
+.monaco-workbench .part.editor.sessions-chat-surface .editor-container {
+	/* Over the inline backgrounds of the part's content and of its editors. */
+	background-color: transparent !important;
 }

@@ -4,6 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const ChatAIDisabledSettingId = 'chat.disableAIFeatures';
+export const AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING = 'chat.agentsWindowTitleBarIcons.enabled';
+
+/**
+ * Gates the entire Copilot account-choice flow; off preserves EMU-only behavior.
+ * The mirrored host value is requested configuration; AgentConfigurationService captures its effective value at host construction.
+ */
+export const AgentHostCopilotM365EnabledSettingId = 'chat.agentHost.copilot.m365.enabled';
 
 /**
  * Configuration key for the "Continue with Microsoft" sign-in choice. Choosing it exchanges a

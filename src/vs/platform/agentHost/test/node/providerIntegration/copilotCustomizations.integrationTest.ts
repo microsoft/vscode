@@ -10,16 +10,19 @@
  */
 
 import assert from 'assert';
-import { CopilotClient } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient } from '@microsoft/copilot-sdk';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../common/agentHostCustomizationUri.js';
+import { AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
-import { customizationId, CustomizationType, ISessionWithDefaultChat, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, ISessionWithDefaultChat, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification, type DisposeSessionParams } from '../../../common/state/sessionProtocol.js';
 import type { SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
+import type { SubscribeResult } from '../../../common/state/protocol/commands.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
@@ -154,7 +157,29 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		userHomeDir = await realpath(await mkdtemp(`${tmpdir()}/ahp-customizations-home-mock-`));
 		server = await startRealServer({ mockLlm: true, homeDir: userHomeDir });
 		tempDirs.push(userHomeDir);
+		await trustAllFolders();
 	});
+
+	/** Turns workspace trust off, as in VS Code without workspace trust, so sessions run repository hooks of every folder. */
+	async function trustAllFolders(): Promise<void> {
+		const configClient = new TestProtocolClient(server.port);
+		await configClient.connect();
+		try {
+			await configClient.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'customizations-trust-config' }, 30_000);
+			await configClient.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			const clientSeq = 1;
+			const applied = configClient.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.RootConfigChanged)
+				&& getActionEnvelope(notification).channel === ROOT_STATE_URI
+				&& getActionEnvelope(notification).origin?.clientSeq === clientSeq,
+				30_000,
+			);
+			configClient.dispatch({ channel: ROOT_STATE_URI, clientSeq, action: { type: ActionType.RootConfigChanged, config: { [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } } } });
+			await applied;
+		} finally {
+			configClient.close();
+		}
+	}
 
 	suiteTeardown(async function () {
 		server?.process.kill();
@@ -696,7 +721,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	 * 1. Client/host-supplied — the client forwards a `ClientPluginCustomization`
 	 *    (or the host discovers a plugin in the workspace); the agent host parses
 	 *    it and *tells* the SDK about it via `pluginDirectories` & friends on
-	 *    `SessionConfig`. The plugin tests above cover this.
+	 *    `CreateSessionOptions`. The plugin tests above cover this.
 	 * 2. Runtime-native — the user installed a plugin with the Copilot CLI, which
 	 *    records it in `<COPILOT_HOME>/config.json`. The agent host never passes
 	 *    these to the SDK; the runtime loads them itself, and the host only learns
@@ -746,19 +771,28 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		let consumerSessionUri: string | undefined;
 		try {
 			const sdkClient = new CopilotClient({
-				gitHubToken: COPILOT_CONFIG.githubToken,
-				useLoggedInUser: false,
-				logLevel: 'error',
-				// No `baseDirectory`: production also relies on COPILOT_HOME. Using the
-				// same `pluginHomeDir` for this client and the server below makes the
-				// installed plugin visible to both — a mismatch fails the test loudly.
-				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(pluginHomeDir)),
+				mode: 'coding-agent',
+				github: {
+					token: COPILOT_CONFIG.githubToken,
+					useLoggedInUser: false,
+				},
+				observability: {
+					logLevel: 'error',
+				},
+				runtime: RuntimeConnection.forSpawnedStdio({
+					// No `baseDirectory`: production also relies on COPILOT_HOME. Using the
+					// same `pluginHomeDir` for this client and the server below makes the
+					// installed plugin visible to both — a mismatch fails the test loudly.
+					env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(pluginHomeDir)),
+				}),
 			});
 			let sdkClientStarted = false;
+			let installedPluginName: string;
 			try {
 				await sdkClient.start();
 				sdkClientStarted = true;
-				await sdkClient.rpc.plugins.install({ source: pluginSourceDir });
+				const { plugin } = await sdkClient.rpc.plugins.install({ source: pluginSourceDir });
+				installedPluginName = plugin.name;
 			} finally {
 				if (sdkClientStarted) {
 					await sdkClient.stop();
@@ -774,8 +808,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			const session = await setupSession(consumerSessionUri, consumerClientId, 'turn-customizations-plugin-consumer-mock');
 			const installedPlugin = session.customizations
 				?.filter((customization): customization is PluginCustomization => customization.type === CustomizationType.Plugin)
-				.find(customization => customization.name === 'SDK Installed Plugin');
-			assert.ok(installedPlugin);
+				.find(customization => customization.name === installedPluginName);
+			assert.ok(installedPlugin, JSON.stringify(session.customizations));
 			assert.deepStrictEqual({
 				version: installedPlugin.version,
 				pluginDirectories: session.customizations
@@ -789,7 +823,6 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				pluginDirectories: [],
 				children: [
 					{ type: CustomizationType.Agent, name: 'Installed Agent' },
-					{ type: CustomizationType.Rule, name: 'installed' },
 					{ type: CustomizationType.Skill, name: 'installed-skill' },
 				].sort((a, b) => a.name.localeCompare(b.name)),
 			});

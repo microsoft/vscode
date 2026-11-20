@@ -24,8 +24,9 @@ suite('SessionComparisonModelSelection', () => {
 		getModelLabel: ((modelId: string) => string | undefined) | undefined = undefined,
 		reviewAvailable: IObservable<boolean> = constObservable(true),
 		showPickerHint: IObservable<boolean> = constObservable(false),
+		pending: IObservable<boolean> = constObservable(false),
 	): SessionComparisonModelSelection {
-		return instantiationService.createInstance(SessionComparisonModelSelection, available, getModelLabel, reviewAvailable, showPickerHint);
+		return instantiationService.createInstance(SessionComparisonModelSelection, available, getModelLabel, reviewAvailable, showPickerHint, pending);
 	}
 
 	function selectAttempts(selection: SessionComparisonModelSelection, ...modelIds: string[]): void {
@@ -397,7 +398,7 @@ suite('SessionComparisonModelSelection', () => {
 	test('preserves comparison selections while draft configuration resolves', () => {
 		const resolving = observableValue('resolving', false);
 		const available = derived(reader => !resolving.read(reader));
-		const selection = store.add(createModelSelection(available));
+		const selection = store.add(createModelSelection(available, undefined, undefined, undefined, resolving));
 		selection.start();
 		selectAttempts(selection, 'one', 'two', 'three');
 		selection.next();
@@ -420,7 +421,36 @@ suite('SessionComparisonModelSelection', () => {
 		});
 	});
 
-	test('folderless comparisons preserve review choices without using or pruning them', () => {
+	test('suspends committed comparisons in unsupported workspaces and restores all choices when available again', () => {
+		const available = observableValue('available', true);
+		const selection = store.add(createModelSelection(available));
+		selection.start();
+		selectAttempts(selection, 'one', 'two');
+		selection.addVariant('one', { effort: 'high' }, 'High');
+		selection.next();
+		selection.select('judge');
+		selection.next();
+		selection.select('synthesizer');
+		selection.finish();
+		const snapshot = () => ({
+			enabled: selection.enabled.get(),
+			configured: selection.configured.get(),
+			summary: selection.summary.get(),
+			attempts: selection.attempts.get(),
+			judge: selection.judgeModelId.get(),
+			synthesizer: selection.synthesizerModelId.get(),
+		});
+		const before = snapshot();
+		available.set(false, undefined);
+		const suspended = snapshot();
+		available.set(true, undefined);
+		assert.deepStrictEqual({ suspended, restored: snapshot() }, {
+			suspended: { ...before, enabled: false, summary: undefined },
+			restored: before,
+		});
+	});
+
+	test('unavailable review preserves choices without using or pruning them', () => {
 		const reviewAvailable = observableValue('reviewAvailable', true);
 		const selection = store.add(createModelSelection(constObservable(true), undefined, reviewAvailable));
 		selection.start();
@@ -435,18 +465,18 @@ suite('SessionComparisonModelSelection', () => {
 		selection.start();
 		selection.retainModels(new Set(['one', 'two']));
 		selection.finish();
-		const folderless = {
+		const withoutReview = {
 			attempts: selection.attemptModelIds.get(),
 			judge: selection.judgeModelId.get(),
 			synthesizer: selection.synthesizerModelId.get(),
 		};
 		reviewAvailable.set(true, undefined);
 		assert.deepStrictEqual({
-			folderless,
+			withoutReview,
 			judge: selection.judgeModelId.get(),
 			synthesizer: selection.synthesizerModelId.get(),
 		}, {
-			folderless: { attempts: ['one', 'two'], judge: undefined, synthesizer: undefined },
+			withoutReview: { attempts: ['one', 'two'], judge: undefined, synthesizer: undefined },
 			judge: 'judge', synthesizer: 'synthesizer',
 		});
 	});

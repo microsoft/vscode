@@ -11,11 +11,11 @@ import { autorun, derived, derivedObservableWithCache, IObservable, IReader, obs
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAgentHostConnectionLabels, isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
-import { SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, ISession } from '../../common/session.js';
+import { SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IRemoteHostUnavailableEmptyStateContent } from './remoteHostUnavailableEmptyState.js';
-import { ISessionReadOnlyBannerContent } from './sessionReadOnlyBanner.js';
+import { IChatReadOnlyBannerContent } from '../../../chat/browser/widget/chatReadOnlyBanner.js';
 
 /**
  * How long a host must stay unreachable before the banner appears.
@@ -79,7 +79,7 @@ export class SessionRemoteConnection extends Disposable {
 	 */
 	private readonly _autoConnectPending = derived(this, reader => {
 		const session = this._session.read(reader);
-		const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = session && this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const status = this._getEffectiveStatus(reader);
 		if (!session || !provider || !isAgentHostProvider(provider) || !provider.connect || !provider.autoConnect) {
 			return false;
@@ -146,7 +146,7 @@ export class SessionRemoteConnection extends Disposable {
 		return Math.ceil(remaining / 1_000);
 	});
 
-	readonly bannerContent: IObservable<ISessionReadOnlyBannerContent | undefined> = derived(this, reader => this._getRemoteConnectionBannerContent(reader));
+	readonly bannerContent: IObservable<IChatReadOnlyBannerContent | undefined> = derived(this, reader => this._getRemoteConnectionBannerContent(reader));
 	readonly recoveryContent: IObservable<IRemoteHostUnavailableEmptyStateContent | undefined> = derived(this, reader => this._getRemoteHostUnavailableContent(reader));
 	readonly isQuiet: IObservable<boolean> = derived(this, reader => {
 		if (!this._inputReceived.read(reader)) {
@@ -220,7 +220,7 @@ export class SessionRemoteConnection extends Disposable {
 			this._attempt.set(undefined, undefined);
 		}
 
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider) || !provider.connect) {
 			this._logService.info(`[SessionRemoteConnection] connect: ${session.providerId} cannot connect on demand`);
 			return;
@@ -354,7 +354,7 @@ export class SessionRemoteConnection extends Disposable {
 		}
 
 		const status = this._getEffectiveStatus(reader);
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const hostLabel = provider?.label ?? localize('sessionRemoteHost.unknown', "The remote host");
 		const labels = this._getConnectionLabels(provider);
 		if (status?.kind === 'connected') {
@@ -429,14 +429,14 @@ export class SessionRemoteConnection extends Disposable {
 		};
 	}
 
-	private _getRemoteConnectionBannerContent(reader: IReader): ISessionReadOnlyBannerContent | undefined {
+	private _getRemoteConnectionBannerContent(reader: IReader): IChatReadOnlyBannerContent | undefined {
 		const session = this._session.read(reader);
 		if (!session) {
 			return undefined;
 		}
 
 		const status = this._getEffectiveStatus(reader);
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const hostLabel = provider?.label ?? localize('sessionRemoteHost.unknown', "The remote host");
 		const labels = this._getConnectionLabels(provider);
 		const progressMessage = this._getRemoteHostConnectProgress(session, status, labels, reader);

@@ -343,6 +343,39 @@ suite('Combined mode and permissions picker', () => {
 		});
 	});
 
+	test('arrow navigation exposes policy reasons without activating locked permissions', () => {
+		const { service, popup, items, selections } = setup(true);
+		service.updateItems(items.map(item => {
+			if (item.label === 'Allow all') {
+				return { ...item, disabled: true, detail: undefined, ariaDescription: 'Disabled by your organization. Contact your administrator.' };
+			}
+			if (item.standaloneToggle) {
+				return { ...item, standaloneToggle: { ...item.standaloneToggle, checked: true, disabled: true, title: 'Sandboxing is required by your organization', onChange: () => assert.fail('Locked sandbox changed') } };
+			}
+			return item;
+		}));
+		const menu = popup.querySelector<HTMLElement>('[role="menu"]')!;
+		const readFocusedRow = () => {
+			const row = document.getElementById(menu.getAttribute('aria-activedescendant') ?? '');
+			return { label: row?.ariaLabel, disabled: row?.ariaDisabled };
+		};
+		service.focusNext(); // Assisted permissions
+		service.focusNext();
+		const allowAll = readFocusedRow();
+		service.acceptSelected();
+		service.focusNext();
+		const sandbox = readFocusedRow();
+		service.acceptSelected();
+		getRow(popup, 'Allow all').click();
+
+		assert.deepStrictEqual({ allowAll, sandbox, selections, checked: selectedLabels(popup) }, {
+			allowAll: { label: 'Allow all, Disabled by your organization. Contact your administrator.', disabled: 'true' },
+			sandbox: { label: 'Sandboxing for terminal, on, Sandboxing is required by your organization', disabled: 'true' },
+			selections: [],
+			checked: ['Manual permissions'],
+		});
+	});
+
 	test('opening permissions stays quiet when the sandbox state immediately refreshes', () => {
 		const { service, popup, items, selections } = setup(true);
 		service.updateItems(items.map(item => item.standaloneToggle

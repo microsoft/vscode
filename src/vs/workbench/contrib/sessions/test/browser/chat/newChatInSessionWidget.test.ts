@@ -11,11 +11,10 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { IChat, SessionStatus } from '../../../common/session.js';
-import { ICreateNewChatInSessionOptions, ISessionsManagementService, shownChatOf } from '../../../common/sessionsManagement.js';
+import { IChat, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ICreateNewChatInSessionOptions, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { NewChatInSessionWidget } from '../../../browser/chat/newChatInSessionWidget.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -26,10 +25,11 @@ import { NestedChatWorkspaceControls } from '../../../browser/chat/nestedChatWor
 import { SessionsChatViewStateService } from '../../../browser/chat/chatViewStateService.js';
 import { IChatDraft } from '../../../../chat/common/attachments/chatDraft.js';
 import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
-import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../sessionHostTestUtils.js';
-import { ISessionHost } from '../../../browser/sessionHost.js';
+import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
+import { shownChatOf } from '../../../../../services/sessions/common/sessionPane.js';
+import { defaultNewSessionPresentation } from '../../../browser/chat/defaultNewSessionPresentation.js';
 
 class TestNewChatInSessionWidget extends NewChatInSessionWidget {
 	send(query: string, background: boolean): Promise<boolean> {
@@ -64,8 +64,7 @@ suite('NewChatInSessionWidget', () => {
 				: Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { } })) as IInstantiationService['createInstance'];
 		}();
 		const widget = store.add(new NewChatInSessionWidget(
-			{ session: constObservable<ITestSessionWithChat | undefined>(session), chat: activeChat },
-			new TestConfigurationService(),
+			{ session: constObservable<ITestSessionWithChat | undefined>(session), chat: activeChat, newSessionPresentation: defaultNewSessionPresentation },
 			instantiationService,
 			new NullLogService(),
 			new class extends mock<INotificationService>() { }(),
@@ -81,7 +80,6 @@ suite('NewChatInSessionWidget', () => {
 			new class extends mock<ISessionsManagementService>() { }(),
 			new class extends mock<ISessionsService>() { readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session); }(),
 			store.add(new InMemoryStorageService()),
-			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
 			new SessionsChatViewStateService(),
 			upcastPartial<ISessionHost>({}),

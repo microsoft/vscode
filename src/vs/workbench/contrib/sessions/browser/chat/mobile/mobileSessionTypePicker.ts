@@ -15,10 +15,10 @@ import { getSessionTypeUnavailableLabel, SessionTypeAvailability } from '../../.
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../sessionsProvidersService.js';
-import { ISession } from '../../../common/session.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { SessionTypePicker, ISessionTypePickerOptions } from '../sessionTypePicker.js';
-import { isPhoneLayout } from '../../mobileLayout.js';
+import { isPhoneLayout } from '../../../../../browser/parts/sessions/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../mobile/mobilePickerSheet.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';

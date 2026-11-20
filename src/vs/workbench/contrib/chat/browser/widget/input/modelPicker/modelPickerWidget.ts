@@ -23,6 +23,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IActionListHeaderLink } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { LocalModelEnabledSettingId } from '../../../../../../../platform/agentHost/common/localModel.js';
+import { ModelRouterEnabledSettingId, ModelRouterSkillName } from '../../../../../../../platform/agentHost/common/modelRouterConfig.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
@@ -57,7 +58,7 @@ import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, whenModelConfigValue
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { getOrganizationDefaultDescription, getOrganizationDefaultModel } from './modelPickerBadges.js';
 import { formatLocalModelOnDeviceName, ILocalModelPickerActionEvent, isLocalModelDirectRow, ModelPickerLocalModels } from './modelPickerLocalModelItems.js';
-import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isPendingLegacyAutoModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
@@ -385,6 +386,16 @@ export class ModelPickerWidget extends Disposable {
 		return fusion;
 	}
 
+	/** The name of the Auto model the picker offers as Copilot Fusion, which then stands for Auto while no model is selected. */
+	private _getFusionAutoName(models: readonly ILanguageModelChatMetadataAndIdentifier[]): string | undefined {
+		const fusionModels = models.filter(candidate => candidate.metadata.autoModelFusion);
+		if (!fusionModels.length) {
+			return undefined;
+		}
+		const runnable = this._getRunnablePredicate(models);
+		return fusionModels.find(runnable)?.metadata.name;
+	}
+
 	/**
 	 * The model a HydraFusion tier is shown as, with that tier: Fusion for one of
 	 * Fusion's tiers, or HydraFusion for HydraFusion's own Default or Max.
@@ -671,6 +682,17 @@ export class ModelPickerWidget extends Disposable {
 		return this._localModelsController;
 	}
 
+	/**
+	 * Hands the user to the skill that writes model routers, by starting the prompt with its command. Offered where
+	 * that skill is: a local Copilot chat with model routers turned on.
+	 */
+	private _getCreateModelRouter(): (() => void) | undefined {
+		const applies = !!this._delegate.startPromptWith
+			&& this._configurationService.getValue<boolean>(ModelRouterEnabledSettingId) === true
+			&& this._delegate.getSessionType?.() === SessionType.AgentHostCopilot;
+		return applies ? () => this._delegate.startPromptWith?.(`/${ModelRouterSkillName}`) : undefined;
+	}
+
 	/** Updates an open picker's on-device rows in place, keeping keyboard focus on the row, and an on-device model's readout. */
 	private _refreshLocalModels(): void {
 		if (this._tabbedPicker.value?.isVisible) {
@@ -844,6 +866,7 @@ export class ModelPickerWidget extends Disposable {
 			onSelect,
 			onTogglePin,
 			onManageModels: () => manageModelsAction?.run(),
+			onCreateModelRouter: unavailable ? undefined : this._getCreateModelRouter(),
 			onDidToggleOtherModels,
 			onDidSearch: () => telemetrySession.logSearch(),
 			onConfigurationChanged: (model, group, key, fromValue, toValue, requestedAt) => {
@@ -892,10 +915,14 @@ export class ModelPickerWidget extends Disposable {
 		const comparisonBusy = !!comparisonSummary && (this._delegate.comparisonBusy?.get() ?? false);
 		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel, models) : undefined;
 		const shownModel = routingTier?.shownModel ?? this._selectedModel;
-		const displayName = shownModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
+		const presentation = this._delegate.getPresentationOptions();
+		const pendingAutoModel = isPendingLegacyAutoModel(shownModel, this._languageModelsService, presentation.hasLiveModelCatalog ? models : undefined);
+		const displayName = shownModel && !pendingAutoModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
 		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
 		// A HydraFusion model shown as one of Fusion's tiers is named by that tier, even where the label shows only Fusion.
-		this._fusionDisplayName = !comparisonSummary && routingTier && shownModel?.metadata.autoModelFusion ? localize('chat.modelPicker.fusionTier', "Copilot Fusion {0}", routingTier.label) : undefined;
+		this._fusionDisplayName = !comparisonSummary && routingTier && shownModel?.metadata.autoModelFusion
+			? localize('chat.modelPicker.fusionTier', "Copilot Fusion {0}", routingTier.label)
+			: !comparisonSummary && pendingAutoModel ? (this._getFusionAutoName(models) ?? localize('chat.modelPicker.fusion', "Copilot Fusion")) : undefined;
 		// A directly selected on-device model reads "<model> · On-device", like the Copilot CLI and app.
 		const name = comparisonSummary ?? (shownModel && displayName !== undefined && isLocalModelDirectRow(shownModel) ? formatLocalModelOnDeviceName(displayName) : displayName);
 
@@ -911,7 +938,7 @@ export class ModelPickerWidget extends Disposable {
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
 		const modelIcon = comparisonBusy ? Codicon.loadingCompact : comparisonSummary ? Codicon.compare : shownModel
-			? (this._delegate.getPresentationOptions().showModelIcon
+			? (presentation.showModelIcon
 				? getCompactModelPickerIcon(shownModel)
 				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
 			: undefined;
@@ -922,13 +949,14 @@ export class ModelPickerWidget extends Disposable {
 		// dropdown carry the Restricted Mode explanation and the Trust Workspace / Sign In action.
 		// "Activating..." is transient while models load after a Trust grant; "No models available"
 		// is the genuinely empty state (e.g. an agent-host session with no Auto fallback).
+		// Before the catalog arrives, name the Copilot fallback without inventing an effort level.
 		const modelLabel = unavailable
 			? localize('chat.modelPicker.modelsLabel', "Models")
 			: activating
 				? localize('chat.modelPicker.activating', "Activating...")
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
-					: (name ?? localize('chat.modelPicker.auto', "Auto"));
+					: (name ?? this._getFusionAutoName(models) ?? localize('chat.modelPicker.fusion', "Copilot Fusion"));
 		const showModelLabel = (!comparisonSummary || noModelsAvailable) && (!compact || !modelIcon || noModelsAvailable);
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
@@ -944,7 +972,7 @@ export class ModelPickerWidget extends Disposable {
 			const localModelReadout = this._selectedModel && isLocalModelDirectRow(this._selectedModel)
 				? this._getLocalModels()?.getPresentation()?.getDirectModel(this._selectedModel, configurationAccess)?.readout
 				: undefined;
-			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!comparisonSummary || minimal || compact || noModelsAvailable, routingTier?.label, localModelReadout);
+			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!comparisonSummary || minimal || compact || noModelsAvailable || pendingAutoModel, routingTier?.label, localModelReadout);
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('has-config', configVisible);

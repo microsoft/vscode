@@ -12,7 +12,7 @@ import { HubRpcConnection } from '@vscode/hubrpc';
 import { WebEditorClient } from '@vscode/web-editors';
 import { MarkdownContributions } from '../markdownExtensions';
 import { MarkdownEditorProvider } from '../preview/markdownEditorProvider';
-import { markdownEditorHost, markdownEditorRenderer, type MarkdownEditorRenderer } from '../preview/markdownEditorProtocol';
+import { markdownEditorHost, markdownEditorRenderer, type MarkdownEditorHost, type MarkdownEditorRenderer } from '../preview/markdownEditorProtocol';
 import { MarkdownEditorRpcTransport } from '../preview/markdownEditorRpc';
 import { MdLinkOpener } from '../util/openDocumentLink';
 
@@ -195,6 +195,7 @@ function createProvider(state: vscode.Memento): MarkdownEditorProvider {
 		},
 		{ trace: () => { } },
 		async () => false,
+		{ sendTelemetryEvent: () => { }, dispose: () => { } },
 	);
 }
 
@@ -223,8 +224,14 @@ function connectRenderer(panel: TestPanel, secret: string) {
 		configurationChanged: () => { },
 		richLinkPresentations: () => { },
 	});
+	const host = renderer.get(markdownEditorHost);
+	// Like the editor, announce readiness only once the client applied the host's content.
+	const ready: MarkdownEditorHost['ready'] = async params => {
+		await client.onDidConnect;
+		return host.ready(params);
+	};
 	return {
-		host: renderer.get(markdownEditorHost),
+		host: new Proxy(host, { get: (target, key) => key === 'ready' ? ready : Reflect.get(target, key) }),
 		client,
 		reveals,
 		dispose: () => { client.dispose(); renderer.close(); },

@@ -27,9 +27,9 @@ import { IChatPetService } from '../../../../../chat/browser/chatPetService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IChat, ISession } from '../../../../common/session.js';
+import { IChat, ISession } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
-import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../../../services/sessions/browser/sessionHost.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../browser/chat/newChatModelPicker.js';
@@ -96,6 +96,15 @@ class MobileChatInputConfigPicker extends Disposable {
 			getDomNode: () => this._triggerElement,
 			open: () => { void this._showSheet(); },
 			switchToModel: modelIdentifier => this._switchToModel(modelIdentifier),
+		}));
+		this._register(autorun(reader => {
+			this._phonePresenter.enabled.read(reader);
+			if (this._phonePresenter.supportsUnifiedConfiguration) {
+				reader.store.add(this._phonePresenter.registerSessionModelPicker({
+					getSessionContext: () => createChatPhoneInputSessionContext(this._session.read(undefined), this._chat.read(undefined)),
+					selectModel: identifier => this._switchToModel(identifier),
+				}));
+			}
 		}));
 
 		// Re-render the trigger whenever the active session, its config,
@@ -173,7 +182,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		if (!session || !chat) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}
@@ -363,7 +372,7 @@ export class MobileChatInputConfigPickerAction extends Action2 {
 				id: Menus.NewSessionChatInputToolbar,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}],
 		});
 	}
@@ -400,7 +409,7 @@ export class MobileChatInputConfigPickerContribution extends Disposable implemen
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
 			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
+			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
 		for (const menu of [Menus.AutomationsDialogInputToolbar, Menus.NewSessionChatInputToolbar]) {

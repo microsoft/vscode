@@ -36,8 +36,8 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
-	/** If set, a badge signals installed extensions that can be enabled in the Agents window. */
-	readonly showsExtensionSuggestions?: boolean;
+	/** Whether the reduced Customizations section still shows the item, rather than listing it under More. */
+	readonly showWhenReduced?: boolean;
 	/** Additional `when` clause beyond the standard harness-visibility gate. */
 	readonly when?: ContextKeyExpression;
 	/** If set, the Command Palette also offers the item, with this title and category, and its default keybinding, if any. */
@@ -106,6 +106,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: pluginIcon,
 		section: AICustomizationManagementSection.Plugins,
 		isPlugins: true,
+		showWhenReduced: true,
 	},
 	{
 		id: 'sessions.customization.canvases',
@@ -123,6 +124,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: mcpServerIcon,
 		section: AICustomizationManagementSection.McpServers,
 		isMcp: true,
+		showWhenReduced: true,
 	},
 	{
 		id: 'sessions.customization.skills',
@@ -130,6 +132,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: skillIcon,
 		section: AICustomizationManagementSection.Skills,
 		modelSection: AICustomizationManagementSection.Skills,
+		showWhenReduced: true,
 	},
 	{
 		id: 'sessions.customization.instructions',
@@ -137,6 +140,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: instructionsIcon,
 		section: AICustomizationManagementSection.Instructions,
 		modelSection: AICustomizationManagementSection.Instructions,
+		showWhenReduced: true,
 	},
 	{
 		id: 'sessions.customization.agents',
@@ -165,7 +169,6 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		label: localize('extensions', "Extensions"),
 		icon: extensionsViewIcon,
 		section: AICustomizationManagementSection.Extensions,
-		showsExtensionSuggestions: true,
 		when: ContextKeyExpr.equals(`config.${EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}`, true),
 		command: {
 			title: localize2('manageExtensions', "Manage Extensions..."),

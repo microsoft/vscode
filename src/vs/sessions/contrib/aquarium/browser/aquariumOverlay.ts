@@ -122,7 +122,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	}
 
 	mountToggle(parent: HTMLElement): IMountedToggleHandle {
-		const button = $<HTMLButtonElement>('button.agents-aquarium-toggle');
+		const button = $<HTMLButtonElement>('button.agents-aquarium-toggle.agent-sessions-interactive');
 		button.type = 'button';
 		this.updateToggleButtonVisual(button, !!this.activeRef.value);
 
@@ -467,7 +467,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	// First child so subsequent chat bar content paints over it.
 	sessionsContainer.insertBefore(water, sessionsContainer.firstChild);
 	// Sessions Grid wraps the chat content in `.session-view` / `.session-view-content`
-	// with opaque backgrounds (see sessionsPart.css). Mark the part so a scoped
+	// with opaque backgrounds (see sessionsGridContent.css). Mark the part so a scoped
 	// CSS override can clear those backgrounds and let the water layer show through.
 	sessionsContainer.classList.add('aquarium-active');
 	store.add(toDisposable(() => {

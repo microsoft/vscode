@@ -94,10 +94,11 @@ export class EditorHeaderControl extends Disposable {
 		}
 	}
 
-	layout(width: number): void {
+	layout(width: number, left = 0): void {
 		this.updateVisibility(false);
 		if (this.headerContainer) {
 			this.headerContainer.style.width = `${Math.max(0, width)}px`;
+			this.headerContainer.style.marginLeft = left > 0 ? `${left}px` : '';
 		}
 		if (this.breadcrumbsControl?.isHidden() === false && this.breadcrumbsContainer) {
 			let breadcrumbsWidth = 0;

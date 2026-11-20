@@ -11,7 +11,7 @@ import { ChatCustomizationMigrationNotice, IChatCustomizationMigrationNoticeCont
 import { IAICustomizationWorkspaceService } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { isAgentHostSessionResource } from '../../../chat/common/chatSessionsService.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
-import { ISession, isSessionCreated } from '../../common/session.js';
+import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 
 export class NewChatMigrationNotice extends Disposable {
 	readonly element: HTMLElement;
@@ -29,7 +29,6 @@ export class NewChatMigrationNotice extends Disposable {
 			const currentSession = session.read(reader);
 			if (!currentSession
 				|| isSessionCreated(currentSession, reader)
-				|| currentSession.loading.read(reader)
 				|| !isAgentHostSessionResource(currentSession.resource)) {
 				return undefined;
 			}
@@ -52,7 +51,10 @@ export class NewChatMigrationNotice extends Disposable {
 			focusInput,
 			available => hasMigration.set(available, undefined),
 			() => { },
-			{ skipDiscoveryWhenDismissed: true },
+			{
+				skipDiscoveryWhenDismissed: true,
+				discoveryEnabled: derived(this, reader => !session.read(reader)?.loading.read(reader)),
+			},
 		));
 		this.element = notice.element;
 		this.element.classList.add('new-chat-migration-notice');

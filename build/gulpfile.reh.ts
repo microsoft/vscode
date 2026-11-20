@@ -5,14 +5,15 @@
 
 import { gulp, rename, replace, filter, flatmap, gunzip, jsonEditor } from './lib/gulp/facade.ts';
 import * as path from 'path';
-import es from 'event-stream';
+import { Readable } from 'stream';
+import { through, merge, mapStreamSync } from './lib/streams.ts';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/gulp/task.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
 import { computeNLSMetadataHash } from './lib/nlsMetadata.ts';
 import product from '../product.json' with { type: 'json' };
-import { getProductionDependencies } from './lib/dependencies.ts';
+import { getProductionDependencies, toPackagedLayout } from './lib/dependencies.ts';
 import { readISODate, writeISODate } from './lib/date.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
@@ -73,14 +74,14 @@ function extractAlpinefromDocker(nodeVersion: string, platform: string, arch: st
 	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from docker image ${imageName}`);
 	const contents = cp.execSync(`docker run --rm ${imageName}:${nodeVersion}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' });
 	// eslint-disable-next-line local/code-no-dangerous-type-assertions
-	return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } as fs.Stats })]);
+	return Readable.from([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } as fs.Stats })]);
 }
 
 // WSL1 binfmt_elf rejects PT_LOAD segments with p_align > PAGE_SIZE (0x1000).
 // Node 24 linux-x64 ships an `lpstub` LOAD segment aligned to 2 MiB for hugepage
 // remapping; clamp it so the binary still loads under WSL1.
 function patchElfLoadAlign(): NodeJS.ReadWriteStream {
-	return es.mapSync<File, File>(file => {
+	return mapStreamSync<File, File>(file => {
 		if (!file.contents || !Buffer.isBuffer(file.contents)) {
 			return file;
 		}
@@ -138,7 +139,7 @@ function internalNodeFeedPackageName(assetName: string): string {
 }
 
 function fetchNodejsFromInternalFeed(feed: string, assetName: string, version: string, checksumSha256: string | undefined): NodeJS.ReadWriteStream {
-	const result = es.through();
+	const result = through();
 	(async () => {
 		try {
 			const filePath = await downloadFeedPackage(REPO_ROOT, 'nodejs-feed', { feed, name: internalNodeFeedPackageName(assetName), version });
@@ -180,7 +181,7 @@ if (defaultNodeTask) {
 	task.task(task.define('node', defaultNodeTask as any));
 }
 
-function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefined {
+function nodejs(platform: string, arch: string): NodeJS.ReadableStream | undefined {
 
 	if (arch === 'alpine') {
 		platform = 'alpine';
@@ -298,7 +299,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 
 		const extensions = gulp.src(extensionPaths, { base: '.build', dot: true });
 		const extensionsCommonDependencies = gulp.src('.build/extensions/node_modules/**', { base: '.build', dot: true });
-		const sources = es.merge(src, extensions, extensionsCommonDependencies)
+		const sources = merge(src, extensions, extensionsCommonDependencies)
 			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
 
 		let version = packageJson.version;
@@ -313,7 +314,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 		let packageJsonContents = '';
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
 			.pipe(jsonEditor({ name, version, dependencies: undefined, optionalDependencies: undefined, type: 'module' }))
-			.pipe(es.through(function (file) {
+			.pipe(through(function (file: File.BufferFile) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);
 			}));
@@ -337,7 +338,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 				}
 				return json;
 			}))
-			.pipe(es.through(function (file) {
+			.pipe(through(function (file: File.BufferFile) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
 			}));
@@ -347,15 +348,16 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 
 		const productionDependencies = getProductionDependencies(REMOTE_FOLDER);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
+		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d.source)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
 		const cleanedDeps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
+			.pipe(toPackagedLayout(productionDependencies))
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
 		ensureCopilotPlatformPackage(platform, arch, 'remote/node_modules');
 		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch, 'remote/node_modules'), { base: 'remote', dot: true, allowEmpty: true });
-		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds)
+		const deps = merge(cleanedDeps, copilotRuntimePrebuilds)
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
@@ -376,7 +378,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			].map(resource => gulp.src(resource, { base: '.' }).pipe(rename(resource)));
 		}
 
-		const all = es.merge(
+		const all = merge(
 			packageJsonStream,
 			productJsonStream,
 			license,
@@ -391,7 +393,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.pipe(util.fixWin32DirectoryPermissions());
 
 		if (platform === 'win32') {
-			result = es.merge(result,
+			result = merge(result,
 				gulp.src('resources/server/bin/remote-cli/code.cmd', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit || ''))
@@ -406,7 +408,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 					.pipe(rename(`bin/${product.serverApplicationName}.cmd`)),
 			);
 		} else if (platform === 'linux' || platform === 'alpine' || platform === 'darwin') {
-			result = es.merge(result,
+			result = merge(result,
 				gulp.src(`resources/server/bin/remote-cli/${platform === 'darwin' ? 'code-darwin.sh' : 'code-linux.sh'}`, { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit || ''))
@@ -426,7 +428,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 		}
 
 		if (platform === 'linux' || platform === 'alpine') {
-			result = es.merge(result,
+			result = merge(result,
 				gulp.src(`resources/server/bin/helpers/check-requirements-linux.sh`, { base: '.' })
 					.pipe(rename(`bin/helpers/check-requirements.sh`))
 					.pipe(util.setExecutableBit())

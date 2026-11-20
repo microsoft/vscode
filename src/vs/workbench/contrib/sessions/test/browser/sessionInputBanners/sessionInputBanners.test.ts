@@ -30,10 +30,10 @@ import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.j
 import type { IChatResponseModel } from '../../../../chat/common/model/chatModel.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../common/session.js';
+import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ISessionHost, SessionHost, SessionHostKind } from '../../../browser/sessionHost.js';
+import { ISessionHost, SessionHost, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, stubSessionHosts } from '../sessionHostTestUtils.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../browser/agentFeedback.js';
@@ -88,9 +88,12 @@ suite('SessionInputBanners', () => {
 		}());
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override readonly onDidChangeSessions = Event.None;
+			override readonly onDidChangeSessionConfig = Event.None;
 			override getAgentMergeClientStateObservable() { return observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false }); }
 		}();
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
 			override getProvider<T extends ISessionsProvider>(): T | undefined {
 				return agentHostProvider as unknown as T;
 			}
@@ -172,9 +175,12 @@ suite('SessionInputBanners', () => {
 		const agentMergeState = observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false });
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override readonly onDidChangeSessions = Event.None;
+			override readonly onDidChangeSessionConfig = Event.None;
 			override getAgentMergeClientStateObservable() { return agentMergeState; }
 		}();
 		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
 			override getProvider<T extends ISessionsProvider>(): T | undefined {
 				return agentHostProvider as unknown as T;
 			}

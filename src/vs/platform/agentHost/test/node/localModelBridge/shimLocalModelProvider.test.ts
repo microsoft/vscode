@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotRequestContext } from '@github/copilot-sdk';
+import type { CopilotRequestContext } from '@microsoft/copilot-sdk';
 import assert from 'assert';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
@@ -321,8 +321,11 @@ const proxyResolver: IAgentHostProxyResolver = {
 	registerSharedNetworkClient: () => toDisposable(() => { }),
 	notifySharedNetworkClientChanged: () => { },
 	lookupClientKerberosAuthorization: async () => undefined,
+	lookupKerberosAuthorization: async () => undefined,
+	lookupBasicAuthorization: async () => undefined,
 	getConfigurationValue: () => undefined,
 	resolveProxy: async () => undefined,
+	resolveProxyByURL: async () => ({ url: undefined, type: 'DIRECT', source: 'remote', result: 'DIRECT' }),
 	fetch: () => Promise.reject(new Error('no network in tests')),
 	createWebSocket: () => { throw new Error('no network in tests'); },
 };

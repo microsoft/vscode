@@ -120,7 +120,7 @@ async function renderWelcomePageFooter({ container, disposableStore, theme }: Co
 	const banner = createAgentsBanner(
 		{
 			cssClass: 'getting-started-category.agents-banner',
-			graphic: { element: graphic.element, shownDesign: graphic.shownDesign, isExposed: constObservable(true) },
+			graphic: { element: graphic.element, shownDesign: graphic.shownDesign, isExposed: constObservable(true), hasMultipleEditorWindows: graphic.hasMultipleEditorWindows },
 		},
 		instantiationService.get(ICommandService),
 		NullTelemetryService,

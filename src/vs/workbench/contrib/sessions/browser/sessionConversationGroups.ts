@@ -6,7 +6,7 @@
 import { hash } from '../../../../base/common/hash.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { SessionStatus } from '../common/session.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 
 export const SESSION_CONVERSATION_SIDE_CHATS_GROUP = '1_sidechats';
 

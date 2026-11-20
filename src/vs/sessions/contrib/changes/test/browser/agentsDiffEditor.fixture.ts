@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../../../../workbench/contrib/sessions/browser/changes/media/sessionChangesEditor.css';
+import '../../../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
 import '../../../agentFeedback/browser/media/agentFeedbackEditorInput.css';
 import '../../../../../workbench/browser/media/feedbackInputWidget.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
@@ -41,9 +41,10 @@ import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviou
 import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { ISession, ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const SESSION_RESOURCE = URI.parse('fixture-session://agents-diff');
 const MODIFIED_FIRST_RESOURCE = URI.file('/workspace/src/first.ts');
@@ -182,6 +183,8 @@ class FixtureOverlayEditorGroup extends mock<IEditorGroup>() implements IAgentFe
 		this.activeEditor = input;
 		this.activeEditorPane = new class extends mock<IVisibleEditorPane>() {
 			override readonly input = input;
+			override readonly onDidChangeControl = Event.None;
+			override getControl() { return undefined; }
 		}();
 	}
 
@@ -254,7 +257,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 			reg.define(IMenuService, FixtureAgentFeedbackMenuService);
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
-			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { override getNotebook(): undefined { return undefined; } }());
 			reg.definePartialInstance(IEditorProgressService, {
 				show: () => ({ total: () => { }, worked: () => { }, done: () => { } }),

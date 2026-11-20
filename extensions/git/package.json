@@ -43,6 +43,7 @@
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",
+    "workspaceFolderLocations",
     "workspaceTrust"
   ],
   "categories": [
@@ -1718,7 +1719,7 @@
         },
         {
           "command": "git.openMergeEditor",
-          "when": "false"
+          "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && git.activeResourceHasMergeConflicts"
         },
         {
           "command": "git.manageUnsafeRepositories",
@@ -4324,6 +4325,11 @@
       },
       {
         "view": "scm",
+        "contents": "%view.workbench.scm.openingLocation%",
+        "when": "config.git.enabled && !git.missing && git.openingLocation"
+      },
+      {
+        "view": "scm",
         "contents": "%view.workbench.scm.scanFolderForRepositories%",
         "when": "config.git.enabled && !git.missing && workbenchState == folder && workspaceFolderCount != 0 && git.state != initialized"
       },
@@ -4405,8 +4411,7 @@
     "@types/sinon": "^10.0.2",
     "@types/which": "^3.0.0",
     "mocha": "^10.8.2",
-    "sinon": "^12.0.1",
-    "tslib": "^2.6.3"
+    "sinon": "^12.0.1"
   },
   "repository": {
     "type": "git",

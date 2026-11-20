@@ -7,6 +7,7 @@ import { $, getWindow } from '../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../base/common/actions.js';
+import { equals } from '../../base/common/arrays.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { AnchorPosition } from '../../base/common/layout.js';
@@ -146,7 +147,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			}
 			this._summaryIcon = ThemeIcon.isThemeIcon(this._pillOptions.icon) ? this._pillOptions.icon : this._pillOptions.icon.read(reader);
 			const current = this._getPresentation();
-			if (previous.label !== current.label || previous.summarized !== current.summarized || !iconsEqual(previous.icon, current.icon)) {
+			if (previous.label !== current.label || previous.summarized !== current.summarized || !iconsEqual(previous.icon, current.icon) || !equals(previous.iconClasses, current.iconClasses)) {
 				this.updateLabel();
 			}
 			if (previous.hoverContent !== current.hoverContent || !actionsEqual(previous.toolbarActions, current.toolbarActions)) {
@@ -160,6 +161,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			}
 			this._updatePopupState();
 			this._updatePromotedAction();
+			this.updateEntryChecked(this.isSummarized ? undefined : this.entries.at(0)?.checked);
 			if (this._dropdownVisible) {
 				if (this.opensDropdown) {
 					this._actionWidgetService.updateItems(this._getDropdownItems(), undefined, { preserveHover: true, preserveScrollPosition: true, animateItemMove: true });
@@ -170,11 +172,12 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		}));
 	}
 
-	private _getPresentation(): { readonly summarized: boolean; readonly icon: ThemeIcon | undefined; readonly label: string; readonly hoverContent: IManagedHoverContent; readonly toolbarActions: readonly IAction[]; readonly ariaLabel: string | undefined; readonly ariaDescription: string | undefined } {
+	private _getPresentation(): { readonly summarized: boolean; readonly icon: ThemeIcon | undefined; readonly iconClasses: readonly string[] | undefined; readonly label: string; readonly hoverContent: IManagedHoverContent; readonly toolbarActions: readonly IAction[]; readonly ariaLabel: string | undefined; readonly ariaDescription: string | undefined } {
 		const entry = this.isSummarized ? undefined : this.entries.at(0);
 		return {
 			summarized: this.isSummarized,
 			icon: this.isSummarized ? this._summaryIcon : entry?.icon,
+			iconClasses: entry?.iconClasses,
 			label: this.getLabelText(),
 			hoverContent: this.getHoverContents(),
 			toolbarActions: entry ? getChatPillEntryToolbarActions(entry) : [],
@@ -239,6 +242,10 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	}
 
 	protected override getIconElement(): HTMLElement | undefined {
+		const iconClasses = this.isSummarized ? undefined : this.entries.at(0)?.iconClasses;
+		if (iconClasses?.length) {
+			return $(`span.chat-pill-icon.chat-pill-image-icon${iconClasses.map(cssClass => `.${cssClass}`).join('')}`, { 'aria-hidden': 'true' });
+		}
 		const icon = this.isSummarized ? this._summaryIcon : this.entries.at(0)?.icon;
 		return icon ? this.createIconElement(icon) : undefined;
 	}
@@ -387,7 +394,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 					...(entry.badgeBeforeLabel ? { badgeBeforeLabel: true } : {}),
 					...(entry.className ? { className: entry.className } : {}),
 					group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
-					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
+					...(entry.iconClasses ? { iconClasses: ['chat-pill-image-icon', ...entry.iconClasses] } : entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
 					...((entry.toolbarActions?.length || entry.promotedAction) ? { toolbarActions: [...getChatPillEntryToolbarActions(entry)] } : {}),
 					ariaDescription: entry.ariaDescription,
 					hover: this._getDropdownHover(entry),

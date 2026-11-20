@@ -20,27 +20,32 @@ import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/ed
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../workbench/contrib/sessions/browser/parts/chatView.js';
-import { SessionsPart } from '../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
+import { SessionsPart } from '../../../workbench/browser/parts/sessions/sessionsPart.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
+import { SessionsGridContent } from '../../../workbench/contrib/sessions/browser/parts/sessionsGridContent.js';
+import '../../browser/parts/sessionsPartContent.registration.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
-import { ISessionsHostLayoutService } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { SessionsChatSurface } from '../../../workbench/contrib/sessions/browser/sessionsChatSurface.js';
 import { IChatViewFactory } from '../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISession, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
 import { ITestSessionWithChat, LegacyFakePaneState, stubSessionHosts } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/contrib/sessions/browser/chatHostOpener.js';
-import { ISessionChangesStatsCache } from '../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/services/sessions/browser/chatHostOpener.js';
+import { ISessionChangesStatsCache } from '../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { SessionInputPickerVisibility } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
-import { ISessionPaneTabs, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionGridPane, SessionGridPaneKind } from '../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
+import { ISessionPaneTabs } from '../../../workbench/services/sessions/common/sessionPane.js';
 
 export class TestChatView extends AbstractChatView {
 	readonly inputPickerVisibility = this._register(new SessionInputPickerVisibility());
@@ -52,6 +57,8 @@ export class TestChatView extends AbstractChatView {
 	readonly input = document.createElement('textarea');
 	readonly layouts: { width: number; height: number }[] = [];
 	onLayout: (() => void) | undefined;
+	/** Whether it loads its chat, as a chat view shows while it binds to its chat's model. */
+	override readonly isLoadingTranscript = observableValue(this, false);
 
 	constructor(
 		readonly kind: ChatViewKind,
@@ -111,6 +118,9 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 		return view;
 	};
 	instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+		override createChatBackground(container: HTMLElement, scopedInstantiationService: IInstantiationService) {
+			return scopedInstantiationService.createInstance(SessionsChatSurface, container);
+		}
 		override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, scopedInstantiationService?: IInstantiationService): AbstractChatView {
 			return createChatView(isNewChatInSession ? 'newChatInSession' : 'newSession', scopedInstantiationService);
 		}
@@ -158,6 +168,7 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 		override isVisible(part: Parts) { return part === Parts.SESSIONS_PART || part === Parts.SIDEBAR_PART; }
 		override isEditorPaneVisible() { return false; }
 		override isModernUICompact() { return options?.compactLayout?.() ?? false; }
+		override getPanelSpacing() { return mobile || this.isModernUICompact() ? 0 : 4; }
 	}();
 	services.instantiationService.stub(IAgentWorkbenchLayoutService, agentLayoutService);
 	services.instantiationService.stub(ISessionsHostLayoutService, agentLayoutService);
@@ -169,9 +180,9 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 	}
-	const part = store.add(services.instantiationService.createInstance(mobile ? MobileSessionsPart : SessionsPart));
+	const part = store.add(services.instantiationService.createInstance(mobile ? MobileSessionsPart : SessionsPart, SessionsGridContent.ID));
 	part.create(container);
-	return { ...services, part, container };
+	return { ...services, part, content: assertReturnsDefined(part.getContent(SessionsGridContent)), container };
 }
 
 export function createTestActiveSession(sessionId: string, isCreated = true, lifecycle?: {

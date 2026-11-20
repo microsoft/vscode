@@ -18,7 +18,7 @@ import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
 import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorHost, type MarkdownEditorVersion } from '../src/preview/markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
 import { LazyCodeBlockEditorFactory } from '../src/preview/lazyCodeBlockEditorFactory';
-import { TextOperation, WebEditorClient, diffText } from '@vscode/web-editors';
+import { TextOperation, WebEditorClient, diffText, type ContentEdit } from '@vscode/web-editors';
 import type { EditorTextVersions } from './editorTextVersions';
 import { RenameController } from './renameController';
 import { CompletionController } from './completionController';
@@ -292,6 +292,12 @@ class Editor extends Disposable {
 			},
 		}));
 		this.#createView(host, initialState.content, initialState.highlightActiveBlock);
+		// The host's edits map the selection precisely; comparing texts would move it past all text between separate changes.
+		this._register(content.onDidApplyHostEdits(({ edits, content: text }) => {
+			if (typeof text === 'string' && this.#initialText === undefined && text !== this.model.sourceText.get().value) {
+				this.#setTextFromHost(text, toStringEdit(edits));
+			}
+		}));
 		this._register(content.onDidChangeContent(({ content: text }) => {
 			if (typeof text !== 'string') {
 				return;
@@ -302,7 +308,8 @@ class Editor extends Disposable {
 				this.#setTextFromHost(text);
 			}
 		}));
-		this.#send('ready', this.#host.ready({}).then(() => {
+		// The client applies the host's content only once connected; until then, the version it reports for navigation is stale.
+		this.#send('ready', content.onDidConnect.then(() => this.#host.ready({})).then(() => {
 			this.#navigationReady = true;
 			this.#scheduleSelectionReport();
 		}));
@@ -325,11 +332,11 @@ class Editor extends Disposable {
 		}
 	}
 
-	#setTextFromHost(text: string): void {
+	#setTextFromHost(text: string, edit?: StringEdit): void {
 		// Maps the selection and clears stale pending-paragraph state.
 		this.isUpdatingFromExtension = true;
 		try {
-			this.model.replaceSourceText(new StringValue(text));
+			this.model.replaceSourceText(new StringValue(text), edit);
 		} finally {
 			this.isUpdatingFromExtension = false;
 		}
@@ -505,7 +512,20 @@ class Editor extends Disposable {
 				window.removeEventListener('blur', postEditorFocus);
 			},
 		});
+		// When the webview gets focus, for example right after the editor opens, and nothing in it
+		// has focus yet, put the caret into the document so typing works right away.
+		const focusEditorOnWindowFocus = (): void => {
+			const active = document.activeElement;
+			if (!this.model.readonlyMode.get() && (!active || active === document.body || active === document.documentElement)) {
+				view.focus();
+			}
+		};
+		window.addEventListener('focus', focusEditorOnWindowFocus);
+		this._register({ dispose: () => window.removeEventListener('focus', focusEditorOnWindowFocus) });
 		host.appendChild(view.element);
+		if (document.hasFocus()) {
+			focusEditorOnWindowFocus();
+		}
 		postEditorFocus();
 
 		// Render comments as the VS Code V2 markdown cards. The card colours come
@@ -745,6 +765,20 @@ function computeTextEdit(previousText: string, text: string): { start: number; e
 		endExclusive: previousEnd,
 		text: text.slice(start, end),
 	};
+}
+
+/** The text edit of a host change, with offsets into the text before it; `undefined` for other kinds of change. */
+function toStringEdit(edits: readonly ContentEdit[]): StringEdit | undefined {
+	if (edits.length !== 1 || edits[0].kind !== 'stringEdits' || edits[0].path.length !== 0) {
+		return undefined;
+	}
+	// The protocol's edits apply one after another; shift each back by what the previous ones inserted.
+	let delta = 0;
+	return new StringEdit(TextOperation.fromTextEdits(edits[0].stringEdits).toTextEdits().map(edit => {
+		const start = edit.offset - delta;
+		delta += edit.newText.length - edit.length;
+		return StringReplacement.replace(new OffsetRange(start, start + edit.length), edit.newText);
+	}));
 }
 
 new Editor(document.getElementById('editor')!, readInitialState());

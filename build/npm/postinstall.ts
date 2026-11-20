@@ -82,9 +82,6 @@ async function pnpmInstallAsync(dir: string, env: NodeJS.ProcessEnv): Promise<vo
 		const storeDir = '/root/vscode/.build/pnpm-store-container';
 		log(dir, `Installing dependencies inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
-		if (process.env['npm_config_arch'] === 'arm64') {
-			run('sudo', ['docker', 'run', '--rm', '--privileged', 'vscodehub.azurecr.io/multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0', '--reset', '-p', 'yes'], syncOpts);
-		}
 		run('sudo', [
 			'docker', 'run',
 			'-e', 'GITHUB_TOKEN',
@@ -234,12 +231,6 @@ async function main() {
 		} else if (dir === 'remote') {
 			// remote/.pnpmfile.mjs sets the native module build variables of remote/package.json.
 			nativeTasks.push(install(getRemoteEnv()));
-		} else if (dir === 'extensions') {
-			// extensions/.pnpmfile.mjs sets the native module build variables of the root package.json (Electron).
-			nativeTasks.push(install({ ...process.env }));
-		} else if (dir === 'extensions/copilot') {
-			// No `nativeBuild` field or pnpmfile: builds native modules for Electron with the workspace's variables.
-			nativeTasks.push(install({ ...process.env }));
 		} else if (dir === '.build/distro/npm/remote') {
 			// Distro roots have no `nativeBuild` field or pnpmfile: build for the remote server like remote/.
 			nativeTasks.push(install(applyEnv(getRemoteEnv(), getNativeBuildEnv(path.join(root, 'remote')))));

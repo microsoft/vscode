@@ -9,6 +9,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { tildify } from '../../../../../../base/common/labels.js';
+import { matchesScheme } from '../../../../../../base/common/network.js';
 import { IObservable, observableValueOpts } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -68,7 +69,8 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 	) {
 		super();
 		this._register(openerService.registerOpener({
-			open: async (resource, options) => this._open(resource, options),
+			// An agent session link that cannot open is still this opener's: it must not fall through to the OS or an editor.
+			open: async (resource, options) => await this._open(resource, options) || matchesScheme(resource, AGENT_HOST_SESSION_LINK_SCHEME),
 		}));
 		this._register(requestOriginService.registerOpener({
 			open: async origin => origin.sourceSessionResource.scheme === AGENT_HOST_SESSION_LINK_SCHEME
@@ -139,7 +141,9 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		}
 		const widget = await this._chatWidgetService.openSession(clientResource, openToSide ? SIDE_GROUP : ChatViewPaneTarget, {
 			...options?.editorOptions,
-			revealIfOpened: !openToSide
+			revealIfOpened: !openToSide,
+			// A link in the window opens its chat where the window's folder stays, rather than following it
+			...(openToSide ? {} : { keepFolder: true }),
 		});
 		return !!widget;
 	}

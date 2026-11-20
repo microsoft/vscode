@@ -7,6 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import type { IEditorPaneTitleMenu } from './editor.js';
 import type { ViewEditorInput } from './viewEditorInput.js';
 
 /**
@@ -31,9 +32,25 @@ export interface IViewEditorView extends IDisposable {
 
 	/**
 	 * Whether the view renders its own title row. A group that holds only
-	 * this view then does not show its title area.
+	 * this view then does not show its title area, and the view shows its
+	 * title; see {@link setProvidedTitleVisible}.
 	 */
 	readonly providesTitle: boolean;
+
+	/**
+	 * Called, for a view that renders its own title, as the group of its
+	 * editor shows its title area, such as its tabs, as it holds other
+	 * editors too, and as it hides it again: `visible` is false while the
+	 * group shows its title, and the view then does not show its own.
+	 */
+	setProvidedTitleVisible?(visible: boolean): void;
+
+	/**
+	 * The menu of the view's own actions, such as those of the title it
+	 * renders, which the tab bar of its group shows while its editor is
+	 * active.
+	 */
+	readonly titleMenu?: IEditorPaneTitleMenu;
 
 	/**
 	 * An element of the view, such as its title row, that drags the view's

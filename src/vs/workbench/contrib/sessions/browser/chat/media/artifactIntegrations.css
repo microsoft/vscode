@@ -8,6 +8,25 @@
 	border-color: var(--vscode-focusBorder);
 }
 
+/* The status section that shows the details is expanded: it tints the pill's own background like an open control. */
+.chat-pill-item .artifact-pill-sections > .monaco-button.chat-pill-button.secondary[aria-expanded='true'] {
+	background-image:
+		linear-gradient(var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground, transparent)), var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground, transparent))),
+		linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
+}
+
+.chat-pill-item .artifact-pill-sections > .monaco-button.chat-pill-button.secondary[aria-expanded='true']:is(:hover, :focus) {
+	background-image:
+		linear-gradient(var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground, transparent)), var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground, transparent))),
+		linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
+}
+
+/* High contrast themes have no tint, so the expanded section draws a solid boundary that keyboard focus replaces. */
+.monaco-workbench:is(.hc-black, .hc-light) .chat-pill-item .artifact-pill-sections > .monaco-button.chat-pill-button[aria-expanded='true']:not(:focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 /* A pinned artifact's Unpin button rides on the trailing padding of its last segment, like other pinned pills. */
 .chat-pill-item.artifact-integration-pill.chat-pill-segmented.has-promoted-action > .monaco-button.chat-pill-button {
 	padding-right: var(--vscode-spacing-size60);
@@ -50,8 +69,9 @@
 
 .artifact-details-header {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: flex-start;
-	gap: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
 	flex-shrink: 0;
 }
 
@@ -71,7 +91,9 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1.5;
 	min-width: 0;
-	flex: 1;
+	/* Below this width the actions move to their own row instead of squeezing the title, which keeps its icon. */
+	flex: 1 1 min(10em, calc(100% - var(--vscode-codiconFontSize) - var(--vscode-spacing-size120)));
+	overflow-wrap: break-word;
 }
 
 .artifact-details-title-link {
@@ -83,10 +105,21 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.artifact-header-actions {
+.artifact-details-header .artifact-header-actions {
 	flex-shrink: 0;
-	max-width: 50%;
+	/* A row of actions wider than the header wraps instead of clipping trailing buttons, such as Close. */
+	max-width: 100%;
 	justify-content: flex-end;
+	gap: var(--vscode-spacing-size20);
+	margin-left: auto;
+}
+
+.artifact-integration-panel .artifact-header-actions .monaco-button {
+	padding: var(--vscode-spacing-size20);
+}
+
+.artifact-integration-panel .artifact-header-actions .monaco-button .codicon {
+	margin: 0;
 }
 
 .artifact-details-scrollable {
@@ -134,12 +167,6 @@
 	min-width: 0;
 }
 
-.artifact-general-actions {
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
-	padding-top: var(--vscode-spacing-size60);
-	flex-shrink: 0;
-}
-
 .artifact-button-label {
 	overflow: hidden;
 	white-space: nowrap;
@@ -151,11 +178,6 @@
 	width: auto;
 	max-width: 100%;
 	gap: var(--vscode-spacing-size40);
-}
-
-.artifact-integration-panel .artifact-general-actions .monaco-button {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
 }
 
 .artifact-details-title-link:focus-visible,

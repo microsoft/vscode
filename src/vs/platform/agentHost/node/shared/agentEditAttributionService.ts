@@ -16,7 +16,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { EditTelemetryTrigger, sendEditSourcesDetailsTelemetry, sendEditSourcesStatsTelemetry } from '../../../telemetry/common/editTelemetry.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryService, normalizeModelRouterTelemetryId, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
@@ -320,7 +320,8 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 
 		const provider = edit.provider ?? getSessionProvider(edit.ownerSessionUri);
 		const copilotTrackingId = provider === 'copilotcli' ? edit.copilotTrackingId || undefined : undefined;
-		const modelSegment = edit.modelId ? `-$modelId:${edit.modelId}` : '';
+		const telemetryModelId = normalizeModelRouterTelemetryId(edit.modelId);
+		const modelSegment = telemetryModelId ? `-$modelId:${telemetryModelId}` : '';
 		// Matches the workbench edit-source key order ($modelId, $autoTier, $fusionModel, ..., $harness, $origin).
 		const autoTierSegment = edit.autoTier ? `-$autoTier:${edit.autoTier}` : '';
 		const fusionModelSegment = edit.fusionModel ? `-$fusionModel:${edit.fusionModel}` : '';
@@ -340,7 +341,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				groupKey: toTrackingKey(groupSourceKey),
 				sourceKey,
 				sourceKeyCleaned: `source:Chat.applyEdits-$harness:${provider}-$origin:agentHost`,
-				modelId: edit.modelId,
+				modelId: telemetryModelId,
 				autoTier: edit.autoTier,
 				fusionModel: edit.fusionModel,
 				conversationId,

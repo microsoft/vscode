@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MCP_SKILLS_METADATA_KEY, type ICachedMcpSkill } from '../../node/shared/mcpSkillCache.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type McpServerCustomization, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, SessionStatus, type Customization, type McpServerCustomization, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../common/state/protocol/state.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
@@ -102,7 +104,6 @@ suite('AgentHostSkillCompletionProvider', () => {
 		return disposables.add(new AgentHostSkillCompletionProvider(
 			() => agent,
 			async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) }),
-			undefined,
 			createSessionDataService(database),
 		));
 	}
@@ -132,16 +133,33 @@ suite('AgentHostSkillCompletionProvider', () => {
 			rangeStart: 0,
 			rangeEnd: 1,
 			attachment: {
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.Resource,
+				uri: 'file:///skills/agent-host-docs/SKILL.md',
 				label: '/my-skill:agent-host-docs',
+				displayKind: 'skill',
 				_meta: {
-					uri: 'file:///skills/agent-host-docs/SKILL.md',
-					name: 'agent-host-docs',
-					displayName: 'my-skill:agent-host-docs',
 					description: 'Use this skill when working on Agent Host code',
 				},
 			},
 		}]);
+	});
+
+	test('offers the skills the session published without waiting for the agent to resolve them', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const session = 'mock:/session';
+		stateManager.createSession({ resource: session, provider: 'mock', title: 't', status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z', defaultChat: buildDefaultChatUri(session) });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionCustomizationsChanged, customizations: [plugin('my-plugin', [skill('review', 'Review a change')])] });
+		const agent = new MockAgent('mock');
+		const resolving = new DeferredPromise<readonly Customization[]>();
+		agent.getSessionCustomizations = () => resolving.p;
+		const completions = disposables.add(new AgentHostCompletions(logService, stateManager));
+		disposables.add(completions.registerProvider(createProvider(agent)));
+
+		const result = await raceTimeout(completions.completions({ kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1 }, CancellationToken.None), 1000);
+		resolving.complete([]);
+
+		assert.deepStrictEqual(result?.items.map(item => item.insertText), ['/my-plugin:review ']);
 	});
 
 	test('carries a skill argument hint into the completion metadata', async () => {
@@ -158,19 +176,24 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 		assert.deepStrictEqual(result.map(item => item.attachment?._meta), [
 			{
-				uri: 'file:///home/.copilot/skills/design-prep/SKILL.md',
-				name: 'design-prep',
-				displayName: 'design-prep',
 				description: 'Prep a design',
 				argumentHint: '<problem and repo> [offline]',
 			},
 			{
-				uri: 'file:///home/.copilot/skills/no-hint/SKILL.md',
-				name: 'no-hint',
-				displayName: 'no-hint',
 				description: 'No hint',
 			},
 		]);
+	});
+
+	test('represents a skill with a custom resource URI without metadata', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			directory('skills', 'custom-skills:/catalog', [skillAt('review', 'custom-skills:/review/SKILL.md')]),
+		];
+		assert.deepStrictEqual(await run(createProvider(agent), '/'), [{
+			insertText: '/review ', rangeStart: 0, rangeEnd: 1,
+			attachment: { type: MessageAttachmentKind.Resource, uri: 'custom-skills:/review/SKILL.md', label: '/review', displayKind: 'skill' },
+		}]);
 	});
 
 	test('filters user-disabled and disabled skills without filtering model-disabled skills', async () => {
@@ -220,10 +243,10 @@ suite('AgentHostSkillCompletionProvider', () => {
 		];
 		const provider = createProvider(agent);
 
-		const summarize = async (text: string) => (await run(provider, text)).map(item => ({ insertText: item.insertText, label: item.attachment.label, meta: item.attachment._meta }));
+		const summarize = async (text: string) => (await run(provider, text)).map(item => ({ insertText: item.insertText, attachment: item.attachment }));
 		const expected = (name: string) => ({
-			insertText: `/${name} `, label: `/${name}`,
-			meta: { uri: resource, name, displayName: name, description: 'Skill description (MCP: Friendly Server)' },
+			insertText: `/${name} `,
+			attachment: { type: MessageAttachmentKind.Resource, uri: resource, label: `/${name}`, displayKind: 'skill', _meta: { description: 'Skill description (MCP: Friendly Server)' } },
 		});
 		assert.deepStrictEqual({ all: await summarize('/'), top: await summarize('/top:') }, {
 			all: [expected('top:friendly'), expected('nested:skill'), expected('model-hidden:skill')],
@@ -279,8 +302,8 @@ suite('AgentHostSkillCompletionProvider', () => {
 			const expected = ['top:friendly', 'nested:skill'].map(name => ({
 				insertText: `/${name} `, rangeStart: 0, rangeEnd: 1,
 				attachment: {
-					type: MessageAttachmentKind.Simple, label: `/${name}`,
-					_meta: { uri: 'agent-discovery://server/friendly/SKILL.md', name, displayName: name, description: 'Skill description (MCP: Friendly Server)' },
+					type: MessageAttachmentKind.Resource, uri: 'agent-discovery://server/friendly/SKILL.md', label: `/${name}`, displayKind: 'skill',
+					_meta: { description: 'Skill description (MCP: Friendly Server)' },
 				},
 			}));
 			assert.deepStrictEqual({ cached, live, unpublished, reads: database.readCalls }, { cached: expected, live: expected, unpublished: [undefined, undefined], reads: 1 });
@@ -363,12 +386,11 @@ suite('AgentHostSkillCompletionProvider', () => {
 			rangeStart: 0,
 			rangeEnd: 1,
 			attachment: {
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.Resource,
+				uri: 'file:///skills/monitor-pr/SKILL.md',
 				label: '/monitor-pr',
+				displayKind: 'skill',
 				_meta: {
-					uri: 'file:///skills/monitor-pr/SKILL.md',
-					name: 'monitor-pr',
-					displayName: 'monitor-pr',
 					description: 'Use this skill when working with PRs',
 				},
 			},
@@ -389,12 +411,11 @@ suite('AgentHostSkillCompletionProvider', () => {
 			rangeStart: 0,
 			rangeEnd: 1,
 			attachment: {
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.Resource,
+				uri: 'file:///skills/monitor-pr/SKILL.md',
 				label: '/monitor-pr',
+				displayKind: 'skill',
 				_meta: {
-					uri: 'file:///skills/monitor-pr/SKILL.md',
-					name: 'monitor-pr',
-					displayName: 'monitor-pr',
 					description: 'Use this skill when working with PRs',
 				},
 			},
