@@ -234,7 +234,7 @@ export async function showMobileWorkspacePickerSheet(
 				folderRunById.clear();
 				folderLabelById.clear();
 				const normalizedQuery = query.trim().toLocaleLowerCase();
-				const candidates = [...browseRows, ...(showSearch ? rows.map(row => row.sheetItem) : [])];
+				const candidates = showSearch ? rows.map(row => row.sheetItem) : [];
 				const filteredRows = candidates.filter(item => !normalizedQuery
 					|| item.label.toLocaleLowerCase().includes(normalizedQuery)
 					|| item.description?.toLocaleLowerCase().includes(normalizedQuery));
@@ -252,7 +252,7 @@ export async function showMobileWorkspacePickerSheet(
 					return [];
 				}
 				const flattened = results.flat();
-				const sheetItems: IMobilePickerSheetItem[] = [...filteredRows];
+				const sheetItems: IMobilePickerSheetItem[] = [...browseRows, ...filteredRows];
 				if (foldersOnly && sheetItems.length) {
 					sheetItems[0] = { ...sheetItems[0], sectionTitle: localize('mobileWorkspacePicker.recentFolders', "Recent folders") };
 				}

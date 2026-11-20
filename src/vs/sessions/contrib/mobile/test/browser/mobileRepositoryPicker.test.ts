@@ -167,7 +167,7 @@ suite('MobileRepositoryPicker', () => {
 				upcastPartial<IWorkbenchLayoutService>({ mainContainer: container }),
 				trigger,
 				[
-					...(choices === 'recent workspace' ? [{
+					...(choices !== 'inline folders' ? [{
 						kind: ActionListItemKind.Action, label: 'Recent',
 						item: { folderUri: URI.file('/recent'), providerId: 'first' },
 					}] : []),
@@ -183,19 +183,22 @@ suite('MobileRepositoryPicker', () => {
 			await clock.tickAsync(0);
 			const title = container.querySelector('[role="dialog"]')?.ariaLabel;
 			const headers = container.querySelectorAll('.mobile-picker-sheet-header-action').length;
-			const browseRows = [...container.querySelectorAll<HTMLButtonElement>('.mobile-picker-sheet-item')].filter(row => row.querySelector('.mobile-picker-sheet-label')?.textContent === 'Other');
+			let filteredLabels: string[] = [];
 			if (choices === 'multiple providers') {
-				assert.strictEqual(browseRows.length, 1);
-				browseRows[0].click();
-			} else {
-				container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
+				query(getInput(container), 'microsoft/vscode');
+				await clock.tickAsync(200);
+				const browseRows = getRows(container);
+				filteredLabels = browseRows.map(row => row.textContent ?? '');
+				browseRows[1]?.click();
 			}
+			container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
 			await clock.tickAsync(180);
 			await result;
 
-			assert.deepStrictEqual({ title, headers, dispatched }, {
+			assert.deepStrictEqual({ title, headers, filteredLabels, dispatched }, {
 				title: 'Choose Workspace',
 				headers: choices === 'recent workspace' ? 1 : 0,
+				filteredLabels: choices === 'multiple providers' ? ['Browse', 'Other'] : [],
 				dispatched: choices === 'multiple providers' ? [1] : [],
 			});
 		});
