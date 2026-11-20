@@ -22,6 +22,8 @@ import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../../platfor
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IProgress } from '../../../../../../../platform/progress/common/progress.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { selectedSandboxProfile, writeSandboxProfiles } from '../../../../../../../platform/sandbox/common/sandboxProfiles.js';
 import { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
 import { IEditorService, MODAL_GROUP, PreferredGroup } from '../../../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../../services/preferences/common/preferences.js';
@@ -190,7 +192,7 @@ suite('RemotesWidget', () => {
 		const model = store.add(new TestRemotesModel());
 		const widget = store.add(instantiationService.createInstance(TestRemotesWidget, parent, model, operatingSystem));
 		widget.layout();
-		return { widget, parent, model, errors, hoverContents, mouseHoverTargets, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
+		return { widget, parent, model, storage: instantiationService.get(IStorageService), errors, hoverContents, mouseHoverTargets, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
 	}
 
 	function getManagementAction(parent: HTMLElement, id: string, action: 'rename' | 'delete'): HTMLElement {
@@ -223,7 +225,7 @@ suite('RemotesWidget', () => {
 			}, {
 				tables: 1,
 				trees: 0,
-				columns: ['', 'Name', 'Status', ''],
+				columns: ['', 'Name', 'Status', 'Sandbox Profile', ''],
 				roots: operatingSystem === OperatingSystem.Windows ? ['Dev Tunnels', 'WSL', 'SSH'] : ['Dev Tunnels', 'SSH'],
 				switches: 0,
 				checkboxes: 0,
@@ -254,13 +256,26 @@ suite('RemotesWidget', () => {
 			aligned: cells.every((cell, index) => Math.abs(cell.getBoundingClientRect().x - headers[index].getBoundingClientRect().x) < 1),
 			rowHeight: row.getBoundingClientRect().height,
 			groupHeight: parent.querySelector('.remotes-group-row')!.getBoundingClientRect().height,
-			headerHeight: headers[1].getBoundingClientRect().height,
-			actionsWidth: headers[3].getBoundingClientRect().width === 144,
+			headerHeight: headers[1].offsetHeight,
+			actionsWidth: headers[4].getBoundingClientRect().width === 144,
 			sashes: parent.querySelectorAll('.monaco-sash.vertical').length > 0,
 		}, {
 			values: ['Build server', 'Connected'], aligned: true,
 			rowHeight: 26, groupHeight: 30, headerHeight: 30, actionsWidth: true, sashes: true,
 		});
+	});
+
+	test('assigns a profile from a disconnected row without connecting or changing other hosts', () => {
+		const { parent, storage, model } = createWidget();
+		writeSandboxProfiles(storage, [{ id: 'restricted', name: 'Restricted', settings: {} }]);
+		const picker = parent.querySelector<HTMLSelectElement>('[data-remote-id="tunnel:laptop"] select')!;
+		const options = Array.from(picker.options, option => option.text);
+		picker.selectedIndex = 1;
+		picker.dispatchEvent(new Event('change'));
+		const selected = selectedSandboxProfile(storage, 'tunnel:laptop')?.name;
+		picker.selectedIndex = 0;
+		picker.dispatchEvent(new Event('change'));
+		assert.deepStrictEqual([options, selected, selectedSandboxProfile(storage, 'tunnel:laptop'), selectedSandboxProfile(storage, 'ssh:build'), model.connectionChanges], [['Default', 'Restricted'], 'Restricted', undefined, undefined, []]);
 	});
 
 	test('group chevrons and row visibility actions occupy distinct gutter positions', () => {

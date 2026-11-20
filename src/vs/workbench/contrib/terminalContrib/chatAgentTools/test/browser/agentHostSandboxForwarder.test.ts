@@ -27,6 +27,8 @@ import { IPathService } from '../../../../../../platform/path/common/pathService
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AgentHostSandboxForwarder } from '../../browser/agentHostSandboxForwarder.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { selectSandboxProfile, writeSandboxProfiles } from '../../../../../../platform/sandbox/common/sandboxProfiles.js';
 
 // ---- Mocks ------------------------------------------------------------------
 
@@ -171,6 +173,7 @@ function rootStateWithoutSandboxSchema(): RootState {
 }
 
 interface ITestSetup {
+	storage: IStorageService;
 	forwarder: AgentHostSandboxForwarder;
 	local: MockAgentHostService;
 	remote: MockRemoteAgentHostService;
@@ -190,12 +193,14 @@ function setup(disposables: DisposableStore, configValues: Record<string, unknow
 	instantiationService.stub(IRemoteAgentHostService, remote);
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(ILogService, new NullLogService());
+	const storage = disposables.add(new InMemoryStorageService());
+	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(IPathService, new TestPathService());
 	const connectionsService = disposables.add(instantiationService.createInstance(AgentHostConnectionsService));
 	instantiationService.stub(IAgentHostConnectionsService, connectionsService);
 
 	const forwarder = disposables.add(instantiationService.createInstance(AgentHostSandboxForwarder));
-	return { forwarder, local, remote, configurationService };
+	return { forwarder, local, remote, configurationService, storage };
 }
 
 // =============================================================================
@@ -204,6 +209,42 @@ suite('AgentHostSandboxForwarder', () => {
 	const disposables = new DisposableStore();
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('applies an offline selection on connect and reverts only that host when the profile is deleted', () => {
+		const key = AgentSandboxSettingId.AgentSandboxEnabled;
+		const { local, remote, storage } = setup(disposables, { [key]: 'off' });
+		const address = 'ssh:build';
+		local.setRootState(rootStateWithSandboxSchema({ enabled: 'off' }));
+		const peer = remote.addConnection('ssh:other');
+		peer.setRootState(rootStateWithSandboxSchema({ enabled: 'off' }));
+		writeSandboxProfiles(storage, [{ id: 'one', name: 'Restricted', settings: { [key]: 'on' } }]);
+		selectSandboxProfile(storage, address, 'one');
+		const host = remote.addConnection(address);
+		host.setRootState(rootStateWithSandboxSchema({ enabled: 'off' }));
+		host.setRootState(rootStateWithSandboxSchema({ enabled: 'on' }));
+		writeSandboxProfiles(storage, []);
+		assert.deepStrictEqual([host.dispatched, peer.dispatched, local.dispatched], [
+			['on', 'off'].map(enabled => ({ type: ActionType.RootConfigChanged, config: { sandbox: { enabled } } })), [], [],
+		]);
+	});
+
+	test('pushes saved edits to assigned hosts but keeps organization-managed settings', () => {
+		const managed = AgentSandboxSettingId.AgentSandboxEnabled;
+		const network = AgentSandboxSettingId.AgentSandboxAllowNetwork;
+		const configuration = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const inspected = super.inspect<T>(key);
+				return { ...inspected, policyValue: key === managed ? inspected.value : undefined };
+			}
+		}({ [AgentHostCustomTerminalToolEnabledSettingId]: false, [managed]: 'on', [network]: true });
+		const { remote, storage } = setup(disposables, {}, configuration);
+		writeSandboxProfiles(storage, [{ id: 'one', name: 'Open', settings: { [managed]: 'off', [network]: true } }]);
+		selectSandboxProfile(storage, 'ssh:build', 'one');
+		const host = remote.addConnection('ssh:build');
+		host.setRootState(rootStateWithSandboxSchema({ enabled: 'on', allowNetwork: true }));
+		writeSandboxProfiles(storage, [{ id: 'one', name: 'Open', settings: { [managed]: 'off', [network]: false } }]);
+		assert.deepStrictEqual(host.dispatched, [{ type: ActionType.RootConfigChanged, config: { sandbox: { enabled: 'on', allowNetwork: false } } }]);
+	});
 
 	test('does not dispatch while rootState is unhydrated', () => {
 		const { local } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });

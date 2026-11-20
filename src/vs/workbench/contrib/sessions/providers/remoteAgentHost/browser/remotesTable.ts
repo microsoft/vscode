@@ -8,6 +8,7 @@ import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEv
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { SelectBox } from '../../../../../../base/browser/ui/selectBox/selectBox.js';
 import { ITableRenderer } from '../../../../../../base/browser/ui/table/table.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -22,6 +23,10 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { defaultSelectBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { readSandboxProfiles, selectedSandboxProfile, selectSandboxProfile, watchSandboxProfiles } from '../../../../../../platform/sandbox/common/sandboxProfiles.js';
 import { getAgentHostConnectionStatusLabel } from '../../../common/agentHostSessionsProvider.js';
 import { ICustomizationRemote, RemoteKind } from './remotesModel.js';
 import { getStatusHover } from './remoteHostOptions.js';
@@ -60,7 +65,7 @@ export interface IRemoteTableRow {
 	readonly entry: RemoteTableEntry;
 }
 
-type RemoteColumn = 'gutter' | 'name' | 'connection' | 'actions';
+type RemoteColumn = 'gutter' | 'name' | 'connection' | 'profile' | 'actions';
 export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'rename' | 'copyAddress' | 'locationPreference' | 'updateServer' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
@@ -71,6 +76,7 @@ type RemoteCellTemplate = {
 } & (
 		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'connection'; readonly state: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly warning: HTMLElement }
+		| { readonly column: 'profile'; readonly select: SelectBox; readonly pickerContainer: HTMLElement; optionIds: readonly (string | undefined)[] }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
 		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
@@ -112,6 +118,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		private readonly instantiationService: IInstantiationService,
 		private readonly hoverService: IHoverService,
 		private readonly openerService: IOpenerService,
+		private readonly storage: IStorageService,
+		private readonly contextViewService: IContextViewService,
 	) {
 		this.templateId = `remotes.${column}`;
 	}
@@ -122,6 +130,20 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		const base = { container, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 		let template: RemoteCellTemplate;
 		switch (this.column) {
+			case 'profile': {
+				const select = disposables.add(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { useCustomDrawn: true }));
+				const pickerContainer = dom.append(container, dom.$('.remotes-profile-picker'));
+				select.render(pickerContainer);
+				template = { ...base, column: 'profile', select, pickerContainer, optionIds: [] };
+				disposables.add(dom.addDisposableListener(pickerContainer, dom.EventType.KEY_DOWN, event => event.stopPropagation()));
+				disposables.add(dom.addDisposableGenericMouseDownListener(pickerContainer, event => event.stopPropagation()));
+				disposables.add(select.onDidSelect(({ index }) => {
+					if (template.row?.entry.type === 'remote' && template.column === 'profile') {
+						selectSandboxProfile(this.storage, template.row.entry.remote.id, template.optionIds[index]);
+					}
+				}));
+				break;
+			}
 			case 'name': {
 				const content = dom.append(container, dom.$('.remotes-name-content'));
 				const nameRow = dom.append(content, dom.$('.remotes-name-row'));
@@ -216,6 +238,24 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		template.row = row;
 		const entry = row.entry;
 		switch (template.column) {
+			case 'profile': {
+				template.pickerContainer.hidden = entry.type !== 'remote';
+				if (entry.type === 'remote') {
+					const { id, name } = entry.remote;
+					template.select.setAriaLabel(localize('remotes.selectProfile', "Sandbox profile for {0}", name));
+					const refresh = () => {
+						const profiles = readSandboxProfiles(this.storage);
+						template.optionIds = [undefined, ...profiles.map(profile => profile.id)];
+						const selected = selectedSandboxProfile(this.storage, id)?.id;
+						template.select.setOptions([{ text: localize('remotes.defaultProfile', "Default") }, ...profiles.map(profile => ({ text: profile.name }))], Math.max(0, template.optionIds.indexOf(selected)));
+					};
+					watchSandboxProfiles(this.storage, template.elementDisposables, address => {
+						if (!address || address === id) { refresh(); }
+					});
+					refresh();
+				}
+				break;
+			}
 			case 'name': {
 				const rowElement = template.container.parentElement!;
 				rowElement.classList.toggle('remotes-group-row', entry.type === 'group');
@@ -391,7 +431,9 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 
 	private updateFocus(template: RemoteCellTemplate): void {
 		const focused = template.row?.id === this.focusedId;
-		if (template.column === 'gutter' || template.column === 'actions') {
+		if (template.column === 'profile') {
+			template.select.setFocusable(focused);
+		} else if (template.column === 'gutter' || template.column === 'actions') {
 			template.toolbar.setFocusable(focused && !template.container.classList.contains('remotes-cell-action-hidden'));
 		} else if (template.column === 'name' && template.row?.entry.type === 'empty') {
 			if (template.link && template.row.entry.documentation) {

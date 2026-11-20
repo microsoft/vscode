@@ -36,6 +36,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { WorkbenchTable } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IEditorService, MODAL_GROUP } from '../../../../../services/editor/common/editorService.js';
@@ -111,6 +112,7 @@ export class RemotesWidget extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IStorageService storage: IStorageService,
 	) {
 		super();
 		this._register(model);
@@ -157,7 +159,7 @@ export class RemotesWidget extends Disposable {
 		}));
 		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
 
-		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Status, Actions.");
+		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Status, Sandbox Profile, Actions.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
@@ -166,11 +168,12 @@ export class RemotesWidget extends Disposable {
 			{ id: 'gutter', label: '', weight: 0, minimumWidth: 64, maximumWidth: 64 },
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.8, minimumWidth: 220 },
 			{ id: 'connection', label: localize('remotes.connectionColumn', "Status"), weight: 0.2, minimumWidth: 144 },
+			{ id: 'profile', label: localize('remotes.profileColumn', "Sandbox Profile"), weight: 0.25, minimumWidth: 160 },
 			{ id: 'actions', label: '', weight: 0, minimumWidth: 144, maximumWidth: 144 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
-			instantiationService, hoverService, openerService,
+			instantiationService, hoverService, openerService, storage, contextViewService,
 		));
 		const columns = columnDefinitions.map((column, index) => ({
 			...column, tooltip: column.label, templateId: renderers[index].templateId, project: (row: IRemoteTableRow) => row,
