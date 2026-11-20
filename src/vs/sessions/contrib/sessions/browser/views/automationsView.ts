@@ -552,6 +552,7 @@ class AutomationCardsSection extends Disposable {
 		const contentOwnedFocus = DOM.isHTMLElement(activeElement) && (
 			this.visibleContainer?.contains(activeElement) || this.templatesContainer.contains(activeElement)
 		);
+		let movedEmptyStateFocus = false;
 		const activeAutomationIds = new Set(automations.map(automation => automation.id));
 		for (const [automationId, card] of this.persistentCards) {
 			if (activeAutomationIds.has(automationId)) {
@@ -586,14 +587,19 @@ class AutomationCardsSection extends Disposable {
 			}
 			rendered.title.textContent = group.label;
 			if (hiddenDisabledDescription && this.hiddenDisabledOwnerships.get().has(group.ownership)) {
-				rendered.summary.setAttribute('aria-description', hiddenDisabledDescription);
+				rendered.summary.setAttribute('aria-description', [group.description, hiddenDisabledDescription].filter(Boolean).join(' '));
 			} else if (group.description) {
 				rendered.summary.setAttribute('aria-description', group.description);
 			} else {
 				rendered.summary.removeAttribute('aria-description');
 			}
 			if (rendered.emptyState) {
-				rendered.emptyState.style.display = group.automations.every(automation => !showDisabled && !automation.enabled) ? '' : 'none';
+				const showEmptyState = group.automations.every(automation => !showDisabled && !automation.enabled);
+				if (!showEmptyState && DOM.isHTMLElement(activeElement) && rendered.emptyState.contains(activeElement)) {
+					rendered.summary.focus();
+					movedEmptyStateFocus = true;
+				}
+				rendered.emptyState.style.display = showEmptyState ? '' : 'none';
 			}
 			const currentSection = Array.from(this.container.children).filter(child => child !== this.builtInTemplatesSection)[groupIndex];
 			if (currentSection !== rendered.section) {
@@ -629,7 +635,7 @@ class AutomationCardsSection extends Disposable {
 		}
 		if (this.builtInTemplatesSection) {
 			this.builtInTemplatesSection.style.display = showBuiltInTemplates ? '' : 'none';
-			const sharedSection = showBuiltInTemplates ? this.ownershipSections.get('repository')?.section : undefined;
+			const sharedSection = showBuiltInTemplates && visibleAutomations.length > 0 ? this.ownershipSections.get('repository')?.section : undefined;
 			const parent = sharedSection ? this.container : this.templatesContainer;
 			const nextSibling = sharedSection ?? this.pluginTemplatesSection ?? null;
 			if (this.builtInTemplatesSection.parentElement !== parent || this.builtInTemplatesSection.nextSibling !== nextSibling) {
@@ -660,7 +666,7 @@ class AutomationCardsSection extends Disposable {
 		this.renderPartialState(visibleAutomations.length > 0 ? catalogueState : 'ready', unavailableProviders);
 
 		// Move focus before hiding its previous container.
-		if (!this.focusPendingAutomation() && contentOwnedFocus && DOM.isHTMLElement(activeElement)) {
+		if (!this.focusPendingAutomation() && !movedEmptyStateFocus && contentOwnedFocus && DOM.isHTMLElement(activeElement)) {
 			const hiddenCard = activeElement.closest<HTMLElement>('.automations-card-wrapper');
 			if (hiddenCard?.style.display === 'none') {
 				const hiddenAutomation = automations.find(automation => this.persistentCards.get(automation.id)?.element === hiddenCard);
@@ -1544,15 +1550,20 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private focusCard(card: IAutomationCardEntry): void {
+		const section = card.element.closest<HTMLDetailsElement>('details.automations-ownership-section');
+		const ownershipSection = [...this.ownershipSections.entries()].find(([, rendered]) => rendered.section === section);
 		if (card.element.style.display === 'none') {
-			this.focusHiddenAutomation();
+			this.focusHiddenAutomation(ownershipSection?.[0]);
 			return;
 		}
-		const section = card.element.closest<HTMLDetailsElement>('details.automations-ownership-section');
 		if (section) {
 			section.open = true;
 		}
-		card.main.focus();
+		if (card.main.disabled) {
+			(ownershipSection?.[1].summary ?? this.focusRoot).focus();
+		} else {
+			card.main.focus();
+		}
 	}
 
 	private focusHiddenAutomation(ownership = 'user'): void {
@@ -1574,7 +1585,7 @@ class AutomationCardsSection extends Disposable {
 			if (!this._store.isDisposed && this.focusRoot.isConnected && DOM.isHTMLElement(focusedElement)
 				&& focusedElement.closest<HTMLElement>('.automations-card-wrapper')?.style.display === 'none'
 				&& DOM.getActiveElement() === DOM.getWindow(this.focusRoot).document.body) {
-				this.focusHiddenAutomation();
+				this.focusHiddenAutomation(automation.ownership);
 			}
 			if (!result || result.kind !== 'update') {
 				return;

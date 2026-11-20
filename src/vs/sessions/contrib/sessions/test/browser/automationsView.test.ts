@@ -1227,6 +1227,103 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({ before, after: [templates.open, disabled.style.display] }, { before: [false, ''], after: [true, ''] });
 	});
 
+	for (const mixed of [false, true]) {
+		test(`templates remain visible when all shared and personal cards are hidden (mixed=${mixed})`, () => {
+			const { widget, automationService } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
+			automationService.setCatalogueState('ready');
+			automationService.setAutomations([
+				automation({ id: 'shared', ownership: 'repository', isCreatedByCurrentUser: true, enabled: false }),
+				...(mixed ? [automation({ enabled: false })] : []),
+			]);
+			const templates = widget.element.querySelector<HTMLElement>('.automations-built-in-templates')!;
+			assert.deepStrictEqual({
+				visible: templates.checkVisibility(),
+				inTemplateContainer: templates.parentElement?.classList.contains('automations-templates'),
+			}, { visible: true, inTemplateContainer: true });
+		});
+	}
+
+	test('shared section retains access guidance while hidden-card guidance changes', () => {
+		const { widget, automationService, toggleDisabled } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
+		const shared = automation({ id: 'shared', ownership: 'repository', isCreatedByCurrentUser: true });
+		automationService.setAutomations([shared, { ...shared, id: 'disabled', enabled: false }]);
+		const summary = widget.element.querySelectorAll('summary.automations-ownership-summary')[1];
+		const hidden = summary.getAttribute('aria-description');
+		toggleDisabled();
+		assert.deepStrictEqual({ hidden, shown: summary.getAttribute('aria-description') }, {
+			hidden: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access. Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.',
+			shown: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.',
+		});
+	});
+
+	test('refresh enabling the last hidden shared card moves focus out of its empty state', () => {
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
+		const personal = automation();
+		const shared = automation({ id: 'shared', ownership: 'repository', isCreatedByCurrentUser: true, enabled: false });
+		automationService.setAutomations([personal, shared]);
+		const section = widget.element.querySelectorAll<HTMLElement>('.automations-ownership-section')[1];
+		const reveal = section.querySelector<HTMLElement>('.monaco-link')!;
+		reveal.focus();
+		automationService.setAutomations([personal, { ...shared, enabled: true }]);
+		assert.deepStrictEqual({
+			focusedSummary: document.activeElement === section.querySelector('summary'),
+			focusVisible: (document.activeElement as HTMLElement).checkVisibility(),
+			recoveryVisible: reveal.checkVisibility(),
+		}, { focusedSummary: true, focusVisible: true, recoveryVisible: false });
+	});
+
+	for (const shared of [false, true]) {
+		test(`revealing a read-only automation focuses its section instead of a disabled edit button (shared=${shared})`, () => {
+			const { widget, automationService } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
+			automationService.canUpdate = false;
+			automationService.setCatalogueState('ready');
+			automationService.setAutomations([automation({ enabled: false, ...(shared ? { ownership: 'repository', isCreatedByCurrentUser: true } : {}) })]);
+			const reveal = widget.element.querySelector<HTMLElement>('.automations-cards-scroll-content > .automations-cards-empty .monaco-link')!;
+			reveal.focus();
+			dispatchKeydown(reveal, { key: 'Enter', keyCode: 13 });
+			const section = widget.element.querySelectorAll<HTMLElement>('.automations-ownership-section')[shared ? 1 : 0];
+			assert.deepStrictEqual({
+				editDisabled: section.querySelector<HTMLButtonElement>('.automations-card-main')?.disabled,
+				focusedSummary: document.activeElement === section.querySelector('summary'),
+				focusVisible: (document.activeElement as HTMLElement).checkVisibility(),
+			}, { editDisabled: true, focusedSummary: true, focusVisible: true });
+		});
+	}
+
+	test('editing a shared card out of the filter restores focus to the shared section', async () => {
+		const { widget, automationService, automationDialogService } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
+		automationService.setCatalogueState('ready');
+		const shared = automation({ id: 'shared', ownership: 'repository', isCreatedByCurrentUser: true });
+		automationService.setAutomations([automation(), shared]);
+		automationDialogService.result = { kind: 'update', id: shared.id, value: { enabled: false } };
+		automationDialogService.beforeReturn = () => (document.activeElement as HTMLElement).blur();
+		const section = widget.element.querySelectorAll<HTMLElement>('.automations-ownership-section')[1];
+		const main = section.querySelector<HTMLButtonElement>('.automations-card-main')!;
+		main.focus();
+		main.click();
+		await timeout(0);
+		assert.strictEqual(document.activeElement, section.querySelector('summary'));
+	});
+
+	test('creating a disabled shared card restores focus to the shared section', async () => {
+		const { widget, automationService, automationDialogService } = setup('archive', NullHoverService, undefined, hiddenDisabledStorage());
+		automationService.setCatalogueState('ready');
+		const existing = automation({ id: 'existing-shared', ownership: 'repository', isCreatedByCurrentUser: true });
+		automationService.setAutomations([existing]);
+		const created = automation({ id: 'created-shared', ownership: 'repository', isCreatedByCurrentUser: true, enabled: false });
+		const create = stub(automationService, 'createAutomation').callsFake(async () => {
+			automationService.setAutomations([existing, created]);
+			return created;
+		});
+		disposables.add(toDisposable(() => create.restore()));
+		automationDialogService.result = { kind: 'create', value: created };
+		const template = widget.element.querySelector<HTMLButtonElement>('.automations-template-card')!;
+		template.focus();
+		template.click();
+		await timeout(0);
+		assert.strictEqual(document.activeElement, widget.element.querySelectorAll('.automations-ownership-summary')[1]);
+	});
+
 	test('show disabled remembers its choice through recreation and empty/refill', () => {
 		const storage = hiddenDisabledStorage();
 		const first = setup('archive', NullHoverService, undefined, storage);
