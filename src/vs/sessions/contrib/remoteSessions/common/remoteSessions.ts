@@ -100,6 +100,11 @@ export const IRemoteSessionService = createDecorator<IRemoteSessionService>('rem
 export interface IRemoteSessionService {
 	readonly _serviceBrand: undefined;
 	listHosts(): readonly IRemoteSessionHost[];
+	/**
+	 * Why `createSession` would not start a session in the workspace on the host now, apart from the
+	 * workspace's existence and trust; empty when it would.
+	 */
+	getHostRejections(hostId: string, workspace: IRemoteSessionWorkspace): readonly string[];
 	createSession(options: ICreateRemoteSessionOptions, source: URI, requestId: string, token: CancellationToken): Promise<ICreatedRemoteSession>;
 }
 

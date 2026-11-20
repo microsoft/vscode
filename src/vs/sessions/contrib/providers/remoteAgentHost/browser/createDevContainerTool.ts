@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { Event } from '../../../../../base/common/event.js';
 import { createCommandUri, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -22,6 +21,7 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, IDevContainerAgentHostService, isDevContainerHandoffEnabled, LocalDevContainerEnvironmentHost } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IRemoteSessionService, IRemoteSessionWorkspace } from '../../../remoteSessions/common/remoteSessions.js';
 
 export const CreateDevContainerToolId = 'vscode_create_dev_container';
 
@@ -45,8 +45,9 @@ function creatingMessage(hostLabel: string): string {
 	return localize('createDevContainer.invocation', "Creating Dev Container on {0}", hostLabel);
 }
 
-/** How long to wait for the agents of a new Dev Container, so the next tool call can start a session there. */
-const AGENTS_TIMEOUT_MS = 30_000;
+/** How long to wait until a new Dev Container can start sessions, so the next tool call can start one there. */
+const READY_TIMEOUT_MS = 30_000;
+const READY_POLL_MS = 500;
 
 interface IDevContainerHost {
 	/** `local` or a host ID from `list_agent_hosts`. */
@@ -67,6 +68,7 @@ export class CreateDevContainerTool implements IToolImpl {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISessionsManagementService private readonly sessionsService: ISessionsManagementService,
+		@IRemoteSessionService private readonly remoteSessionService: IRemoteSessionService,
 	) { }
 
 	getToolData(): IToolData {
@@ -75,7 +77,7 @@ export class CreateDevContainerTool implements IToolImpl {
 			toolReferenceName: 'create_dev_container',
 			displayName: localize('createDevContainer.displayName', "Create Dev Container"),
 			userDescription: localize('createDevContainer.userDescription', "Create a Dev Container with an agent host running inside"),
-			modelDescription: 'Create a Linux Dev Container from the Ubuntu base image with an agent host running inside, on this computer or on a connected SSH, Tunnel, or WSL host with Docker. Use when work should continue in an isolated container. The container persists, keeps its files in a Docker volume, and is listed in Remote Environments, where the user can delete it. `host` defaults to the host this session runs on (for a session in a Dev Container, the host that runs that container), or to this computer when that host cannot run Dev Containers. Returns the container\'s `hostId` and its empty `workspace` folder; to continue there, call create_remote_session with that `hostId` and `workspace: { uri: workspace, isolation: "folder" }`. Building can take minutes. Normal approval applies. Each call creates another container, so do not retry a failed creation without addressing its error.',
+			modelDescription: 'Create a Linux Dev Container from the Ubuntu base image with an agent host running inside, on this computer or on a connected SSH, Tunnel, or WSL host with Docker. Use when work should continue in an isolated container. The container persists, keeps its files in a Docker volume, and is listed in Remote Environments, where the user can delete it. `host` defaults to the host this session runs on (for a session in a Dev Container, the host that runs that container), or to this computer when that host cannot run Dev Containers. Returns the container\'s `hostId` and its empty `workspace` folder once it can start sessions; to continue there, call create_remote_session with that `hostId` and `workspace: { uri: workspace, isolation: "folder" }`. When `status` is `notReady`, the container exists but cannot start sessions yet: follow its `guidance` instead of creating another. Building can take minutes. Normal approval applies. Each call creates another container, so do not retry a failed creation without addressing its error.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.remoteExplorer,
 			when: ContextKeyExpr.and(
@@ -124,25 +126,39 @@ export class CreateDevContainerTool implements IToolImpl {
 		}
 		// The folder is new and empty, and the user confirmed creating it; sessions require a trusted workspace.
 		await this.workspaceTrustService.setUrisTrust([environment.workspaceUri], true);
-		if (!provider.sessionTypes.length) {
-			const ready = Event.toPromise(Event.filter(provider.onDidChangeSessionTypes, () => provider.sessionTypes.length > 0));
-			try {
-				await raceCancellationError(raceTimeout(ready, AGENTS_TIMEOUT_MS), token);
-			} finally {
-				ready.cancel();
-			}
-		}
+		const rejections = await this.whenSessionsCanStart(environment.providerId, { uri: environment.workspaceUri, isolation: 'folder' }, token);
 		const result = {
-			status: 'created',
+			status: rejections.length ? 'notReady' : 'created',
 			hostId: environment.providerId,
 			label: provider.label,
 			workspace: environment.workspaceUri.toString(),
 			createdOn: { id: host.id, label: host.label },
+			...(rejections.length ? {
+				reasons: rejections,
+				guidance: 'The container exists and is listed in Remote Environments, but cannot start sessions yet. Do not create another container. Wait briefly, then call create_remote_session with this hostId and workspace; if it still fails, report the reasons to the user.',
+			} : {}),
 		};
 		return {
 			content: [{ kind: 'text', value: JSON.stringify(result) }],
-			toolResultMessage: logLink(environment.providerId, localize('createDevContainer.result', "Created {0} on {1}", provider.label, host.label)),
+			toolResultMessage: logLink(environment.providerId, rejections.length
+				? localize('createDevContainer.notReady', "Created {0} on {1}, not yet ready for sessions", provider.label, host.label)
+				: localize('createDevContainer.result', "Created {0} on {1}", provider.label, host.label)),
 		};
+	}
+
+	/**
+	 * Waits until `create_remote_session` can start a session in the workspace, and returns why it cannot
+	 * when that takes too long. Readiness combines the host's connection, agents, session types and
+	 * language models, which change through different events, so this polls.
+	 */
+	private async whenSessionsCanStart(hostId: string, workspace: IRemoteSessionWorkspace, token: CancellationToken): Promise<readonly string[]> {
+		const deadline = Date.now() + READY_TIMEOUT_MS;
+		let rejections = this.remoteSessionService.getHostRejections(hostId, workspace);
+		while (rejections.length && Date.now() < deadline) {
+			await timeout(READY_POLL_MS, token);
+			rejections = this.remoteSessionService.getHostRejections(hostId, workspace);
+		}
+		return rejections;
 	}
 
 	private resolveHost(parameters: unknown, chatResource: URI | undefined): IDevContainerHost {
@@ -163,7 +179,7 @@ export class CreateDevContainerTool implements IToolImpl {
 		const sessionHostAddress = requested === undefined ? this.getSessionHostAddress(chatResource) : undefined;
 		const host = requested !== undefined ? hosts.find(host => host.id === requested)
 			: (sessionHostAddress !== undefined ? hosts.find(host => host.address === sessionHostAddress) : undefined)
-			?? hosts.find(host => host.id === LocalDevContainerEnvironmentHost) ?? (hosts.length === 1 ? hosts[0] : undefined);
+			?? hosts.find(host => host.id === LocalDevContainerEnvironmentHost);
 		if (!host) {
 			const available = JSON.stringify(hosts.map(({ id, label }) => ({ id, label })));
 			throw new Error(requested !== undefined

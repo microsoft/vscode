@@ -19,7 +19,7 @@ The container runs on the same host as this session by default: this computer, o
 
 Call `create_dev_container`, with `host` only when it should run on a different host than this session. If the tool isn't available, explain that Dev Containers can't be created from this window. Building one can take a few minutes. If it fails, explain the error, such as Docker not running, and help fix it before calling it again: each call creates another container.
 
-The result has the container's `hostId` and its empty `workspace` folder.
+The result has the container's `hostId` and its empty `workspace` folder. If its `status` is `notReady`, the container exists but can't start sessions yet: don't create another one; follow its `guidance`.
 
 ## 3. Write the handoff prompt
 

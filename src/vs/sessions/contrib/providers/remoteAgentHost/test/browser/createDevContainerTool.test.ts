@@ -6,12 +6,12 @@
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { createCommandUri, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -21,15 +21,22 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostService, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
-import { IChat, ISession, ISessionType } from '../../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../../workbench/services/sessions/common/session.js';
+import { IRemoteSessionService } from '../../../../remoteSessions/common/remoteSessions.js';
 import { CreateDevContainerTool, ShowDevContainerEnvironmentLogCommandId } from '../../browser/createDevContainerTool.js';
 
 suite('CreateDevContainerTool', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const workspaceUri = URI.parse('vscode-agent-host://container/file/-/workspaces/dev-container');
 	/** The chat that invokes the tool, in a session of the provider named by its path. */
 	const chatOn = (providerId: string) => URI.from({ scheme: 'agent-host-copilot', path: `/${providerId}`, fragment: 'chat' });
+	/** The tool's progress and result messages open the environment's log. */
+	const logLink = (label: string) => ({
+		value: `[${label}](${createCommandUri(ShowDevContainerEnvironmentLogCommandId, 'agenthost-container').toString()} "Show Dev Container Log")`,
+		isTrusted: { enabledCommands: [ShowDevContainerEnvironmentLogCommandId] },
+	});
+	const asLink = (message: unknown) => message instanceof MarkdownString ? { value: message.value, isTrusted: message.isTrusted } : message;
 
 	function setup(options: { readonly hosts?: readonly string[]; readonly handoff?: boolean } = {}) {
 		const configuration = new TestConfigurationService({
@@ -38,13 +45,10 @@ suite('CreateDevContainerTool', () => {
 			[DevContainerEnvironmentsEnabledSettingId]: true,
 			[DevContainerHandoffEnabledSettingId]: options.handoff ?? true,
 		});
-		const sessionTypesChanged = store.add(new Emitter<void>());
 		const container = upcastPartial<IAgentHostSessionsProvider>({
 			id: 'agenthost-container',
 			label: 'Dev Container',
 			remoteAddress: 'devcontainer:1',
-			sessionTypes: [] as ISessionType[],
-			onDidChangeSessionTypes: sessionTypesChanged.event,
 		});
 		const providers = [
 			upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-build', label: 'Build', remoteAddress: 'ssh:build' }),
@@ -53,6 +57,8 @@ suite('CreateDevContainerTool', () => {
 		];
 		const created: string[] = [];
 		const trusted: string[] = [];
+		const readinessChecks: string[] = [];
+		let rejections: readonly string[] = ['No usable agents have been advertised.'];
 		const devContainerService = upcastPartial<IDevContainerAgentHostService>({
 			environmentHosts: observableValue('hosts', new Set(options.hosts ?? [LocalDevContainerEnvironmentHost, 'ssh:build'])),
 			environments: observableValue<readonly IDevContainerEnvironment[]>('environments', [{ address: 'devcontainer:1', sourceAddress: 'ssh:build', providerId: container.id }]),
@@ -75,12 +81,15 @@ suite('CreateDevContainerTool', () => {
 				getSessionForChatResource: resource => ({ session: upcastPartial<ISession>({ providerId: resource.path.slice(1) }), chat: upcastPartial<IChat>({ resource }) }),
 				getSession: () => undefined,
 			}),
+			upcastPartial<IRemoteSessionService>({
+				getHostRejections: (hostId, workspace) => {
+					readinessChecks.push(`${hostId} ${workspace.uri.toString()} ${workspace.isolation}`);
+					return rejections;
+				},
+			}),
 		);
-		const announceSessionTypes = () => {
-			Object.assign(container, { sessionTypes: [upcastPartial<ISessionType>({ id: 'copilotcli' })] });
-			sessionTypesChanged.fire();
-		};
-		return { tool, created, trusted, announceSessionTypes };
+		const becomeReady = () => { rejections = []; };
+		return { tool, created, trusted, readinessChecks, becomeReady };
 	}
 
 	async function prepare(tool: CreateDevContainerTool, parameters: unknown, originatingChatResource?: URI) {
@@ -101,6 +110,7 @@ suite('CreateDevContainerTool', () => {
 			remote: await prepare(tool, { host: 'agenthost-build' }),
 			unavailable: await prepare(tool, { host: 'agenthost-other' }),
 			ambiguous: await prepare(onlyRemotes.tool, {}),
+			onlyRemote: await prepare(setup({ hosts: ['ssh:build'] }).tool, {}),
 			noHosts: await prepare(setup({ hosts: [] }).tool, {}),
 			disabled: await prepare(setup({ handoff: false }).tool, {}),
 			invalid: await prepare(tool, { host: 'local', image: 'alpine' }),
@@ -110,6 +120,8 @@ suite('CreateDevContainerTool', () => {
 			remote: 'Creating Dev Container on Build',
 			unavailable: { error: 'Dev Containers cannot be created on agenthost-other now. Available hosts: [{"id":"local","label":"This Computer"},{"id":"agenthost-build","label":"Build"}]' },
 			ambiguous: { error: 'Docker is not available on this computer. Choose a host: [{"id":"agenthost-build","label":"Build"},{"id":"agenthost-other","label":"Other"}]' },
+			// A remote host is only used when requested or when the session runs there.
+			onlyRemote: { error: 'Docker is not available on this computer. Choose a host: [{"id":"agenthost-build","label":"Build"}]' },
 			noHosts: { error: 'No Docker host is available. Start Docker on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker.' },
 			disabled: { error: 'Creating Dev Containers is disabled.' },
 			invalid: { error: 'The input must be an object with an optional host string.' },
@@ -133,23 +145,19 @@ suite('CreateDevContainerTool', () => {
 		});
 	});
 
-	test('creates the environment, trusts its new workspace, and returns what create_remote_session needs once its agents are known', async () => {
-		const { tool, created, trusted, announceSessionTypes } = setup();
+	test('creates the environment, trusts its new workspace, and returns what create_remote_session needs once it can start sessions there', () => runWithFakedTimers({}, async () => {
+		const { tool, created, trusted, readinessChecks, becomeReady } = setup();
 		const invocation: IToolInvocation = { callId: 'call', toolId: tool.getToolData().id, parameters: {}, originatingChatResource: chatOn('agenthost-build'), context: undefined };
 		const reported: unknown[] = [];
 		const result = tool.invoke(invocation, async () => 0, { report: step => reported.push(step.message) }, CancellationToken.None);
 		await timeout(0);
-		const beforeAgents = { created: [...created], trusted: [...trusted] };
-		announceSessionTypes();
+		const beforeReady = { created: [...created], trusted: [...trusted], readinessChecks: [...readinessChecks] };
+		becomeReady();
 		const response = await result;
-		// Both messages open the environment's log.
-		const logLink = (label: string) => ({
-			value: `[${label}](${createCommandUri(ShowDevContainerEnvironmentLogCommandId, 'agenthost-container').toString()} "Show Dev Container Log")`,
-			isTrusted: { enabledCommands: [ShowDevContainerEnvironmentLogCommandId] },
-		});
-		const asLink = (message: unknown) => message instanceof MarkdownString ? { value: message.value, isTrusted: message.isTrusted } : message;
-		assert.deepStrictEqual({ beforeAgents, reported: reported.map(asLink), content: response.content, message: asLink(response.toolResultMessage) }, {
-			beforeAgents: { created: ['ssh:build'], trusted: [workspaceUri.toString()] },
+		const check = `agenthost-container ${workspaceUri.toString()} folder`;
+		assert.deepStrictEqual({ beforeReady, readinessChecks, reported: reported.map(asLink), content: response.content, message: asLink(response.toolResultMessage) }, {
+			beforeReady: { created: ['ssh:build'], trusted: [workspaceUri.toString()], readinessChecks: [check] },
+			readinessChecks: [check, check],
 			reported: [logLink('Creating Dev Container on Build')],
 			content: [{
 				kind: 'text', value: JSON.stringify({
@@ -162,7 +170,25 @@ suite('CreateDevContainerTool', () => {
 			}],
 			message: logLink('Created Dev Container on Build'),
 		});
-	});
+	}));
+
+	test('reports a container that cannot start sessions in time as not ready, with its IDs and recovery guidance', () => runWithFakedTimers({ maxTaskCount: 200 }, async () => {
+		const { tool } = setup();
+		const response = await tool.invoke({ callId: 'call', toolId: tool.getToolData().id, parameters: { host: 'local' }, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None);
+		const content = response.content[0];
+		assert.deepStrictEqual({ result: content.kind === 'text' ? JSON.parse(content.value) : content, message: asLink(response.toolResultMessage) }, {
+			result: {
+				status: 'notReady',
+				hostId: 'agenthost-container',
+				label: 'Dev Container',
+				workspace: workspaceUri.toString(),
+				createdOn: { id: 'local', label: 'This Computer' },
+				reasons: ['No usable agents have been advertised.'],
+				guidance: 'The container exists and is listed in Remote Environments, but cannot start sessions yet. Do not create another container. Wait briefly, then call create_remote_session with this hostId and workspace; if it still fails, report the reasons to the user.',
+			},
+			message: logLink('Created Dev Container on This Computer, not yet ready for sessions'),
+		});
+	}));
 
 	test('guides the agent to continue with create_remote_session and not to retry blindly', () => {
 		const { tool } = setup();
