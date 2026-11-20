@@ -307,8 +307,8 @@
 .remotes-widget .remotes-hide-activity .monaco-table-th[data-col-index='2'],
 .remotes-widget .remotes-hide-system .remotes-system-column,
 .remotes-widget .remotes-hide-system .monaco-table-th[data-col-index='3'],
-.remotes-widget .remotes-hide-profile .remotes-profile-column,
-.remotes-widget .remotes-hide-profile .monaco-table-th[data-col-index='5'] {
+.remotes-widget .remotes-hide-sandbox-profile .remotes-sandboxProfile-column,
+.remotes-widget .remotes-hide-sandbox-profile .monaco-table-th[data-col-index='5'] {
 	display: none;
 }
 
@@ -927,17 +927,13 @@
 	display: none;
 }
 
-.remotes-widget .remotes-profile-picker {
-	width: 100%;
-	max-width: 220px;
-}
-
-.remotes-widget .remotes-profile-picker[hidden] {
+.remotes-widget .remotes-sandboxProfile-column.remotes-cell-action-hidden .monaco-select-box {
 	display: none;
 }
 
-.remotes-widget .remotes-profile-picker .monaco-select-box {
+.remotes-widget .remotes-sandboxProfile-column .monaco-select-box {
 	width: 100%;
+	max-width: 220px;
 	height: 22px;
 	/* Reserve the chevron's space so long names end in an ellipsis instead of running under it. */
 	padding: 0 var(--vscode-spacing-size240) 0 var(--vscode-spacing-size60);

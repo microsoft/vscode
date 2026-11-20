@@ -67,11 +67,15 @@ interface IProfileRow {
 	/** `undefined` for a profile that has not been saved yet. */
 	readonly id: string | undefined;
 	readonly name: string;
+	/** Whether new sessions on the host use this profile. */
+	readonly active: boolean;
 }
 
 interface IProfileRowTemplate {
 	readonly label: HTMLElement;
+	readonly badge: HTMLElement;
 	readonly actions: HTMLElement;
+	readonly activate: Action;
 	readonly disposables: DisposableStore;
 	row?: IProfileRow;
 }
@@ -82,6 +86,7 @@ class ProfileRowRenderer implements IListRenderer<IProfileRow, IProfileRowTempla
 	private readonly _hoverDelegate = createInstantHoverDelegate();
 
 	constructor(
+		private readonly _onToggleActive: (row: IProfileRow) => void,
 		private readonly _onEdit: (row: IProfileRow) => void,
 		private readonly _onDelete: (row: IProfileRow) => void,
 		private readonly _instantiationService: IInstantiationService,
@@ -94,15 +99,18 @@ class ProfileRowRenderer implements IListRenderer<IProfileRow, IProfileRowTempla
 		dom.append(container, $(`span${ThemeIcon.asCSSSelector(Codicon.shield)}`, { 'aria-hidden': 'true' }));
 		const label = dom.append(container, $('.profile-list-item-label'));
 		disposables.add(this._hoverService.setupDelayedHoverAtMouse(label, () => ({ content: template.row?.name ?? '', style: HoverStyle.Mouse })));
+		const badge = dom.append(container, $('.profile-list-item-badge', {}, localize('activeBadge', "Active")));
 		const actions = dom.append(container, $('.profile-list-item-actions'));
-		const template: IProfileRowTemplate = { label, actions, disposables };
 		const run = (handler: (row: IProfileRow) => void) => async () => {
 			if (template.row) {
 				handler(template.row);
 			}
 		};
+		const activate = disposables.add(new Action('sandboxProfiles.activateRow', '', ThemeIcon.asClassName(Codicon.check), true, run(this._onToggleActive)));
+		const template: IProfileRowTemplate = { label, badge, actions, activate, disposables };
 		const toolbar = disposables.add(this._instantiationService.createInstance(WorkbenchToolBar, actions, { hoverDelegate: this._hoverDelegate }));
 		toolbar.setActions([
+			activate,
 			disposables.add(new Action('sandboxProfiles.editRow', localize('edit', "Edit Profile"), ThemeIcon.asClassName(Codicon.edit), true, run(this._onEdit))),
 			disposables.add(new Action('sandboxProfiles.deleteRow', localize('delete', "Delete Profile"), ThemeIcon.asClassName(Codicon.trash), true, run(this._onDelete))),
 		]);
@@ -113,7 +121,10 @@ class ProfileRowRenderer implements IListRenderer<IProfileRow, IProfileRowTempla
 		template.row = row;
 		template.label.textContent = row.name;
 		template.label.classList.toggle('new-profile', !row.id);
+		template.badge.hidden = !row.active;
 		template.actions.hidden = !row.id;
+		template.activate.checked = row.active;
+		template.activate.label = row.active ? localize('deactivate', "Stop Using for New Sessions") : localize('activate', "Use for New Sessions");
 	}
 
 	disposeTemplate(template: IProfileRowTemplate): void {
@@ -126,13 +137,14 @@ class ProfileRowRenderer implements IListRenderer<IProfileRow, IProfileRowTempla
 }
 
 /**
- * Manages local sandbox profiles using the Profiles editor layout and the Settings editor controls.
+ * Manages the sandbox profiles stored on one agent host, using the Profiles editor layout and the Settings editor controls.
  */
 export class SandboxProfilesEditor extends EditorPane {
 	static readonly ID = 'workbench.editor.sandboxProfiles';
 	private _root!: HTMLElement;
 	private _splitView: SplitView<number> | undefined;
 	private _list!: WorkbenchList<IProfileRow>;
+	private _newAction!: Action;
 	private _header!: HTMLElement;
 	private _body!: HTMLElement;
 	private _footer!: HTMLElement;
@@ -168,19 +180,19 @@ export class SandboxProfilesEditor extends EditorPane {
 		const sidebarHeader = dom.append(sidebarView, $('.section-heading'));
 		dom.append(sidebarHeader, renderIcon(Codicon.shield)).setAttribute('aria-hidden', 'true');
 		dom.append(sidebarHeader, $('h2.section-title', {}, localize('profilesHeading', "Profiles")));
-		const newAction = this._register(new Action('sandboxProfiles.new', localize('new', "New Profile"), ThemeIcon.asClassName(Codicon.add), true, () => this._createProfile()));
+		const newAction = this._newAction = this._register(new Action('sandboxProfiles.new', localize('new', "New Profile"), ThemeIcon.asClassName(Codicon.add), true, () => this._createProfile()));
 		const sidebarToolbar = this._register(this._instantiationService.createInstance(WorkbenchToolBar, dom.append(sidebarHeader, $('.section-actions')), { ariaLabel: localize('profileActions', "Profile actions") }));
 		sidebarToolbar.setActions([newAction]);
 		this._list = this._register(this._instantiationService.createInstance(WorkbenchList<IProfileRow>, 'SandboxProfiles', dom.append(sidebarView, $('.profiles-list')),
 			{ getHeight: () => 22, getTemplateId: () => ProfileRowRenderer.ID } satisfies IListVirtualDelegate<IProfileRow>,
-			[this._register(new ProfileRowRenderer(row => this._editProfile(row), row => this._deleteProfile(row), this._instantiationService, this._hoverService))], {
+			[this._register(new ProfileRowRenderer(row => this._toggleActive(row), row => this._editProfile(row), row => this._deleteProfile(row), this._instantiationService, this._hoverService))], {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false,
 			openOnSingleClick: true,
 			identityProvider: { getId: row => row.id ?? 'new' },
 			accessibilityProvider: {
-				getAriaLabel: row => row.id ? row.name : localize('unsaved', "{0}, unsaved", row.name),
+				getAriaLabel: row => !row.id ? localize('unsaved', "{0}, unsaved", row.name) : row.active ? localize('activeProfile', "{0}, used for new sessions", row.name) : row.name,
 				getWidgetAriaLabel: () => localize('library', "Sandbox profiles"),
 			},
 		}));
@@ -266,7 +278,7 @@ export class SandboxProfilesEditor extends EditorPane {
 
 	private async _editProfile(row: IProfileRow): Promise<void> {
 		const input = this._profileInput;
-		if (!input || !row.id) {
+		if (!input || !row.id || !input.available) {
 			return;
 		}
 		if (input.draft.id !== row.id || !input.existing) {
@@ -279,12 +291,24 @@ export class SandboxProfilesEditor extends EditorPane {
 		this._nameInput?.focus();
 	}
 
+	private _toggleActive(row: IProfileRow): void {
+		const input = this._profileInput;
+		if (input && row.id) {
+			input.setActive(row.active ? undefined : row.id);
+			status(row.active
+				? localize('deactivated', "New sessions on {0} use its default sandbox settings.", input.hostName)
+				: localize('activated', "New sessions on {0} use sandbox profile {1}.", input.hostName, row.name));
+		}
+	}
+
 	private async _deleteProfile(row: IProfileRow): Promise<void> {
 		const input = this._profileInput;
 		if (input && row.id && (await this._dialogs.confirm({
 			type: 'warning',
 			message: localize('deletePrompt', "Delete sandbox profile '{0}'?", row.name),
-			detail: localize('deleteDetail', "Remote hosts using this profile return to your VS Code sandbox settings."),
+			detail: row.active
+				? localize('deleteActiveDetail', "New sessions on {0} will use its default sandbox settings. This also affects other devices connected to {0}.", input.hostName)
+				: localize('deleteDetail', "This also removes it for other devices connected to {0}.", input.hostName),
 			primaryButton: localize('deleteButton', "&&Delete"),
 		})).confirmed) {
 			input.deleteProfile(row.id);
@@ -306,9 +330,10 @@ export class SandboxProfilesEditor extends EditorPane {
 	}
 
 	private _renderList(input: SandboxProfilesInput): void {
-		const rows: IProfileRow[] = input.profiles.map(({ id, name }) => ({ id, name }));
+		const active = input.active;
+		const rows: IProfileRow[] = input.profiles.map(({ id, name }) => ({ id, name, active: id === active }));
 		if (!input.existing) {
-			rows.push({ id: undefined, name: input.draft.name.trim() || localize('newProfile', "New Profile") });
+			rows.push({ id: undefined, name: input.draft.name.trim() || localize('newProfile', "New Profile"), active: false });
 		}
 		const index = rows.findIndex(row => row.id === (input.existing ? input.draft.id : undefined));
 		this._syncingSelection = true;
@@ -328,7 +353,8 @@ export class SandboxProfilesEditor extends EditorPane {
 		dom.clearNode(this._body);
 		dom.clearNode(this._footer);
 		this._renderList(input);
-		const readOnly = !input.editing;
+		this._newAction.enabled = input.available;
+		const readOnly = !input.editing || !input.available;
 		this._root.classList.toggle('read-only', readOnly);
 		this._footer.hidden = readOnly;
 
@@ -336,9 +362,11 @@ export class SandboxProfilesEditor extends EditorPane {
 		dom.append(heading, renderIcon(Codicon.settings)).setAttribute('aria-hidden', 'true');
 		const title = dom.append(heading, $('h2.section-title'));
 		title.textContent = input.existing ? input.draft.name : localize('newHeading', "New Sandbox Profile");
-		dom.append(this._header, $('p.section-description', {}, readOnly
-			? localize('readOnlyDescription', "Saved on this device and read-only. Use Edit Profile in the list to change it, or choose which hosts use it in Remote Environments.")
-			: localize('localOnly', "Profiles are saved on this device. Choose which hosts use them in Remote Environments.")));
+		dom.append(this._header, $('p.section-description', {}, !input.available
+			? localize('hostUnavailable', "{0} is not connected or does not support sandbox profiles. Connect to it to view and change its profiles.", input.hostName)
+			: readOnly
+				? localize('readOnlyDescription', "Saved on {0} and read-only. Use Edit Profile in the list to change it, or Use for New Sessions to apply it.", input.hostName)
+				: localize('hostDescription', "Profiles are saved on {0}, so every device connected to it can use and change them.", input.hostName)));
 
 		const nameRow = dom.append(this._header, $('.inline-field'));
 		dom.append(nameRow, $('label.inline-field-label', {}, localize('name', "Name")));

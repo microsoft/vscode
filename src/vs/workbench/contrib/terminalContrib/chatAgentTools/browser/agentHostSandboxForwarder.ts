@@ -7,9 +7,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { equals } from '../../../../../base/common/objects.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AgentHostSandboxConfigKey, sandboxSettingIdToAgentHostKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ISandboxProfile, selectedSandboxProfile, watchSandboxProfiles } from '../../../../../platform/sandbox/common/sandboxProfiles.js';
+import { AgentHostSandboxConfigKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ROOT_STATE_URI } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -44,25 +42,13 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 	private readonly _scheduled = new Map<IAgentConnection, IDisposable>();
 
 	private _desired: Record<string, unknown> | undefined;
-	private readonly _lastProfile = new WeakMap<IAgentConnection, ISandboxProfile['settings'] | undefined>();
 
 	constructor(
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
-		@IStorageService private readonly _storage: IStorageService,
 	) {
 		super();
-		watchSandboxProfiles(this._storage, this._store, address => {
-			for (const info of this._connectionsService.connections) {
-				if (info.address && info.connection && (!address || address === info.address)) {
-					const settings = selectedSandboxProfile(this._storage, info.address)?.settings;
-					if (address || !equals(settings, this._lastProfile.get(info.connection))) {
-						this._tryPush(info.connection, info.address);
-					}
-				}
-			}
-		});
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (SANDBOX_SETTING_KEYS.some(key => e.affectsConfiguration(key))) {
@@ -85,7 +71,7 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 			}
 			live.add(info.connection);
 			if (!this._scheduled.has(info.connection)) {
-				this._scheduleInitialPush(info.connection, info.address);
+				this._scheduleInitialPush(info.connection);
 			}
 		}
 		for (const [connection, listener] of this._scheduled) {
@@ -101,13 +87,13 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 	 * schema; otherwise subscribe to `rootState.onDidChange` long enough
 	 * to catch the schema and push exactly once, then unsubscribe.
 	 */
-	private _scheduleInitialPush(connection: IAgentConnection, address: string | undefined): void {
-		if (this._tryPush(connection, address)) {
+	private _scheduleInitialPush(connection: IAgentConnection): void {
+		if (this._tryPush(connection)) {
 			this._scheduled.set(connection, Disposable.None);
 			return;
 		}
 		const listener = connection.rootState.onDidChange(() => {
-			if (this._tryPush(connection, address)) {
+			if (this._tryPush(connection)) {
 				this._scheduled.get(connection)?.dispose();
 				this._scheduled.set(connection, Disposable.None);
 			}
@@ -118,7 +104,7 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 	private _pushToAllConnections(): void {
 		for (const info of this._connectionsService.connections) {
 			if (info.connection) {
-				this._tryPush(info.connection, info.address);
+				this._tryPush(info.connection);
 			}
 		}
 	}
@@ -129,7 +115,7 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 	 * (whether or not an actual dispatch was needed); `false` if the
 	 * schema is not yet available and the caller should keep waiting.
 	 */
-	private _tryPush(connection: IAgentConnection, address: string | undefined): boolean {
+	private _tryPush(connection: IAgentConnection): boolean {
 		const rootState = connection.rootState.value;
 		if (!rootState || rootState instanceof Error) {
 			return false;
@@ -138,16 +124,7 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 		if (!schemaProperties?.[AgentHostSandboxConfigKey.Sandbox]) {
 			return false;
 		}
-		const profile = address ? selectedSandboxProfile(this._storage, address) : undefined;
-		this._lastProfile.set(connection, profile?.settings);
-		const desired = { ...this._getDesired() };
-		if (profile) {
-			for (const [setting, key] of Object.entries(sandboxSettingIdToAgentHostKey)) {
-				if (Object.hasOwn(profile.settings, setting) && this._configurationService.inspect(setting).policyValue === undefined) {
-					desired[key] = profile.settings[setting];
-				}
-			}
-		}
+		const desired = this._getDesired();
 		const current = (rootState.config?.values?.[AgentHostSandboxConfigKey.Sandbox] as Record<string, unknown> | undefined) ?? {};
 		if (!equals(current, desired)) {
 			connection.dispatch(ROOT_STATE_URI, {

@@ -16,7 +16,7 @@ import { Action, Separator, toAction } from '../../../../../../base/common/actio
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -27,9 +27,10 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { readHostSandboxProfiles, updateHostSandboxProfiles, watchHostSandboxProfiles } from '../../../../../../platform/agentHost/common/sandboxProfiles.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { readSandboxProfiles, selectedSandboxProfile, selectSandboxProfile, watchSandboxProfiles } from '../../../../../../platform/sandbox/common/sandboxProfiles.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultCountBadgeStyles, defaultSelectBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { getAgentHostConnectionStatusLabel } from '../../../common/agentHostSessionsProvider.js';
 import { canConnectToRemote, ICustomizationRemote, RemoteKind, remoteKindLabels } from './remotesModel.js';
@@ -72,7 +73,7 @@ export interface IRemoteTableRow {
 	readonly entry: RemoteTableEntry;
 }
 
-type RemoteColumn = 'name' | 'type' | 'system' | 'status' | 'sessions' | 'activity' | 'profile' | 'actions';
+type RemoteColumn = 'name' | 'type' | 'system' | 'status' | 'sessions' | 'activity' | 'sandboxProfile' | 'actions';
 export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'newSession' | 'createDevContainer' | 'rename' | 'copyAddress' | 'locationPreference' | 'troubleshoot' | 'githubEnvironment' | 'showExtension' | 'updateServer' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
@@ -83,7 +84,7 @@ type RemoteCellTemplate = {
 } & (
 		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'type' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
-		| { readonly column: 'profile'; readonly select: SelectBox; readonly pickerContainer: HTMLElement; optionIds: readonly (string | undefined)[] }
+		| { readonly column: 'sandboxProfile'; readonly select: SelectBox; optionIds: readonly (string | undefined)[] }
 		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly troubleshoot: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
@@ -97,6 +98,9 @@ const remoteKindIcons: Record<RemoteKind, ThemeIcon> = {
 };
 
 const connectionProgressIcon = ThemeIcon.modify(Codicon.loading, 'spin');
+
+/** Keys a closed select box handles natively; they must not also move focus in the table. */
+const selectNavigationKeys = new Set([KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.Home, KeyCode.End, KeyCode.PageUp, KeyCode.PageDown]);
 
 export const remoteStatusGroups = [
 	{ key: 'ready', label: localize('remotes.ready', "Connected"), icon: Codicon.circleFilled, description: localize('remotes.ready.detail', "Connected from this window and ready to start or continue sessions.") },
@@ -338,7 +342,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		private readonly instantiationService: IInstantiationService,
 		private readonly hoverService: IHoverService,
 		private readonly openerService: IOpenerService,
-		private readonly storage: IStorageService,
+		private readonly connections: IAgentHostConnectionsService,
 		private readonly contextViewService: IContextViewService,
 		private readonly emptyContentWidth?: () => number,
 	) {
@@ -351,18 +355,19 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		const base = { container, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 		let template: RemoteCellTemplate;
 		switch (this.column) {
-			case 'profile': {
+			case 'sandboxProfile': {
 				const select = disposables.add(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { useCustomDrawn: true }));
-				const pickerContainer = dom.append(container, dom.$('.remotes-profile-picker'));
-				select.render(pickerContainer);
-				template = { ...base, column: 'profile', select, pickerContainer, optionIds: [] };
-				disposables.add(dom.addDisposableListener(pickerContainer, dom.EventType.KEY_DOWN, event => event.stopPropagation()));
-				disposables.add(dom.addDisposableGenericMouseDownListener(pickerContainer, event => event.stopPropagation()));
+				select.render(container);
+				template = { ...base, column: 'sandboxProfile', select, optionIds: [] };
 				disposables.add(select.onDidSelect(({ index }) => {
-					if (template.row?.entry.type === 'remote' && template.column === 'profile') {
-						selectSandboxProfile(this.storage, template.row.entry.remote.id, template.optionIds[index]);
+					if (template.row?.entry.type === 'remote' && template.column === 'sandboxProfile') {
+						const connection = this.connections.getConnectionByAddress(template.row.entry.remote.id);
+						if (connection && readHostSandboxProfiles(connection)) {
+							updateHostSandboxProfiles(connection, { active: template.optionIds[index] });
+						}
 					}
 				}));
+				disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
 				break;
 			}
 			case 'type':
@@ -500,7 +505,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		disposables.add(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, event => {
 			if (event.target !== container) {
 				const keyboardEvent = new StandardKeyboardEvent(event);
-				if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
+				if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter || this.column === 'sandboxProfile' && selectNavigationKeys.has(keyboardEvent.keyCode)) {
 					keyboardEvent.stopPropagation();
 				}
 			}
@@ -514,21 +519,32 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		template.row = row;
 		const entry = row.entry;
 		switch (template.column) {
-			case 'profile': {
-				const storage = this.storage;
-				template.pickerContainer.hidden = entry.type !== 'remote';
+			case 'sandboxProfile': {
+				template.container.classList.toggle('remotes-cell-action-hidden', entry.type !== 'remote');
 				if (entry.type === 'remote') {
 					const { id, name } = entry.remote;
-					template.select.setAriaLabel(localize('remotes.selectProfile', "Sandbox profile for {0}", name));
+					const hostWatch = template.elementDisposables.add(new MutableDisposable<DisposableStore>());
+					let connection: IAgentConnection | undefined;
 					const refresh = () => {
-						const profiles = readSandboxProfiles(storage);
-						template.optionIds = [undefined, ...profiles.map(profile => profile.id)];
-						const selected = selectedSandboxProfile(storage, id)?.id;
-						template.select.setOptions([{ text: localize('remotes.defaultProfile', "Default") }, ...profiles.map(profile => ({ text: profile.name }))], Math.max(0, template.optionIds.indexOf(selected)));
+						const current = this.connections.getConnectionByAddress(id);
+						if (current !== connection) {
+							connection = current;
+							const store = new DisposableStore();
+							if (current) {
+								watchHostSandboxProfiles(current, store, refresh);
+							}
+							hostWatch.value = store;
+						}
+						const host = connection && readHostSandboxProfiles(connection);
+						const ids = host ? Object.keys(host.profiles) : [];
+						template.optionIds = [undefined, ...ids];
+						template.select.setOptions([{ text: localize('remotes.defaultSandboxProfile', "Default") }, ...ids.map(profileId => ({ text: host!.profiles[profileId].name }))], Math.max(0, template.optionIds.indexOf(host?.active)));
+						template.select.setEnabled(!!host);
+						template.select.setAriaLabel(host
+							? localize('remotes.selectSandboxProfile', "Sandbox profile for {0}", name)
+							: localize('remotes.sandboxProfileUnavailable', "Sandbox profile for {0}. Connect to {0} to choose one.", name));
 					};
-					watchSandboxProfiles(storage, template.elementDisposables, address => {
-						if (!address || address === id) { refresh(); }
-					});
+					template.elementDisposables.add(this.connections.onDidChangeConnections(refresh));
 					refresh();
 				}
 				break;
@@ -900,8 +916,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 
 	private updateFocus(template: RemoteCellTemplate): void {
 		const focused = template.row?.id === this.focusedId;
-		if (template.column === 'profile') {
-			template.select.setFocusable(focused);
+		if (template.column === 'sandboxProfile') {
+			template.select.setFocusable(focused && !template.container.classList.contains('remotes-cell-action-hidden'));
 		} else if (template.column === 'actions') {
 			template.toolbar.setFocusable(focused && !template.container.classList.contains('remotes-cell-action-hidden'));
 			if (template.column === 'actions') {

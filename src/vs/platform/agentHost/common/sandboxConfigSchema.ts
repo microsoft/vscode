@@ -7,15 +7,19 @@ import { localize } from '../../../nls.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId, type IAgentSandboxMaskedCredentials, type IAgentSandboxFileSystemSetting, type IAgentSandboxUserConfiguredPaths } from '../../sandbox/common/settings.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
+import type { SessionConfigPropertySchema } from './state/protocol/commands.js';
 
 /**
  * Top-level keys the agent host's root config bag exposes for sandboxing.
  * All sandbox-related values live nested under {@link AgentHostSandboxConfigKey.Sandbox}
  * — the persisted JSON has a single `"sandbox": { ... }` object rather than a
- * dozen flat keys.
+ * dozen flat keys. Named profiles and the active profile are separate keys, so
+ * switching the active profile does not rewrite the profiles.
  */
 export const enum AgentHostSandboxConfigKey {
 	Sandbox = 'sandbox',
+	SandboxProfiles = 'sandboxProfiles',
+	ActiveSandboxProfile = 'activeSandboxProfile',
 }
 
 /**
@@ -68,132 +72,173 @@ export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.DeniedNetworkDomains]: string[];
 }>;
 
+/** A named set of sandbox values stored on the agent host. */
+export interface ISandboxProfileValue {
+	readonly name: string;
+	readonly sandbox: ISandboxConfigValue;
+}
+
+/** Protocol schema of one set of sandbox values, shared by the root values and each profile. */
+const sandboxValueSchema: SessionConfigPropertySchema = {
+	type: 'object',
+	title: localize('agentHost.config.sandbox.title', "Agent Sandbox"),
+	properties: {
+		[AgentHostSandboxKey.Enabled]: {
+			type: 'string',
+			title: localize('agentHost.config.sandbox.enabled.title', "Sandbox Enabled"),
+			enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
+		},
+		[AgentHostSandboxKey.AllowNetwork]: {
+			type: 'boolean',
+			title: localize('agentHost.config.sandbox.allowNetwork.title', "Allow Network"),
+		},
+		[AgentHostSandboxKey.AllowLocalNetwork]: {
+			type: 'boolean',
+			title: localize('agentHost.config.sandbox.allowLocalNetwork.title', "Allow Local Network"),
+		},
+		[AgentHostSandboxKey.AllowUnsandboxedCommands]: {
+			type: 'boolean',
+			title: localize('agentHost.config.sandbox.allowUnsandboxedCommands.title', "Allow Unsandboxed Commands"),
+		},
+		[AgentHostSandboxKey.SandboxMcpServers]: {
+			type: 'boolean',
+			title: localize('agentHost.config.sandbox.sandboxMcpServers.title', "Sandbox MCP Servers"),
+		},
+		[AgentHostSandboxKey.SandboxLspServers]: {
+			type: 'boolean',
+			title: localize('agentHost.config.sandbox.sandboxLspServers.title', "Sandbox LSP Servers"),
+		},
+		[AgentHostSandboxKey.AuthenticateGit]: {
+			type: 'boolean',
+			title: localize('agentHost.config.sandbox.authenticateGit.title', "Authenticate git"),
+		},
+		[AgentHostSandboxKey.AuthenticateGh]: {
+			type: 'boolean',
+			title: localize('agentHost.config.sandbox.authenticateGh.title', "Authenticate gh"),
+		},
+		[AgentHostSandboxKey.MaskedCredentials]: {
+			type: 'object',
+			title: localize('agentHost.config.sandbox.maskedEnvironmentVariables.title', "Masked environment variables"),
+			properties: {
+				envVars: {
+					type: 'object',
+					title: localize('agentHost.config.sandbox.credentials.envVars.title', "Environment Variables"),
+					description: localize('agentHost.config.sandbox.credentials.envVars.description', "Maps environment variable names to objects with an injectHosts array of HTTPS destinations. Destination patterns are validated by the runtime."),
+					additionalProperties: {
+						type: 'object',
+						title: localize('agentHost.config.sandbox.credentials.envVars.entry.title', "Environment Variable"),
+						properties: {
+							injectHosts: {
+								type: 'array',
+								title: localize('agentHost.config.sandbox.credentials.injectHosts.title', "Injection Hosts"),
+								items: { type: 'string', title: localize('agentHost.config.sandbox.credentials.injectHosts.item.title', "Host") },
+							},
+						},
+						required: ['injectHosts'],
+					},
+				},
+			},
+		},
+		[AgentHostSandboxKey.AllowDevToolAccess]: {
+			type: 'boolean',
+			title: localize('agentHost.config.sandbox.allowDevToolAccess.title', "Allow Dev Tool Access"),
+		},
+		[AgentHostSandboxKey.AddCurrentWorkingDirectory]: {
+			type: 'boolean',
+			title: localize('agentHost.config.sandbox.addCurrentWorkingDirectory.title', "Add Current Working Directory"),
+		},
+		[AgentHostSandboxKey.LinuxFileSystem]: {
+			type: 'object',
+			title: localize('agentHost.config.sandbox.linuxFileSystem.title', "Linux Sandbox Filesystem"),
+		},
+		[AgentHostSandboxKey.UserConfiguredPaths]: {
+			type: 'object',
+			title: localize('agentHost.config.sandbox.userConfiguredPaths.title', "User-Configured Paths"),
+			properties: {
+				readwritePaths: {
+					type: 'array',
+					title: localize('agentHost.config.sandbox.readwritePaths.title', "Read/Write"),
+					items: { type: 'string', title: localize('agentHost.config.sandbox.path.title', "Path") },
+				},
+				readonlyPaths: {
+					type: 'array',
+					title: localize('agentHost.config.sandbox.readonlyPaths.title', "Read-Only"),
+					items: { type: 'string', title: localize('agentHost.config.sandbox.path.title', "Path") },
+				},
+				deniedPaths: {
+					type: 'array',
+					title: localize('agentHost.config.sandbox.deniedPaths.title', "Denied"),
+					items: { type: 'string', title: localize('agentHost.config.sandbox.path.title', "Path") },
+				},
+			},
+		},
+		[AgentHostSandboxKey.MacFileSystem]: {
+			type: 'object',
+			title: localize('agentHost.config.sandbox.macFileSystem.title', "macOS Sandbox Filesystem"),
+		},
+		[AgentHostSandboxKey.WindowsFileSystem]: {
+			type: 'object',
+			title: localize('agentHost.config.sandbox.windowsFileSystem.title', "Windows Sandbox Filesystem"),
+		},
+		[AgentHostSandboxKey.AdvancedRuntime]: {
+			type: 'object',
+			title: localize('agentHost.config.sandbox.advancedRuntime.title', "Advanced Sandbox Runtime"),
+		},
+		[AgentHostSandboxKey.AllowedNetworkDomains]: {
+			type: 'array',
+			title: localize('agentHost.config.sandbox.allowedDomains.title', "Allowed Network Domains"),
+			items: { type: 'string', title: localize('agentHost.config.sandbox.allowedDomains.item.title', "Domain") },
+		},
+		[AgentHostSandboxKey.DeniedNetworkDomains]: {
+			type: 'array',
+			title: localize('agentHost.config.sandbox.deniedDomains.title', "Denied Network Domains"),
+			items: { type: 'string', title: localize('agentHost.config.sandbox.deniedDomains.item.title', "Domain") },
+		},
+	},
+};
+
 /**
- * Schema for the subset of workbench sandbox settings that hosts (today: the
- * workbench client) may forward into the agent host's root config bag.
+ * Schema for the sandbox values hosts (today: the workbench client) may store
+ * in the agent host's root config bag, plus the host's named sandbox profiles.
  *
  * The workbench normalizes boolean enablement before forwarding. Legacy per-OS
  * filesystem keys serve the terminal engine; Copilot uses only UserConfiguredPaths.
+ *
+ * Profiles live on the host so every client connected to it sees and can change
+ * them; the last write wins. New sessions use the active profile's values over
+ * {@link AgentHostSandboxConfigKey.Sandbox}; see {@link resolveRootSandboxConfig}.
  */
 export const sandboxConfigSchema = createSchema({
-	[AgentHostSandboxConfigKey.Sandbox]: schemaProperty<ISandboxConfigValue>({
+	[AgentHostSandboxConfigKey.Sandbox]: schemaProperty<ISandboxConfigValue>(sandboxValueSchema),
+	[AgentHostSandboxConfigKey.SandboxProfiles]: schemaProperty<Record<string, ISandboxProfileValue>>({
 		type: 'object',
-		title: localize('agentHost.config.sandbox.title', "Agent Sandbox"),
-		properties: {
-			[AgentHostSandboxKey.Enabled]: {
-				type: 'string',
-				title: localize('agentHost.config.sandbox.enabled.title', "Sandbox Enabled"),
-				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
+		title: localize('agentHost.config.sandboxProfiles.title', "Sandbox Profiles"),
+		additionalProperties: {
+			type: 'object',
+			title: localize('agentHost.config.sandboxProfiles.entry.title', "Sandbox Profile"),
+			properties: {
+				name: { type: 'string', title: localize('agentHost.config.sandboxProfiles.name.title', "Name") },
+				sandbox: sandboxValueSchema,
 			},
-			[AgentHostSandboxKey.AllowNetwork]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.allowNetwork.title', "Allow Network"),
-			},
-			[AgentHostSandboxKey.AllowLocalNetwork]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.allowLocalNetwork.title', "Allow Local Network"),
-			},
-			[AgentHostSandboxKey.AllowUnsandboxedCommands]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.allowUnsandboxedCommands.title', "Allow Unsandboxed Commands"),
-			},
-			[AgentHostSandboxKey.SandboxMcpServers]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.sandboxMcpServers.title', "Sandbox MCP Servers"),
-			},
-			[AgentHostSandboxKey.SandboxLspServers]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.sandboxLspServers.title', "Sandbox LSP Servers"),
-			},
-			[AgentHostSandboxKey.AuthenticateGit]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.authenticateGit.title', "Authenticate git"),
-			},
-			[AgentHostSandboxKey.AuthenticateGh]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.authenticateGh.title', "Authenticate gh"),
-			},
-			[AgentHostSandboxKey.MaskedCredentials]: {
-				type: 'object',
-				title: localize('agentHost.config.sandbox.maskedEnvironmentVariables.title', "Masked environment variables"),
-				properties: {
-					envVars: {
-						type: 'object',
-						title: localize('agentHost.config.sandbox.credentials.envVars.title', "Environment Variables"),
-						description: localize('agentHost.config.sandbox.credentials.envVars.description', "Maps environment variable names to objects with an injectHosts array of HTTPS destinations. Destination patterns are validated by the runtime."),
-						additionalProperties: {
-							type: 'object',
-							title: localize('agentHost.config.sandbox.credentials.envVars.entry.title', "Environment Variable"),
-							properties: {
-								injectHosts: {
-									type: 'array',
-									title: localize('agentHost.config.sandbox.credentials.injectHosts.title', "Injection Hosts"),
-									items: { type: 'string', title: localize('agentHost.config.sandbox.credentials.injectHosts.item.title', "Host") },
-								},
-							},
-							required: ['injectHosts'],
-						},
-					},
-				},
-			},
-			[AgentHostSandboxKey.AllowDevToolAccess]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.allowDevToolAccess.title', "Allow Dev Tool Access"),
-			},
-			[AgentHostSandboxKey.AddCurrentWorkingDirectory]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.addCurrentWorkingDirectory.title', "Add Current Working Directory"),
-			},
-			[AgentHostSandboxKey.LinuxFileSystem]: {
-				type: 'object',
-				title: localize('agentHost.config.sandbox.linuxFileSystem.title', "Linux Sandbox Filesystem"),
-			},
-			[AgentHostSandboxKey.UserConfiguredPaths]: {
-				type: 'object',
-				title: localize('agentHost.config.sandbox.userConfiguredPaths.title', "User-Configured Paths"),
-				properties: {
-					readwritePaths: {
-						type: 'array',
-						title: localize('agentHost.config.sandbox.readwritePaths.title', "Read/Write"),
-						items: { type: 'string', title: localize('agentHost.config.sandbox.path.title', "Path") },
-					},
-					readonlyPaths: {
-						type: 'array',
-						title: localize('agentHost.config.sandbox.readonlyPaths.title', "Read-Only"),
-						items: { type: 'string', title: localize('agentHost.config.sandbox.path.title', "Path") },
-					},
-					deniedPaths: {
-						type: 'array',
-						title: localize('agentHost.config.sandbox.deniedPaths.title', "Denied"),
-						items: { type: 'string', title: localize('agentHost.config.sandbox.path.title', "Path") },
-					},
-				},
-			},
-			[AgentHostSandboxKey.MacFileSystem]: {
-				type: 'object',
-				title: localize('agentHost.config.sandbox.macFileSystem.title', "macOS Sandbox Filesystem"),
-			},
-			[AgentHostSandboxKey.WindowsFileSystem]: {
-				type: 'object',
-				title: localize('agentHost.config.sandbox.windowsFileSystem.title', "Windows Sandbox Filesystem"),
-			},
-			[AgentHostSandboxKey.AdvancedRuntime]: {
-				type: 'object',
-				title: localize('agentHost.config.sandbox.advancedRuntime.title', "Advanced Sandbox Runtime"),
-			},
-			[AgentHostSandboxKey.AllowedNetworkDomains]: {
-				type: 'array',
-				title: localize('agentHost.config.sandbox.allowedDomains.title', "Allowed Network Domains"),
-				items: { type: 'string', title: localize('agentHost.config.sandbox.allowedDomains.item.title', "Domain") },
-			},
-			[AgentHostSandboxKey.DeniedNetworkDomains]: {
-				type: 'array',
-				title: localize('agentHost.config.sandbox.deniedDomains.title', "Denied Network Domains"),
-				items: { type: 'string', title: localize('agentHost.config.sandbox.deniedDomains.item.title', "Domain") },
-			},
+			required: ['name', 'sandbox'],
 		},
 	}),
+	[AgentHostSandboxConfigKey.ActiveSandboxProfile]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.activeSandboxProfile.title', "Active Sandbox Profile"),
+	}),
 });
+
+/**
+ * Returns the host's default sandbox values for new sessions: the
+ * {@link AgentHostSandboxConfigKey.Sandbox} values with the active profile's
+ * values on top. Without an active profile, or when it no longer exists, only
+ * the sandbox values apply. Session overrides and managed policy apply later.
+ */
+export function resolveRootSandboxConfig(sandbox: ISandboxConfigValue | undefined, profiles: Readonly<Record<string, ISandboxProfileValue>> | undefined, activeProfile: string | undefined): ISandboxConfigValue | undefined {
+	const profile = activeProfile && profiles && Object.hasOwn(profiles, activeProfile) ? profiles[activeProfile] : undefined;
+	return profile ? { ...sandbox, ...profile.sandbox } : sandbox;
+}
 
 /**
  * Maps modern workbench sandbox setting IDs (the ones the engine asks about)
