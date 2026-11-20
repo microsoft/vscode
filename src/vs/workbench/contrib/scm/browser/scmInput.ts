@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { append, $, Dimension, trackFocus } from '../../../../base/browser/dom.js';
 import { InputValidationType, ISCMInput, IInputValidation, ISCMViewService, SCMInputChangeReason, ISCMInputValueProviderContext } from '../common/scm.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -410,8 +410,15 @@ export class SCMInputWidget {
 		const textModel = input.repository.provider.inputBoxTextModel;
 		this.inputEditor.setModel(textModel);
 
-		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: textModel.uri }) !== 'off') {
-			this.configurationService.updateValue('editor.wordBasedSuggestions', 'off', { resource: textModel.uri }, ConfigurationTarget.MEMORY);
+		const wordBasedSuggestionsOverrides = { resource: textModel.uri };
+		if (this.configurationService.getValue('editor.wordBasedSuggestions', wordBasedSuggestionsOverrides) !== 'off') {
+			const previousWordBasedSuggestions = this.configurationService.inspect('editor.wordBasedSuggestions', wordBasedSuggestionsOverrides).memoryValue;
+			void this.configurationService.updateValue('editor.wordBasedSuggestions', 'off', wordBasedSuggestionsOverrides, ConfigurationTarget.MEMORY);
+			this.repositoryDisposables.add(toDisposable(() => {
+				if (this.configurationService.inspect('editor.wordBasedSuggestions', wordBasedSuggestionsOverrides).memoryValue === 'off') {
+					void this.configurationService.updateValue('editor.wordBasedSuggestions', previousWordBasedSuggestions, wordBasedSuggestionsOverrides, ConfigurationTarget.MEMORY);
+				}
+			}));
 		}
 
 		// Validation
