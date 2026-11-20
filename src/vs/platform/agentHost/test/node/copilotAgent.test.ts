@@ -511,6 +511,8 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly onDidRefreshCopilotUserEmitter = new Emitter<{ readonly githubToken: string; readonly context: IRestrictedTelemetryContext }>();
+	readonly onDidRefreshCopilotUser = this.onDidRefreshCopilotUserEmitter.event;
 	readonly utilityCalls: { token: string; request: ICopilotUtilityChatCompletionRequest; options?: ICopilotApiServiceRequestOptions }[] = [];
 	response = 'generated-branch-name';
 	error: Error | undefined;
@@ -7412,6 +7414,45 @@ suite('CopilotAgent', () => {
 			undefined, // cleared until `/copilot_internal/user` resolves
 			{ isInternal: true, trackingId: 'internal-tid', userName: 'octocat', isVscodeTeamMember: true },
 		]);
+	});
+
+	test('updates restricted telemetry when CopilotApiService refreshes discovery for the active token', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.restrictedTelemetryContexts.set('active-token', {
+			restrictedTelemetryEnabled: true,
+			trackingId: 'tid-1',
+			telemetryEndpoint: 'https://telemetry.example/',
+			isInternal: false,
+			userName: 'octocat',
+			isVscodeTeamMember: false,
+		});
+		const enabledStates: boolean[] = [];
+		const initialResolved = new DeferredPromise<void>();
+		const telemetryService = disposables.add(new class extends AgentHostTelemetryService {
+			override setRestrictedTelemetryEnabled(enabled: boolean): void {
+				enabledStates.push(enabled);
+				super.setRestrictedTelemetryEnabled(enabled);
+				if (enabled) {
+					initialResolved.complete();
+				}
+			}
+		}(NullTelemetryService));
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService, telemetryService }) as TestableCopilotAgent;
+		afterTest(() => disposeAgent(agent));
+		await agent.authenticate('https://api.github.com', 'active-token');
+		await initialResolved.p;
+
+		// Refresh for a different token is ignored; refresh for the active token flips rt to false without token rotation.
+		copilotApiService.onDidRefreshCopilotUserEmitter.fire({
+			githubToken: 'other-token',
+			context: { restrictedTelemetryEnabled: false, trackingId: 'tid-2', telemetryEndpoint: undefined },
+		});
+		copilotApiService.onDidRefreshCopilotUserEmitter.fire({
+			githubToken: 'active-token',
+			context: { restrictedTelemetryEnabled: false, trackingId: 'tid-1', telemetryEndpoint: undefined },
+		});
+
+		assert.deepStrictEqual(enabledStates, [false, true, false]);
 	});
 
 	test('advertises Copilot as its display name', async () => {

@@ -677,7 +677,7 @@ suite('CopilotApiService', () => {
 					copilotignore_enabled: true,
 					restricted_telemetry: true,
 					analytics_tracking_id: 'tracking-id',
-					organization_login_list: ['microsoft', 'Visual-Studio-Code'],
+					organization_login_list: ['external-org'],
 					endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
 				}), { status: 200 });
 			}
@@ -692,13 +692,76 @@ suite('CopilotApiService', () => {
 				restrictedTelemetryEnabled: true,
 				trackingId: 'tracking-id',
 				telemetryEndpoint: 'https://telemetry.example',
-				isInternal: true,
+				isInternal: false,
 				userName: 'octocat',
-				isVscodeTeamMember: true,
+				isVscodeTeamMember: false,
 				copilotIgnoreEnabled: true,
 			},
 			requests: ['/copilot_internal/user'],
 		});
+	});
+
+	test('disables restricted telemetry for internal and VS Code team accounts even when server sets restricted_telemetry', async () => {
+		const service = createService(async input => {
+			const url = getUrl(input);
+			if (url.endsWith('/copilot_internal/user')) {
+				return new Response(JSON.stringify({
+					login: 'octocat',
+					copilotignore_enabled: true,
+					restricted_telemetry: true,
+					analytics_tracking_id: 'tracking-id',
+					organization_login_list: ['microsoft', 'Visual-Studio-Code'],
+					endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
+				}), { status: 200 });
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		});
+
+		assert.deepStrictEqual(await service.resolveRestrictedTelemetryContext('gh-token'), {
+			restrictedTelemetryEnabled: false,
+			trackingId: 'tracking-id',
+			telemetryEndpoint: undefined,
+			isInternal: true,
+			userName: 'octocat',
+			isVscodeTeamMember: true,
+			copilotIgnoreEnabled: true,
+		});
+	});
+
+	test('emits onDidRefreshCopilotUser when discovery cache refreshes', async () => {
+		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+		try {
+			let restrictedTelemetry = true;
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.endsWith('/copilot_internal/user')) {
+					return userResponse({
+						login: 'octocat',
+						restricted_telemetry: restrictedTelemetry,
+						analytics_tracking_id: 'tracking-id',
+						endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
+					});
+				}
+				throw new Error(`Unexpected request: ${url}`);
+			});
+			const refreshed: { githubToken: string; restrictedTelemetryEnabled: boolean }[] = [];
+			disposables.add(service.onDidRefreshCopilotUser(e => refreshed.push({
+				githubToken: e.githubToken,
+				restrictedTelemetryEnabled: e.context.restrictedTelemetryEnabled,
+			})));
+
+			await service.resolveRestrictedTelemetryContext('gh-token');
+			clock.tick(26 * 60 * 1000);
+			restrictedTelemetry = false;
+			await service.resolveRestrictedTelemetryContext('gh-token');
+
+			assert.deepStrictEqual(refreshed, [
+				{ githubToken: 'gh-token', restrictedTelemetryEnabled: true },
+				{ githubToken: 'gh-token', restrictedTelemetryEnabled: false },
+			]);
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('keeps restricted telemetry disabled when user discovery does not opt in', async () => {
