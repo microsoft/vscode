@@ -6066,6 +6066,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		const command = CommandsRegistry.getCommand('sessions.automations.markAllRead')!;
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
