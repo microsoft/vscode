@@ -158,6 +158,8 @@ export interface IModelPickerSectionsOptions {
 	readonly selectedModelId: string | undefined;
 	readonly organizationDefaultModelId?: string;
 	readonly pinnedModelIds: readonly string[];
+	/** Models the current agent requires. They are the only valid choices, so none is folded away. */
+	readonly requiredModelIds?: readonly string[];
 	readonly controlModels: IStringDictionary<IModelControlEntry>;
 	readonly preferredSpeedVariants?: ReadonlyMap<string, string>;
 	/** Whether the destination has a curated shortlist to lead with. Only the built-in provider curates one. */
@@ -171,7 +173,8 @@ export interface IModelPickerSectionsOptions {
 
 /**
  * Splits a destination's models into favourites, the shortlist to lead with, and the
- * rest. Each model appears once; the selected and organization-default models stay visible.
+ * rest. Each model appears once; the selected, organization-default and agent-required
+ * models stay visible.
  */
 export function buildModelPickerSections(options: IModelPickerSectionsOptions): IModelPickerSections {
 	// A model this build is too old to run is kept out of every selectable section and
@@ -238,6 +241,12 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 		const organizationDefault = take(options.organizationDefaultModelId);
 		if (organizationDefault) {
 			suggested.push(organizationDefault);
+		}
+		for (const id of options.requiredModelIds ?? []) {
+			const required = take(id);
+			if (required) {
+				suggested.push(required);
+			}
 		}
 	}
 

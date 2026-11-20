@@ -789,6 +789,9 @@ export class TabbedModelPicker extends Disposable {
 			selectedModelId: context.selectedModelId,
 			organizationDefaultModelId: this._getOrganizationDefaultModel(context)?.identifier,
 			pinnedModelIds: context.pinnedModelIds,
+			requiredModelIds: context.agentModelPreferences?.required
+				? resolveAgentModelPreferences(context.agentModelPreferences.models, destination.models).map(model => model.identifier)
+				: undefined,
 			controlModels: isBuiltIn ? context.controlModels : {},
 			preferredSpeedVariants: this._preferredSpeedVariants,
 			// Only the built-in provider curates a shortlist. A provider the user added

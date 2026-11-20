@@ -1577,6 +1577,17 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('lists every required model without folding a demoted one into Other Models', () => {
+		const newer = model('example-5.6');
+		const demoted = model('example-5.5');
+		const { popup } = createPicker({
+			models: [newer, demoted],
+			agentModelPreferences: { models: ['example-5.6', 'example-5.5'], required: true },
+			controlModels: { [demoted.metadata.id]: { label: demoted.metadata.name, exists: true, demoted: true } },
+		});
+		assert.deepStrictEqual(listRows(popup), ['example-5.6', 'example-5.5']);
+	});
+
 	test('required models without a source still explain the restriction', () => {
 		const { popup } = createPicker({ agentModelPreferences: { models: ['First'], required: true } });
 		const notice = element(popup, '.chat-model-picker-agent-notice');

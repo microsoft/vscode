@@ -627,6 +627,23 @@ suite('Model picker destinations', () => {
 		);
 	});
 
+	test('a model the agent requires stays in the shortlist even when demoted', () => {
+		const sol = createModel('example-5.6-sol', 'Example 5.6 Sol');
+		const codex = createModel('example-5.3-codex', 'Example 5.3 Codex');
+		const sections = buildModelPickerSections({
+			models: [sol, codex],
+			selectedModelId: undefined,
+			pinnedModelIds: [],
+			requiredModelIds: [codex.identifier],
+			controlModels: { 'example-5.3-codex': { label: 'Example 5.3 Codex', exists: true, demoted: true } },
+			showSuggested: true,
+		});
+		assert.deepStrictEqual(
+			{ suggested: sections.suggested.map(model => model.metadata.id), other: sections.other.map(model => model.metadata.id) },
+			{ suggested: ['example-5.6-sol', 'example-5.3-codex'], other: [] },
+		);
+	});
+
 	test('demoting every model leaves the list open rather than empty', () => {
 		// A demotion is honoured whether or not anything replaced the model, so a config
 		// that names them all is possible. The fold has nothing to hide behind then, and
