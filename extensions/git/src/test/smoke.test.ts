@@ -5,14 +5,17 @@
 
 import 'mocha';
 import assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputCustom, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
+import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputCustom, TabInputNotebook, TabInputNotebookDiff, Event } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import type { GitExtension, API, Repository } from '../api/git';
 import { Status } from '../api/git.constants';
-import { eventToPromise } from '../util';
+import { anyEvent, eventToPromise } from '../util';
 import { Git, findGit } from '../git';
+import type { GitExtensionImpl } from '../api/extension';
+import type { Model } from '../model';
 
 suite('git smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri.fsPath;
@@ -36,6 +39,17 @@ suite('git smoke test', function () {
 		const end = doc.lineAt(doc.lineCount - 1).range.end;
 		edit.replace(doc.uri, new Range(end, end), text);
 		await workspace.applyEdit(edit);
+	}
+
+	function getModel(): Model {
+		return (extensions.getExtension<GitExtension>('vscode.git')!.exports as GitExtensionImpl).model!;
+	}
+
+	function didFireWithin(event: Event<unknown>, ms: number): Promise<boolean> {
+		return Promise.race([
+			eventToPromise(event).then(() => true),
+			new Promise<boolean>(c => setTimeout(() => c(false), ms))
+		]);
 	}
 
 	let git: API;
@@ -288,6 +302,152 @@ suite('git smoke test', function () {
 			// Restore the committed content so the following tests start from a clean tree
 			fs.writeFileSync(file('notebook.ipynb'), committed);
 			await repository.status();
+		}
+	});
+
+	test('detaches and reattaches a repository', async function () {
+		const model = getModel();
+
+		// Use a repository outside of the workspace folder, because the model opens a workspace
+		// folder repository again on any configuration change
+		const repositoryPath = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-smoke-')));
+		cp.execSync('git init -b main', { cwd: repositoryPath });
+		cp.execSync('git -c user.name=testuser -c user.email=monacotools@example.com commit --allow-empty -m "initial commit"', { cwd: repositoryPath });
+
+		try {
+			const apiRepository = (await git.openRepository(Uri.file(repositoryPath)))!;
+			const internalRepository = model.getRepository(repositoryPath)!;
+			const onDidChangeOrRefresh = anyEvent<unknown>(internalRepository.onDidChangeRepository, internalRepository.onDidRunGitStatus);
+			const probe = path.join(repositoryPath, '.git', 'smoke-probe');
+
+			// Positive control: an attached repository reports changes to its .git folder
+			const attachedChange = didFireWithin(onDidChangeOrRefresh, 10000);
+			fs.writeFileSync(probe, 'attached', 'utf8');
+			assert.strictEqual(await attachedChange, true);
+
+			const onDidCloseRepository = eventToPromise(git.onDidCloseRepository);
+			apiRepository.inputBox.value = 'draft';
+			model.detachRepository(internalRepository);
+			const closedRepository = await onDidCloseRepository;
+
+			assert.deepStrictEqual(
+				{ repositories: git.repositories.map(r => r.rootUri.fsPath), closedInputBox: closedRepository.inputBox.value, sourceControl: internalRepository.sourceControl },
+				{ repositories: [cwd], closedInputBox: 'draft', sourceControl: undefined });
+			await assert.rejects(apiRepository.status(), /Repository is detached/);
+			await assert.rejects(apiRepository.getCommit('HEAD'), /Repository is detached/);
+
+			const detachedChange = didFireWithin(onDidChangeOrRefresh, 3000);
+			fs.writeFileSync(probe, 'detached', 'utf8');
+			fs.writeFileSync(path.join(repositoryPath, 'detached.txt'), 'detached', 'utf8');
+			assert.strictEqual(await detachedChange, false);
+
+			const reopenedRepository = (await git.openRepository(Uri.file(repositoryPath)))!;
+			await reopenedRepository.status();
+
+			assert.strictEqual(model.getRepository(repositoryPath), internalRepository);
+			assert.ok(internalRepository.sourceControl);
+			assert.deepStrictEqual(reopenedRepository.state.workingTreeChanges.map(c => c.uri.fsPath), [path.join(repositoryPath, 'detached.txt')]);
+
+			model.detachRepository(internalRepository);
+		} finally {
+			fs.rmSync(repositoryPath, { recursive: true, force: true });
+		}
+	});
+
+	test('a closed repository runs the operations of an extension that still holds it', async function () {
+		const model = getModel();
+		const repositoryPath = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-smoke-')));
+		cp.execSync('git init -b main', { cwd: repositoryPath });
+		cp.execSync('git -c user.name=testuser -c user.email=monacotools@example.com commit --allow-empty -m "initial commit"', { cwd: repositoryPath });
+
+		try {
+			const apiRepository = (await git.openRepository(Uri.file(repositoryPath)))!;
+			apiRepository.inputBox.value = 'draft';
+
+			const onDidCloseRepository = eventToPromise(git.onDidCloseRepository);
+			model.close(model.getRepository(repositoryPath)!);
+			const closedRepository = await onDidCloseRepository;
+
+			await apiRepository.status();
+			const commit = await apiRepository.getCommit('HEAD');
+			assert.deepStrictEqual(
+				{ repositories: git.repositories.map(r => r.rootUri.fsPath), closedInputBox: closedRepository.inputBox.value, message: commit.message },
+				{ repositories: [cwd], closedInputBox: 'draft', message: 'initial commit' });
+		} finally {
+			fs.rmSync(repositoryPath, { recursive: true, force: true });
+		}
+	});
+
+	test('detaching a parent repository detaches its worktree', async function () {
+		const model = getModel();
+
+		// Use real paths, because the worktree finds its parent by the path of the common .git folder
+		const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-smoke-')));
+		const parentPath = path.join(base, 'parent');
+		const worktreePath = path.join(base, 'worktree');
+		fs.mkdirSync(parentPath);
+		cp.execSync('git init -b main', { cwd: parentPath });
+		cp.execSync('git -c user.name=testuser -c user.email=monacotools@example.com commit --allow-empty -m "initial commit"', { cwd: parentPath });
+		cp.execSync(`git worktree add -b worktree "${worktreePath}"`, { cwd: parentPath });
+
+		try {
+			await git.openRepository(Uri.file(parentPath));
+			await git.openRepository(Uri.file(worktreePath));
+			const parentRepository = model.getRepository(parentPath)!;
+			const worktreeRepository = model.getRepository(worktreePath)!;
+			assert.strictEqual(worktreeRepository.kind, 'worktree');
+
+			model.detachRepository(parentRepository);
+
+			assert.deepStrictEqual(git.repositories.map(r => r.rootUri.fsPath), [cwd]);
+			assert.strictEqual(worktreeRepository.sourceControl, undefined);
+
+			await git.openRepository(Uri.file(parentPath));
+			await git.openRepository(Uri.file(worktreePath));
+
+			assert.strictEqual(model.getRepository(parentPath), parentRepository);
+			assert.strictEqual(model.getRepository(worktreePath), worktreeRepository);
+
+			model.detachRepository(parentRepository);
+		} finally {
+			fs.rmSync(base, { recursive: true, force: true });
+		}
+	});
+
+	test('closing a parent repository closes its worktree', async function () {
+		const model = getModel();
+
+		// Use real paths, because the worktree finds its parent by the path of the common .git folder
+		const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-smoke-')));
+		const parentPath = path.join(base, 'parent');
+		const worktreePath = path.join(base, 'worktree');
+		fs.mkdirSync(parentPath);
+		cp.execSync('git init -b main', { cwd: parentPath });
+		cp.execSync('git -c user.name=testuser -c user.email=monacotools@example.com commit --allow-empty -m "initial commit"', { cwd: parentPath });
+		cp.execSync(`git worktree add -b worktree "${worktreePath}"`, { cwd: parentPath });
+
+		try {
+			await git.openRepository(Uri.file(parentPath));
+			const worktreeRepository = (await git.openRepository(Uri.file(worktreePath)))!;
+			assert.strictEqual(model.getRepository(worktreePath)!.parentRoot, parentPath);
+
+			// The worktree closes while its parent is still open, as before source controls were detached
+			const parentOpenWhenWorktreeCloses: boolean[] = [];
+			const listener = git.onDidCloseRepository(r => {
+				if (r.rootUri.fsPath === worktreePath) {
+					parentOpenWhenWorktreeCloses.push(git.getRepository(Uri.file(parentPath)) !== null);
+				}
+			});
+			model.close(model.getRepository(parentPath)!);
+			listener.dispose();
+
+			// An extension that still holds the worktree can run operations, as before source controls were detached
+			const commit = await worktreeRepository.getCommit('HEAD');
+			assert.deepStrictEqual(
+				{ repositories: git.repositories.map(r => r.rootUri.fsPath), parentOpenWhenWorktreeCloses, message: commit.message },
+				{ repositories: [cwd], parentOpenWhenWorktreeCloses: [true], message: 'initial commit' });
+		} finally {
+			fs.rmSync(base, { recursive: true, force: true });
 		}
 	});
 
