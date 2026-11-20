@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
+import { disposableTimeout, Limiter, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../../base/common/equals.js';
@@ -8018,6 +8018,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._setSessionArchivedLocally(sessionId, true);
 		} finally {
 			subscription.dispose();
+		}
+	}
+
+	async archiveSessions(sessionIds: readonly string[]): Promise<readonly PromiseSettledResult<void>[]> {
+		const store = new DisposableStore();
+		const limiter = store.add(new Limiter<void>(4));
+		this._onDidChangeSessions.pause();
+		try {
+			return await Promise.allSettled(sessionIds.map(sessionId => limiter.queue(() => this.archiveSession(sessionId))));
+		} finally {
+			this._onDidChangeSessions.resume();
+			store.dispose();
 		}
 	}
 

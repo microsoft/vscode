@@ -95,6 +95,9 @@ suite('Sessions - Bulk archive undo', () => {
 				sessions.find(entry => entry.session === session)!.isArchived.set(true, undefined);
 				sessionArchived.fire(session);
 			}
+			override archiveSessions(targets: readonly ISession[]) {
+				return Promise.allSettled(targets.map(session => this.archiveSession(session)));
+			}
 			override async unarchiveSession(session: ISession) {
 				if (session.sessionId === state.failRestore) {
 					throw new Error('restore failed');
@@ -386,6 +389,28 @@ suite('Sessions - Bulk archive undo', () => {
 		await test.state.undo();
 		assert.deepStrictEqual({ message: test.state.message, restored: test.restored }, { message: '1 marked done', restored: ['first'] });
 	});
+
+	test('a failed archive waits for a later success before reporting and offering Undo', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const harness = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+		harness.state.failArchive = 'first';
+		const archiveSession = harness.managementService.archiveSession;
+		harness.managementService.archiveSession = async session => {
+			if (session.sessionId === 'second') {
+				await timeout(10);
+			}
+			await archiveSession(session);
+		};
+
+		await assert.rejects(harness.run('group'), /archive failed/);
+		const afterArchive = { archived: [...harness.archived], message: harness.state.message, notices: harness.state.notices };
+		await harness.state.undo();
+
+		assert.deepStrictEqual({ afterArchive, restored: harness.restored, group: harness.groupsService.getGroup(harness.group.id)?.name }, {
+			afterArchive: { archived: ['second'], message: '1 marked done', notices: 1 },
+			restored: ['second'],
+			group: 'Group',
+		});
+	}));
 
 	test('undo can retry a partial restore failure without restoring successful sessions twice', async () => {
 		const test = setup();

@@ -3846,6 +3846,58 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}));
 	}
 
+	test('bulk archive bounds confirmed dispatches, merges changes and releases subscriptions after rejection', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const backends = Array.from({ length: 90 }, (_, index) => URI.parse(`opaque-session://tenant/bulk-${index}`));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		for (const [index, resource] of backends.entries()) {
+			fireSessionAdded(agentHost, `bulk-${index}`, { resource });
+		}
+		await timeout(100);
+		const sessions = provider.getSessions();
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(event => changes.push(event)));
+		let active = 0;
+		let maximumActive = 0;
+		let rejectArchive = true;
+		const channels: string[] = [];
+		agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+			channels.push(channel);
+			active++;
+			maximumActive = Math.max(maximumActive, active);
+			await timeout(10);
+			active--;
+			return { channel, action, serverSeq: 1, origin: undefined, ...(rejectArchive && channel === backends[1].toString() ? { rejectionReason: 'Archive denied' } : {}) };
+		};
+
+		const started = Date.now();
+		const results = await provider.archiveSessions(sessions.map(session => session.sessionId));
+		const afterBatch = {
+			active, maximumActive, elapsedMs: Date.now() - started,
+			outcomes: results.map(result => result.status),
+			archived: sessions.map(session => session.isArchived.get()),
+			changes: changes.map(event => event.changed.map(session => session.sessionId)),
+			channels: [...channels],
+			released: backends.map(resource => agentHost.sessionUnsubscribeCounts.get(resource.toString())),
+		};
+		rejectArchive = false;
+		await provider.archiveSession(sessions[1].sessionId);
+
+		assert.deepStrictEqual({ afterBatch, changesAfterRetry: changes.length }, {
+			afterBatch: {
+				active: 0,
+				maximumActive: 4,
+				elapsedMs: 230,
+				outcomes: sessions.map((_, index) => index === 1 ? 'rejected' : 'fulfilled'),
+				archived: sessions.map((_, index) => index !== 1),
+				changes: [sessions.filter((_, index) => index !== 1).map(session => session.sessionId)],
+				channels: backends.map(resource => resource.toString()),
+				released: backends.map(() => 1),
+			},
+			changesAfterRetry: 2,
+		});
+	}));
+
 	test('a summaryChanged modifiedAt advances the last turn end like a listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('turn-end', { summary: 'Turn End', modifiedTime: 1_000 }));
 		const provider = createProvider(disposables, agentHost);
