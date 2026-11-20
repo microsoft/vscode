@@ -323,12 +323,14 @@ suite('Workbench layout chat part', () => {
 		assert.deepStrictEqual(chat.map(node => ({ part: shape(node), size: node.size })).filter(node => node.part === '(chat)'), [{ part: '(chat)', size: 480 }]);
 	});
 
-	function createGridLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout) {
+	function createGridLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout, laidOut = true) {
 		const { layout, views, descriptor, save, anchor, focus, viewEvents } = createLayout(configuration, saved);
 		const grid = store.add(SerializableGrid.deserialize(descriptor, { fromJSON: ({ type }: { type: Parts }) => views.get(type)! }, { proportionalLayout: false }));
 		append(layout.mainContainer, grid.element);
-		grid.layout(configuration.widths?.window ?? 1600, 900);
-		Object.assign(layout, { workbenchGrid: grid, initialized: true });
+		if (laidOut) {
+			grid.layout(configuration.widths?.window ?? 1600, 900);
+		}
+		Object.assign(layout, { workbenchGrid: grid, initialized: laidOut });
 		const middle = () => shape((grid.serialize().root.data as ISerializedNode[])[2]);
 		return { layout, grid, middle, save, anchor, views, focus, viewEvents };
 	}
@@ -391,8 +393,7 @@ suite('Workbench layout chat part', () => {
 	}
 
 	test('hiding the side bar before the first layout does not throw', () => {
-		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
-		Object.assign(layout, { initialized: false });
+		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } }, undefined, false);
 
 		assert.doesNotThrow(() => layout.setPartHidden(true, Parts.SIDEBAR_PART));
 	});
