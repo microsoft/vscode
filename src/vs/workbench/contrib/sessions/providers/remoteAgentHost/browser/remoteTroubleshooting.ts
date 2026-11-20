@@ -80,6 +80,9 @@ export function getRemoteTroubleshootingGuide(remote: ICustomizationRemote, info
 		if (!remote.connectsWithHost) {
 			actions.push('disconnect');
 		}
+		if (remote.canUpdateServer) {
+			actions.push('updateServer');
+		}
 	} else if (pending) {
 		guidance.push(RemoteAgentHostConnectionStatus.isReconnecting(status)
 			? localize('remotes.troubleshootReconnecting', "The connection was lost and is reconnecting automatically.")

@@ -34,6 +34,7 @@ suite('getRemoteTroubleshootingGuide', () => {
 			connecting: summarize(remote('tunnel', { connectionStatus: RemoteAgentHostConnectionStatus.connecting })),
 			connected: summarize(connected),
 			connectedNotInPicker: summarize({ ...connected, pickerUnavailableReason: 'Not selectable.' }),
+			connectedOutdated: summarize({ ...connected, canUpdateServer: true }),
 			connectedWithHost: summarize({ ...connected, kind: 'devContainer', connectsWithHost: true }),
 			updateServer: summarize(remote('tunnel', { connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Version mismatch', ['1'], ['2'], 'vendor/update') })),
 			signIn: summarize(remote('tunnel', { requiresTunnelSignIn: true })),
@@ -43,6 +44,7 @@ suite('getRemoteTroubleshootingGuide', () => {
 			connecting: { primary: undefined, actions: [], guidance: ['Connecting'] },
 			connected: { primary: 'newSession', actions: ['disconnect'], guidance: [] },
 			connectedNotInPicker: { primary: undefined, actions: ['disconnect'], guidance: [] },
+			connectedOutdated: { primary: 'newSession', actions: ['disconnect', 'updateServer'], guidance: [] },
 			connectedWithHost: { primary: 'newSession', actions: [], guidance: [] },
 			updateServer: {
 				primary: 'updateServer', actions: [], guidance: ['The server on this environment needs an update before you can connect'],
