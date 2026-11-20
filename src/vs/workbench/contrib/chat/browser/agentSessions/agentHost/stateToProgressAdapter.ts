@@ -2570,6 +2570,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			isComplete: true,
 			presentation: undefined,
 			subAgentInvocationId: subAgentInvocationId,
+			summary: getToolSummary(tc, resourceUris),
 			toolSpecificData: fusionPhaseData ?? {
 				kind: 'subagent',
 				hasStarted: false,

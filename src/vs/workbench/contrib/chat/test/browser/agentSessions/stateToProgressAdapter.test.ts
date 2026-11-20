@@ -2757,6 +2757,7 @@ suite('stateToProgressAdapter', () => {
 				crashed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: deniedByHook('.github/hooks/policy.json') },
 				mcp: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}', meta: { ...deniedByHook(), mcpServerName: 'docs' } },
 				terminal: { toolName: 'bash', toolInput: '{"command":"rm -rf ./scratch"}', meta: { ...deniedByHook(), toolKind: 'terminal' } },
+				subagent: { toolName: 'task', toolInput: '{"description":"Read the notes","prompt":"Read notes.txt"}', meta: { ...deniedByHook(), toolKind: 'subagent' } },
 				failed: { toolName: 'view', toolInput: '{"path":"/workspace/notes.txt"}' },
 			};
 			const results = Object.fromEntries(Object.entries(cases).map(([name, { toolName, toolInput, meta }]) => {
@@ -2781,6 +2782,7 @@ suite('stateToProgressAdapter', () => {
 				crashed: { title: '"Read" blocked because Pre-Tool Use hook .github/hooks/policy.json failed', summary: '1 tool call blocked by a hook' },
 				mcp: { title: '"Read" blocked by Pre-Tool Use hook', origin: `docs (MCP Server) · ${reason}`, summary: '1 tool call blocked by a hook' },
 				terminal: { origin: reason, summary: '1 tool call blocked by a hook' },
+				subagent: { title: '"Read" blocked by Pre-Tool Use hook', origin: reason, summary: '1 tool call blocked by a hook' },
 				failed: { summary: '1 tool call failed' },
 			});
 		});
