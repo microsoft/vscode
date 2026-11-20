@@ -1672,6 +1672,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		this._register(new CopilotBuiltinAgentsStore(this._fileService));
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
+		if (this._copilotApiService.onDidRefreshCopilotUser) {
+			this._register(this._copilotApiService.onDidRefreshCopilotUser(({ githubToken, context }) => {
+				if (this._githubCredentials.token === githubToken) {
+					this._applyRestrictedTelemetry({
+						...context,
+						telemetryEndpoint: toRestrictedTelemetryEndpoint(context.telemetryEndpoint),
+					});
+				}
+			}));
+		}
 		if (isAgentHostTelemetryService(this._telemetryService)) {
 			this._register(this._telemetryService.registerCopilotTelemetryProvider(this.id, () => this.getTelemetryContext()));
 			this._register(this._telemetryService.onDidChangeTelemetryLevel(() => {
@@ -4764,6 +4774,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			const client = await this._ensureClient();
 			const session = accountContext.kind === 'ready' ? await this._accountService.getSession(accountContext, Promise.resolve(client)) : undefined;
+			if (tokenAtRefreshStart && !session) {
+				void this._resolveRestrictedTelemetry(tokenAtRefreshStart);
+			}
 			const { models, autoTierMetadata, freeLongContextModels } = await this._listModels(client, tokenAtRefreshStart, this._capiModels, session);
 			if (!isCurrent() || this._shutdownPromise) {
 				return;
