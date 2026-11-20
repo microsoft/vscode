@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputCustom, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextDiff, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputCustom, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
@@ -5722,9 +5722,13 @@ export class CommandCenter {
 	}
 
 	/**
-	 * Returns the text editor a command should run on. Commands run from a menu, such
-	 * as the editor title menu of an editor group that is not active, receive the URI
-	 * of the editor they target, which is not necessarily the active text editor.
+	 * Returns the text editor whose selections a command should use. Keybindings and the
+	 * Command Palette pass no URI, so the command runs on the active text editor. Menus
+	 * pass the URI of the diff editor they belong to, which is not necessarily the active
+	 * text editor, for example in the title menu of an editor group that isn't active.
+	 * The API doesn't identify the editor group that invoked a menu, so if the URI is shown
+	 * in more than one editor, the editor is only returned if it can be determined without
+	 * ambiguity. Otherwise a message is shown and `undefined` is returned.
 	 */
 	private getTextEditor(uri?: Uri): TextEditor | undefined {
 		const activeTextEditor = window.activeTextEditor;
@@ -5733,11 +5737,31 @@ export class CommandCenter {
 		}
 
 		const uriString = uri.toString();
-		if (activeTextEditor?.document.uri.toString() === uriString) {
-			return activeTextEditor;
+		let textEditors = window.visibleTextEditors.filter(e => e.document.uri.toString() === uriString);
+
+		if (textEditors.length > 1) {
+			// The menu belongs to an editor group whose active editor is a diff editor for the URI.
+			// If there is exactly one such group, its editor is the active text editor when the
+			// group is active, and the only other editor for the URI when it isn't.
+			const diffEditorTabGroups = window.tabGroups.all.filter(group =>
+				group.activeTab?.input instanceof TabInputTextDiff &&
+				group.activeTab.input.modified.toString() === uriString);
+
+			if (diffEditorTabGroups.length !== 1) {
+				textEditors = [];
+			} else if (diffEditorTabGroups[0].isActive) {
+				textEditors = textEditors.filter(e => e === activeTextEditor);
+			} else {
+				textEditors = textEditors.filter(e => e !== activeTextEditor);
+			}
+
+			if (textEditors.length !== 1) {
+				window.showInformationMessage(l10n.t('Could not determine the editor to use because the file is open in more than one editor. Focus the editor and run the command from the Command Palette.'));
+				return undefined;
+			}
 		}
 
-		return window.visibleTextEditors.find(e => e.document.uri.toString() === uriString);
+		return textEditors[0];
 	}
 
 	private getSCMResource(uri?: Uri): Resource | undefined {
