@@ -9,17 +9,19 @@
  *   1. The tool actually ran (the tool result contains the echoed marker), and
  *   2. The reply appears in the chat (the same marker is rendered).
  *
- * Two variants are provided to cover the different tool names advertised by
+ * Three variants are provided to cover the different tool names advertised by
  * each surface:
  *   - {@link shellEchoScenario} matches SDK-based sessions (Copilot CLI,
  *     Claude, AgentHost), which expose `bash` / `pwsh` / `powershell` tools.
+ *   - {@link shellNetworkProbeScenario} matches the same tools, but echoes the
+ *     reply only after the command fetched a URL.
  *   - {@link runInTerminalScenario} matches the VS Code built-in chat agent
  *     (used by the "Local" session), which exposes the `run_in_terminal`
  *     tool.
  *
- * Both scenarios use a two-turn protocol:
+ * All three scenarios use a two-turn protocol:
  *   - Turn 1 (`tool-calls`): the model asks the tool to execute
- *     `echo <reply>`.
+ *     `echo <reply>` (after `curl` for {@link shellNetworkProbeScenario}).
  *   - Turn 2 (`echo-last-message`): the model replays the last
  *     (tool-result) message back as a ```json fenced block, so the reply
  *     appears in the assistant rendering.
@@ -38,6 +40,32 @@ export function shellEchoScenario(reply: string): unknown {
 					{
 						toolNamePattern: /^(bash|pwsh|powershell)$/i,
 						arguments: { command: `echo ${reply}` },
+					},
+				],
+			},
+			{ kind: 'echo-last-message' },
+		],
+	};
+}
+
+/**
+ * Like {@link shellEchoScenario}, but the command fetches `url()` with curl and echoes `reply` only when that
+ * succeeded, so a sandboxed command proves that it reached the URL through the sandbox's network proxy. The URL is
+ * read when the model asks for the tool call, after the mock server started.
+ */
+export function shellNetworkProbeScenario(url: () => string, reply: string, shell: 'bash' | 'powershell'): unknown {
+	const command = () => shell === 'bash'
+		? `curl -fsSk -o /dev/null '${url()}' && echo ${reply}`
+		: `curl.exe -fsSk -o NUL '${url()}'; if ($LASTEXITCODE -eq 0) { echo ${reply} }`;
+	return {
+		type: 'multi-turn',
+		turns: [
+			{
+				kind: 'tool-calls',
+				toolCalls: [
+					{
+						toolNamePattern: /^(bash|pwsh|powershell)$/i,
+						arguments: () => ({ command: command() }),
 					},
 				],
 			},
@@ -70,9 +98,10 @@ export function runInTerminalScenario(reply: string): unknown {
 }
 
 /**
- * Matcher for the assistant text produced by {@link shellEchoScenario} or
- * {@link runInTerminalScenario}. The final response renders the tool result
- * as a ```json block; the exact format varies by surface:
+ * Matcher for the assistant text produced by {@link shellEchoScenario},
+ * {@link shellNetworkProbeScenario} or {@link runInTerminalScenario}. The final
+ * response renders the tool result as a ```json block; the exact format varies
+ * by surface:
  *   - Copilot CLI (responses-API):     `{ "output": "<reply>" }`
  *   - Local `run_in_terminal`:         `{ "output": "<reply>..." }`
  *   - Claude SDK Bash (messages-API):  `{ "content": "<reply>" }`

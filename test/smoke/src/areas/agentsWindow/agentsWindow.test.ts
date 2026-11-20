@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, latestUserInputCarriesTag, MockLlmServer, preseedChatExtensionEnablement, suiteCrashPath, suiteLogsPath } from '../../utils';
-import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
+import { shellEchoResponseMatcher, shellEchoScenario, shellNetworkProbeScenario } from '../chat/shellScenarios';
 import { CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG, createRemoteDevContainerFixture, getDevContainerCliInstallCommand, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
 
 // Selector for the send button in the Agents Window new-session homepage.
@@ -685,6 +685,164 @@ export function setup(logger: Logger, quality: Quality) {
 		});
 	});
 
+	// Run by test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -Sandbox: a sandboxed shell command fetches a
+	// URL of the mock server, which only the proxy of the PAC script can reach, through the sandbox's network proxy.
+	// That proxy forwards to the proxy the client resolves, with the credentials or Kerberos ticket the client returns.
+	const sandboxProxy = process.env.VSCODE_SMOKE_TEST_SANDBOX_PROXY === '1';
+	if (!sandboxProxy) {
+		logger.log('Skipping the AgentHost sandbox proxy suites: run test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -Sandbox on Windows');
+	}
+	const localCopilotRuntimePath = process.env.VSCODE_SMOKE_TEST_COPILOT_RUNTIME_PATH;
+	(sandboxProxy && basicPacProxyScheme ? describe : describe.skip)('Agents Window (local AgentHost, Basic PAC proxy, sandbox)', () => {
+		const scenario = 'smoke-local-basic-pac-proxy-sandbox-agent-host';
+		const reply = 'LOCAL_BASIC_PAC_PROXY_SANDBOX_RESPONSE';
+		const probePath = `/sandbox-probe/${randomUUID()}`;
+		const context = setupAgentHostSuite(logger, {
+			serverLabel: 'Local Basic PAC proxy sandbox AgentHost',
+			mockServerHost: '0.0.0.0',
+			proxyLoginCredentials: basicPacProxyCredentials,
+			registerScenarios: ({ registerScenario }) => registerScenario(scenario, shellNetworkProbeScenario(() => getMockLlmServerUrl(context.mockServer) + probePath, reply, process.platform === 'win32' ? 'powershell' : 'bash')),
+			settings: {
+				...sandboxProxySettings(process.platform),
+				...(localCopilotRuntimePath ? { 'chat.agentHost.copilot.runtimePath': localCopilotRuntimePath } : {}),
+			},
+		});
+
+		it('Fetches a URL from a sandboxed command through the PAC proxy of a local AgentHost', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const agentHostLogPath = path.join(context.logsPath, 'agenthost.log');
+			const logins = context.proxyLogins;
+			assert.ok(logins, 'Expected the suite to fill the proxy login dialogs');
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				await assertSandboxedNetworkProbe(app, context.mockServer, {
+					prompt: `fetch through the sandbox and the PAC proxy [scenario:${scenario}]`,
+					reply,
+					probePath,
+					readAgentHostLog: () => readFileIfExists(agentHostLogPath),
+				});
+				if (localCopilotRuntimePath) {
+					assert.ok(readFileIfExists(agentHostLogPath).includes(`[Copilot] Using configured runtime path: ${localCopilotRuntimePath}`), `Expected the Agent Host to use the Copilot runtime at ${localCopilotRuntimePath}`);
+				}
+				assertProxyLoginDialogs(await logins.stop(), 1);
+			} catch (error) {
+				logger.log(`Agents Window (local Basic PAC proxy, sandbox) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (local Basic PAC proxy, sandbox)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			} finally {
+				await logins.stop();
+			}
+		});
+	});
+
+	(sandboxProxy && basicPacProxyScheme ? describe : describe.skip)('Agents Window (WSL AgentHost, Basic PAC proxy, sandbox)', () => {
+		const scenario = 'smoke-wsl-basic-pac-proxy-sandbox-agent-host';
+		const reply = 'WSL_BASIC_PAC_PROXY_SANDBOX_RESPONSE';
+		const probePath = `/sandbox-probe/${randomUUID()}`;
+		const context = setupAgentHostSuite(logger, {
+			serverLabel: 'WSL Basic PAC proxy sandbox AgentHost',
+			mockServerHost: '0.0.0.0',
+			remoteTransport: 'wsl',
+			wslClientProxy: 'agentHost',
+			proxyLoginCredentials: basicPacProxyCredentials,
+			registerScenarios: ({ registerScenario }) => registerScenario(scenario, shellNetworkProbeScenario(() => getMockLlmServerUrl(context.mockServer) + probePath, reply, 'bash')),
+			settings: {
+				...sandboxProxySettings('linux'),
+				'chat.remoteAgentHostsEnabled': true,
+			},
+		});
+
+		it('Fetches a URL from a sandboxed command through the Windows PAC proxy of a WSL AgentHost', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const fixture = context.remoteFixture;
+			assert.ok(fixture, 'Expected the WSL connection fixture');
+			const readAgentHostLog = fixture.readAgentHostLog;
+			assert.ok(readAgentHostLog, 'Expected the WSL fixture to read the AgentHost log');
+			const logins = context.proxyLogins;
+			assert.ok(logins, 'Expected the suite to fill the proxy login dialogs');
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.connectWSLHost(fixture.name, fixture.workspacePath ?? app.workspacePathOrFolder, '.git');
+				await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
+				await assertSandboxedNetworkProbe(app, context.mockServer, {
+					prompt: `fetch through the sandbox and the Windows PAC proxy [scenario:${scenario}]`,
+					reply,
+					probePath,
+					readAgentHostLog,
+				});
+				assertProxyLoginDialogs(await logins.stop(), 1);
+				await fixture.verifyMockServerRouting?.();
+				await assertClientNetworkServed(context.logsPath, 'wsl', basicPacProxyScheme === 'https' ? 'HTTPS' : 'PROXY', { basicUsername: basicPacProxyCredentials.username });
+			} catch (error) {
+				logger.log(`Agents Window (WSL Basic PAC proxy, sandbox) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				if (fixture.dumpConnectionDiagnostics) {
+					try {
+						await fixture.dumpConnectionDiagnostics(await app.workbench.agentsWindow.getRemoteConnectionDiagnostics());
+					} catch (diagnosticError) {
+						logger.log(`Agents Window (WSL Basic PAC proxy, sandbox) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+					}
+				}
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL Basic PAC proxy, sandbox)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			} finally {
+				await logins.stop();
+			}
+		});
+	});
+
+	(sandboxProxy && wslKerberosProxyScheme ? describe : describe.skip)('Agents Window (WSL AgentHost, Kerberos proxy, sandbox)', () => {
+		const scenario = 'smoke-wsl-kerberos-proxy-sandbox-agent-host';
+		const reply = 'WSL_KERBEROS_PROXY_SANDBOX_RESPONSE';
+		const probePath = `/sandbox-probe/${randomUUID()}`;
+		const context = setupAgentHostSuite(logger, {
+			serverLabel: 'WSL Kerberos proxy sandbox AgentHost',
+			mockServerHost: '0.0.0.0',
+			remoteTransport: 'wsl',
+			wslClientProxy: 'agentHost',
+			registerScenarios: ({ registerScenario }) => registerScenario(scenario, shellNetworkProbeScenario(() => getMockLlmServerUrl(context.mockServer) + probePath, reply, 'bash')),
+			settings: {
+				...sandboxProxySettings('linux'),
+				'chat.remoteAgentHostsEnabled': true,
+			},
+		});
+
+		it('Fetches a URL from a sandboxed command through the Windows proxy, with the Windows Kerberos ticket, of a WSL AgentHost', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const fixture = context.remoteFixture;
+			assert.ok(fixture, 'Expected the WSL connection fixture');
+			const readAgentHostLog = fixture.readAgentHostLog;
+			assert.ok(readAgentHostLog, 'Expected the WSL fixture to read the AgentHost log');
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.connectWSLHost(fixture.name, fixture.workspacePath ?? app.workspacePathOrFolder, '.git');
+				await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
+				await assertSandboxedNetworkProbe(app, context.mockServer, {
+					prompt: `fetch through the sandbox and the Windows proxy [scenario:${scenario}]`,
+					reply,
+					probePath,
+					readAgentHostLog,
+				});
+				await fixture.verifyMockServerRouting?.();
+				await assertClientNetworkServed(context.logsPath, 'wsl', wslKerberosProxyScheme === 'https' ? 'HTTPS' : 'PROXY', 'Kerberos');
+			} catch (error) {
+				logger.log(`Agents Window (WSL Kerberos proxy, sandbox) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				if (fixture.dumpConnectionDiagnostics) {
+					try {
+						await fixture.dumpConnectionDiagnostics(await app.workbench.agentsWindow.getRemoteConnectionDiagnostics());
+					} catch (diagnosticError) {
+						logger.log(`Agents Window (WSL Kerberos proxy, sandbox) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+					}
+				}
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL Kerberos proxy, sandbox)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
+
 	describe('Agents Window (local AgentHost, SDK sandbox)', () => {
 
 		// Variant of the AgentHost suite that leaves
@@ -1354,6 +1512,52 @@ async function assertProxyPasswordChangeAsksAgain(app: Application, mockServer: 
  */
 function assertProxyLoginDialogs(details: readonly string[], count: number): void {
 	assert.deepStrictEqual(details.map(detail => detail.replace(/^The proxy localhost:\d+ /, 'The proxy localhost:<port> ')), Array.from({ length: count }, () => 'The proxy localhost:<port> requires a username and password.'));
+}
+
+/**
+ * Settings that run the Copilot runtime's shell commands in its sandbox, allow them to reach only the host of the mock
+ * server and don't let them leave the sandbox, so a command can only reach the mock server through the sandbox's
+ * network proxy. On Windows, sandboxed commands reach that proxy over host loopback, so they need local network access
+ * to launch at all.
+ */
+function sandboxProxySettings(agentHostPlatform: NodeJS.Platform): Record<string, unknown> {
+	return {
+		'chat.agent.sandbox.enabled': 'on',
+		'chat.agent.sandbox.network.allowedDomains': [process.env.VSCODE_SMOKE_TEST_MOCK_HOST],
+		'chat.agent.sandbox.allowUnsandboxedCommands': false,
+		...(agentHostPlatform === 'win32' ? { 'chat.agent.sandbox.network.allowLocalNetwork': true } : {}),
+	};
+}
+
+/**
+ * Sends `prompt`, whose scenario fetches `probePath` of the mock server from a shell command, and asserts that the
+ * Copilot runtime's own shell tool ran the command in its sandbox, and that the command fetched the URL. Only the
+ * proxy of the PAC script resolves the mock server's host, so the request shows that the sandbox's network proxy
+ * forwarded it there.
+ */
+async function assertSandboxedNetworkProbe(app: Application, mockServer: MockLlmServer, options: {
+	readonly prompt: string;
+	readonly reply: string;
+	readonly probePath: string;
+	readonly readAgentHostLog: () => string | Promise<string>;
+}): Promise<void> {
+	assert.ok(process.env.VSCODE_SMOKE_TEST_MOCK_HOST, 'Expected the mock server host that only the proxy resolves, from run-agents-window-wsl-kerberos-proxy.ps1');
+	await app.workbench.agentsWindow.submitNewSessionPrompt(options.prompt);
+	await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+	// The command echoes the reply only after curl fetched the URL. Starting the sandbox can take minutes on Windows.
+	await app.workbench.agentsWindow.waitForAssistantText(shellEchoResponseMatcher(options.reply), 5 * 60 * 1000, { acceptToolConfirmations: true });
+	assert.ok(mockServer.getRequests().some(request => request.method === 'GET' && request.path === options.probePath), `Expected the sandboxed command to fetch ${options.probePath} from the mock server`);
+	const sdkShellRun = /\[Copilot:[^\]]+\] Tool started: (bash|powershell|pwsh)\b/;
+	const log = await waitForLogContent(options.readAgentHostLog, sdkShellRun, 30_000);
+	assert.deepStrictEqual({
+		sandboxConfigApplied: /\[Copilot:[^\]]+\] Applied SDK sandboxConfig via session\.options\.update/.test(log),
+		sdkShellRun: sdkShellRun.test(log),
+		agentHostShellRun: /\[ShellManager\] Created \w+ shell /.test(log),
+	}, {
+		sandboxConfigApplied: true,
+		sdkShellRun: true,
+		agentHostShellRun: false,
+	}, 'Expected the Copilot runtime\'s own shell tool to run the command with the sandbox configuration of the Agent Host');
 }
 
 async function assertRemoteDevContainerRouting(logsPath: string, transport: RemoteDevContainerTransport, workspacePath: string, reply: string): Promise<void> {

@@ -874,6 +874,8 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 	}
 
 	// -- Catch-all GET → empty success --------------------------------
+	// Captured so tests can assert that a request of their own, such as a sandboxed command's, reached the server.
+	serverEvents.emit('capturedRequest', { path, method: req.method ?? 'GET', body: '' });
 	json(200, {});
 }
 
@@ -1990,6 +1992,8 @@ interface MockLlmServerHandle {
 	 * `body` is the JSON-parsed request payload (or the raw string when parsing
 	 * fails). Used by tests to assert what the client forwarded to the server
 	 * (e.g. `reasoning.effort` or the context-management `compact_threshold`).
+	 * Requests to paths the server does not serve are included with an empty
+	 * `body`, so tests can assert that a request of their own reached it.
 	 *
 	 * Returns an empty array unless the server was started with
 	 * {@link StartServerOptions.captureRequests} set — request capture is off by

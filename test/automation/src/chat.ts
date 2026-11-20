@@ -575,11 +575,13 @@ export class Chat {
  *
  * The terminal confirmation renders as a `.chat-confirmation-widget2` whose
  * action buttons are `.monaco-button.monaco-text-button` anchors — the primary
- * "Allow" (rendered first), then "Skip". The dropdown chevron next to "Allow"
+ * "Allow" (rendered first), then "Skip". A URL confirmation, such as the one
+ * the Copilot runtime requests for a URL in a shell command, labels its primary
+ * button "Allow Once" instead. The dropdown chevron next to "Allow"
  * is a `.monaco-dropdown-button.codicon` (no `.monaco-text-button`) and the
  * carousel's "Allow All" lives on `.chat-tool-carousel-allow-all-button`, so
  * neither is matched here. We verify the first text button actually reads
- * "Allow" before clicking to avoid ever hitting "Skip".
+ * "Allow" or "Allow Once" before clicking to avoid ever hitting "Skip".
  *
  * Uses the VS Code driver (`getElements`/`click`) rather than a raw Playwright
  * locator: the confirmation renders outside the chat response/editor
@@ -587,11 +589,12 @@ export class Chat {
  */
 export async function acceptToolConfirmationIfPresent(code: Code): Promise<void> {
 	const allowButtonSelector = '.chat-confirmation-widget2 .monaco-button.monaco-text-button';
+	const allowLabel = /^Allow(?: Once)?$/;
 	try {
 		const buttons = await code.driver.getElements(allowButtonSelector, /* recursive */ true);
-		// The first text button in the widget is "Allow"; only proceed when
-		// that holds so we never accidentally hit "Skip".
-		if (!buttons || buttons.length === 0 || (buttons[0].textContent ?? '').trim() !== 'Allow') {
+		// The first text button in the widget is "Allow" or "Allow Once"; only
+		// proceed when that holds so we never accidentally hit "Skip".
+		if (!buttons || buttons.length === 0 || !allowLabel.test((buttons[0].textContent ?? '').trim())) {
 			return;
 		}
 		// Filter to only visible "Allow" buttons: the DOM can contain multiple
@@ -601,7 +604,7 @@ export async function acceptToolConfirmationIfPresent(code: Code): Promise<void>
 		// element order and often pick a hidden one.
 		const allowButtons = code.driver.currentPage
 			.locator('.chat-confirmation-widget2 .monaco-button.monaco-text-button')
-			.filter({ hasText: /^Allow$/ });
+			.filter({ hasText: allowLabel });
 		const total = await allowButtons.count();
 		for (let i = 0; i < total; i++) {
 			const b = allowButtons.nth(i);
