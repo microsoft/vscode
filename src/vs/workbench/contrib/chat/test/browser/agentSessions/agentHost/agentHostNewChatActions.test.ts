@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stubChatViewHostServiceDependencies } from '../../../common/chatViewSessionsListServiceTestUtils.js';
 import assert from 'assert';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
@@ -219,6 +220,7 @@ suite('Agent host New Chat entries', () => {
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		stubChatViewHostServiceDependencies(instantiationService);
 		const chatViewHostService = store.add(instantiationService.createInstance(ChatViewHostService));
 		instantiationService.stub(IChatViewHostService, chatViewHostService);
 		// A host that replaces the Chat view and does not take the new chat

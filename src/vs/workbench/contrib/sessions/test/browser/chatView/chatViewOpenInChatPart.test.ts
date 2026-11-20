@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stubChatViewHostServiceDependencies } from '../../../../chat/test/common/chatViewSessionsListServiceTestUtils.js';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -481,6 +482,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			const createInstance = instantiationService.createInstance.bind(instantiationService) as (ctor: unknown, ...args: unknown[]) => unknown;
 			instantiationService.createInstance = ((ctor: unknown, ...args: unknown[]) => ctor === ChangesMultiDiffSourceResolver ? Disposable.None : createInstance(ctor, ...args)) as typeof instantiationService.createInstance;
 
+			stubChatViewHostServiceDependencies(instantiationService, { environmentStubbed: true });
 			const hostService = instantiationService.createInstance(ChatViewHostService);
 			stub(IChatViewHostService, hostService);
 			const chatPartService = store.add(instantiationService.createInstance(EditorWindowChatPartService));
