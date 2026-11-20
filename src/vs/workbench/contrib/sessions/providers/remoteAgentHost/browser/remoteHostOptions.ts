@@ -136,6 +136,8 @@ export async function upgradeRemoteHost(
 	remoteAgentHostService: IRemoteAgentHostService,
 	notificationService: INotificationService,
 	progressService: IProgressService,
+	/** Whether failures are shown as notifications or thrown, with the same message, for the caller to show. */
+	failures: 'notify' | 'throw' = 'notify',
 ): Promise<void> {
 	const address = provider.remoteAddress;
 	if (!address) {
@@ -148,6 +150,7 @@ export async function upgradeRemoteHost(
 			title: localize('workspacePicker.upgradingServer', "Updating {0}...", provider.label),
 		},
 		async (progress) => {
+			let failure: { readonly severity: NotificationSeverity; readonly message: string } | undefined;
 			try {
 				const upgradeResult = await remoteAgentHostService.triggerServerUpgrade(address, upgradeMethod);
 				if (upgradeResult.upgradeStarted) {
@@ -207,18 +210,24 @@ export async function upgradeRemoteHost(
 						message: localize('workspacePicker.upgradeNotNeeded', "{0} is already on the latest version.", provider.label),
 					});
 				} else {
-					notificationService.notify({
+					failure = {
 						severity: NotificationSeverity.Warning,
 						message: upgradeResult.error
 							? localize('workspacePicker.upgradeFailedWithReason', "Failed to update {0}: {1}", provider.label, upgradeResult.error)
 							: localize('workspacePicker.upgradeNotStarted', "{0} did not start an update.", provider.label),
-					});
+					};
 				}
 			} catch (err) {
-				notificationService.notify({
+				failure = {
 					severity: NotificationSeverity.Error,
 					message: localize('workspacePicker.upgradeFailed', "Failed to update {0}: {1}", provider.label, err instanceof Error ? err.message : String(err)),
-				});
+				};
+			}
+			if (failure && failures === 'throw') {
+				throw new Error(failure.message);
+			}
+			if (failure) {
+				notificationService.notify(failure);
 			}
 		},
 	);
