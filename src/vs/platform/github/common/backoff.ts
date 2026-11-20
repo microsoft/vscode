@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import { IRequestScheduler, schedulerDelay } from './scheduler.js';
 
@@ -61,8 +62,8 @@ interface IBackoffState {
  */
 export class BackoffGate extends Disposable {
 
-	private readonly _lifetime = new AbortController();
-	private _changed = new AbortController();
+	private readonly _lifetime = this._register(new CancellationTokenSource());
+	private _changed = new CancellationTokenSource();
 	private _state: IBackoffState | undefined;
 
 	constructor(
@@ -78,7 +79,7 @@ export class BackoffGate extends Disposable {
 	 * Waits until an attempt for `key` may run and reports whether it had to.
 	 * A key this gate holds no failure for proceeds at once.
 	 */
-	async wait(key: string, signal: AbortSignal): Promise<boolean> {
+	async wait(key: string, cancellationToken: CancellationToken): Promise<boolean> {
 		let waited = false;
 		while (this._state) {
 			const state = this._state;
@@ -93,15 +94,21 @@ export class BackoffGate extends Disposable {
 				return waited;
 			}
 			this._logService?.debug(`[BackoffGate] Delaying ${this._label} by ${remaining}ms after ${state.attempts} consecutive failure(s)`);
-			const changed = this._changed.signal;
+			const changed = this._changed.token;
 			waited = true;
+			const lifetime = new DisposableStore();
 			try {
-				await schedulerDelay(this._scheduler, remaining, AbortSignal.any([signal, this._lifetime.signal, changed]));
+				await schedulerDelay(this._scheduler, remaining, CancellationToken.any([cancellationToken, this._lifetime.token, changed], lifetime));
 			} catch (error) {
-				if (!changed.aborted || signal.aborted || this._lifetime.signal.aborted) {
+				if (this._lifetime.token.isCancellationRequested && !cancellationToken.isCancellationRequested) {
+					throw new Error(`${this._label} backoff was disposed`);
+				}
+				if (!changed.isCancellationRequested || cancellationToken.isCancellationRequested || this._lifetime.token.isCancellationRequested) {
 					throw error;
 				}
 				// The record changed, so the new one decides how much longer to wait.
+			} finally {
+				lifetime.dispose();
 			}
 		}
 		return waited;
@@ -133,14 +140,15 @@ export class BackoffGate extends Disposable {
 
 	override dispose(): void {
 		this._state = undefined;
-		this._lifetime.abort(new Error(`${this._label} backoff was disposed`));
+		this._lifetime.cancel();
+		this._changed.dispose();
 		super.dispose();
 	}
 
 	/** Replaces the record and wakes every caller waiting on the previous one. */
 	private _set(state: IBackoffState | undefined): void {
 		this._state = state;
-		this._changed.abort();
-		this._changed = new AbortController();
+		this._changed.dispose(true);
+		this._changed = new CancellationTokenSource();
 	}
 }

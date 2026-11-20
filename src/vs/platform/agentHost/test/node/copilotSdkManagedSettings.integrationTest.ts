@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CopilotClient } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient } from '@microsoft/copilot-sdk';
 import { existsSync } from 'fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -26,14 +26,18 @@ suite('Copilot SDK - managed settings', function () {
 		home = await mkdtemp(join(tmpdir(), 'copilot-managed-settings-'));
 		client = new CopilotClient({
 			mode: 'empty',
-			baseDirectory: home,
-			useLoggedInUser: false,
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
-				PATH: process.env.PATH,
-				SystemRoot: process.env.SystemRoot,
-				WINDIR: process.env.WINDIR,
-				COPILOT_TELEMETRY_ENABLED: 'false',
-			})),
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: home,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+					PATH: process.env.PATH,
+					SystemRoot: process.env.SystemRoot,
+					WINDIR: process.env.WINDIR,
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				})),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
 		});
 		await client.start();
 	});

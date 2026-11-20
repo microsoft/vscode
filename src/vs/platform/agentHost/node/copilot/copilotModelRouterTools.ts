@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Tool, ToolResultObject } from '@github/copilot-sdk';
+import type { Tool, ToolResultObject } from '@microsoft/copilot-sdk';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -11,7 +11,7 @@ import type { ILogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { readAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
-import { readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
+import { isAgentModelExperimental, readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
 import { isRoutableModel, modelContextSizes, modelRouterNameFromFileName, parseModelRouter, resolveModelRouter, supportedModelEfforts, type IModelRouterDiagnostic } from '../../common/modelRouter.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 import type { IModelRouterFile } from './copilotModelRouterCatalog.js';
@@ -148,6 +148,7 @@ function describeModels(models: readonly IAgentModelInfo[]) {
 			// Listed only when `context-size: long` would change something.
 			...(contextSizes.length > 1 ? { contextSizes, ...(longContextCostsMore(model) ? { longContextCostsMore: true } : {}) } : {}),
 			...(retiring ? { retiring } : {}),
+			...(isAgentModelExperimental(model) ? { experimental: true } : {}),
 			...(model.policyState === PolicyState.Disabled ? { disabledByPolicy: true } : {}),
 		};
 	});

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isNumber } from '../../../../base/common/types.js';
 import { ApiPaginationOptions, ApiRequestOptions, ApiResponse } from '../client/request.js';
 import { pathSegment, withQuery } from '../client/routing.js';
-import { parse, SchemaError } from '../client/schema.js';
+import { SchemaError, parse } from '../client/schema.js';
 import { PageOptions } from '../client/types.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { PaginatedResponse } from './missionControl.js';
@@ -16,7 +17,7 @@ import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskE
 export class TasksClient implements ITasksClient {
 	constructor(private readonly _client: MissionControlClient) { }
 
-	connectFeed(signal: AbortSignal, options?: ApiRequestOptions): Promise<SessionFeedConnection> {
+	connectFeed(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<SessionFeedConnection> {
 		return this._client.request({
 			domain: 'tasks',
 			method: 'GET',
@@ -24,7 +25,7 @@ export class TasksClient implements ITasksClient {
 			expectedStatus: 200,
 			policy: { credential: true },
 			options,
-		}, signal, response => {
+		}, cancellationToken, response => {
 			try {
 				return parseSessionFeedConnection(response.data);
 			} catch (error) {
@@ -36,8 +37,8 @@ export class TasksClient implements ITasksClient {
 		});
 	}
 
-	async list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
-		signal.throwIfAborted();
+	async list(cancellationToken: CancellationToken, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const { query, ...requestOptions } = options ?? {};
 		if (query?.cursor !== undefined && query.page !== undefined) {
 			throw new GitHubRequestError('Task pagination cannot combine cursor and page', 'validation');
@@ -50,7 +51,7 @@ export class TasksClient implements ITasksClient {
 				expectedStatus: 200,
 				options: requestOptions,
 			},
-			signal,
+			cancellationToken,
 			response => paginated(response, parseListTasksResponse(response.data)),
 			pages => {
 				const last = pages[pages.length - 1];
@@ -59,18 +60,18 @@ export class TasksClient implements ITasksClient {
 		);
 	}
 
-	get(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse> {
+	get(taskId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<GetTaskResponse> {
 		return this._client.request({
 			domain: 'tasks',
 			method: 'GET',
 			path: taskPath(taskId),
 			expectedStatus: 200,
 			options,
-		}, signal, response => parseTaskDetail(response.data, taskId));
+		}, cancellationToken, response => parseTaskDetail(response.data, taskId));
 	}
 
-	async getBatch(taskIds: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly Task[]> {
-		signal.throwIfAborted();
+	async getBatch(taskIds: readonly string[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly Task[]> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (taskIds.length === 0 || taskIds.length > MAX_TASK_BATCH_SIZE) {
 			throw new GitHubRequestError(`Task batches require between 1 and ${MAX_TASK_BATCH_SIZE} IDs`, 'validation');
 		}
@@ -81,14 +82,14 @@ export class TasksClient implements ITasksClient {
 			path: withQuery('/tasks/batch', { task_ids: taskIds.join(',') }),
 			expectedStatus: 200,
 			options,
-		}, signal, response => parse.refine(
+		}, cancellationToken, response => parse.refine(
 			parseListTasksResponse,
 			result => result.tasks.every(task => requested.has(task.id)),
 			'Task batch response contained an unrequested task',
 		)(response.data).tasks);
 	}
 
-	create(request: CreateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<ApiResponse<GetTaskResponse>> {
+	create(request: CreateTaskRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ApiResponse<GetTaskResponse>> {
 		return this._client.request({
 			domain: 'tasks',
 			method: 'POST',
@@ -100,10 +101,10 @@ export class TasksClient implements ITasksClient {
 			policy: request.environment_id === 'github-sandbox' ? { rateLimitResource: 'agents:sandbox' } : undefined,
 			expectedStatus: [200, 201],
 			options,
-		}, signal, response => ({ ...response, data: parseTaskDetail(response.data) }));
+		}, cancellationToken, response => ({ ...response, data: parseTaskDetail(response.data) }));
 	}
 
-	update(taskId: string, request: UpdateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse> {
+	update(taskId: string, request: UpdateTaskRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<GetTaskResponse> {
 		if (request.name === undefined && request.sharing_status === undefined) {
 			throw new GitHubRequestError('A task update requires at least one property', 'validation');
 		}
@@ -114,10 +115,10 @@ export class TasksClient implements ITasksClient {
 			body: request,
 			expectedStatus: 200,
 			options,
-		}, signal, response => parseTaskDetail(response.data, taskId));
+		}, cancellationToken, response => parseTaskDetail(response.data, taskId));
 	}
 
-	delete(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
+	delete(taskId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
 			domain: 'tasks',
 			method: 'DELETE',
@@ -125,10 +126,10 @@ export class TasksClient implements ITasksClient {
 			expectedStatus: 204,
 			responseBody: 'none',
 			options,
-		}, signal, () => { });
+		}, cancellationToken, () => { });
 	}
 
-	setArchived(taskId: string, archived: boolean, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> {
+	setArchived(taskId: string, archived: boolean, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Task> {
 		if (typeof archived !== 'boolean') {
 			throw new GitHubRequestError('Task archive state must be a boolean', 'validation');
 		}
@@ -138,10 +139,10 @@ export class TasksClient implements ITasksClient {
 			path: `${taskPath(taskId)}/${archived ? 'archive' : 'unarchive'}`,
 			expectedStatus: 200,
 			options,
-		}, signal, response => parseTask(response.data, taskId));
+		}, cancellationToken, response => parseTask(response.data, taskId));
 	}
 
-	steer(taskId: string, request: SteerTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
+	steer(taskId: string, request: SteerTaskRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
 			domain: 'tasks',
 			method: 'POST',
@@ -150,14 +151,14 @@ export class TasksClient implements ITasksClient {
 			expectedStatus: 202,
 			responseBody: 'none',
 			options,
-		}, signal, () => { });
+		}, cancellationToken, () => { });
 	}
 
-	abort(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
-		return this.steer(taskId, { type: 'abort' }, signal, options);
+	abort(taskId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
+		return this.steer(taskId, { type: 'abort' }, cancellationToken, options);
 	}
 
-	getEvents(taskId: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<PaginatedResponse<ListTaskEventsResponse>> {
+	getEvents(taskId: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<PaginatedResponse<ListTaskEventsResponse>> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -168,7 +169,7 @@ export class TasksClient implements ITasksClient {
 				policy: { retry: false },
 				options: requestOptions,
 			},
-			signal,
+			cancellationToken,
 			response => paginated(response, parseTaskEventsResponse(response.data)),
 			pages => ({
 				...pages[pages.length - 1],
@@ -180,7 +181,7 @@ export class TasksClient implements ITasksClient {
 		);
 	}
 
-	getAhpEvents(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<TaskAHPEventsResponse> {
+	getAhpEvents(taskId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<TaskAHPEventsResponse> {
 		return this._client.request({
 			domain: 'tasks',
 			method: 'GET',
@@ -189,7 +190,7 @@ export class TasksClient implements ITasksClient {
 			policy: { retry: false },
 			accept: 'application/vnd.github.ahp+json',
 			options,
-		}, signal, response => parseTaskAhpEventsResponse(response.data));
+		}, cancellationToken, response => parseTaskAhpEventsResponse(response.data));
 	}
 }
 

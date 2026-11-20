@@ -18,7 +18,7 @@ import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createCopilotSdkPathMapper, toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 import { withAttachmentDetail } from '../../common/meta/attachmentMeta.js';
 import { mapSessionEvents as mapSessionEventsWithRouting } from '../../node/copilot/mapSessionEvents.js';
-import type { SessionEvent } from '@github/copilot-sdk';
+import type { SessionEvent } from '@microsoft/copilot-sdk';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 

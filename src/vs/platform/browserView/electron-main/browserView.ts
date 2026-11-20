@@ -7,8 +7,9 @@ import { nativeImage, screen, WebContentsView, webContents } from 'electron';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { Schemas } from '../../../base/common/network.js';
 import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction, BROWSER_REMOTE_FILE_SCHEMES, getBrowserViewPathComparer } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -25,6 +26,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { BrowserViewReportedFocus } from '../common/browserViewFocus.js';
 import { URI } from '../../../base/common/uri.js';
+import { BrowserViewFavicon } from './browserViewFavicon.js';
 
 enum NewPageLocation {
 	Foreground = 'foreground',
@@ -42,7 +44,7 @@ export class BrowserView extends Disposable {
 	presentation = BrowserViewPresentation.Listed;
 
 	private _lastScreenshot: VSBuffer | undefined = undefined;
-	private _lastFavicon: string | undefined = undefined;
+	private readonly _favicon: BrowserViewFavicon;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
 	private _lastUserGestureTimestamp: number = -Infinity;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
@@ -167,6 +169,13 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		this._favicon = new BrowserViewFavicon(this._view.webContents.getURL(), favicon => this._onDidChangeFavicon.fire({ favicon }));
+		this._updateBackgroundThrottling();
+		this._register(this.onDidChangeAudiences(() => this._updateBackgroundThrottling()));
+		this._register(this.onDidChangeOwner(() => this._updateBackgroundThrottling()));
+		// Electron only keeps a never-shown view rendering if the setting is applied once its frame exists,
+		// so re-apply it whenever a new document is ready (this also covers renderer swaps on navigation).
+		this._view.webContents.on('dom-ready', () => this._updateBackgroundThrottling());
 		if (this.session.network) {
 			this._view.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
 		}
@@ -194,7 +203,7 @@ export class BrowserView extends Disposable {
 		this._ownerWindow.win?.contentView.addChildView(this._view);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
-			const { action, consumeUserGesture } = getBrowserViewPopupAction(this.presentation, details.url, this.hasRecentUserGesture(), this.session.network !== undefined);
+			const { action, consumeUserGesture } = getBrowserViewPopupAction(this.presentation, details.url, this.hasRecentUserGesture(), this.session.network !== undefined, !this._ownerWindow.config?.isSessionsWindow);
 			if (action !== 'integrated') {
 				if (consumeUserGesture) {
 					this._lastUserGestureTimestamp = -Infinity;
@@ -346,9 +355,10 @@ export class BrowserView extends Disposable {
 				}
 
 				try {
-					this._lastFavicon = await this._faviconRequestCache.get(url)!;
-					this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
-					this._currentHistoryHandle?.update({ favicon: this._lastFavicon });
+					const favicon = await this._faviconRequestCache.get(url)!;
+					if (this._favicon.update(favicon)) {
+						this._currentHistoryHandle?.update({ favicon });
+					}
 					// On success, stop searching
 					return;
 				} catch (e) {
@@ -357,9 +367,7 @@ export class BrowserView extends Disposable {
 			}
 
 			// If we searched all favicons and none worked, clear the favicon
-			if (this._lastFavicon) {
-				this._lastFavicon = undefined;
-				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
+			if (this._favicon.value && this._favicon.update(undefined)) {
 				this._currentHistoryHandle?.update({ favicon: null });
 			}
 		});
@@ -367,12 +375,6 @@ export class BrowserView extends Disposable {
 			if (this._redirectPinnedNavigation(event.url)) {
 				event.preventDefault();
 				return;
-			}
-			// URL.parse (vs `new URL`) tolerates about:/blob:/empty strings without throwing.
-			const host = URL.parse(event.url)?.host;
-			const currHost = URL.parse(this.webContents.getURL())?.host;
-			if (host !== currHost) {
-				this._lastFavicon = undefined;
 			}
 		});
 		webContents.on('will-redirect', event => {
@@ -388,6 +390,7 @@ export class BrowserView extends Disposable {
 		});
 
 		const fireNavigationEvent = (url: string) => {
+			this._favicon.didNavigate(url);
 			this._onDidNavigate.fire({
 				url,
 				title: webContents.getTitle(),
@@ -428,6 +431,7 @@ export class BrowserView extends Disposable {
 					certificateError: errorCode <= -200 && errorCode >= -220 ? this.session.trust.getCertificateError(validatedURL) : undefined
 				};
 
+				this._favicon.didFailLoad(validatedURL);
 				fireLoadingEvent(false);
 				this._onDidNavigate.fire({
 					url: validatedURL,
@@ -636,7 +640,7 @@ export class BrowserView extends Disposable {
 		this._currentHistoryHandle = this.session.history.add(
 			url,
 			webContents.getTitle(),
-			this._lastFavicon,
+			this._favicon.value,
 			userInitiated,
 		);
 	}
@@ -671,7 +675,7 @@ export class BrowserView extends Disposable {
 			visible: this._view.getVisible(),
 			isDevToolsOpen: webContents.isDevToolsOpened(),
 			lastScreenshot: this._lastScreenshot,
-			lastFavicon: this._lastFavicon,
+			lastFavicon: this._favicon.value,
 			lastError: this._lastError,
 			certificateError: this.session.trust.getCertificateError(url),
 			session: this.session.options,
@@ -703,6 +707,15 @@ export class BrowserView extends Disposable {
 				this._onDidChangeAudiences.fire([...this._audiences]);
 			}
 		}
+	}
+
+	/**
+	 * Views shared with agents must keep rendering while hidden so that rAF-based
+	 * automation (e.g. Playwright's stability checks) doesn't stall. Other views stay throttled.
+	 */
+	private _updateBackgroundThrottling(): void {
+		const sharedWithAgent = this._owner.type === 'agent' || this._audiences.some(audience => audience.type === 'agent');
+		this._view.webContents.setBackgroundThrottling(!sharedWithAgent);
 	}
 
 	setAudiences(audiences: readonly IBrowserViewAudience[]): void {
@@ -760,6 +773,11 @@ export class BrowserView extends Disposable {
 		this._view.webContents.setZoomFactor(browserZoomFactor);
 	}
 
+	/** Whether the view was last asked to be shown with {@link setVisible}. */
+	isVisible(): boolean {
+		return this._wantsVisibility;
+	}
+
 	/**
 	 * Set the visibility of this view
 	 */
@@ -792,6 +810,10 @@ export class BrowserView extends Disposable {
 	 * Load a URL in this view
 	 */
 	async loadURL(url: string): Promise<void> {
+		url = remoteUrlToFileUrl(this.session.network, url);
+		if (this._isUnservedRemoteFileUrl(url)) {
+			return;
+		}
 		if (this._redirectPinnedNavigation(url)) {
 			return;
 		}
@@ -802,8 +824,14 @@ export class BrowserView extends Disposable {
 		await this._view.webContents.loadURL(url);
 	}
 
+	/** Without a network a remote resource's `file:` URL would be read from this machine's disk, so it isn't loaded. */
+	private _isUnservedRemoteFileUrl(url: string): boolean {
+		const scheme = this.associatedResource?.scheme;
+		return !this.session.network && BROWSER_REMOTE_FILE_SCHEMES.includes(scheme!) && url.startsWith(`${Schemas.file}:`);
+	}
+
 	private _redirectPinnedNavigation(url: string): boolean {
-		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url)) {
+		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url, this.session.network, getBrowserViewPathComparer(this.session.isPathCaseSensitive))) {
 			return false;
 		}
 
@@ -943,9 +971,16 @@ export class BrowserView extends Disposable {
 		}
 		try {
 			// The frontend marks its dock side on <body>; it has none while undocked.
-			const dockSide = await devTools.executeJavaScript(
-				`['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked'`
-			) as BrowserViewDevToolsDockSide | 'undocked';
+			const { dockSide, pageOrigin } = await devTools.executeJavaScript(`(() => {
+				const dockSide = ['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked';
+				// DeviceModeView hosts the InspectedPagePlaceholder as its direct child.
+				const pageRect = document.querySelector('.device-mode-view > .vbox')?.getBoundingClientRect();
+				const pageOrigin = pageRect && {
+					x: Math.round(pageRect.x * devicePixelRatio),
+					y: Math.round(pageRect.y * devicePixelRatio)
+				};
+				return { dockSide, pageOrigin };
+			})()`) as { dockSide: BrowserViewDevToolsDockSide | 'undocked'; pageOrigin?: { x: number; y: number } };
 			if (dockSide === 'undocked') {
 				return pageImage;
 			}
@@ -958,7 +993,8 @@ export class BrowserView extends Disposable {
 			const composed = composeDevToolsScreenshot(
 				{ data: pageImage.toBitmap(), ...pageSize },
 				{ data: devToolsImage.toBitmap(), ...devToolsSize },
-				dockSide
+				dockSide,
+				pageOrigin
 			);
 			return nativeImage.createFromBitmap(Buffer.from(composed.data.buffer, composed.data.byteOffset, composed.data.byteLength), { width: composed.width, height: composed.height });
 		} catch (error) {

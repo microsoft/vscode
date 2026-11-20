@@ -40,6 +40,7 @@ export class SessionsInboxScope extends Disposable {
 		filters: SessionsListFilters,
 		sessions: IObservable<readonly ISession[]>,
 		environments: IObservable<readonly ISessionEnvironment[]>,
+		localEnvironmentIds: IObservable<ReadonlySet<string>>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 	) {
@@ -48,21 +49,29 @@ export class SessionsInboxScope extends Disposable {
 		this._register(toDisposable(() => this.hidePicker()));
 		const hoverDelegate = this._register(createInstantHoverDelegate());
 		const changed = observableSignalFromEvent(this, filters.onDidChange);
+		this._register(autorun(reader => {
+			changed.read(reader);
+			const localIds = localEnvironmentIds.read(reader);
+			if (filters.inboxScope.environment && localIds.has(filters.inboxScope.environment.id)) {
+				filters.setInboxEnvironment({ id: 'local', label: localize('environment.local', "This Computer") });
+			}
+		}));
 		const options = derived(this, reader => {
 			changed.read(reader);
 			const catalog = sessions.read(reader);
+			const localIds = localEnvironmentIds.read(reader);
 			const scope = filters.inboxScope;
 			const environmentOptions = new Map(getSessionEnvironments(environments.read(reader)).map(environment => [environment.id, environment]));
 			const availableEnvironments = new Set(environmentOptions.keys());
 			for (const session of catalog) {
-				if (!environmentOptions.has(session.environment)) {
+				if (!localIds.has(session.environment) && !environmentOptions.has(session.environment)) {
 					environmentOptions.set(session.environment, {
 						id: session.environment,
 						label: scope.environment?.id === session.environment ? scope.environment.label : session.environment,
 					});
 				}
 			}
-			if (scope.environment && !environmentOptions.has(scope.environment.id)) {
+			if (scope.environment && !localIds.has(scope.environment.id) && !environmentOptions.has(scope.environment.id)) {
 				environmentOptions.set(scope.environment.id, scope.environment);
 			}
 			return {
@@ -70,7 +79,7 @@ export class SessionsInboxScope extends Disposable {
 				environments: [...environmentOptions.values()].map(environment => ({
 					id: environment.id,
 					label: environment.label,
-					disconnected: environment.isConnected?.read(reader) === false,
+					isConnected: environment.isConnected?.read(reader),
 					unavailable: !availableEnvironments.has(environment.id),
 				})),
 				workspaces: getInboxWorkspaceOptions(catalog, scope.environment?.id, reader),
@@ -97,7 +106,7 @@ export class SessionsInboxScope extends Disposable {
 			const selected = environments.find(environment => environment.id === scope.environment?.id);
 			return selected?.unavailable
 				? localize('unavailableEnvironment', "Unavailable: {0}", selected.label)
-				: selected?.disconnected
+				: selected?.isConnected === false
 					? localize('disconnectedEnvironment', "Disconnected: {0}", selected.label)
 					: selected?.label ?? scope.environment.label;
 		});
@@ -190,7 +199,9 @@ export class SessionsInboxScope extends Disposable {
 			}, ...environments.map(environment => ({
 				kind: ActionListItemKind.Action,
 				label: environment.label,
-				description: environment.unavailable ? localize('unavailable', "Unavailable") : environment.disconnected ? localize('disconnected', "Disconnected") : undefined,
+				description: environment.unavailable ? localize('unavailable', "Unavailable")
+					: environment.isConnected === false ? localize('disconnected', "Disconnected")
+						: environment.isConnected === true ? localize('connected', "Connected") : undefined,
 				group: { title: '', icon: getEnvironmentIcon(environment.id) },
 				item: {
 					checked: environment.id === scope.environment?.id,

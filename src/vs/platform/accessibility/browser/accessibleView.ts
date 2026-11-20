@@ -55,6 +55,7 @@ export const enum AccessibleViewProviderId {
 	WebviewFindHelp = 'webviewFindHelp',
 	OutputFindHelp = 'outputFindHelp',
 	ChatFindHelp = 'chatFindHelp',
+	ChatViewSessionsList = 'chatViewSessionsList',
 	ProblemsFilterHelp = 'problemsFilterHelp',
 	SessionsChat = 'sessionsChat',
 	ArtifactDetails = 'artifactDetails',
@@ -69,6 +70,7 @@ export const enum AccessibleViewProviderId {
 	AgentsWindowExtensions = 'agentsWindowExtensions',
 	ConnectionDiagnostics = 'connectionDiagnostics',
 	BrowserElementCommenting = 'browserElementCommenting',
+	ScreenshotTool = 'screenshotTool',
 	ChatPetAchievements = 'chatPetAchievements',
 	/** Shared by the jump game's accessibility help and current-state view. */
 	ChatPetJumpGame = 'chatPetJumpGame',

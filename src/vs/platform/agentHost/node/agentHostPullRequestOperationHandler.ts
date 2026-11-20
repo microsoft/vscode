@@ -4,39 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { isEqualOrParent, relativePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
-import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
-import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
-import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { readFolderGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
-import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
-import { AgentHostCreatePullRequestOperationId, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { IGitHubAccountClient } from '../../github/common/account/account.js';
 import { PullRequestSummary } from '../../github/common/core/pullRequests.js';
 import { PullRequestMergeMethod } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestTimeoutError } from '../../github/common/githubTypes.js';
-import { IAgentHostGitHubService } from './agentHostGitHubService.js';
-import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
-import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, IAgentHostUtilityModelService, type IAgentHostUtilityModelContext } from './agentHostUtilityModelService.js';
+import { ILogService } from '../../log/common/log.js';
+import { AgentSession } from '../common/agent.js';
+import { AgentHostCreatePullRequestOperationId, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
-import { IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { readAgentMergeFolderState, withAgentMergeFolderState } from '../common/agentMerge.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { createPullRequestDetailsResult, readPullRequestConversationMeta, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions, type IPullRequestDetails } from '../common/meta/agentPullRequestOperationMeta.js';
-import { getAgentMergeConfiguration, isAgentMergeEnabled } from './agentMergeConfiguration.js';
-import { isSessionChatInFolder, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
-import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
+import { readAgentMergeFolderState, withAgentMergeFolderState } from '../common/agentMerge.js';
+import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
+import { createPullRequestDetailsResult, readPullRequestConversationMeta, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions, type IPullRequestDetails } from '../common/meta/agentPullRequestOperationMeta.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
+import { readFolderGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { isSessionChatInFolder, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { findPullRequestByHeadBranch } from './agentHostPullRequestAssociationResolver.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, IAgentHostUtilityModelService, type IAgentHostUtilityModelContext } from './agentHostUtilityModelService.js';
+import { getAgentMergeConfiguration, isAgentMergeEnabled } from './agentMergeConfiguration.js';
+import { IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
+import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
 /**
  * Soft upper bound, in characters, for the conversation context fed to the
@@ -120,12 +121,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
 		source = this.captureCredentialSource(params, source);
-		return this._withAbortSignal(params, token, source, (signal, client) => this._invoke(params, token, signal, client, source));
+		return this._withClient(params, token, source, client => this._invoke(params, token, client, source));
 	}
 
 	async prepare(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
 		source = this.captureCredentialSource(params, source);
-		return this._withAbortSignal(params, token, source, async (signal, client) => {
+		return this._withClient(params, token, source, async client => {
 			const expectedContext = readPullRequestValidationMeta(params);
 			const { sessionUri, sourceUri, ownerUri, conversationState, conversationChat, workingDirectory, gitHubState, branchName, baseBranchName, preparationContext } = await this._resolveContext(params, token, expectedContext, source);
 			if (expectedContext) {
@@ -133,7 +134,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			}
 			let capabilities: RepositoryMergeSettings;
 			try {
-				capabilities = await this._getRepositoryMergeSettings(client, gitHubState.owner, gitHubState.repo, signal);
+				capabilities = await this._getRepositoryMergeSettings(client, gitHubState.owner, gitHubState.repo, token);
 			} catch (err) {
 				this._throwIfCancelled(token);
 				this._logService.warn('[AgentHostPullRequestOperationHandler] Could not read repository merge settings; GitHub auto-merge is unavailable during PR preparation.', err);
@@ -145,7 +146,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			let description = '';
 			let generationError: string | undefined;
 			try {
-				({ title, description } = await this._generateTitleAndDescription(conversationState, { session: sessionUri, chat: conversationChat, credentialSource: source }, workingDirectory, branchName, baseBranchName, branchChanges, signal, token));
+				({ title, description } = await this._generateTitleAndDescription(conversationState, { session: sessionUri, chat: conversationChat, credentialSource: source }, workingDirectory, branchName, baseBranchName, branchChanges, token));
 			} catch (err) {
 				this._throwIfCancelled(token);
 				generationError = this._reportGenerationError(err);
@@ -195,16 +196,14 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		]) : undefined;
 	}
 
-	private async _withAbortSignal(params: InvokeChangesetOperationParams, token: CancellationToken, source: IAgentHostCredentialSource | undefined, operation: (signal: AbortSignal, client: IGitHubAccountClient) => Promise<InvokeChangesetOperationResult>): Promise<InvokeChangesetOperationResult> {
+	private async _withClient(params: InvokeChangesetOperationParams, token: CancellationToken, source: IAgentHostCredentialSource | undefined, operation: (client: IGitHubAccountClient) => Promise<InvokeChangesetOperationResult>): Promise<InvokeChangesetOperationResult> {
 		this._throwIfCancelled(token);
-		const abortController = new AbortController();
 		const store = new DisposableStore();
-		store.add(token.onCancellationRequested(() => abortController.abort()));
 		try {
 			const parsed = parseChangesetUri(params.channel);
 			const session = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri).sourceUri : undefined;
-			const client = store.add(this._gitHubService.acquireRepositoryApiClient(abortController.signal, source, session));
-			return await operation(abortController.signal, client);
+			const client = store.add(this._gitHubService.acquireRepositoryApiClient(token, source, session));
+			return await operation(client);
 		} catch (error) {
 			this._throwIfCancelled(token);
 			throw error;
@@ -213,8 +212,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 	}
 
-	private async _getRepositoryMergeSettings(client: IGitHubAccountClient, owner: string, repo: string, signal: AbortSignal): Promise<RepositoryMergeSettings> {
-		const repository = await client.repositories.get({ owner, repo }, signal, { caller: 'agentHost.pullRequest' });
+	private async _getRepositoryMergeSettings(client: IGitHubAccountClient, owner: string, repo: string, token: CancellationToken): Promise<RepositoryMergeSettings> {
+		const repository = await client.repositories.get({ owner, repo }, token, { caller: 'agentHost.pullRequest' });
 		if (repository.allow_auto_merge === undefined
 			|| repository.allow_merge_commit === undefined
 			|| repository.allow_squash_merge === undefined
@@ -344,7 +343,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		return new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.pr.stalePreparation', "The repository or branches have changed since this pull request was prepared. Reopen Create PR to review the current details."));
 	}
 
-	private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken, signal: AbortSignal, client: IGitHubAccountClient, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
+	private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken, client: IGitHubAccountClient, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
 		this._throwIfCancelled(token);
 		const submitted = readPullRequestOperationMeta(params);
 		const options: PullRequestCreationConfiguration = submitted ?? {
@@ -357,7 +356,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const { sessionUri, sourceUri, ownerUri, sessionState, conversationState, conversationChat, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
 		let { gitState, branchName } = context;
 		if (submitted?.autoMergeMethod) {
-			const capabilities = await this._getRepositoryMergeSettings(client, gitHubState.owner, gitHubState.repo, signal);
+			const capabilities = await this._getRepositoryMergeSettings(client, gitHubState.owner, gitHubState.repo, token);
 			if (!capabilities.autoMergeAllowed || !capabilities.mergeMethods.includes(submitted.autoMergeMethod)) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.pr.autoMergeUnavailable', "The repository does not allow the requested auto-merge method."));
 			}
@@ -379,9 +378,10 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			try {
 				const generatedBranchName = await this._branchNameGenerator.generateBranchName({
 					sessionId: URI.parse(sessionUri).path.split('/').filter(Boolean).pop() ?? sessionUri,
+					agentSessionId: AgentSession.id(sessionUri),
 					message: conversationState.turns.find(turn => turn.message.text.trim())?.message.text,
 					githubToken: authToken,
-					signal,
+					cancellationToken: token,
 					branchPrefix: typeof branchPrefix === 'string' ? branchPrefix : undefined,
 					branchNameCollides: candidate => this._gitService.branchExists(workingDirectory, candidate).catch(() => true),
 				});
@@ -416,12 +416,13 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 		const githubHeadOwner = gitState?.githubHeadOwner;
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
-		const headOwner = upstreamBranch && githubHeadOwner ? githubHeadOwner : gitHubState.owner;
+		// The head owner follows the remote the push targets: the upstream remote, else the branch's push remote.
+		const headOwner = githubHeadOwner ?? gitHubState.owner;
 		const headBranch = upstreamBranch?.branch ?? branchName;
 		const pushRef = headBranch === branchName ? branchName : `${branchName}:${headBranch}`;
 		const createHead = headOwner === gitHubState.owner ? headBranch : `${headOwner}:${headBranch}`;
 
-		this._logService.info(`[AgentHostPullRequestOperationHandler] Pushing branch ${branchName} to ${upstreamBranch?.remote ?? 'origin'} for session ${sessionUri}`);
+		this._logService.info(`[AgentHostPullRequestOperationHandler] Pushing branch ${branchName} to ${upstreamBranch?.remote ?? 'its default push remote'} for session ${sessionUri}`);
 		const upstreamPresent = await this._gitService.hasUpstream(workingDirectory, branchName);
 		this._throwIfCancelled(token);
 		try {
@@ -433,17 +434,17 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		this._throwIfCancelled(token);
 
 		const head = `${headOwner}:${headBranch}`;
-		const existing = await findPullRequestByHeadBranch(client.pullRequests, gitHubState, head, signal, { caller: 'agentHost.pullRequest' });
+		const existing = await findPullRequestByHeadBranch(client.pullRequests, gitHubState, head, token, { caller: 'agentHost.pullRequest' });
 		if (existing) {
 			this._throwIfCancelled(token);
-			return await this._finalize(existing, true, sessionUri, ownerUri, conversationChat, gitHubState.owner, gitHubState.repo, branchName, client, signal, token, options, source);
+			return await this._finalize(existing, true, sessionUri, ownerUri, conversationChat, gitHubState.owner, gitHubState.repo, branchName, client, token, options, source);
 		}
 		this._throwIfCancelled(token);
 
 		let generated: { title: string; description: string } | undefined;
 		if (!submitted) {
 			try {
-				generated = await this._generateTitleAndDescription(conversationState, { session: sessionUri, chat: conversationChat, credentialSource: source }, workingDirectory, branchName, baseBranchName, branchChanges, signal, token);
+				generated = await this._generateTitleAndDescription(conversationState, { session: sessionUri, chat: conversationChat, credentialSource: source }, workingDirectory, branchName, baseBranchName, branchChanges, token);
 			} catch (err) {
 				this._throwIfCancelled(token);
 				this._reportGenerationError(err);
@@ -462,7 +463,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 				head: createHead,
 				base: baseBranchName,
 				draft: options.draft,
-			}, signal, { caller: 'agentHost.pullRequest' });
+			}, token, { caller: 'agentHost.pullRequest' });
 		} catch (err) {
 			this._throwIfCancelled(token);
 			if (err instanceof GitHubRequestTimeoutError && !err.requestDispatched) {
@@ -470,19 +471,19 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			}
 			let foundAfterFailure: PullRequestSummary | undefined;
 			try {
-				foundAfterFailure = await findPullRequestByHeadBranch(client.pullRequests, gitHubState, head, signal, { caller: 'agentHost.pullRequest', priority: 'mutationReconciliation' });
+				foundAfterFailure = await findPullRequestByHeadBranch(client.pullRequests, gitHubState, head, token, { caller: 'agentHost.pullRequest', priority: 'mutationReconciliation' });
 			} catch {
 				this._throwIfCancelled(token);
 				throw err;
 			}
 			if (foundAfterFailure) {
 				this._throwIfCancelled(token);
-				return await this._finalize(foundAfterFailure, true, sessionUri, ownerUri, conversationChat, gitHubState.owner, gitHubState.repo, branchName, client, signal, token, options, source);
+				return await this._finalize(foundAfterFailure, true, sessionUri, ownerUri, conversationChat, gitHubState.owner, gitHubState.repo, branchName, client, token, options, source);
 			}
 			throw err;
 		}
 		this._throwIfCancelled(token);
-		return await this._finalize(created, false, sessionUri, ownerUri, conversationChat, gitHubState.owner, gitHubState.repo, branchName, client, signal, token, options, source);
+		return await this._finalize(created, false, sessionUri, ownerUri, conversationChat, gitHubState.owner, gitHubState.repo, branchName, client, token, options, source);
 	}
 
 	private async _getBranchChanges(workingDirectory: URI, sessionUri: string, baseBranchName: string, token: CancellationToken): Promise<readonly ISessionFileDiff[]> {
@@ -541,7 +542,6 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		repo: string,
 		branchName: string,
 		client: IGitHubAccountClient,
-		signal: AbortSignal,
 		token: CancellationToken,
 		options: PullRequestCreationConfiguration,
 		source?: IAgentHostCredentialSource,
@@ -555,7 +555,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		let autoMergeOutcome: 'none' | 'enabled' | 'failed' = 'none';
 
 		try {
-			await client.pullRequests.enableAutoMerge(pr.node_id, { mergeMethod: options.autoMergeMethod }, signal, { caller: 'agentHost.pullRequest' });
+			await client.pullRequests.enableAutoMerge(pr.node_id, { mergeMethod: options.autoMergeMethod }, token, { caller: 'agentHost.pullRequest' });
 			autoMergeOutcome = 'enabled';
 		} catch (err) {
 			this._throwIfCancelled(token);
@@ -679,7 +679,6 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		branchName: string,
 		base: string,
 		branchChanges: readonly ISessionFileDiff[],
-		signal: AbortSignal,
 		token: CancellationToken,
 	): Promise<{ title: string; description: string }> {
 		const conversation = buildConversationContext(sessionState.turns, { maxChars: MAX_PR_CONVERSATION_CONTEXT_CHARS });
@@ -692,7 +691,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		try {
 			raw = await this._utilityModelService.chatCompletion(modelContext, {
 				messages: this._buildTitleAndDescriptionPrompt(branchName, base, conversation, changeSummary),
-			}, { signal });
+				telemetry: { source: 'githubPullRequestTitleAndDescriptionGenerator' },
+			}, { cancellationToken: token });
 		} catch (err) {
 			if (err instanceof AgentHostUtilityModelUnavailableError) {
 				throw new Error(this._utilityModelUnavailableMessage(err.reason));

@@ -36,6 +36,8 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 	readonly catalogueState: IObservable<AutomationCatalogueState> = derived(this, reader => this.currentStore.read(reader)?.catalogueState.read(reader)
 		?? (this.connectionState.read(reader) === 'initializing' ? 'loading' : 'unavailable'));
 	readonly canCreateAutomation = derived(this, reader => this.currentStore.read(reader)?.canCreateAutomation.read(reader) ?? false);
+	readonly supportsOneTimeAutomation = derived(this, reader => this.currentStore.read(reader)?.supportsOneTimeAutomation.read(reader) ?? false);
+	readonly supportsExistingChatAutomation = derived(this, reader => this.currentStore.read(reader)?.supportsExistingChatAutomation.read(reader) ?? false);
 	readonly unavailableReasonCode = derived(this, reader => {
 		const state = this.connectionState.read(reader);
 		return state === 'connected' ? undefined : state;
@@ -134,6 +136,10 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 
 	canDeleteAutomation(id: string): boolean {
 		return this.currentStore.get()?.canDeleteAutomation(id) === true;
+	}
+
+	supportsContinueSession(providerId: string): boolean {
+		return this.currentStore.get()?.supportsContinueSession(providerId) === true;
 	}
 
 	supportsDeleteHistoryChoice(id: string): boolean {

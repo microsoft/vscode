@@ -45,6 +45,11 @@ suite('composeDevToolsScreenshot', () => {
 		assert.deepStrictEqual(render(result), ['PPPP', 'PPPP', 'DDDD']);
 	});
 
+	test('places the page at an explicit origin inside the device-mode frame', () => {
+		const result = composeDevToolsScreenshot(solid(2, 2, P), solid(6, 4, D), 'left', { x: 2, y: 1 });
+		assert.deepStrictEqual(render(result), ['DDDDDD', 'DDPPDD', 'DDPPDD', 'DDDDDD']);
+	});
+
 	test('does not modify the DevTools bitmap', () => {
 		const devTools = solid(4, 3, D);
 		composeDevToolsScreenshot(solid(3, 3, P), devTools, 'left');

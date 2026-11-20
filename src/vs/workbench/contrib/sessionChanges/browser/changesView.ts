@@ -45,7 +45,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../sessions/common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext, SessionChangesEditorDrawsHeaderContext } from '../../sessions/common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -586,11 +586,16 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			const usesContributedPrimary = !operations.hasRunning && dropdownMenuActions.primary !== undefined;
 			const primaryAction = usesContributedPrimary ? dropdownMenuActions.primary : operations.groups[0]?.[0];
 
+			// The bar renders a single button, so while an operation owns it the
+			// actions of the toolbar's submenus, such as Submit Feedback, join
+			// its dropdown rather than being dropped behind it.
+			const toolbarActions = primaryAction ? getChangesToolbarDropdownActions(menuActions.primary) : [];
+
 			// The button bar treats the first entry of a submenu as the button
 			// itself and the remainder as the dropdown, so the primary has to
 			// lead. A contributed primary only names its own actions, so the
 			// menu entry it came from is dropped rather than repeated below it.
-			const groups = [...operations.groups, ...dropdownMenuActions.groups]
+			const groups = [...operations.groups, ...dropdownMenuActions.groups, toolbarActions]
 				.map(group => group.filter(action => action !== dropdownMenuActions.contributed))
 				.filter(group => group.length > 0);
 			const entryCount = groups.reduce((count, group) => count + group.length, 0);
@@ -741,6 +746,17 @@ export function actionsNamingSession<T extends MenuItemAction | SubmenuItemActio
 	return withSession.map(([group, actions], groupIndex) => [group, actions.map((action, index) => action instanceof MenuItemAction && action.item.source ? withResource[groupIndex]?.[1][index] ?? action : action)]);
 }
 
+/**
+ * The actions of the submenus of the Changes toolbar, such as Apply Actions with Submit Feedback, as entries of the
+ * dropdown of the operation that owns the button, such as Merge Changes: the button bar renders only its first action,
+ * so the submenu itself would never show, and the dropdown is a flat list.
+ */
+export function getChangesToolbarDropdownActions(actions: readonly IAction[]): IAction[] {
+	return actions.flatMap(action => action instanceof SubmenuAction
+		? action.actions.filter(child => !(child instanceof Separator))
+		: []);
+}
+
 export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
@@ -766,7 +782,7 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
-interface IChangesPickerLabel {
+export interface IChangesPickerLabel {
 	readonly label: string;
 	readonly tooltip?: string;
 	readonly isNonDefault: boolean;
@@ -2183,6 +2199,12 @@ export class VersionsPickerAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: desktopChangesEditorHeader,
+			}, {
+				// The header that the Changes editor draws itself, where the editor part around it does not
+				id: Menus.SessionsEditorHeaderPrimary,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionChangesEditorDrawsHeaderContext),
 			}],
 		});
 	}

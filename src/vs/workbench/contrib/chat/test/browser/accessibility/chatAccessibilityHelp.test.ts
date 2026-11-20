@@ -26,9 +26,35 @@ suite('Chat Accessibility Help', () => {
 		].map(help => help.includes('<keybinding:editor.changePasteType>')), [true, true, true, false, false, true]);
 	});
 
+	test('documents the New Worktree checkbox that stands in for the Folder picker while the folder has no worktrees, and when the Folder picker appears', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+		].map(help => help.includes('New Worktree checkbox instead of the Folder picker')
+			&& help.includes('Space to check or uncheck it')
+			&& help.includes('Once the folder has worktrees, the Folder picker appears')
+			&& help.includes('it offers the folder, New Worktree, and the worktrees that sessions work in, under a Worktrees section')
+			&& !help.includes('Folder and Worktrees sections')), [true, true]);
+	});
+
 	test('documents showing files above the chat input only while chat resources are enabled', () => {
 		const help = (chatResourcesEnabled: boolean) => getAccessibilityHelpText('panelChat', new MockKeybindingService(), true, false, false, true, false, undefined, false, false, undefined, false, false, true, false, chatResourcesEnabled);
 		assert.deepStrictEqual([help(false), help(true)].map(text => text.includes('Show Above Chat Input')), [false, true]);
+	});
+
+	test('documents side chats in the side panel only in the Agents window while side chats show there', () => {
+		const help = (type: 'agentView' | 'inlineChat', sessionsWindow: boolean, sideChatsInSidePane: boolean) => getAccessibilityHelpText(type, new MockKeybindingService(), true, sessionsWindow, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, sideChatsInSidePane);
+		assert.deepStrictEqual([
+			help('agentView', true, true),
+			help('agentView', true, false),
+			help('agentView', false, true),
+			help('inlineChat', true, true),
+		].map(text => text.includes('open as tabs of the side panel')), [true, false, false, false]);
+	});
+
+	test('documents the prompt timeline handle only while it is shown', () => {
+		const help = (promptTimelineGutterShown: boolean) => getAccessibilityHelpText('panelChat', new MockKeybindingService(), true, false, false, true, false, undefined, false, false, undefined, false, false, true, false, false, false, false, promptTimelineGutterShown);
+		assert.deepStrictEqual([help(false), help(true)].map(text => text.includes('A handle on the left edge of the transcript lists your prompts')), [false, true]);
 	});
 
 	test('documents read-only remote sandbox certificate refresh and keyboard access', () => {
@@ -696,13 +722,14 @@ suite('Chat Accessibility Help', () => {
 			fallback: help.includes('Completed thinking headers show Finished thinking until a summary is available'),
 			singleHeader: help.includes('A single extracted reasoning heading is used directly without a model request'),
 			multipleHeaders: help.includes('Multiple headings remain in the details and are used as the input for a generated summary'),
-			allStyles: help.includes('in every thinking style and progress layout'),
+			allStyles: help.includes('in every thinking style, and in every progress layout except Conversation'),
+			conversation: help.includes('A Conversation section never uses a reasoning heading or a generated summary as its header'),
 			visibleOnly: help.includes('only when a live section finishes with its header in view'),
 			background: help.includes('Sections that finish off-screen or in background chats do not request titles'),
 			noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
 			details: help.includes('All reasoning headings and content remain available in the expandable details'),
 			setting: help.includes('chat.agent.thinking.generateTitles'),
-		}, { fallback: true, singleHeader: true, multipleHeaders: true, allStyles: true, visibleOnly: true, background: true, noBackfill: true, details: true, setting: true });
+		}, { fallback: true, singleHeader: true, multipleHeaders: true, allStyles: true, conversation: true, visibleOnly: true, background: true, noBackfill: true, details: true, setting: true });
 	});
 
 	test('uses the configured Mark as Done wording for nudge help', () => {
@@ -940,7 +967,7 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
-			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
+			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Artifact Options'),
 			pullRequestChangesInSessions: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Open Pull Request Changes row action'),
 			pullRequestChangesInEditor: getAccessibilityHelpText('agentView', keybindingService, true).includes('Open Pull Request Changes row action'),
 			copyActions: getAccessibilityHelpText('agentView', keybindingService, true).includes('its context menu offers the item\'s copy actions'),

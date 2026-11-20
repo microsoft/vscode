@@ -137,7 +137,7 @@ export interface MarkdownRenameApi {
 	apply(edit: vscode.WorkspaceEdit): Thenable<boolean>;
 }
 
-const renameApi: MarkdownRenameApi = {
+export const renameApi: MarkdownRenameApi = {
 	prepare: async (uri, position) => vscode.commands.executeCommand('vscode.prepareRename', uri, position),
 	rename: async (uri, position, newName) => vscode.commands.executeCommand('vscode.executeDocumentRenameProvider', uri, position, newName),
 	apply: edit => vscode.workspace.applyEdit(edit),

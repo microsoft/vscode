@@ -121,6 +121,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly model: EditorGroupModel;
 
 	private active: boolean | undefined;
+	private editorOpenOperation: object | undefined;
+	get isOpeningEditor(): boolean { return this.editorOpenOperation !== undefined; }
+
 	private lastLayout: IDomNodePagePosition | undefined;
 
 	private readonly scopedInstantiationService: IInstantiationService;
@@ -145,6 +148,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private _contentLeftInset = 0;
 	private _contentTopInset = 0;
 	private _contentBottomInset = 0;
+
+	private readonly headerSpansContentInset: IEditorGroupViewOptions['headerSpansContentInset'];
 
 	private readonly _onDidRelayout = this._register(new Emitter<void>());
 	readonly onDidRelayout = this._onDidRelayout.event;
@@ -185,6 +190,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IModelService private readonly modelService: IModelService
 	) {
 		super(themeService);
+
+		this.headerSpansContentInset = options?.headerSpansContentInset;
 
 		if (from instanceof EditorGroupView) {
 			this.model = this._register(from.model.clone());
@@ -428,6 +435,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				this.editorService.openEditor({
 					resource: undefined,
+					untitledOrigin: 'emptyGroupDoubleClick',
 					options: {
 						pinned: true,
 						override: DEFAULT_EDITOR_ASSOCIATION.id
@@ -605,7 +613,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Show active editor (intentionally not using async to keep
 		// `restoreEditors` from executing in same stack)
-		const result = this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options, internalOptions).then(() => {
+		const result = this.withEditorActionsPending(() => this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options, internalOptions)).then(() => {
 
 			// Set focused now if this is the active group and focus has
 			// not changed meanwhile. This prevents focus from being
@@ -872,6 +880,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
+		// A single tab shows the active editor's title only, which an editor can provide where the part asks for it
+		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
+			this.updateTitleProvidedByEditor();
+		}
+
 		// Styles
 		this.updateStyles();
 
@@ -981,14 +994,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private titleProvidedByEditor = false;
 
 	/**
-	 * A group that holds exactly one editor whose pane renders its own title
-	 * does not show its title area. With more editors, it shows as usual, and
-	 * the editor does not show its own title.
+	 * A group whose active editor's pane renders its own title does not show its
+	 * title area while it holds only that editor, or, where its part asks for it
+	 * as it is created (`ICreateEditorPartOptions.singleTabTitleProvidedByEditor`), while it shows the
+	 * title of its active editor only, as with a single tab. Otherwise, it shows
+	 * as usual, and the editor does not show its own title.
 	 */
 	private updateTitleProvidedByEditor(): void {
 		const activeEditorPane = this.editorPane.activeEditorPane;
 		const paneProvidesTitle = activeEditorPane instanceof EditorPane && activeEditorPane.input === this.activeEditor && activeEditorPane.providesTitle;
-		const titleProvidedByEditor = this.count === 1 && paneProvidesTitle;
+		const titleProvidedByEditor = paneProvidesTitle && (this.count === 1 || (this.groupsView.partOptions.showTabs === 'single' && !!this.groupsView.singleTabTitleProvidedByEditor));
 		if (paneProvidesTitle) {
 			activeEditorPane.setProvidedTitleVisible(titleProvidedByEditor);
 		}
@@ -1313,34 +1328,58 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
-		// Update model and make sure to continue to use the editor we get from
-		// the model. It is possible that the editor was already opened and we
-		// want to ensure that we use the existing instance in that case.
-		const { editor: openedEditor, isNew } = this.model.openEditor(editor, openEditorOptions);
+		const showEditor = () => {
+			// Update model and make sure to continue to use the editor we get from
+			// the model. It is possible that the editor was already opened and we
+			// want to ensure that we use the existing instance in that case.
+			const { editor: openedEditor, isNew } = this.model.openEditor(editor, openEditorOptions);
 
-		// Conditionally lock the group
-		if (
-			isNew &&								// only if this editor was new for the group
-			this.count === 1 &&						// only when this editor was the first editor in the group
-			this.editorPartsView.groups.length > 1 	// only allow auto locking if more than 1 group is opened
-		) {
-			// only when the editor identifier is configured as such
-			if (openedEditor.editorId && this.groupsView.partOptions.autoLockGroups?.has(openedEditor.editorId)) {
-				this.lock(true);
+			// Conditionally lock the group
+			if (
+				isNew &&								// only if this editor was new for the group
+				this.count === 1 &&						// only when this editor was the first editor in the group
+				this.editorPartsView.groups.length > 1 	// only allow auto locking if more than 1 group is opened
+			) {
+				// only when the editor identifier is configured as such
+				if (openedEditor.editorId && this.groupsView.partOptions.autoLockGroups?.has(openedEditor.editorId)) {
+					this.lock(true);
+				}
+			}
+
+			// Show editor
+			const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options, internalOptions);
+
+			// Finally make sure the group is active or restored as instructed
+			if (activateGroup) {
+				this.groupsView.activateGroup(this);
+			} else if (restoreGroup) {
+				this.groupsView.restoreGroup(this);
+			}
+
+			return showEditorResult;
+		};
+
+		const editorToOpen = this.model.findEditor(editor, openEditorOptions)?.[0] ?? editor;
+		if (openEditorOptions.active && (!this.activeEditorPane?.input?.matches(editorToOpen) || options?.forceReload)) {
+			return this.withEditorActionsPending(showEditor);
+		}
+
+		return showEditor();
+	}
+
+	private async withEditorActionsPending(openEditor: () => Promise<IEditorPane | undefined>): Promise<IEditorPane | undefined> {
+		const operation = this.editorOpenOperation = {};
+		this.titleControl.updateEditorActions();
+		try {
+			return await openEditor();
+		} finally {
+			if (this.editorOpenOperation === operation) {
+				this.editorOpenOperation = undefined;
+				if (!this.disposed) {
+					this.titleControl.updateEditorActions();
+				}
 			}
 		}
-
-		// Show editor
-		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options, internalOptions);
-
-		// Finally make sure the group is active or restored as instructed
-		if (activateGroup) {
-			this.groupsView.activateGroup(this);
-		} else if (restoreGroup) {
-			this.groupsView.restoreGroup(this);
-		}
-
-		return showEditorResult;
 	}
 
 	private doShowEditor(editor: EditorInput, context: { active: boolean; isNew: boolean }, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
@@ -2303,14 +2342,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
 		const contentWidth = Math.max(0, width - this._contentLeftInset - this._contentRightInset);
-		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
-		this.titleContainer.style.setProperty('--title-border-bottom-left', `${this._contentLeftInset}px`);
+		const headerSpansContentInset = (this._contentLeftInset > 0 || this._contentRightInset > 0) && this.headerSpansContentInset?.(this.activeEditor ?? undefined) === true;
+		const headerWidth = headerSpansContentInset ? width : contentWidth;
+		const headerLeft = headerSpansContentInset ? 0 : this._contentLeftInset;
+		this.titleContainer.classList.toggle('header-spans-content-inset', headerSpansContentInset);
+		this.titleContainer.style.setProperty('--title-border-bottom-width', `${headerWidth}px`);
+		this.titleContainer.style.setProperty('--title-border-bottom-left', `${headerLeft}px`);
 
-		// Keep tabs full-width while the header and editor pane follow the content inset.
+		// Keep tabs full-width while the editor pane follows the content inset, and the
+		// header does too unless it spans the inset.
 		const titleControlSize = this.titleProvidedByEditor ? new Dimension(width, 0) : this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
-		}, contentWidth, this._contentLeftInset);
+		}, headerWidth, headerLeft);
 
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;

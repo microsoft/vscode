@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiRequestOptions, ApiResponse } from '../client/request.js';
 import { JsonObject, JsonValue, PageOptions, RepositoryRef } from '../client/types.js';
 import type { EnvironmentKind, PaginatedResponse, User } from './missionControl.js';
@@ -599,39 +600,39 @@ export interface TaskAHPEventsResponse {
 /** Operations for creating and managing tasks, sending input, and reading task history. */
 export interface ITasksClient {
 	/** Negotiate a receive-only task feed through the approved GitHub gateway. */
-	connectFeed(signal: AbortSignal, options?: ApiRequestOptions): Promise<SessionFeedConnection>;
+	connectFeed(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<SessionFeedConnection>;
 
 
 	/** GET /agents/tasks: list one page of the authenticated user's tasks. */
-	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>>;
+	list(cancellationToken: CancellationToken, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>>;
 
 	/** GET /agents/tasks/{task_id}: read task details and associated sessions. */
-	get(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse>;
+	get(taskId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<GetTaskResponse>;
 
 	/** GET /agents/tasks/batch: read up to 50 task summaries. Missing or undiscoverable tasks are omitted. */
-	getBatch(taskIds: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly Task[]>;
+	getBatch(taskIds: readonly string[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly Task[]>;
 
 	/** POST /agents/tasks: create or reserve a task (201), or claim a reservation (200), retaining response metadata. */
-	create(request: CreateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<ApiResponse<GetTaskResponse>>;
+	create(request: CreateTaskRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ApiResponse<GetTaskResponse>>;
 
 	/** PATCH /agents/tasks/{task_id}: update the task name or sharing status without waking compute. */
-	update(taskId: string, request: UpdateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse>;
+	update(taskId: string, request: UpdateTaskRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<GetTaskResponse>;
 
 	/** DELETE /agents/tasks/{task_id}: mark a task for deletion; only its creator may delete it. */
-	delete(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	delete(taskId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 
 	/** POST /agents/tasks/{task_id}/archive or /unarchive: set the task's archived state without waking compute. */
-	setArchived(taskId: string, archived: boolean, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task>;
+	setArchived(taskId: string, archived: boolean, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Task>;
 
 	/** POST /agents/tasks/{task_id}/steer: submit input or a control command, acknowledged with HTTP 202. */
-	steer(taskId: string, request: SteerTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	steer(taskId: string, request: SteerTaskRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 
 	/** POST /agents/tasks/{task_id}/steer with type=abort: stop the running session. */
-	abort(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	abort(taskId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 
 	/** GET /agents/tasks/{task_id}/events as application/json: read one page of session events. */
-	getEvents(taskId: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<PaginatedResponse<ListTaskEventsResponse>>;
+	getEvents(taskId: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<PaginatedResponse<ListTaskEventsResponse>>;
 
 	/** GET /agents/tasks/{task_id}/events as application/vnd.github.ahp+json: read the complete AHP event stream. */
-	getAhpEvents(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<TaskAHPEventsResponse>;
+	getAhpEvents(taskId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<TaskAHPEventsResponse>;
 }

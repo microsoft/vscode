@@ -6,6 +6,7 @@
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
+import { IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { type IAgentWorkbenchLayoutService } from '../workbench.js';
@@ -19,6 +20,11 @@ export class MainEditorPart extends MainEditorPartBase {
 	static readonly MARGIN_BOTTOM = 0;
 	static readonly MARGIN_LEFT = 0;
 	static readonly MARGIN_RIGHT = 0;
+
+	// The workbench's new tab button is not offered in the Agents window, which configures its own tab bar.
+	protected override getGroupViewOptions(): IEditorGroupViewOptions | undefined {
+		return undefined;
+	}
 
 	override get minimumWidth() {
 		return Math.max(EDITOR_PART_MINIMUM_WIDTH, super.minimumWidth);

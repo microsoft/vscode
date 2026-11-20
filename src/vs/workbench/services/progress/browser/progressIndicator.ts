@@ -12,6 +12,12 @@ import { GroupModelChangeKind } from '../../../common/editor.js';
 
 export class EditorProgressIndicator extends Disposable implements IProgressIndicator {
 
+	/** The reporter that showed the progress last: only it hides the progress when done, not those it replaced. */
+	private latestReporter: object | undefined;
+
+	/** When the infinite progress shows, or is to show after its delay: showing it again while it shows would restart its accessibility signal. */
+	private infiniteShownAt: number | undefined;
+
 	constructor(
 		private readonly progressBar: ProgressBar,
 		private readonly group: IEditorGroupView
@@ -32,7 +38,8 @@ export class EditorProgressIndicator extends Disposable implements IProgressIndi
 				e.kind === GroupModelChangeKind.EDITOR_ACTIVE ||
 				(e.kind === GroupModelChangeKind.EDITOR_CLOSE && this.group.isEmpty)
 			) {
-				this.progressBar.stop().hide();
+				this.latestReporter = undefined;
+				this.hide();
 			}
 		}));
 	}
@@ -56,18 +63,27 @@ export class EditorProgressIndicator extends Disposable implements IProgressIndi
 	private doShow(infinite: true, delay?: number): IProgressRunner;
 	private doShow(total: number, delay?: number): IProgressRunner;
 	private doShow(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
+		const reporter = this.latestReporter = {};
 		if (typeof infiniteOrTotal === 'boolean') {
-			this.progressBar.infinite().show(delay);
+			this.showInfinite(delay);
 		} else {
+			this.infiniteShownAt = undefined;
 			this.progressBar.total(infiniteOrTotal).show(delay);
 		}
 
 		return {
 			total: (total: number) => {
+				if (this.latestReporter !== reporter) {
+					return;
+				}
+				this.infiniteShownAt = undefined;
 				this.progressBar.total(total);
 			},
 
 			worked: (worked: number) => {
+				if (this.latestReporter !== reporter) {
+					return;
+				}
 				if (this.progressBar.hasTotal()) {
 					this.progressBar.worked(worked);
 				} else {
@@ -75,10 +91,28 @@ export class EditorProgressIndicator extends Disposable implements IProgressIndi
 				}
 			},
 
-			done: () => {
-				this.progressBar.stop().hide();
-			}
+			done: () => this.done(reporter)
 		};
+	}
+
+	private showInfinite(delay?: number): void {
+		const now = Date.now();
+		if (this.infiniteShownAt === undefined || this.infiniteShownAt > now) {
+			this.infiniteShownAt = now + (delay ?? 0);
+			this.progressBar.infinite().show(delay);
+		}
+	}
+
+	private hide(): void {
+		this.infiniteShownAt = undefined;
+		this.progressBar.stop().hide();
+	}
+
+	private done(reporter: object): void {
+		if (this.latestReporter === reporter) {
+			this.latestReporter = undefined;
+			this.hide();
+		}
 	}
 
 	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
@@ -96,14 +130,15 @@ export class EditorProgressIndicator extends Disposable implements IProgressIndi
 	}
 
 	private async doShowWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
+		const reporter = this.latestReporter = {};
 		try {
-			this.progressBar.infinite().show(delay);
+			this.showInfinite(delay);
 
 			await promise;
 		} catch (error) {
 			// ignore
 		} finally {
-			this.progressBar.stop().hide();
+			this.done(reporter);
 		}
 	}
 }

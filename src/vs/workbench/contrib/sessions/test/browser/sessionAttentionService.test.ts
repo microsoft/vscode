@@ -81,7 +81,7 @@ suite('SessionAttentionService', () => {
 		const github = new TestGitHubService();
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const sessionsManagement = upcastPartial<ISessionsManagementService>({
-			onDidChangeSessions: sessionsChanged.event, onDidDeleteSession: Event.None, getSessions: () => [...sessions],
+			onDidChangeSessions: sessionsChanged.event, onDidDeleteSession: Event.None, onDidReplaceSession: Event.None, getSessions: () => [...sessions],
 		});
 		const service = store.add(new SessionAttentionService(
 			sessionsManagement,
@@ -295,6 +295,25 @@ suite('SessionAttentionService', () => {
 			],
 			polling: [0, 3, 3, 0, 3, 0], hidden: 0, released: 0,
 		});
+	});
+
+	test('polls pull requests only for sessions that can be notified about them', async () => {
+		const busy = createSession('busy', SessionStatus.InProgress, 100, [{ number: 7 }]);
+		const fixture = createFixture([
+			busy,
+			createSession('owner', SessionStatus.Completed, 100, [{ number: 8 }]),
+			createSession('reader', SessionStatus.Completed, 200, [{ number: 8, owned: false }]),
+		]);
+		for (const number of [7, 8]) {
+			fixture.github.setPullRequest(number, openPullRequest(number));
+		}
+		store.add(fixture.service.acquireSessionAttention());
+		await timeout(0);
+		const polling = [fixture.github.pollingCount];
+		(busy.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
+		await timeout(0);
+		polling.push(fixture.github.pollingCount);
+		assert.deepStrictEqual(polling, [3, 6]);
 	});
 
 	for (const stop of ['release', 'hidden', 'removed', 'disposed'] as const) {

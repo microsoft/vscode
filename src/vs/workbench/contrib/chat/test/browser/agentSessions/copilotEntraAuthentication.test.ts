@@ -10,8 +10,7 @@ import type { IDefaultAccount } from '../../../../../../base/common/defaultAccou
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
-import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -116,7 +115,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 				['microsoft', undefined, { authorizationServer: URI.parse(copilotEntraAuthorizationServer) }, true],
 				['microsoft', ['User.Read'], { account: selected.account, authorizationServer: URI.parse(copilotEntraAuthorizationServer), silent: true }, true],
 			],
-			credential: { resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id, label: selected.account.label }) },
+			credential: { resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, accountId: '["microsoft","selected",null]' },
 		});
 	});
 
@@ -137,9 +136,30 @@ suite('Agent Host Microsoft credential acquisition', () => {
 			sessionId: selected.id, accountName: selected.account.label, enterprise: false,
 		};
 		const credential = await f.resolve();
-		assert.deepStrictEqual({ token: credential?.token, provider: credential?._meta }, {
+		assert.deepStrictEqual({ token: credential?.token, accountId: credential?.accountId }, {
 			token: other.accessToken,
-			provider: authenticationAccountMeta({ providerId: 'microsoft', accountId: other.account.id, label: other.account.label }),
+			accountId: '["microsoft","other",null]',
+		});
+	});
+
+	test('passive optional authentication neither switches provider nor chooses cached service credentials', async () => {
+		const f = fixture();
+		const target: ProtectedResourceMetadata = {
+			resource: copilotEntraResources.get(copilotEntraM365Audience)!,
+			authorization_servers: [copilotEntraAuthorizationServer],
+			scopes_supported: [`${copilotEntraM365Audience}/.default`], required: false,
+		};
+		f.authentication.sessions = [selected, { ...selected, id: 'm365-scoped', scopes: target.scopes_supported!, accessToken: 'cached-m365' }];
+		const forwarded: string[] = [];
+		const agents = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [{ ...resource, required: false }, target] }];
+		const options = { logPrefix: '[test]', authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request.resource); } };
+		await f.instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+		const microsoft = [...forwarded];
+		forwarded.length = 0;
+		f.defaults.currentDefaultAccount = { ...f.defaults.currentDefaultAccount!, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } };
+		await f.instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+		assert.deepStrictEqual({ microsoft, github: forwarded, interactive: f.authentication.created }, {
+			microsoft: [copilotEntraDiscoveryResource], github: [], interactive: [],
 		});
 	});
 
@@ -258,7 +278,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		}, {
 			signedIn: true,
 			created: [['microsoft', ['User.Read'], { account: selected.account, authorizationServer: URI.parse(copilotEntraAuthorizationServer) }]],
-			forwarded: [{ resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id, label: selected.account.label }) }],
+			forwarded: [{ resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, accountId: '["microsoft","selected",null]' }],
 		});
 	});
 
@@ -294,7 +314,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const f = fixture();
 		f.authentication.sessions = [{ ...selected, account: { ...selected.account, id: 'opaque-account' } }];
 		const result = await f.resolve();
-		assert.deepStrictEqual(result?._meta, authenticationAccountMeta({ providerId: 'microsoft', accountId: 'opaque-account', label: selected.account.label }));
+		assert.strictEqual(result?.accountId, '["microsoft","opaque-account",null]');
 	});
 
 	test('same-token deduplication retains the replacement session identity for sign-out', async () => {

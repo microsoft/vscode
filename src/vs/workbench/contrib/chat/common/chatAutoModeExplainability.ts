@@ -25,6 +25,9 @@ export function autoModeRoutingTitle(part: IChatAutoModeResolutionPart): string 
 		if (!part.resolved) {
 			return localize('modelRouter.routing', "{0} picking a model", part.router);
 		}
+		if (part.kept && part.effortChangedFrom) {
+			return modelRouterEffortChangedTitle(part.router, part.effortChangedFrom.effort, part.effort);
+		}
 		// A chat saved while named routes were written as playbooks stored the name as `playbook`.
 		const legacyName = (part as { readonly playbook?: unknown }).playbook;
 		const routeName = part.routeName ?? (typeof legacyName === 'string' ? legacyName : undefined);
@@ -50,6 +53,16 @@ export function autoModeRoutingTitle(part: IChatAutoModeResolutionPart): string 
 	return part.resolved.reason ?? (part.fusion
 		? localize('autoMode.fusionRoutedTo', "Copilot Fusion routed task to {0}", part.resolved.name)
 		: localize('autoMode.routedTo', "Auto routed task to {0}", part.resolved.name));
+}
+
+/** The routing line for a chat that stayed on its model at another effort. A turn without an effort ran on the model's default. */
+function modelRouterEffortChangedTitle(router: string, from: string | undefined, to: string | undefined): string {
+	if (from && to) {
+		return localize('modelRouter.effortChanged', "{0} changed effort from {1} to {2}", router, getReasoningEffortLabel(from), getReasoningEffortLabel(to));
+	}
+	return to
+		? localize('modelRouter.effortChangedFromDefault', "{0} changed effort from the model's default to {1}", router, getReasoningEffortLabel(to))
+		: localize('modelRouter.effortChangedToDefault', "{0} changed effort from {1} to the model's default", router, getReasoningEffortLabel(from ?? ''));
 }
 
 /** The routing line for a route that has a name: it names the route as well as the model it runs on. */

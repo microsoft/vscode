@@ -98,7 +98,12 @@ class PersistedMenuHideState implements IDisposable {
 	}
 
 	setDefaultState(menu: MenuId, commandId: string, hidden: boolean): void {
-		this._hiddenByDefaultCache.set(`${menu.id}/${commandId}`, hidden);
+		const key = `${menu.id}/${commandId}`;
+		if (hidden) {
+			this._hiddenByDefaultCache.set(key, true);
+		} else {
+			this._hiddenByDefaultCache.delete(key);
+		}
 	}
 
 	isHidden(menu: MenuId, commandId: string): boolean {

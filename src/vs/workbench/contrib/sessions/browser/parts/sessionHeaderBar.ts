@@ -13,7 +13,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { autorun, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { localize } from '../../../../../nls.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -33,9 +33,12 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
-import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { ChatLiveResponseStats } from '../../../chat/browser/widget/chatLiveResponseStats.js';
+import { ChatResponseStats } from '../../../chat/common/constants.js';
 
 export function getSessionChatAncestors(session: ISession, chat: IChat | undefined, reader: IReader): readonly string[] {
 	const ancestors: string[] = [];
@@ -68,10 +71,15 @@ export interface ISessionHeaderBarContext {
 	readonly showParentContext?: boolean;
 	readonly activateChatGroup?: () => void;
 	readonly closeSession?: () => void;
+	/** Whether the session is a new session not created yet, such as of a composer: the header shows it, titled as new, without a status. */
+	readonly isDraft?: boolean;
 }
 
+/** The close actions of a session header's toolbar, which come after its More Actions, last. */
+const SESSION_TOOLBAR_CLOSE_COMMAND_IDS: ReadonlySet<string> = new Set([CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID]);
+
 export function getSessionToolbarSecondaryActionsPosition(primaryActions: readonly IAction[]): number {
-	const closeActionIndex = primaryActions.findIndex(action => action.id === CLOSE_CHAT_COMMAND_ID || action.id === CLOSE_SESSION_COMMAND_ID);
+	const closeActionIndex = primaryActions.findIndex(action => SESSION_TOOLBAR_CLOSE_COMMAND_IDS.has(action.id));
 	return closeActionIndex === -1 ? primaryActions.length : closeActionIndex;
 }
 
@@ -95,7 +103,7 @@ export class SessionHeaderBar extends Disposable {
 	private _renameInput: HTMLInputElement | undefined;
 	private _session: ISession | undefined;
 	private _isDetached = false;
-	private _activeChatObservable: IObservable<IChat | undefined> | undefined;
+	private readonly _activeChatObservable = observableValue<IObservable<IChat | undefined> | undefined>(this, undefined);
 	private _actionsTargetChat = false;
 	private _showParentContext = false;
 	private _activateChatGroup: (() => void) | undefined;
@@ -107,6 +115,7 @@ export class SessionHeaderBar extends Disposable {
 	/** The options of the actions of its toolbar's menu, {@link Menus.SessionBarToolbar}: their commands run with its session and chat. */
 	readonly menuActionOptions: IMenuActionOptions = { args: this._menuActionArgs };
 	private _sessionIsCreated = false;
+	private _isDraft = false;
 	private _requestedVisible = true;
 
 	// dragstart's own target is always the draggable container, so this tracks the
@@ -155,6 +164,7 @@ export class SessionHeaderBar extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
 		@ISessionHost private readonly _sessionHost: ISessionHost,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 
@@ -175,8 +185,12 @@ export class SessionHeaderBar extends Disposable {
 		const titleRow = $('.chat-composite-bar-title-row');
 		main.appendChild(titleRow);
 
+		// The title shares its baseline with what follows it.
+		const titleLine = $('.chat-composite-bar-title-line');
+		titleRow.appendChild(titleLine);
+
 		this._titleEl = $('.chat-composite-bar-session-title');
-		titleRow.appendChild(this._titleEl);
+		titleLine.appendChild(this._titleEl);
 
 		this._titleTextEl = $('span.chat-composite-bar-session-title-text');
 		this._titleEl.appendChild(this._titleTextEl);
@@ -196,6 +210,15 @@ export class SessionHeaderBar extends Disposable {
 			EventHelper.stop(e, true);
 			this._closeSession();
 		}));
+
+		// The running response's stats of the chat, right after its title.
+		const lastResponse = derived(this, reader => {
+			const resource = this._activeChatObservable.read(reader)?.read(reader)?.resource;
+			const chatModel = resource && [...chatService.chatModels.read(reader)].find(model => isEqual(model.sessionResource, resource));
+			return chatModel?.lastRequestObs.read(reader)?.response;
+		});
+		const liveResponseStats = this._register(instantiationService.createInstance(ChatLiveResponseStats, ChatResponseStats.Title, lastResponse));
+		titleLine.appendChild(liveResponseStats.element);
 
 		const titleActions = $('.chat-composite-bar-title-actions');
 		titleRow.appendChild(titleActions);
@@ -268,19 +291,7 @@ export class SessionHeaderBar extends Disposable {
 
 		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
 			const session = this._session;
-			// Its title drags the editor that shows the chat, as the editor's drag handle, which fills the drag: the header
-			// only adds the session and its chat, on the drag's own data, so that the editor's drag stays as it is and the
-			// chat can also drop where chats do, such as into the main window's grid.
-			if (this._dragsEditor) {
-				if (session) {
-					fillSessionDataTransfer(e, session);
-					if (this._activeChat) {
-						fillSessionChatDragData(e, session.sessionId, this._activeChat.resource);
-					}
-				}
-				return;
-			}
-			if (!session || !e.dataTransfer || this._dragFromPaneEdge) {
+			if (this._dragFromPaneEdge || (!this._dragsEditor && (!session || !e.dataTransfer))) {
 				e.preventDefault();
 				return;
 			}
@@ -298,6 +309,23 @@ export class SessionHeaderBar extends Disposable {
 				return;
 			}
 
+			// The header drags the editor that shows the chat, as the editor's drag handle, which fills the drag: it only adds
+			// the session and its chat, on the drag's own data, so that the editor's drag stays as it is and the chat can
+			// also drop where chats do, such as into the main window's grid.
+			if (this._dragsEditor) {
+				// Not of a draft, which drops nowhere as a session: only its editor drags
+				if (session && !this._isDraft) {
+					fillSessionDataTransfer(e, session);
+					if (this._activeChat) {
+						fillSessionChatDragData(e, session.sessionId, this._activeChat.resource);
+					}
+				}
+				return;
+			}
+
+			if (!session || !e.dataTransfer) {
+				return;
+			}
 			if (this._actionsTargetChat) {
 				const chat = this._activeChat;
 				if (!chat) {
@@ -318,14 +346,14 @@ export class SessionHeaderBar extends Disposable {
 			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
 
 			// The header's own drag, of its session or of its chat, can open it in a window of its own
-			if (e.target === this._container && this._session) {
+			if (e.target === this._container && this._session && !this._dragsEditor) {
 				onDidEndSessionChatDrag(e, this._container, this._session, this._actionsTargetChat ? this._activeChat?.resource : undefined, this._titlePath);
 			}
 		}));
 	}
 
 	/**
-	 * Lets its title drag the editor that shows the chat, as the drag handle of that editor, such as in a chat window,
+	 * Lets it drag the editor that shows the chat, as the drag handle of that editor, such as in a chat window,
 	 * rather than the header dragging the session: the header then only adds the session and its chat to the drag.
 	 */
 	setDragsEditor(dragsEditor: boolean): void {
@@ -341,9 +369,11 @@ export class SessionHeaderBar extends Disposable {
 		const activateChatGroup = context?.activateChatGroup;
 		const closeSession = context?.closeSession;
 		const isDetached = context?.isDetached ?? false;
+		const isDraft = context?.isDraft ?? false;
 		if (this._session === session
+			&& this._isDraft === isDraft
 			&& this._isDetached === isDetached
-			&& this._activeChatObservable === activeChat
+			&& this._activeChatObservable.get() === activeChat
 			&& this._actionsTargetChat === actionsTargetChat
 			&& this._showParentContext === showParentContext
 			&& this._activateChatGroup === activateChatGroup
@@ -354,11 +384,13 @@ export class SessionHeaderBar extends Disposable {
 		this._cancelTitleEditing();
 		this._session = session;
 		this._isDetached = isDetached;
-		this._activeChatObservable = activeChat;
+		this._activeChatObservable.set(activeChat, undefined);
 		this._actionsTargetChat = actionsTargetChat;
 		this._showParentContext = showParentContext;
 		this._activateChatGroup = activateChatGroup;
 		this._closeSession = closeSession;
+		this._isDraft = isDraft;
+		this._iconEl.style.display = isDraft ? 'none' : '';
 		this._activeChat = undefined;
 		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...(session ? sessionMenuArgs(session, undefined, this._sessionHost) : []));
 		this._toolbar.context = session;
@@ -396,7 +428,7 @@ export class SessionHeaderBar extends Disposable {
 	}
 
 	private _updateVisibility(): void {
-		this._applyVisibility(this._sessionIsCreated && this._requestedVisible);
+		this._applyVisibility((this._sessionIsCreated || this._isDraft) && this._requestedVisible);
 	}
 
 	private _updateHeader(
@@ -411,7 +443,8 @@ export class SessionHeaderBar extends Disposable {
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 
-		if (!activeChat) {
+		// A draft is titled as new, whatever its chat is titled yet
+		if (!activeChat || this._isDraft) {
 			this._activeChat = undefined;
 			this._updateTitle(session, undefined, this._getUntitledTitle(reader), reader);
 			this._titleEl.classList.remove('editable');

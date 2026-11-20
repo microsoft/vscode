@@ -31,6 +31,7 @@ import { IContextViewDelegate, IContextViewService } from '../../../../../../../
 import { IContextKeyService } from '../../../../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IHoverService } from '../../../../../../../../platform/hover/browser/hover.js';
+import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { NullHoverService } from '../../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
@@ -58,6 +59,7 @@ import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../.
 import { IOnboardingScenario, OnboardingOutcome } from '../../../../../../onboarding/common/onboardingScenario.js';
 import { TestHostService, TestLayoutService } from '../../../../../../../test/browser/workbenchTestServices.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
+import { NullTelemetryService } from '../../../../../../../../platform/telemetry/common/telemetryUtils.js';
 
 function model(id: string, configurable = true): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -185,6 +187,7 @@ suite('TabbedModelPicker', () => {
 		comparison?: IModelPickerComparison;
 		comparisonModels?: ILanguageModelChatMetadataAndIdentifier[];
 		localModels?: IModelPickerLocalModels;
+		onCreateModelRouter?: () => void;
 	} = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
 		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px; --vscode-spacing-size280: 28px;';
@@ -240,6 +243,7 @@ suite('TabbedModelPicker', () => {
 		instantiationService.set(IContextViewService, contextView);
 		instantiationService.set(IHoverService, NullHoverService);
 		instantiationService.set(IOpenerService, NullOpenerService);
+		instantiationService.set(ILabelService, upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }));
 		const openedEditors: IResourceEditorInput[] = [];
 		instantiationService.stub(IEditorService, {}, 'openEditor', async (input: IResourceEditorInput) => {
 			openedEditors.push(input);
@@ -309,6 +313,7 @@ suite('TabbedModelPicker', () => {
 			onSelect: model => selections.push(model.identifier),
 			onTogglePin: (id, pinned) => { if (pinned) { pins.push(id); } },
 			onManageModels: () => { },
+			onCreateModelRouter: options.onCreateModelRouter,
 			onDidToggleOtherModels: () => { },
 			onDidSearch: () => { },
 			onConfigurationChanged: (...change) => configurationChanges.push(change),
@@ -705,7 +710,7 @@ suite('TabbedModelPicker', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return document.body; }
 			}();
-			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService));
+			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService));
 			const scenario: IOnboardingScenario<ISpotlightPayload> = {
 				id: 'test.compareModels',
 				trigger: { kind: 'auto' },
@@ -861,15 +866,20 @@ suite('TabbedModelPicker', () => {
 			anchor.style.width = '38px';
 			picker.show(anchor, context);
 			const reopened = bounds();
+			// The view lines up with the anchor at the device pixels its edges are painted at, so compare painted edges
+			const dpr = dom.getWindow(popup).devicePixelRatio;
+			const painted = (value: number) => Math.round(value * dpr);
+			const isBesideAnchor = (rect: DOMRect) => painted(rect.bottom) <= painted(anchor.getBoundingClientRect().top) || painted(rect.top) >= painted(anchor.getBoundingClientRect().bottom);
+			const isAligned = (rect: DOMRect) => painted(rect.left) === painted(anchor.getBoundingClientRect().left);
 			assert.deepStrictEqual({
-				initiallyBesideAnchor: first.bottom <= anchor.getBoundingClientRect().top || first.top >= anchor.getBoundingClientRect().bottom,
-				initiallyAligned: first.left === anchor.getBoundingClientRect().left,
+				initiallyBesideAnchor: isBesideAnchor(first),
+				initiallyAligned: isAligned(first),
 				sameListViewport: firstRows === initialRows,
 				withinViewportCap: firstRows <= Math.floor(dom.getWindow(popup).innerHeight * 0.6),
 				stableHeight: reopened.height === first.height,
 				stableRows: listHeight() === firstRows,
-				aligned: reopened.left === anchor.getBoundingClientRect().left,
-				besideAnchor: reopened.bottom <= anchor.getBoundingClientRect().top || reopened.top >= anchor.getBoundingClientRect().bottom,
+				aligned: isAligned(reopened),
+				besideAnchor: isBesideAnchor(reopened),
 				fitsWindow: reopened.top >= 0 && reopened.bottom <= dom.getWindow(popup).innerHeight,
 			}, { initiallyBesideAnchor: true, initiallyAligned: true, sameListViewport: true, withinViewportCap: true, stableHeight: true, stableRows: true, aligned: true, besideAnchor: true, fitsWindow: true });
 		});
@@ -905,9 +915,12 @@ suite('TabbedModelPicker', () => {
 		const bounds = element(popup, '.chat-model-picker-widget').getBoundingClientRect();
 		const trigger = anchor.getBoundingClientRect();
 		assert.ok(bounds.height > 300, `Expected a constrained list, got ${bounds.height}`);
+		// The view lines up with the trigger at the device pixels its edges are painted at
+		const dpr = dom.getWindow(popup).devicePixelRatio;
+		const painted = (value: number) => Math.round(value * dpr);
 		assert.deepStrictEqual({
-			aligned: bounds.left === trigger.left,
-			above: bounds.bottom <= trigger.top,
+			aligned: painted(bounds.left) === painted(trigger.left),
+			above: painted(bounds.bottom) <= painted(trigger.top),
 			fits: bounds.top >= 0,
 		}, { aligned: true, above: true, fits: true });
 	});
@@ -1483,6 +1496,30 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('search lists newer model versions first without reversing alphabetical order', () => {
+		const models = [
+			['gpt-5.6-sol', 'GPT-5.6 Sol'],
+			['gpt-6-sol', 'GPT-6 Sol'],
+			['gpt-6.1-sol', 'GPT-6.1 Sol'],
+			['claude-sonnet-5', 'Claude Sonnet 5'],
+		].map(([id, name]) => {
+			const entry = model(id);
+			return { ...entry, metadata: { ...entry.metadata, name } };
+		});
+		const { popup } = createPicker({ models, selectedModelId: models[2].identifier, pinnedModelIds: models.map(model => model.identifier) });
+		element(popup, '[data-id="search"]').click();
+		const input = popup.querySelector<HTMLInputElement>('input')!;
+		const results = ['', 'sol'].map(query => {
+			input.value = query;
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			return [...popup.querySelectorAll('.chat-model-picker-model .title')].map(title => title.textContent);
+		});
+		assert.deepStrictEqual(results, [
+			['Claude Sonnet 5', 'GPT-6.1 Sol', 'GPT-6 Sol', 'GPT-5.6 Sol'],
+			['GPT-6.1 Sol', 'GPT-6 Sol', 'GPT-5.6 Sol'],
+		]);
+	});
+
 	test('idempotent filtered opening focuses the exact row without selecting it', () => {
 		const a = model('same');
 		const b = { ...model('same'), identifier: 'codex/target', metadata: { ...a.metadata, vendor: 'codex', modelPickerGroup: { id: 'copilot', label: 'GitHub Copilot' } } };
@@ -1543,6 +1580,34 @@ suite('TabbedModelPicker', () => {
 			});
 		});
 	}
+
+	test('a model router\'s Details show its routes, pin it and open its file', () => {
+		const resource = URI.file('/routers/daily.model-router.yaml');
+		const router: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'copilot/model-router:daily',
+			metadata: {
+				...model('Daily Driver', false).metadata, id: 'model-router:daily', detail: 'Model router', tooltip: 'First to build, Second for quick questions.',
+				detailsResource: resource, modelRouterRoutes: [{ name: 'build', model: 'First', effort: 'high' }, { model: 'Second' }],
+			},
+		};
+		const { popup, picker, openedEditors, pins } = createPicker({ models: [...models, router], selectedModelId: router.identifier });
+		openDetails(popup, 'Daily Driver');
+		const details = {
+			routes: Array.from(popup.querySelectorAll('.chat-model-card-route'), route => route.textContent),
+			file: element(popup, '.chat-model-card-definition-file a').textContent,
+			// Details used to open the file itself.
+			opened: openedEditors.length,
+			visible: picker.isVisible,
+		};
+		element(popup, '[aria-label="Pin Model"]').click();
+		element(popup, '.chat-model-card-definition-file a').click();
+		assert.deepStrictEqual({ details, pins, opened: openedEditors, visible: picker.isVisible }, {
+			details: { routes: ['build (default)FirstHigh', 'Second'], file: 'daily.model-router.yaml', opened: 0, visible: true },
+			pins: ['copilot/model-router:daily'],
+			opened: [{ resource }],
+			visible: false,
+		});
+	});
 
 	test('required models without a source still explain the restriction', () => {
 		const { popup } = createPicker({ agentModelPreferences: { models: ['First'], required: true } });
@@ -2191,6 +2256,41 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	for (const showUnavailable of [false, true]) {
+		test(`version requirements stay scoped to built-in models with unavailable suggestions ${showUnavailable ? 'shown' : 'hidden'}`, () => {
+			const gated = model('Gated');
+			const compatible = model('Compatible');
+			const byok = { ...gated, identifier: 'ollama/Gated', metadata: { ...gated.metadata, name: 'BYOK Gated', vendor: 'ollama' } };
+			const result = createPicker({
+				models: [gated, compatible, byok],
+				selectedModelId: compatible.identifier,
+				showUnavailable,
+				controlModels: {
+					Gated: { label: 'Gated', exists: true, featured: true, minVSCodeVersion: '99.0.0' },
+					Compatible: { label: 'Compatible', exists: true, featured: true },
+				},
+			});
+			const gatedRow = Array.from(result.popup.querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.find(row => row.querySelector('.title')?.textContent === 'Gated')!;
+			const update = gatedRow.textContent?.includes('Update VS Code');
+			gatedRow.click();
+			const gatedSelections = [...result.selections];
+			reopen(result);
+			selectRow(result.popup, 'Compatible');
+			reopen(result);
+			element(result.popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
+			const byokRows = listRows(result.popup);
+			element(result.popup, '.monaco-list-row:not(.separator)').click();
+
+			assert.deepStrictEqual({ update, gatedSelections, byokRows, selections: result.selections }, {
+				update: true,
+				gatedSelections: [],
+				byokRows: ['BYOK Gated'],
+				selections: [compatible.identifier, byok.identifier],
+			});
+		});
+	}
+
 	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
 		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a tier`, () => {
 			const auto = createAutoModel();
@@ -2786,6 +2886,79 @@ suite('TabbedModelPicker', () => {
 			});
 		});
 	}
+
+	/** A model router as the Copilot agent host lists it, with what it is for. */
+	function routerModel(name: string, description: string): ILanguageModelChatMetadataAndIdentifier {
+		const id = `model-router:${name.toLowerCase()}`;
+		return {
+			identifier: `copilot/${id}`,
+			metadata: {
+				...model(name, false).metadata, id, detail: 'Model router', tooltip: description,
+				detailsResource: URI.file(`/routers/${name.toLowerCase()}.model-router.yaml`), modelRouterRoutes: [{ model: 'First' }, { model: 'Second' }],
+			},
+		};
+	}
+
+	test('model routers get a tab of their own after every provider, none of which lists them; each says what it is for, and the last row starts a new one', () => {
+		const daily = routerModel('Daily', 'First to build, Second for quick questions.');
+		const review = routerModel('Review', 'A second opinion.');
+		let created = 0;
+		// Copilot's models size the popup, here tall enough to show every router row.
+		const result = createPicker({ models: [...copilotModels, model('Third'), model('Fourth'), daily, review, ollamaModel], selectedModelId: daily.identifier, pinnedModelIds: [review.identifier], onCreateModelRouter: () => created++ });
+		const routers = {
+			...tabState(result.popup),
+			descriptions: Array.from(result.popup.querySelectorAll('.chat-model-picker-tabbed .monaco-list-row .detail'), detail => detail.textContent).filter(Boolean),
+		};
+		const newRouter = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-tabbed .monaco-list-row')).find(row => row.querySelector('.title')?.textContent === 'New Router...');
+		// It runs a command, so it is not announced as one of the choices around it.
+		const newRouterRole = newRouter?.getAttribute('role');
+		newRouter?.click();
+		const afterNewRouter = { role: newRouterRole, created, visible: result.picker.isVisible };
+		reopen(result);
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
+		const copilot = listRows(result.popup);
+		element(result.popup, '[data-id="search"]').click();
+		const input = result.popup.querySelector<HTMLInputElement>('input')!;
+		input.value = 'Daily';
+		input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		const found = Array.from(result.popup.querySelectorAll('.chat-model-picker-tabbed .monaco-list-row.action'), row => ({
+			title: row.querySelector('.title')?.textContent,
+			badge: row.querySelector('.action-item-badge')?.textContent,
+			description: row.querySelector('.detail')?.textContent,
+		}));
+		assert.deepStrictEqual({ routers, afterNewRouter, copilot, found }, {
+			routers: {
+				tabs: ['Copilot', 'Ollama', 'Routers'],
+				active: 'Routers',
+				rows: ['--Pinned', 'Review', 'Daily', '--', 'New Router...'],
+				descriptions: ['A second opinion.', 'First to build, Second for quick questions.'],
+			},
+			afterNewRouter: { role: 'menuitem', created: 1, visible: false },
+			copilot: ['Auto', '--', 'First', 'Fixed', 'Fourth', 'Second', 'Third'],
+			found: [{ title: 'Daily', badge: 'Routers', description: '' }],
+		});
+	});
+
+	test('with no routers, the Routers tab is shown only to a chat that can write one, and says what a router is', () => {
+		let created = 0;
+		const withoutCreating = createPicker({ models: copilotModels });
+		const tabsWithoutCreating = tabState(withoutCreating.popup).tabs;
+		withoutCreating.dismiss();
+		const result = createPicker({ models: copilotModels, onCreateModelRouter: () => created++ });
+		const { tabs, active } = tabState(result.popup);
+		element(result.popup, '.chat-model-picker-tabbar [aria-label="Routers"]').click();
+		const welcome = element(result.popup, '.chat-model-picker-welcome');
+		const text = Array.from(welcome.querySelectorAll('.chat-model-picker-welcome-title, .chat-model-picker-welcome-message, .monaco-button'), part => part.textContent);
+		element(welcome, '.monaco-button').click();
+		assert.deepStrictEqual({ tabsWithoutCreating, tabs, active, text, created, visible: result.picker.isVisible }, {
+			tabsWithoutCreating: ['Copilot'],
+			tabs: ['Copilot', 'Routers'],
+			active: 'Copilot',
+			text: ['Routers', 'A router picks the model for a chat from routes you write.', 'Create a Router'],
+			created: 1,
+			visible: false,
+		});
+	});
 
 	test('Fusion\'s tiers controlled by a read-only schema cannot be changed, Max included', async () => {
 		const fusion = createFusionModel();

@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import type { IAgentHostClientCertificatesProvider } from '../../../../platform/agentHost/common/clientCertificatesProtocol.js';
 import type { IAgentHostClientProxyProvider } from '../../../../platform/agentHost/common/clientProxyProtocol.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -24,6 +25,27 @@ export const DevContainerIdleTimeoutSettingId = 'chat.agentHost.devContainer.idl
 
 /** Hidden experimental setting that enables combining Dev Container execution with a new worktree. */
 export const DevContainerWorktreeEnabledSettingId = 'chat.agentHost.devContainer.worktree.enabled';
+
+/** Experimental setting that keeps user and agent state of new Dev Containers on a volume across rebuilds. */
+export const DevContainerStateVolumeEnabledSettingId = 'chat.agentHost.devContainer.stateVolume.enabled';
+
+/** Experimental setting that enables Dev Container environments created from a base image on this computer and on SSH, Tunnel, and WSL hosts. */
+export const DevContainerEnvironmentsEnabledSettingId = 'chat.agentHost.devContainer.environments.enabled';
+
+/** {@link IDevContainerEnvironment.sourceAddress} of Dev Container environments on this computer. No SSH, Tunnel, or WSL host address equals it. */
+export const LocalDevContainerEnvironmentHost = 'local';
+
+/** Whether Dev Container environments are available, apart from their experiment-controlled setting. */
+export function canUseDevContainerEnvironments(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId) === true
+		&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true
+		&& configurationService.getValue<boolean>('chat.disableAIFeatures') !== true;
+}
+
+/** Whether Dev Container environments can be created and are offered as remote environments. */
+export function areDevContainerEnvironmentsEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(DevContainerEnvironmentsEnabledSettingId) === true && canUseDevContainerEnvironments(configurationService);
+}
 
 /** Whether new sample workspaces can be selected, independently of already-created sessions. */
 export function areDevContainerSamplesEnabled(configurationService: IConfigurationService): boolean {
@@ -63,6 +85,8 @@ export interface IDevContainerAgentHostConnector {
 	readonly onDidChangeSandboxSupport?: Event<{ readonly workspaceUri: URI; readonly supported: boolean }>;
 	/** Whether the workspace has a supported configuration and Docker is available on its host. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
+	/** Whether Docker is available on this computer, regardless of settings. */
+	isLocalDockerAvailable?(): Promise<boolean>;
 	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean; readonly sandboxEnabled?: boolean }): Promise<IDevContainerAgentHostConnection>;
 	stopContainer?(workspaceUri: URI): Promise<boolean>;
 	removeContainer?(workspaceUri: URI): Promise<boolean>;
@@ -75,6 +99,18 @@ export interface IDevContainerAgentHostTarget {
 	readonly workspaceUri: URI;
 	/** Release this caller's ownership of the shared workspace connection. */
 	release(): Promise<void>;
+}
+
+/**
+ * A standalone Dev Container created from an image on this computer or on an SSH, Tunnel, or WSL host, offered as its own remote environment.
+ * One on a remote host connects and disconnects with that host; one on this computer connects on first use.
+ */
+export interface IDevContainerEnvironment {
+	/** Address of the container's Agent Host connection, which also identifies the environment. */
+	readonly address: string;
+	/** Address of the SSH, Tunnel, or WSL host that runs the container, or {@link LocalDevContainerEnvironmentHost}. */
+	readonly sourceAddress: string;
+	readonly providerId: string;
 }
 
 export const IDevContainerAgentHostService = createDecorator<IDevContainerAgentHostService>('devContainerAgentHostService');
@@ -92,4 +128,17 @@ export interface IDevContainerAgentHostService {
 	getSandboxSupported?(workspaceUri: URI): boolean | undefined;
 	showLog(workspaceUri: URI): Promise<void>;
 	disconnect(workspaceUri: URI): Promise<void>;
+
+	/** Dev Container environments, empty while {@link areDevContainerEnvironmentsEnabled} is false. */
+	readonly environments: IObservable<readonly IDevContainerEnvironment[]>;
+	/**
+	 * {@link LocalDevContainerEnvironmentHost} while Docker is available on this computer, and the addresses of connected
+	 * SSH, Tunnel, and WSL hosts that support Dev Container environments and have Docker. Computed while
+	 * {@link canUseDevContainerEnvironments} is true, regardless of the experiment-controlled setting.
+	 */
+	readonly environmentHosts: IObservable<ReadonlySet<string>>;
+	/** Creates a Dev Container environment on a host from {@link environmentHosts} and connects to it. */
+	createEnvironment(sourceAddress: string): Promise<IDevContainerEnvironment>;
+	/** Removes an environment's container and workspace volume, or only forgets it when its host is no longer configured. */
+	deleteEnvironment(address: string): Promise<void>;
 }

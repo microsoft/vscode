@@ -18,6 +18,16 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
+/**
+ * Installed dependencies. Installs rewrite thousands of files, and a change there says nothing about the branch or
+ * uncommitted changes. Other build output is told apart by Git's ignore rules, see {@link ChangesetFileMonitorCoordinator._onRootChanged}.
+ */
+const CHANGESET_WATCH_EXCLUDES: readonly string[] = Object.freeze([
+	...DEFAULT_AGENT_HOST_WATCH_EXCLUDES,
+	'**/node_modules',
+	'**/node_modules/**',
+]);
+
 class WatchInterestReferenceCollection extends ReferenceCollection<string> {
 	constructor(
 		private readonly _create: (sessionStr: string) => void,
@@ -324,6 +334,24 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		return workingDirectories.join('\u0000');
 	}
 
+	/**
+	 * Agents compile and bundle into directories Git ignores, which changes thousands of files without changing
+	 * anything Git reports. When every changed path is ignored there is nothing to refresh.
+	 */
+	private async _onRootChanged(rootStr: string, repositoryRoot: URI, changedResources: readonly URI[] | undefined): Promise<void> {
+		let relevant: boolean | undefined;
+		if (changedResources?.length && this._gitService.hasUnignoredPaths) {
+			try {
+				relevant = await this._gitService.hasUnignoredPaths(repositoryRoot, changedResources);
+			} catch (err) {
+				this._logService.debug(`[ChangesetFileMonitorCoordinator] Could not tell whether the changes under ${rootStr} are ignored`, err);
+			}
+		}
+		if (relevant !== false && !this._store.isDisposed) {
+			this._onRootsChanged([rootStr]);
+		}
+	}
+
 	private _onRootsChanged(rootStrs: Iterable<string>): void {
 		const sessionsToRefresh = new Set<string>();
 		for (const rootStr of rootStrs) {
@@ -358,7 +386,8 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 				this._logService.warn(`[ChangesetFileMonitorCoordinator] Failed to parse primary working directory URI for ${session}: ${primaryWorkingDirectory}`, err);
 				continue;
 			}
-			void this._gitStateService.refreshSessionGitState(source, primaryWorkingDirectoryUri);
+			// Edits to files that were already modified leave the Git state as it was.
+			void this._gitStateService.refreshSessionGitState(source, primaryWorkingDirectoryUri, undefined, { force: true });
 		}
 	}
 
@@ -385,8 +414,8 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		if (!sessions || sessions.size === 0) {
 			return true;
 		}
-		const rootWatchAcquisition = this._fileMonitorService.acquire(repositoryRoot, () => this._onRootsChanged([rootStr]), {
-			excludes: DEFAULT_AGENT_HOST_WATCH_EXCLUDES,
+		const rootWatchAcquisition = this._fileMonitorService.acquire(repositoryRoot, changedResources => this._onRootChanged(rootStr, repositoryRoot, changedResources), {
+			excludes: CHANGESET_WATCH_EXCLUDES,
 			debounceMs: 750,
 		});
 		if (!rootWatchAcquisition) {

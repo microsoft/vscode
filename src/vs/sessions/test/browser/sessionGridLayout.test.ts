@@ -12,7 +12,7 @@ import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../../workbench/browser/parts/sessions/sessionGridLayout.js';
-import { getSessionDropDirection } from '../../../workbench/contrib/sessions/browser/parts/sessionDropTarget.js';
+import { getSessionDropDirection, getSessionDropZone } from '../../../workbench/contrib/sessions/browser/parts/sessionDropTarget.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../../workbench/browser/parts/sessions/sessionGridState.js';
 import '../../../workbench/browser/media/style.css';
 import '../../browser/media/workbench.css';
@@ -866,5 +866,11 @@ suite('Sessions - Grid Layout', () => {
 		assert.deepStrictEqual([
 			[10, 200], [990, 200], [500, 10], [500, 390], [100, 40], [500, 200],
 		].map(([x, y]) => getSessionDropDirection(x, y, 1000, 400)), ['left', 'right', 'up', 'down', 'left', 'left']);
+	});
+
+	test('drop zone opens in the view in its middle, and beside it within a quarter of an edge', () => {
+		assert.deepStrictEqual([
+			[10, 200], [990, 200], [500, 10], [500, 390], [240, 200], [260, 200], [500, 200],
+		].map(([x, y]) => getSessionDropZone(x, y, 1000, 400)), ['left', 'right', 'up', 'down', 'left', 'center', 'center']);
 	});
 });

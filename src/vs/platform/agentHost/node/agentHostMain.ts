@@ -17,7 +17,7 @@ import * as os from 'os';
 import { writeSync } from 'fs';
 import { getHeapStatistics } from 'node:v8';
 import * as inspector from 'inspector';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, AgentHostMainProcessConnectionContext, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, IAgentHostEndpointMetadata } from '../common/agentHostEndpointRegistry.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
@@ -37,11 +37,12 @@ import { ByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
-import { ProtocolServerHandler } from './protocolServerHandler.js';
-import { MissionControlHost } from './missionControl/missionControlHost.js';
+import { ProtocolServerHandler, type IProtocolServerGitHubEnvironment } from './protocolServerHandler.js';
+import { getMissionControlEnvironmentName, MissionControlHost } from './missionControl/missionControlHost.js';
+import { MissionControlClientRegistration } from './missionControl/missionControlClientRegistration.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
-import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
+import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
 import { AgentHostManagementService } from './agentHostManagementService.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
@@ -57,16 +58,20 @@ import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { createAgentHostRuntime, type IAgentHostRuntime } from './agentHostBootstrap.js';
+import { AgentHostKeepAwake } from './agentHostKeepAwake.js';
+import { AgentHostPowerSaveBlocker } from './agentHostPowerSaveBlocker.js';
+import { toAgentHostPowerSaveBlockerMessage } from '../common/agentHostPowerSaveBlocker.js';
 import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
+import { localProcessPathStyle } from '../common/agentHostPathStyle.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, createAgentHostClientByokLmConnection } from '../common/agentHostClientByokLmChannel.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, createAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
 import { dirname, join } from '../../../base/common/path.js';
 import { FileAccess } from '../../../base/common/network.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AgentHostLaunchKindEnvVar, readAgentHostLaunchKind, type AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, readAgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { markNodeCompileCacheReady } from '../../../base/node/nodeCompileCache.js';
 import { AgentHostStartupPhase, formatAgentHostExit, formatAgentHostStartupFailure, formatAgentHostStartupPhase, identifyAgentHostExitCaller, toAgentHostHeartbeatMessage } from '../common/agentHostProcessExit.js';
 import { AgentHostExitHeartbeat } from './agentHostExitHeartbeat.js';
@@ -193,6 +198,13 @@ async function startAgentHost(): Promise<void> {
 		disposables.add(runtime);
 		agentService = runtime.agentService;
 		instantiationService = runtime.instantiationService;
+		const acquirePowerSaveBlocker = diagnosticsParentPort
+			? (allowOnBattery: boolean) => {
+				diagnosticsParentPort.postMessage(toAgentHostPowerSaveBlockerMessage({ kind: 'acquire', allowOnBattery }));
+				return toDisposable(() => diagnosticsParentPort.postMessage(toAgentHostPowerSaveBlockerMessage({ kind: 'release' })));
+			}
+			: (allowOnBattery: boolean) => new AgentHostPowerSaveBlocker(allowOnBattery, logService);
+		disposables.add(instantiationService.createInstance(AgentHostKeepAwake, acquirePowerSaveBlocker));
 		const runtimeServices = instantiationService.invokeFunction(accessor => ({
 			configurationService: accessor.get(IAgentConfigurationService),
 			fileService: accessor.get(IFileService),
@@ -316,126 +328,15 @@ async function startAgentHost(): Promise<void> {
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
 	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
 
-	if (server instanceof UtilityProcessServer) {
-		const localDataPlaneDisposables = protocolIngressDisposables.add(new DisposableStore());
-		const messagePortProtocolServer = localDataPlaneDisposables.add(new MessagePortProtocolServer<string>());
-		// Shared config for the local data-plane protocol handlers (renderer
-		// MessagePort + the external endpoint, which each get their own handler).
-		const localProtocolHandlerConfig = {
-			hostLaunchKind,
-			defaultDirectory: URI.file(os.homedir()).toString(),
-			completionTriggerCharacters,
-			terminalCommandPrefix: BANG_COMMAND_PREFIX,
-			otlpLogEmitter,
-			allowExtensionMethods: false,
-		};
-		try {
-			// Handler for the renderer's MessagePort data plane.
-			const messagePortProtocolHandler = localDataPlaneDisposables.add(instantiationService.createInstance(
-				ProtocolServerHandler,
-				agentService,
-				stateManager,
-				messagePortProtocolServer,
-				localProtocolHandlerConfig,
-				clientFileSystemProvider,
-			));
-			protocolHandlers.push(messagePortProtocolHandler);
-			// Non-protocol reverse bridges remain on their existing IPC channels.
-			// The renderer's MessagePortClient ctx is its clientId.
-			const authorityRegistrations = new Map<unknown, IDisposable>();
-			const registerConnection = (connection: (typeof server.connections)[number]) => {
-				if (authorityRegistrations.has(connection)) {
-					return;
-				}
-				const clientId = connection.ctx;
-				if (typeof clientId !== 'string' || !clientId) {
-					return;
-				}
-				const connectionStore = new DisposableStore();
-				const getChannel = (channelName: string) => server.getChannel(channelName, c => c.ctx === clientId);
-				const proxyConnection = createAgentHostClientProxyConnection(getChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL));
-				connectionStore.add(proxyResolver.register(clientId, proxyConnection));
-				if (byokLmBridgeRegistry) {
-					const byokLmConnection = createAgentHostClientByokLmConnection(getChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL));
-					connectionStore.add(byokLmBridgeRegistry.register(clientId, byokLmConnection));
-				}
-				authorityRegistrations.set(connection, connectionStore);
-			};
-			localDataPlaneDisposables.add(server.onDidAddConnection(registerConnection));
-			localDataPlaneDisposables.add(server.onDidRemoveConnection(connection => {
-				if (typeof connection.ctx === 'string') {
-					messagePortProtocolServer.closeClient(connection.ctx);
-				}
-				const reg = authorityRegistrations.get(connection);
-				if (reg) {
-					reg.dispose();
-					authorityRegistrations.delete(connection);
-				}
-			}));
-			localDataPlaneDisposables.add(toDisposable(() => {
-				for (const registration of authorityRegistrations.values()) {
-					registration.dispose();
-				}
-				authorityRegistrations.clear();
-			}));
-			for (const connection of server.connections) {
-				registerConnection(connection);
-			}
-
-			// Register the renderer's protocol channel BEFORE starting the external
-			// endpoint: the renderer connects over this channel, and the IPC
-			// ChannelServer drops calls to a not-yet-registered channel after its
-			// unknown-channel timeout (~1s), so the endpoint's socket startup must
-			// not sit on this path.
-			server.registerChannel(AgentHostIpcChannels.Protocol, messagePortProtocolServer);
-
-			// The external local endpoint (out-of-process local clients such as the
-			// CLI) is not on the renderer's path; start it after registration and
-			// give it its own handler.
-			markStartupPhase('localEndpoint');
-			const localEndpoint = await startLocalAgentHostEndpoint(
-				environmentService.userDataPath,
-				logService,
-			);
-			if (localEndpoint) {
-				const endpointMetadata = localEndpoint.metadata;
-				// Wire the endpoint's handler (subscribing to its connections) BEFORE
-				// publishing the metadata that advertises it, so a client can't connect
-				// in the gap and be missed.
-				localDataPlaneDisposables.add(localEndpoint.server);
-				const localEndpointProtocolHandler = localDataPlaneDisposables.add(instantiationService.createInstance(
-					ProtocolServerHandler,
-					agentService,
-					stateManager,
-					localEndpoint.server,
-					localProtocolHandlerConfig,
-					clientFileSystemProvider,
-				));
-				protocolHandlers.push(localEndpointProtocolHandler);
-				try {
-					await publishLocalAgentHostEndpointMetadata(environmentService.userDataPath, endpointMetadata, logService);
-					localDataPlaneDisposables.add(toDisposable(() => {
-						cleanupLocalAgentHostEndpoint(environmentService.userDataPath, endpointMetadata, logService);
-					}));
-				} catch (error) {
-					logService.error('[AgentHost] Failed to publish local protocol endpoint; continuing with MessagePort only', error);
-					localEndpoint.server.dispose();
-					cleanupLocalAgentHostEndpoint(environmentService.userDataPath, endpointMetadata, logService);
-				}
-			}
-		} catch (error) {
-			localDataPlaneDisposables.dispose();
-			throw error;
-		}
-	}
-
 	// Expose dynamic bridge client count to the parent process via a non-protocol
 	// management IPC channel.
 	const connectionCountEmitter = disposables.add(new Emitter<number>());
+	const githubEnvironmentRegisteredEmitter = disposables.add(new Emitter<boolean>());
 	let dynamicSocketInfo: IAgentHostSocketInfo | undefined;
 	const configuredWebSocketServer = new DeferredPromise<void>();
 	const connectionTrackerService: IConnectionTrackerService = {
 		onDidChangeConnectionCount: connectionCountEmitter.event,
+		onDidChangeGitHubEnvironmentRegistered: githubEnvironmentRegisteredEmitter.event,
 		waitForConfiguredWebSocketServer: () => configuredWebSocketServer.p,
 		async startWebSocketServer(): Promise<IAgentHostSocketInfo> {
 			if (protocolIngressDisposables.isDisposed) {
@@ -466,6 +367,7 @@ async function startAgentHost(): Promise<void> {
 				wsServer,
 				{
 					hostLaunchKind,
+					environment: { pathStyle: localProcessPathStyle },
 					defaultDirectory: URI.file(os.homedir()).toString(),
 					completionTriggerCharacters,
 					terminalCommandPrefix: BANG_COMMAND_PREFIX,
@@ -559,6 +461,134 @@ async function startAgentHost(): Promise<void> {
 		server.registerChannel(AgentHostIpcChannels.ConnectionTracker, ProxyChannel.fromService(connectionTrackerService, disposables));
 	}
 
+	if (server instanceof UtilityProcessServer) {
+		const localDataPlaneDisposables = protocolIngressDisposables.add(new DisposableStore());
+		const messagePortProtocolServer = localDataPlaneDisposables.add(new MessagePortProtocolServer<string>());
+		// Shared config for the local data-plane protocol handlers (renderer
+		// MessagePort + the external endpoint, which each get their own handler).
+		const localProtocolHandlerConfig = {
+			hostLaunchKind,
+			environment: { pathStyle: localProcessPathStyle },
+			defaultDirectory: URI.file(os.homedir()).toString(),
+			completionTriggerCharacters,
+			terminalCommandPrefix: BANG_COMMAND_PREFIX,
+			otlpLogEmitter,
+			allowExtensionMethods: false,
+		};
+		try {
+			// Handler for the renderer's MessagePort data plane.
+			const messagePortProtocolHandler = localDataPlaneDisposables.add(instantiationService.createInstance(
+				ProtocolServerHandler,
+				agentService,
+				stateManager,
+				messagePortProtocolServer,
+				localProtocolHandlerConfig,
+				clientFileSystemProvider,
+			));
+			protocolHandlers.push(messagePortProtocolHandler);
+			// Non-protocol reverse bridges remain on their existing IPC channels.
+			// The renderer's MessagePortClient ctx is its clientId.
+			const authorityRegistrations = new Map<unknown, IDisposable>();
+			const registerConnection = (connection: (typeof server.connections)[number]) => {
+				if (authorityRegistrations.has(connection)) {
+					return;
+				}
+				const clientId = connection.ctx;
+				// The main process serves no client channel: a lookup trying it first would wait for an IPC timeout.
+				if (typeof clientId !== 'string' || !clientId || clientId === AgentHostMainProcessConnectionContext) {
+					return;
+				}
+				const connectionStore = new DisposableStore();
+				const getChannel = (channelName: string) => server.getChannel(channelName, c => c.ctx === clientId);
+				const proxyConnection = createAgentHostClientProxyConnection(getChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL));
+				connectionStore.add(proxyResolver.register(clientId, proxyConnection));
+				if (byokLmBridgeRegistry) {
+					const byokLmConnection = createAgentHostClientByokLmConnection(getChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL));
+					connectionStore.add(byokLmBridgeRegistry.register(clientId, byokLmConnection));
+				}
+				authorityRegistrations.set(connection, connectionStore);
+			};
+			localDataPlaneDisposables.add(server.onDidAddConnection(registerConnection));
+			localDataPlaneDisposables.add(server.onDidRemoveConnection(connection => {
+				if (typeof connection.ctx === 'string') {
+					messagePortProtocolServer.closeClient(connection.ctx);
+				}
+				const reg = authorityRegistrations.get(connection);
+				if (reg) {
+					reg.dispose();
+					authorityRegistrations.delete(connection);
+				}
+			}));
+			localDataPlaneDisposables.add(toDisposable(() => {
+				for (const registration of authorityRegistrations.values()) {
+					registration.dispose();
+				}
+				authorityRegistrations.clear();
+			}));
+			for (const connection of server.connections) {
+				registerConnection(connection);
+			}
+
+			// Register Protocol, like Management above, BEFORE starting the external
+			// endpoint: the renderer connects over this channel, and the IPC
+			// ChannelServer drops calls to a not-yet-registered channel after its
+			// unknown-channel timeout (~1s), so the endpoint's socket startup must
+			// not sit on this path.
+			server.registerChannel(AgentHostIpcChannels.Protocol, messagePortProtocolServer);
+
+			// The external local endpoint (out-of-process local clients such as the
+			// CLI) is not on the renderer's path; start it after registration and
+			// give it its own handler.
+			markStartupPhase('localEndpoint');
+			const localEndpoint = await startLocalAgentHostEndpoint(
+				environmentService.userDataPath,
+				logService,
+			);
+			if (localEndpoint) {
+				const endpointMetadata = localEndpoint.metadata;
+				// Wire the endpoint's handler (subscribing to its connections) BEFORE
+				// publishing the metadata that advertises it, so a client can't connect
+				// in the gap and be missed.
+				localDataPlaneDisposables.add(localEndpoint.server);
+				const localEndpointProtocolHandler = localDataPlaneDisposables.add(instantiationService.createInstance(
+					ProtocolServerHandler,
+					agentService,
+					stateManager,
+					localEndpoint.server,
+					localProtocolHandlerConfig,
+					clientFileSystemProvider,
+				));
+				protocolHandlers.push(localEndpointProtocolHandler);
+				try {
+					await publishLocalAgentHostEndpointMetadata(environmentService.userDataPath, endpointMetadata, logService);
+					localDataPlaneDisposables.add(toDisposable(() => {
+						cleanupLocalAgentHostEndpoint(environmentService.userDataPath, endpointMetadata, logService);
+					}));
+				} catch (error) {
+					logService.error('[AgentHost] Failed to publish local protocol endpoint; continuing with MessagePort only', error);
+					localEndpoint.server.dispose();
+					cleanupLocalAgentHostEndpoint(environmentService.userDataPath, endpointMetadata, logService);
+				}
+			}
+		} catch (error) {
+			localDataPlaneDisposables.dispose();
+			throw error;
+		}
+	}
+
+	// Remote hosts let a directly connected client share them as a GitHub
+	// environment; the desktop host shares itself through trusted local IPC.
+	let githubEnvironment: IProtocolServerGitHubEnvironment | undefined;
+	if (hostLaunchKind === AgentHostLaunchKind.VSCodeCLI) {
+		const wslDistro = process.env['WSL_DISTRO_NAME'];
+		const registration = protocolIngressDisposables.add(new MissionControlClientRegistration(missionControl.environment, {
+			homeDirectory: os.homedir(),
+			...(wslDistro ? { name: getMissionControlEnvironmentName(productService, `${wslDistro} on ${os.hostname()}`) } : {}),
+		}));
+		protocolIngressDisposables.add(registration.onDidChangeRegistered(registered => githubEnvironmentRegisteredEmitter.fire(registered)));
+		githubEnvironment = registration;
+	}
+
 	// Parent-configured WebSocket ingress also serves standalone clients.
 	const configuredWebSocketServerStart = startWebSocketServer(
 		agentService,
@@ -572,6 +602,7 @@ async function startAgentHost(): Promise<void> {
 		hostLaunchKind,
 		count => connectionCountEmitter.fire(count),
 		handler => protocolHandlers.push(handler),
+		githubEnvironment,
 	);
 	configuredWebSocketServer.settleWith(configuredWebSocketServerStart);
 	// Startup is complete once the last ingress has settled — successfully or
@@ -607,7 +638,6 @@ async function startLocalAgentHostEndpoint(
 	try {
 		const endpointMetadata = createLocalAgentHostEndpointMetadata(userDataPath);
 		metadata = endpointMetadata;
-		await prepareLocalAgentHostEndpointMetadataDirectory(userDataPath);
 		if (!isWindows) {
 			await prepareLocalAgentHostEndpointSocketDirectory(userDataPath);
 		}
@@ -669,6 +699,7 @@ async function startWebSocketServer(
 	hostLaunchKind: AgentHostLaunchKind,
 	onConnectionCountChanged: (count: number) => void,
 	onProtocolHandlerCreated: (handler: ProtocolServerHandler) => void,
+	githubEnvironment: IProtocolServerGitHubEnvironment | undefined,
 ): Promise<void> {
 	const port = process.env['VSCODE_AGENT_HOST_PORT'];
 	const socketPath = process.env['VSCODE_AGENT_HOST_SOCKET_PATH'];
@@ -710,10 +741,12 @@ async function startWebSocketServer(
 		wsServer,
 		{
 			hostLaunchKind,
+			environment: { pathStyle: localProcessPathStyle },
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
+			...(githubEnvironment ? { githubEnvironment } : {}),
 		},
 		clientFileSystemProvider,
 	));

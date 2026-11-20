@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, McpSkillOrigin, PermissionRequest, SessionEventPayload, SkillInvokedData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, McpSkillOrigin, PermissionRequest, SessionEventPayload, SkillInvokedData } from '@microsoft/copilot-sdk';
 import { assertNever } from '../../../../base/common/assert.js';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownLinkText, escapeMarkdownSyntaxTokens, escapeUntrustedMarkdown, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
 import { escapeIcons } from '../../../../base/common/iconLabels.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import { AgentPermissionKind } from '../../common/agent.js';
-import { copilotCliToolInputContract, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import { copilotCliToolInputContract, type ToolKind, type ViewedResourceType } from '../../common/meta/agentToolCallMeta.js';
 import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
@@ -29,7 +29,7 @@ import { COMPUTER_USE_ACTIVATION_TOOL_NAME } from './copilotComputerUseActivatio
 // =============================================================================
 // Copilot CLI built-in tool interfaces
 //
-// The Copilot CLI (via @github/copilot-sdk) exposes these built-in tools. Tool names
+// The Copilot CLI (via @microsoft/copilot-sdk) exposes these built-in tools. Tool names
 // and parameter shapes are not typed in the SDK -- they come from the CLI server
 // as plain strings. These interfaces are derived from observing the CLI's actual
 // tool events and the Copilot Chat extension's CLI display table.
@@ -116,6 +116,28 @@ export function getToolSummaryInputContract(toolName: string): typeof copilotCli
 		case CopilotToolName.Rg:
 		case CopilotToolName.Glob:
 			return copilotCliToolInputContract;
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * What the path of a completed `view` call named, from the kind the runtime records for the
+ * call: the tool also lists directories, and its input does not say which it did. An image
+ * is a file. It is unknown for a kind this does not recognize, such as that of a failed call,
+ * and for a runtime that records none.
+ */
+export function getViewedResourceType(toolName: string, toolTelemetry: unknown): ViewedResourceType | undefined {
+	if (toolName !== CopilotToolName.View) {
+		return undefined;
+	}
+	const properties = isObject(toolTelemetry) ? (toolTelemetry as Record<string, unknown>).properties : undefined;
+	switch (isObject(properties) ? (properties as Record<string, unknown>).viewType : undefined) {
+		case 'file':
+		case 'image':
+			return 'file';
+		case 'directory':
+			return 'directory';
 		default:
 			return undefined;
 	}
@@ -259,16 +281,24 @@ interface ICopilotLongRunningSearchToolArgs {
 }
 
 export type ToolAgentNameResolver = (agentId: string) => string | undefined;
+export type ToolAgentChatResolver = (agentId: string) => string | undefined;
+
+export function formatSubagentChatLink(name: string, chat: string): string {
+	return new MarkdownString().appendLink(chat, escapeMarkdownLinkText(name)).value;
+}
 
 /**
  * Resolves SDK agent ids to their subagent chat titles for presentation without changing invocation arguments.
  * Unknown ids and blank titles fall back to the raw id.
  */
-function getAgentLabel(agentId: unknown, resolveAgentName: ToolAgentNameResolver | undefined): string | undefined {
+function formatAgentLabel(agentId: unknown, resolveAgentName: ToolAgentNameResolver | undefined, resolveAgentChat: ToolAgentChatResolver | undefined): string | undefined {
 	if (typeof agentId !== 'string' || agentId.length === 0) {
 		return undefined;
 	}
-	return resolveAgentName?.(agentId)?.trim() || agentId;
+	const name = resolveAgentName?.(agentId)?.trim();
+	const chat = name ? resolveAgentChat?.(agentId) : undefined;
+	const label = name || agentId;
+	return chat ? formatSubagentChatLink(label, chat) : appendEscapedMarkdownInlineCode(label);
 }
 
 /**
@@ -734,7 +764,7 @@ export function getToolDisplayName(toolName: string, metadata?: Pick<AssistantMe
 	}
 }
 
-export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
+export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, resolveAgentChat?: ToolAgentChatResolver): StringOrMarkdown {
 	const serverDisplay = getServerToolDisplay(toolName, parameters)?.invocationMessage;
 	if (serverDisplay !== undefined) {
 		return serverDisplay;
@@ -894,25 +924,26 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		case CopilotToolName.ListAgents:
 			return localize('toolInvoke.listAgents', "List agents");
 		case CopilotToolName.ReadAgent: {
-			const agentLabel = getAgentLabel(parameters?.agent_id, resolveAgentName);
+			const agentLabel = formatAgentLabel(parameters?.agent_id, resolveAgentName, resolveAgentChat);
 			if (agentLabel) {
-				return md(localize('toolInvoke.readAgent', "Read agent {0}", appendEscapedMarkdownInlineCode(agentLabel)));
+				return md(localize('toolInvoke.readAgent', "Read agent {0}", agentLabel));
 			}
 			return localize('toolInvoke.readAgentGeneric', "Read agent");
 		}
 		case CopilotToolName.WriteAgent: {
-			const agentLabel = getAgentLabel(parameters?.agent_id, resolveAgentName);
-			if (agentLabel) {
-				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", appendEscapedMarkdownInlineCode(agentLabel)));
+			const formatAgent = (agentId: unknown) => formatAgentLabel(agentId, resolveAgentName, resolveAgentChat);
+			const agent = formatAgent(parameters?.agent_id);
+			if (agent) {
+				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", agent));
 			}
 			const agentLabels = Array.isArray(parameters?.agent_ids)
-				? parameters.agent_ids.map(agentId => getAgentLabel(agentId, resolveAgentName)).filter(label => label !== undefined)
+				? parameters.agent_ids.map(formatAgent).filter(label => label !== undefined)
 				: [];
 			if (agentLabels.length === 1) {
-				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", appendEscapedMarkdownInlineCode(agentLabels[0])));
+				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", agentLabels[0]));
 			}
 			if (agentLabels.length > 1) {
-				return md(localize('toolInvoke.writeAgents', "Write to agents {0}", agentLabels.map(label => appendEscapedMarkdownInlineCode(label)).join(', ')));
+				return md(localize('toolInvoke.writeAgents', "Write to agents {0}", agentLabels.join(', ')));
 			}
 			if (parameters?.scope === 'children') {
 				return localize('toolInvoke.writeChildAgents', "Write to child agents");
@@ -930,7 +961,7 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 /**
  * Returns the progressively refined message shown while Copilot generates tool input.
  */
-export function getStreamingInvocationMessage(toolName: string, displayName: string, parameters: unknown, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
+export function getStreamingInvocationMessage(toolName: string, displayName: string, parameters: unknown, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, resolveAgentChat?: ToolAgentChatResolver): StringOrMarkdown {
 	const objectParameters = parameters !== null && typeof parameters === 'object' && !Array.isArray(parameters)
 		? parameters as Record<string, unknown>
 		: undefined;
@@ -971,7 +1002,7 @@ export function getStreamingInvocationMessage(toolName: string, displayName: str
 			return getStreamingPatchMessage(getEditFilePaths(parameters), streamingToolTextLineCount(patch), resolvePath);
 		}
 		default:
-			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath, resolveAgentName);
+			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath, resolveAgentName, resolveAgentChat);
 	}
 }
 
@@ -991,7 +1022,7 @@ export function getSdkImageGenerationMetadata(data: unknown, toolUsage?: unknown
 	return parseImageGenerationToolMetadata({ requestedModel, usage: toolUsage });
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, imageGeneration?: IImageGenerationToolMetadata): StringOrMarkdown {
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, imageGeneration?: IImageGenerationToolMetadata, resolveAgentChat?: ToolAgentChatResolver): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
 	}
@@ -1043,7 +1074,7 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		case CopilotToolName.Task:
 			return localize('toolComplete.task', "Delegated task");
 		default:
-			return getInvocationMessage(toolName, displayName, parameters, resolvePath, resolveAgentName);
+			return getInvocationMessage(toolName, displayName, parameters, resolvePath, resolveAgentName, resolveAgentChat);
 	}
 }
 
@@ -1248,15 +1279,21 @@ export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant, displa
 	const path = sandboxGrantPathLabel(grant.path, display?.path);
 	const description = display?.path.isCurrentSession
 		? grant.removedReadonlyPaths?.length
-			? localize('copilot.permission.grant.session.upgrade', "Change access to {0} from read-only to read/write.", path)
+			? localize('copilot.permission.grant.session.upgrade', "Allow reading and writing {0} instead of read-only access.", path)
 			: grant.access === 'read'
-				? localize('copilot.permission.grant.session.read', "Allow read access to {0}.", path)
-				: localize('copilot.permission.grant.session.write', "Allow read/write access to {0}.", path)
-		: grant.removedReadonlyPaths?.length
-			? localize('copilot.permission.grant.upgrade', "Change access to {0} from read-only to read/write and retry inside the sandbox.", path)
-			: grant.access === 'read'
-				? localize('copilot.permission.grant.read', "Allow read access to {0} and retry inside the sandbox.", path)
-				: localize('copilot.permission.grant.write', "Allow read/write access to {0} and retry inside the sandbox.", path);
+				? localize('copilot.permission.grant.session.read', "Allow reading {0}.", path)
+				: localize('copilot.permission.grant.session.write', "Allow reading and writing {0}.", path)
+		: display?.path.sessionTitle && display.path.relativePath !== undefined
+			? grant.removedReadonlyPaths?.length
+				? localize('copilot.permission.grant.namedSession.upgrade', "Allow reading and writing {0} instead of read-only access and retry inside the sandbox.", path)
+				: grant.access === 'read'
+					? localize('copilot.permission.grant.namedSession.read', "Allow reading {0} and retry inside the sandbox.", path)
+					: localize('copilot.permission.grant.namedSession.write', "Allow reading and writing {0} and retry inside the sandbox.", path)
+			: grant.removedReadonlyPaths?.length
+				? localize('copilot.permission.grant.upgrade', "Change access to {0} from read-only to read/write and retry inside the sandbox.", path)
+				: grant.access === 'read'
+					? localize('copilot.permission.grant.read', "Allow read access to {0} and retry inside the sandbox.", path)
+					: localize('copilot.permission.grant.write', "Allow read/write access to {0} and retry inside the sandbox.", path);
 	const denied = grant.deniedPath
 		? localize('copilot.permission.grant.denied', "The blocked path was {0}. Access will cover {1}, including its contents if it is a folder.", sandboxGrantPathLabel(grant.deniedPath, display?.deniedPath), appendEscapedMarkdownInlineCode(grant.path))
 		: '';
@@ -1275,8 +1312,21 @@ export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant, displa
 function sandboxGrantPathLabel(path: string, display: ISessionPathDisplay | undefined): string {
 	if (display?.isCurrentSession) {
 		return display.relativePath
-			? localize('copilot.permission.grant.session.path', "{0} in this session's storage", appendEscapedMarkdownInlineCode(display.relativePath))
-			: localize('copilot.permission.grant.session.root', "this session's storage");
+			? localize('copilot.permission.grant.session.path', "{0} from this session", appendEscapedMarkdownInlineCode(display.relativePath))
+			: localize('copilot.permission.grant.session.root', "files from this session");
+	}
+	if (display?.sessionTitle && display.relativePath !== undefined) {
+		const title = escapeUntrustedMarkdown(display.sessionTitle);
+		const session = display.relationship === 'parent'
+			? localize('copilot.permission.grant.parentSession', "parent session \"{0}\"", title)
+			: display.relationship === 'child'
+				? display.parentSessionTitle
+					? localize('copilot.permission.grant.otherChildSession', "child session \"{0}\" of session \"{1}\"", title, escapeUntrustedMarkdown(display.parentSessionTitle))
+					: localize('copilot.permission.grant.childSession', "child session \"{0}\"", title)
+				: localize('copilot.permission.grant.namedSession', "session \"{0}\"", title);
+		return display.relativePath
+			? localize('copilot.permission.grant.namedSession.path', "{0} from {1}", appendEscapedMarkdownInlineCode(display.relativePath), session)
+			: localize('copilot.permission.grant.namedSession.root', "files from {0}", session);
 	}
 	return appendEscapedMarkdownInlineCode(display?.label ?? path);
 }
@@ -1350,6 +1400,8 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 	permissionPath?: string;
 	/** Normalized URL extracted from the request. */
 	permissionUrl?: string;
+	/** Raw MCP server name extracted from the request. */
+	mcpServerName?: string;
 	shellCommand?: string;
 } {
 	const path = request.kind === 'read' ? str(request.path) : request.kind === 'write' ? str(request.fileName) : undefined;
@@ -1450,14 +1502,16 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 		}
 		case 'mcp': {
 			const title = request.toolTitle?.trim() || toolName || localize('copilot.permission.mcp.defaultTool', "MCP Tool");
+			const serverLabel = request.serverDisplayName?.trim() || serverName;
 			return {
-				confirmationTitle: serverName
-					? localize('copilot.permission.mcp.title', "Allow tool from {0}?", serverName)
+				confirmationTitle: serverLabel
+					? localize('copilot.permission.mcp.title', "Allow tool from {0}?", serverLabel)
 					: localize('copilot.permission.default.title', "Allow tool call?"),
-				invocationMessage: serverName ? localize('copilot.permission.mcp.invocation', "{0}: {1}", serverName, title) : title,
+				invocationMessage: serverLabel ? localize('copilot.permission.mcp.invocation', "{0}: {1}", serverLabel, title) : title,
 				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
 				permissionKind: AgentPermissionKind.Mcp,
 				permissionPath: path,
+				mcpServerName: serverName,
 			};
 		}
 		case 'read':

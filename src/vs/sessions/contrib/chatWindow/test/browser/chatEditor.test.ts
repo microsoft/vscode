@@ -46,9 +46,10 @@ import { Verbosity } from '../../../../../workbench/common/editor.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly, registerSessionChatViewEditor } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
+import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, registerSessionChatViewEditor, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { IChatEditorComposer } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
 import { ChatWindowSessionDropTarget } from '../../browser/chatWindowSessionDropTarget.js';
+import '../../../../../workbench/contrib/sessions/browser/media/chatBackground.css';
 
 suite('Session chat view editor', () => {
 
@@ -245,6 +246,40 @@ suite('Session chat view editor', () => {
 		assert.deepStrictEqual({ chatViews: chatViews.length, shownTabStrips: shownTabStrips.length, chatsToSwitchTo: view.element.querySelectorAll('.chat-composite-bar-tab').length - 1 }, { chatViews: 1, shownTabStrips: 0, chatsToSwitchTo: 0 });
 	});
 
+	test('over a chat background, a chat editor paints the surfaces over it, such as its pinned request, with the active session color, which follows the theme; without one, it paints nothing new', () => {
+		const { instantiationService } = createServices();
+		const host: ISessionChatViewHost = {
+			content: constObservable(testPaneContentOf(createTestActiveSession('session', true), () => { })),
+			window: constObservable(undefined),
+			active: constObservable(true),
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+		};
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, host));
+		const workbench = mainWindow.document.body.appendChild($('.monaco-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-activeSessionView-background', '#112233');
+		const surface = workbench.appendChild($('.sessions-chat-surface'));
+		surface.appendChild(view.element);
+		const replica = view.element.querySelector('.session-view-content')!.appendChild($('.sessions-chat-background-replica'));
+		const read = () => ({
+			sessionViewBackground: mainWindow.getComputedStyle(replica).getPropertyValue('--session-view-background').trim(),
+			replicaBackground: mainWindow.getComputedStyle(replica).backgroundColor,
+		});
+
+		const withoutBackground = read();
+		surface.classList.add('has-chat-background');
+		const withBackground = read();
+		workbench.style.setProperty('--vscode-activeSessionView-background', '#aabbcc');
+		const themeChanged = read();
+
+		assert.deepStrictEqual({ withoutBackground, withBackground, themeChanged }, {
+			withoutBackground: { sessionViewBackground: '', replicaBackground: 'rgba(0, 0, 0, 0)' },
+			withBackground: { sessionViewBackground: '#112233', replicaBackground: 'rgb(17, 34, 51)' },
+			themeChanged: { sessionViewBackground: '#aabbcc', replicaBackground: 'rgb(170, 187, 204)' },
+		});
+	});
+
 	test('a chat of another window dragged over a chat editor shows where it opens, and opens beside the chat of the editor on drop', async () => {
 		const { instantiationService } = createServices();
 		const opened: { chat: string; tabOf: string | undefined }[] = [];
@@ -391,7 +426,7 @@ suite('Session chat view editor', () => {
 		view.layout(400, 800, 0, 0);
 		const read = () => {
 			const header = view.element.querySelector<HTMLElement>('.session-header-bar');
-			return { inCard: !!header && view.sessionView.element.contains(header), shown: !!header && header.style.display !== 'none', dragsSession: !!header?.draggable, titleDragsEditor: view.dragHandle === view.sessionView.headerTitleElement };
+			return { inCard: !!header && view.sessionView.element.contains(header), shown: !!header && header.style.display !== 'none', dragsSession: !!header?.draggable, headerDragsEditor: view.dragHandle === view.sessionView.headerElement };
 		};
 
 		const modes: Record<string, ReturnType<typeof read>> = {};
@@ -402,7 +437,7 @@ suite('Session chat view editor', () => {
 		window.toggleConversation();
 		const stackedConversation = read();
 
-		const shown = { inCard: true, shown: true, dragsSession: false, titleDragsEditor: true };
+		const shown = { inCard: true, shown: true, dragsSession: false, headerDragsEditor: true };
 		assert.deepStrictEqual({ modes, stackedConversation }, {
 			modes: {
 				[ChatWindowLayoutMode.SideBySide]: shown,
@@ -432,7 +467,7 @@ suite('Session chat view editor', () => {
 		view.setProvidedTitleVisible(true);
 		const aloneAgain = headerShown();
 
-		const { menuId, contextKeyService, options } = view.titleMenu;
+		const { menuId, contextKeyService, options } = view.titleMenu!;
 		assert.deepStrictEqual({ alone, withTabs, aloneAgain, menu: menuId.id, inChatEditorScope: SessionInChatEditorContext.getValue(contextKeyService), onSession: options.args?.[0] === session }, {
 			alone: true,
 			withTabs: false,
@@ -688,11 +723,11 @@ suite('Session chat view editor', () => {
 		const multipleSessions = MultipleSessionsVisibleContext.bindTo(contextKeyService);
 		const aiEnabled = ChatContextKeys.enabled.bindTo(contextKeyService);
 		// Its entry among the session header's actions, as the tab bar shows them while the header hides
-		const close = MenuRegistry.getMenuItems(view.titleMenu.menuId).filter(isIMenuItem).find(item => item.command.id === CLOSE_SESSION_COMMAND_ID && item.group === 'secondary/0_pane');
+		const close = MenuRegistry.getMenuItems(view.titleMenu!.menuId).filter(isIMenuItem).find(item => item.command.id === CLOSE_SESSION_COMMAND_ID && item.group === 'secondary/0_pane');
 		const offersClose = (multiple: boolean, ai = true) => {
 			multipleSessions.set(multiple);
 			aiEnabled.set(ai);
-			return !!close && view.titleMenu.contextKeyService.contextMatchesRules(close.when);
+			return !!close && view.titleMenu!.contextKeyService.contextMatchesRules(close.when);
 		};
 
 		const composer = { singleSession: offersClose(false), severalSessions: offersClose(true), aiHidden: offersClose(true, false) };
@@ -703,6 +738,47 @@ suite('Session chat view editor', () => {
 		assert.deepStrictEqual({ composer, created }, {
 			composer: { singleSession: false, severalSessions: false, aiHidden: false },
 			created: { singleSession: true, severalSessions: true },
+		});
+	});
+
+	test('a host that shows the session header for a composer too, as the chat part of an editor window does, shows it for the composer\'s session, titled as new and without a status, with its session\'s actions, and a middle-click on its title closes the composer, as on a chat\'s; once created, the chat\'s', () => {
+		const { instantiationService } = createServices();
+		const draft = createTestActiveSession('draft', false);
+		const content = observableValue<ISessionPaneContent | undefined>('content', undefined);
+		let closed = 0;
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
+			content,
+			composer: constObservable({ draftHost: upcastPartial<INewSessionDraftHost>({}), session: constObservable(draft), close: () => closed++ }),
+			window: constObservable(undefined),
+			active: constObservable(true),
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+			hostOptions: { ...SESSION_CHAT_VIEW_HOST_OPTIONS, showComposerHeader: true },
+		}));
+		mainWindow.document.body.appendChild(view.element);
+		disposables.add(toDisposable(() => view.element.remove()));
+		view.layout(800, 600, 0, 0);
+		const read = () => {
+			const header = view.element.querySelector<HTMLElement>('.session-header-bar');
+			return {
+				shown: !!header && header.style.display !== 'none',
+				title: header?.querySelector('.chat-composite-bar-session-title-text')?.textContent,
+				status: header?.querySelector<HTMLElement>('.chat-composite-bar-session-icon')?.style.display !== 'none',
+				onSession: view.titleMenu!.options.args?.[0] === draft,
+			};
+		};
+
+		const composing = read();
+		view.element.querySelector<HTMLElement>('.session-header-bar .chat-composite-bar-session-title')!.dispatchEvent(new MouseEvent('auxclick', { button: 1, bubbles: true }));
+		const middleClickClosed = closed;
+		draft.isCreated.set(true, undefined);
+		content.set(testPaneContentOf(draft, () => { }), undefined);
+		const created = read();
+
+		assert.deepStrictEqual({ composing, middleClickClosed, created }, {
+			composing: { shown: true, title: 'New Session', status: false, onSession: true },
+			middleClickClosed: 1,
+			created: { shown: true, title: 'Main Chat', status: true, onSession: true },
 		});
 	});
 

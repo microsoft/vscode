@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, SessionEvent, SessionEventPayload, SessionHooks } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, SessionEvent, SessionEventPayload, SessionHooks } from '@microsoft/copilot-sdk';
 import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
