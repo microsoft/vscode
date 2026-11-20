@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type PermissionHandler, type PermissionRequest, type PermissionRequestResult, type SessionConfig } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type PermissionHandler, type PermissionRequest, type PermissionRequestResult, type CreateSessionOptions } from '@microsoft/copilot-sdk';
 import { raceTimeout, retry } from '../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
@@ -35,33 +35,51 @@ suite('Copilot SDK - canvas lifecycle', () => {
 		const extensionDirectory = join(workDirectory, '.github', 'extensions', 'canvas-contract');
 		const createClient = () => new CopilotClient({
 			mode: 'empty',
-			connection: RuntimeConnection.forStdio({ path: runtimePath }),
-			baseDirectory: root,
-			useLoggedInUser: false,
-			logLevel: 'error',
-			env: createCopilotCliEnvironment({
-				...createIsolatedProviderEnvironment(root),
-				...(options?.sensitiveEnvironment ? { [sensitiveVariable]: sensitiveValue } : {}),
-			}),
-			extensionLaunchProvider: {
-				resolve: async request => ({
-					launch: {
-						executable: process.execPath,
-						args: [extensionBootstrapPath],
-						env: { EXTENSION_PATH: request.modulePath, ELECTRON_RUN_AS_NODE: '1' },
-					},
+			runtime: RuntimeConnection.forSpawnedStdio({
+				path: runtimePath,
+				baseDirectory: root,
+				env: createCopilotCliEnvironment({
+					...createIsolatedProviderEnvironment(root),
+					...(options?.sensitiveEnvironment ? { [sensitiveVariable]: sensitiveValue } : {}),
 				}),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
+			observability: {
+				logLevel: 'error',
+			},
+			extensions: {
+				launchProvider: {
+					resolve: async request => ({
+						launch: {
+							executable: process.execPath,
+							args: [extensionBootstrapPath],
+							env: { EXTENSION_PATH: request.modulePath, ELECTRON_RUN_AS_NODE: '1' },
+						},
+					}),
+				},
 			},
 		});
-		const config: SessionConfig = {
+		const config: CreateSessionOptions = {
 			workingDirectory: workDirectory,
-			availableTools: [],
-			disabledMcpServers: ['github-mcp-server'],
+			tools: {
+				availableTools: [],
+			},
+			mcp: {
+				disabledServers: ['github-mcp-server'],
+			},
 			enableConfigDiscovery: true,
-			requestExtensions: true,
-			requestCanvasRenderer: true,
-			extensionSdkPath,
-			onPermissionRequest: options?.onPermissionRequest ?? approveAll,
+			extensions: {
+				enabled: true,
+				sdkPath: extensionSdkPath,
+			},
+			canvases: {
+				requestRenderer: true,
+			},
+			permissions: {
+				onRequest: options?.onPermissionRequest ?? approveAll,
+			},
 		};
 		try {
 			await mkdir(extensionDirectory, { recursive: true });
@@ -78,29 +96,29 @@ suite('Copilot SDK - canvas lifecycle', () => {
 				}), 'utf8');
 				await writeFile(join(extensionDirectory, 'extension.mjs'), `
 import { randomUUID } from 'node:crypto';
-import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
 import declaration from './extension.json' with { type: 'json' };
 const generation = randomUUID();
 await joinSession({
 	${options.sensitiveEnvironment ? `requestedEnvironmentVariables: [${JSON.stringify(sensitiveVariable)}],` : ''}
-	canvases: declaration.canvases.map(canvas => createCanvas({
+	canvases: { definitions: declaration.canvases.map(canvas => createCanvas({
 		...canvas,
 		open: ({ instanceId, input }) => ({ url: \`http://127.0.0.1:43119/\${generation}/\${instanceId}?label=\${input?.label}&env=\${process.env[${JSON.stringify(sensitiveVariable)}] === ${JSON.stringify(sensitiveValue)} ? 'visible' : 'hidden'}\` }),
-	})),
+	})) },
 });
 `, 'utf8');
 			} else {
 				await writeFile(join(extensionDirectory, 'extension.mjs'), `
 import { randomUUID } from 'node:crypto';
-import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import { createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
 const generation = randomUUID();
 await joinSession({
-	canvases: [createCanvas({
+	canvases: { definitions: [createCanvas({
 		id: 'contract',
 		displayName: 'Contract canvas',
 		description: 'Model-free canvas lifecycle test.',
 		open: ({ instanceId }) => ({ url: \`http://127.0.0.1:43119/\${generation}/\${instanceId}\` }),
-	})],
+	})] },
 });
 `, 'utf8');
 			}

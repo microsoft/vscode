@@ -52,7 +52,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId, isDevContainerWorktreeEnabled } from '../../../common/devContainerAgentHostService.js';
-import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
+import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, NewSessionFolderPickerOffersNewWorktreeContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemetry.js';
 import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
@@ -2033,6 +2033,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			properties.forEach(([property, schema], index) => {
 				const commandId = this._registerRepositoryProperty(property, actionViewItemService);
 				const order = index + 1;
+				// A quick chat has no workspace to isolate or branch, but takes the host's other options, such as where it runs.
+				const workspaceScoped = property === workspace.isolation?.key || property === workspace.baseBranch?.key || getSessionConfigPresentationKey(property, config.schema) === 'newBranch';
 				this._repositoryMenuItems.add(MenuRegistry.appendMenuItem(Menus.NewSessionRepositoryConfig, {
 					command: {
 						id: commandId,
@@ -2042,7 +2044,9 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 					order,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						IsQuickChatSessionContext.negate(),
+						workspaceScoped ? IsQuickChatSessionContext.negate() : undefined,
+						// Where the composer offers New Worktree itself, its isolation picker would offer it a second time
+						property === workspace.isolation?.key ? NewSessionFolderPickerOffersNewWorktreeContext.negate() : undefined,
 						SessionIdContext.isEqualTo(session.sessionId),
 					),
 				}));

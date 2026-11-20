@@ -57,10 +57,12 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+import { registerAutomationHistoryFixtureMenus } from '../../../automations/test/browser/automationsTableTestUtils.js';
 import '../../../../browser/media/style.css';
 
 const WORKSPACE = URI.parse('file:///workspaces/vscode');
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
+registerAutomationHistoryFixtureMenus();
 
 class FixtureActionViewItemService extends Disposable implements IActionViewItemService {
 

@@ -1182,6 +1182,48 @@ suite('EditorResolverService', () => {
 		});
 	});
 
+	test('setDefaultEditor writes an explicit association pattern and announces only actual changes', async () => {
+		const configurationService = createMutableConfigurationService({
+			[editorsAssociationsSettingId]: {
+				'*': DEFAULT_EDITOR_ASSOCIATION.id
+			}
+		});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service] = await createEditorResolverService(instantiationService);
+		registerDefaultEditorTestEditors(service);
+		const announced: string[] = [];
+		disposables.add(service.onWillSetDefaultEditor(e => announced.push(`${e.editorId}:${e.source}`)));
+		const resource = URI.file('/workspace/example.component.html');
+
+		service.setDefaultEditor(resource, 'test.componentEditor', false, { source: 'editorTypePicker', associationPattern: '*.component.html' });
+
+		assert.deepStrictEqual({
+			associations: service.getAllUserAssociations(),
+			defaultEditorId: service.getEditorMatches(resource).defaultRule.editor.id,
+			announced
+		}, {
+			associations: [
+				{ filenamePattern: '*', viewType: DEFAULT_EDITOR_ASSOCIATION.id },
+				{ filenamePattern: '*.component.html', viewType: 'test.componentEditor' }
+			],
+			defaultEditorId: 'test.componentEditor',
+			announced: ['test.componentEditor:editorTypePicker']
+		});
+	});
+
+	test('setDefaultEditor does not announce a change when the editor already is the default', async () => {
+		const configurationService = createMutableConfigurationService({});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service] = await createEditorResolverService(instantiationService);
+		registerDefaultEditorTestEditors(service);
+		const announced: string[] = [];
+		disposables.add(service.onWillSetDefaultEditor(e => announced.push(e.editorId)));
+
+		service.setDefaultEditor(URI.file('/workspace/plain.txt'), DEFAULT_EDITOR_ASSOCIATION.id, false, { source: 'editorTypePicker' });
+
+		assert.deepStrictEqual({ announced, updateCount: configurationService.updateCount }, { announced: [], updateCount: 0 });
+	});
+
 	test('setDefaultEditor retains the association when a broader rule masks the natural default', async () => {
 		const configurationService = createMutableConfigurationService({
 			[editorsAssociationsSettingId]: {

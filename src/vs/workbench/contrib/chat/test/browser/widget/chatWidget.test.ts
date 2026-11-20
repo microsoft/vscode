@@ -61,7 +61,7 @@ import { ChatRequestVariableSet, ChatSessionReferenceVariableId } from '../../..
 import { ChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
-import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatQuestionCarousel, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -78,7 +78,7 @@ import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
-import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
+import { ToolAndToolSetEnablementMap, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
@@ -95,6 +95,26 @@ import { MockChatModel } from '../../common/model/mockChatModel.js';
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('updates the empty-chat welcome title when agents share a greeting', () => {
+		const message = observableValue<string | undefined>('message', 'Hello');
+		const currentMode = observableValue<IChatMode>('mode', upcastPartial<IChatMode>({ name: constObservable('First Agent'), welcomeMessage: constObservable('Hello'), isBuiltin: false }));
+		let renders = 0;
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			welcomeMessageContainer: dom.$('div'),
+			renderWelcomeViewContentIfNeeded: () => { renders++; },
+		}) as ChatWidget;
+		const observe = Reflect.get(ChatWidget.prototype, '_observeAgentEmptyChatMessage') as (this: ChatWidget, input: ChatInputPart) => IDisposable;
+		const getWelcomeViewContent = Reflect.get(ChatWidget.prototype, 'getWelcomeViewContent') as (this: ChatWidget, additionalMessage: undefined) => IChatViewWelcomeContent;
+
+		store.add(observe.call(widget, upcastPartial<ChatInputPart>({ currentModeObs: currentMode })));
+		currentMode.set(upcastPartial<IChatMode>({ name: constObservable('Second Agent'), welcomeMessage: message, isBuiltin: false }), undefined);
+		const title = getWelcomeViewContent.call(widget, undefined).title;
+		message.set('Updated', undefined);
+		const updated = getWelcomeViewContent.call(widget, undefined).message;
+		currentMode.set(upcastPartial<IChatMode>({ name: constObservable('Agent'), isBuiltin: true }), undefined);
+		assert.deepStrictEqual({ title, updated: typeof updated === 'string' ? updated : updated.value, renders }, { title: 'Second Agent', updated: 'Updated', renders: 4 });
+	});
 
 	test('model binding only resets tip rotation when the widget owns the tip', () => {
 		const resetCounts: number[] = [];
@@ -167,6 +187,7 @@ suite('ChatWidget', () => {
 			_viewModel: upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] }),
 			_pendingFirstRenderSessionResource: resource,
 			_onWillMaybeChangeHeight: store.add(new Emitter<void>()),
+			_onDidChangeFindableContent: store.add(new Emitter<void>()),
 			logService,
 			chatOpenDiagnosticsService: store.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			listWidget: { setVisibleChangeCount: () => { }, refresh: () => { } },
@@ -206,6 +227,7 @@ suite('ChatWidget', () => {
 		const toolbarStates: { requestInProgress: boolean; hasActiveRequest: boolean }[] = [];
 		const inputPart = upcastPartial<ChatInputPart>({
 			sandboxToggleChecked: derived(reader => selectedChat.read(reader) === sandboxedChat),
+			currentModeObs: observableValue('mode', upcastPartial<ReturnType<ChatInputPart['currentModeObs']['get']>>({ id: 'agent' })),
 			inputEditor: upcastPartial<CodeEditorWidget>({ updateOptions: (options: { placeholder?: string }) => { editorPlaceholders.push(options.placeholder); } }),
 			setModelSessionTypeOverride: (override: { readonly sessionType: string | undefined } | undefined, target?: URI, options?: { readonly revalidate?: boolean }) => {
 				modelPools.push(override ? { pool: override.sessionType, resource: target?.fragment, ...(options?.revalidate === false ? { revalidate: false } : {}) } : (options?.revalidate === false ? { cleared: true, revalidate: false } : undefined));
@@ -1122,7 +1144,7 @@ suite('ChatWidget', () => {
 			selectedToolsModel: upcastPartial<ChatInputPart['selectedToolsModel']>({ entriesMap }),
 			selectedLanguageModel: observableValue(`${name}.model`, undefined),
 			height: observableValue(`${name}.height`, 0),
-			currentModeObs: observableValue(`${name}.mode`, upcastPartial<ReturnType<ChatInputPart['currentModeObs']['get']>>({ id: 'agent' })),
+			currentModeObs: observableValue(`${name}.mode`, upcastPartial<ReturnType<ChatInputPart['currentModeObs']['get']>>({ id: 'agent', name: constObservable('Agent'), isBuiltin: true })),
 			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({}),
 			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
 			onDidLoadInputState: Event.None,
@@ -3282,6 +3304,30 @@ suite('ChatWidget - acceptInput submission', () => {
 			await sending;
 			assert.deepStrictEqual({ beforeCancellation, operations, message: fixture.chatService.sendRequest.lastCall.args[1], queue: fixture.chatService.sendRequest.lastCall.args[2]?.queue }, {
 				beforeCancellation: ['cancel'], operations: ['cancel', 'cancelled', 'send'], message, queue: undefined,
+			});
+		});
+	}
+
+	for (const { name, questionAnswered, source, cancels } of [
+		{ name: 'is queued behind an unanswered question', questionAnswered: false, source: undefined, cancels: false },
+		{ name: 'cancels the request after its question was answered', questionAnswered: true, source: undefined, cancels: true },
+		{ name: 'cancels the request behind an unanswered MCP form', questionAnswered: false, source: { type: 'mcp', label: 'Server', serverLabel: undefined, instructions: undefined, collectionId: 'collection', definitionId: 'definition' } satisfies ToolDataSource, cancels: true },
+	]) {
+		test(`a message sent while the request needs input ${name}`, async () => {
+			const fixture = createSubmissionWidget();
+			fixture.original.hasActiveRequest.set(true, undefined);
+			fixture.original.requestNeedsInput.set({ title: 'Chat', detail: 'Answer questions to continue...' }, undefined);
+			const question: IChatQuestionCarousel = { kind: 'questionCarousel', questions: [{ id: 'name', type: 'text', title: 'Name?' }], allowSkip: true, isUsed: questionAnswered, source };
+			Object.defineProperty(fixture.original.model, 'lastRequest', {
+				value: upcastPartial<IChatRequestModel>({ response: upcastPartial<IChatResponseModel>({ response: upcastPartial<IChatResponseModel['response']>({ value: [question] }) }) }),
+			});
+			await fixture.widget.acceptInput('Also run the tests');
+			assert.deepStrictEqual({
+				cancellations: fixture.chatService.cancelCurrentRequestForSession.callCount,
+				queue: fixture.chatService.sendRequest.lastCall.args[2]?.queue,
+			}, {
+				cancellations: cancels ? 1 : 0,
+				queue: ChatRequestQueueKind.Queued,
 			});
 		});
 	}

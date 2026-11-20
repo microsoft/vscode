@@ -32,7 +32,7 @@ import { EditSuggestionId } from '../../../editor/common/textModelEditSource.js'
 import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
-import { ArtifactActionDescriptor, ArtifactAutomationConfiguration, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactCodeResult, ArtifactContributionView, ArtifactDetails, ArtifactPartPresentation, ArtifactPreparation, ArtifactPrompt, ArtifactReconciliation, ArtifactRun } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionDescriptor, ArtifactAutomationConfiguration, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactCodeResult, ArtifactContributionView, ArtifactDetails, ArtifactMainPresentation, ArtifactPreparation, ArtifactPrompt, ArtifactReconciliation, ArtifactRun } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from '../../../platform/configuration/common/configuration.js';
 import { LinkPresentationKind } from '../../../platform/dataChannel/common/dataChannel.js';
 import { ConfigurationScope } from '../../../platform/configuration/common/configurationRegistry.js';
@@ -2235,6 +2235,7 @@ export interface SCMArtifactDto {
 export interface MainThreadSCMShape extends IDisposable {
 	$registerSourceControl(handle: number, parentHandle: number | undefined, id: string, label: string, rootUri: UriComponents | undefined, iconPath: IconPathDto | undefined, isHidden: boolean | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): Promise<void>;
+	$setSourceControlsHidden(changes: [handle: number, isHidden: boolean][]): Promise<void>;
 	$unregisterSourceControl(handle: number): Promise<void>;
 
 	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): Promise<void>;
@@ -2413,7 +2414,7 @@ export interface ChatArtifactActionDto extends ArtifactActionDescriptor {
 
 export type ChatArtifactResourceMatchDto =
 	| { readonly kind: 'matched'; readonly resource: UriComponents; readonly key: string; readonly credentialScope: string }
-	| { readonly kind: 'authenticationRequired'; readonly reason: string; readonly main: ArtifactPartPresentation };
+	| { readonly kind: 'authenticationRequired'; readonly reason: string; readonly main: ArtifactMainPresentation };
 
 export interface ChatArtifactActionContextDto {
 	readonly runId: string;
@@ -2430,7 +2431,7 @@ export type ChatArtifactRunDto = Pick<ArtifactRun, 'id' | 'actionId' | 'source' 
 
 export interface ChatArtifactAutomationSnapshotDto {
 	readonly revision: number;
-	readonly configuration: Omit<ArtifactAutomationConfiguration, 'enabledAt' | 'grants'> & { readonly enabledAt: Readonly<Record<string, number>> };
+	readonly configuration: Omit<ArtifactAutomationConfiguration, 'enabledAt' | 'grants' | 'disabledBy'> & { readonly enabledAt: Readonly<Record<string, number>> };
 	readonly state: { readonly revision: number; readonly value?: string };
 	readonly runs: readonly ChatArtifactRunDto[];
 }

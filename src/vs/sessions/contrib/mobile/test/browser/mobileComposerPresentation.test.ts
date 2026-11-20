@@ -10,6 +10,8 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mobileNewSessionPresentation } from '../../browser/mobileNewSessionPresentation.js';
+import '../../../../../base/browser/ui/segmentedIconToggle/segmentedIconToggle.css';
+import '../../../../../workbench/contrib/chat/browser/voiceInputMode/media/voiceInputMode.css';
 import '../../../../browser/parts/mobile/mobileChatShell.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
@@ -108,6 +110,59 @@ suite('Mobile composer presentation', () => {
 				}, { logo: 'none', welcomeAboveControls: true, controlsAboveInput: true, welcomeWithinViewport: true, inputWithinViewport: true });
 			});
 		}
+	}
+
+	for (const width of [320, 390]) {
+		test(`${width}px: segmented voice controls own separate touch targets beside Send`, () => {
+			const root = createRoot('vs-dark', width);
+			root.style.setProperty('--vscode-input-border', 'transparent');
+			const composer = dom.append(root, dom.$('.sessions-shared-chat-input'));
+			const chat = dom.append(composer, dom.$('.interactive-session'));
+			const toolbars = dom.append(chat, dom.$('.chat-input-toolbars'));
+			const primary = dom.append(toolbars, dom.$('.monaco-toolbar.responsive.responsive-last.chat-input-toolbar'));
+			const primaryActions = dom.append(dom.append(primary, dom.$('.monaco-action-bar')), dom.$('ul.actions-container'));
+			const attach = dom.append(primaryActions, dom.$('li.action-item.menu-entry.toolbar-shrinkable-item'));
+			dom.append(attach, dom.$('a.action-label.codicon.codicon-add-compact', { role: 'button' }));
+			const configuration = dom.append(primaryActions, dom.$('li.action-item.chat-input-picker-item'));
+			const slot = dom.append(configuration, dom.$('.sessions-chat-picker-slot.sessions-chat-picker-slot-mobile-config'));
+			const label = dom.append(dom.append(slot, dom.$('a.action-label', { role: 'button' })), dom.$('span.chat-input-picker-label'));
+			label.textContent = 'A model with a long display name';
+			const execute = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
+			const actions = dom.append(dom.append(execute, dom.$('.monaco-action-bar')), dom.$('ul.actions-container'));
+			const voice = dom.append(actions, dom.$('li.action-item.monaco-segmented-icon-toggle-container.chat-voice-input-mode-item'));
+			const pill = dom.append(voice, dom.$('.monaco-segmented-icon-toggle.chat-voice-input-mode'));
+			const reel = dom.append(pill, dom.$('.monaco-segmented-icon-toggle-reel.chat-voice-input-mode-reel'));
+			const cells = ['dictation', 'voice', 'listen', 'mute'].map(mode =>
+				dom.append(reel, dom.$(`button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.${mode}`, { type: 'button', 'aria-label': mode })));
+			const submitItem = dom.append(actions, dom.$('li.action-item.chat-submit-button'));
+			const submit = dom.append(submitItem, dom.$('a.action-label.codicon.codicon-arrow-up', { role: 'button' }));
+
+			const states = [[0, 1], [0], [1, 2], [1, 3]].map(visible => {
+				voice.classList.toggle('single', visible.length === 1);
+				cells.forEach((cell, index) => cell.classList.toggle('collapsed', !visible.includes(index)));
+				const activeCells = visible.map(index => cells[index]);
+				const touchTargets = activeCells.map(cell => {
+					const bounds = cell.getBoundingClientRect();
+					const x = bounds.left + bounds.width / 2;
+					const y = bounds.top + bounds.height / 2;
+					return bounds.width >= 44 && bounds.height >= 44 &&
+						[[bounds.left + 1, y], [bounds.right - 1, y], [x, bounds.top + 1], [x, bounds.bottom - 1]].every(([hitX, hitY]) =>
+							cell.contains(mainWindow.document.elementFromPoint(hitX, hitY)));
+				});
+				const last = activeCells.at(-1)!.getBoundingClientRect();
+				const send = submit.getBoundingClientRect();
+				return {
+					touchTargets,
+					separateFromSend: last.right <= send.left - 4,
+					withinComposer: send.right + 4 <= root.getBoundingClientRect().right,
+					collapsed: cells.filter((_, index) => !visible.includes(index)).every(cell =>
+						cell.getBoundingClientRect().width === 0 && mainWindow.getComputedStyle(cell).visibility === 'hidden'),
+				};
+			});
+			assert.deepStrictEqual(states, [2, 1, 2, 2].map(count => ({
+				touchTargets: Array(count).fill(true), separateFromSend: true, withinComposer: true, collapsed: true,
+			})));
+		});
 	}
 
 	test('a compact host choice retains its full touch target', () => {

@@ -10,7 +10,7 @@ import { jsonlStreamToCompletions } from '../../../../../../platform/nesFetch/no
 import { HeadersImpl } from '../../../../../../platform/networking/common/fetcherService';
 import { Result } from '../../../../../../util/common/result';
 import { CancellationToken } from '../../../../../../util/vs/base/common/cancellation';
-import { FetchOptions, IAbortController, ICompletionsFetcherService, IHeaders, Response } from '../networking';
+import { FetchOptions, ICompletionsFetcherService, IHeaders, Response } from '../networking';
 
 type HeadersParameter = { [key: string]: string };
 
@@ -163,13 +163,6 @@ class FakeHeaders implements IHeaders {
 	}
 	[Symbol.iterator](): Iterator<[string, string]> {
 		return this.headers.entries();
-	}
-}
-
-export class FakeAbortController implements IAbortController {
-	readonly signal = { aborted: false, addEventListener: () => { }, removeEventListener: () => { } };
-	abort(): void {
-		this.signal.aborted = true;
 	}
 }
 

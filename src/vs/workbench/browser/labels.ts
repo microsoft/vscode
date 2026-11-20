@@ -27,6 +27,8 @@ import { IRange } from '../../editor/common/core/range.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { asCssVariable } from '../../platform/theme/common/colorUtils.js';
 import { INotebookDocumentService, extractCellOutputDetails } from '../services/notebook/common/notebookDocumentService.js';
+import { $, append } from '../../base/browser/dom.js';
+import { containsRTL, prevCharLength } from '../../base/common/strings.js';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI; secondary?: URI };
@@ -55,9 +57,9 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	fileKind?: FileKind;
 
 	/**
-	 * File decorations to use for the label.
+	 * File decorations to use for the label. The final badge character is centered when it can be separated safely.
 	 */
-	readonly fileDecorations?: { colors: boolean; badges: boolean };
+	readonly fileDecorations?: { colors: boolean; badges: boolean; alignBadgeLastCharacter?: boolean };
 
 	/**
 	 * Will take the provided label as is and e.g. not override it for untitled files.
@@ -310,6 +312,7 @@ class ResourceLabelWidget extends IconLabel {
 	private label: IResourceLabelProps | undefined = undefined;
 	private readonly decoration = this._register(new MutableDisposable<IDecoration>());
 	private options: IResourceLabelOptions | undefined = undefined;
+	private textBadge: { element: HTMLElement; prefix: HTMLElement; lastCharacter: HTMLElement } | undefined;
 
 	private computedIconClasses: string[] | undefined = undefined;
 	private computedLanguageId: string | undefined = undefined;
@@ -615,6 +618,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.computedLanguageId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
+		this.renderTextBadge(undefined);
 
 		this.setLabel('');
 	}
@@ -654,6 +658,7 @@ class ResourceLabelWidget extends IconLabel {
 		};
 
 		const resource = toResource(this.label);
+		let textDecoration: IDecoration | undefined;
 
 		if (this.options?.title !== undefined) {
 			iconLabelOptions.title = this.options.title;
@@ -727,8 +732,16 @@ class ResourceLabelWidget extends IconLabel {
 					if (decoration.isTextBadge) {
 						iconLabelOptions.extraClasses.push(DECORATION_TEXT_BADGE_CLASS);
 					}
-					iconLabelOptions.extraClasses.push(decoration.badgeClassName);
-					iconLabelOptions.extraClasses.push(decoration.iconClassName);
+					const badgeText = this.options.fileDecorations.alignBadgeLastCharacter ? decoration.badgeText : undefined;
+					const prefix = badgeText?.slice(0, badgeText.length - prevCharLength(badgeText, badgeText.length));
+					// Keep text that may require contextual shaping or bidirectional layout together.
+					if (badgeText && prefix !== undefined && !containsRTL(badgeText) && !/[\p{Bidi_Control}\u0660-\u0669\u06F0-\u06F9]/u.test(badgeText)
+						&& (prefix.length === 0 || prefix.endsWith(', ') || /[\p{P}\p{S}]$/u.test(prefix))) {
+						textDecoration = decoration;
+					} else {
+						iconLabelOptions.extraClasses.push(decoration.badgeClassName);
+						iconLabelOptions.extraClasses.push(decoration.iconClassName);
+					}
 				}
 			}
 		}
@@ -744,14 +757,39 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		this.setLabel(this.label.name ?? '', this.label.description, iconLabelOptions);
+		this.renderTextBadge(textDecoration);
 
 		this._onDidRender.fire();
 
 		return true;
 	}
 
+	private renderTextBadge(decoration: IDecoration | undefined): void {
+		if (!decoration?.badgeText) {
+			this.textBadge?.element.remove();
+			this.textBadge = undefined;
+			return;
+		}
+
+		if (!this.textBadge) {
+			const element = append(this.element, $('span.monaco-decoration-badge-content', { 'aria-hidden': 'true' }));
+			this.textBadge = {
+				element,
+				prefix: append(element, $('span')),
+				lastCharacter: append(element, $('span.monaco-decoration-badge-last-character')),
+			};
+		}
+
+		const text = decoration.badgeText;
+		const lastCharacterOffset = text.length - prevCharLength(text, text.length);
+		this.textBadge.element.className = `monaco-decoration-badge-content ${decoration.labelClassName}`;
+		this.textBadge.prefix.textContent = text.slice(0, lastCharacterOffset);
+		this.textBadge.lastCharacter.textContent = text.slice(lastCharacterOffset);
+	}
+
 	override dispose(): void {
 		super.dispose();
+		this.renderTextBadge(undefined);
 
 		this.label = undefined;
 		this.options = undefined;

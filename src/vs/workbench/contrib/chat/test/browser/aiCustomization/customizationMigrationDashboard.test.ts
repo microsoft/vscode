@@ -463,6 +463,50 @@ suite('CustomizationMigrationDashboard', () => {
 		});
 	});
 
+	test('agent-only hook groups have no selection, Review or Migrate action, and selecting the row opens the hook file', () => {
+		const opened: string[] = [];
+		const ignored: string[] = [];
+		const { parent, dashboard } = createDashboard({
+			openCustomization: (item, storage) => opened.push(`${item.id}:${storage}`),
+			ignoreCategory: (id, storage) => ignored.push(`${id}:${storage}`),
+		});
+		dashboard.showOverview({
+			scopes: [{
+				storage: PromptsStorage.local, label: 'vscode', count: 1, hasConfigurableDestinations: false,
+				categories: [{
+					id: CustomizationMigrationCategoryId.Hooks, label: 'Local-Format Hooks', description: 'These hooks may not work.', count: 1, countLabel: '1 hook file',
+					agentOnly: true, selectedCount: 0, migrateDisabled: true,
+					items: [{ id: 'workspace-hook', label: 'guard.json', scopeLabel: 'Workspace', sourceLabel: '.github/hooks/guard.json', selected: false }],
+				}],
+			}],
+			manualReviewItems: [],
+			hasIgnoredGroups: false,
+		});
+
+		[...parent.querySelectorAll<HTMLElement>('.migration-tree-item-label')]
+			.find(element => element.textContent === 'guard.json')?.click();
+		button(parent, 'Ignore Local-Format Hooks (Workspace)').click();
+
+		const visible = (selector: string) => [...parent.querySelectorAll<HTMLElement>(selector)].filter(element => element.style.display !== 'none' && element.parentElement?.style.visibility !== 'hidden').length;
+		assert.deepStrictEqual({
+			opened,
+			ignored,
+			migrateButtons: [...parent.querySelectorAll<HTMLElement>('[role="button"]')].filter(element => element.textContent === 'Migrate...').length,
+			agentMigration: !!parent.querySelector('[aria-label="Start a guided migration of all customization files that need migration"]'),
+			checkboxes: visible('.migration-tree-item-checkbox > *'),
+			moreButtons: visible('.migration-tree-item-more'),
+			reviewButtons: visible('.migration-tree-item-review'),
+		}, {
+			opened: [`workspace-hook:${PromptsStorage.local}`],
+			ignored: [`${CustomizationMigrationCategoryId.Hooks}:${PromptsStorage.local}`],
+			migrateButtons: 0,
+			agentMigration: true,
+			checkboxes: 0,
+			moreButtons: 0,
+			reviewButtons: 0,
+		});
+	});
+
 	test('sizes the migration tree to the available height so it owns scrolling', () => {
 		const { parent, dashboard } = createDashboard();
 		dashboard.showOverview(overview());

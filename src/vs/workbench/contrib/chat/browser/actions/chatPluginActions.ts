@@ -243,9 +243,11 @@ const removeMarketplaceButton: IQuickInputButton = {
 export const MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID = 'workbench.action.chat.managePluginMarketplaces';
 
 export class AddPluginMarketplaceAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.addPluginMarketplace';
+
 	constructor() {
 		super({
-			id: 'workbench.action.chat.addPluginMarketplace',
+			id: AddPluginMarketplaceAction.ID,
 			title: localize2('addPluginMarketplace', "Add Plugin Marketplace"),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,

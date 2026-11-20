@@ -4,10 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { $, append, ModifierKeyEmitter } from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { ActionRunner, IAction } from '../../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentHostConnectionsService, IAgentHostSessionIdentity } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -16,9 +23,10 @@ import { IListService } from '../../../../../../platform/list/browser/listServic
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { CopyChatSessionLinkAction } from '../../../browser/actions/chatCopyActions.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { ChatCopyActionViewItem, CopyChatSessionLinkAction } from '../../../browser/actions/chatCopyActions.js';
 import { ChatEditorInput } from '../../../browser/widgetHosts/editor/chatEditorInput.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite('Chat editor Copy Link', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -130,5 +138,60 @@ suite('Chat editor Copy Link', () => {
 			context.setValue('resourceScheme', value.scheme);
 			return menu.when?.evaluate(context);
 		}), [true, true, false, false, false]);
+	});
+});
+
+suite('Chat copy action feedback', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	test('shows temporary feedback only after a successful action run', async () => {
+		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const action = instantiationService.createInstance(MenuItemAction, {
+			id: 'workbench.action.chat.copyItem',
+			title: 'Copy',
+			tooltip: 'Copy',
+			icon: Codicon.copy,
+		}, undefined, undefined, undefined, undefined);
+		const viewItem = store.add(instantiationService.createInstance(ChatCopyActionViewItem, action, undefined));
+		const container = append(mainWindow.document.body, $('div'));
+		store.add(toDisposable(() => container.remove()));
+		let shouldFail = true;
+		const actionRunner = store.add(new class extends ActionRunner {
+			protected override async runAction(_action: IAction): Promise<void> {
+				if (shouldFail) {
+					throw new Error('Copy failed');
+				}
+			}
+		});
+		viewItem.actionRunner = actionRunner;
+		viewItem.render(container);
+
+		const clock = sinon.useFakeTimers();
+		await actionRunner.run(action);
+		const failedState = {
+			copied: viewItem.element?.classList.contains('copied') ?? false,
+			label: viewItem.element?.getAttribute('aria-label'),
+		};
+
+		shouldFail = false;
+		await actionRunner.run(action);
+		const successState = {
+			copied: viewItem.element?.classList.contains('copied') ?? false,
+			label: viewItem.element?.getAttribute('aria-label'),
+		};
+		clock.tick(1200);
+		const resetState = {
+			copied: viewItem.element?.classList.contains('copied') ?? false,
+			label: viewItem.element?.getAttribute('aria-label'),
+		};
+
+		assert.deepStrictEqual({ failedState, successState, resetState }, {
+			failedState: { copied: false, label: 'Copy' },
+			successState: { copied: true, label: 'Copied' },
+			resetState: { copied: false, label: 'Copy' },
+		});
 	});
 });

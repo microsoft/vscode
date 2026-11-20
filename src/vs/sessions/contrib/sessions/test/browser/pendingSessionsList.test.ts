@@ -35,6 +35,7 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { IPendingSessionItem, IPendingSessionSection } from '../../../../../workbench/contrib/sessions/browser/views/pendingSessions.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
+import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { createListHarness, createTestSession, IListHarness } from './sessionsListTestUtils.js';
 
 suite('Sessions - pending list items', () => {
@@ -355,6 +356,67 @@ suite('Sessions - pending list items', () => {
 		});
 	});
 
+	for (const compact of [false, true]) {
+		test(`scheduled indicators and previews belong to the exact chat (compact: ${compact})`, async () => {
+			const built = buildTestSession({
+				id: 'parent', title: 'Parent', chats: [{ id: 'peer', title: 'Peer' }, { id: 'other', title: 'Other' }],
+			});
+			const session = built.session;
+			const peer = built.chats.get('peer')!.chat;
+			const other = built.chats.get('other')!.chat;
+			const harness = createListHarness(disposables, [session]);
+			const invoked: string[] = [];
+			const request: IChatScheduledRequest = {
+				id: 'peer-request', text: 'Follow up in peer', description: 'Tomorrow', attachments: [],
+				actions: [toAction({ id: 'sessions.scheduled.sendNow', label: 'Send Now', class: ThemeIcon.asClassName(Codicon.newLine), run: () => { invoked.push('peer'); } })],
+			};
+			const requests = observableValue<ReadonlyMap<string, readonly IChatScheduledRequest[]>>('requests', new Map([[getComparisonKey(peer.resource), [request]]]));
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 800), {
+				grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, compact: () => compact,
+				schedulingEnabled: constObservable(true),
+				scheduledSessionResources: constObservable(new Set([session.resource.toString()])), scheduledRequests: requests,
+				onSessionOpen: () => { invoked.push('opened session'); },
+			}));
+			list.layout(800, 400);
+			list.setItemCollapsed({ session: session.resource }, false);
+			const row = (chat?: URI) => list.getItemRow({ session: session.resource, ...(chat ? { chat } : {}) })!;
+			const snapshot = () => [undefined, peer.resource, other.resource].map(chat => ({
+				visible: mainWindow.getComputedStyle(row(chat).querySelector('.session-scheduled-indicator')!).display,
+				announced: row(chat).getAttribute('aria-label')?.includes('has scheduled messages'),
+			}));
+			const initial = snapshot();
+			let card: HTMLElement | undefined;
+			const hover = sinon.stub(harness.instantiationService.get(IHoverService), 'showInstantHover').callsFake(options => {
+				assert.ok(isHTMLElement(options.content));
+				card = options.content;
+				return undefined;
+			});
+			disposables.add(toDisposable(() => hover.restore()));
+			const indicator = row(peer.resource).querySelector<HTMLElement>('.session-scheduled-indicator')!;
+			indicator.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			card!.querySelector<HTMLElement>('.codicon-newline')!.click();
+			await timeout(0);
+			requests.set(new Map([
+				[getComparisonKey(peer.resource), [request]],
+				[getComparisonKey(session.mainChat.get().resource), [{ ...request, id: 'main-request', text: 'Follow up in main' }]],
+			]), undefined);
+			const both = snapshot();
+			indicator.focus();
+			requests.set(new Map([[getComparisonKey(session.mainChat.get().resource), [request]]]), undefined);
+			const after = snapshot();
+			assert.deepStrictEqual({
+				initial, both, after, invoked,
+				preview: card!.querySelector('.session-scheduled-card-text')?.textContent,
+				peerFocused: row(peer.resource).classList.contains('focused'),
+			}, {
+				initial: [{ visible: 'none', announced: false }, { visible: 'flex', announced: true }, { visible: 'none', announced: false }],
+				both: [{ visible: 'flex', announced: true }, { visible: 'flex', announced: true }, { visible: 'none', announced: false }],
+				after: [{ visible: 'flex', announced: true }, { visible: 'none', announced: false }, { visible: 'none', announced: false }],
+				invoked: ['peer'], preview: 'Follow up in peer', peerFocused: true,
+			});
+		});
+	}
+
 	for (const keyboard of [false, true]) {
 		test(`scheduled-message preview keeps actions across row refreshes and resolves the latest request (keyboard: ${keyboard})`, async () => {
 			const session = createTestSession('scheduled').session;
@@ -376,7 +438,7 @@ suite('Sessions - pending list items', () => {
 					run: () => { invoked.push('stale'); },
 				})),
 			};
-			const key = getComparisonKey(session.resource);
+			const key = getComparisonKey(session.mainChat.get().resource);
 			const requests = observableValue<ReadonlyMap<string, readonly IChatScheduledRequest[]>>('requests', new Map([[key, [request]]]));
 			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 800), {
 				grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
@@ -444,7 +506,7 @@ suite('Sessions - pending list items', () => {
 		container.style.top = '0';
 		container.style.left = '0';
 		const resources = observableValue<ReadonlySet<string>>('scheduled resources', new Set(sessions.map(session => session.resource.toString())));
-		const requests = observableValue<ReadonlyMap<string, readonly IChatScheduledRequest[]>>('requests', new Map(sessions.map((session, index) => [getComparisonKey(session.resource), scheduled[index]])));
+		const requests = observableValue<ReadonlyMap<string, readonly IChatScheduledRequest[]>>('requests', new Map(sessions.map((session, index) => [getComparisonKey(session.mainChat.get().resource), scheduled[index]])));
 		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
 			scheduledSessionResources: resources,
@@ -497,6 +559,17 @@ suite('Sessions - pending list items', () => {
 			sameClock: list.getItemRow({ session: session.resource })!.querySelector('.session-scheduled-indicator') === indicator,
 			previewConnected: preview.isConnected,
 		}, { sameClock: true, previewConnected: true });
+	});
+
+	test('a focused scheduled clock retains focus during a row refresh', () => {
+		const { list, indicator, session } = createScheduledPreview();
+		indicator.focus();
+		assert.strictEqual(mainWindow.document.activeElement, indicator);
+		list.update();
+		assert.deepStrictEqual({
+			sameClock: list.getItemRow({ session: session.resource })!.querySelector('.session-scheduled-indicator') === indicator,
+			clockFocused: mainWindow.document.activeElement === indicator,
+		}, { sameClock: true, clockFocused: true });
 	});
 
 	test('clicking another clock replaces a locked scheduled preview', async () => {
@@ -554,11 +627,11 @@ suite('Sessions - pending list items', () => {
 		const action = preview.querySelector<HTMLElement>('.codicon-edit');
 		assert.ok(action);
 		const latest = { ...request, editAction: toAction({ ...request.editAction!, run: () => { invoked.push('latest'); } }) };
-		requests.set(new Map([[getComparisonKey(session.resource), [latest]]]), undefined);
+		requests.set(new Map([[getComparisonKey(session.mainChat.get().resource), [latest]]]), undefined);
 		list.update();
 		action.click();
 		await timeout(0);
-		requests.set(new Map([[getComparisonKey(session.resource), [{ ...latest, editAction: toAction({ ...latest.editAction, enabled: false }) }]]]), undefined);
+		requests.set(new Map([[getComparisonKey(session.mainChat.get().resource), [{ ...latest, editAction: toAction({ ...latest.editAction, enabled: false }) }]]]), undefined);
 		indicator.click();
 		assert.deepStrictEqual({
 			invoked,
@@ -632,17 +705,38 @@ suite('Sessions - pending list items', () => {
 		assert.strictEqual(mainWindow.document.activeElement, editor);
 	});
 
+	/**
+	 * Desktop WebKit has no Touch constructor, so where it can't be built the event carries plain touch
+	 * lists with the members that Gesture reads. The event still reaches the same listeners either way.
+	 */
+	function createTouchEvent(type: 'touchstart' | 'touchend', target: HTMLElement, point: { clientX: number; clientY: number; pageX: number; pageY: number }, active: boolean): Event {
+		const init = { bubbles: true, cancelable: true };
+		let touch: Touch | undefined;
+		try {
+			touch = new mainWindow.Touch({ identifier: 1, target, ...point });
+		} catch {
+			// Illegal constructor in desktop WebKit
+		}
+		if (touch) {
+			const touches = active ? [touch] : [];
+			return new mainWindow.TouchEvent(type, { ...init, touches, targetTouches: touches, changedTouches: [touch] });
+		}
+		const plainTouch = { identifier: 1, target, ...point };
+		const list = (items: readonly object[]) => Object.assign([...items], { item: (index: number) => items[index] ?? null });
+		const event = new Event(type, init);
+		const touches = active ? [plainTouch] : [];
+		Object.defineProperties(event, { touches: { value: list(touches) }, targetTouches: { value: list(touches) }, changedTouches: { value: list([plainTouch]) } });
+		return event;
+	}
+
 	test('clock touches bypass list gestures without suppressing the preview click', async () => {
 		const touchDevice = sinon.stub(Gesture, 'isTouchDevice').returns(true);
 		disposables.add(toDisposable(() => touchDevice.restore()));
 		const { indicator, opened } = createScheduledPreview();
 		const bounds = indicator.getBoundingClientRect();
-		const touch = new mainWindow.Touch({
-			identifier: 1, target: indicator, clientX: bounds.x + bounds.width / 2, clientY: bounds.y + bounds.height / 2,
-			pageX: bounds.x + bounds.width / 2, pageY: bounds.y + bounds.height / 2,
-		});
-		const start = new mainWindow.TouchEvent('touchstart', { touches: [touch], targetTouches: [touch], changedTouches: [touch], bubbles: true, cancelable: true });
-		const end = new mainWindow.TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touch], bubbles: true, cancelable: true });
+		const point = { clientX: bounds.x + bounds.width / 2, clientY: bounds.y + bounds.height / 2, pageX: bounds.x + bounds.width / 2, pageY: bounds.y + bounds.height / 2 };
+		const start = createTouchEvent('touchstart', indicator, point, true);
+		const end = createTouchEvent('touchend', indicator, point, false);
 		indicator.dispatchEvent(start);
 		indicator.dispatchEvent(end);
 		if (!start.defaultPrevented && !end.defaultPrevented) {

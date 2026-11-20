@@ -92,13 +92,6 @@ export class ExternalIngestIndex extends Disposable {
 	 */
 	private readonly _codeSearchRepoRoots = new ResourceSet();
 
-	/**
-	 * Set of file URIs that should be force-included in external ingest,
-	 * even if they fall under code search repo roots.
-	 * Used for out-of-sync diff files that need to be re-indexed locally.
-	 */
-	private readonly _forceIncludeFiles = new ResourceSet();
-
 	private readonly _client: IExternalIngestClient;
 
 	private readonly _onDidChangeState = this._register(new Emitter<void>());
@@ -265,33 +258,6 @@ export class ExternalIngestIndex extends Disposable {
 		}
 
 		this._logService.trace(`ExternalIngestIndex: Updated code search roots: ${roots.map(r => r.toString()).join(', ')}`);
-	}
-
-	/**
-	 * Updates the set of files that should always be considered for external ingest.
-	 *
-	 * This lets us index local-diff files that live under code-search repo roots,
-	 * so we can blend local updates with remote code-search results.
-	 */
-	public async updateForceIncludeFiles(files: readonly URI[], token: CancellationToken): Promise<void> {
-		await raceCancellationError(this.initialize(), token);
-
-		this._forceIncludeFiles.clear();
-		for (const file of files) {
-			this._forceIncludeFiles.add(file);
-		}
-
-		await raceCancellationError(
-			Promise.all(files.map(async file => {
-				if (await this.shouldTrackFile(file, token)) {
-					await this.tryAddOrUpdateFile(file);
-				} else {
-					this.delete(file);
-				}
-			})),
-			token);
-
-		this._logService.trace(`ExternalIngestIndex: Updated force-included files (${files.length})`);
 	}
 
 	private _initializePromise: Promise<void> | undefined;
@@ -722,12 +688,9 @@ export class ExternalIngestIndex extends Disposable {
 		}
 
 		// Don't index files that are under a code search repo root
-		// (unless they are force-included as diff files)
-		if (!this._forceIncludeFiles.has(uri)) {
-			for (const root of this._codeSearchRepoRoots) {
-				if (isEqualOrParent(uri, root)) {
-					return false;
-				}
+		for (const root of this._codeSearchRepoRoots) {
+			if (isEqualOrParent(uri, root)) {
+				return false;
 			}
 		}
 
