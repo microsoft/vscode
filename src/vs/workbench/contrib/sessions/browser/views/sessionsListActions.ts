@@ -71,9 +71,18 @@ async function archiveSessionsWithUndo(
 		.filter(comparison => comparison.archivedAt === undefined && candidates.some(entry => entry.groupId === comparison.groupId))
 		.map(comparison => [comparison.groupId, comparison.id]));
 	try {
-		for (const entry of candidates) {
-			await sessionsManagementService.archiveSession(entry.session);
-			archived.push(entry);
+		const results = await sessionsManagementService.archiveSessions(candidates.map(entry => entry.session));
+		for (const [index, result] of results.entries()) {
+			if (result.status === 'fulfilled') {
+				archived.push(candidates[index]);
+			}
+		}
+		const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
+		if (errors.length === 1) {
+			throw errors[0];
+		}
+		if (errors.length > 1) {
+			throw new AggregateError(errors, toErrorMessage(errors));
 		}
 	} finally {
 		// A partially completed batch must remain undoable even when a later archive fails.

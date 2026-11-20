@@ -128,7 +128,7 @@ export class EditorAddTabControl extends Disposable {
 			}));
 		}
 		if (options?.defaultEntry) {
-			this._pickDefaultEntryOnSecondPress(dropdown, toolbar, () => getActions().find(action => !(action instanceof Separator)), contextViewService);
+			this._pickDefaultEntryOnSecondPress(dropdown, toolbar, options.context, () => getActions().find(action => !(action instanceof Separator)), contextViewService);
 		}
 		if (options?.defaultEntry || options?.recentFirst) {
 			this._decorateMenu(dropdown, !!options.defaultEntry, () => recentAction ? recentDescription : undefined);
@@ -163,7 +163,7 @@ export class EditorAddTabControl extends Disposable {
 	 * While the menu is open, pressing the button picks the default entry rather than only closing the menu. The menu
 	 * blocks the mouse in the rest of the window, so the press is recognized by its position before the block sees it.
 	 */
-	private _pickDefaultEntryOnSecondPress(dropdown: DropdownMenuActionViewItem, toolbar: WorkbenchToolBar, getDefaultEntry: () => IAction | undefined, contextViewService: IContextViewService): void {
+	private _pickDefaultEntryOnSecondPress(dropdown: DropdownMenuActionViewItem, toolbar: WorkbenchToolBar, context: IEditorCommandsContext | undefined, getDefaultEntry: () => IAction | undefined, contextViewService: IContextViewService): void {
 		const whileMenuVisible = this._register(new MutableDisposable());
 		this._register(dropdown.onDidChangeVisibility(visible => {
 			whileMenuVisible.value = visible ? addDisposableListener(getWindow(this.element), EventType.MOUSE_DOWN, e => {
@@ -173,7 +173,8 @@ export class EditorAddTabControl extends Disposable {
 				}
 				EventHelper.stop(e, true);
 				contextViewService.hideContextView();
-				toolbar.actionRunner.run(entry, toolbar.context);
+				// The toolbar has no getter for its context
+				toolbar.actionRunner.run(entry, context);
 			}, true) : undefined;
 		}));
 	}

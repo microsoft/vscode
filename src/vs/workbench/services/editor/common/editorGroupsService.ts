@@ -908,6 +908,16 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean>;
 
 	/**
+	 * Whether a working set is being applied: the editors it replaces close and are not closed by the user.
+	 */
+	readonly isApplyingWorkingSet: boolean;
+
+	/**
+	 * Fires when {@link isApplyingWorkingSet} changed.
+	 */
+	readonly onDidChangeApplyingWorkingSet: Event<boolean>;
+
+	/**
 	 * Resolves the editors of the main part of a working set without applying it or
 	 * changing any part. The returned editors are the caller's to show or to dispose.
 	 *

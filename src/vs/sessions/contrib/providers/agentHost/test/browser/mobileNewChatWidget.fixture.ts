@@ -47,7 +47,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/mobile/welcome/' }, {
 	CloudRepository: defineComponentFixture({
 		virtualTime: { enabled: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderMobileWelcome(context, { withWorkspace: true, withConfiguredModel: true }),
+		render: context => renderMobileWelcome(context, { withWorkspace: true, withConfiguredModel: true, withVoiceInputMode: true }),
 	}),
 	ComputerRepository: defineComponentFixture({
 		virtualTime: { enabled: false },
@@ -63,6 +63,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/mobile/welcome/' }, {
 	}),
 	WelcomePhrase: defineComponentFixture({
 		virtualTime: { enabled: false },
-		render: context => renderMobileWelcome(context, { width: 320, height: 568, withWorkspace: true, withConfiguredModel: true, welcomePhrases: true }),
+		render: context => renderMobileWelcome(context, { width: 320, height: 568, withWorkspace: true, withConfiguredModel: true, withVoiceInputMode: true, welcomePhrases: true }),
 	}),
 });

@@ -100,7 +100,8 @@
 	overflow-wrap: anywhere;
 }
 
-.remotes-run-question {
+.remotes-run-question,
+.remotes-recovery-heading {
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
@@ -657,7 +658,8 @@
 	padding-top: 0;
 }
 
-.remotes-details-actions > .monaco-button {
+.remotes-details-actions > .monaco-button,
+.remotes-recovery-command-row > .monaco-button {
 	width: auto;
 }
 
@@ -768,6 +770,52 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
+}
+
+.remotes-recovery-heading {
+	margin: 0 0 var(--vscode-spacing-size80);
+}
+
+.remotes-recovery-next {
+	margin-top: var(--vscode-spacing-size240);
+}
+
+.remotes-environment-details .remotes-recovery-next > :first-child {
+	margin-top: 0;
+}
+
+.remotes-details-footer[hidden] {
+	display: none;
+}
+
+.remotes-recovery-command {
+	margin-block: var(--vscode-spacing-size120);
+}
+
+.remotes-environment-details .remotes-recovery-command-label {
+	margin: 0 0 var(--vscode-spacing-size40);
+}
+
+.remotes-recovery-command-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.remotes-recovery-command-row > code {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-textPreformat-background);
+	color: var(--vscode-textPreformat-foreground);
+	font-family: var(--monaco-monospace-font);
+	overflow-wrap: anywhere;
+}
+
+.remotes-recovery-support {
+	margin-top: var(--vscode-spacing-size240);
+	padding-top: var(--vscode-spacing-size200);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
 }
 
 .remotes-task-identity-detail {

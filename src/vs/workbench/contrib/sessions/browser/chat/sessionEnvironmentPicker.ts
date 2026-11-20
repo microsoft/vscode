@@ -75,6 +75,11 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 	return environments;
 }
 
+/** Labels the environment that runs the selected folder in the Dev Container that the folder configures, unlike standalone Dev Containers. */
+export function getFolderDevContainerEnvironmentLabel(): string {
+	return localize('environmentPicker.container', "Dev Container for Folder");
+}
+
 /** Describes a remote independently of picker visibility so an existing draft can retain its destination. */
 export function getRemoteSessionCreationEnvironment(provider: ISessionsProvider, containerRequested = false): ISessionCreationEnvironment | undefined {
 	if (!isRemoteSessionCreationEnvironment(provider)) {
@@ -83,7 +88,7 @@ export function getRemoteSessionCreationEnvironment(provider: ISessionsProvider,
 	return {
 		id: containerRequested ? `container:${provider.id}` : provider.id,
 		kind: containerRequested ? 'container' : 'remote',
-		label: containerRequested ? localize('environmentPicker.container', "Dev Container") : provider.label,
+		label: containerRequested ? getFolderDevContainerEnvironmentLabel() : provider.label,
 		icon: containerRequested ? Codicon.remote : provider.icon, providerIds: [provider.id],
 		description: getAgentHostConnectionStatusLabel(provider.connectionStatus.get()),
 	};

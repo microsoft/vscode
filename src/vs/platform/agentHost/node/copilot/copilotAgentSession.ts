@@ -96,7 +96,8 @@ import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotMod
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
-import { areCopilotCustomAgentHooksTrusted, clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
+import { areCopilotCustomAgentHooksTrusted, clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentHostClientConnectionService } from '../agentHostClientConnectionService.js';
@@ -1661,6 +1662,8 @@ export class CopilotAgentSession extends Disposable {
 	get isEphemeral(): boolean { return this._launchPlan.isEphemeral === true; }
 	/** Whether this session's runtime was launched with canvases, which only a relaunch changes. */
 	get canvasRuntimeEnabled(): boolean { return this._wrapper?.canvasRuntimeEnabled === true; }
+	/** Whether VS Code's `chat.useHooks` setting allowed hooks when this runtime launched. */
+	get hooksEnabled(): boolean { return this._wrapper?.launchHooksEnabled !== false; }
 	/** The model router agent plan this session was launched with, compared by identity. */
 	get modelRouterGuidance(): IModelRouterGuidance | undefined { return this._launchPlan.isEphemeral ? undefined : this._launchPlan.modelRouterGuidance; }
 
@@ -2062,6 +2065,22 @@ export class CopilotAgentSession extends Disposable {
 	}
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown; }
 	get currentTurnClientContext(): IAgentHostClientTelemetryContext | undefined { return this._currentTurn.value?.clientContext; }
+
+	/**
+	 * Account context for a forwarded runtime row that names no model call: the context a subagent captured
+	 * at its start when the row names one (none if the host never tracked it), otherwise the active turn's.
+	 * A chat on a scoped GitHub credential gets none, since its turn context describes the host's account.
+	 */
+	telemetryContextForRow(agentId: string | undefined): IAgentTelemetryContext | undefined {
+		if (this.usesScopedGitHubCredentials) {
+			return undefined;
+		}
+		if (agentId) {
+			const toolCallId = this._subagents.getToolCallId(agentId);
+			return toolCallId === undefined ? undefined : this._subagents.getAccountContext(toolCallId);
+		}
+		return this._currentTurn.value?.telemetryContext;
+	}
 
 	async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<boolean> {
 		let result: Awaited<ReturnType<CopilotSession['rpc']['debug']['collectLogs']>>;
@@ -9046,6 +9065,8 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 		this._lastAppliedAgent = selection;
+		// The selected agent may bring its own guidance for the Assisted permissions judge.
+		await this._syncAssistedApprovalInstructions();
 	}
 
 	// ---- permission handling ------------------------------------------------
@@ -9633,22 +9654,27 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Applies the user's instructions for the Assisted permissions judge. The runtime
+	 * Applies the user's instructions for the Assisted permissions judge, followed by those of
+	 * the selected custom agent (`vscode: assisted-approval-instructions` in its agent file). The runtime
 	 * holds them only for the live SDK session and never persists them, so they are
-	 * reapplied after every create and resume.
+	 * reapplied after every create and resume, and whenever the selected agent changes.
 	 */
 	private _syncAssistedApprovalInstructions(): Promise<void> {
 		return this._assistedApprovalInstructionsSequencer.queue(async () => {
 			if (this._isInactiveForBackgroundConfigSync()) {
 				return;
 			}
+			const wrapper = this._wrapper;
 			const configured = this._configurationService.getRootValue(platformRootSchema, AgentHostAssistedApprovalInstructionsConfigKey) ?? '';
+			const agent = await this._selectedAgentAssistedApprovalInstructions(wrapper);
 			// The runtime clears the instructions for blank text, so blank and empty are equivalent.
-			const instructions = configured.trim() ? configured : '';
+			const instructions = [
+				configured.trim(),
+				agent ? `Instructions from the "${agent.name}" agent the user selected for this chat:\n${agent.instructions}` : '',
+			].filter(Boolean).join('\n\n');
 			if (instructions === this._appliedAssistedApprovalInstructions) {
 				return;
 			}
-			const wrapper = this._wrapper;
 			const result = await this._awaitControlPlaneRpc('Assisted permissions instructions', wrapper.session.rpc.permissions.configure({ assistedApprovalInstructions: instructions }));
 			if (!result.success) {
 				throw new Error('The runtime did not apply the Assisted permissions instructions.');
@@ -9658,6 +9684,18 @@ export class CopilotAgentSession extends Disposable {
 				this._appliedAssistedApprovalInstructions = instructions;
 			}
 		});
+	}
+
+	/** The selected agent's instructions for the Assisted permissions judge, parsed with its agent file. */
+	private async _selectedAgentAssistedApprovalInstructions(wrapper: CopilotSessionWrapper): Promise<{ readonly name: string; readonly instructions: string } | undefined> {
+		// Only after a resume is the selection unknown: the runtime restored it. A failed lookup fails the sync,
+		// like a rejected configuration, so the judge never runs without the restored agent's restrictions.
+		const sdkId = this._lastAppliedAgent === undefined
+			? (await this._awaitControlPlaneRpc('rpc.agent.getCurrent', wrapper.session.rpc.agent.getCurrent())).agent?.id
+			: this._lastAppliedAgent ?? undefined;
+		const agent = sdkId ? getCopilotAgentCustomization(this._launchPlan.snapshot, sdkId) : undefined;
+		const instructions = agent && readAgentCustomizationMeta(agent)['vscode.assistedApprovalInstructions'];
+		return agent && instructions ? { name: agent.name, instructions } : undefined;
 	}
 
 	/**

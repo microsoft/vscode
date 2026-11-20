@@ -186,6 +186,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'experiment': { mode: 'auto' },
 				'markdownDescription': localize("workbench.editor.experimental.emptyEditorHintActions", "Controls whether the empty editor hint of new untitled files shows a list of actions instead of a single line. Only applies when `#workbench.editor.empty.hint#` is `text`.")
 			},
+			'workbench.editor.experimental.emptyEditorHintOpenInMarkdownEditor': {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['experimental', 'onExp'],
+				'experiment': { mode: 'auto' },
+				'markdownDescription': localize("workbench.editor.experimental.emptyEditorHintOpenInMarkdownEditor", "Controls whether the single line empty editor hint of new untitled files also offers to open the file in the Markdown Editor. Only applies when `#workbench.editor.empty.hint#` is `text`. The list of actions of `#workbench.editor.experimental.emptyEditorHintActions#` takes precedence.")
+			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
 				default: true,
