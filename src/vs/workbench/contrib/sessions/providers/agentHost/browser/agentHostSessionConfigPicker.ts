@@ -52,7 +52,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId, isDevContainerWorktreeEnabled } from '../../../common/devContainerAgentHostService.js';
-import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
+import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, NewSessionFolderPickerOffersNewWorktreeContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemetry.js';
 import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
@@ -2033,6 +2033,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			properties.forEach(([property, schema], index) => {
 				const commandId = this._registerRepositoryProperty(property, actionViewItemService);
 				const order = index + 1;
+				// A quick chat has no workspace to isolate or branch, but takes the host's other options, such as where it runs.
+				const workspaceScoped = property === workspace.isolation?.key || property === workspace.baseBranch?.key || getSessionConfigPresentationKey(property, config.schema) === 'newBranch';
 				this._repositoryMenuItems.add(MenuRegistry.appendMenuItem(Menus.NewSessionRepositoryConfig, {
 					command: {
 						id: commandId,
@@ -2042,7 +2044,9 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 					order,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						IsQuickChatSessionContext.negate(),
+						workspaceScoped ? IsQuickChatSessionContext.negate() : undefined,
+						// Where the composer offers New Worktree itself, its isolation picker would offer it a second time
+						property === workspace.isolation?.key ? NewSessionFolderPickerOffersNewWorktreeContext.negate() : undefined,
 						SessionIdContext.isEqualTo(session.sessionId),
 					),
 				}));
@@ -2144,7 +2148,7 @@ export class NewSessionApprovePickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
 			}],
 		});
 	}
@@ -2164,7 +2168,7 @@ export class NewSessionPermissionModePickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
 			}],
 		});
 	}
@@ -2190,7 +2194,7 @@ export class NewSessionCodexApprovalsPickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
 			}],
 		});
 	}
@@ -2216,6 +2220,7 @@ export class NewSessionModePickerAction extends Action2 {
 				// this picker with a unified mode + model bottom sheet, so
 				// gate this desktop-only Action out of phone layouts.
 				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
 					ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
 					IsPhoneLayoutContext.negate(),
 				),
@@ -2241,12 +2246,12 @@ export class RunningSessionConfigPickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.2,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2266,12 +2271,12 @@ export class RunningSessionPermissionModePickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.3,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2296,12 +2301,12 @@ export class RunningSessionCodexApprovalsPickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.4,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2325,6 +2330,7 @@ export class RunningSessionModePickerAction extends Action2 {
 				group: 'navigation',
 				order: 0.1,
 				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
 					ChatContextKeyExprs.isAgentHostSession,
 					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
@@ -2336,6 +2342,7 @@ export class RunningSessionModePickerAction extends Action2 {
 				order: 9,
 				// Hide the agent mode picker while a delegation (continue in) target is pending.
 				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
 					ChatContextKeyExprs.isAgentHostSession,
 					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),

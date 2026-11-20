@@ -148,6 +148,8 @@ export class AgentSessionHoverWidget extends Disposable {
 					renderStyle: 'compact',
 					noHeader: true,
 					editable: false,
+					// A read-only preview: the widget that shows the chat docks its questions and approvals, which the preview must not take
+					renderInputRequests: false,
 				},
 				currentChatMode: () => ChatModeKind.Ask,
 			}

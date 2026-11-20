@@ -88,8 +88,8 @@ suite('Structural diff', () => {
 		};
 	}
 
-	function compute(token: CancellationToken = CancellationToken.None): Promise<StructuralDiffResult | undefined> {
-		return StructuralDiffs.compute(worker, configuration, languageFeatures.structuralDiffProvider, original, modified, token);
+	function compute(token: CancellationToken = CancellationToken.None, onProviderError?: (error: unknown) => void): Promise<StructuralDiffResult | undefined> {
+		return StructuralDiffs.compute(worker, configuration, languageFeatures.structuralDiffProvider, original, modified, token, onProviderError);
 	}
 
 	test('computes paired character changes and selects using the modified model', async () => {
@@ -148,9 +148,10 @@ suite('Structural diff', () => {
 		});
 	}
 
-	test('reports provider errors and tries the next provider', async () => {
+	test('reports provider errors, also to the caller, and tries the next provider', async () => {
 		const failure = new Error('Provider failed');
 		const errors: Error[] = [];
+		const providerErrors: unknown[] = [];
 		const previousHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(error => errors.push(error));
 		try {
@@ -160,8 +161,8 @@ suite('Structural diff', () => {
 			store.add(languageFeatures.structuralDiffProvider.register({ scheme: 'modified' }, {
 				provideStructuralDiff: () => { throw failure; },
 			}));
-			const result = await compute();
-			assert.deepStrictEqual({ errors, hasResult: !!result }, { errors: [failure], hasResult: true });
+			const result = await compute(CancellationToken.None, error => providerErrors.push(error));
+			assert.deepStrictEqual({ errors, providerErrors, hasResult: !!result }, { errors: [failure], providerErrors: [failure], hasResult: true });
 		} finally {
 			setUnexpectedErrorHandler(previousHandler);
 		}

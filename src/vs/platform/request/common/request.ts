@@ -380,13 +380,15 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					],
 					default: 'override',
 					markdownDescription: localize('proxySupport', "Use the proxy support for extensions. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
-					restricted: true
+					restricted: true,
+					agentHost: { key: 'http.proxySupport', scope: AgentHostConfigurationSyncScope.Ambient },
 				},
 				'http.systemCertificates': {
 					type: 'boolean',
 					default: true,
 					markdownDescription: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. On Windows and macOS, a reload of the window is required after turning this off. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
-					restricted: true
+					restricted: true,
+					agentHost: { key: 'http.systemCertificates', scope: AgentHostConfigurationSyncScope.Ambient },
 				},
 				'http.systemCertificatesNode': {
 					type: 'boolean',
@@ -396,7 +398,8 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					restricted: true,
 					experiment: {
 						mode: 'auto'
-					}
+					},
+					agentHost: { key: 'http.systemCertificatesNode', scope: AgentHostConfigurationSyncScope.Ambient },
 				},
 				'http.experimental.systemCertificatesV2': {
 					type: 'boolean',

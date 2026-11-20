@@ -57,6 +57,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../..
 import { ChatAIDisabledSettingId } from '../../../../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -699,6 +700,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		}
 	}());
 	instantiationService.stub(ILogService, options?.logService ?? new NullLogService());
+	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 	const preparation = options?.draftPreparation ?? store.add(instantiationService.createInstance(CloudSandboxDraftPreparationService));
 	instantiationService.stub(ICloudSandboxDraftPreparationService, preparation);
 
@@ -3101,16 +3103,16 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 					const [providerId, session] = args;
 					const authorization = toGitHubAuthorizationContext(providerId, session);
 					const lifetime = new DisposableStore();
-					const controller = new AbortController();
-					lifetime.add(toDisposable(() => controller.abort()));
+					const controller = new CancellationTokenSource();
+					lifetime.add(toDisposable(() => controller.dispose(true)));
 					const credentials: IGitHubCredentials = {
 						onDidInvalidate: Event.None,
-						getCredential: async () => ({ account: { host: 'api.github.com', accountId: 'account-1' }, token: 'token', generation: 0, signal: controller.signal }),
+						getCredential: async () => ({ account: { host: 'api.github.com', accountId: 'account-1' }, token: 'token', generation: 0, cancellationToken: controller.token }),
 						handleRequestError: () => { },
 					};
 					const provider = new LocalMissionControlRequestProvider({
 						apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: 'test',
-					}, credentials, transport, new NullLogService(), controller.signal);
+					}, credentials, transport, new NullLogService(), controller.token);
 					return new AccountClient(authorization, { rest: provider, graphql: provider, missionControl: provider }, lifetime);
 				}
 			}(),
@@ -3118,6 +3120,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				override readonly currentProfile = upcastPartial<IUserDataProfile>({ id: 'test-profile' });
 				override readonly onDidChangeCurrentProfile = Event.None;
 			}(),
+			new class extends mock<IDefaultAccountService>() { }(),
 		));
 		const checkpoints: (string | null)[] = [null];
 		const checkpoint = () => new Date(Date.parse(new Date().toUTCString()) - 60_000).toISOString();

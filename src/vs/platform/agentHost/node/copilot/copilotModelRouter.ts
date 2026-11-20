@@ -8,8 +8,8 @@ import { ILogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo, IAgentTurnModelResolution } from '../../common/agent.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
-import { modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, routeListsModel, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
-import { describeModelRouterModel, describeModelRouterSituation, type IModelRouterSituation } from '../../common/modelRouterSituation.js';
+import { modelContextSizes, modelContextSizeTokens, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, routeListsModel, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
+import { describeModelRouterModel, describeModelRouterSituation, modelRouterSituationFor, type IModelRouterSituation } from '../../common/modelRouterSituation.js';
 import { isReasoningEffortLevel, ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { ResponsePartKind, ToolCallStatus, type IModelRoutedInfo, type ModelSelection, type Turn } from '../../common/state/sessionState.js';
 import { firstModelRouterError, type IModelRouterFile } from './copilotModelRouterCatalog.js';
@@ -53,6 +53,8 @@ export interface IModelRouterPick {
 	readonly probabilities: Readonly<Record<string, number>>;
 	/** Expected effort rank, from 0 (low) to 4 (max). */
 	readonly effortScore?: number;
+	/** The facts about the turn the decision was told, which can be fewer or shorter than it was offered. */
+	readonly facts?: readonly string[];
 }
 
 export const enum ModelRouterPickerFailure {
@@ -89,7 +91,6 @@ export const modelRouterSwitchPolicy = {
 	minLead: 0.25,
 	/** Turns to stay put after a switch, so one chat cannot flap between models. */
 	cooldownTurns: 2,
-	maxSwitchesPerChat: 3,
 } as const;
 
 /** How far a follow-up's score must move from the current effort, so a borderline score does not change it. */
@@ -131,11 +132,10 @@ export interface IModelRouterSwitchInput {
 	readonly currentModel: string;
 	readonly pick: IModelRouterPick;
 	readonly turnsSinceSwitch: number | undefined;
-	readonly switches: number;
 }
 
 /** Decides whether a follow-up moves the chat: it does when its message clearly fits another route. */
-export function decideModelRouterSwitch({ currentModel, pick, turnsSinceSwitch, switches }: IModelRouterSwitchInput): ModelRouterSwitchDecision {
+export function decideModelRouterSwitch({ currentModel, pick, turnsSinceSwitch }: IModelRouterSwitchInput): ModelRouterSwitchDecision {
 	const policy = modelRouterSwitchPolicy;
 	if (!pick.model || pick.model === currentModel) {
 		return 'stay';
@@ -144,7 +144,7 @@ export function decideModelRouterSwitch({ currentModel, pick, turnsSinceSwitch, 
 	if (pickProbability < policy.minPickProbability || pickProbability - (pick.probabilities[currentModel] ?? 0) < policy.minLead) {
 		return 'stay';
 	}
-	if (switches >= policy.maxSwitchesPerChat || (turnsSinceSwitch !== undefined && turnsSinceSwitch < policy.cooldownTurns)) {
+	if (turnsSinceSwitch !== undefined && turnsSinceSwitch < policy.cooldownTurns) {
 		return 'stay';
 	}
 	return 'switch';
@@ -205,7 +205,7 @@ export class CopilotModelRouter {
 			return { ...keepCurrent, notices: [localize('modelRouter.noModels', "None of the models in the model router {0} are available, so this chat kept its current model.", modelRouterLabel(router))] };
 		}
 		const last = lastSelectionOf(request.previousTurns);
-		const situation = describeModelRouterSituation(request.situation);
+		const situation = describeModelRouterSituation(modelRouterSituationFor(router, request.situation));
 		const context: IRouteContext = {
 			request, router, routes,
 			candidates: routes.map(route => {
@@ -258,11 +258,11 @@ export class CopilotModelRouter {
 		}
 		const picked = routes.find(route => routeKey(route) === pick.model);
 		if (!picked || pick.confidence < MIN_PICK_CONFIDENCE) {
-			this._logService.info(`[ModelRouter] ${request.chat}: no confident pick (${pick.model}, ${pick.confidence}); using ${fallback.model.id}`);
+			this._logService.info(`[ModelRouter] ${request.chat}: no confident pick (${pick.model}, ${pick.confidence}); using ${fallback.model.id}${describeDecision(pick)}`);
 			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, pick.effortScore));
 		}
 		const effort = this._effortFor(context, picked, pick.effortScore);
-		this._logService.info(`[ModelRouter] ${request.chat}: picked ${picked.model.id} (${pick.confidence}) effort=${effort}`);
+		this._logService.info(`[ModelRouter] ${request.chat}: picked ${picked.model.id} (${pick.confidence}) effort=${effort}${describeDecision(pick)}`);
 		return decision(context, picked, { ...switchedFrom(picked), ...preferenceOf(picked) }, [], effort);
 	}
 
@@ -302,8 +302,8 @@ export class CopilotModelRouter {
 			this._logService.warn(`[ModelRouter] ${request.chat}: follow-up pick failed; staying on ${current.model.id}`, error);
 			return stay;
 		}
-		const outcome = decideModelRouterSwitch({ currentModel: routeKey(current), pick, ...switchHistory(previousTurns) });
-		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model} probabilities=${JSON.stringify(pick.probabilities)}`);
+		const outcome = decideModelRouterSwitch({ currentModel: routeKey(current), pick, turnsSinceSwitch: turnsSinceLastSwitch(previousTurns) });
+		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model}${describeDecision(pick)}`);
 		const effort = router.effort === 'auto' && !current.effort
 			? decideModelRouterEffort({ current: currentEffort, score: pick.effortScore, supported: current.supportedEfforts })
 			: this._effortFor(context, current, undefined);
@@ -311,7 +311,7 @@ export class CopilotModelRouter {
 		if (outcome === 'stay' || !target) {
 			return decision(context, current, { kept: true }, [], effort);
 		}
-		return decision(context, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router, target)], this._effortFor(context, target, pick.effortScore));
+		return decision(context, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [], this._effortFor(context, target, pick.effortScore));
 	}
 }
 
@@ -324,7 +324,7 @@ function decision({ router, keepLongContext }: IRouteContext, route: IResolvedMo
 	const contextSizes = modelContextSizes(route.model);
 	const largest = contextSizes.length > 1 ? contextSizes[contextSizes.length - 1] : undefined;
 	// With no size from the router the model runs on its own default, which for some models is the larger window.
-	const tokensFor = (size: ModelRouterContextSize | undefined) => size === undefined ? modelDefaultContextSize(route.model) : size === 'long' ? largest : contextSizes[0];
+	const tokensFor = (size: ModelRouterContextSize | undefined) => size === undefined ? modelDefaultContextSize(route.model) : modelContextSizeTokens(route.model, size);
 	// A chat on a long window keeps it, so a route that would run on a smaller one is moved up.
 	const contextSize = keepLongContext && largest !== undefined && tokensFor(route.contextSize) !== largest ? 'long' : route.contextSize;
 	const contextTokens = contextSize ? tokensFor(contextSize) : undefined;
@@ -353,6 +353,11 @@ function decision({ router, keepLongContext }: IRouteContext, route: IResolvedMo
 }
 
 const PREFERENCE_CHARS = 300;
+
+/** For the log: how the decision weighed each route, and the facts it was told besides the message. Never the message. */
+function describeDecision(pick: IModelRouterPick): string {
+	return ` probabilities=${JSON.stringify(pick.probabilities)} facts=${JSON.stringify(pick.facts ?? [])}`;
+}
 
 /** What a routing decision answers with, and what a chat's turns remember a pick by: the route's name, or its model when it has none. */
 function routeKey(route: IResolvedModelRoute): string {
@@ -386,13 +391,6 @@ function keptEffort(route: IResolvedModelRoute, effort: string | undefined): str
 function preferenceOf(route: IResolvedModelRoute): Partial<IModelRoutedInfo> {
 	const line = route.route.when.trim().replace(/\s+/g, ' ');
 	return { preference: line.length > PREFERENCE_CHARS ? `${line.slice(0, PREFERENCE_CHARS).trimEnd()}\u2026` : line };
-}
-
-function describeSwitch(router: IModelRouter, { route, model }: IResolvedModelRoute): string {
-	// Two named routes can run on the same model, so the model alone would not say what changed.
-	return route.name
-		? localize('modelRouter.switchedToNamedRoute', "This request fits another route, so the model router {0} moved this chat to its {1} route on {2}.", modelRouterLabel(router), route.name, model.name)
-		: localize('modelRouter.switched', "This request fits another route, so the model router {0} moved this chat to {1}.", modelRouterLabel(router), model.name);
 }
 
 function describeFailure(router: IModelRouter, error: unknown, model: string): string {
@@ -478,14 +476,8 @@ function isOnLongContext(turns: readonly Turn[]): boolean {
 	return false;
 }
 
-function switchHistory(turns: readonly Turn[]): { readonly turnsSinceSwitch: number | undefined; readonly switches: number } {
-	let switches = 0;
-	let turnsSinceSwitch: number | undefined;
-	turns.forEach((turn, index) => {
-		if (readUsageInfoMeta(turn.usage).modelRouted?.switchedFrom) {
-			switches++;
-			turnsSinceSwitch = turns.length - 1 - index;
-		}
-	});
-	return { turnsSinceSwitch, switches };
+/** How many turns a chat has stayed on its model since a turn last changed it, or `undefined` when none did. */
+function turnsSinceLastSwitch(turns: readonly Turn[]): number | undefined {
+	const last = turns.findLastIndex(turn => readUsageInfoMeta(turn.usage).modelRouted?.switchedFrom);
+	return last < 0 ? undefined : turns.length - 1 - last;
 }

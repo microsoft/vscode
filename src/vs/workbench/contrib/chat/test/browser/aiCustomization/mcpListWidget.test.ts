@@ -1249,6 +1249,36 @@ suite('mcpListWidget', () => {
 		}]);
 	});
 
+	test('names active-session-only MCP servers after their installation and finds them by either name', () => {
+		const servers = [
+			createAgentHostServer({ id: 'session/cdt', name: 'io.example/cdt' }),
+			// A connector is named by the host, and a server without a catalog name by its configuration key.
+			createAgentHostServer({ id: 'session/connector', name: 'connector-1', displayName: 'GitHub' }),
+			createAgentHostServer({ id: 'session/memory', name: 'local-memory' }),
+		];
+		const installation = (id: string, displayName: string) => ({
+			installationId: id,
+			resource: { sourceId: 'mcpGallery', identifier: id, displayName, description: '', mediaType: CustomizationMarketplaceMediaType.McpServer, tags: [], capabilities: [], representativeQueries: [] },
+			state: { kind: 'installed' as const, target: { kind: 'mcp' as const, id } },
+		});
+		const installations = createCustomizationMarketplaceInstallationSnapshot([
+			installation('session/cdt', 'Chrome DevTools MCP'),
+			installation('session/connector', 'Catalog Connector'),
+			installation('session/memory', 'local-memory'),
+		]);
+		const rows = (query?: string) => createBuiltinActiveSessionMcpEntries(servers, installations, query).map(entry => {
+			const detail = createInstalledMcpServerDetailInput(entry);
+			return `${detail.label} [${detail.name}]`;
+		});
+
+		assert.deepStrictEqual({ all: rows(), byCatalogName: rows('chrome devtools'), byConfigurationKey: rows('example/cdt'), noMatch: rows('slack') }, {
+			all: ['Chrome DevTools MCP [io.example/cdt]', 'GitHub (Connector) [connector-1]', 'local-memory [local-memory]'],
+			byCatalogName: ['Chrome DevTools MCP [io.example/cdt]'],
+			byConfigurationKey: ['Chrome DevTools MCP [io.example/cdt]'],
+			noMatch: [],
+		});
+	});
+
 	test('filters local MCP collections hidden by the active harness', () => {
 		assert.deepStrictEqual({
 			defaultVisible: isMcpServerCollectionVisible('extension/github', undefined),

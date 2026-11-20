@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { shorten } from '../../../../../../base/common/labels.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
@@ -30,9 +30,11 @@ import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost
 import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { readRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 import { readCustomizationOrganizationMeta } from '../../../../../../platform/agentHost/common/meta/customizationOrganizationMeta.js';
+import { readCustomizationTeamProvided } from '../../../../../../platform/agentHost/common/meta/customizationTeamMeta.js';
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { getAgentHookMetadata } from '../../../common/promptSyntax/hookTypes.js';
+import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
@@ -41,7 +43,7 @@ import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { localize } from '../../../../../../nls.js';
 import { getAgentHostPluginEnablementActions } from '../../agentPluginActions.js';
-import type { ICustomizationHookItem, ICustomizationSkillItem } from '../../aiCustomization/aiCustomizationItemSource.js';
+import { CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX, type ICustomizationHookItem, type ICustomizationSkillItem } from '../../aiCustomization/aiCustomizationItemSource.js';
 import { getMcpCustomizationSource } from '../../aiCustomization/mcpCustomizationSource.js';
 
 
@@ -67,6 +69,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	private readonly _contentExpander: AgentCustomizationContentExpander;
 	protected readonly _sourceFolderReadinessTimeoutMs: number = SOURCE_FOLDER_CUSTOMIZATION_READINESS_TIMEOUT_MS;
 	private _draftCustomAgents: IObservable<readonly AgentCustomization[]> | undefined;
+	private _listsCustomAgentHooks = false;
 	private _draftCustomizations: IObservable<readonly ClientPluginCustomization[]> | undefined;
 
 	constructor(
@@ -88,6 +91,12 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		this._register(this._promptsService.onDidChangeSkills(() => {
 			this._onDidChange.fire();
 		}));
+	}
+
+	/** Lists the hooks declared in custom agent files, for agent hosts whose runtime runs them. */
+	setListsCustomAgentHooks(lists: boolean): void {
+		this._listsCustomAgentHooks = lists;
+		this._onDidChange.fire();
 	}
 
 	setDraftCustomAgents(customAgents: IObservable<readonly AgentCustomization[]>): void {
@@ -140,7 +149,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				: undefined),
 			enabled: runtime && runtime.effectiveEnabled === undefined ? undefined : isCustomizationEnabled(customization),
 			disabledReason: getCustomizationDisabledReason(customization),
-			organizationControl: readCustomizationOrganizationMeta(customization),
+			// A plugin the runtime installed states what the organization requires with its activation.
+			organizationControl: readCustomizationOrganizationMeta(customization)
+				?? (runtime?.managedDesiredEnabled !== undefined ? { requiredEnabled: runtime.managedDesiredEnabled } : undefined),
+			...(readCustomizationTeamProvided(customization) ? { teamProvided: true } : {}),
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,
@@ -162,11 +174,19 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				extensionId: undefined, pluginUri: undefined,
 			});
 		}
+		// A disabled directory that reports a degraded load explains why its disabled children won't run.
+		const notRunningMessage = customization.enabled === false && customization.load?.kind === CustomizationLoadStatus.Degraded ? customization.load.message : undefined;
 		for (const child of customization.children ?? []) {
 			const childSource = scope !== undefined || source === AICustomizationSources.builtin ? source : getDirectoryChildSource(workingDirectories, child.uri, source);
 			const item = this.toDirectoryChildItem(child, childSource, scope, isRemote);
 			if (item) {
-				items.push(item);
+				items.push(notRunningMessage && child.type === CustomizationType.Hook && child.enabled === false ? {
+					...item,
+					status: 'degraded',
+					statusMessage: notRunningMessage,
+					badge: localize('customizationWontRun', "Won't run"),
+					badgeTooltip: notRunningMessage,
+				} : item);
 			}
 		}
 		return items;
@@ -518,7 +538,51 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				userInvocable: true,
 			});
 		}
+		for (const item of this._listsCustomAgentHooks ? await this.getCustomAgentHooks([...items.values()]) : []) {
+			items.set(item.itemKey ?? item.uri.toString(), item);
+		}
 		return [...items.values()];
+	}
+
+	/**
+	 * Hooks declared in the `hooks` header of custom agent files. VS Code sends them with the agent, and they run
+	 * only while that agent is selected.
+	 */
+	private async getCustomAgentHooks(items: readonly ICustomizationItem[]): Promise<ICustomizationHookItem[]> {
+		// The host lists agent files whose hooks the session leaves out, as in an untrusted folder, as hooks that won't run. A session
+		// leaves out the hooks of every custom agent when any of its folders is untrusted, including agents the host could not list.
+		const notRunningItems = items.filter(item => item.type === PromptsType.hook && item.enabled === false && item.status === 'degraded');
+		const notRunning = new ResourceSet(notRunningItems.map(item => item.uri));
+		const notRunningMessage = notRunningItems[0]?.statusMessage;
+		const agents = items.filter(item => item.type === PromptsType.agent && hasReadableCustomizationContent(item.uri) && !notRunning.has(item.uri));
+		const hooks = await Promise.all(agents.map(async agent => {
+			let content: string;
+			try {
+				content = (await this._fileService.readFile(agent.uri)).value.toString();
+			} catch {
+				return [];
+			}
+			const header = new PromptFileParser().parse(agent.uri, content).header?.hooksRaw;
+			return (header?.properties ?? []).flatMap(({ key, value }) => value.type !== 'sequence' ? [] : value.items.map((_, index): ICustomizationHookItem => ({
+				itemKey: `${CUSTOM_AGENT_HOOK_ITEM_KEY_PREFIX}${agent.uri.toString()}#${key.value}/${index}`,
+				uri: agent.uri,
+				type: PromptsType.hook,
+				name: getAgentHookMetadata(Target.GitHubCopilot, key.value)?.label ?? key.value,
+				description: localize('customAgentHookDescription', "Runs while {0} is active", agent.name),
+				isHookAction: true,
+				enabled: agent.enabled,
+				source: agent.source,
+				scope: agent.scope,
+				origin: agent.origin,
+				delivery: agent.delivery,
+				extensionId: agent.extensionId,
+				extensionLabel: agent.extensionLabel,
+				pluginUri: agent.pluginUri,
+				pluginLabel: agent.pluginLabel,
+				...(notRunningMessage ? { status: 'degraded', statusMessage: notRunningMessage, badge: localize('customizationWontRun', "Won't run"), badgeTooltip: notRunningMessage } : {}),
+			})));
+		}));
+		return hooks.flat();
 	}
 
 	private getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {

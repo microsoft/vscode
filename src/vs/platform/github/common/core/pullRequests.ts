@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { PageOptions, RepositoryRef } from '../client/types.js';
 import { Account, Actor, ChangedFile, Connection, CursorOptions, Label, Milestone, NodeIdentity, RepositoryIdentity, Team } from './core.js';
@@ -273,53 +274,53 @@ export interface UpdateBranchOptions extends ApiRequestOptions {
 export interface IPullRequestsClient {
 
 	/** GET /repos/{owner}/{repo}/pulls: return one page of PR summaries. */
-	list(repository: RepositoryRef, signal: AbortSignal, options?: ListPullRequestsOptions): Promise<readonly PullRequestSummary[]>;
+	list(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListPullRequestsOptions): Promise<readonly PullRequestSummary[]>;
 
 	/** GraphQL: list open PRs by descending update time, defaulting to 100 per page; null means the repository was not returned. */
-	listConnection(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<PullRequestListItem> | null>;
+	listConnection(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<PullRequestListItem> | null>;
 
 	/** GET /repos/{owner}/{repo}/pulls/{number}: return detail metadata, including nullable mergeability. */
-	get(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequest>;
+	get(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<PullRequest>;
 
 	/** POST /repos/{owner}/{repo}/pulls: create a PR or convert an issue. */
-	create(repository: RepositoryRef, request: CreatePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequest>;
+	create(repository: RepositoryRef, request: CreatePullRequestRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<PullRequest>;
 
 	/** PATCH /repos/{owner}/{repo}/pulls/{number}: update supplied fields. */
-	update(repository: RepositoryRef, pullNumber: number, request: UpdatePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequest>;
+	update(repository: RepositoryRef, pullNumber: number, request: UpdatePullRequestRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<PullRequest>;
 
 	/** GET /repos/{owner}/{repo}/commits/{ref}/pulls: list one page of PRs associated with a commit. */
-	listForCommit(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly PullRequestSummary[]>;
+	listForCommit(repository: RepositoryRef, commitRef: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly PullRequestSummary[]>;
 
 	/** GET /repos/{owner}/{repo}/pulls/{number}/files: return one page; GitHub caps the complete listing at 3,000 files. */
-	listFiles(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ChangedFile[]>;
+	listFiles(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ChangedFile[]>;
 
 	/** GET /repos/{owner}/{repo}/pulls/{number}/commits: return one page; this endpoint exposes at most 250 commits. */
-	listCommits(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Commit[]>;
+	listCommits(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Commit[]>;
 
 	/** GET /repos/{owner}/{repo}/pulls/{number}: read the pull request's diff or patch text. */
-	getDiff(repository: RepositoryRef, pullNumber: number, format: 'diff' | 'patch', signal: AbortSignal, options?: ApiRequestOptions): Promise<string>;
+	getDiff(repository: RepositoryRef, pullNumber: number, format: 'diff' | 'patch', cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<string>;
 
 	/** PUT /repos/{owner}/{repo}/pulls/{number}/merge: submit a single merge attempt. */
-	merge(repository: RepositoryRef, pullNumber: number, request: MergePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<MergeResult>;
+	merge(repository: RepositoryRef, pullNumber: number, request: MergePullRequestRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<MergeResult>;
 
 	/** PUT /repos/{owner}/{repo}/pulls/{number}/update-branch: request a branch update; acceptance does not imply completion. */
-	updateBranch(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: UpdateBranchOptions): Promise<UpdateBranchResult>;
+	updateBranch(repository: RepositoryRef, pullNumber: number, cancellationToken: CancellationToken, options?: UpdateBranchOptions): Promise<UpdateBranchResult>;
 
 	/** GraphQL markPullRequestReadyForReview: mark a pull request as ready for review using its node ID. */
-	markReadyForReview(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<DraftState>;
+	markReadyForReview(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<DraftState>;
 
 	/** GraphQL convertPullRequestToDraft: convert a pull request to a draft using its node ID. */
-	convertToDraft(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<DraftState>;
+	convertToDraft(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<DraftState>;
 
 	/** GraphQL enablePullRequestAutoMerge: enable auto-merge and return the updated state. */
-	enableAutoMerge(pullRequestId: string, request: EnableAutoMergeRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutoMergeState>;
+	enableAutoMerge(pullRequestId: string, request: EnableAutoMergeRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutoMergeState>;
 
 	/** GraphQL disablePullRequestAutoMerge: disable auto-merge and return the updated state. */
-	disableAutoMerge(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutoMergeState>;
+	disableAutoMerge(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<AutoMergeState>;
 
 	/** GraphQL enqueuePullRequest: add a pull request to the merge queue and return its queue entry ID. */
-	enqueue(pullRequestId: string, request: EnqueuePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<NodeIdentity>;
+	enqueue(pullRequestId: string, request: EnqueuePullRequestRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<NodeIdentity>;
 
 	/** GraphQL dequeuePullRequest: remove a pull request from the merge queue. */
-	dequeue(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<NodeIdentity>;
+	dequeue(pullRequestId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<NodeIdentity>;
 }

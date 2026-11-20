@@ -8,7 +8,7 @@ import { LayoutPriority, Orientation, Sizing, SplitView } from '../../../../base
 import { Color } from '../../../../base/common/color.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { multiDiffEditorBorder } from '../../../../editor/browser/widget/multiDiffEditor/colors.js';
 import { IMultiDiffEditorWidgetOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
@@ -22,9 +22,10 @@ import './media/multiDiffEditorWithFileList.css';
 
 /**
  * Composes a {@link MultiDiffEditorWidget} with a list of its files docked on
- * either edge. The list is shown while `fileListVisible` is `true` and the
- * container is wide enough to fit both the diffs and the list. `fileListViewMode`
- * selects whether it shows a flat list or a tree of folders.
+ * either edge. The list is shown while `fileListVisible` is `true`, however
+ * narrow the container: the diffs then give up width down to their minimum, and
+ * below it, the width the list needs. `fileListViewMode` selects whether it
+ * shows a flat list or a tree of folders.
  *
  * Hosts drive the diffs through {@link multiDiffEditorWidget} and only route
  * layout through this composite.
@@ -40,9 +41,9 @@ export class MultiDiffEditorWithFileListWidget extends Disposable {
 	private readonly _splitView: SplitView<number>;
 	private readonly _fileListContainer: HTMLElement;
 	private readonly _fileList = this._register(new MutableDisposable<MultiDiffEditorFileList>());
-	private readonly _width = observableValue(this, 0);
+	private _width = 0;
 	private _fileListIndex = 1;
-	readonly isFileListVisible = observableValue(this, false);
+	readonly isFileListVisible: IObservable<boolean>;
 	/** Width the user wants for the list; the split view may temporarily squeeze it when space is short. */
 	private _preferredFileListWidth: number;
 
@@ -58,6 +59,7 @@ export class MultiDiffEditorWithFileListWidget extends Disposable {
 		@IThemeService themeService: IThemeService,
 	) {
 		super();
+		this.isFileListVisible = fileListVisible;
 
 		const root = append(container, $('.multi-diff-editor-with-file-list'));
 		const diffEditorContainer = $('.multi-diff-editor-with-file-list-editor');
@@ -75,11 +77,15 @@ export class MultiDiffEditorWithFileListWidget extends Disposable {
 			proportionalLayout: false,
 		}));
 
-		const isFileListVisible = this.isFileListVisible;
+		const getWidth = () => this._width;
 		this._splitView.addView({
 			element: diffEditorContainer,
-			// Only reserve room for the diffs while they share the width, so they fit narrow editor groups otherwise.
-			get minimumSize() { return isFileListVisible.get() ? MultiDiffEditorWithFileListWidget.MIN_DIFF_EDITOR_WIDTH : 0; },
+			// Only reserve room for the diffs while they share the width, and leave the list its minimum width in narrow editor groups.
+			get minimumSize() {
+				return fileListVisible.get()
+					? Math.max(0, Math.min(MultiDiffEditorWithFileListWidget.MIN_DIFF_EDITOR_WIDTH, getWidth() - MultiDiffEditorWithFileListWidget.MIN_FILE_LIST_WIDTH))
+					: 0;
+			},
 			maximumSize: Number.POSITIVE_INFINITY,
 			priority: LayoutPriority.High,
 			onDidChange: Event.None,
@@ -127,16 +133,12 @@ export class MultiDiffEditorWithFileListWidget extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			const enabled = fileListVisible.read(reader);
-			const hasRoom = this._width.read(reader) >= MultiDiffEditorWithFileListWidget.MIN_DIFF_EDITOR_WIDTH + MultiDiffEditorWithFileListWidget.MIN_FILE_LIST_WIDTH;
-			if (!enabled) {
+			const visible = fileListVisible.read(reader);
+			if (!visible) {
 				this._fileList.clear();
 			} else if (!this._fileList.value) {
 				this._fileList.value = this._instantiationService.createInstance(MultiDiffEditorFileList, this._fileListContainer, this.multiDiffEditorWidget, fileListViewMode);
 			}
-			const visible = enabled && hasRoom;
-			// Update before the split view relayouts, which reads it for the diffs' minimum width.
-			this.isFileListVisible.set(visible, undefined);
 			if (this._splitView.isViewVisible(this._fileListIndex) !== visible) {
 				this._splitView.setViewVisible(this._fileListIndex, visible);
 				this._restorePreferredFileListWidth();
@@ -146,18 +148,15 @@ export class MultiDiffEditorWithFileListWidget extends Disposable {
 
 	/** Lays out the diffs and, if shown, the file list. The diffs get the remaining width. */
 	layout(dimension: Dimension): void {
-		// Lay out before updating visibility so a newly shown list gets its preferred width
-		// rather than being squeezed into a split view that does not know its size yet.
+		// Set before the split view lays out, which reads it for the diffs' minimum width.
+		this._width = dimension.width;
 		this._splitView.layout(dimension.width, dimension.height);
-		this._width.set(dimension.width, undefined);
 		this._restorePreferredFileListWidth();
 	}
 
 	/** Moves keyboard focus to the file list. Does nothing while the list is hidden. */
 	focusFileList(): void {
-		if (this.isFileListVisible.get()) {
-			this._fileList.value?.focus();
-		}
+		this._fileList.value?.focus();
 	}
 
 	/** Gives the list its preferred width back, as far as the diffs' minimum width allows. */

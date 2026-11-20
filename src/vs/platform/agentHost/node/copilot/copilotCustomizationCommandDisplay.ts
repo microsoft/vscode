@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { appendEscapedMarkdownCodeBlockFence, appendEscapedMarkdownInlineCode, escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
-import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession } from '@microsoft/copilot-sdk';
 import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { SYNCED_CUSTOMIZATION_DISPLAY_NAME } from '../../common/agentHostCustomizationUri.js';

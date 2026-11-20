@@ -154,6 +154,7 @@ import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction, OpenAgentHostFolderPickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { AgentHostFolderPickerActionItem } from '../../agentSessions/agentHost/agentHostFolderPickerActionItem.js';
+import { createNewWorktreeCheckboxViewItem, ToggleAgentHostNewWorktreeAction } from '../../agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { IChatPhoneInputPresenter, MobileChatInputCombinedPickerActionItem } from './chatPhoneInputPresenter.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
@@ -382,6 +383,11 @@ export interface IChatInputPartOptions {
 	 */
 	isSessionsWindow?: boolean;
 	/**
+	 * Whether it shows its session's working set: as set, also while {@link isSessionsWindow} is set; unset, where it renders
+	 * the working set ({@link renderWorkingSet}) outside a sessions window's chat. Never in the Agents window.
+	 */
+	sessionWorkingSet?: boolean;
+	/**
 	 * Total horizontal gutter (in pixels) reserved outside the input box when
 	 * computing the editor width. Defaults account for the `.interactive-input-part`
 	 * margin used by the panel/sessions chat. Hosts that override that margin (e.g.
@@ -423,6 +429,13 @@ export interface IChatInputHostSubmit {
 	readonly hasContent?: IObservable<boolean>;
 	/** Label shown on the submit button, for sends that do more than send one request. */
 	readonly label?: IObservable<string | undefined>;
+	/**
+	 * Called as the input submits to the host, before it saves the dirty files it saves before sending and calls the
+	 * host's `submitHandler`; the returned disposable is disposed as that submit ends, also when it fails.
+	 */
+	beginSubmit?(): IDisposable;
+	/** Show the host label instead of the submit icon. */
+	readonly labelOnly?: IObservable<boolean>;
 }
 
 export interface IWorkingSetEntry {
@@ -1803,6 +1816,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			getProvider: () => getAgentHostProviderForTelemetry(this.getCurrentSessionType(), this.chatSessionsService),
 			getSessionType: () => this.modelTargetSessionType,
+			startPromptWith: text => this.startPromptWith(text),
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			// Inline chat, editor or terminal, offers no Copilot Fusion effort level: the host runs Fusion at its fast tier there.
@@ -2231,13 +2245,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Sync current input state to the input model
 	 */
-	private _syncInputStateToModel(): void {
+	private _syncInputStateToModel(storeMode = false): void {
 		if (this._isSyncingToOrFromInputModel) {
 			return;
 		}
 
 		this._isSyncingToOrFromInputModel = true;
 		const state = this.getCurrentInputState();
+		const savedMode = this._getSavedAgentHostMode();
+		if (!storeMode && savedMode) {
+			state.mode = savedMode;
+		}
 		if (this._chatSessionIsEmpty) {
 			this._emptyInputState.set(state, undefined);
 		}
@@ -2349,7 +2367,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Log first so the upcoming _syncInputStateToModel write can be attributed
 			// to a mode change.
 			logChangesToStateModel(this._inputModel, `setChatMode2 -> _syncInputStateToModel (mode=${mode.id}, storeSelection=${storeSelection}, isUserInitiated=${isUserInitiated}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
-			this._syncInputStateToModel();
+			this._syncInputStateToModel(true);
 		}
 	}
 
@@ -2736,8 +2754,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const currentMode = this._currentModeObservable.get();
 		const validMode = this._currentChatModesObservable.get().findModeById(currentMode.id);
 		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
+		const storeFallback = !this._getSavedAgentHostMode();
 		if (!validMode) {
-			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
+			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask, storeFallback);
 			return;
 		}
 		if (validMode.kind !== currentMode.kind) {
@@ -2745,15 +2764,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
-			this.setChatMode(ChatModeKind.Ask);
+			this.setChatMode(ChatModeKind.Ask, storeFallback);
 			return;
 		}
 		if (currentMode.id === ChatMode.Ask.id) {
 			const askMode = this._currentChatModesObservable.get().custom.find(mode => mode.kind === ChatModeKind.Ask);
 			if (askMode) {
-				this.setChatMode(askMode.id);
+				this.setChatMode(askMode.id, storeFallback);
 			}
 		}
+	}
+
+	/** The saved agent can outlive its entry in the composer catalog. */
+	private _getSavedAgentHostMode(): IChatModelInputState['mode'] | undefined {
+		const resource = this._inputModelSessionResource;
+		if (!resource || !isAgentHostTarget(resource.scheme) || isUntitledChatSession(resource)
+			|| !(this.environmentService.isSessionsWindow || this.options.isSessionsWindow)) {
+			return undefined;
+		}
+		const mode = this._inputModel?.state.get()?.mode;
+		return mode && ![ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(mode.id) ? mode : undefined;
 	}
 
 	/**
@@ -2914,6 +2944,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (model) {
 			this.inputEditor.setPosition(getLastPosition(model));
 		}
+	}
+
+	/** Starts the prompt with the given text, such as a slash command, keeping what is already written after it, and moves focus to it. */
+	startPromptWith(text: string): void {
+		const model = this._inputEditor.getModel();
+		const written = model?.getValue() ?? '';
+		// Already there only as a whole word: `/model-router-review` does not start with `/model-router`.
+		if (model && !(written.startsWith(text) && /^(\s|$)/.test(written.slice(text.length)))) {
+			// An edit, not a new value: the references and attachments of what is already written stay attached, and it can be undone.
+			this._inputEditor.pushUndoStop();
+			this._inputEditor.executeEdits('chat.startPromptWith', [{ range: new Range(1, 1, 1, 1), text: `${text} `, forceMoveMarkers: true }]);
+			this._inputEditor.pushUndoStop();
+			this._inputEditor.setPosition(getLastPosition(model));
+			this._widget?.refreshParsedInput();
+		}
+		this.focus();
 	}
 
 	focus() {
@@ -4455,6 +4501,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
 					const hasSecondaryActions = secondaryExecuteActions().length > 0;
 					const submitLabel = this.options.hostSubmit?.label;
+					const submitLabelOnly = this.options.hostSubmit?.labelOnly;
 					const createPrimaryAction = () => this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
 						override render(container: HTMLElement): void {
 							super.render(container);
@@ -4464,10 +4511,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								labelElement.setAttribute('aria-hidden', 'true');
 								this._register(autorun(reader => {
 									const label = submitLabel.read(reader);
+									const labelOnly = !!label && !!submitLabelOnly?.read(reader);
 									labelElement.textContent = label ?? '';
+									if (this.label) {
+										this.label.textContent = labelOnly ? label : '';
+									}
 									container.classList.toggle('labeled', !!label);
+									container.classList.toggle('label-only', labelOnly);
+									if (hasSecondaryActions) {
+										container.parentElement?.classList.toggle('chat-submit-button-label-only', labelOnly);
+									}
 									container.classList.toggle('chat-submit-button', !hasSecondaryActions || !!label);
 									this.updateAriaLabel();
+									this.updateTooltip();
 								}));
 							}
 						}
@@ -4478,6 +4534,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							if (label) {
 								this.label?.setAttribute('aria-label', label);
 							}
+						}
+
+						protected override getTooltip(): string {
+							return submitLabelOnly?.get() && submitLabel?.get() || super.getTooltip();
 						}
 					}, action, options);
 					return hasSecondaryActions
@@ -4585,6 +4645,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return Math.max(0, laneWidth - genericChipsContainer.getBoundingClientRect().width - gap);
 		};
 		const agentHostPermissions = this._register(new MutableDisposable<AgentHostChatInputPicker>());
+		let folderPicker: AgentHostFolderPickerActionItem | undefined;
 		if (this.options.renderSecondaryToolbar !== false) {
 			this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, responsivePickerContainer, MenuId.ChatInputSecondary, {
 				telemetrySource: this.options.menus.telemetrySource,
@@ -4596,7 +4657,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					kind: 'all',
 					minItems: 1,
 					actionMinWidth: 48,
-					getActionMinWidth: action => secondaryPickerMinWidths.get(action.id) ?? (secondaryPickerCompactStates.get(action.id)?.get() ? 22 : undefined),
+					// A folder chip that always shows its name needs its width, which it does not give up as compact pickers do
+					getActionMinWidth: action => (action.id === OpenAgentHostFolderPickerAction.ID ? folderPicker?.getMinimumWidth() : undefined)
+						?? secondaryPickerMinWidths.get(action.id) ?? (secondaryPickerCompactStates.get(action.id)?.get() ? 22 : undefined),
 					observedElement: responsivePickerContainer,
 					getAvailableWidth: getSecondaryToolbarAvailableWidth,
 					allowOverflow: () => this._secondaryPickerResponsiveLayout?.areAllItemsCompact() === true,
@@ -4705,13 +4768,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								this.agentHostPickers.delete(agentHostPickerProperty);
 							}
 						}, retainPicker);
+					} else if (action.id === ToggleAgentHostNewWorktreeAction.ID) {
+						return createNewWorktreeCheckboxViewItem(action, options, this.instantiationService);
 					} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
 						if (this.options.isSessionsWindow) {
 							return new HiddenActionViewItem(action);
 						}
 						const createPicker = () => this.instantiationService.createInstance(AgentHostFolderPickerActionItem, action, widget, getSecondaryPickerOptions(action.id));
 						secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
-						return createPicker();
+						folderPicker = createPicker();
+						return folderPicker;
 					} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 						const createPicker = () => {
 							const widgets = this.createChatSessionPickerWidgets(action, getSecondaryPickerOptions(action.id));
@@ -5524,6 +5590,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 	}
 
+	/**
+	 * The files the session working set shows: the registered session file changes, without those the input kept itself,
+	 * such as for a host without Accept Changes. None while the working set doesn't show.
+	 */
+	get sessionWorkingSetDiffs(): IObservable<readonly IEditSessionEntryDiff[]> {
+		return this._sessionWorkingSetDiffs;
+	}
+
 	get hasSessionWorkingSet(): boolean {
 		return !!this._sessionWorkingSetView.value;
 	}
@@ -5542,11 +5616,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Whether this input can show the session working set. Only the editor
-	 * window offers it; the Agents window doesn't, even in a chat editor.
+	 * Whether this input can show the session working set, as its
+	 * `sessionWorkingSet` option says, or by default where it renders the
+	 * working set outside a sessions window's chat. Only the editor window
+	 * offers it; the Agents window doesn't, even in a chat editor.
 	 */
 	get supportsSessionWorkingSet(): boolean {
-		return this.options.renderWorkingSet && !this.options.isSessionsWindow && !this.environmentService.isSessionsWindow;
+		return (this.options.sessionWorkingSet ?? (this.options.renderWorkingSet && !this.options.isSessionsWindow)) && !this.environmentService.isSessionsWindow;
 	}
 
 	renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {

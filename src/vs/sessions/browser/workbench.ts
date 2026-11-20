@@ -76,6 +76,7 @@ import { SessionsLayoutPolicy, ViewportClass } from './layoutPolicy.js';
 import { ChatLayoutPresentation } from '../common/chatLayout.js';
 import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, getSessionsPartFrameInset, getSidePaneFrameInset } from '../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
+import { registerMobileSheetNavigation } from '../../workbench/contrib/sessions/browser/mobile/mobileSheetNavigation.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost, SessionActivityBarColumn } from '../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
@@ -355,6 +356,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private readonly _onDidChangeAuxiliaryBarMaximized = this._register(new Emitter<void>());
 	readonly onDidChangeAuxiliaryBarMaximized = this._onDidChangeAuxiliaryBarMaximized.event;
+	readonly onDidChangeAuxiliaryBarMaximizeHidden = Event.None;
 
 	private readonly _onDidChangeAuxiliaryBarFloating = this._register(new Emitter<boolean>());
 	readonly onDidChangeAuxiliaryBarFloating = this._onDidChangeAuxiliaryBarFloating.event;
@@ -1104,7 +1106,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	private openMobileSidebarDrawer(): void {
-		// Push a history entry so the Android back button dismisses the drawer.
+		// Track the drawer so the Android back button dismisses it.
 		// Must come before setSideBarHidden(false) so layoutMobileSidebar() sees
 		// the drawer state.
 		if (!this.mobileNavStack.has('sidebar')) {
@@ -1122,10 +1124,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// Hide sidebar in grid
 		this.setSideBarHidden(true);
 
-		// Sync the navigation stack with the browser history: if there is a
-		// pending 'sidebar' entry (UI-initiated close), rewind history without
-		// firing onDidPop. If we're being called from the back-button path
-		// (onDidPop already fired), this is a no-op.
+		// A UI-initiated close removes its entry without invoking the close
+		// handler again. The Back path has already removed it.
 		if (this.mobileNavStack.has('sidebar')) {
 			this.mobileNavStack.popSilently('sidebar');
 		}
@@ -1757,6 +1757,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
 			}));
 		}
+
+		this._register(registerMobileSheetNavigation(this.mainContainer, dismiss => this.mobileNavStack.registerSheet(dismiss)));
 
 		// Wire up mobile nav stack: back-button pops close the corresponding part
 		this._register(this.mobileNavStack.onDidPop(layer => {
@@ -3019,6 +3021,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return Position.LEFT; // Always left in this layout
 	}
 
+	setChatPartAnchor(): void {
+		// This layout has no chat part
+	}
+
+	getChatPartPosition(): Position.LEFT {
+		return Position.LEFT;
+	}
+
 	getDetailsPosition(): DetailsPosition {
 		return this._detailsPosition === 'left' || this._detailsPosition === 'top' || this._detailsPosition === 'bottom' ? this._detailsPosition : 'right';
 	}
@@ -3277,6 +3287,18 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return this.workbenchGrid.isViewMaximized(this.panelPartView);
 	}
 
+	readonly onDidChangeChatPartVisibility: Event<boolean> = Event.None;
+
+	hasChatPart(): boolean {
+		return false;
+	}
+
+	isEditorHiddenByChat(): boolean {
+		return false;
+	}
+
+	setEditorHiddenByChat(_hidden: boolean): void { }
+
 	toggleMaximizedAuxiliaryBar(): void {
 		// No-op: Maximize not supported in this layout
 	}
@@ -3286,6 +3308,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	isAuxiliaryBarMaximized(): boolean {
+		return false; // Maximize not supported
+	}
+
+	hideAuxiliaryBarMaximize(): IDisposable {
+		return Disposable.None; // Maximize not supported
+	}
+
+	isAuxiliaryBarMaximizeHidden(): boolean {
 		return false; // Maximize not supported
 	}
 

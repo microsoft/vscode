@@ -32,18 +32,18 @@ The main implementation layers are:
 
 Account selection and sign-in UX belong to the caller or host binding, not the engine. The [workbench service](../../workbench/services/github/common/githubService.ts) offers:
 
-- `acquireAccountApiClient(providerId, session, signal)`: capture the exact provider/session/account/scopes/issuer grant from an existing authentication session, without forwarding its token or choosing another session.
-- `acquireDefaultAccountApiClient(signal)`: use the selected default account's existing repository grant.
-- `acquireAnonymousApiClient(signal)`: read GitHub.com data without selecting an account or obtaining credentials.
+- `acquireAccountApiClient(providerId, session, cancellationToken)`: capture the exact provider/session/account/scopes/issuer grant from an existing authentication session, without forwarding its credential or choosing another session.
+- `acquireDefaultAccountApiClient(cancellationToken)`: use the selected default account's existing repository grant.
+- `acquireAnonymousApiClient(cancellationToken)`: read GitHub.com data without selecting an account or obtaining credentials.
 
 Callers retaining a grant for cache keys or comparisons can use `toGitHubAuthorizationContext(providerId, session)`, which shares the session-based acquisition's token-free conversion.
 
 ```ts
-const client = await gitHubService.acquireAccountApiClient(providerId, session, signal);
+const client = await gitHubService.acquireAccountApiClient(providerId, session, cancellationToken);
 try {
 	const repository = await client.repositories.get(
 		{ owner: 'microsoft', repo: 'vscode' },
-		signal,
+		cancellationToken,
 		{ caller: 'repositoryPicker' },
 	);
 	// Use repository.
@@ -56,7 +56,7 @@ These portable clients are directly disposable. The older `IGitHubService.acquir
 
 Important lifetime rules:
 
-- The acquisition signal controls acquisition, not the acquired client's lifetime. Dispose the client when its owning operation or feature ends.
+- The acquisition token controls acquisition, not the acquired client's lifetime. Dispose the client when its owning operation or feature ends.
 - Grant changes invalidate affected clients. Consumers retaining clients must discard account-bound state when invalidated.
 - Same-session token renewal retains the lease while replacing credentials; it does not replay interrupted writes.
 - Different grants and endpoints have separate private state. Releasing a client does not reset live server cooldowns.
@@ -65,6 +65,16 @@ Important lifetime rules:
 The [credential broker](../../workbench/services/github/browser/githubCredentialProvider.ts) silently resolves the exact selected grant and derives approved endpoints. Credentials stay in the broker and execution engine, not in domain-client results or ordinary request messages. IPC leases belong to a physical connection; disconnect, disposal, and cancelled acquisitions release them, including when acquisition replies arrive late.
 
 Anonymous clients expose only content reads, `gist.get`, and `search.issues`. They omit authorization, cookies, and referrers, and cannot perform mutations or GraphQL operations. Internal bootstrap clients are reserved for trusted host authentication flows; checking a supplied credential does not make it an accepted host credential.
+
+### Agent Host account-selection hints
+
+The Agent Host accepts the optional AHP `authenticate.accountId` as an opaque, unverified client-local selection hint. The protocol boundary scopes it to the originating client, protected resource, and optional target; the GitHub credential service still resolves the token's identity with `GET /user`. Stable hints preserve renewal cooldowns, while a changed selection can be verified without inheriting another selection's bootstrap wait. Neither a changed hint nor token rotation clears a verified account's cooldown or establishes authorization or cross-client credential equivalence.
+
+Hint appearance or disappearance during renewal retains the same comparison context and bootstrap cooldown. Comparison history is retained per client/resource/target for the host lifetime, independently of token pruning, invalidation, scope changes, or replacement by another client. Each stored token keeps its own comparison snapshot, while replay preserves the currently supplied optional field rather than fabricating one.
+
+VS Code sends its provider/account/authorization-server tuple only in the standard field. Older hosts ignore the standard hint, and GitHub token authentication and renewal still work without it; mixed-version connections may keep the conservative bootstrap cooldown until token validation establishes an account switch. General `_meta` support, including unrelated authentication metadata, is unaffected.
+
+The Microsoft credential bridge is the one place that compares the identifier across clients. One Microsoft account serves every unscoped client of a host, so the bridge binds to the identifier of the first accepted credential and requires the same value, undecoded, on every later Microsoft credential from any client and for any Microsoft resource. A client must therefore send the same identifier for the same account from every connection, as VS Code's tuple does; a client that sends none or a different one is refused. This keeps the host on one account and is not an isolation boundary: unscoped clients already share the host's credentials and can replace them, and credentials from scoped clients stay in their own scope, which the bridge does not read. No display label is sent.
 
 ## Typed domains
 
@@ -78,7 +88,7 @@ The [account interface](common/account/account.ts) is the authoritative list of 
 | Mission Control | [Automations](common/missionControl/automations.ts), [tasks](common/missionControl/tasks.ts), [environments](common/missionControl/environments.ts) |
 | Copilot Connector catalog and connection management | [Connectors](common/connectors/connectors.ts) |
 
-Repository operations use `RepositoryRef` (`{ owner, repo }`); [toRepositoryRef](common/client/routing.ts) converts an `owner/repository` identifier without silently dropping extra path segments. Typed request methods take an `AbortSignal` and optional trailing request options. They normally return parsed domain data or `void`, not transport objects, ETags, or header collections. Domain-specific counts, cursors, nullable values, and acceptance states remain meaningful; HTTP success does not necessarily mean an asynchronous operation has completed.
+Repository operations use `RepositoryRef` (`{ owner, repo }`); [toRepositoryRef](common/client/routing.ts) converts an `owner/repository` identifier without silently dropping extra path segments. Typed request methods take a `CancellationToken` and optional trailing request options. They normally return parsed domain data or `void`, not transport objects, ETags, or header collections. Domain-specific counts, cursors, nullable values, and acceptance states remain meaningful; HTTP success does not necessarily mean an asynchronous operation has completed.
 
 ### Domain-specific boundaries
 
@@ -103,7 +113,9 @@ The [transport](common/githubTransport.ts), [queue](common/requestQueue.ts), and
 
 Current numeric defaults are defined in the queue and transport, not promised as public API or server quotas.
 
-[ApiRequestOptions](common/client/request.ts) carries `caller`, an absolute millisecond `deadline`, `priority`, and `noCache`. Query parameters belong under `query`; request metadata must not become URL parameters, GraphQL variables, or request-body fields. Use background/enrichment priorities for passive work rather than giving every request interactive priority.
+[ApiRequestOptions](common/client/request.ts) carries `caller`, an absolute millisecond `deadline`, `priority`, and `noCache`. Supply a stable, code-defined caller identifying the owning feature; never derive it from account, repository, or request content. Helpers accepting request options must preserve the caller's attribution and priority, supplying a caller fallback when needed. Query parameters belong under `query`; request metadata must not become URL parameters, GraphQL variables, or request-body fields.
+
+Typed-client GET/HEAD and GraphQL reads default to `interactive`, so omit that priority for user-initiated reads. REST and GraphQL writes default to `mutation`. The lower-level `transport.graphql()` wrapper instead defaults to `interactive` regardless of operation kind, so its direct mutation callers must pass `mutation`. Mission Control additionally treats credential operations as mutations regardless of HTTP method. Override scheduling for the workflow: use `background` for automatic refreshes, `enrichment` for optional metadata such as avatars, `visible` for visible-resource subscriptions, and `mutationReconciliation` for reads confirming a dispatched write. Subscription contracts have their own priority requirements; their explicit interest priorities are not redundant request options.
 
 [RequestError](common/types.ts) provides `isResponseTooLarge` and `isRateLimited` predicates. Rate-limit detection uses the transport's `rateLimit` classification, including HTTP 429 and secondary-rate-limit HTTP 403 responses; an ordinary authorization failure is not a rate limit.
 
@@ -114,6 +126,8 @@ Request and response bodies cross IPC as buffered text; domain parsers run besid
 ## Host networking
 
 Bindings own their fetch implementation. There is no automatic move to another machine or executor after a failed request.
+
+Fetch implementations accept a cancellation token and a disposable lifetime that covers the request and its response body. The [base fetch adapter](../../base/parts/request/common/fetch.ts) translates cancellation for native networking; the engine disposes that lifetime after consuming or cancelling the body, not when headers arrive. Request deadlines and credential invalidation retain their domain errors independently of caller cancellation.
 
 - **Browser:** CORS and browser/OS proxy and certificate behavior apply. A restricted repository-read fallback can follow browser-opaque redirects; it validates the final destination but cannot guarantee that no intermediate origin was contacted.
 - **Shared process:** [createFetch](electron-utility/githubFetch.ts) uses local-machine proxy/PAC, authentication, shell environment, and certificate integration. Remote-workspace settings do not select its proxy.
@@ -144,7 +158,7 @@ Gist results contain only the ID, browser URL, and inline file content with bina
 2. Reuse request providers, routing helpers, and execution policy. Do not add another fetch stack, credential path, or arbitrary authenticated URL escape hatch.
 3. Verify response fields against the service contract. Preserve meaningful omission and null values; do not replace unavailable data with success-shaped defaults.
 4. Choose [schema parsers](common/client/schema.ts) deliberately: `parse.object` retains extra fields and reuses unchanged inputs; `parse.copyObject` projects declared fields, with nested filtering composed explicitly. `parse.optional(parser, defaultValue)` defaults only `undefined`, not `null`.
-5. Supply the fixed API domain for telemetry, forward caller/signal/options, and add focused contract tests. Exercise serialized IPC when changing the execution boundary.
+5. Supply the fixed API domain for telemetry, forward caller/token/options, and add focused contract tests. Exercise serialized IPC when changing the execution boundary.
 
 ## Telemetry
 

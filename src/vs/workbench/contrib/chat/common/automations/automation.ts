@@ -137,6 +137,8 @@ export interface IAutomationDescriptor {
 	readonly targetDisplay?: { readonly label: string; readonly icon: ThemeIcon };
 	readonly externalResource?: URI;
 	readonly ownership?: 'user' | 'repository';
+	/** Whether the provider identifies the signed-in user as this automation's creator. */
+	readonly isCreatedByCurrentUser?: boolean;
 
 	/** Complete provider-owned session template. */
 	readonly sessionTemplate?: IAutomationSessionTemplate;
@@ -153,6 +155,12 @@ export interface IAutomationDescriptor {
 	readonly enabled: boolean;
 	/** Host-owned conditions; only end dates can be authored by this client. */
 	readonly disableConditions?: readonly AutomationDisableCondition[];
+
+	/**
+	 * Whether every run sends its prompt in the session of the previous run instead of a new session. `undefined` keeps
+	 * the current choice when updating.
+	 */
+	readonly continueSession?: boolean;
 
 	/** ISO-8601 UTC timestamp. */
 	readonly createdAt: string;
@@ -171,6 +179,10 @@ export interface IAutomationDescriptor {
  */
 export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
 
+export function isAutomationVisible(automation: Pick<IAutomationDescriptor, 'ownership' | 'isCreatedByCurrentUser'>, showSharedByOthers: boolean): boolean {
+	return showSharedByOthers || automation.ownership !== 'repository' || automation.isCreatedByCurrentUser === true;
+}
+
 /**
  * What kicked off a run. `catch_up` reflects the host's misfire policy for a
  * due-time that passed while the host was not running.
@@ -181,6 +193,8 @@ export interface IAutomationRun {
 	/** Opaque identifier, unique across concrete providers and historical archives. */
 	readonly id: string;
 	readonly automationId: string;
+	/** Preserves scheduled-chat provenance after the definition is removed. */
+	readonly purpose?: 'scheduledChat';
 	readonly status: AutomationRunStatus;
 	readonly trigger: AutomationRunTrigger;
 

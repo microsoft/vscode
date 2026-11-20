@@ -203,7 +203,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 				results.push(info);
 			}
 
-			const withActiveHost = results.filter(t => t.hostConnectionCount > 0).length;
+			const withActiveHost = results.filter(t => t.hostConnectionCount !== undefined && t.hostConnectionCount > 0).length;
 			this._logService.info(
 				`${LOG_PREFIX} Discovery complete: total=${discovered.length}, accepted=${results.length}, withActiveHost=${withActiveHost}, droppedByProtocolVersion=${droppedByProtocolVersion}, droppedMissingIds=${withoutIds}`
 			);

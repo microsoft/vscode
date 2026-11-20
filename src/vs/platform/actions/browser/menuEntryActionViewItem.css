@@ -43,17 +43,32 @@
 	background-size: 16px;
 }
 
-.monaco-dropdown-with-default > .action-container.disabled {
+.monaco-dropdown-with-default > :is(.action-container, .dropdown-action-container).disabled {
 	cursor: default;
 }
 
-.monaco-dropdown-with-default > .action-container.disabled > .action-label {
+.monaco-dropdown-with-default > :is(.action-container, .dropdown-action-container).disabled > .action-label {
 	opacity: 0.4;
 	pointer-events: none;
 }
 
 .monaco-dropdown-with-default:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* A split button whose primary action is toggled on shows that state across both of its parts. */
+.monaco-action-bar .actions-container.highlight-toggled .monaco-dropdown-with-default.primary-checked {
+	background-color: var(--vscode-actionBar-toggledBackground);
+}
+
+/* The split button paints the toggled background, so its primary action does not paint it again. */
+.monaco-action-bar .actions-container.highlight-toggled .monaco-dropdown-with-default.primary-checked > .action-container > .action-label.checked {
+	background: transparent !important;
+}
+
+/* Like the dropdown part, the primary action shows the hover background over the toggled background. */
+.monaco-action-bar .actions-container.highlight-toggled .monaco-dropdown-with-default.primary-checked > .action-container > .action-label.checked:not(.disabled):hover {
+	background: var(--vscode-toolbar-hoverBackground) !important;
 }
 
 .monaco-dropdown-with-default > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {

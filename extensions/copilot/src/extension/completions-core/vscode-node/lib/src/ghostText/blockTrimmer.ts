@@ -46,14 +46,6 @@ export abstract class BlockTrimmer {
 		return offset === undefined ? this.completion : this.completion.substring(0, offset);
 	}
 
-	/**
-	 * Gets the statement at the cursor position.
-	 * If the cursor is not within a statement (e.g. it's on an error node),
-	 * returns the first statement from the tree (if any).
-	 */
-	protected getStatementAtCursor(tree: StatementTree): StatementNode | undefined {
-		return tree.statementAt(Math.max(this.prefix.length - 1, 0)) ?? tree.statements[0];
-	}
 
 	protected getContainingBlockOffset(stmt: StatementNode | undefined): number | undefined {
 		let trimTo: StatementNode | undefined;
@@ -95,84 +87,6 @@ export abstract class BlockTrimmer {
 	}
 }
 
-/**
- * A block trimmer that tries to obtain the longest reasonable completion
- * within its line limit. This results in a more verbose completion.
- *
- * Don't delete it is used in tests.
- */
-export class VerboseBlockTrimmer extends BlockTrimmer {
-	private readonly offsetLimit: number | undefined;
-
-	constructor(
-		languageId: string,
-		prefix: string,
-		completion: string,
-		private readonly lineLimit: number = 10
-	) {
-		super(languageId, prefix, completion);
-		// determine the end of the lineLimit line as an offset into the completion
-		const completionLineEnds = [...this.completion.matchAll(/\n/g)];
-		if (completionLineEnds.length >= this.lineLimit && this.lineLimit > 0) {
-			this.offsetLimit = completionLineEnds[this.lineLimit - 1].index;
-		} else {
-			this.offsetLimit = undefined;
-		}
-	}
-
-	async getCompletionTrimOffset(): Promise<number | undefined> {
-		return await this.withParsedStatementTree(tree => {
-			const stmt = this.getStatementAtCursor(tree);
-
-			// do not go past the containing block
-			let offset = this.getContainingBlockOffset(stmt);
-
-			// first try trimming at a blank line
-			if (!this.isWithinLimit(offset)) {
-				offset = this.trimToBlankLine(offset);
-			}
-
-			// then try trimming at a statement
-			if (!this.isWithinLimit(offset)) {
-				offset = this.trimToStatement(stmt, offset);
-			}
-
-			return offset;
-		});
-	}
-
-	private isWithinLimit(offset: number | undefined): boolean {
-		return this.offsetLimit === undefined || (offset !== undefined && offset <= this.offsetLimit);
-	}
-
-	private trimToBlankLine(offset: number | undefined): number | undefined {
-		const blankLines = [...this.trimmedCompletion(offset).matchAll(/\r?\n\s*\r?\n/g)].reverse();
-		while (blankLines.length > 0 && !this.isWithinLimit(offset)) {
-			const match = blankLines.pop()!;
-			offset = match.index;
-		}
-		return offset;
-	}
-
-	private trimToStatement(stmt: StatementNode | undefined, offset: number | undefined): number | undefined {
-		const min = this.prefix.length;
-		const max = this.prefix.length + (this.offsetLimit ?? this.completion.length);
-		let s = stmt;
-		let next = stmt?.nextSibling;
-		while (next && next.node.endIndex <= max && !this.hasNonStatementContentAfter(s)) {
-			s = next;
-			next = next.nextSibling;
-		}
-		if (s && s === stmt && s.node.endIndex <= min) {
-			s = next;
-		}
-		if (s && s.node.endIndex > max) {
-			// break at an internal statement if possible
-			return this.trimToStatement(s.children[0], this.asCompletionOffset(s.node.endIndex));
-		}
-		return this.asCompletionOffset(s?.node?.endIndex) ?? offset;
-	}
-}
 
 /**
  * A block trimmer that stops when it's likely the end of a logical section has
