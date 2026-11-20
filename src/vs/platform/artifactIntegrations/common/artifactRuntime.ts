@@ -44,8 +44,9 @@ export type ArtifactPromptOutcome = {
 	readonly reason: string;
 };
 
+/** `submitted` is the unconfirmed initial state; `queued` means the chat confirmed the prompt is waiting in its queue. */
 export type ArtifactPromptState =
-	| { readonly kind: 'submitted' }
+	| { readonly kind: 'submitted' | 'queued' }
 	| { readonly kind: 'running'; readonly turnId: string }
 	| { readonly kind: 'unavailable' | 'indeterminate'; readonly reason: string }
 	| ArtifactPromptOutcome;

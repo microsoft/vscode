@@ -1639,13 +1639,13 @@ suite('Artifact Integrations', () => {
 		}, { submissions: 1, recovered: [first.id], runs: [['failed', false], ['cancelled', false]] });
 	}));
 
-	test('restarting an archived session keeps an automated prompt whose turn is gone uncertain without cancelling it', () => run(async store => {
+	async function restartWithUncertainPrompt(store: DisposableStore, archived: boolean, progress: ArtifactPromptState, beforeWrite?: (state: ArtifactIntegrationState) => Promise<void>) {
 		const action: ArtifactAction = { id: 'act', label: 'Analyse', iconId: 'search', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) };
 		const firstStore = store.add(new DisposableStore());
 		const first = fixture(firstStore, action);
 		const reference = firstStore.add(await first.service.acquireArtifact('session', artifact.id));
 		await reference.object.configure('test', 0, { automatic: true });
-		const requested = await first.bindings[0].automation!.runAutomation({ optionId: 'automatic', actionId: 'act', configurationRevision: 1, occurrenceKey: 'first', reason: 'Due' });
+		await first.bindings[0].automation!.runAutomation({ optionId: 'automatic', actionId: 'act', configurationRevision: 1, occurrenceKey: 'first', reason: 'Due' });
 		await waitForState(first.service.ledger.state, state => state.runs[0]?.state === 'submitted');
 		first.progress.set({ kind: 'indeterminate', reason: 'The turn is missing' }, undefined);
 		await waitForState(first.service.ledger.state, state => state.runs[0]?.indeterminate === true);
@@ -1654,19 +1654,52 @@ suite('Artifact Integrations', () => {
 		await first.service.whenIdle();
 
 		const writtenStates: string[] = [];
-		first.storage.beforeWrite = async value => { writtenStates.push((JSON.parse(value) as ArtifactIntegrationState).runs[0].state); };
+		first.storage.beforeWrite = async value => {
+			const state: ArtifactIntegrationState = JSON.parse(value);
+			writtenStates.push(state.runs[0].state);
+			await beforeWrite?.(state);
+		};
 		const restarted = fixture(store, action, first.storage);
-		restarted.session.set({ ...restarted.session.get(), archived: true }, undefined);
-		restarted.progress.set({ kind: 'indeterminate', reason: 'The turn is missing' }, undefined);
+		restarted.session.set({ ...restarted.session.get(), archived }, undefined);
+		restarted.progress.set(progress, undefined);
 		await restarted.service.initialize();
+		return { restarted, writtenStates };
+	}
+
+	for (const { name, archived, progress, expected } of [
+		{ name: 'keeps a prompt whose turn is gone uncertain without cancelling it', archived: true, progress: { kind: 'indeterminate', reason: 'The turn is missing' }, expected: { cancellations: [0], writtenStates: [], run: { state: 'interrupted', indeterminate: true } } },
+		{ name: 'revokes a prompt its chat confirms is still queued in an archived session', archived: true, progress: { kind: 'queued' }, expected: { cancellations: [1], writtenStates: ['submitted', 'cancelled'], run: { state: 'cancelled', indeterminate: false } } },
+		{ name: 'records a prompt its chat confirms is running as certain', archived: false, progress: { kind: 'running', turnId: 'recovered-turn' }, expected: { cancellations: [0], writtenStates: ['running'], run: { state: 'running', indeterminate: false } } },
+	] satisfies { name: string; archived: boolean; progress: ArtifactPromptState; expected: unknown }[]) {
+		test(`reconciling an uncertain automated prompt after restart ${name}`, () => run(async store => {
+			const { restarted, writtenStates } = await restartWithUncertainPrompt(store, archived, progress);
+			await timeout(0);
+			await restarted.service.whenIdle();
+			const { state, indeterminate } = restarted.service.ledger.state.get().runs[0];
+			assert.deepStrictEqual({
+				cancellations: restarted.handles.map(handle => handle.cancelCalls),
+				writtenStates, run: { state, indeterminate },
+			}, expected);
+		}));
+	}
+
+	test('tracking loss reported while a recovered running state is being saved still leaves the prompt uncertain', () => run(async store => {
+		const saving = new DeferredPromise<void>();
+		const saved = new DeferredPromise<void>();
+		const { restarted } = await restartWithUncertainPrompt(store, false, { kind: 'running', turnId: 'recovered-turn' }, async state => {
+			if (state.runs[0].state === 'running') {
+				void saving.complete();
+				await saved.p;
+			}
+		});
+		await saving.p;
+		restarted.progress.set({ kind: 'indeterminate', reason: 'The turn is missing' }, undefined);
+		await timeout(0);
+		await saved.complete();
 		await timeout(0);
 		await restarted.service.whenIdle();
 		const { state, indeterminate } = restarted.service.ledger.state.get().runs[0];
-		assert.deepStrictEqual({
-			recovered: restarted.recovered.map(recovery => recovery.requestId),
-			cancellations: restarted.handles.map(handle => handle.cancelCalls),
-			writtenStates, run: { state, indeterminate },
-		}, { recovered: [requested.id], cancellations: [0], writtenStates: [], run: { state: 'interrupted', indeterminate: true } });
+		assert.deepStrictEqual({ state, indeterminate }, { state: 'interrupted', indeterminate: true });
 	}));
 
 	for (const kind of ['prompt', 'code'] as const) {

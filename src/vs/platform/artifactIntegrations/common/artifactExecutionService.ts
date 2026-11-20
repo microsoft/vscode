@@ -516,7 +516,10 @@ export class ArtifactExecutionService extends Disposable {
 			store.add(autorun(reader => {
 				const state = handle.state.read(reader);
 				if (state.kind === 'running') {
-					this.recordPromptUpdate(run.id, handle, { state: 'running', receipt: { kind: 'turn', turnId: state.turnId } }, uncertain);
+					this.recordPromptUpdate(run.id, handle, { state: 'running', receipt: { kind: 'turn', turnId: state.turnId }, indeterminate: false }, uncertain);
+				} else if (uncertain && state.kind === 'queued') {
+					// Reopening a confirmed queued prompt lets revocation remove it before it can start.
+					this.recordPromptUpdate(run.id, handle, { state: 'submitted', receipt: { kind: 'queued', queuedMessageId: handle.requestId }, indeterminate: false }, uncertain);
 				}
 			}));
 			void this.completePrompt(run.id, handle, uncertain).catch(error => this.logService.error('[ArtifactIntegrations] Could not track prompt outcome', error));
@@ -820,12 +823,10 @@ export class ArtifactExecutionService extends Disposable {
 	}
 
 	private async updateRun(id: string, transition: ArtifactRunTransition, reconciliation = false): Promise<void> {
-		const current = this.getRun(id);
-		if ((isArtifactRunSettled(current) && !(reconciliation && current.indeterminate)) || structuralEquals(current, { ...current, ...transition })) {
-			return;
-		}
+		this.getRun(id);
+		// Check against the state the transaction sees, so an update queued behind a pending write is not skipped as stale.
 		await this.ledger.transact(state => {
-			state.runs = state.runs.map(run => run.id === id && (!isArtifactRunSettled(run) || (reconciliation && run.indeterminate))
+			state.runs = state.runs.map(run => run.id === id && (!isArtifactRunSettled(run) || (reconciliation && run.indeterminate)) && !structuralEquals(run, { ...run, ...transition })
 				? applyArtifactRunTransition(run, transition, Date.now()) : run);
 		});
 		if (isArtifactRunSettled(this.getRun(id))) {
