@@ -27,7 +27,7 @@ import { Task } from '../../../../../../platform/github/common/missionControl/ta
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
-import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { getGitHubRepositoryId } from '../../../../../../platform/github/common/githubUrls.js';
 import { RepositoryPicker } from '../../../../chat/browser/agentSessions/repositoryPicker.js';
 import { IGitHubService } from '../../../browser/github/githubService.js';
@@ -35,6 +35,7 @@ import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSch
 import { AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRefreshOptions, IAutomationRunRequestResult, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../chat/common/automations/automationsEnabled.js';
 import { automationTriggerChoices, canEditAutomationTriggers, hasAutomationEventTrigger } from '../../../../chat/common/automations/automationTriggers.js';
+import { observableShowSharedAutomationsByOthers } from '../../../../chat/common/automations/automationViewState.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadataAndIdentifier } from '../../../../chat/common/languageModels.js';
 import { resolveModelIdentifier } from '../../../../chat/common/modelSelection.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -42,7 +43,6 @@ import { IWorkbenchGitHubService } from '../../../../../services/github/common/g
 import { AgentSessionProviders } from '../../../../chat/browser/agentSessions/agentSessions.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
 import { ISessionModelsSnapshot, ISessionsProviderAutomations } from '../../../common/sessionsProvider.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING } from '../../../common/sessionConfig.js';
 import { CloudAutomationToolCatalog, GitHubCloudAutomationStore, ICloudAutomationEntry, ICloudAutomationHistoryEntry } from './githubCloudAutomationStore.js';
 
 interface ICloudAutomationCatalogueItem {
@@ -110,10 +110,11 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		@ILogService private readonly logService: ILogService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IWorkbenchGitHubService workbenchGitHubService: IWorkbenchGitHubService,
+		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 	) {
 		super();
-		this.showSharedByOthers = observableConfigValue(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, false, configurationService);
+		this.showSharedByOthers = observableShowSharedAutomationsByOthers(this, storageService, this._store);
 		this.accountInitialization = (async () => {
 			await defaultAccountService.getDefaultAccount();
 			if (!this._store.isDisposed) {

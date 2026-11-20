@@ -437,6 +437,22 @@ suite('Chat configuration', () => {
 		});
 	});
 
+	test('removes the shared automation visibility setting from application and user settings', async () => {
+		const key = 'sessions.automations.showSharedByOthers';
+		const migration = migrations.find(migration => migration.key === key);
+		assert.deepStrictEqual({
+			registeredSetting: configurationProperties[key],
+			includeApplication: migration?.includeApplication,
+			enabled: await migration?.migrateFn(true, () => undefined),
+			disabled: await migration?.migrateFn(false, () => undefined),
+		}, {
+			registeredSetting: undefined,
+			includeApplication: true,
+			enabled: { value: undefined },
+			disabled: { value: undefined },
+		});
+	});
+
 	test('does not overwrite the auto mark as done setting during migration', async () => {
 		assert.deepStrictEqual(await legacyAutoArchiveMigration?.migrateFn(15, () => 30), [
 			['chat.agentSessions.autoArchiveMergedSessionsAfterDays', { value: undefined }],

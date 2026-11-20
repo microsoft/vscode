@@ -28,12 +28,14 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import type { IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { type AutomationHistoryState, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { getShowSharedAutomationsByOthers } from '../../../../workbench/contrib/chat/common/automations/automationViewState.js';
 import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -43,7 +45,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { formatSessionListTime, SessionItemStatusContext, SessionsFlatList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { isActiveSessionStatus, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
@@ -275,6 +277,7 @@ export class AutomationHistorySection extends Disposable {
 		@IChatService chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.chatModels = chatService.chatModels.map(models => [...models]);
@@ -1051,6 +1054,7 @@ export class AutomationHistorySection extends Disposable {
 				this.automationService, this.sessionsManagementService, this.uriIdentityService,
 				this.chatModels.get(), this.logService, this.dialogService,
 				this.configurationService,
+				this.storageService,
 			);
 		} finally {
 			this.isMarkingAllRead.set(false, undefined);
@@ -1066,11 +1070,12 @@ export async function markAllAutomationRunsRead(
 	logService: ILogService,
 	dialogService: IDialogService,
 	configurationService: IConfigurationService,
+	storageService: IStorageService,
 ): Promise<void> {
 	try {
 		const { runs } = getAutomationsViewContent(
 			automationService.automations.get(), automationService.runs.get(),
-			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+			getShowSharedAutomationsByOthers(storageService),
 			configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
 		);
 		const models = [...chatModels];
