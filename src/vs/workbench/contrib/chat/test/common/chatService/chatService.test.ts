@@ -6055,6 +6055,55 @@ suite('ChatService', () => {
 			model.cancelRequest(live);
 		});
 
+		test('keeps a fetched page searchable as pending until its replacement history is applied', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const recent = { id: 'recent', type: 'request', prompt: 'Recent', participant: remoteScheme } as const;
+			const cursor = observableValue<string | undefined>('cursor', 'last page');
+			let loads = 0;
+			const { resource } = setupRemoteProvider({
+				history: [recent], onDidChangeHistory: changes.event, olderHistoryCursor: cursor, ownsHistoryRequestIds: true,
+				loadOlderHistory: async () => {
+					loads++;
+					changes.fire([{ ...recent, id: 'older', prompt: 'Unique early match' }, { ...recent }]);
+					cursor.set(undefined, undefined);
+				},
+			});
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			const model = testDisposables.add(ref).object as ChatModel;
+			const live = model.addRequest({ parts: [], text: 'Live' }, { variables: [] }, 0);
+			let finished = false;
+			const page = model.loadOlderHistory!().then(() => { finished = true; });
+			await timeout(0);
+			const before = { finished, cursor: model.olderHistoryCursor.get(), rows: model.getRequests().map(r => r.id) };
+			const samePage = model.loadOlderHistory!();
+			live.response!.complete();
+			await Promise.all([page, samePage]);
+			assert.deepStrictEqual({ before, loads, cursor: model.olderHistoryCursor.get(), prompts: model.getRequests().map(r => r.message.text) }, {
+				before: { finished: false, cursor: 'last page', rows: ['recent', live.id] }, loads: 1, cursor: undefined,
+				prompts: ['Unique early match', 'Recent', 'Live'],
+			});
+		});
+
+		test('disposing the model cancels a page waiting for its replacement history', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const recent = { id: 'recent', type: 'request', prompt: 'Recent', participant: remoteScheme } as const;
+			const { resource } = setupRemoteProvider({
+				history: [recent], onDidChangeHistory: changes.event,
+				loadOlderHistory: async () => changes.fire([{ ...recent, id: 'older' }, { ...recent }]),
+			});
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			const model = testDisposables.add(ref).object as ChatModel;
+			model.addRequest({ parts: [], text: 'Live' }, { variables: [] }, 0);
+			const page = model.loadOlderHistory!();
+			await timeout(0);
+			model.dispose();
+			await assert.rejects(page, isCancellationError);
+		});
+
 		test('authoritative history removes confirmed local turns even if snapshots coalesce while streaming', async () => {
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 			const first = { id: 'one', type: 'request', prompt: 'First', participant: remoteScheme } as const;

@@ -1538,7 +1538,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		const visited = new Set<string>();
 		try {
-			for (let cursor = sub.getTurnRecoveryCursor(queued); cursor; cursor = sub.getTurnRecoveryCursor(queued)) {
+			for (let cursor = sub.getTurnRecoveryCursor(queued); cursor !== undefined; cursor = sub.getTurnRecoveryCursor(queued)) {
 				this._subscriptionsAwaitingRestore.add(channel);
 				if (visited.has(cursor) || visited.size >= 8) {
 					throw new Error('History recovery limit reached');

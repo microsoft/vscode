@@ -563,7 +563,7 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 
 	getTurnRecoveryCursor(unsent: ReadonlySet<number>): string | undefined {
 		const state = this.verifiedValue;
-		if (state?.turnsNextCursor && this._pendingActions.some(p => p.action.type === ActionType.ChatTurnStarted && !unsent.has(p.clientSeq)
+		if (state?.turnsNextCursor !== undefined && this._pendingActions.some(p => p.action.type === ActionType.ChatTurnStarted && !unsent.has(p.clientSeq)
 			&& (!p.previousTurnId || (p.previousTurnId !== state.activeTurn?.id && !state.turns.some(t => t.id === p.previousTurnId))))) {
 			return state.turnsNextCursor;
 		}

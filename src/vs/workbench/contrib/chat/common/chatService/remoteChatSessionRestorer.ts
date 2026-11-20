@@ -10,7 +10,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { setTimeout0 } from '../../../../../base/common/platform.js';
-import { autorun, transaction } from '../../../../../base/common/observable.js';
+import { autorun, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { clearMarks, mark } from '../../../../../base/common/performance.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { getChatSessionHistoryContent, IChatSession, IChatSessionHistoryItem, IChatSessionRequestHistoryItem, IChatSessionServerRequest } from '../chatSessionsService.js';
@@ -145,6 +145,8 @@ export class RemoteChatSessionRestorer extends Disposable {
 	private _pendingHistory: readonly IChatSessionHistoryItem[] | undefined;
 	private readonly _supersededRequestIds = new Set<string>();
 	private _activeRefresh: Promise<void> | undefined;
+	private _nextRefresh: DeferredPromise<void> | undefined;
+	private readonly _readingPage = observableValue(this, false);
 
 	/** The request that history responses are applied to. */
 	private _lastRequest: ChatRequestModel | undefined;
@@ -166,12 +168,26 @@ export class RemoteChatSessionRestorer extends Disposable {
 		this._model = _options.model;
 		this._session = _options.session;
 		this._restoredHistory = this._session.history;
+		// Cancel pending cooperative waits when the restorer is disposed, not only when the service token is.
+		const budgetCancellation = new CancellationTokenSource(_options.token);
+		this._register(toDisposable(() => budgetCancellation.dispose(true)));
+		this._budget = new CooperativeMutationBudget(scheduler, budgetCancellation.token, () => this._state === RestoreState.Disposed);
 		if (this._session.loadOlderHistory) {
 			let page: Promise<void> | undefined;
 			const readPage = async () => {
 				if (this._state === RestoreState.Published) {
-					await this._session.loadOlderHistory?.();
-					await this.historyRefresh;
+					this._readingPage.set(true, undefined);
+					try {
+						await this._session.loadOlderHistory?.();
+						while (this._activeRefresh || this._pendingHistory) {
+							// A replacement window can wait behind a streaming response until a later refresh.
+							this._budget.throwIfCancelled();
+							const refresh = this._activeRefresh ?? (this._nextRefresh ??= new DeferredPromise<void>()).p;
+							await raceCancellationError(refresh, budgetCancellation.token);
+						}
+					} finally {
+						this._readingPage.set(false, undefined);
+					}
 				}
 			};
 			this._model.loadOlderHistory = () => page ??= readPage().finally(() => { page = undefined; });
@@ -180,10 +196,6 @@ export class RemoteChatSessionRestorer extends Disposable {
 			}));
 		}
 		this._hasProgressStreaming = !!(this._session.progressObs && this._session.interruptActiveResponseCallback);
-		// Cancel pending cooperative waits when the restorer is disposed, not only when the service token is.
-		const budgetCancellation = new CancellationTokenSource(_options.token);
-		this._register(toDisposable(() => budgetCancellation.dispose(true)));
-		this._budget = new CooperativeMutationBudget(scheduler, budgetCancellation.token, () => this._state === RestoreState.Disposed);
 
 		if (this._session.onDidChangeHistory) {
 			this._register(this._session.onDidChangeHistory(history => {
@@ -246,8 +258,11 @@ export class RemoteChatSessionRestorer extends Disposable {
 			this._register(autorun(reader => {
 				const cursor = this._session.olderHistoryCursor?.read(reader);
 				const unavailable = !!this._session.olderHistoryUnavailable?.read(reader) || (cursor !== undefined && !this._session.loadOlderHistory);
+				const readingPage = this._readingPage.read(reader);
 				transaction(tx => {
-					this._model.olderHistoryCursor.set(this._session.loadOlderHistory ? cursor : undefined, tx);
+					if (!readingPage) {
+						this._model.olderHistoryCursor.set(this._session.loadOlderHistory ? cursor : undefined, tx);
+					}
 					this._model.olderHistoryUnavailable.set(unavailable, tx);
 				});
 			}));
@@ -403,7 +418,8 @@ export class RemoteChatSessionRestorer extends Disposable {
 		if (this._activeRefresh) {
 			return this._activeRefresh;
 		}
-		const completion = new DeferredPromise<void>();
+		const completion = this._nextRefresh ?? new DeferredPromise<void>();
+		this._nextRefresh = undefined;
 		this._activeRefresh = completion.p;
 		void this._applyPendingHistory(force).then(() => completion.complete(), error => completion.error(error));
 		return completion.p;

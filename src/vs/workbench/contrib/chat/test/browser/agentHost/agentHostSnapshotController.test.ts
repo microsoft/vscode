@@ -134,15 +134,14 @@ suite('AgentHostSnapshotController', () => {
 
 	test('paging in checkpoints preserves an undo branch and allows restoring a fetched request', async () => {
 		const controller = createController(store, new Map());
-		controller.ensureRequestCheckpoint('middle');
-		controller.ensureRequestCheckpoint('latest');
+		controller.reconcileHistoryCheckpoints(['middle', 'latest']);
 		await controller.restoreSnapshot('latest', undefined);
-		controller.prependRequestCheckpoints(['oldest', 'earlier']);
-		controller.prependRequestCheckpoints(['oldest', 'earlier']);
+		controller.reconcileHistoryCheckpoints(['oldest', 'earlier', 'middle', 'latest', 'offline']);
+		controller.reconcileHistoryCheckpoints(['oldest', 'earlier', 'middle', 'latest', 'offline']);
 		const afterPaging = controller.requestDisablement.get().map(request => request.requestId);
 		await controller.restoreSnapshot('earlier', undefined);
 		assert.deepStrictEqual([afterPaging, controller.requestDisablement.get().map(request => request.requestId)], [
-			['latest'], ['earlier', 'middle', 'latest'],
+			['latest', 'offline'], ['earlier', 'middle', 'latest', 'offline'],
 		]);
 	});
 
@@ -156,10 +155,30 @@ suite('AgentHostSnapshotController', () => {
 		controller.ensureRequestCheckpoint('first-visible');
 		const restore = controller.restoreSnapshot('first-visible', undefined);
 		await resolving.p;
-		controller.prependRequestCheckpoints(['hidden']);
+		controller.reconcileHistoryCheckpoints(['hidden', 'first-visible']);
 		await edits.complete([]);
 		await restore;
 		assert.deepStrictEqual(controller.requestDisablement.get(), [{ requestId: 'first-visible' }]);
+	});
+
+	test('a replacement window while fetching a checkpoint does not write the removed turn', async () => {
+		const file = URI.file('/file.txt').toString();
+		const before = URI.file('/snap/before').toString();
+		const after = URI.file('/snap/after').toString();
+		const contents = new Map([[file, 'current'], [before, 'old'], [after, 'current']]);
+		const resolving = new DeferredPromise<void>();
+		const edits = new DeferredPromise<ISessionFileDiff[]>();
+		const controller = createController(store, contents, {
+			getChanges: () => undefined,
+			resolve: () => { resolving.complete(); return edits.p; },
+		});
+		controller.reconcileHistoryCheckpoints(['removed']);
+		const restore = controller.restoreSnapshot('removed', undefined);
+		await resolving.p;
+		controller.reconcileHistoryCheckpoints(['replacement']);
+		await edits.complete([{ before: { uri: file, content: { uri: before } }, after: { uri: file, content: { uri: after } } }]);
+		await assert.rejects(restore, /history changed/);
+		assert.deepStrictEqual({ file: contents.get(file), disabled: controller.requestDisablement.get() }, { file: 'current', disabled: [] });
 	});
 
 	test('addToolCallEdits records snapshot data, enables undo', () => {

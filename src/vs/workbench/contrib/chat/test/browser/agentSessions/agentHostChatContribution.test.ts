@@ -21976,7 +21976,7 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('reconciles reconnect windows before the next turn and never prepends a replacement transcript', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 			const backend = AgentSession.uri('copilot', 'reconnect-window');
 			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-window' });
 			const chat = 'ahp-chat:/opaque/reconnect';
@@ -21995,9 +21995,13 @@ suite('AgentHostChatContribution', () => {
 			const ids = () => session.history.flatMap(item => item.type === 'request' ? [item.id] : []);
 			const atTurnStart: (string | undefined)[][] = [];
 			disposables.add(session.onDidStartServerRequest!(() => atTurnStart.push(ids())));
-			const checkpoints = sessionHandler as unknown as { _prependHistoryCheckpoints(resource: URI, turns: readonly Turn[]): void };
-			const prepends = sinon.spy(checkpoints, '_prependHistoryCheckpoints');
-			disposables.add(toDisposable(() => prepends.restore()));
+			const controller = disposables.add(new AgentHostSnapshotController(resource, agentHostService, 'test', undefined,
+				new NullLogService(), disposables.add(new TestFileService()), new MockWorkingCopyService()));
+			chatService.setSession(resource, upcastPartial<IChatModel>({
+				sessionResource: resource, editingSession: controller,
+				getRequests: () => [], getPendingRequests: () => [], onDidChangePendingRequests: Event.None,
+			}));
+			const disabled = () => controller.requestDisablement.get().map(r => r.requestId);
 			let serverSeq = 0;
 			const fire = (action: ChatAction) => agentHostService.fireAction({ channel: chat, action, serverSeq: ++serverSeq, origin: undefined });
 			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('a')] });
@@ -22007,6 +22011,8 @@ suite('AgentHostChatContribution', () => {
 				activeTurn: createActiveTurn('live', turn('live').message, new Date(0).toISOString()),
 			});
 			fire(chatTurnComplete('live', 1));
+			await controller.restoreSnapshot('offline', undefined);
+			const offlineCheckpoint = disabled();
 			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('b')], turnsNextCursor: 'final cursor' });
 			const overlap = ids();
 			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('older'), turn('a')] });
@@ -22019,12 +22025,12 @@ suite('AgentHostChatContribution', () => {
 			const replaced = ids();
 			fire({ type: ActionType.ChatTruncated, turnId: 'replacement' });
 			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('earliest'), turn('earlier'), turn('replacement')] });
-			const prependedPages = prepends.args.map(([, turns]) => turns.map(turn => turn.id));
-			assert.deepStrictEqual({ beforeReconnect, atTurnStart, overlap, expanded, noAnchor, cleared, replaced, final: ids(), prependedPages, fetches }, {
+			await controller.restoreSnapshot('earliest', undefined);
+			assert.deepStrictEqual({ beforeReconnect, atTurnStart, overlap, expanded, noAnchor, cleared, replaced, final: ids(), offlineCheckpoint, finalCheckpoints: disabled(), fetches }, {
 				beforeReconnect: ['a', 'b', 'c'], atTurnStart: [['a', 'b', 'c', 'offline']],
 				overlap: ['a', 'b', 'c', 'offline', 'live'], expanded: ['older', 'a', 'b', 'c', 'offline', 'live'],
 				noAnchor: ['unrelated'], cleared: [], replaced: ['replacement', 'also-replaced'], final: ['earliest', 'earlier', 'replacement'],
-				prependedPages: [['a'], ['older'], ['earliest', 'earlier']], fetches: 0,
+				offlineCheckpoint: ['offline', 'live'], finalCheckpoints: ['earliest', 'earlier', 'replacement'], fetches: 0,
 			});
 		});
 

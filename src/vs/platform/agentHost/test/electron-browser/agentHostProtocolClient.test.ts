@@ -6236,9 +6236,10 @@ suite('AgentHostProtocolClient', () => {
 					assert.deepStrictEqual(restore.params, { channel, view: { turns: 10 } });
 					transport.fireWireMessage({ jsonrpc: '2.0', id: restore.id, result: { snapshot: { ...snapshot, state: { ...state, turns: prior, turnsNextCursor: 'older' } } } });
 				} else if (recovery === 'snapshotHiddenEcho' || recovery === 'snapshotLostRequest') {
-					transport.fireWireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Snapshot, snapshots: [{ ...snapshot, fromSeq: 8, state: { ...state, turnsNextCursor: 'check' } }] } });
+					const cursor = recovery === 'snapshotHiddenEcho' ? '' : 'check';
+					transport.fireWireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Snapshot, snapshots: [{ ...snapshot, fromSeq: 8, state: { ...state, turnsNextCursor: cursor } }] } });
 					const check = await waitForRequestAtWithin(transport, 'fetchTurns', 0);
-					assert.deepStrictEqual(check.params, { channel, cursor: 'check' });
+					assert.deepStrictEqual(check.params, { channel, cursor });
 					const turns = recovery === 'snapshotLostRequest' ? prior : chatReducer(chatReducer(state, start), chatTurnComplete(start.turnId, 1)).turns;
 					transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 9, action: { type: ActionType.ChatTurnsLoaded, turns, turnsNextCursor: 'older' } } });
 					transport.fireWireMessage({ jsonrpc: '2.0', id: check.id, result: {} });
