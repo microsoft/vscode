@@ -95,7 +95,8 @@ import { IAuthenticationMcpAccessService } from '../../../../../services/authent
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../../../mcp/common/mcpTypes.js';
 import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
@@ -185,7 +186,7 @@ suite('AgentHostClientTools', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
-		return { service, fileService, getPromptListings: () => promptListings.length, promptListings };
+		return { service, fileService, instantiationService, getPromptListings: () => promptListings.length, promptListings };
 	}
 
 	test('lazily creates scopes and shares them for equivalent root sets', async () => {
@@ -280,6 +281,95 @@ suite('AgentHostClientTools', () => {
 
 		assert.deepStrictEqual(promptListings.filter((listing, index) => promptListings.indexOf(listing) !== index), []);
 	});
+
+	test('publishes the first scan during a change burst and coalesces a serialized refresh', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { service, instantiationService } = createActiveClientService();
+		const changed = disposables.add(new Emitter<void>());
+		const firstScan = new DeferredPromise<void>();
+		const refreshScan = new DeferredPromise<void>();
+		const refreshPublished = new DeferredPromise<void>();
+		let scans = 0;
+		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
+			override readonly onDidChangeCustomAgents = changed.event;
+			override readonly onDidChangeSlashCommands = Event.None;
+			override readonly onDidChangeSkills = Event.None;
+			override readonly onDidChangeInstructions = Event.None;
+			override getDisabledPromptFiles() { return new ResourceSet(); }
+			override async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage): Promise<readonly IPromptPath[]> {
+				if (type === PromptsType.agent && storage === PromptsStorage.local) {
+					const scan = ++scans;
+					await (scan === 1 ? firstScan.p : refreshScan.p);
+					return [{
+						uri: URI.file(`/agent-${scan}.agent.md`),
+						type,
+						storage,
+						source: PromptFileSource.ConfigWorkspace,
+					}];
+				}
+				return [];
+			}
+		}());
+		const scope = disposables.add(service.acquireScope('agent-host-claude', []));
+		disposables.add(autorun(reader => {
+			if (scope.customAgents.read(reader)[0]?.name === 'agent-2') {
+				refreshPublished.complete();
+			}
+		}));
+		await timeout(100);
+		for (let i = 0; i < 10; i++) {
+			changed.fire();
+			await timeout(100);
+		}
+		const scansDuringBurst = scans;
+		await firstScan.complete();
+		await scope.whenResolved();
+		const initial = {
+			resolved: scope.isResolved.get(),
+			agents: scope.customAgents.get().map(agent => agent.name),
+		};
+		await refreshScan.complete();
+		await refreshPublished.p;
+		assert.deepStrictEqual({
+			scansDuringBurst,
+			initial,
+			scans,
+			refreshedAgents: scope.customAgents.get().map(agent => agent.name),
+		}, {
+			scansDuringBurst: 1,
+			initial: { resolved: true, agents: ['agent-1'] },
+			scans: 2,
+			refreshedAgents: ['agent-2'],
+		});
+	}));
+
+	test('does not publish an in-flight scan or run a queued refresh after scope disposal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { service, instantiationService } = createActiveClientService();
+		const scan = new DeferredPromise<void>();
+		let scans = 0;
+		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
+			override readonly onDidChangeCustomAgents = Event.None;
+			override readonly onDidChangeSlashCommands = Event.None;
+			override readonly onDidChangeSkills = Event.None;
+			override readonly onDidChangeInstructions = Event.None;
+			override getDisabledPromptFiles() { return new ResourceSet(); }
+			override async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage) {
+				if (type === PromptsType.agent && storage === PromptsStorage.local) {
+					scans++;
+					await scan.p;
+				}
+				return [];
+			}
+		}());
+		const scope = service.acquireScope('agent-host-claude', []);
+		await timeout(100);
+		service.getSyncProvider('agent-host-claude').setDisabled(URI.file('/agent.agent.md'), true);
+		await timeout(100);
+		scope.dispose();
+		await scope.whenResolved();
+		await scan.complete();
+		await timeout(100);
+		assert.deepStrictEqual({ scans, resolved: scope.isResolved.get() }, { scans: 1, resolved: false });
+	}));
 
 	test('isolates additional tools to one session and moves them with the session resource', () => {
 		const tool: IToolData = {

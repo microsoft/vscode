@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, distinct } from '../../../../../../base/common/arrays.js';
-import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
+import { DeferredPromise, ThrottledDelayer } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -103,19 +103,18 @@ export interface IAgentHostActiveClientService {
 	acquireSessionTools(sessionResource: URI): IReference<IObservable<readonly ToolDefinition[]>>;
 }
 
-/** Owns the customization bundle and resolution lifecycle for one working-directory scope. */
+/** Serializes customization resolution and publishes each completed scan for one working-directory scope. */
 class AgentCustomizationScope extends Disposable {
 
 	private readonly _bundler: SyncedCustomizationBundler;
 	private readonly _standaloneBundler: SyncedCustomizationBundler;
-	private readonly _updateDelayer: Delayer<void>;
+	private readonly _updateDelayer: ThrottledDelayer<void>;
 	private readonly _customizations = observableValue<readonly ClientPluginCustomization[]>('agentCustomizations', []);
 	private readonly _customAgents = observableValue<readonly AgentCustomization[]>('agentCustomAgents', []);
 	private readonly _isResolved = observableValue('agentCustomizationsResolved', false);
 	private readonly _initialResolution = new DeferredPromise<void>();
 	private readonly _activeClients = new Map<string, IObservable<SessionActiveClient>>();
 	private _refCount = 0;
-	private _updateSeq = 0;
 	private _isDisposed = false;
 
 	get customizations(): IObservable<readonly ClientPluginCustomization[]> {
@@ -154,11 +153,9 @@ class AgentCustomizationScope extends Disposable {
 		const preserveAgentFileCollisions = isCopilotCliSessionType(_sessionType);
 		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey), { preserveAgentFileCollisions }));
 		this._standaloneBundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createStandaloneScopeAuthority(_sessionType, scopeKey), { standalone: true, preserveAgentFileCollisions }));
-		this._updateDelayer = this._register(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
+		this._updateDelayer = this._register(new ThrottledDelayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
 
 		const updateCustomizations = async () => {
-			const seq = ++this._updateSeq;
-			let completedInitialResolution = false;
 			try {
 				// List the customization folders once for both the refs and the agents.
 				const enumerated = await enumerateLocalCustomizationsForHarness(this._promptsService, this._syncProvider, this._sessionType, CancellationToken.None, this._options, this._roots);
@@ -179,7 +176,7 @@ class AgentCustomizationScope extends Disposable {
 					),
 					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options, enumerated),
 				]);
-				if (seq !== this._updateSeq) {
+				if (this._isDisposed) {
 					return;
 				}
 				transaction(tx => {
@@ -191,21 +188,19 @@ class AgentCustomizationScope extends Disposable {
 					}
 					this._isResolved.set(true, tx);
 				});
-				completedInitialResolution = true;
 			} catch (err) {
 				onUnexpectedError(err);
-				if (seq === this._updateSeq) {
-					transaction(tx => this._isResolved.set(true, tx));
-					completedInitialResolution = true;
+				if (this._isDisposed) {
+					return;
 				}
-			} finally {
-				if (completedInitialResolution && !this._initialResolution.isSettled) {
-					this._initialResolution.complete();
-				}
+				transaction(tx => this._isResolved.set(true, tx));
+			}
+			if (!this._initialResolution.isSettled) {
+				this._initialResolution.complete();
 			}
 		};
 		const scheduleUpdate = () => {
-			this._updateDelayer.trigger(() => updateCustomizations()).catch(() => { /* delayer disposed */ });
+			this._updateDelayer.trigger(updateCustomizations).catch(() => { /* delayer disposed */ });
 		};
 
 		// The host discovers workspace skills in the session's roots, which may
@@ -306,7 +301,6 @@ class AgentCustomizationScope extends Disposable {
 			return;
 		}
 		this._isDisposed = true;
-		this._updateSeq++;
 		if (!this._initialResolution.isSettled) {
 			this._initialResolution.complete();
 		}
