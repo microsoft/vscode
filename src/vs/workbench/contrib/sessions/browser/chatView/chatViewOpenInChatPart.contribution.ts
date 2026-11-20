@@ -205,7 +205,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		});
 		this._register(autorun(reader => {
 			if (sessionsOnly.read(reader)) {
-				reader.store.add(this._chatViewHostService.register({ sessionsOnly: true }));
+				reader.store.add(this._chatViewHostService.register({ chatsOpenElsewhere: true }));
 				// No local chats, which the chat part and editors of sessions do not show: as with the sessions list of the Chat view, whose chats are those of sessions
 				reader.store.add(this._localChatAvailabilityService.hide());
 			}

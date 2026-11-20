@@ -163,6 +163,8 @@ export interface IChatViewContribution {
 	readonly sessionsList?: IChatViewSessionsListProvider;
 	/** Whether the Chat view shows only its sessions while a host replaces it ({@link IChatViewHostService.sessionsOnly}). */
 	readonly sessionsOnly?: boolean;
+	/** Whether the chats open elsewhere, such as in editors, so the Chat view shows only its sessions even while no host replaces it ({@link IChatViewHostService.sessionsOnly}). */
+	readonly chatsOpenElsewhere?: boolean;
 }
 
 /**
@@ -207,8 +209,9 @@ export interface IChatViewHostService extends IChatViewHost {
 	readonly sessionsListExpected: IObservable<boolean>;
 	/**
 	 * Whether the Chat view shows only its sessions, without its chat: while a contribution asks for it
-	 * ({@link IChatViewContribution.sessionsOnly}), and either no host replaces the Chat view, as its chats open elsewhere, or
-	 * the Chat view does not host the chat shown last.
+	 * ({@link IChatViewContribution.sessionsOnly}) while a host replaces it and the Chat view does not host the chat shown
+	 * last, or while a contribution has the chats open elsewhere ({@link IChatViewContribution.chatsOpenElsewhere}) and the
+	 * Chat view does not host the chat shown last of a host that replaces it.
 	 */
 	readonly sessionsOnly: IObservable<boolean>;
 

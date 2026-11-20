@@ -281,7 +281,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const chatArea = shows('chatArea');
 		assert.deepStrictEqual({ editorArea: shows('editorArea'), chatArea, chatPanel: shows('chatPanel') }, {
 			editorArea: chatArea,
-			chatArea: { registered: [{ sessionsOnly: true }], sessionsOnly: true, localChatHidden: true },
+			chatArea: { registered: [{ chatsOpenElsewhere: true }], sessionsOnly: true, localChatHidden: true },
 			chatPanel: { registered: [], sessionsOnly: false, localChatHidden: false },
 		});
 	});
@@ -356,7 +356,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 	test('registers sessions only with the Chat view once, and holds it while on', () => {
 		const { registered, sessionsOnly } = setup({ setting: true });
-		assert.deepStrictEqual({ registered, sessionsOnly: sessionsOnly.get() }, { registered: [{ sessionsOnly: true }], sessionsOnly: true });
+		assert.deepStrictEqual({ registered, sessionsOnly: sessionsOnly.get() }, { registered: [{ chatsOpenElsewhere: true }], sessionsOnly: true });
 	});
 
 	test('takes New Chat of the Chat view into the chat part', () => {
