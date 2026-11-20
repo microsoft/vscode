@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError, ChatMoveConfigKey, type AgentChatMoveDestination } from '../../common/agentHostChatMove.js';
-import { ChatMoveDestinationKind } from '../../common/state/protocol/channels-chat/commands.js';
+import { ChatMoveDestinationKind, type ListChatTurnsResult, type ReadChatTurnsResult, type SearchChatTurnsResult } from '../../common/state/protocol/channels-chat/commands.js';
+import { withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../../common/meta/agentMessageMeta.js';
 import assert from 'assert';
 import type { ProxyAgentParams } from '@vscode/proxy-agent';
 import { rootCertificates } from 'tls';
@@ -644,6 +645,12 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction(chat, chatTurnStarted('turn-1', 'run it', '2025-01-01T00:00:00.000Z'));
 		stateManager.dispatchServerAction(chat, chatToolCallStart('turn-1', 'tool-1', 'runTask', 'Run Task', { contributor: { kind: ToolCallContributorKind.Client, clientId } }));
 		stateManager.dispatchServerAction(chat, chatToolCallReady('turn-1', 'tool-1', 'Run Task', { toolInput: '{}', confirmed: ToolCallConfirmationReason.NotNeeded }));
+	}
+
+	function expectedChatSnapshot(channel: string): IStateSnapshot {
+		const snapshot = stateManager.getSnapshot(channel);
+		assert.ok(snapshot && hasKey(snapshot.state, { turns: true }));
+		return { ...snapshot, state: { ...snapshot.state, historyNavigation: true } };
 	}
 
 	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>, transportKind = AgentHostTransportKind.Unknown): MockProtocolTransport {
@@ -4014,6 +4021,128 @@ suite('ProtocolServerHandler', () => {
 			return findNotifications(transport.sent, 'action').map(message => message.params as ActionEnvelope).filter(e => e.channel === channel);
 		}
 
+		function result<T>(response: JsonRpcResponse): T {
+			assert.ok(hasKey(response, { result: true }), JSON.stringify(response));
+			return response.result as T;
+		}
+
+		test('history navigation indexes 127 retained turns and reads a far window then its immediate successor without moving the live tail', async () => {
+			const turns = seed(Array.from({ length: 127 }, (_, i) => `Prompt ${i}`));
+			const hidden = 'private heavyweight payload '.repeat(400);
+			for (const turn of turns) {
+				turn.responseParts.push({ kind: ResponsePartKind.Reasoning, id: 'private', content: hidden });
+			}
+			turns[0].message.text = '\n  ' + '🌍'.repeat(100) + '\nextra';
+			turns[0].startedAt = '2026-01-01T00:00:00Z';
+			turns[1].message = withMessageHiddenFromTranscript(turns[1].message, true);
+			turns[2].message = withMessageRequestHiddenFromTranscript(turns[2].message, true);
+			turns[3].message.origin.kind = MessageKind.SystemNotification;
+			turns[8].responseParts.push({ kind: ResponsePartKind.Markdown, id: 'answer', content: 'Old **reply** needle' });
+			const client = connectClient('history-reader');
+			const tail = await subscribe(client, 2);
+			const shared = stateManager.getChatState(channel);
+			const seq = stateManager.serverSeq;
+
+			const first = result<ListChatTurnsResult>(await call(client, 'listChatTurns', { channel }));
+			const last = result<ListChatTurnsResult>(await call(client, 'listChatTurns', { channel, cursor: first.nextCursor }));
+			const index = [...first.items, ...last.items];
+			const search = result<SearchChatTurnsResult>(await call(client, 'searchChatTurns', { channel, query: 'reply needle' }));
+			const window = result<ReadChatTurnsResult>(await call(client, 'readChatTurns', { channel, turnId: search.items[0].turnId, limit: 3 }));
+			const next = result<ReadChatTurnsResult>(await call(client, 'readChatTurns', { channel, turnId: window.turns.at(-1)!.id, direction: 'after', limit: 1 }));
+			assert.deepStrictEqual({
+				navigation: tail.historyNavigation, tail: tail.turns.map(t => t.id), firstPage: first.items.length, end: last.nextCursor,
+				index, indexBytesUnder10KiB: Buffer.byteLength(JSON.stringify(index)) < 10240,
+				search, window: window.turns.map(t => t.id), after: next.turns.map(t => t.id), boundaries: [window.hasBefore, window.hasAfter],
+				actions: actions(client), untouched: shared === stateManager.getChatState(channel) && stateManager.serverSeq === seq,
+			}, {
+				navigation: true, tail: ['turn-125', 'turn-126'], firstPage: 100, end: undefined,
+				index: [{ turnId: 'turn-0', preview: '🌍'.repeat(79) + '…', startedAt: turns[0].startedAt }, ...turns.slice(4).map(t => ({ turnId: t.id, preview: t.message.text }))],
+				indexBytesUnder10KiB: true, search: { items: [{ turnId: 'turn-8', kind: 'response', occurrence: 0 }] },
+				window: ['turn-7', 'turn-8', 'turn-9'], after: ['turn-10'], boundaries: [true, true], actions: [], untouched: true,
+			});
+			await call(client, 'fetchTurns', { channel, cursor: tail.turnsNextCursor });
+			const page = actions(client)[0].action;
+			assert.deepStrictEqual(page.type === ActionType.ChatTurnsLoaded && page.turns.map(t => t.id), ['turn-123', 'turn-124']);
+		});
+
+		test('history navigation searches rendered text newest first with stable forward occurrences, toggles, and scoped continuations', async () => {
+			const turns = seed(['Cat', 'Cat', 'private', 'private', 'private']);
+			turns[1].responseParts = [
+				{ kind: ResponsePartKind.Markdown, id: 'first', content: '- [**Cat**](https://private) catapult' },
+				{ kind: ResponsePartKind.Reasoning, id: 'private', content: 'private' },
+				{ kind: ResponsePartKind.Markdown, id: 'second', content: 'Use `cat` or Cat <script>private</script>' },
+			];
+			turns[2].message = withMessageRequestHiddenFromTranscript(turns[2].message, true);
+			turns[3].message = withMessageHiddenFromTranscript(turns[3].message, true);
+			turns[3].responseParts = [{ kind: ResponsePartKind.Markdown, id: 'hidden', content: 'private' }];
+			turns[4].message = withMessageSystemInitiatedLabel({ ...turns[4].message, origin: { kind: MessageKind.SystemNotification } }, '<system_notification>Visible **notice**</system_notification>');
+			stateManager.dispatchServerAction(channel, chatTurnStarted('active', 'private'));
+			const client = connectClient('find-history');
+			await subscribe(client, 1);
+			const params = { channel, query: 'cat', wholeWord: true };
+			const search = async (extra: object) => result<SearchChatTurnsResult>(await call(client, 'searchChatTurns', { ...params, ...extra }));
+			const first = await search({ limit: 2 });
+			const rest = await search({ cursor: first.nextCursor });
+			const wrong = await call(client, 'searchChatTurns', { ...params, matchCase: true, cursor: first.nextCursor });
+			assert.deepStrictEqual({
+				all: [...first.items, ...rest.items].map(i => [i.turnId, i.kind, i.occurrence]),
+				cursor: rest.nextCursor, wrong: hasKey(wrong, { error: true }) && wrong.error.code,
+				sensitive: (await search({ matchCase: true })).items, partial: (await search({ wholeWord: false })).items.length,
+				regex: (await search({ query: 'C.t', matchCase: true, isRegex: true })).items.length,
+				private: await search({ query: 'private' }), zeroWidth: await search({ query: '^', isRegex: true }),
+				notice: (await search({ query: 'visible notice' })).items,
+			}, {
+				all: [['turn-1', 'response', 2], ['turn-1', 'response', 1], ['turn-1', 'response', 0], ['turn-1', 'request', 0], ['turn-0', 'request', 0]],
+				cursor: undefined, wrong: JsonRpcErrorCodes.InvalidParams,
+				sensitive: [{ turnId: 'turn-1', kind: 'response', occurrence: 0 }], partial: 6, regex: 4, private: { items: [] }, zeroWidth: { items: [] },
+				notice: [],
+			});
+		});
+
+		test('history navigation enforces subscription, cursor scope and freshness, window boundaries and input validation', async () => {
+			const turns = seed(['one', 'two']);
+			const client = connectClient('window-errors');
+			const peer = connectClient('window-peer');
+			const errorCode = async (transport: MockProtocolTransport, method: string, params: object) => {
+				const response = await call(transport, method, params);
+				assert.ok(hasKey(response, { error: true }));
+				return response.error.code;
+			};
+			await subscribe(client, 1);
+			const before = result<ReadChatTurnsResult>(await call(client, 'readChatTurns', { channel, turnId: turns[0].id, direction: 'before' }));
+			const after = result<ReadChatTurnsResult>(await call(client, 'readChatTurns', { channel, turnId: turns[1].id, direction: 'after' }));
+			const { nextCursor: cursor } = result<ListChatTurnsResult>(await call(client, 'listChatTurns', { channel, limit: 1 }));
+			const noSub = await errorCode(peer, 'listChatTurns', { channel, cursor });
+			await subscribe(peer);
+			const codes = [
+				await errorCode(peer, 'listChatTurns', { channel, cursor }),
+				await errorCode(client, 'searchChatTurns', { channel, cursor, query: 'one' }),
+				await errorCode(client, 'listChatTurns', { channel, limit: 0 }),
+				await errorCode(client, 'readChatTurns', { channel, turnId: 'missing' }),
+				await errorCode(client, 'readChatTurns', { channel, turnId: turns[0].id, direction: 'elsewhere' }),
+				await errorCode(client, 'searchChatTurns', { channel, query: '[', isRegex: true }),
+			];
+			stateManager.dispatchServerAction(channel, { type: ActionType.ChatTruncated, turnId: turns[0].id });
+			assert.deepStrictEqual([before, after, noSub, codes, await errorCode(client, 'listChatTurns', { channel, cursor })], [
+				{ turns: [], hasBefore: false, hasAfter: true }, { turns: [], hasBefore: true, hasAfter: false }, AhpErrorCodes.NotFound,
+				[JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, AhpErrorCodes.NotFound, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams], AhpErrorCodes.Conflict,
+			]);
+		});
+
+		test('history navigation returns NotFound for unknown chats while fetchTurns keeps its legacy error', async () => {
+			const client = connectClient('missing-chat');
+			const missing = buildChatUri(sessionUri, 'missing');
+			const codes = await Promise.all([
+				call(client, 'listChatTurns', { channel: missing }),
+				call(client, 'readChatTurns', { channel: missing, turnId: 'anchor' }),
+				call(client, 'searchChatTurns', { channel: missing, query: 'needle' }),
+				call(client, 'fetchTurns', { channel: missing }),
+			]);
+			assert.deepStrictEqual(codes.map(reply => hasKey(reply, { error: true }) && reply.error.code), [
+				AhpErrorCodes.NotFound, AhpErrorCodes.NotFound, AhpErrorCodes.NotFound, AHP_SESSION_NOT_FOUND,
+			]);
+		});
+
 		test('pages the requesting subscription before acknowledging, without changing another view or shared history', async () => {
 			const turns = seed(['a', 'b', 'c', 'd', 'e']);
 			const full = connectClient('full');
@@ -4120,6 +4249,11 @@ suite('ProtocolServerHandler', () => {
 			const client = connectClient('byte-budget');
 			const tail = await subscribe(client, 10);
 			assert.deepStrictEqual(tail.turns.map(t => t.id), [turns[3].id]);
+			const read = result<ReadChatTurnsResult>(await call(client, 'readChatTurns', { channel, turnId: turns[1].id, limit: 10 }));
+			const oversizedRead = await call(client, 'readChatTurns', { channel, turnId: turns[0].id });
+			assert.deepStrictEqual([read.turns.map(t => t.id), read.hasBefore, read.hasAfter, hasKey(oversizedRead, { error: true }) && oversizedRead.error.code], [
+				[turns[1].id], true, true, JsonRpcErrorCodes.InternalError,
+			]);
 			await call(client, 'fetchTurns', { channel });
 			await call(client, 'fetchTurns', { channel });
 			const pages = actions(client).map(e => e.action.type === ActionType.ChatTurnsLoaded ? e.action.turns.map(t => t.id) : []);
@@ -4255,7 +4389,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatResponsePart, turnId: 'turn', part: { kind: ResponsePartKind.Markdown, id: 'part', content: '' },
 			});
-			const snapshotMessage = notification('channel/snapshot', { channel: defaultChatUri, snapshot: stateManager.getSnapshot(defaultChatUri) });
+			const snapshotMessage = notification('channel/snapshot', { channel: defaultChatUri, snapshot: expectedChatSnapshot(defaultChatUri) });
 			const receiveLimits = { windowBytes: JSON.stringify(snapshotMessage).length * 2, maxFrameBytes: 64 * 1024 };
 			const transport = connectClient('slow-window');
 			transport.sent.length = 0;
@@ -4264,6 +4398,7 @@ suite('ProtocolServerHandler', () => {
 			await subscribed;
 			await timeout(0);
 			const data = () => transport.sent.filter(message => isJsonRpcNotification(message) && message.method !== 'channel/credit');
+			assert.deepStrictEqual(data(), [snapshotMessage]);
 			const content = 'a'.repeat(receiveLimits.windowBytes);
 			for (const chunk of [content, 'b']) {
 				stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatDelta, turnId: 'turn', partId: 'part', content: chunk });
@@ -4873,7 +5008,7 @@ suite('ProtocolServerHandler', () => {
 			server.simulateConnection(transport);
 			transport.simulateMessage(request(1, 'initialize', { clientId: 'discovery-client', protocolVersions: [PROTOCOL_VERSION] }));
 			const cases = [
-				...['listChats', 'listModels', 'listAgents', 'fetchTurns', 'resourceList', 'resourceRead', 'resourceWrite', 'completions',
+				...['listChats', 'listModels', 'listAgents', 'fetchTurns', 'listChatTurns', 'readChatTurns', 'searchChatTurns', 'resourceList', 'resourceRead', 'resourceWrite', 'completions',
 					'createSession', 'createChat', 'createTerminal', 'extensions/addProject', 'extensions/removeProject', 'extensions/cloneProject',
 					'extensions/getPlan', 'unknown', '__proto__'].map(method => ({ method, params: { channel: sessionUri } })),
 				...[sessionUri, defaultChatUri, AUTOMATION_CATALOG_URI, 'ahp-terminal:/private', 'ahp-otlp://logs/info', 'ahp-resource-watch:/private']
@@ -5034,7 +5169,7 @@ suite('ProtocolServerHandler', () => {
 				transport.simulateMessage(request(3, 'subscribe', { channel: defaultChatUri }));
 				await handler.whenIdle();
 				assert.deepStrictEqual(findResponse(transport.sent, 3), {
-					jsonrpc: '2.0', id: 3, result: { snapshot: stateManager.getSnapshot(defaultChatUri) },
+					jsonrpc: '2.0', id: 3, result: { snapshot: expectedChatSnapshot(defaultChatUri) },
 				});
 			});
 
@@ -5939,7 +6074,7 @@ suite('ProtocolServerHandler', () => {
 				authentication: [2, 5, 6].map(id => ({ jsonrpc: '2.0', id, result: {} })),
 				pending: [undefined, undefined],
 				subscriptions: channels.map((channel, index) => ({
-					jsonrpc: '2.0', id: index + 3, result: { snapshot: stateManager.getSnapshot(channel) },
+					jsonrpc: '2.0', id: index + 3, result: { snapshot: channel === defaultChatUri ? expectedChatSnapshot(channel) : stateManager.getSnapshot(channel) },
 				})),
 			});
 		});

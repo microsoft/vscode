@@ -5,19 +5,25 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Event as BaseEvent } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { createRegExp } from '../../../../../../base/common/strings.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { AhpErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatTreeItem } from '../../../browser/chat.js';
+import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
+import { IChatHistoryNavigation, IChatHistorySearchResult } from '../../../common/model/chatModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatFindModel } from '../../../browser/widget/chatFind/chatFindModel.js';
 import { ChatFindWidget, computeRevealScrollTop, findMatchRangesInDom, IChatFindHost, openAncestorDisclosures, rangesEqual, shouldCaptureFocusBeforeShow } from '../../../browser/widget/chatFind/chatFindWidget.js';
 
 suite('ChatFindWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWidget(items: readonly ChatTreeItem[] = []) {
+	function createWidget(items: readonly ChatTreeItem[] = [], overrides?: Partial<IChatFindHost>) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const container = document.createElement('div');
@@ -35,11 +41,120 @@ suite('ChatFindWidget', () => {
 			setScrollTop: () => { },
 			getRenderHeight: () => 0,
 			getViewportAnchorItemId: () => undefined,
+			...overrides,
 		};
 		const widget = disposables.add(instantiationService.createInstance(ChatFindWidget, host));
 		const model = Reflect.get(widget, '_model') as ChatFindModel;
 		return { disposables, model, widget };
 	}
+
+	function renderedRow(text: string) {
+		const value = document.createElement('div');
+		value.textContent = text;
+		return upcastPartial<IChatListItemTemplate>({ value });
+	}
+
+	test('shows a pending whole-chat search and ignores an old result after Find closes', async () => {
+		const reply = new DeferredPromise<IChatHistorySearchResult>();
+		const queries: string[] = [];
+		const reveals: string[] = [];
+		const navigation = upcastPartial<IChatHistoryNavigation>({
+			search: async query => { queries.push(query); return reply.p; },
+			revealTurn: async id => { reveals.push(id); },
+		});
+		const { widget } = createWidget([], { getHistoryNavigation: () => navigation });
+		assert.deepStrictEqual(queries, []);
+		widget.show('old reply', false);
+		await widget.updateResultCount();
+		const count = widget.getDomNode().querySelector('.matchesCount')?.textContent;
+		widget.hide();
+		await reply.complete({ items: [{ turnId: 'turn-3', kind: 'response', occurrence: 0 }] });
+		await timeout(0);
+		assert.deepStrictEqual({ queries, count, reveals }, { queries: ['old reply'], count: 'Searching…', reveals: [] });
+	});
+
+	test('keeps the live match across a jump to an older reply and returns to it without another read', async () => {
+		const results = new DeferredPromise<IChatHistorySearchResult>();
+		const opened = new DeferredPromise<void>();
+		const reads: string[] = [];
+		const live = upcastPartial<IChatRequestViewModel>({
+			id: 'turn-100', message: { text: 'needle', parts: [] }, messageText: 'needle',
+		});
+		const items: ChatTreeItem[] = [live];
+		let returns = 0;
+		const navigation = upcastPartial<IChatHistoryNavigation>({
+			search: () => results.p,
+			revealTurn: async id => {
+				reads.push(id);
+				const response = upcastPartial<IChatResponseViewModel['response']>({
+					value: [{ kind: 'markdownContent', historyPartId: 'old-part', content: new MarkdownString('earlier needle') }],
+				});
+				items.splice(0, items.length, upcastPartial<IChatResponseViewModel>({ id: 'old-reply', requestId: id, setVote() { }, response }));
+				await opened.complete();
+			},
+			returnToLatest: async () => { returns++; items.splice(0, items.length, live); },
+		});
+		const latest = renderedRow('needle');
+		const earlier = renderedRow('earlier needle');
+		const { model, widget } = createWidget(items, {
+			getHistoryNavigation: () => navigation, getLiveItemsWhileReading: () => items[0] === live ? undefined : [live],
+			getTemplateDataForRequestId: id => id === 'old-reply' ? earlier : latest,
+		});
+		widget.show('needle', false);
+		await results.complete({ items: [{ turnId: 'turn-3', kind: 'response', occurrence: 0 }] });
+		await timeout(0);
+		const initial = { reads: [...reads], active: model.locationOf(model.activeMatch) };
+		widget.next();
+		await opened.p;
+		await timeout(0);
+		const historical = model.locationOf(model.activeMatch);
+		widget.previous();
+		await timeout(0);
+		assert.deepStrictEqual({ initial, reads, historical, returns, final: model.locationOf(model.activeMatch) }, {
+			initial: { reads: [], active: { turnId: 'turn-100', kind: 'request', occurrence: 0 } },
+			reads: ['turn-3'], historical: { turnId: 'turn-3', kind: 'response', occurrence: 0 },
+			returns: 1, final: { turnId: 'turn-100', kind: 'request', occurrence: 0 },
+		});
+	});
+
+	test('an absent match on a paging-only host is not reported as absent from the whole chat', async () => {
+		const { widget } = createWidget([], { hasUnloadedHistory: () => true });
+		widget.show('old reply', false);
+		await widget.updateResultCount();
+		const count = widget.getDomNode().querySelector('.matchesCount');
+		assert.deepStrictEqual([count?.textContent, count?.classList.contains('no-results')], ['No matches in loaded messages', false]);
+	});
+
+	test('restarts an invalidated Find without counting stale hits or moving the selection made while waiting', async () => {
+		const firstPage = new DeferredPromise<IChatHistorySearchResult>();
+		const cursors: (string | undefined)[] = [];
+		const reads: string[] = [];
+		const items = ['turn-99', 'turn-100'].map(id => upcastPartial<IChatRequestViewModel>({
+			id, message: { text: 'needle', parts: [] }, messageText: 'needle',
+		}));
+		const navigation = upcastPartial<IChatHistoryNavigation>({
+			search: async (_query, _options, cursor) => {
+				cursors.push(cursor);
+				if (cursor !== undefined) {
+					throw new ProtocolError(AhpErrorCodes.Conflict, 'The chat changed');
+				}
+				return cursors.length === 1 ? firstPage.p : { items: [] };
+			},
+			revealTurn: async id => { reads.push(id); },
+		});
+		const rows = new Map(items.map(item => [item.id, renderedRow(item.messageText)]));
+		const { model, widget } = createWidget(items, {
+			getHistoryNavigation: () => navigation, getTemplateDataForRequestId: id => id ? rows.get(id) : undefined,
+		});
+		widget.show('needle', false);
+		widget.next();
+		await firstPage.complete({ items: [{ turnId: 'stale', kind: 'response', occurrence: 0 }], nextCursor: 'expired' });
+		await timeout(0);
+		await widget.updateResultCount();
+		assert.deepStrictEqual({ cursors, reads, selected: model.activeMatch?.itemId, count: widget.getDomNode().querySelector('.matchesCount')?.textContent }, {
+			cursors: [undefined, 'expired', undefined], reads: [], selected: 'turn-99', count: '2 of 2',
+		});
+	});
 
 	test('does not search intermediate IME composition text', async () => {
 		const { model, widget } = createWidget();

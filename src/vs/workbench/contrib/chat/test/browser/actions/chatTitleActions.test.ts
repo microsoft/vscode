@@ -37,10 +37,11 @@ suite('RetryChatAction', () => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
 
-	function createMockResponseVM(sessionResource: URI, requestId: string): IChatResponseViewModel {
+	function createMockResponseVM(sessionResource: URI, request: IChatRequestModel): IChatResponseViewModel {
 		return {
 			sessionResource,
-			requestId,
+			requestId: request.id,
+			model: request.response,
 			setVote: () => { }, // Required by isResponseVM check
 		} as unknown as IChatResponseViewModel;
 	}
@@ -49,6 +50,7 @@ suite('RetryChatAction', () => {
 		return {
 			id,
 			attempt: 0,
+			response: {},
 		} as IChatRequestModel;
 	}
 
@@ -59,16 +61,14 @@ suite('RetryChatAction', () => {
 		} as unknown as IChatEditingSession;
 	}
 
-	function createMockWidget(mode: ChatModeKind, editingSession: IChatEditingSession | undefined, lastResponseItem?: IChatResponseViewModel): Partial<IChatWidget> {
+	function createMockWidget(mode: ChatModeKind, model: Partial<IChatModel>, lastResponseItem?: IChatResponseViewModel): Partial<IChatWidget> {
 		return {
 			input: {
 				currentModeKind: mode,
 				currentLanguageModel: 'test-model',
 			} as IChatWidget['input'],
 			viewModel: {
-				model: {
-					editingSession,
-				},
+				model,
 				getItems: () => lastResponseItem ? [lastResponseItem] : [],
 			} as unknown as IChatWidget['viewModel'],
 			getSelectedModelRequestOptions: () => ({
@@ -85,15 +85,14 @@ suite('RetryChatAction', () => {
 		const sessionResource = URI.parse('test://session');
 		const requestId = 'test-request-1';
 		const mockRequest = createMockRequest(requestId);
-		const mockResponse = createMockResponseVM(sessionResource, requestId);
+		const mockResponse = createMockResponseVM(sessionResource, mockRequest);
 
 		const editingSession = createMockEditingSession([]);
-		const mockWidget = createMockWidget(ChatModeKind.Edit, editingSession, mockResponse);
-
-		// Mock chat model
 		const mockChatModel: Partial<IChatModel> = {
+			editingSession,
 			getRequests: () => [mockRequest as IChatRequestModel],
 		};
+		const mockWidget = createMockWidget(ChatModeKind.Edit, mockChatModel, mockResponse);
 
 		// Create MockChatWidgetService with widget lookup override
 		const mockChatWidgetService = new class extends MockChatWidgetService {
@@ -154,7 +153,7 @@ suite('RetryChatAction', () => {
 		const sessionResource = URI.parse('test://session');
 		const requestId = 'test-request-1';
 		const mockRequest = createMockRequest(requestId);
-		const mockResponse = createMockResponseVM(sessionResource, requestId);
+		const mockResponse = createMockResponseVM(sessionResource, mockRequest);
 
 		// Create an entry that was modified by this request to trigger confirmation
 		const modifiedEntry: IModifiedFileEntry = {
@@ -163,12 +162,11 @@ suite('RetryChatAction', () => {
 		} as IModifiedFileEntry;
 
 		const editingSession = createMockEditingSession([modifiedEntry]);
-		const mockWidget = createMockWidget(ChatModeKind.Edit, editingSession, mockResponse);
-
-		// Mock chat model
 		const mockChatModel: Partial<IChatModel> = {
+			editingSession,
 			getRequests: () => [mockRequest as IChatRequestModel],
 		};
+		const mockWidget = createMockWidget(ChatModeKind.Edit, mockChatModel, mockResponse);
 
 		// Create MockChatWidgetService with widget lookup override
 		const mockChatWidgetService = new class extends MockChatWidgetService {

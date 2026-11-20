@@ -265,6 +265,8 @@ export interface IChatContentInlineReference {
 export interface IChatMarkdownContent {
 	kind: 'markdownContent';
 	content: IMarkdownString;
+	/** Source part whose independently rendered text is addressable by a history search. */
+	readonly historyPartId?: string;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
 	/** Structured metadata for a standalone file block synthesized by the annotation renderer. */
 	codeblockUri?: IChatResponseCodeblockUriPart;

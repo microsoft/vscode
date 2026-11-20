@@ -38,6 +38,7 @@ import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { isLiveChatRow } from '../../common/model/chatViewModel.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
@@ -93,7 +94,9 @@ abstract class SubmitAction extends Action2 {
 			const dialogService = accessor.get(IDialogService);
 			const chatService = accessor.get(IChatService);
 			const chatModel = chatService.getSession(widget.viewModel.sessionResource);
-			if (!chatModel) {
+			const editing = widget.viewModel.editing;
+			const isCurrent = () => widget.viewModel?.model === chatModel && widget.viewModel?.editing === editing && isLiveChatRow(widget.viewModel, editing);
+			if (!chatModel || !isCurrent()) {
 				return;
 			}
 
@@ -107,6 +110,13 @@ abstract class SubmitAction extends Action2 {
 			if (requestId) {
 				const chatRequests = chatModel.getRequests();
 				const itemIndex = chatRequests.findIndex(request => request.id === requestId);
+				if (itemIndex < 0) {
+					// Pending requests are edited in the queue, not restored from a checkpoint.
+					if (editing.pendingKind !== undefined) {
+						await widget.acceptInput(context?.inputValue, context?.acceptInputOptions);
+					}
+					return;
+				}
 				const editsToUndo = chatRequests.length - itemIndex;
 
 				const requestsToRemove = chatRequests.slice(itemIndex);
@@ -175,8 +185,13 @@ abstract class SubmitAction extends Action2 {
 				}
 
 				// Restore the snapshot to what it was before the request(s) that we deleted
-				const snapshotRequestId = chatRequests[itemIndex].id;
-				await session.restoreSnapshot(snapshotRequestId, undefined);
+				if (!isCurrent()) {
+					return;
+				}
+				await session.restoreSnapshot(requestId, undefined);
+				if (!isCurrent()) {
+					return;
+				}
 			}
 		} else if (widget?.viewModel?.model.checkpoint) {
 			widget.viewModel.model.setCheckpoint(undefined);

@@ -43,7 +43,7 @@ import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../commo
 import { toAgentPermissionResponseMeta } from '../../common/meta/agentPermissionResponseMeta.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { CompletionItemKind, ContentEncoding, ReconnectResultType, type InitializeParams, type ReconnectParams } from '../../common/state/protocol/commands.js';
-import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
+import { ChatSourceKind, ChatTurnReadDirection } from '../../common/state/protocol/channels-chat/commands.js';
 import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -6181,6 +6181,30 @@ suite('AgentHostProtocolClient', () => {
 			});
 			await connectPromise;
 		}
+
+		test('history navigation sends exact advertised chat addresses and passes through an unsupported method error', async () => {
+			const { client, transports } = createFactoryClient();
+			const connecting = client.connect();
+			await completeHandshake(transports[0], connecting);
+			const transport = transports[0];
+			const channel = 'conversation://other-provider/a%2fb?revision%3d2#thread';
+			const list = { channel, cursor: 'private to peer', limit: 3 };
+			const read = { channel, turnId: 'foreign turn', direction: ChatTurnReadDirection.After };
+			const search = { channel, query: 'example', matchCase: true, isRegex: false, wholeWord: true };
+			const listing = client.listChatTurns(list);
+			const reading = client.readChatTurns(read);
+			const searching = client.searchChatTurns(search);
+			const [l, r, s] = await Promise.all(['listChatTurns', 'readChatTurns', 'searchChatTurns'].map(method => waitForRequestAtWithin(transport, method, 0)));
+			const items = [{ turnId: read.turnId, preview: 'A preview' }];
+			transport.fireWireMessage({ jsonrpc: '2.0', id: l.id, result: { items, nextCursor: 'another opaque token' } });
+			transport.fireWireMessage({ jsonrpc: '2.0', id: r.id, result: { turns: [], hasBefore: true, hasAfter: false } });
+			const rejected = assert.rejects(searching, error => error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound);
+			transport.fireWireMessage({ jsonrpc: '2.0', id: s.id, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Not supported' } });
+			await rejected;
+			assert.deepStrictEqual([l.params, r.params, s.params, await listing, await reading, findRequest(transport, 'fetchTurns')], [
+				list, read, search, { items, nextCursor: 'another opaque token' }, { turns: [], hasBefore: true, hasAfter: false }, undefined,
+			]);
+		});
 
 		for (const recovery of ['fresh', 'oversize', 'replayLostRequest', 'replayLostEcho', 'snapshotHiddenEcho', 'snapshotLostRequest'] as const) {
 			test(`pages an opaque chat and reconciles its pending prompt on ${recovery}`, async () => {

@@ -77,6 +77,7 @@ import { agentHostStateReceiveLimits, negotiateChannelFlowControl } from '../com
 import { ChannelRecoveryKind, type ChannelFlowControl, type ResumedChannelSubscription } from '../common/state/protocol/common/state.js';
 import { AgentHostConnectionChannels } from './agentHostConnectionChannels.js';
 import { ChatHistoryView } from './chatHistoryView.js';
+import { ChatHistoryQueries, readChatTurns } from './chatHistoryQueries.js';
 import { DEFAULT_MAX_REASSEMBLY_BYTES } from '../common/webPubSub/chunking.js';
 import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -753,6 +754,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private _lastEvictedServerSeq = 0;
 	private readonly _chatSubscribeResults = new WeakMap<SubscribeResult, Extract<ChannelSubscription, { kind: ChannelKind.State }>>();
+	private readonly _historyQueries = new WeakMap<ChannelSubscription, ChatHistoryQueries>();
 	private readonly _extensionEnvelopes = new WeakSet<ActionEnvelope>();
 	private readonly _relayRootConfigEnvelopes = new WeakMap<ActionEnvelope, ActionEnvelope>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
@@ -1432,8 +1434,34 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _createChatView(client: IConnectedClient, channel: string, count: number): ChatHistoryView {
+		return new ChatHistoryView(count, this._turnProjector(client, channel));
+	}
+
+	private _turnProjector(client: IConnectedClient, channel: string): (turn: ChatState['turns'][number]) => ChatState['turns'][number] {
 		const vscode = getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown;
-		return new ChatHistoryView(count, turn => this._usesCopilotModelConfig(channel) ? projectCopilotTurn(turn, vscode) : turn);
+		return turn => this._usesCopilotModelConfig(channel) ? projectCopilotTurn(turn, vscode) : turn;
+	}
+
+	private _subscribedChatHistory(client: IConnectedClient, channel: string, notFound: typeof AhpErrorCodes.NotFound | typeof AHP_SESSION_NOT_FOUND = AhpErrorCodes.NotFound) {
+		if (typeof channel !== 'string' || !channel) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Missing chat channel');
+		}
+		const sub = client.subscriptions.get(channel);
+		const snapshot = this._stateManager.getSnapshot(channel);
+		if (sub?.kind !== ChannelKind.State || !sub.active || !snapshot || !hasKey(snapshot.state, { turns: true })
+			|| !this._isChannelVisible(client, channel) || this._getActiveClient(client.clientId) !== client) {
+			throw new ProtocolError(notFound, `Session not found: ${channel}`);
+		}
+		return { sub, turns: snapshot.state.turns };
+	}
+
+	private _queriesFor(sub: ChannelSubscription): ChatHistoryQueries {
+		let queries = this._historyQueries.get(sub);
+		if (!queries) {
+			queries = new ChatHistoryQueries();
+			this._historyQueries.set(sub, queries);
+		}
+		return queries;
 	}
 
 	private _pagedChatBaseline(client: IConnectedClient, channel: string, view: ChatHistoryView): IStateSnapshot {
@@ -2736,19 +2764,31 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return this._agentService.completions(params);
 		},
 		fetchTurns: async (client, params) => {
-			const sub = client.subscriptions.get(params.channel);
-			const snapshot = this._stateManager.getSnapshot(params.channel);
-			if (sub?.kind !== ChannelKind.State || !sub.active || !snapshot || !hasKey(snapshot.state, { turns: true })
-				|| !this._isChannelVisible(client, params.channel) || this._getActiveClient(client.clientId) !== client) {
-				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
-			}
+			const { sub, turns } = this._subscribedChatHistory(client, params.channel, AHP_SESSION_NOT_FOUND);
 			if (!sub.history && params.cursor !== undefined) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Unrecognized fetchTurns cursor');
 			}
-			const page = sub.history?.fetch(snapshot.state.turns, params.cursor, Buffer.byteLength(JSON.stringify(params.channel)))
+			const page = sub.history?.fetch(turns, params.cursor, Buffer.byteLength(JSON.stringify(params.channel)))
 				?? { type: ActionType.ChatTurnsLoaded as const, turns: [] };
 			this._sendAction(client, this._stateManager.createServerActionEnvelope(params.channel, page));
 			return {};
+		},
+		listChatTurns: async (client, params) => {
+			const { sub, turns } = this._subscribedChatHistory(client, params?.channel);
+			return this._queriesFor(sub).list(turns, params);
+		},
+		readChatTurns: async (client, params) => {
+			const { turns } = this._subscribedChatHistory(client, params?.channel);
+			return readChatTurns(turns, params, this._turnProjector(client, params.channel));
+		},
+		searchChatTurns: async (client, params) => {
+			const { sub, turns } = this._subscribedChatHistory(client, params?.channel);
+			const result = await this._queriesFor(sub).search(turns, params);
+			const current = this._subscribedChatHistory(client, params.channel);
+			if (current.sub !== sub || current.turns !== turns) {
+				throw new ProtocolError(AhpErrorCodes.Conflict, 'Chat history changed; restart the query');
+			}
+			return result;
 		},
 		resourceList: async (_client, params) => {
 			return this._agentService.resourceList(URI.parse(params.uri));
@@ -3002,7 +3042,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const handler = this._requestHandlers.hasOwnProperty(method) ? this._requestHandlers[method as RequestMethod] : undefined;
 		if (client.transport.relayPassive && !new Set([
 			'authenticate', 'subscribe', 'listSessions', 'listChats', 'listModels', 'listAgents',
-			'resolveSessionConfig', 'sessionConfigCompletions', 'completions', 'fetchTurns',
+			'resolveSessionConfig', 'sessionConfigCompletions', 'completions', 'fetchTurns', 'listChatTurns', 'readChatTurns', 'searchChatTurns',
 			'resourceList', 'resourceRead', 'resourceResolve',
 		]).has(method) && (handler || client.transport.relayClientId === undefined || !this._config.extension?.requests.get(method)?.readOnly)) {
 			client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.InvalidRequest, readOnlyConnectionMessage));
@@ -3645,6 +3685,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
+		if (!this._config.relayRoots && isAhpChatChannel(snapshot.resource) && hasKey(snapshot.state, { turns: true })) {
+			snapshot = { ...snapshot, state: { ...snapshot.state, historyNavigation: true } };
+		}
 		if ((this._config.relayRootMeta || this._config.extension) && isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
 			snapshot = {
 				...snapshot, state: {

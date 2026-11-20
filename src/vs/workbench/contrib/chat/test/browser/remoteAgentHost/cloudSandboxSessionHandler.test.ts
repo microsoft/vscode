@@ -30,7 +30,7 @@ import { CloudSandboxSessionHandler } from '../../../browser/remoteAgentHost/clo
 import { CloudSandboxReadOnlySessionHandler } from '../../../browser/remoteAgentHost/cloudSandboxReadOnlySessionHandler.js';
 import { CloudSandboxHistoryCache } from '../../../browser/remoteAgentHost/cloudSandboxHistoryCache.js';
 import { IChatProgress, IChatRequestSubmittedEvent, IChatService } from '../../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionHistoryNavigation, IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { ICanvasContext } from '../../../../canvases/common/canvas.js';
@@ -75,6 +75,8 @@ class LiveSession extends Disposable implements IChatSession {
 	readonly onDidStartServerRequest = this.serverRequests.event;
 	readonly isReadOnly = observableValue(this, false);
 	readonly isInputBlocked = observableValue(this, false);
+	readonly historyNavigation = observableValue<IChatSessionHistoryNavigation | undefined>(this, undefined);
+	readonly hasOlderHistory = observableValue(this, false);
 	readonly isCompleteObs = observableValue(this, true);
 	readonly progressObs = observableValue<IChatProgress[]>(this, []);
 	readonly backgroundShellCount = observableValue<number | undefined>(this, undefined);
@@ -250,6 +252,25 @@ suite('CloudSandboxSessionHandler', () => {
 		first.dispose();
 		second.dispose();
 		assert.deepStrictEqual(disposals, [1, 1]);
+	});
+
+	test('history navigation on an open reference follows the promoted source and its suspension', async () => {
+		const handler = createHandler();
+		const session = store.add(await handler.provideChatSessionContent(resource, CancellationToken.None));
+		const live = store.add(new LiveSession());
+		const source: IChatSessionHistoryNavigation = {
+			list: async () => ({ items: [] }), search: async () => ({ items: [] }),
+			read: async () => ({ history: [], hasBefore: false, hasAfter: false }),
+		};
+		const state = () => [session.historyNavigation?.get() === source, session.hasOlderHistory?.get()];
+		const recorded = state();
+		live.historyNavigation.set(source, undefined);
+		live.hasOlderHistory.set(true, undefined);
+		handler.setLiveProvider({ provideChatSessionContent: async () => live });
+		await waitForState(session.isInputBlocked!, value => !value);
+		const promoted = state();
+		handler.clearLiveProvider();
+		assert.deepStrictEqual([recorded, promoted, state()], [[false, false], [true, true], [false, false]]);
 	});
 
 	test('publishes the authoritative live title to the retained model during promotion', async () => {

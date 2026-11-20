@@ -24,6 +24,21 @@ export interface IChatFindOptions {
 
 export type ChatFindItemKind = 'request' | 'response';
 
+export interface IHistoryFindLocation {
+	readonly turnId: string;
+	readonly kind: ChatFindItemKind;
+	readonly occurrence: number;
+}
+
+export interface IChatFindNavigationLocation extends IHistoryFindLocation {
+	/** Set only for renderer-owned text; never sent to the host. */
+	readonly localPartIndex?: number;
+}
+
+export function historyLocationKey(location: IChatFindNavigationLocation): string {
+	return JSON.stringify([location.turnId, location.kind, location.occurrence, location.localPartIndex]);
+}
+
 export interface IChatFindMatch {
 	readonly itemId: string;
 	readonly itemKind: ChatFindItemKind;
@@ -40,9 +55,11 @@ export interface IChatFindMatch {
 	readonly start: number;
 	readonly end: number;
 	readonly text: string;
+	readonly historyLocation?: IHistoryFindLocation;
 }
 
 interface IChatFindSegment {
+	readonly historyTurnId?: string;
 	readonly itemId: string;
 	readonly itemKind: ChatFindItemKind;
 	readonly partIndex: number;
@@ -57,99 +74,73 @@ interface IChatFindAnchor {
 	readonly occurrenceIndex: number;
 }
 
-function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
-	const segments: IChatFindSegment[] = [];
-	for (const item of items) {
-		if (isRequestVM(item)) {
-			// Index the text the row actually displays: a request rendered as a
-			// widget (an Agent Merge summary) keeps its own text out of the DOM,
-			// where a match could not be revealed.
-			const text = getChatRequestText(item);
-			if (text && text.trim().length > 0) {
-				segments.push({ itemId: item.id, itemKind: 'request', partIndex: -1, text });
-			}
-		} else if (isResponseVM(item)) {
-			// A filtered response renders no content at all, so row-level text starts at 0.
-			const isFiltered = !!item.errorDetails?.responseIsFiltered;
-			const annotated = isFiltered ? [] : annotateSpecialMarkdownContentWithSource(item.response.value);
-			const renderedContent = item.isComplete
-				? moveResponseOutcomeToolsAfterFinalResponse(annotated.map(entry => entry.content))
-				: annotated.map(entry => entry.content);
-			// Mirrors the renderer, which puts the references slot first and code citations
-			// between the response content and the trailing parts that hold row-level text.
-			const trailingPartIndex = isFiltered ? 0 : renderedContent.length + 1 + (item.codeCitations?.length ? 1 : 0);
-			// Indexes only what the response renders: `getChatFindTextParts` deliberately omits
-			// reasoning and tool result payloads, whose text does not exist in the DOM until
-			// their container is expanded, so a match there could never be revealed.
-			const parts = getChatFindTextParts(item);
-			const textByRenderedPart = new Map<number, string>();
-			for (const part of parts) {
-				if (part.text.trim().length > 0) {
-					const annotatedPart = annotated.find(entry => entry.sourceIndexes.includes(part.partIndex))?.content;
-					const renderedPartIndex = annotatedPart ? renderedContent.indexOf(annotatedPart) : -1;
-					const partIndex = renderedPartIndex >= 0 ? renderedPartIndex + 1 : -1;
-					textByRenderedPart.set(partIndex, (textByRenderedPart.get(partIndex) ?? '') + part.text);
-				}
-			}
-			for (const [partIndex, text] of [...textByRenderedPart].sort(([first], [second]) => {
-				if (first === -1) {
-					return 1;
-				}
-				if (second === -1) {
-					return -1;
-				}
-				return first - second;
-			})) {
-				segments.push({
-					itemId: item.id,
-					itemKind: 'response',
-					partIndex,
-					scopeStartPartIndex: partIndex === -1 ? trailingPartIndex : undefined,
-					text,
-				});
-			}
-		}
+function buildSegments(item: ChatTreeItem): IChatFindSegment[] {
+	if (isRequestVM(item)) {
+		const text = getChatRequestText(item);
+		const isHistoryRequest = !item.isSystemInitiated && !item.isHiddenFromTranscript && !item.isRequestHiddenFromTranscript
+			&& !item.pendingKind && !item.isPendingRequestHandoff && text === item.messageText;
+		return text?.trim() ? [{ itemId: item.id, itemKind: 'request', historyTurnId: isHistoryRequest ? item.id : undefined, partIndex: -1, text }] : [];
 	}
-	return segments;
-}
-
-/**
- * Bounds a single segment's scan. Higher than {@link MAX_FIND_MATCHES} because a segment has to be
- * scanned past the cap to know which of its occurrences are the newest, but still finite so a
- * pathological regex over a huge response cannot pin the UI.
- */
-const MAX_SEGMENT_SCAN = 100_000;
-
-/** The segment's last `limit` matches, since navigation visits a segment's newest occurrence first. */
-function findMatchesInSegment(segment: IChatFindSegment, regex: RegExp, limit: number): IChatFindMatch[] {
-	if (limit <= 0) {
+	if (!isResponseVM(item)) {
 		return [];
 	}
-	const matches: IChatFindMatch[] = [];
-	regex.lastIndex = 0;
-	let occurrenceIndex = 0;
-	let match: RegExpExecArray | null;
-	while ((match = regex.exec(segment.text))) {
-		matches.push({
-			itemId: segment.itemId,
-			itemKind: segment.itemKind,
-			partIndex: segment.partIndex,
-			scopeStartPartIndex: segment.scopeStartPartIndex,
-			occurrenceIndex,
-			start: match.index,
-			end: match.index + match[0].length,
-			text: match[0],
+
+	const isFiltered = !!item.errorDetails?.responseIsFiltered;
+	const content = isFiltered ? [] : annotateSpecialMarkdownContentWithSource(item.response.value);
+	const rendered = content.map(entry => entry.content);
+	const renderedContent = item.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(rendered) : rendered;
+	// References precede the response body; code citations precede trailing row-level text.
+	const trailingPartIndex = isFiltered ? 0 : renderedContent.length + 1 + (item.codeCitations?.length ? 1 : 0);
+	const segments = new Map<number, IChatFindSegment>();
+	for (const part of getChatFindTextParts(item)) {
+		if (!part.text.length) {
+			continue;
+		}
+		const annotatedPart = content.find(entry => entry.sourceIndexes.includes(part.partIndex))?.content;
+		const renderedPartIndex = annotatedPart ? renderedContent.indexOf(annotatedPart) : -1;
+		const partIndex = renderedPartIndex >= 0 ? renderedPartIndex + 1 : -1;
+		segments.set(partIndex, {
+			itemId: item.id,
+			itemKind: 'response',
+			historyTurnId: part.isHistoryMarkdown && partIndex >= 0 && !item.isHiddenFromTranscript ? item.requestId : undefined,
+			partIndex,
+			scopeStartPartIndex: partIndex === -1 ? trailingPartIndex : undefined,
+			text: (segments.get(partIndex)?.text ?? '') + part.text,
 		});
-		occurrenceIndex++;
-		if (match[0].length === 0) {
-			regex.lastIndex++;
-		}
-		// Trimming at twice the limit bounds the window without shifting on every match.
-		if (matches.length >= limit * 2) {
-			matches.splice(0, matches.length - limit);
-		}
-		if (occurrenceIndex >= MAX_SEGMENT_SCAN) {
-			break;
+	}
+	return [...segments.values()].sort((a, b) => (a.partIndex === -1 ? trailingPartIndex : a.partIndex) - (b.partIndex === -1 ? trailingPartIndex : b.partIndex));
+}
+
+/** Keep the existing scan bound for text without a protocol identity. */
+const MAX_SEGMENT_SCAN = 100_000;
+
+/** Number a turn side's matches in forward order, retaining only its newest `limit` results. */
+function findMatchesInItem(segments: readonly IChatFindSegment[], regex: RegExp, limit: number): IChatFindMatch[] {
+	const matches: IChatFindMatch[] = [];
+	let historyOccurrence = 0;
+	for (const segment of segments) {
+		let occurrenceIndex = 0;
+		for (const match of segment.text.matchAll(regex)) {
+			if (match[0].length === 0) {
+				continue;
+			}
+			matches.push({
+				itemId: segment.itemId,
+				itemKind: segment.itemKind,
+				partIndex: segment.partIndex,
+				scopeStartPartIndex: segment.scopeStartPartIndex,
+				occurrenceIndex: occurrenceIndex++,
+				start: match.index,
+				end: match.index + match[0].length,
+				text: match[0],
+				historyLocation: segment.historyTurnId === undefined ? undefined : { turnId: segment.historyTurnId, kind: segment.itemKind, occurrence: historyOccurrence++ },
+			});
+			if (matches.length >= limit * 2) {
+				matches.splice(0, matches.length - limit);
+			}
+			if (segment.historyTurnId === undefined && occurrenceIndex >= MAX_SEGMENT_SCAN) {
+				break;
+			}
 		}
 	}
 	return matches.length > limit ? matches.slice(-limit) : matches;
@@ -164,6 +155,8 @@ export class ChatFindModel extends Disposable {
 	private _query = '';
 	private _options: IChatFindOptions = { isRegex: false, matchCase: false, wholeWord: false };
 	private _matches: IChatFindMatch[] = [];
+	private readonly _matchByLocation = new Map<string, number>();
+	private readonly _navigationLocations = new Map<IChatFindMatch, IChatFindNavigationLocation>();
 	private _activeIndex = -1;
 	private _activeAnchor: IChatFindAnchor | undefined;
 	private _invalidRegex = false;
@@ -200,6 +193,32 @@ export class ChatFindModel extends Disposable {
 		return this._activeIndex >= 0 ? this._matches[this._activeIndex] : undefined;
 	}
 
+	locationOf(match: IChatFindMatch | undefined): IHistoryFindLocation | undefined {
+		return match?.historyLocation;
+	}
+
+	navigationLocationOf(match: IChatFindMatch | undefined): IChatFindNavigationLocation | undefined {
+		return match && this._navigationLocations.get(match);
+	}
+
+	selectLocation(location: IChatFindNavigationLocation): boolean {
+		return this._selectIndex(this._matchByLocation.get(historyLocationKey(location)) ?? -1);
+	}
+
+	selectMatch(match: IChatFindMatch): boolean {
+		return this._selectIndex(this._matches.indexOf(match));
+	}
+
+	private _selectIndex(index: number): boolean {
+		if (index < 0) {
+			return false;
+		}
+		this._activeIndex = index;
+		this._updateAnchor();
+		this._onDidChangeMatches.fire();
+		return true;
+	}
+
 	setQuery(query: string, options: IChatFindOptions): void {
 		const changed = query !== this._query
 			|| options.isRegex !== this._options.isRegex
@@ -217,6 +236,8 @@ export class ChatFindModel extends Disposable {
 	/** Rebuilds matches from the current transcript, preserving the active match's anchor when it still exists. */
 	recompute(): void {
 		const previousAnchor = this._activeAnchor;
+		this._matchByLocation.clear();
+		this._navigationLocations.clear();
 
 		if (!this._query) {
 			this._matches = [];
@@ -245,16 +266,20 @@ export class ChatFindModel extends Disposable {
 		}
 
 		const items = this.getItems();
-		const segments = buildSegments(items);
 		const matches: IChatFindMatch[] = [];
-		// Newest first: `buildSegments` produces transcript order, so both walks are reversed.
-		for (let index = segments.length - 1; index >= 0 && matches.length < MAX_FIND_MATCHES; index--) {
-			const segmentMatches = findMatchesInSegment(segments[index], regex, MAX_FIND_MATCHES - matches.length);
-			for (let occurrence = segmentMatches.length - 1; occurrence >= 0; occurrence--) {
-				matches.push(segmentMatches[occurrence]);
+		for (let i = items.length - 1; i >= 0 && matches.length < MAX_FIND_MATCHES; i--) {
+			const itemMatches = findMatchesInItem(buildSegments(items[i]), regex, MAX_FIND_MATCHES - matches.length);
+			for (const match of itemMatches.reverse()) {
+				const item = items[i];
+				const location = match.historyLocation ?? {
+					turnId: isResponseVM(item) ? item.requestId : item.id,
+					kind: match.itemKind, occurrence: match.occurrenceIndex, localPartIndex: match.partIndex,
+				};
+				this._navigationLocations.set(match, location);
+				this._matchByLocation.set(historyLocationKey(location), matches.length);
+				matches.push(match);
 			}
 		}
-
 		this._matches = matches;
 
 		if (previousAnchor) {
@@ -293,6 +318,8 @@ export class ChatFindModel extends Disposable {
 	clear(): void {
 		this._query = '';
 		this._matches = [];
+		this._matchByLocation.clear();
+		this._navigationLocations.clear();
 		this._activeIndex = -1;
 		this._activeAnchor = undefined;
 		this._invalidRegex = false;

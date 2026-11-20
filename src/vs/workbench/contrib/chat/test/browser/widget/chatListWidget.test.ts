@@ -18,7 +18,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -69,7 +69,7 @@ import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
-import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, IChatHistoryNavigation, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, IChatScheduledRequestEditing, IChatScheduledRequestViewModel, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -1644,6 +1644,40 @@ suite('ChatListWidget', () => {
 		assert.deepStrictEqual({
 			awayFromTop, loads, anchor: widget.getScrollAnchor(), focused: widget.getFocus()[0] === focused && widget.isDOMFocused(),
 		}, { awayFromTop: 0, loads: 1, anchor, focused: true });
+	});
+
+	test('a short reading window pages in both directions only on gesture and offers Scroll to Latest at its bottom', async () => {
+		const { disposables, model, viewModel, container, instantiationService, widget } = createWidget();
+		const page = disposables.add(instantiationService.createInstance(ChatModel, undefined, { resource: model.sessionResource, initialLocation: ChatAgentLocation.Chat, disableBackgroundKeepAlive: true, canUseTools: false }));
+		const request = page.addRequest({ text: 'Prompt 45', parts: [] }, { variables: [] }, 0);
+		request.response!.complete();
+		model.addRequest({ text: 'Prompt 100', parts: [] }, { variables: [] }, 0).response!.complete();
+		const window = observableValue<readonly IChatRequestModel[] | undefined>('window', [request]);
+		const pages: string[] = [];
+		model.historyNavigation.set(upcastPartial<IChatHistoryNavigation>({
+			window, inHistory: window.map(value => !!value),
+			loadPage: async direction => { pages.push(direction); },
+			returnToLatest: async () => { window.set(undefined, undefined); },
+		}), undefined);
+		widget.layout(300, 500);
+		widget.refresh();
+		widget.focusItem(viewModel.getItems()[0]);
+		await nextFrame();
+		const initial = [...pages];
+		const tree = container.querySelector<HTMLElement>('.monaco-list')!;
+		tree.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 10 }));
+		await nextFrame();
+		const e = new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowUp' });
+		Object.defineProperty(e, 'keyCode', { get: () => 38 });
+		tree.dispatchEvent(e);
+		await nextFrame();
+		const button = container.querySelector<HTMLElement>('.chat-scroll-down')!;
+		const shown = button.style.display !== 'none';
+		button.click();
+		await nextFrame();
+		assert.deepStrictEqual({ initial, pages, shown, latest: viewModel.getItems().filter(isRequestVM).map(item => item.messageText) }, {
+			initial: [], pages: ['after', 'before'], shown: true, latest: ['Prompt 100'],
+		});
 	});
 
 	test('restores the row at the top of the viewport after switching to another chat and back', async () => {

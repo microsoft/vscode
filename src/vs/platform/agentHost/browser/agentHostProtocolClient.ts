@@ -72,7 +72,7 @@ import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatAction, t
 import { getOlderHostDefaultChat, getOlderHostSkillCompletion } from './agentHostOlderHostCompatibility.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type AgentInfo, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
-import { ChatMoveDestinationKind } from '../common/state/protocol/channels-chat/commands.js';
+import { ChatMoveDestinationKind, type ListChatTurnsParams, type ListChatTurnsResult, type ReadChatTurnsParams, type ReadChatTurnsResult, type SearchChatTurnsParams, type SearchChatTurnsResult } from '../common/state/protocol/channels-chat/commands.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { getAgentHostClientProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../common/agentHostChatProviders.js';
@@ -1978,6 +1978,18 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	async fetchTurns(chat: URI, cursor: string): Promise<void> {
 		await this._sendRequest('fetchTurns', { channel: chat.toString(), cursor });
+	}
+
+	listChatTurns(params: ListChatTurnsParams): Promise<ListChatTurnsResult> {
+		return this._sendRequest('listChatTurns', params);
+	}
+
+	readChatTurns(params: ReadChatTurnsParams): Promise<ReadChatTurnsResult> {
+		return this._sendRequest('readChatTurns', params);
+	}
+
+	searchChatTurns(params: SearchChatTurnsParams): Promise<SearchChatTurnsResult> {
+		return this._sendRequest('searchChatTurns', params);
 	}
 
 	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {

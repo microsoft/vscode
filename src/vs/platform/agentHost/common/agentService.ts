@@ -37,6 +37,7 @@ import type { IAgentHostGitHubEnvironmentStatus } from './meta/agentHostGitHubEn
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { ListChatTurnsParams, ListChatTurnsResult, ReadChatTurnsParams, ReadChatTurnsResult, SearchChatTurnsParams, SearchChatTurnsResult } from './state/protocol/channels-chat/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from './state/protocol/channels-automation/commands.js';
@@ -1417,6 +1418,10 @@ export interface IAgentConnection {
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
 	/** Loads the preceding page into the subscribed chat using its host-issued cursor. */
 	fetchTurns?(chat: URI, cursor: string): Promise<void>;
+	/** Read-only queries for subscribed chats advertising `historyNavigation`. */
+	listChatTurns?(params: ListChatTurnsParams): Promise<ListChatTurnsResult>;
+	readChatTurns?(params: ReadChatTurnsParams): Promise<ReadChatTurnsResult>;
+	searchChatTurns?(params: SearchChatTurnsParams): Promise<SearchChatTurnsResult>;
 
 	/**
 	 * Returns the in-flight `createSession` Promise for `resource`, or `undefined` if no create is pending. Callers

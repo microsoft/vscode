@@ -23,7 +23,7 @@ import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookCont
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/editing/chatEditingService.js';
 import { ChatAgentVoteDirection, IChatService } from '../../common/chatService/chatService.js';
-import { isResponseVM } from '../../common/model/chatViewModel.js';
+import { isLiveChatRow, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -181,6 +181,7 @@ export function registerChatTitleActions(): DisposableStore {
 						group: 'navigation',
 						when: ContextKeyExpr.and(
 							ChatContextKeys.isResponse,
+							ChatContextKeys.readOnly.negate(),
 							ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key),
 							ChatContextKeys.lockedToCodingAgent.negate())
 					},
@@ -215,8 +216,13 @@ export function registerChatTitleActions(): DisposableStore {
 			if (!chatRequests) {
 				return;
 			}
-			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
 			const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
+			const response = item;
+			const request = chatRequests.find(candidate => candidate.id === response.requestId);
+			const isCurrent = () => widget?.viewModel?.model === chatModel && isLiveChatRow(widget?.viewModel, response);
+			if (!request || !isCurrent()) {
+				return;
+			}
 			const mode = widget?.input.currentModeKind;
 			if (chatModel && (mode === ChatModeKind.Edit || mode === ChatModeKind.Agent)) {
 				const currentEditingSession = widget?.viewModel?.model.editingSession;
@@ -248,17 +254,19 @@ export function registerChatTitleActions(): DisposableStore {
 				}
 
 				// Reset the snapshot to the first stop (undefined undo index)
-				const snapshotRequest = chatRequests[itemIndex];
-				if (snapshotRequest) {
-					await currentEditingSession.restoreSnapshot(snapshotRequest.id, undefined);
+				if (!isCurrent()) {
+					return;
 				}
+				await currentEditingSession.restoreSnapshot(request.id, undefined);
 			}
-			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
+			if (!isCurrent()) {
+				return;
+			}
 
 			chatAccessibilityService.acceptRequest(item.sessionResource);
-			chatService.resendRequest(request!, {
+			chatService.resendRequest(request, {
 				...widget?.getSelectedModelRequestOptions(),
-				attempt: (request?.attempt ?? -1) + 1,
+				attempt: request.attempt + 1,
 				...widget?.getModeRequestOptions(),
 			});
 		}

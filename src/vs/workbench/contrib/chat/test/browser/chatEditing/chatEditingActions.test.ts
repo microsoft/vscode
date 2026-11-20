@@ -89,7 +89,7 @@ suite('Chat editing actions', () => {
 		]);
 	});
 
-	async function runCheckpointAction(actionId: string, initialInput: string, confirmRestore?: boolean) {
+	async function runCheckpointAction(actionId: string, initialInput: string, confirmRestore?: boolean, replace: 'before' | 'during' | undefined = undefined) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const sessionResource = URI.parse('test://session');
 		const requestId = 'request-1';
@@ -99,15 +99,20 @@ suite('Chat editing actions', () => {
 			name: 'file.ts',
 			value: URI.parse('test://file.ts'),
 		};
+		const requestModel = new class extends mock<IChatRequestModel>() {
+			override readonly id = requestId;
+		};
+		const replacement = new class extends mock<IChatRequestModel>() {
+			override readonly id = requestId;
+		};
+		let liveRequest = replace === 'before' ? replacement : requestModel;
 		const requestItem = new class extends mock<IChatRequestViewModel>() {
+			override readonly model = requestModel;
 			override readonly id = requestId;
 			override readonly sessionResource = sessionResource;
 			override readonly message = new class extends mock<IParsedChatRequest>() { };
 			override readonly messageText = 'original request';
 			override readonly attachedContext = [attachment];
-		};
-		const requestModel = new class extends mock<IChatRequestModel>() {
-			override readonly id = requestId;
 		};
 
 		let checkpoint: string | undefined;
@@ -130,7 +135,7 @@ suite('Chat editing actions', () => {
 		const chatModel = new class extends mock<IChatModel>() {
 			override readonly editingSession = editingSession;
 			override getRequests() {
-				return [requestModel];
+				return [liveRequest];
 			}
 			override setCheckpoint(value: string | undefined): void {
 				checkpoint = value;
@@ -194,6 +199,9 @@ suite('Chat editing actions', () => {
 		instantiationService.set(IConfigurationService, configurationService);
 		instantiationService.set(IDialogService, new class extends mock<IDialogService>() {
 			override async confirm(): Promise<IConfirmationResult> {
+				if (replace === 'during') {
+					liveRequest = replacement;
+				}
 				return { confirmed: confirmRestore ?? true };
 			}
 		});
@@ -232,6 +240,13 @@ suite('Chat editing actions', () => {
 			restoredSnapshot: 'request-1',
 			restoredAttachmentIds: [],
 		});
+
+	});
+
+	test('checkpoint actions never restore a detached row or a replacement with the same ID', async () => {
+		const detached = await runCheckpointAction(RestoreCheckpointActionId, 'draft', true, 'before');
+		const replacedDuringConfirmation = await runCheckpointAction(StartOverActionId, 'draft', true, 'during');
+		assert.deepStrictEqual([detached.checkpoint, detached.restoredSnapshot, detached.inputValue, replacedDuringConfirmation.restoredSnapshot, replacedDuringConfirmation.inputValue], [undefined, undefined, 'draft', undefined, 'draft']);
 	});
 
 	test('checkpoint actions do not change the input when restore is canceled', async () => {

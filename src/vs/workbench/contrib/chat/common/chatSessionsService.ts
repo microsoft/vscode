@@ -21,7 +21,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participa
 import { IChatRequestVariableEntry } from './attachments/chatVariableEntries.js';
 import { IChatSideChatOrigin, IChatSideChatSelection } from './chatSideChatService.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
-import { ChatRequestSource, IChatRequestModeInstructions, IChatRequestModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
+import { ChatRequestSource, IChatHistoryOutlineEntry, IChatHistorySearchOptions, IChatHistorySearchResult, IChatRequestModeInstructions, IChatRequestModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSendRequestOptions, IChatSessionTiming } from './chatService/chatService.js';
 import { ChatAgentLocation } from './constants.js';
@@ -568,6 +568,12 @@ export class ChatSessionForkError extends Error {
 	}
 }
 
+export interface IChatSessionHistoryNavigation {
+	list(cursor: string | undefined, token: CancellationToken): Promise<{ readonly items: readonly IChatHistoryOutlineEntry[]; readonly nextCursor?: string }>;
+	read(turnId: string, direction: 'around' | 'before' | 'after', token: CancellationToken): Promise<{ readonly history: readonly IChatSessionHistoryItem[]; readonly hasBefore: boolean; readonly hasAfter: boolean }>;
+	search(query: string, options: IChatHistorySearchOptions, cursor: string | undefined, token: CancellationToken): Promise<IChatHistorySearchResult>;
+}
+
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
 
@@ -576,6 +582,9 @@ export interface IChatSession extends IDisposable {
 	readonly title?: string;
 
 	readonly history: readonly IChatSessionHistoryItem[];
+	/** True while the provider has a preceding page that the client can request. */
+	readonly hasOlderHistory?: IObservable<boolean>;
+	readonly historyNavigation?: IObservable<IChatSessionHistoryNavigation | undefined>;
 	/** Requests one older page, if available. The resulting history is published through onDidChangeHistory. */
 	readonly loadOlderHistory?: () => Promise<void>;
 	/** Initial history loading failed; any rendered error or partial history is not an authoritative snapshot. */

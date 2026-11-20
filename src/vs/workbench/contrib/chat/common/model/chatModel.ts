@@ -6,6 +6,7 @@
 import { asArray, equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { softAssertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer, decodeHex, encodeHex } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -1054,7 +1055,7 @@ export class Response extends AbstractResponse implements IDisposable {
 				.filter(p => p.kind !== 'textEditGroup' && ((p.kind === 'codeblockUri' && !p.isStandalone) || !isNestedSubagentResponsePart(p)))
 				.at(-1);
 
-			if (!lastResponsePart || lastResponsePart.kind !== 'markdownContent' || !canMergeMarkdownStrings(lastResponsePart.content, progress.content)) {
+			if (!lastResponsePart || lastResponsePart.kind !== 'markdownContent' || lastResponsePart.historyPartId !== progress.historyPartId || !canMergeMarkdownStrings(lastResponsePart.content, progress.content)) {
 				// The last part can't be merged with- not markdown, or markdown with different permissions
 				this._responseParts.push(progress);
 			} else {
@@ -2118,6 +2119,35 @@ export interface IChatSessionCost {
 	readonly status?: IChatUsage['sessionCopilotCreditsStatus'];
 }
 
+export interface IChatHistoryOutlineEntry {
+	readonly turnId: string;
+	readonly preview: string;
+	readonly startedAt?: string;
+}
+
+export interface IChatHistorySearchOptions {
+	readonly matchCase: boolean;
+	readonly wholeWord: boolean;
+	readonly isRegex: boolean;
+}
+
+export interface IChatHistorySearchResult {
+	readonly items: readonly { readonly turnId: string; readonly kind: 'request' | 'response'; readonly occurrence: number }[];
+	readonly nextCursor?: string;
+}
+
+export interface IChatHistoryNavigation {
+	readonly outline: IObservable<readonly IChatHistoryOutlineEntry[] | undefined>;
+	loadOutline(token: CancellationToken): Promise<void>;
+	revealTurn(turnId: string, token: CancellationToken): Promise<void>;
+	search(query: string, options: IChatHistorySearchOptions, cursor: string | undefined, token: CancellationToken): Promise<IChatHistorySearchResult>;
+	returnToLatest(): Promise<void>;
+	readonly inHistory: IObservable<boolean>;
+	/** The displayed segment. Undefined means show the authoritative model, including its pending requests. */
+	readonly window: IObservable<readonly IChatRequestModel[] | undefined>;
+	loadPage(direction: 'before' | 'after', token: CancellationToken): Promise<void>;
+}
+
 export interface IChatModel extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
@@ -2144,6 +2174,8 @@ export interface IChatModel extends IDisposable {
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly hasOlderHistory?: IObservable<boolean>;
+	readonly historyNavigation?: IObservable<IChatHistoryNavigation | undefined>;
 	readonly loadOlderHistory?: () => Promise<void>;
 	readonly modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>;
 	/** Provider-reported active shells across all turns; undefined allows transcript-based detection. */
@@ -3045,6 +3077,8 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly hasOlderHistory = observableValue(this, false);
+	readonly historyNavigation = observableValue<IChatHistoryNavigation | undefined>(this, undefined);
 	loadOlderHistory?: () => Promise<void>;
 	readonly modelConfigurationState: IObservable<IAgentModelConfigurationReport | undefined> | undefined;
 	readonly backgroundShellCount: IObservable<number | undefined> | undefined;

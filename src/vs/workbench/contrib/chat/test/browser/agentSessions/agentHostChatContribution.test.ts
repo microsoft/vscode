@@ -21945,6 +21945,7 @@ suite('AgentHostChatContribution', () => {
 				return page.p;
 			};
 			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			assert.strictEqual(session.historyNavigation?.get(), undefined);
 			const newest = session.history[0];
 			const initial = { prompt: newest.type === 'request' && newest.prompt, fetches: calls.length };
 			const first = Promise.all([session.loadOlderHistory!(), session.loadOlderHistory!()]);
@@ -21956,6 +21957,7 @@ suite('AgentHostChatContribution', () => {
 				channel: chat, action: { type: ActionType.ChatTurnsLoaded, turns: [turn('older'), turn('newest')], turnsNextCursor: 'second cursor' },
 				serverSeq: 1, origin: undefined,
 			});
+
 			await page.complete();
 			await retry;
 			const afterRetry = calls.length;
@@ -21973,6 +21975,37 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('history navigation uses the advertised chat, opaque cursors and exact workbench request IDs', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'indexed');
+			const chat = 'ahp-chat:/other-authority/unrelated-transcript';
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/indexed' });
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Indexed', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			const chatSummary = createDefaultChatSummary(summary, chat);
+			agentHostService.sessionStates.set(backend.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat: chat, chats: [chatSummary] });
+			agentHostService.chatStates.set(chat, { ...createChatState(chatSummary), historyNavigation: true });
+			const calls: object[] = [];
+			const id = 'opaque:host-id';
+			const turn: Turn = { id, message: { text: 'Older prompt', origin: { kind: MessageKind.User } }, responseParts: [], state: TurnState.Complete, usage: undefined };
+			agentHostService.listChatTurns = async params => { calls.push(params); return { items: [{ turnId: id, preview: 'Older' }] }; };
+			agentHostService.readChatTurns = async params => { calls.push(params); return { turns: [turn], hasBefore: true, hasAfter: true }; };
+			agentHostService.searchChatTurns = async params => { calls.push(params); return { items: [] }; };
+			const token = CancellationToken.None;
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, token));
+			const navigation = session.historyNavigation!.get()!;
+			const opts = { matchCase: true, isRegex: true, wholeWord: false };
+			const list = await navigation.list('list cursor', token);
+			await navigation.search('Old.*', opts, 'search cursor', token);
+			const read = await navigation.read(list.items[0].turnId, 'around', token);
+			assert.deepStrictEqual({ calls, ids: read.history.flatMap(item => item.type === 'request' ? [item.id] : []), live: session.history }, {
+				calls: [{ channel: chat, cursor: 'list cursor' }, { channel: chat, query: 'Old.*', ...opts, cursor: 'search cursor' }, { channel: chat, turnId: id, direction: 'around' }],
+				ids: [id], live: [],
+			});
+		});
+
 		test('reconciles reconnect windows before the next turn and never prepends a replacement transcript', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const backend = AgentSession.uri('copilot', 'reconnect-window');
@@ -21983,13 +22016,20 @@ suite('AgentHostChatContribution', () => {
 				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			};
 			const chatSummary = createDefaultChatSummary(summary, chat);
-			const base = createChatState(chatSummary);
+			const base = { ...createChatState(chatSummary), historyNavigation: true as const };
 			const turn = (id: string): Turn => ({ id, message: { text: id, origin: { kind: MessageKind.User } }, responseParts: [], state: TurnState.Complete, usage: undefined });
 			agentHostService.sessionStates.set(backend.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat: chat, chats: [chatSummary] });
 			agentHostService.chatStates.set(chat, { ...base, turns: [turn('b'), turn('c')], turnsNextCursor: 'prev' });
 			let fetches = 0;
 			agentHostService.fetchTurns = async () => { fetches++; };
+			agentHostService.listChatTurns = async () => ({ items: [] });
+			agentHostService.readChatTurns = async () => ({ turns: [], hasBefore: false, hasAfter: false });
+			agentHostService.searchChatTurns = async () => ({ items: [] });
 			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			const navigation = session.historyNavigation!;
+			disposables.add(autorun(reader => navigation.read(reader)));
+			const original = navigation.get();
+			assert.ok(original);
 			const ids = () => session.history.flatMap(item => item.type === 'request' ? [item.id] : []);
 			const atTurnStart: (string | undefined)[][] = [];
 			disposables.add(session.onDidStartServerRequest!(() => atTurnStart.push(ids())));
@@ -22009,8 +22049,20 @@ suite('AgentHostChatContribution', () => {
 			const overlap = ids();
 			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('older'), turn('a')] });
 			const expanded = ids();
+			assert.strictEqual(navigation.get(), original, 'paging, active turns and contiguous appends preserve navigation');
 			agentHostService.applyChatSnapshot({ ...base, turns: [turn('unrelated')], turnsNextCursor: 'unanchored' });
 			const noAnchor = ids();
+			const replacedSource = navigation.get();
+			assert.notStrictEqual(replacedSource, original);
+			const outsideWindow = { type: ActionType.ChatTruncated, turnId: 'outside-window' } as const;
+			agentHostService.fireAction({ channel: chat, action: outsideWindow, serverSeq: ++serverSeq, origin: undefined, rejectionReason: 'rejected' });
+			assert.strictEqual(navigation.get(), replacedSource);
+			fire(outsideWindow);
+			assert.notStrictEqual(navigation.get(), replacedSource, 'accepted truncation resets even without a loaded anchor');
+			const beforeEdit = navigation.get();
+			const changed = turn('unrelated');
+			agentHostService.applyChatSnapshot({ ...base, turns: [{ ...changed, message: { ...changed.message, text: 'edited in place' } }], turnsNextCursor: 'unanchored' });
+			assert.notStrictEqual(navigation.get(), beforeEdit, 'a retained turn with changed contents invalidates the index');
 			fire({ type: ActionType.ChatTruncated });
 			const cleared = ids();
 			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('replacement'), turn('also-replaced')] });

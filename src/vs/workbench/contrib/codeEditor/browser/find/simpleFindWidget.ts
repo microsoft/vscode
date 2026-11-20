@@ -279,7 +279,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	protected abstract _onFocusTrackerBlur(): void;
 	protected abstract _onFindInputFocusTrackerFocus(): void;
 	protected abstract _onFindInputFocusTrackerBlur(): void;
-	protected abstract _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined>;
+	protected abstract _getResultCount(): Promise<{ resultIndex: number; resultCount: number; incomplete?: boolean; emptyLabel?: string } | undefined>;
 
 	protected get inputValue() {
 		return this._findInput.getValue();
@@ -431,12 +431,12 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 		const count = await this._getResultCount();
 		this._matchesCount.textContent = '';
-		const showRedOutline = (this.inputValue.length > 0 && count?.resultCount === 0);
+		const showRedOutline = (this.inputValue.length > 0 && count?.resultCount === 0 && !count.incomplete);
 		this._matchesCount.classList.toggle('no-results', showRedOutline);
 		let label = '';
 		if (count?.resultCount) {
 			let matchesCount: string = String(count.resultCount);
-			if (count.resultCount >= this._matchesLimit) {
+			if (count.incomplete || count.resultCount >= this._matchesLimit) {
 				matchesCount += '+';
 			}
 			let matchesPosition: string = String(count.resultIndex + 1);
@@ -445,7 +445,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			}
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
 		} else {
-			label = NLS_NO_RESULTS;
+			label = count?.emptyLabel ?? NLS_NO_RESULTS;
 		}
 		status(this._announceSearchResults(label, this.inputValue));
 		this._matchesCount.appendChild(document.createTextNode(label));

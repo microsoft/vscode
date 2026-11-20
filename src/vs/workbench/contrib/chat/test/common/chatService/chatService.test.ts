@@ -83,7 +83,7 @@ import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
-import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionServerRequest, IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionHistoryNavigation, IChatSessionItem, IChatSessionServerRequest, IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../../platform/chat/common/chatSessionHistory.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
@@ -4587,6 +4587,7 @@ suite('ChatService', () => {
 			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 			readonly loadOlderHistory?: IChatSession['loadOlderHistory'];
+			readonly historyNavigation?: IChatSession['historyNavigation'];
 			readonly ownsHistoryRequestIds?: boolean;
 			readonly history?: readonly IChatSessionHistoryItem[];
 			readonly preserveHistoryItemIdentity?: boolean;
@@ -4619,6 +4620,7 @@ suite('ChatService', () => {
 				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
 				onDidStartServerRequest: opts.onDidStartServerRequest,
 				loadOlderHistory: opts.loadOlderHistory,
+				historyNavigation: opts.historyNavigation,
 				ownsHistoryRequestIds: opts.ownsHistoryRequestIds,
 				// Like the agent host provider, update the history before announcing the change.
 				onDidChangeHistory: onDidChangeHistory && Event.map(onDidChangeHistory, next => history = next, testDisposables),
@@ -6044,6 +6046,85 @@ suite('ChatService', () => {
 				active: model.hasActiveRequest.get(), complete: model.getRequests().map(r => r.response?.isIncomplete.get()),
 			}, { order: ['First', 'Second', 'Recent', 'Live'], sends: 0, preserved: true, active: true, complete: [false, false, false, true] });
 			model.cancelRequest(live);
+		});
+
+		test('reads turn 45 then 46 without joining either to turn 100 or losing queued and streaming work', async () => {
+			const token = CancellationToken.None;
+			const history = (id: number): IChatSessionHistoryItem[] => [
+				{ id: String(id), type: 'request', prompt: `Prompt ${id}`, participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(`Answer ${id}`) }], participant: remoteScheme },
+			];
+			const reads: string[] = [];
+			const source: IChatSessionHistoryNavigation = {
+				list: async cursor => cursor
+					? { items: [{ turnId: '100', preview: 'Prompt 100' }] }
+					: { items: [{ turnId: '45', preview: 'Prompt 45' }], nextCursor: 'another page' },
+				read: async (id, direction) => {
+					reads.push(`${direction} ${id}`);
+					return { history: history(direction === 'before' ? 44 : direction === 'after' ? 46 : 45), hasBefore: true, hasAfter: true };
+				},
+				search: async () => ({ items: [{ turnId: '45', kind: 'response', occurrence: 0 }] }),
+			};
+			const { resource } = setupRemoteProvider({ history: history(100), historyNavigation: constObservable(source) });
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token);
+			assert.ok(ref);
+			const model = testDisposables.add(ref).object as ChatModel;
+			const view = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const visible = () => view.getItems().filter(isRequestVM).map(item => item.messageText);
+			const cached = view.getItems()[0];
+			const nav = model.historyNavigation.get()!;
+			await nav.loadOutline(token);
+			const hits = await nav.search('Answer', { matchCase: true, wholeWord: false, isRegex: false }, undefined, token);
+			assert.deepStrictEqual({ reads, outline: nav.outline.get()?.map(entry => entry.turnId), visible: visible() }, {
+				reads: [], outline: ['45', '100'], visible: ['Prompt 100'],
+			});
+			await nav.revealTurn(hits.items[0].turnId, token);
+			const at45 = visible();
+			const historical = view.getItems()[0];
+			const latest = model.addRequest({ text: 'Prompt 101', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(latest, { kind: 'markdownContent', content: new MarkdownString('Streaming') });
+			service.syncPendingRequestsFromRemote(resource, [{ id: 'queued', kind: ChatRequestQueueKind.Queued, message: 'Queued' }]);
+			await nav.loadPage('after', token);
+			await nav.revealTurn('46', token);
+			const at46 = visible();
+			await nav.loadPage('before', token);
+			const before45 = visible();
+			const sameReadingRow = view.getItems().includes(historical);
+			await nav.returnToLatest();
+			assert.deepStrictEqual({
+				at45, at46, before45, sameReadingRow, reads, latest: visible(), sameLatest: view.getItems()[0] === cached,
+				live: model.lastRequest === latest && model.hasActiveRequest.get(), response: latest.response?.response.toString(),
+			}, {
+				at45: ['Prompt 45'], at46: ['Prompt 45', 'Prompt 46'], before45: ['Prompt 44', 'Prompt 45', 'Prompt 46'], sameReadingRow: true,
+				reads: ['around 45', 'after 45', 'before 45'], latest: ['Prompt 100', 'Prompt 101', 'Queued'], sameLatest: true, live: true, response: 'Streaming',
+			});
+			model.cancelRequest(latest);
+		});
+
+		test('late reads cannot change the window after returning to latest or switching history source', async () => {
+			const gate = new DeferredPromise<void>();
+			const source = observableValue<IChatSessionHistoryNavigation | undefined>('source', {
+				list: async () => ({ items: [] }),
+				search: async () => ({ items: [] }),
+				read: async id => {
+					await gate.p;
+					return { history: [{ type: 'request', id, prompt: id, participant: remoteScheme }], hasBefore: false, hasAfter: false };
+				},
+			});
+			const { resource } = setupRemoteProvider({ historyNavigation: source });
+			const service = createChatServiceWithFrozenHistoryClock();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			const model = testDisposables.add(ref).object;
+			const nav = model.historyNavigation!.get()!;
+			const first = nav.revealTurn('45', CancellationToken.None);
+			await nav.returnToLatest();
+			const second = nav.revealTurn('70', CancellationToken.None);
+			source.set(undefined, undefined);
+			await gate.complete();
+			await Promise.all([assert.rejects(first, isCancellationError), assert.rejects(second, isCancellationError)]);
+			assert.deepStrictEqual([nav.inHistory.get(), model.historyNavigation!.get(), model.getRequests().map(r => r.message.text)], [false, undefined, ['hello']]);
 		});
 
 		test('authoritative history removes confirmed local turns even if snapshots coalesce while streaming', async () => {

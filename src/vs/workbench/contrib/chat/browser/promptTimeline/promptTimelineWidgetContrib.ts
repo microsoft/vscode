@@ -7,6 +7,7 @@ import { addDisposableListener, EventType } from '../../../../../base/browser/do
 import { IMouseWheelEvent, StandardWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -127,8 +128,11 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	}
 
 	private _createRail(model: PromptTimelineModel, host: HTMLElement, railStyle: PromptTimelineRailStyle): void {
+		if (railStyle === 'gutter') {
+			model.loadGutterOutline();
+		}
 		const rail: IPromptTimelineRail = this._enablement.add(
-			railStyle === 'gutter' ? new PromptTimelineGutterRail() : new PromptTimelineRulerRail()
+			railStyle === 'gutter' ? new PromptTimelineGutterRail(() => model.loadPreviousGutterPage()) : new PromptTimelineRulerRail()
 		);
 		this._enablement.add(observePromptTimelineHostWidth(this.widget as ChatWidget, host, rail));
 		// The ruler reserves room beside the transcript's right scrollbar; the gutter rail lives in the
@@ -140,7 +144,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		this._enablement.add(toDisposable(() => rail.domNode.remove()));
 
 		rail.setFilesProvider(tick => model.getRequestFiles(tick));
-		this._enablement.add(rail.onDidSelect(requestId => model.reveal(requestId)));
+		this._enablement.add(rail.onDidSelect(requestId => { void model.reveal(requestId).catch(onUnexpectedError); }));
 		this._enablement.add(rail.onDidReview(tick => { void model.reviewChanges(tick); }));
 		this._enablement.add(rail.onDidReviewFile(e => { void model.reviewChanges(e.tick, e.file); }));
 
@@ -167,7 +171,11 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			const ticks = ticksObs.read(reader);
 			// Toggle visibility before rendering so the rail's fit measurement in
 			// setTicks runs against the displayed (non-zero height) element.
-			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS);
+			const hasOlder = model.hasOlderHistory.read(reader);
+			if (rail instanceof PromptTimelineGutterRail) {
+				rail.setHasOlderHistory(hasOlder);
+			}
+			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS && !(rail instanceof PromptTimelineGutterRail && hasOlder));
 			rail.setTicks(ticks);
 		}));
 
@@ -198,7 +206,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			const active = model.activePrompt.read(reader);
 			const pinned = model.activePinned.read(reader);
 			if (active && pinned) {
-				sticky.update(active.text, active.index, active.total);
+				sticky.update(active.text, active.index, model.hasOlderHistory.read(reader) ? undefined : active.total);
 			}
 			sticky.setVisible(!!active && pinned);
 		}));

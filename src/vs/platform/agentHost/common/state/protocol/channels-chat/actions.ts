@@ -738,7 +738,7 @@ export interface ChatTruncatedAction {
  * Loads older completed turns into this chat's state.
  *
  * Hosts dispatch this before responding to `fetchTurns`, and before applying
- * any operation that references a turn older than the currently loaded window.
+ * any state-changing operation that references a turn older than the currently loaded window.
  * `turns` is ordered oldest-first and is prepended to the current `turns`
  * window. `turnsNextCursor` replaces the state's cursor; omit it when all
  * retained turns are now loaded.

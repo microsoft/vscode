@@ -913,7 +913,7 @@ suite('ChatWidget', () => {
 			telemetryService: { value: NullTelemetryService },
 			viewModel: {
 				value: {
-					model: { getRequests: () => [], setCheckpoint: () => { } },
+					model: { getRequests: () => request.pendingKind ? [] : [request.model], getPendingRequests: () => [{ kind: request.pendingKind, request: request.model }], setCheckpoint: () => { } },
 					sessionResource: URI.parse('agent-host-copilot:/session'),
 					get editing() { return editing; },
 					setEditing: (request: IChatRequestViewModel | undefined) => { editing = request; },
@@ -1047,6 +1047,7 @@ suite('ChatWidget', () => {
 		});
 		input.requestModelByIdentifier.resolves(true);
 		const request = upcastPartial<IChatRequestViewModel>({
+			model: upcastPartial<IChatRequestModel>({ id: 'request' }),
 			id: 'request',
 			message: { text: 'original request', parts: [] },
 			messageText: 'original request',
@@ -1060,6 +1061,29 @@ suite('ChatWidget', () => {
 		widget.startEditing(request.id);
 
 		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
+	});
+
+	test('reading rows cannot start an edit or submit against a live request with the same ID', async () => {
+		const inHistory = observableValue('inHistory', true);
+		const live = upcastPartial<IChatRequestModel>({ id: 'overlap' });
+		const row = upcastPartial<IChatRequestViewModel>({ id: live.id, message: { text: 'older', parts: [] }, model: upcastPartial<IChatRequestModel>({ id: live.id }) });
+		let editing: IChatRequestViewModel | undefined;
+		const checkpoints: string[] = [];
+		const model = { historyNavigation: constObservable({ inHistory }), getRequests: () => [live], setCheckpoint: (id: string) => checkpoints.push(id) };
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			viewModel: { value: { model, get editing() { return editing; }, sessionResource: URI.parse('test:/overlap') } },
+			listWidget: { value: { getTemplateDataForRequestId: () => ({ currentElement: row }) } },
+		});
+		widget.startEditing(row.id);
+		editing = row;
+		const whileReading = await widget.acceptInput();
+		editing = undefined;
+		inHistory.set(false, undefined);
+		widget.startEditing(row.id);
+		editing = row;
+		const afterReturn = await widget.acceptInput();
+		assert.deepStrictEqual({ whileReading, afterReturn, checkpoints }, { whileReading: undefined, afterReturn: undefined, checkpoints: [] });
 	});
 
 	test('inline session references preserve their kind, title and metadata when edited and resent', async () => {
@@ -1087,7 +1111,7 @@ suite('ChatWidget', () => {
 		});
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('chat.editRequests', 'input');
-		const request = upcastPartial<IChatRequestViewModel>({ id: 'request', message: first, messageText: text, variables });
+		const request = upcastPartial<IChatRequestViewModel>({ model: upcastPartial<IChatRequestModel>({ id: 'request', setShouldBeBlocked: () => { } }), id: 'request', message: first, messageText: text, variables });
 		const dynamicVariableModel = upcastPartial<ChatDynamicVariableModel>({
 			id: ChatDynamicVariableModel.ID, addReference: reference => { references.push(reference); },
 		});
@@ -1166,6 +1190,7 @@ suite('ChatWidget', () => {
 			messageText: 'original request',
 			variables: [],
 			pendingKind: consumedSteering ? ChatRequestQueueKind.Steering : undefined,
+			model: upcastPartial<IChatRequestModel>({ id: 'request', setShouldBeBlocked: () => { } }),
 		});
 		const rowContainer = mainWindow.document.createElement('div');
 		const requestTimestampContainer = dom.append(rowContainer, dom.$('div'));
@@ -1196,7 +1221,7 @@ suite('ChatWidget', () => {
 			logService: { value: new NullLogService() },
 			viewModel: {
 				value: {
-					model: { getRequests: () => [], setCheckpoint: () => { }, pendingRequestHandoffs: handoffs },
+					model: { getRequests: () => consumedSteering ? [] : [request.model], getPendingRequests: () => [{ kind: request.pendingKind, request: request.model }], setCheckpoint: () => { }, pendingRequestHandoffs: handoffs },
 					sessionResource: URI.parse('chat-session:/session'),
 					get editing() { return editing; },
 					setEditing: (request: IChatRequestViewModel | undefined) => { editing = request; },
@@ -1535,7 +1560,7 @@ suite('ChatWidget', () => {
 		const rowContainer = mainWindow.document.createElement('div');
 		stickyRow.appendChild(rowContainer);
 		const stickyTemplate = upcastPartial<IChatListItemTemplate>({ currentElement: request, rowContainer });
-		const realTemplate = upcastPartial<IChatListItemTemplate>({});
+		const realTemplate = upcastPartial<IChatListItemTemplate>({ currentElement: request });
 		let revealedRequest: IChatRequestViewModel | undefined;
 		let requestedTemplateId: string | undefined;
 		let clickedTemplate: IChatListItemTemplate | undefined;
@@ -2632,6 +2657,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		const requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
 		const isInputBlocked = observableValue('isInputBlocked', false);
 		const inputModel = mockObject<IChatModel['inputModel']>()();
+		const request = upcastPartial<IChatRequestModel>({ id: 'existing-request' });
 		const model = upcastPartial<IChatModel>({
 			sessionResource: resource,
 			onDidDispose: store.add(new Emitter<void>()).event,
@@ -2640,7 +2666,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			requestNeedsInput,
 			isInputBlocked,
 			inputModel: upcastPartial<IChatModel['inputModel']>({ setState: inputModel.setState }),
-			getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'existing-request' })],
+			getRequests: () => [request],
 			getPendingRequests: () => [],
 		});
 		const viewModel = upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] });
@@ -2649,6 +2675,7 @@ suite('ChatWidget - acceptInput submission', () => {
 	}
 
 	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction, inputText = 'Test and fix the app') {
+		const scrollToLatest = mockObject<{ scrollToLatest(): Promise<void> }>()().scrollToLatest;
 		const original = createSession(URI.parse('agent-host-copilot:/existing-a'));
 		const widgetStore = store.add(new DisposableStore());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
@@ -2759,13 +2786,25 @@ suite('ChatWidget - acceptInput submission', () => {
 			chatAccessibilityService: { value: { acceptRequest: () => { }, acceptResponse: () => { } } },
 			logService: { value: { debug: () => { } } },
 			telemetryService: { value: NullTelemetryService },
-			listWidget: { value: { domNode: dom.$('div'), setScrollLock: () => { }, updateRendererOptions: () => { }, rerender: () => { }, getTemplateDataForRequestId: () => undefined } },
+			listWidget: { value: { domNode: dom.$('div'), setScrollLock: () => { }, scrollToLatest, updateRendererOptions: () => { }, rerender: () => { }, getTemplateDataForRequestId: () => undefined } },
 			updateChatViewVisibility: { value: () => { } },
 			_maybeStartGoalSummary: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
-		return { widget, widgetStore, viewOptions, options, original, input, inputPartDisposable, configurationService, editorService, chatService, chatWidgetService, chatSessionsService, chatSubmitRequestHandlerService, customizationHarnessService, parser, parts, parsedInput, pasteController, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests };
+		return { widget, widgetStore, viewOptions, options, original, input, inputPartDisposable, configurationService, editorService, chatService, chatWidgetService, chatSessionsService, chatSubmitRequestHandlerService, customizationHarnessService, parser, parts, parsedInput, pasteController, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests, scrollToLatest };
 	}
+
+	test('a local submission returns from history only after the send is accepted', async () => {
+		const fixture = createSubmissionWidget();
+		const window = observableValue<readonly string[] | undefined>('reading', ['45']);
+		Object.defineProperty(fixture.original.model, 'historyNavigation', { value: constObservable({ window, inHistory: window.map(rows => !!rows) }) });
+		fixture.scrollToLatest.callsFake(async () => window.set(undefined, undefined));
+		fixture.chatService.sendRequest.onFirstCall().resolves({ kind: 'rejected', reason: 'unavailable' });
+		await fixture.widget.acceptInput('Try once');
+		const afterRejection = window.get();
+		await fixture.widget.acceptInput('Try again');
+		assert.deepStrictEqual([afterRejection, window.get(), fixture.scrollToLatest.callCount], [['45'], undefined, 1]);
+	});
 
 	for (const customHandler of [false, true]) {
 		test(`waits for pasted text and attachments before ${customHandler ? 'calling a custom submit handler' : 'sending the draft'}`, async () => {
@@ -3117,7 +3156,8 @@ suite('ChatWidget - acceptInput submission', () => {
 				getPromptText: () => 'Edited request',
 				dispose: () => { },
 			});
-			let editing: IChatRequestViewModel | undefined = upcastPartial<IChatRequestViewModel>({ id: 'existing-request' });
+			const request = fixture.original.model.getRequests()[0];
+			let editing: IChatRequestViewModel | undefined = upcastPartial<IChatRequestViewModel>({ id: request.id, model: request, message: { text: 'Original request', parts: [] } });
 			Object.defineProperties(fixture.original.viewModel, {
 				editing: { get: () => editing },
 				setEditing: { value: (request: IChatRequestViewModel | undefined) => { editing = request; } },

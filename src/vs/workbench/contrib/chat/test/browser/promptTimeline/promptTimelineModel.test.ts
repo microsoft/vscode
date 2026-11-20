@@ -15,6 +15,7 @@ import { IChatResponseFileChangesService } from '../../../browser/chatResponseFi
 import { PromptTimelineModel } from '../../../browser/promptTimeline/promptTimelineModel.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatHistoryNavigation, IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel, IChatRequestViewModel, IChatViewModelChangeEvent } from '../../../common/model/chatViewModel.js';
 
 suite('PromptTimelineModel', () => {
@@ -31,17 +32,21 @@ suite('PromptTimelineModel', () => {
 		} as IChatRequestViewModel;
 	}
 
-	function createModel(positionedRequests: readonly { readonly item: IChatRequestViewModel; readonly top: number }[], viewportHeight = 300, scrollHeight = 1200, fileChangesService?: IChatResponseFileChangesService) {
+	function createModel(positionedRequests: readonly { readonly item: IChatRequestViewModel; readonly top: number }[], viewportHeight = 300, scrollHeight = 1200, fileChangesService?: IChatResponseFileChangesService, navigation?: IChatHistoryNavigation) {
 		const items: ChatTreeItem[] = positionedRequests.map(({ item }) => item);
 		const tops = new Map<ChatTreeItem, number>(positionedRequests.map(({ item, top }) => [item, top]));
 		const onDidScroll = store.add(new Emitter<void>());
 		const onDidChange = store.add(new Emitter<IChatViewModelChangeEvent>());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		let detachedLiveItems: readonly IChatRequestViewModel[] | undefined;
 		let scrollTop = 0;
+		const revealed: string[] = [];
 		let viewModel = upcastPartial<ChatViewModel>({
+			model: upcastPartial<IChatModel>({ historyNavigation: observableValue('navigation', navigation) }),
 			sessionResource: URI.parse('test:/first'),
 			onDidChange: onDidChange.event,
 			getItems: () => items,
+			getLiveItemsWhileReading: () => detachedLiveItems,
 		});
 		const widget = upcastPartial<ChatWidget>({
 			get viewModel() { return viewModel; },
@@ -52,6 +57,7 @@ suite('PromptTimelineModel', () => {
 			viewportHeight,
 			scrollHeight,
 			getElementTop: item => tops.get(item),
+			reveal: item => { revealed.push(item.id); },
 		});
 		const model = store.add(new PromptTimelineModel(widget,
 			upcastPartial<IChatEditingService>({
@@ -62,7 +68,11 @@ suite('PromptTimelineModel', () => {
 			undefined!, undefined!, undefined!));
 
 		return {
-			model,
+			model, revealed,
+			setLiveRequestsWhileReading(requests: readonly IChatRequestViewModel[]): void {
+				detachedLiveItems = requests;
+				onDidChange.fire(null);
+			},
 			setRequests(requests: readonly IChatRequestViewModel[]): void {
 				items.splice(0, items.length, ...requests);
 				onDidChange.fire(null);
@@ -89,6 +99,25 @@ suite('PromptTimelineModel', () => {
 			pinned: model.activePinned.get(),
 		};
 	}
+
+	test('lists all prompts without loading their bodies or file changes, then opens only the selected turn', async () => {
+		const outline = Array.from({ length: 100 }, (_, i) => ({ turnId: `turn-${i + 1}`, preview: `Prompt ${i + 1}` }));
+		const reads: string[] = [];
+		const changes = new Set<string>();
+		const navigation = upcastPartial<IChatHistoryNavigation>({
+			outline: observableValue('outline', outline),
+			revealTurn: async id => { reads.push(id); fixture.setRequests([request(id, 'Prompt 45', 45)]); },
+		});
+		const fixture = createModel(outline.slice(89).map((entry, i) => ({ item: request(entry.turnId, entry.preview, 90 + i), top: i * 100 })), 300, 1200,
+			upcastPartial<IChatResponseFileChangesService>({ getChangesForRequest: (_resource, id) => { changes.add(id); return undefined; } }), navigation);
+		assert.deepStrictEqual(fixture.model.promptTicks.get().map(t => t.requestId), outline.map(t => t.turnId));
+		assert.deepStrictEqual({ reads: [...reads], consultedOldChanges: changes.has('turn-45') }, { reads: [], consultedOldChanges: false });
+		await fixture.model.reveal('turn-45');
+		fixture.setLiveRequestsWhileReading([request('turn-101', 'A new prompt', 101)]);
+		assert.deepStrictEqual({ reads, revealed: fixture.revealed, last: fixture.model.promptTicks.get().at(-1)?.requestId }, {
+			reads: ['turn-45'], revealed: ['turn-45'], last: 'turn-101',
+		});
+	});
 
 	for (const ticksProperty of ['promptTicks', 'ticks'] as const) {
 		test(`${ticksProperty} only recomputes the changed prompt and suppresses equal diff stats`, () => {
