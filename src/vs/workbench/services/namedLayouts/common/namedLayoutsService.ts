@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { hash } from '../../../../base/common/hash.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { equals, mixin } from '../../../../base/common/objects.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { isObject, isString } from '../../../../base/common/types.js';
+import * as semver from '../../../../base/common/semver/semver.js';
+import { isNumber, isObject, isString } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -40,8 +42,8 @@ interface IStoredNamedLayout {
 	readonly settings: string;
 
 	/**
-	 * The state of the participants on this machine, `undefined` if the layout was
-	 * synchronized from another machine and was not active on this machine yet.
+	 * The state of the participants on this machine, `undefined` if the layout was not active on
+	 * this machine since its changes were saved, for example on another machine.
 	 */
 	readonly state: IStringDictionary<unknown> | undefined;
 
@@ -68,6 +70,12 @@ interface IStoredNamedLayoutContribution {
 	 * Whether the extension locked the layout. Known before the contributions are.
 	 */
 	readonly locked?: boolean;
+
+	/**
+	 * The hash of the definition and the version of the extension the saved changes are based on.
+	 */
+	readonly definitionHash?: number;
+	readonly extensionVersion?: string;
 }
 
 function isStoredContribution(candidate: unknown): candidate is IStoredNamedLayoutContribution {
@@ -75,8 +83,12 @@ function isStoredContribution(candidate: unknown): candidate is IStoredNamedLayo
 		return false;
 	}
 
-	const { extensionId, id, locked } = candidate as IStoredNamedLayoutContribution;
-	return isString(extensionId) && isString(id) && (locked === undefined || typeof locked === 'boolean');
+	const { extensionId, id, locked, definitionHash, extensionVersion } = candidate as IStoredNamedLayoutContribution;
+	return isString(extensionId)
+		&& isString(id)
+		&& (locked === undefined || typeof locked === 'boolean')
+		&& (definitionHash === undefined || isNumber(definitionHash))
+		&& (extensionVersion === undefined || isString(extensionVersion));
 }
 
 function toStoredNamedLayout(id: string, candidate: unknown, state: IStringDictionary<unknown> | undefined): IStoredNamedLayout | undefined {
@@ -100,6 +112,13 @@ function toSettingsContent(settings: object): string {
 
 function getContributedLayoutId(extensionId: string, id: string): string {
 	return `${ExtensionIdentifier.toKey(extensionId)}/${id}`;
+}
+
+/**
+ * Identifies a definition of a layout. It does not depend on the order of the keys of the definition.
+ */
+function getDefinitionHash({ definition }: IContributedNamedLayout): number {
+	return hash(definition);
 }
 
 /**
@@ -130,17 +149,24 @@ interface ILayoutSnapshot {
  * another layout is applied. If two windows use the same named layout, the
  * window that saves last wins.
  *
- * A layout contributed by an extension starts from its definition the first
- * time it becomes active. Its changes are then saved like the changes of other
- * named layouts, in a stored layout that refers to the contribution.
+ * A layout contributed by an extension follows its definition until it is
+ * changed: whenever it becomes active, its definition is applied. Once it is
+ * changed, its changes are saved like the changes of other named layouts, in a
+ * stored layout that refers to the contribution and to the definition the
+ * changes are based on. If the extension changes the definition later, the
+ * layout reports the update, which can be applied or ignored. While the
+ * active layout of an extension is not changed, its settings and the
+ * contribution it refers to are stored with the active layout, so that the
+ * layout can be restored before the contributions of extensions are known.
  *
  * The settings of a locked layout cannot be changed. Other changes made to a
  * locked layout are not saved. They are discarded when another layout becomes
  * active, and the saved state of a locked layout is applied again after the
  * window reloads. A layout that its extension locked always starts from its
- * definition when it becomes active. Changes made to the active locked layout
- * are detected against its state once the window settled after it was applied,
- * locked or reverted.
+ * definition when it becomes active. Changes made to the active locked layout,
+ * and to the active layout of an extension that was not changed, are detected
+ * against its state once the window settled after it was applied, locked or
+ * reverted.
  *
  * If the layout that was active when the window closed no longer exists when it
  * reopens, the saved state of the default layout is applied.
@@ -172,6 +198,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private static readonly LEGACY_LOCKED_LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts.locked';
 
 	private static readonly ACTIVE_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.active';
+
+	/**
+	 * The active layout of an extension while it was not changed, stored per workspace.
+	 */
+	private static readonly ACTIVE_CONTRIBUTED_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.activeContributedLayout';
 	private static readonly DEFAULT_LAYOUT_STATE_STORAGE_KEY = 'workbench.namedLayouts.defaultState';
 	private static readonly EMPTY_SETTINGS = '{}';
 
@@ -215,11 +246,19 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	 * layout that refers to a contribution represents the contributed layout.
 	 */
 	private contributedLayoutsKnown = false;
+	private readonly whenContributedLayoutsKnown = new DeferredPromise<void>();
 
 	/**
-	 * The snapshot that changes to the active locked layout are detected against. It is
-	 * taken once the window settled after the layout was applied, locked or reverted, and
-	 * is `pending` until then. `undefined` while the active layout is not locked.
+	 * The active layout of an extension that was not changed, as it was stored when the
+	 * window closed. It represents the layout until the contributed layouts are known.
+	 */
+	private restoredContributedLayout: IStoredNamedLayout | undefined;
+
+	/**
+	 * The snapshot that changes to the active layout are detected against while it is locked,
+	 * or while it is the layout of an extension that was not changed. It is taken once the
+	 * window settled after the layout was applied, locked or reverted, and is `pending` until
+	 * then. `undefined` while changes are not detected.
 	 */
 	private changeBaseline: ILayoutSnapshot | 'pending' | undefined;
 	private activeLayoutModified = false;
@@ -285,6 +324,25 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			})).catch(error => this.logService.error('[named layouts] Failed to restore the default layout.', error));
 		}
 
+		// The workbench restores the arrangement of the active layout of an extension that was not
+		// changed. A locked layout starts from its definition again, and the extension may have
+		// changed the definition meanwhile, which the layout follows. Otherwise its changes are
+		// detected from now on.
+		const restoredContributedLayout = this.restoredContributedLayout;
+		if (restoredContributedLayout) {
+			Promise.all([lifecycleService.when(LifecyclePhase.Restored), this.whenContributedLayoutsKnown.p]).then(() => this.sequencer.queue(async () => {
+				const contributedLayout = this.contributedLayouts.get(restoredContributedLayout.id);
+				if (!contributedLayout || this.activeLayoutId !== restoredContributedLayout.id || this.getStoredLayout(restoredContributedLayout.id)) {
+					return;
+				}
+				if (this.isLocked(restoredContributedLayout.id) || restoredContributedLayout.contribution?.definitionHash !== getDefinitionHash(contributedLayout)) {
+					await this.applyContributedLayout(restoredContributedLayout.id, contributedLayout);
+				} else {
+					this.resetChangeTracking();
+				}
+			})).catch(error => this.logService.error('[named layouts] Failed to restore the layout of an extension.', error));
+		}
+
 		this._register(this.storageService.onWillSaveState(() => this.saveActiveLayout()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => this.onDidChangeProfileStorage(e.key)));
 		this._register(this.onDidChangeLayouts(() => {
@@ -335,11 +393,13 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 		// A participant that shares its state with the default layout may still use the
 		// local copy of a named layout that no longer exists, or may not use a local copy
-		// for a layout saved before the participant existed
+		// for a layout saved before the participant existed. The layout of an extension that
+		// was not changed has no saved state, the participant restored its local copy itself.
 		if (participant.applyDefault) {
 			this.sequencer.queue(async () => {
-				if (this.participants.includes(participant)) {
-					await this.applyLayoutState(this.getStoredLayout(this.activeLayoutId), [participant]);
+				const storedLayout = this.getStoredLayout(this.activeLayoutId);
+				if (this.participants.includes(participant) && (storedLayout || this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID)) {
+					await this.applyLayoutState(storedLayout, [participant]);
 				}
 			}).catch(error => this.logService.error(`[named layouts] Failed to restore the state of participant '${participant.id}'.`, error));
 		}
@@ -433,6 +493,20 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		});
 	}
 
+	ignoreLayoutUpdate(layout: INamedLayout): Promise<void> {
+		return this.sequencer.queue(async () => {
+			const storedLayout = this.getStoredLayout(layout.id);
+			const contributedLayout = this.contributedLayouts.get(layout.id);
+			if (!storedLayout?.contribution || !contributedLayout) {
+				throw new Error(`Unknown changed contributed layout '${layout.id}'.`);
+			}
+
+			// The saved changes are based on the current definition from now on
+			this.storeLayout({ ...storedLayout, contribution: this.toStoredContribution(contributedLayout) });
+			this._onDidChangeLayouts.fire();
+		});
+	}
+
 	setLayoutLocked(layout: INamedLayout, locked: boolean): Promise<void> {
 		return this.sequencer.queue(async () => {
 			if (layout.id === DEFAULT_NAMED_LAYOUT_ID) {
@@ -484,7 +558,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				return;
 			}
 
-			// Another window reset the contributed layout
+			// The layout of an extension that was not changed follows its definition
 			const contributedLayout = this.contributedLayouts.get(this.activeLayoutId);
 			if (contributedLayout) {
 				await this.applyContributedLayout(this.activeLayoutId, contributedLayout);
@@ -493,17 +567,35 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	setContributedLayouts(layouts: readonly IContributedNamedLayout[]): void {
+		const previousContributedLayouts = this.contributedLayouts;
+		const restoredContributedLayout = this.restoredContributedLayout;
 		this.contributedLayouts = new Map(layouts.map(layout => [getContributedLayoutId(layout.extensionId, layout.id), layout]));
 		this.contributedLayoutsKnown = true;
+		this.restoredContributedLayout = undefined;
+		this.whenContributedLayoutsKnown.complete();
 		this.settingsFileSystemProvider.refresh();
 		this._onDidChangeLayouts.fire();
 
 		// Switch to the default layout if the extension that contributes the active
 		// layout is no longer installed or no longer contributes it. Its saved changes
 		// are kept in case the extension contributes it again.
-		if (this.getStoredLayout(this.activeLayoutId)?.contribution && !this.contributedLayouts.has(this.activeLayoutId)) {
+		const activeLayoutId = this.activeLayoutId;
+		const contributedLayout = this.contributedLayouts.get(activeLayoutId);
+		if (!contributedLayout && (this.getStoredLayout(activeLayoutId)?.contribution || restoredContributedLayout?.id === activeLayoutId)) {
 			this.queueSwitchToDefaultLayout(true);
+			return;
 		}
+
+		// The active layout of an extension that was not changed follows the changes of its definition
+		const previousContributedLayout = previousContributedLayouts.get(activeLayoutId);
+		if (contributedLayout && previousContributedLayout && !this.getStoredLayout(activeLayoutId) && getDefinitionHash(contributedLayout) !== getDefinitionHash(previousContributedLayout)) {
+			this.sequencer.queue(async () => {
+				if (this.activeLayoutId === activeLayoutId && !this.getStoredLayout(activeLayoutId) && this.contributedLayouts.get(activeLayoutId) === contributedLayout) {
+					await this.applyContributedLayout(activeLayoutId, contributedLayout);
+				}
+			}).catch(error => this.logService.error(`[named layouts] Failed to apply the changed definition of layout '${activeLayoutId}'.`, error));
+		}
+		this.storeActiveContributedLayout();
 	}
 
 	captureDefinition(): INamedLayoutDefinition {
@@ -549,9 +641,10 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.saveOutgoingLayout();
 		}
 
-		// A layout that its extension locked always starts from its definition. The state of a
-		// contributed layout is not synchronized, so on a machine where it was not active yet it
-		// starts from its definition with the settings synchronized from another machine
+		// A layout that its extension locked always starts from its definition, and so does the layout
+		// of an extension that was not changed. The state of a contributed layout is not synchronized,
+		// so on a machine where its changes were not applied yet it starts from its definition with
+		// the settings synchronized from another machine
 		if (contributedLayout && (!storedLayout?.state || contributedLayout.locked)) {
 			await this.applyContributedLayout(layoutId, contributedLayout, contributedLayout.locked ? undefined : storedLayout?.settings);
 			return;
@@ -570,9 +663,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	/**
-	 * Applies the definition of a contributed layout and saves the result as the
-	 * changes of the layout, replacing previously saved changes. Must only be called
-	 * from a task of the sequencer.
+	 * Applies the definition of a contributed layout. Must only be called from a task of the sequencer.
 	 *
 	 * @param settings The content of the settings file of the layout, the settings of the definition if not given.
 	 */
@@ -602,14 +693,16 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.isApplying = false;
 		}
 
-		const layout: IStoredNamedLayout = {
-			id: layoutId,
-			name: contributedLayout.label,
-			settings,
-			state: this.captureState(),
-			contribution: this.toStoredContribution(contributedLayout)
-		};
-		this.storeLayout(layout);
+		const storedLayout = this.getStoredLayout(layoutId);
+		const layout: IStoredNamedLayout = storedLayout && !contributedLayout.locked
+			? { ...storedLayout, settings, state: this.captureState() }
+			: { id: layoutId, name: contributedLayout.label, settings, state: this.captureState(), contribution: this.toStoredContribution(contributedLayout) };
+
+		// The saved changes of a changed layout that was not active on this machine yet get the state of
+		// this machine. A layout that was not changed is not saved, it follows its definition.
+		if (storedLayout && !contributedLayout.locked) {
+			this.storeLayout(layout);
+		}
 		this._onDidChangeLayouts.fire();
 
 		// Participants that share their state with the default layout switch to a local copy
@@ -637,21 +730,39 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			const { extensionId, extensionName, id, label } = contributedLayout;
 			const lockedByContribution = !!contributedLayout.locked;
 			// The saved state of a layout locked by its extension is replaced whenever it becomes active
-			return { id: layoutId, name: label, contribution: { extensionId, extensionName, id, canReset: !!storedLayout && !lockedByContribution, locked: lockedByContribution }, ...locked };
+			return { id: layoutId, name: label, contribution: { extensionId, extensionName, id, canReset: !!storedLayout && !lockedByContribution, locked: lockedByContribution, hasUpdate: this.hasUpdate(layoutId) }, ...locked };
 		}
 
-		if (!storedLayout) {
+		// Until the contributed layouts are known, the saved changes represent the layout, or
+		// the active layout of an extension that was not changed as it was when the window closed
+		const representedLayout = storedLayout ?? (this.restoredContributedLayout?.id === layoutId ? this.restoredContributedLayout : undefined);
+		if (!representedLayout) {
 			return undefined;
 		}
 
-		if (storedLayout.contribution) {
-			// Until the contributed layouts are known, the saved changes represent the layout
-			const { extensionId, id } = storedLayout.contribution;
-			const lockedByContribution = !!storedLayout.contribution.locked;
-			return this.contributedLayoutsKnown ? undefined : { id: layoutId, name: storedLayout.name, contribution: { extensionId, extensionName: extensionId, id, canReset: !lockedByContribution, locked: lockedByContribution }, ...locked };
+		if (representedLayout.contribution) {
+			const { extensionId, id } = representedLayout.contribution;
+			const lockedByContribution = !!representedLayout.contribution.locked;
+			return this.contributedLayoutsKnown ? undefined : { id: layoutId, name: representedLayout.name, contribution: { extensionId, extensionName: extensionId, id, canReset: !!storedLayout && !lockedByContribution, locked: lockedByContribution, hasUpdate: false }, ...locked };
 		}
 
-		return { id: storedLayout.id, name: storedLayout.name, ...locked };
+		return { id: representedLayout.id, name: representedLayout.name, ...locked };
+	}
+
+	/**
+	 * Whether the extension changed the definition of the given layout since the saved changes
+	 * of the layout were made. Changes based on a definition of a newer version of the extension,
+	 * for example synchronized from another machine, are not considered outdated.
+	 */
+	private hasUpdate(layoutId: string): boolean {
+		const contribution = this.getStoredLayout(layoutId)?.contribution;
+		const contributedLayout = this.contributedLayouts.get(layoutId);
+		if (!contribution || !contributedLayout || contributedLayout.locked || contribution.definitionHash === undefined || contribution.definitionHash === getDefinitionHash(contributedLayout)) {
+			return false;
+		}
+
+		const { extensionVersion } = contribution;
+		return !extensionVersion || !semver.valid(extensionVersion) || !semver.valid(contributedLayout.extensionVersion) || !semver.lt(contributedLayout.extensionVersion, extensionVersion);
 	}
 
 	private isLocked(layoutId: string): boolean {
@@ -663,11 +774,13 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		if (contributedLayout) {
 			return !!contributedLayout.locked;
 		}
-		return !this.contributedLayoutsKnown && !!this.getStoredLayout(layoutId)?.contribution?.locked;
+		const representedLayout = this.getStoredLayout(layoutId) ?? (this.restoredContributedLayout?.id === layoutId ? this.restoredContributedLayout : undefined);
+		return !this.contributedLayoutsKnown && !!representedLayout?.contribution?.locked;
 	}
 
-	private toStoredContribution({ extensionId, id, locked }: IContributedNamedLayout): IStoredNamedLayoutContribution {
-		return { extensionId, id, ...(locked ? { locked } : {}) };
+	private toStoredContribution(contributedLayout: IContributedNamedLayout): IStoredNamedLayoutContribution {
+		const { extensionId, id, locked, extensionVersion } = contributedLayout;
+		return { extensionId, id, ...(locked ? { locked } : {}), definitionHash: getDefinitionHash(contributedLayout), extensionVersion };
 	}
 
 	/**
@@ -686,10 +799,14 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 	private restoreActiveLayout(): string {
 		const activeLayoutId = this.storageService.get(NamedLayoutsService.ACTIVE_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
-		const storedLayout = activeLayoutId && this.isEnabled() ? this.getStoredLayout(activeLayoutId) : undefined;
+		const storedLayout = activeLayoutId && this.isEnabled() ? this.getStoredLayout(activeLayoutId) ?? this.loadActiveContributedLayout(activeLayoutId) : undefined;
 		if (!storedLayout) {
 			this.storageService.remove(NamedLayoutsService.ACTIVE_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
+			this.storageService.remove(NamedLayoutsService.ACTIVE_CONTRIBUTED_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
 			return DEFAULT_NAMED_LAYOUT_ID;
+		}
+		if (!this.getStoredLayout(storedLayout.id)) {
+			this.restoredContributedLayout = storedLayout;
 		}
 
 		// The workbench restores the state of the participants itself, participants
@@ -698,6 +815,30 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		this.applyLayoutSettings(storedLayout);
 
 		return storedLayout.id;
+	}
+
+	private loadActiveContributedLayout(layoutId: string): IStoredNamedLayout | undefined {
+		const layout = this.loadStoredValue(NamedLayoutsService.ACTIVE_CONTRIBUTED_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
+		const storedLayout = layout === undefined ? undefined : toStoredNamedLayout(layoutId, layout, undefined);
+		return storedLayout?.contribution && getContributedLayoutId(storedLayout.contribution.extensionId, storedLayout.contribution.id) === layoutId ? storedLayout : undefined;
+	}
+
+	/**
+	 * Stores the active layout with the active layout identifier while it is the layout of an extension
+	 * that was not changed, so that it can be restored before the contributed layouts are known.
+	 */
+	private storeActiveContributedLayout(): void {
+		const contributedLayout = this.contributedLayouts.get(this.activeLayoutId);
+		if (contributedLayout && !this.getStoredLayout(this.activeLayoutId)) {
+			const layout: ISyncedNamedLayout = {
+				name: contributedLayout.label,
+				settings: toSettingsContent(this.getDefinitionSettings(contributedLayout)),
+				contribution: this.toStoredContribution(contributedLayout)
+			};
+			this.storageService.store(NamedLayoutsService.ACTIVE_CONTRIBUTED_LAYOUT_STORAGE_KEY, JSON.stringify(layout), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else if (this.restoredContributedLayout?.id !== this.activeLayoutId) {
+			this.storageService.remove(NamedLayoutsService.ACTIVE_CONTRIBUTED_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
 	}
 
 	private setActiveLayout(layoutId: string): void {
@@ -710,6 +851,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		if (this.activeLayoutId !== layoutId) {
 			this.activeLayoutId = layoutId;
 			this.activeLayoutChanges++;
+			this.storeActiveContributedLayout();
 			this._onDidChangeActiveLayout.fire(this.activeLayout);
 		}
 	}
@@ -739,7 +881,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			return;
 		}
 
-		// The saved changes of an active contributed layout are recreated if another window reset the layout
+		// The layout of an extension is saved once it was changed, until then it follows its definition
+		if (!activeLayout && !this.hasChangedSinceBaseline()) {
+			return;
+		}
+
 		const contribution = activeLayout?.contribution ?? (contributedLayout ? this.toStoredContribution(contributedLayout) : undefined);
 		const updatedLayout: IStoredNamedLayout = {
 			id: this.activeLayoutId,
@@ -751,6 +897,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		if (!activeLayout) {
 			this.storeLayout(updatedLayout);
 			this._onDidChangeLayouts.fire();
+			this.resetChangeTracking(); // its changes are saved from now on
 		} else if (!equals(updatedLayout, activeLayout)) {
 			// Only the keys of the values that changed are written
 			this.storeLayout(updatedLayout);
@@ -785,25 +932,40 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			return storedLayout.settings;
 		}
 
-		// A contributed layout starts from its definition
+		// The layout of an extension that was not changed has the settings of its definition
 		const contributedLayout = this.contributedLayouts.get(layoutId);
-		return contributedLayout ? toSettingsContent(this.getDefinitionSettings(contributedLayout)) : undefined;
+		if (contributedLayout) {
+			return toSettingsContent(this.getDefinitionSettings(contributedLayout));
+		}
+		return this.restoredContributedLayout?.id === layoutId ? this.restoredContributedLayout.settings : undefined;
 	}
 
 	/**
-	 * Changes the content of the settings file of the given layout, which the configuration service and editors write.
+	 * Changes the content of the settings file of the given layout, which the configuration service and
+	 * editors write. Changing the settings of the layout of an extension that was not changed saves it.
 	 */
 	private setSettingsContent(layoutId: string, content: string): void {
 		const storedLayout = this.getStoredLayout(layoutId);
-		if (!storedLayout) {
+		const contributedLayout = this.contributedLayouts.get(layoutId);
+		if (!storedLayout && !contributedLayout) {
 			throw createFileSystemProviderError(localize('unknownLayoutSettings', "The layout does not exist."), FileSystemProviderErrorCode.FileNotFound);
 		}
 		if (this.isLocked(layoutId)) {
-			throw createFileSystemProviderError(localize('lockedLayoutSettings', "The layout '{0}' is locked. Unlock the layout to change its settings.", this.getLayout(layoutId)?.name ?? storedLayout.name), FileSystemProviderErrorCode.NoPermissions);
+			throw createFileSystemProviderError(localize('lockedLayoutSettings', "The layout '{0}' is locked. Unlock the layout to change its settings.", this.getLayout(layoutId)?.name ?? layoutId), FileSystemProviderErrorCode.NoPermissions);
+		}
+		if (content === this.getSettingsContent(layoutId)) {
+			return;
 		}
 
-		if (storedLayout.settings !== content) {
+		if (storedLayout) {
 			this.storeLayout({ ...storedLayout, settings: content });
+		} else if (contributedLayout) {
+			const isActive = this.activeLayoutId === layoutId;
+			this.storeLayout({ id: layoutId, name: contributedLayout.label, settings: content, state: isActive ? this.captureState() : undefined, contribution: this.toStoredContribution(contributedLayout) });
+			this._onDidChangeLayouts.fire();
+			if (isActive) {
+				this.resetChangeTracking(); // its changes are saved from now on
+			}
 		}
 	}
 
@@ -904,7 +1066,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	 */
 	private resetChangeTracking(): void {
 		this.setActiveLayoutModified(false);
-		if (this.isLocked(this.activeLayoutId)) {
+		if (this.isLocked(this.activeLayoutId) || this.isUnchangedContributedLayout(this.activeLayoutId)) {
 			this.changeBaseline = 'pending';
 			this.changeDetector.schedule();
 		} else {
@@ -913,19 +1075,46 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 	}
 
+	/**
+	 * Whether the given layout is the layout of an extension that was not changed, which follows its definition.
+	 */
+	private isUnchangedContributedLayout(layoutId: string): boolean {
+		return this.contributedLayouts.has(layoutId) && !this.getStoredLayout(layoutId);
+	}
+
 	private detectChanges(): void {
 		if (!this.changeBaseline || this.isApplying) {
 			return; // change tracking starts again once the layout is applied
 		}
 
-		const settings = this.configurationService.getLayoutConfiguration();
 		if (this.changeBaseline === 'pending') {
-			this.changeBaseline = { settings, state: this.captureState() };
+			this.changeBaseline = { settings: this.configurationService.getLayoutConfiguration(), state: this.captureState() };
 			return;
 		}
 
+		if (this.isLocked(this.activeLayoutId)) {
+			this.setActiveLayoutModified(this.hasChangedSinceBaseline());
+		} else if (this.hasChangedSinceBaseline()) {
+			this.saveActiveLayout(); // the layout of an extension is saved once it was changed
+		}
+	}
+
+	/**
+	 * Whether the active layout changed since the baseline was taken, `false` while it is pending.
+	 */
+	private hasChangedSinceBaseline(): boolean {
 		const baseline = this.changeBaseline;
-		this.setActiveLayoutModified(!equals(settings, baseline.settings) || this.participants.some(participant => {
+		if (!baseline || baseline === 'pending') {
+			return false;
+		}
+
+		// Changing the settings of the layout of an extension that was not changed saves it right away,
+		// its settings change without being changed when the extension changes its definition
+		if (this.isLocked(this.activeLayoutId) && !equals(this.configurationService.getLayoutConfiguration(), baseline.settings)) {
+			return true;
+		}
+
+		return this.participants.some(participant => {
 			const state = baseline.state[participant.id];
 			if (state === undefined) {
 				return false; // registered after the baseline was taken
@@ -937,7 +1126,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				this.logService.error(`[named layouts] Failed to detect the changes of participant '${participant.id}'.`, error);
 				return false;
 			}
-		}));
+		});
 	}
 
 	private setActiveLayoutModified(modified: boolean): void {
@@ -970,18 +1159,26 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			return;
 		}
 
+		const wasUnchangedContributedLayout = this.isUnchangedContributedLayout(id);
 		const storedLayouts = this.storedLayouts.filter(candidate => candidate.id !== id);
 		this.storedLayouts = storedLayout ? [...storedLayouts, storedLayout] : storedLayouts;
 		this.settingsFileSystemProvider.refresh();
 		this._onDidChangeLayouts.fire();
 
-		if (id !== this.activeLayoutId || storedLayout) {
+		if (id !== this.activeLayoutId) {
 			return;
 		}
 
-		// Another window reset the active contributed layout. This window keeps using it.
+		// Another window saved the changes of the active layout of an extension, or reset them. This window keeps
+		// its arrangement, and follows the definition of the layout until the layout is changed again.
+		this.storeActiveContributedLayout();
 		if (this.contributedLayouts.has(id)) {
-			this.saveActiveLayout();
+			if (this.isUnchangedContributedLayout(id) !== wasUnchangedContributedLayout) {
+				this.resetChangeTracking();
+			}
+			return;
+		}
+		if (storedLayout) {
 			return;
 		}
 
@@ -1005,6 +1202,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			: [...this.storedLayouts, layout];
 		this.writeStorage(() => this.writeLayout(layout));
 		this.settingsFileSystemProvider.refresh();
+		this.storeActiveContributedLayout();
 	}
 
 	private removeStoredLayout(id: string): boolean {
@@ -1018,6 +1216,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.storageService.remove(NamedLayoutsService.LAYOUT_STORAGE_KEY_PREFIX + id, StorageScope.PROFILE);
 		});
 		this.settingsFileSystemProvider.refresh();
+		this.storeActiveContributedLayout();
 		return true;
 	}
 
@@ -1068,8 +1267,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		return storedLayout;
 	}
 
-	private loadStoredValue(key: string): unknown {
-		const value = this.storageService.get(key, StorageScope.PROFILE);
+	private loadStoredValue(key: string, scope: StorageScope.PROFILE | StorageScope.WORKSPACE = StorageScope.PROFILE): unknown {
+		const value = this.storageService.get(key, scope);
 		if (value === undefined) {
 			return undefined;
 		}

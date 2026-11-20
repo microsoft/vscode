@@ -6,7 +6,7 @@
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -16,7 +16,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
@@ -326,6 +326,55 @@ class NamedLayoutsMenuContribution extends Disposable implements IWorkbenchContr
 }
 
 registerWorkbenchContribution2(NamedLayoutsMenuContribution.ID, NamedLayoutsMenuContribution, WorkbenchPhase.BlockRestore);
+
+/**
+ * Asks whether to apply the update of the definition of the active layout of an extension
+ * whose changes are saved, once each time the layout becomes active.
+ */
+class NamedLayoutUpdatesContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.namedLayoutUpdates';
+
+	private readonly notification = this._register(new MutableDisposable());
+	private notifiedLayoutId: string | undefined;
+
+	constructor(
+		@INamedLayoutsService private readonly namedLayoutsService: INamedLayoutsService,
+		@INotificationService private readonly notificationService: INotificationService
+	) {
+		super();
+
+		this._register(namedLayoutsService.onDidChangeActiveLayout(() => this.update()));
+		this._register(namedLayoutsService.onDidChangeLayouts(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		const layout = this.namedLayoutsService.activeLayout;
+		const contribution = layout.contribution;
+		if (!contribution?.hasUpdate) {
+			this.notification.clear();
+			this.notifiedLayoutId = undefined;
+			return;
+		}
+		if (this.notifiedLayoutId === layout.id) {
+			return;
+		}
+
+		this.notifiedLayoutId = layout.id;
+		const label = getLayoutLabel(this.namedLayoutsService, layout);
+		const handle = this.notificationService.prompt(Severity.Info, localize('layoutUpdated', "The extension '{0}' updated the layout '{1}'. Your changes to the layout are based on its previous version. Applying the update discards your changes.", contribution.extensionName, label), [{
+			label: localize('applyLayoutUpdate', "Apply Update"),
+			run: () => this.namedLayoutsService.resetLayout(layout).catch(onUnexpectedError)
+		}, {
+			label: localize('ignoreLayoutUpdate', "Keep My Layout"),
+			run: () => this.namedLayoutsService.ignoreLayoutUpdate(layout).catch(onUnexpectedError)
+		}]);
+		this.notification.value = toDisposable(() => handle.close());
+	}
+}
+
+registerWorkbenchContribution2(NamedLayoutUpdatesContribution.ID, NamedLayoutUpdatesContribution, WorkbenchPhase.AfterRestored);
 
 interface INamedLayoutQuickPickItem extends IQuickPickItem {
 	readonly layout: INamedLayout;

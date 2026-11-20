@@ -19,7 +19,7 @@ suite('MainThreadWindowLayouts', () => {
 
 	const defaultLayout: INamedLayout = { id: DEFAULT_NAMED_LAYOUT_ID, name: 'Default' };
 	const debugLayout: INamedLayout = { id: 'debug', name: 'Debug' };
-	const focusLayout: INamedLayout = { id: 'publisher.extension/focus', name: 'Focus', contribution: { extensionId: 'publisher.extension', extensionName: 'Extension', id: 'focus', canReset: false, locked: false } };
+	const focusLayout: INamedLayout = { id: 'publisher.extension/focus', name: 'Focus', contribution: { extensionId: 'publisher.extension', extensionName: 'Extension', id: 'focus', canReset: false, locked: false, hasUpdate: false } };
 
 	function setup() {
 		const switches: string[] = [];

@@ -80,6 +80,7 @@ export class NamedLayoutsExtensionPointContribution extends Disposable implement
 					contributedLayouts.push({
 						extensionId: description.identifier.value,
 						extensionName: description.displayName || description.name,
+						extensionVersion: description.version,
 						id,
 						label,
 						locked: candidate.locked === true,

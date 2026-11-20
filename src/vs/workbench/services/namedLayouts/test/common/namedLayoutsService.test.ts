@@ -363,7 +363,7 @@ suite('NamedLayoutsService', () => {
 		const testObject = createService(participant);
 		const defaultLayout = testObject.activeLayout;
 		participant.state = 'default state';
-		testObject.setContributedLayouts([{ extensionId: 'publisher.extension', extensionName: 'Extension', id: 'agentic', label: 'Agentic', definition: { settings: { [LAYOUT_SETTING]: 'contributedValue' }, editor: { orientation: 'vertical' } } }]);
+		testObject.setContributedLayouts([{ extensionId: 'publisher.extension', extensionName: 'Extension', extensionVersion: '1.0.0', id: 'agentic', label: 'Agentic', definition: { settings: { [LAYOUT_SETTING]: 'contributedValue' }, editor: { orientation: 'vertical' } } }]);
 
 		// Settings Sync stores the layouts of another machine, but not their state
 		storageService.store(`${LAYOUT_STORAGE_KEY_PREFIX}synced`, JSON.stringify({ name: 'Synced', settings: `{ "${LAYOUT_SETTING}": "syncedValue" }` }), StorageScope.PROFILE, StorageTarget.USER);
@@ -420,7 +420,7 @@ suite('NamedLayoutsService', () => {
 		const testObject = createService(new TestParticipant());
 		await testObject.createLayout('Debug');
 		await testObject.createLayout('Agentic');
-		const contribute = (extensionName: string, label: string): IContributedNamedLayout => ({ extensionId: `publisher.${extensionName.toLowerCase()}`, extensionName, id: label.toLowerCase(), label, definition: {} });
+		const contribute = (extensionName: string, label: string): IContributedNamedLayout => ({ extensionId: `publisher.${extensionName.toLowerCase()}`, extensionName, extensionVersion: '1.0.0', id: label.toLowerCase(), label, definition: {} });
 		testObject.setContributedLayouts([contribute('Second', 'Agentic'), contribute('First', 'Zen'), contribute('First', 'Agentic')]);
 
 		// Layouts with the same name created on different machines are in the same order everywhere
@@ -503,60 +503,143 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
-	test('layouts contributed by extensions start from their definition and keep their changes', async () => {
-		const contributedLayout: IContributedNamedLayout = {
+	test('a layout of an extension follows its definition until it is changed, then its changes are saved', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const contribute = (orientation: 'vertical' | 'horizontal'): IContributedNamedLayout => ({
 			extensionId: 'Publisher.Extension',
 			extensionName: 'Extension',
+			extensionVersion: '1.0.0',
 			id: 'debug',
 			label: 'Debugging',
-			definition: { settings: { [LAYOUT_SETTING]: 'contributedValue', 'namedLayoutsTest.unknown': true }, editor: { orientation: 'vertical' } }
-		};
+			definition: { settings: { [LAYOUT_SETTING]: 'contributedValue', 'namedLayoutsTest.unknown': true }, editor: { orientation } }
+		});
 		const participant = new TestDefinitionParticipant();
 		const testObject = createService(participant);
 		const defaultLayout = testObject.activeLayout;
 		participant.state = 'default state';
-		testObject.setContributedLayouts([contributedLayout]);
+		testObject.setContributedLayouts([contribute('vertical')]);
 		const layout = testObject.layouts.find(candidate => candidate.contribution)!;
+		const isSaved = () => storageService.get(`${LAYOUT_STORAGE_KEY_PREFIX}publisher.extension/debug`, StorageScope.PROFILE) !== undefined;
 
 		await testObject.switchLayout(layout);
-		const afterFirstSwitch = { active: testObject.activeLayout, setting: configurationService.getValue(LAYOUT_SETTING), definesUnknownSetting: Object.hasOwn(configurationService.getLayoutConfiguration(), 'namedLayoutsTest.unknown'), state: participant.state };
+		await timeout(1000);
+		const afterFirstSwitch = { active: testObject.activeLayout, setting: configurationService.getValue(LAYOUT_SETTING), definesUnknownSetting: Object.hasOwn(configurationService.getLayoutConfiguration(), 'namedLayoutsTest.unknown'), state: participant.state, saved: isSaved() };
 
-		// Changes are saved like the changes of other named layouts
-		participant.state = 'changed state';
+		// While it is not changed, the layout follows the changes of its definition
+		testObject.setContributedLayouts([contribute('horizontal')]);
+		await testObject.switchLayout(layout); // queued after the changed definition is applied
+		await timeout(1000);
+		const afterDefinitionChange = { state: participant.state, saved: isSaved() };
+
+		// Once it is changed, its changes are saved like the changes of other named layouts
+		participant.change('changed state');
+		await timeout(1000);
+		const afterChange = { canReset: testObject.activeLayout.contribution?.canReset, saved: isSaved() };
 		await testObject.switchLayout(defaultLayout);
 		await testObject.switchLayout(layout);
 		const afterSwitchBack = participant.state;
 
 		await testObject.resetLayout(layout);
-		const afterReset = participant.state;
+		const afterReset = { state: participant.state, canReset: testObject.activeLayout.contribution?.canReset, saved: isSaved() };
 
 		const deleteError = await testObject.deleteLayout(layout).then(() => undefined, error => error.message);
 
 		// The extension is uninstalled, the saved changes are kept in case it is installed again
+		await timeout(1000);
+		participant.change('changed again');
+		await timeout(1000);
 		testObject.setContributedLayouts([]);
 		await testObject.switchLayout(defaultLayout); // queued after the switch triggered by the removal
 		const afterUninstall = { layouts: testObject.layouts.map(candidate => candidate.name), active: testObject.activeLayout.id, setting: configurationService.getValue(LAYOUT_SETTING), state: participant.state };
-		testObject.setContributedLayouts([contributedLayout]);
+		testObject.setContributedLayouts([contribute('horizontal')]);
 		const afterReinstall = testObject.layouts.map(candidate => ({ name: candidate.name, canReset: candidate.contribution?.canReset }));
 
-		assert.deepStrictEqual({ afterFirstSwitch, afterSwitchBack, afterReset, deleteError, afterUninstall, afterReinstall }, {
+		assert.deepStrictEqual({ afterFirstSwitch, afterDefinitionChange, afterChange, afterSwitchBack, afterReset, deleteError, afterUninstall, afterReinstall }, {
 			afterFirstSwitch: {
-				active: { id: 'publisher.extension/debug', name: 'Debugging', contribution: { extensionId: 'Publisher.Extension', extensionName: 'Extension', id: 'debug', canReset: true, locked: false } },
+				active: { id: 'publisher.extension/debug', name: 'Debugging', contribution: { extensionId: 'Publisher.Extension', extensionName: 'Extension', id: 'debug', canReset: false, locked: false, hasUpdate: false } },
 				setting: 'contributedValue',
 				definesUnknownSetting: false,
-				state: 'vertical over default state'
+				state: 'vertical over default state',
+				saved: false
 			},
+			afterDefinitionChange: { state: 'horizontal over default state', saved: false },
+			afterChange: { canReset: true, saved: true },
 			afterSwitchBack: 'changed state',
-			afterReset: 'vertical over default state',
+			afterReset: { state: 'horizontal over default state', canReset: false, saved: false },
 			deleteError: 'A layout contributed by an extension cannot be deleted.',
 			afterUninstall: { layouts: ['Default'], active: DEFAULT_NAMED_LAYOUT_ID, setting: 'userValue', state: 'default state' },
 			afterReinstall: [{ name: 'Default', canReset: undefined }, { name: 'Debugging', canReset: true }]
+		});
+	}));
+
+	test('an update of the definition of a changed layout of an extension is reported, it can be applied or ignored', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const contribute = (extensionVersion: string, orientation: 'vertical' | 'horizontal'): IContributedNamedLayout => ({ extensionId: 'publisher.extension', extensionName: 'Extension', extensionVersion, id: 'agentic', label: 'Agentic', definition: { editor: { orientation } } });
+		const participant = new TestDefinitionParticipant();
+		const testObject = createService(participant);
+		participant.state = 'default state';
+		testObject.setContributedLayouts([contribute('1.0.0', 'vertical')]);
+		await testObject.switchLayout(testObject.layouts.find(layout => layout.contribution)!);
+		await timeout(1000);
+		participant.change('changed state');
+		await timeout(1000);
+		const hasUpdate = () => testObject.activeLayout.contribution?.hasUpdate;
+
+		testObject.setContributedLayouts([contribute('2.0.0', 'horizontal')]);
+		const afterUpdate = hasUpdate();
+		await testObject.ignoreLayoutUpdate(testObject.activeLayout);
+		const afterIgnore = { hasUpdate: hasUpdate(), state: participant.state };
+
+		// Changes based on a newer version of the extension, for example on another machine, are not outdated
+		testObject.setContributedLayouts([contribute('1.0.0', 'vertical')]);
+		const withOlderVersion = hasUpdate();
+
+		testObject.setContributedLayouts([contribute('3.0.0', 'vertical')]);
+		const afterNextUpdate = hasUpdate();
+		await testObject.resetLayout(testObject.activeLayout);
+		const afterApply = { hasUpdate: hasUpdate(), canReset: testObject.activeLayout.contribution?.canReset, state: participant.state };
+
+		assert.deepStrictEqual({ afterUpdate, afterIgnore, withOlderVersion, afterNextUpdate, afterApply }, {
+			afterUpdate: true,
+			afterIgnore: { hasUpdate: false, state: 'changed state' },
+			withOlderVersion: false,
+			afterNextUpdate: true,
+			afterApply: { hasUpdate: false, canReset: false, state: 'vertical over default state' }
+		});
+	}));
+
+	test('restores the active layout of an extension that was not changed before the layouts of extensions are known, then follows its definition', async () => {
+		const contribute = (value: string, orientation: 'vertical' | 'horizontal'): IContributedNamedLayout => ({ extensionId: 'publisher.extension', extensionName: 'Extension', extensionVersion: '1.0.0', id: 'agentic', label: 'Agentic', definition: { settings: { [LAYOUT_SETTING]: value }, editor: { orientation } } });
+		const firstParticipant = new TestDefinitionParticipant();
+		const first = createService(firstParticipant);
+		firstParticipant.state = 'default state';
+		first.setContributedLayouts([contribute('contributedValue', 'vertical')]);
+		await first.switchLayout(first.layouts.find(layout => layout.contribution)!);
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+
+		// Simulate a new window of the same workspace, the extension changed the definition meanwhile
+		configurationService.setLayoutSettings(undefined);
+		const lifecycleService = disposables.add(new TestLifecycleService());
+		lifecycleService.usePhases = true;
+		instantiationService.stub(ILifecycleService, lifecycleService);
+		const participant = new TestDefinitionParticipant();
+		participant.state = 'restored by the workbench';
+		const second = createService(participant);
+		const beforeKnown = { active: second.activeLayout.name, setting: configurationService.getValue(LAYOUT_SETTING) };
+
+		second.setContributedLayouts([contribute('changedValue', 'horizontal')]);
+		lifecycleService.phase = LifecyclePhase.Restored;
+		await lifecycleService.when(LifecyclePhase.Restored);
+		await timeout(0);
+		await second.switchLayout(second.activeLayout); // queued after the restore
+
+		assert.deepStrictEqual({ beforeKnown, afterRestored: { active: second.activeLayout.name, setting: configurationService.getValue(LAYOUT_SETTING), state: participant.state, saved: storageService.keys(StorageScope.PROFILE).some(key => key.startsWith(LAYOUT_STORAGE_KEY_PREFIX)) } }, {
+			beforeKnown: { active: 'Agentic', setting: 'contributedValue' },
+			afterRestored: { active: 'Agentic', setting: 'changedValue', state: 'horizontal over default state', saved: false }
 		});
 	});
 
 	test('resetting a contributed layout that is not active changes its settings file back to the settings of its definition', async () => {
 		const testObject = createService(new TestParticipant());
-		testObject.setContributedLayouts([{ extensionId: 'publisher.extension', extensionName: 'Extension', id: 'agentic', label: 'Agentic', definition: { settings: { [LAYOUT_SETTING]: 'contributedValue' } } }]);
+		testObject.setContributedLayouts([{ extensionId: 'publisher.extension', extensionName: 'Extension', extensionVersion: '1.0.0', id: 'agentic', label: 'Agentic', definition: { settings: { [LAYOUT_SETTING]: 'contributedValue' } } }]);
 		const layout = testObject.layouts.find(candidate => candidate.contribution)!;
 		await testObject.switchLayout(layout);
 		await configurationService.writeLayoutSettings({ [LAYOUT_SETTING]: 'changedValue' });
@@ -583,7 +666,7 @@ suite('NamedLayoutsService', () => {
 	test('layouts with different identifiers have different settings files', async () => {
 		const testObject = createService(new TestParticipant());
 		const ids = ['focus/one', 'focus_one', 'Focus_one'];
-		testObject.setContributedLayouts(ids.map(id => ({ extensionId: 'publisher.extension', extensionName: 'Extension', id, label: id, definition: { settings: { [LAYOUT_SETTING]: id } } })));
+		testObject.setContributedLayouts(ids.map(id => ({ extensionId: 'publisher.extension', extensionName: 'Extension', extensionVersion: '1.0.0', id, label: id, definition: { settings: { [LAYOUT_SETTING]: id } } })));
 		const settings: { path: string; setting: unknown }[] = [];
 		for (const id of [...ids, ids[0]]) {
 			await testObject.switchLayout(testObject.layouts.find(layout => layout.contribution?.id === id)!);
@@ -769,7 +852,7 @@ suite('NamedLayoutsService', () => {
 		const testObject = createService(participant);
 		const defaultLayout = testObject.activeLayout;
 		participant.state = 'default state';
-		testObject.setContributedLayouts([{ extensionId: 'publisher.extension', extensionName: 'Extension', id: 'focus', label: 'Focus', locked: true, definition: { editor: { orientation: 'horizontal' } } }]);
+		testObject.setContributedLayouts([{ extensionId: 'publisher.extension', extensionName: 'Extension', extensionVersion: '1.0.0', id: 'focus', label: 'Focus', locked: true, definition: { editor: { orientation: 'horizontal' } } }]);
 		const layout = testObject.layouts.find(candidate => candidate.contribution)!;
 
 		await testObject.switchLayout(layout);
@@ -786,7 +869,7 @@ suite('NamedLayoutsService', () => {
 		const unlockError = await testObject.setLayoutLocked(layout, false).then(() => undefined, error => error.message);
 
 		assert.deepStrictEqual({ layout: testObject.activeLayout, afterRevert, afterSwitchBack, unlockError }, {
-			layout: { id: 'publisher.extension/focus', name: 'Focus', contribution: { extensionId: 'publisher.extension', extensionName: 'Extension', id: 'focus', canReset: false, locked: true }, locked: true },
+			layout: { id: 'publisher.extension/focus', name: 'Focus', contribution: { extensionId: 'publisher.extension', extensionName: 'Extension', id: 'focus', canReset: false, locked: true, hasUpdate: false }, locked: true },
 			afterRevert: 'horizontal over default state',
 			afterSwitchBack: 'horizontal over changed default state',
 			unlockError: 'A layout locked by its extension cannot be locked or unlocked.'

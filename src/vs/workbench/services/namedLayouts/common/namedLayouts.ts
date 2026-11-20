@@ -49,7 +49,8 @@ export interface INamedLayoutContribution {
 	readonly id: string;
 
 	/**
-	 * Whether the changes made to the layout are saved. Resetting the layout discards them.
+	 * Whether the layout was changed, so that its changes are saved. Resetting the layout
+	 * discards them. A layout that was not changed follows its definition.
 	 */
 	readonly canReset: boolean;
 
@@ -57,6 +58,13 @@ export interface INamedLayoutContribution {
 	 * Whether the extension locked the layout. Users cannot unlock it.
 	 */
 	readonly locked: boolean;
+
+	/**
+	 * Whether the extension changed the definition of the layout since the saved changes of
+	 * the layout were made. Resetting the layout applies the update, see also
+	 * {@link INamedLayoutsService.ignoreLayoutUpdate}.
+	 */
+	readonly hasUpdate: boolean;
 }
 
 export interface INamedLayout {
@@ -171,6 +179,12 @@ export interface IContributedNamedLayout {
 	readonly extensionName: string;
 
 	/**
+	 * The version of the extension. Changes saved for a layout of a newer version of the
+	 * extension, for example on another machine, are not reported as outdated.
+	 */
+	readonly extensionVersion: string;
+
+	/**
 	 * The identifier of the layout within the contributions of the extension.
 	 */
 	readonly id: string;
@@ -234,7 +248,7 @@ export interface INamedLayoutParticipant {
 
 	/**
 	 * Applies the definition of a layout contributed by an extension when that layout
-	 * becomes active for the first time. Aspects the definition does not specify are
+	 * becomes active while it was not changed. Aspects the definition does not specify are
 	 * taken from the given state of the default layout, which is `undefined` if it is
 	 * not known. Participants that do not implement this apply the default state.
 	 */
@@ -322,18 +336,26 @@ export interface INamedLayoutsService {
 
 	/**
 	 * Sets the layouts that extensions contribute, replacing the previously set ones.
-	 * A layout contributed by an extension starts from its definition the first time it
-	 * becomes active, after that changes made while it is active are saved like for other
+	 * A layout contributed by an extension follows its definition until it is changed:
+	 * whenever it becomes active, or its definition changes while it is active, its
+	 * definition is applied. Once it is changed, its changes are saved like for other
 	 * named layouts. If the active layout is no longer contributed, the default layout
 	 * is applied. Its saved changes are kept in case the extension contributes it again.
 	 */
 	setContributedLayouts(layouts: readonly IContributedNamedLayout[]): void;
 
 	/**
-	 * Discards the saved changes of the given layout contributed by an extension.
-	 * If the layout is active, its definition is applied again.
+	 * Discards the saved changes of the given layout contributed by an extension, so that it
+	 * follows its definition again. If the layout is active, its definition is applied again.
 	 */
 	resetLayout(layout: INamedLayout): Promise<void>;
+
+	/**
+	 * Keeps the saved changes of the given layout contributed by an extension whose definition
+	 * the extension changed, so that the update is no longer reported. A later change of the
+	 * definition is reported again.
+	 */
+	ignoreLayoutUpdate(layout: INamedLayout): Promise<void>;
 
 	/**
 	 * Locks or unlocks the given named layout. Locking the active layout saves its
