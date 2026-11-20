@@ -260,10 +260,10 @@ export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizat
 	].filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
 }
 
-/** The agent the runtime knows under the given name: a forwarded agent (by its SDK name) or an SDK-native one (by ID). */
-export function getCopilotAgentCustomization(customizations: ICopilotAppliedCustomizations, sdkName: string): AgentCustomization | undefined {
-	return customizations.nativeAgents?.find(agent => agent.id === sdkName)
-		?? getCopilotCustomAgents(customizations).find(agent => (agent.sdkName ?? getSdkCustomAgentName(agent.uri)) === sdkName)?.customization;
+/** The agent the runtime knows under the given ID: an SDK-native agent's ID, or a forwarded agent's SDK name (its ID in the runtime). */
+export function getCopilotAgentCustomization(customizations: ICopilotAppliedCustomizations, sdkId: string): AgentCustomization | undefined {
+	return customizations.nativeAgents?.find(agent => agent.id === sdkId)
+		?? getCopilotCustomAgents(customizations).find(agent => (agent.sdkName ?? getSdkCustomAgentName(agent.uri)) === sdkId)?.customization;
 }
 
 export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomizations, uri: string, restoreLegacyFlatSelection = false): { readonly uri: string; readonly name: string } | undefined {

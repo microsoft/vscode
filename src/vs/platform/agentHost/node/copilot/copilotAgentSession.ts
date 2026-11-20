@@ -9666,16 +9666,12 @@ export class CopilotAgentSession extends Disposable {
 
 	/** The selected agent's instructions for the Assisted permissions judge, parsed with its agent file. */
 	private async _selectedAgentAssistedApprovalInstructions(wrapper: CopilotSessionWrapper): Promise<{ readonly name: string; readonly instructions: string } | undefined> {
-		let sdkName = this._lastAppliedAgent ?? undefined;
-		if (this._lastAppliedAgent === undefined) {
-			// Only after a resume is the selection unknown: the runtime restored it.
-			try {
-				sdkName = (await this._awaitControlPlaneRpc('rpc.agent.getCurrent', wrapper.session.rpc.agent.getCurrent())).agent?.name;
-			} catch (error) {
-				this._logService.warn(`[Copilot:${this.sessionId}] Could not read the restored agent for its Assisted permissions instructions`, error);
-			}
-		}
-		const agent = sdkName ? getCopilotAgentCustomization(this._launchPlan.snapshot, sdkName) : undefined;
+		// Only after a resume is the selection unknown: the runtime restored it. A failed lookup fails the sync,
+		// like a rejected configuration, so the judge never runs without the restored agent's restrictions.
+		const sdkId = this._lastAppliedAgent === undefined
+			? (await this._awaitControlPlaneRpc('rpc.agent.getCurrent', wrapper.session.rpc.agent.getCurrent())).agent?.id
+			: this._lastAppliedAgent ?? undefined;
+		const agent = sdkId ? getCopilotAgentCustomization(this._launchPlan.snapshot, sdkId) : undefined;
 		const instructions = agent && readAgentCustomizationMeta(agent)['vscode.assistedApprovalInstructions'];
 		return agent && instructions ? { name: agent.name, instructions } : undefined;
 	}
