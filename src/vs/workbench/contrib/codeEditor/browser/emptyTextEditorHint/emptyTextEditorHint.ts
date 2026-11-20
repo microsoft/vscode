@@ -12,7 +12,6 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
@@ -35,11 +34,7 @@ import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } f
 import { EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting, IEmptyEditorHintActionsSize } from './emptyEditorHintActions.js';
 import { EmptyEditorHintAction, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
-import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IContextKey, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
@@ -434,16 +429,3 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		this.editor.removeContentWidget(this);
 	}
 }
-
-registerEditorContribution(EmptyTextEditorHintContribution.ID, EmptyTextEditorHintContribution, EditorContributionInstantiation.Eager); // eager because it needs to render a help message
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'editor.action.hideEmptyEditorHint',
-	// Below other editor contributions, so Escape still closes their widgets first
-	weight: KeybindingWeight.EditorContrib - 50,
-	primary: KeyCode.Escape,
-	when: ContextKeyExpr.and(EmptyEditorHintVisible, EditorContextKeys.editorTextFocus, EditorContextKeys.hasNonEmptySelection.toNegated(), EditorContextKeys.hasMultipleSelections.toNegated()),
-	handler: accessor => {
-		accessor.get(ICodeEditorService).getFocusedCodeEditor()?.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID)?.closeHint();
-	}
-});
