@@ -6,6 +6,9 @@
 import { vArray, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
 
 export const SessionWorktreeCleanupExtensionMethod = 'vscode/sessionWorktreeCleanup';
+/** Negotiated preparation persists recovery without removal; prepare every shared owner before archiving any of them. */
+export const PrepareSessionWorktreeCleanupExtensionMethod = 'vscode/prepareSessionWorktreeCleanup';
+export const prepareSessionWorktreeCleanupParamsValidator = vObj({ session: vString() });
 // Send force only after destructive confirmation and negotiation of vscode.forceWorktreeCleanup.
 export const sessionWorktreeCleanupParamsValidator = vObj({ session: vString(), retry: vBoolean(), force: vOptionalProp(vBoolean()) });
 export const sessionWorktreeCleanupStatusValidator = vObj({

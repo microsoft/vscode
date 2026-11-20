@@ -15,18 +15,39 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { agentsPanelBackground } from '../../../common/theme.js';
+import { agentsPanelBackground } from '../../../../workbench/contrib/sessions/common/theme.js';
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
+import { ExplorerDelegate } from '../../../../workbench/contrib/files/browser/views/explorerViewer.js';
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 
 const $ = dom.$;
 
 export const SESSIONS_FILES_EMPTY_VIEW_ID = 'sessions.files.explorer.empty';
 
 export class SessionsExplorerView extends ExplorerView {
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+		this.setSizeToContent(this.isSizeToContent);
+		this._register(this.tree.onDidChangeContentHeight(() => this._onDidChangeOptimalHeight.fire()));
+		this._register(this.tree.onDidScroll(event => {
+			if (event.scrollHeightChanged) {
+				this._onDidChangeOptimalHeight.fire();
+			}
+		}));
+	}
+
+	override setSizeToContent(enabled: boolean): void {
+		super.setSizeToContent(enabled);
+		this.tree?.updateOptions({ paddingBottom: enabled ? 0 : ExplorerDelegate.ITEM_HEIGHT });
+	}
+
+	protected override getOptimalBodyHeight(): number | undefined {
+		return this.tree?.scrollHeight;
+	}
+
 	override async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
 		if (resource && reveal === 'force' && retry === 0) {
 			await this.commandService.executeCommand(NEW_FILE_TAB_COMMAND_ID);

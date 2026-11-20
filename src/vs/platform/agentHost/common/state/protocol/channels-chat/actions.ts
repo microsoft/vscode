@@ -44,8 +44,6 @@ interface ToolCallActionBase {
 /**
  * A new message has been sent to the agent, and a new turn starts.
  *
- * A client is only allowed to send {@link MessageKind.User} messages.
- *
  * @category Chat Actions
  * @version 1
  * @clientDispatchable
@@ -678,7 +676,8 @@ export interface ChatUsageAction {
  * Reasoning/thinking text from the model, appended to a specific reasoning response part.
  *
  * The server MUST first emit a `chat/responsePart` to create the target
- * reasoning part, then use this action to append text to it.
+ * reasoning part, then use this action to append text or record its timing.
+ * An empty `content` updates only the supplied timing fields.
  *
  * @category Chat Actions
  * @version 1
@@ -691,6 +690,14 @@ export interface ChatReasoningAction {
 	partId: string;
 	/** Reasoning text chunk */
 	content: string;
+	/** Producer-recorded ISO 8601 start of the reasoning interval; omitted to preserve the existing value. */
+	startedAt?: string;
+	/**
+	 * Final elapsed reasoning time in non-negative integer milliseconds, measured by the producer's clock; omitted to preserve the existing value. Zero is a recorded duration, not unknown.
+	 * @integer
+	 * @minimum 0
+	 */
+	duration?: number;
 	/**
 	 * Additional provider-specific metadata for this action.
 	 *
@@ -758,8 +765,6 @@ export interface ChatTurnsLoadedAction {
  *
  * If the chat is idle when a queued message is set, the server SHOULD
  * immediately consume it and start a new turn.
- *
- * A client is only allowed to send {@link MessageKind.User} messages.
  *
  * @category Chat Actions
  * @version 1
@@ -895,6 +900,7 @@ export interface ChatIsArchivedChangedAction {
  * @category Chat Actions
  * @version 1
  * @clientDispatchable
+ * @stability 1.0
  */
 export interface ChatConfigChangedAction {
 	type: ActionType.ChatConfigChanged;
@@ -909,7 +915,7 @@ export interface ChatConfigChangedAction {
  *
  * Dispatched by the host on the moved chat's channel after a cross-session
  * `moveChat`. `provider` and `schema` are the chat's
- * {@link ChatState.provider | `provider`} and
+ * {@link ChatState.provider | agent provider} and
  * {@link ChatConfigState.schema | `config.schema`} relative to the new
  * session; absent clears them. `ChatState` has no session field, so the
  * reducer does not store `session`; it tells subscribers which session now
@@ -917,12 +923,13 @@ export interface ChatConfigChangedAction {
  *
  * @category Chat Actions
  * @version 1
+ * @stability 1.0
  */
 export interface ChatMovedAction {
 	type: ActionType.ChatMoved;
 	/** The new owning session URI. */
 	session: URI;
-	/** The chat's provider in the new session; absent clears it. */
+	/** The chat's agent provider ID in the new session; absent clears it. */
 	provider?: string;
 	/** The chat's config schema in the new session; absent clears it. */
 	schema?: SessionConfigSchema;

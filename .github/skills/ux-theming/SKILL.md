@@ -59,19 +59,19 @@ Conversion functions in `colorUtils.ts`:
 
 Trace the rendered control before choosing a token or selector; custom editor overlays may not use native input pseudo-elements. Inspect inherited and nested styles as well as the component's own declarations.
 
-### Contrast and interaction states
+### Contrast and Interaction States
 
 - Treat foreground and background as a semantic pair. A background change requires checking text, placeholders, links, operable inactive icons, hover, selection, and focus against the final composited surface.
-- Resolve defaults, opacity, and user overrides before measuring contrast. An opaque icon color may meet contrast requirements while its translucent inactive variant does not.
-- Normal-size text and placeholders need at least 4.5:1 contrast; visual information needed to identify controls and focus needs at least 3:1 against adjacent colors. Apply the relevant accessibility criteria, not these thresholds to decorative or disabled content. Unselected but operable controls are not disabled.
+- Resolve defaults, opacity, and user overrides before measuring contrast. For example, an opaque icon color may meet contrast requirements while its translucent inactive variant does not.
+- Normal-size text and placeholders need at least 4.5:1 contrast; visual information needed to identify controls and focus needs at least 3:1 against adjacent colors. Apply the relevant accessibility criteria rather than extending these thresholds to decorative or disabled content. Unselected but operable controls are not disabled.
 - Check nested labels and descriptions in combined states; an explicit child foreground can defeat a correctly paired selection background.
-- Choose tokens by semantic role, not their current hue. A chart accent is not automatically a warning-button background. Reuse an appropriate control palette or register a themeable foreground/background pair when the component has its own semantics.
+- Choose tokens by semantic role, not their current hue. A chart accent is not automatically a warning-button background, and pairing it with a default button foreground does not establish contrast. Reuse an appropriate control palette or register a themeable foreground/background pair when the component has its own semantics.
 
-### Composited surfaces
+### Composited Surfaces
 
-A theme variable is not necessarily opaque. For a floating panel that must conceal underlying content, inspect resolved alpha and all material layers rather than assuming a panel token or `var()` fallback guarantees occlusion. Use the owning theme/color helpers to derive an opaque semantic background where needed, preserve glass elsewhere, and verify content switching and floating/docked transitions on the same instance.
+A theme variable is not necessarily opaque. For a floating panel that must conceal underlying content, inspect the resolved alpha and all material layers rather than assuming a panel token or `var()` fallback guarantees occlusion. Use the owning theme/color helpers to derive an opaque semantic background where needed, preserve the intended glass treatment elsewhere, and verify switching content and floating/docked modes on the same instance.
 
-Keep material paint separate from interactive descendants. Border-box alignment, clipping, and duplicated translucent strokes are covered by [rounded-surface geometry](../ux-css-layout/SKILL.md#rounded-surface-geometry).
+Keep material paint separate from interactive descendants. Border-box and padding-box alignment, clipping, and duplicated translucent strokes are covered by [rounded-surface geometry](../ux-css-layout/SKILL.md#rounded-surface-geometry).
 
 ## 4. Widget Styles Pattern
 
@@ -91,9 +91,11 @@ const button = new Button(container, getButtonStyles({
 
 Available defaults: `defaultButtonStyles`, `defaultInputBoxStyles`, `defaultCheckboxStyles`, `defaultToggleStyles`, `defaultDialogStyles`, `defaultListStyles`, `defaultSelectBoxStyles`, `defaultMenuStyles`, `defaultProgressBarStyles`, `defaultCountBadgeStyles`, `defaultBreadcrumbsWidgetStyles`, `defaultKeybindingLabelStyles`, `defaultFindWidgetStyles`.
 
-### Transient theme overrides
+### Transient Theme Overrides
 
-Use the owning theme service for temporary palettes so CSS variables and programmatic color consumers remain consistent. Keep overrides scoped to the intended window and preserve the base theme and user customizations. Verify enabling, disabling, replacement, disposal, theme changes, and stale asynchronous results; clearing an override must restore original colors without persisting generated values or changing another window's theme.
+Use the owning theme service for temporary palettes so CSS variables and programmatic color consumers remain consistent. Keep overrides scoped to the intended window and preserve the base theme and user customizations.
+
+Verify enabling, disabling, replacement, disposal, and theme changes, including stale asynchronous results. Clearing an override must restore the original colors without persisting generated values or changing another window's theme or startup colors.
 
 ## 5. Focus Indicators
 
@@ -123,7 +125,7 @@ Modal dialogs must trap focus within the dialog until dismissed. Use `dom.trackF
 ## 6. High Contrast Theme Rules
 
 - **Always** provide `hcDark` and `hcLight` defaults when registering colors.
-- HC surface backgrounds: use registered HC defaults, commonly `Color.black` (hcDark) and `Color.white` (hcLight). Preserve component-specific selection and control palettes.
+- HC surface backgrounds: use the registered HC defaults, commonly `Color.black` (hcDark) and `Color.white` (hcLight). Preserve component-specific selection and control palettes.
 - HC borders: reference `contrastBorder` — it is `null` in normal themes, visible in HC.
 - HC keyboard focus: use `focusBorder` or the owning list's focus token; reserve `contrastActiveBorder` for the interaction states below.
 - In CSS, use `.hc-black` / `.hc-light` class selectors for HC-specific overrides:
@@ -142,23 +144,23 @@ Modal dialogs must trap focus within the dialog until dismissed. Use `dom.trackF
   }
   ```
 
-### High-contrast interaction-state contract
+### High-Contrast Interaction-State Contract
 
-Interaction boundaries communicate different semantics. Do not collapse hover, keyboard focus, persistent state, and selection into one rule:
+Interaction boundaries communicate different semantics. Do not collapse hover, keyboard focus, selection, and persistent state into one generic rule.
 
 | State | Boundary | Required behavior |
 |---|---|---|
-| Pointer hover | Dashed `contrastActiveBorder` | Apply to the actionable element actually under the pointer. A mouse-navigation class plus a stale focused row is not sufficient. |
-| Keyboard focus | Solid `focusBorder` or the owning list focus token | Must win over simultaneous hover and open/expanded/pressed state. |
-| Open, expanded, or pressed | Solid `contrastActiveBorder` | Persistent state, not transient hover. Keep normal-theme hover fill separate. |
-| Selected or checked | The component's selection palette and semantic foreground | Hover must not replace the background while leaving the selected foreground behind. |
-| Disabled | No hover or active boundary | Preserve component-owned disabled styling. An intentionally keyboard-focusable disabled control still needs a focus indicator. |
+| Pointer hover | Dashed `contrastActiveBorder` | Apply only to the actionable element actually under the pointer. A `mouse-navigation` class plus a stale focused row is not sufficient. |
+| Keyboard focus | Solid `focusBorder` or the owning list focus token | Must win over simultaneous hover and open/expanded/pressed state. Preserve the focus ring when the pointer remains over the control. |
+| Open, expanded, or pressed | Solid `contrastActiveBorder` | Persistent state, not transient hover. Keep normal-theme hover fill separate so an expanded control can respond to the pointer without becoming dashed. |
+| Selected or checked | The component's selection palette and semantic foreground | Hover must not replace the selected background while leaving the selected foreground behind. |
+| Disabled | No hover or active boundary | Disabled styling remains owned by the component. A disabled control that intentionally remains keyboard-focusable still needs a focus indicator. |
 
-Assign one boundary owner per interaction. A pseudo-element may paint an inset hover fill without also outlining the root's boundary. Suppress a card's boundary while its independent nested action is hovered, focused, or open. For virtualized trees, inspect both `.monaco-list-row` and its painted child; do not clear the child focus ring when the outer row intentionally omits one.
+Assign one boundary owner per interaction. A pseudo-element may paint an inset hover fill, but it must not also draw an outline when the component root owns the boundary. When a card contains independent actions, suppress the card boundary while a nested action is hovered, focused, or open. For virtualized trees, inspect both the `.monaco-list-row` and its painted child such as `.monaco-tl-row`; never clear the child focus ring when the outer row's outline is intentionally suppressed.
 
-Native disclosure state is not exposed as `aria-expanded` on `<summary>`. Use `details[open] > summary` for visual state, or synchronize component state for a non-native disclosure. Exclude keyboard focus from persistent-state rules as well as hover rules; higher selector specificity can erase focus even when the focus rule comes later.
+Native disclosure state is not exposed as `aria-expanded` on `<summary>`. Use `details[open] > summary` for visual state, or synchronize a component state class/ARIA attribute for a non-native disclosure. Exclude keyboard focus from persistent-state rules as well as hover rules; greater selector specificity can otherwise erase focus even when the focus rule comes later.
 
-For a custom control using ARIA expanded/pressed state, keep background and boundary selectors independent:
+For a custom control whose expanded/pressed state uses ARIA, keep background and boundary selectors independent. This example preserves keyboard precedence in combined states:
 
 ```css
 .control:not(.disabled, :disabled, [aria-disabled='true']):is(:hover, .hovered) {
@@ -178,19 +180,22 @@ For a custom control using ARIA expanded/pressed state, keep background and boun
 }
 ```
 
-Controls with a selected/checked palette must exclude that state from the generic hover fill or supply correctly paired selected-hover colors. Attention-required, pinned, selected, and focused states can coexist; test their combined placement instead of letting a new marker cover an existing one.
+For controls with a selected/checked palette, exclude that state from the generic hover fill or provide its correctly paired selected-hover colors. Keep independent status markers distinct as well: attention-required, pinned, selected, and focused states can coexist. Test their combined placement and semantic foregrounds rather than letting a new marker cover an existing one.
 
-Validate rest, hover, keyboard focus, focus plus hover, open/expanded/pressed plus focus and hover, selected/checked plus hover, disabled plus hover, focusable-disabled focus, and nested actions. Load production styles competing for the boundary. Check both HC themes, normal Light/Dark when shared selectors change, and runtime theme/customization changes, including tokens becoming absent. Clear stale inline colors or classes.
+Validate a state matrix rather than isolated screenshots: rest, hover, keyboard focus, focus plus hover, open/expanded/pressed plus focus and hover, selected/checked plus hover, disabled plus hover, intentionally focusable-disabled focus, and nested-action focus/hover. Load all production styles that compete for the boundary and verify both HC Dark and HC Light, plus normal Dark/Light when selector exclusions can affect hover fills.
 
-### Testing rendered interaction states
+Test runtime theme changes and custom color overrides, including transitions where a previously defined token becomes absent. Clear stale inline colors or classes rather than leaving the previous theme's state behind. Render through production state-owning services so intentionally omitted decoration remains absent.
 
-- Use real pointer input for interaction tests. A dispatched `mousemove` can update modality or logical focus without activating CSS `:hover`. Fixtures may use the production-supported `.hovered` class, but must verify the intended computed boundary before capture.
-- Establish keyboard modality through the actual input path and dispatch navigation from the focused item. An ancestor bubbling listener may never see keys consumed by an inner ActionBar; use capture only where the owner must observe the event before that handler. Test pointer-to-keyboard transitions with a stationary pointer.
-- Do not assume `.focus()` or a synthetic key event establishes `:focus-visible` in every browser or Electron host. Drive real keyboard input or the fixture's supported focus state, isolate previous focus, and verify the boundary; do not skip a failed assertion or weaken it to `activeElement` equality.
-- When exact theme colors are the contract, load and assert those tokens. When preserving platform styling is the contract, assert a visible nonzero focus boundary rather than an unrelated hardcoded color. Include the relevant production stylesheet cascade.
-- In missing-token tests, distinguish local removal from inherited values. When an ancestor supplies the property, a scoped self-reference can force the guaranteed-invalid value and exercise `var()` fallback without changing global theme state. Verify computed behavior rather than accepting a reviewer's suggested CSS keyword untested; fallbacks cannot repair defined values of the wrong type.
-- Hit-test the intended action region, allowing the hit element to be the control or a descendant, then activate it and assert behavior or ARIA state. Exact root equality is brittle; styling alone does not prove labels, chevrons, or edge padding remain clickable.
-- Follow the [fixture contract checks](../component-fixtures/SKILL.md#validating-fixtures) for forced/natural focus, readiness, idle, and remount. Keep production behavior tests at the owning production API.
+### Testing Rendered Interaction States
+
+- A dispatched `mousemove` can update a widget's modality or logical focus without activating CSS `:hover`. Use real pointer input for interaction tests. A fixture may use the production-supported `.hovered` class, but it must assert the intended computed boundary before capturing a screenshot.
+- Establish keyboard modality through the actual input path, then dispatch navigation from the focused item. An ancestor bubbling listener may never see keys consumed by an inner ActionBar; use capture only where the owner must observe the event before that handler. Test pointer-to-keyboard transitions with a stationary pointer.
+- Do not assume `.focus()` or a synthetic key event makes `:focus-visible` true in every browser or Electron host. Control the fixture's supported focus state or drive actual keyboard input, isolate previous focus, and verify the state before asserting styles. Do not skip a failed focus assertion or weaken it to mere `activeElement` equality.
+- When exact theme colors are the contract, load and assert those tokens. When preserving platform styling is the contract, assert a visible nonzero focus boundary instead of an unrelated hardcoded color. Include the relevant production stylesheet cascade in either case.
+- Exercise both forced-focus and natural-focus fixture modes. Wait for a focus-triggered hover only when focus was actually requested. Check readiness, idle, and remount so an async tooltip is not captured accidentally or awaited forever.
+- In missing-token tests, distinguish local removal from inherited values. If an ancestor supplies the property, use a scoped guaranteed-invalid value such as a self-reference to exercise `var()` fallback without changing global theme state. Verify computed behavior rather than accepting a reviewer's suggested CSS keyword untested. A fallback does not repair a defined value with the wrong CSS type.
+- Hit-test the intended action region, allowing the hit element to be the control or one of its descendants, then activate it and assert the behavior or ARIA change. Exact root equality is brittle; CSS styling alone does not prove that labels, chevrons, or edge padding remain clickable.
+- Follow the [fixture contract checks](../component-fixtures/SKILL.md#validating-fixtures) for readiness, idle, and remount. Keep production behavior tests at the owning production API.
 
 ## 7. No Hardcoded Visual Values
 
@@ -212,7 +217,6 @@ Reviewers will always flag hardcoded colors, shadows, sizes that should use them
 **Rule:** If a value relates to color, shadow, or border — it must come from a CSS variable or registered color token. The only exception is `0` (zero) values and purely structural measurements like `100%`.
 
 **Size, spacing, radius, font and stroke** values have their own design-system **size** tokens (and decision logic — snap maps, the pill→`circle` rule, and the compact-glyph convention). Those live in the **ux-css-layout** skill (§10 Design-System Size Tokens) and the auto-injected `.github/instructions/design-tokens.instructions.md`. Reach for those when a flag is about *how big / how round / how bold* something is rather than *what color*.
-
 
 ---
 

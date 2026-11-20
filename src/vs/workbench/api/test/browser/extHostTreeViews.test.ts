@@ -5,14 +5,14 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ExtHostTreeViews } from '../../common/extHostTreeViews.js';
 import { ExtHostCommands } from '../../common/extHostCommands.js';
 import { MainThreadTreeViewsShape, MainContext, MainThreadCommandsShape } from '../../common/extHost.protocol.js';
 import { TreeDataProvider, TreeItem, DataTransfer as ApiDataTransfer, DataTransferItem as ApiDataTransferItem, TreeDragAndDropController } from 'vscode';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from '../../../common/views.js';
+import { TreeItemCollapsibleState, ITreeItem, IRevealOptions, TreeCommand } from '../../../common/views.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import type { IDisposable } from '../../../../base/common/lifecycle.js';
 import { nullExtensionDescription as extensionsDescription } from '../../../services/extensions/common/extensions.js';
@@ -61,6 +61,7 @@ suite('ExtHostTreeView', function () {
 	}
 
 	let testObject: ExtHostTreeViews;
+	let extHostCommands: ExtHostCommands;
 	let target: RecordingShape;
 	let onDidChangeTreeNode: Emitter<{ key: string } | undefined>;
 	let onDidChangeTreeNodeWithId: Emitter<{ key: string }>;
@@ -89,7 +90,7 @@ suite('ExtHostTreeView', function () {
 			override $registerCommand() { }
 		});
 		target = new RecordingShape();
-		testObject = store.add(new ExtHostTreeViews(target, new ExtHostCommands(
+		extHostCommands = new ExtHostCommands(
 			rpcProtocol,
 			new NullLogService(),
 			new class extends mock<IExtHostTelemetry>() {
@@ -97,7 +98,8 @@ suite('ExtHostTreeView', function () {
 					return true;
 				}
 			}
-		), new NullLogService()));
+		);
+		testObject = store.add(new ExtHostTreeViews(target, extHostCommands, new NullLogService()));
 		onDidChangeTreeNode = new Emitter<{ key: string } | undefined>();
 		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
 		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
@@ -650,6 +652,73 @@ suite('ExtHostTreeView', function () {
 		treeView2.dispose();
 	});
 
+	/**
+	 * Fires a root change on a view-specific event and waits until the view has refreshed.
+	 * The suite's shared change events also refresh the views created in setup.
+	 */
+	async function refreshRoot(onDidChange: Emitter<{ key: string } | undefined>): Promise<void> {
+		const refreshed = Event.toPromise(target.onRefresh.event);
+		onDidChange.fire(undefined);
+		await refreshed;
+	}
+
+	test('repeated root refreshes do not grow the tree view store (#346620)', () => runWithFakedTimers({}, async () => {
+		const onDidChange = store.add(new Emitter<{ key: string } | undefined>());
+		const treeView = testObject.createTreeView('leakTestProvider', { treeDataProvider: { ...aNodeTreeDataProvider(), onDidChangeTreeData: onDidChange.event } }, extensionsDescription);
+		const treeViews: Map<string, IDisposable> = Reflect.get(testObject, '_treeViews');
+		const viewStore: { _toDispose: Set<IDisposable> } = Reflect.get(treeViews.get('leakTestProvider')!, '_store');
+
+		await testObject.$getChildren('leakTestProvider');
+		await refreshRoot(onDidChange);
+		await testObject.$getChildren('leakTestProvider');
+		const sizeAfterFirstRefresh = viewStore._toDispose.size;
+		for (let i = 0; i < 5; i++) {
+			await refreshRoot(onDidChange);
+			await testObject.$getChildren('leakTestProvider');
+		}
+
+		assert.strictEqual(viewStore._toDispose.size, sizeAfterFirstRefresh);
+		await treeView.dispose();
+	}));
+
+	test('tree nodes replaced by a duplicate element are released on refresh and dispose', () => runWithFakedTimers({}, async () => {
+		const onDidChange = store.add(new Emitter<{ key: string } | undefined>());
+		const shared = { key: 'shared' };
+		const treeView = testObject.createTreeView<{ key: string }>('duplicateElementTreeProvider', {
+			treeDataProvider: {
+				getChildren: element => element ? (element === shared ? [] : [shared]) : [{ key: 'p1' }, { key: 'p2' }],
+				getTreeItem: element => ({
+					label: element.key,
+					collapsibleState: element === shared ? TreeItemCollapsibleState.None : TreeItemCollapsibleState.Collapsed,
+					command: { command: 'testCommand', title: 'Test', arguments: [element.key] }
+				}),
+				onDidChangeTreeData: onDidChange.event
+			}
+		}, extensionsDescription);
+		// Expanding both parents creates a node for the shared element under each of them. The second node replaces the first in the element cache.
+		const expandSharedCommands = async () => {
+			const commands: TreeCommand[] = [];
+			for (const root of unBatchChildren(await testObject.$getChildren('duplicateElementTreeProvider'))!) {
+				commands.push(unBatchChildren(await testObject.$getChildren('duplicateElementTreeProvider', [root.handle]))![0].command!);
+			}
+			return commands;
+		};
+		const isCached = (commands: TreeCommand[]) => commands.map(command => extHostCommands.converter.fromInternal(command) !== undefined);
+
+		const initialCommands = await expandSharedCommands();
+		await refreshRoot(onDidChange);
+		await expandSharedCommands();
+		await refreshRoot(onDidChange);
+		const latestCommands = await expandSharedCommands();
+		const initialCachedAfterRefreshes = isCached(initialCommands);
+		await treeView.dispose();
+
+		assert.deepStrictEqual(
+			{ initialCachedAfterRefreshes, latestCachedAfterDispose: isCached(latestCommands) },
+			{ initialCachedAfterRefreshes: [false, false], latestCachedAfterDispose: [false, false] }
+		);
+	}));
+
 	test('reveal will throw an error if getParent is not implemented', () => {
 		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
 		return treeView.reveal({ key: 'a' })
@@ -661,7 +730,7 @@ suite('ExtHostTreeView', function () {
 		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
 		const expected = {
 			item:
-				{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed },
+			{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed },
 			parentChain: []
 		};
 		return treeView.reveal({ key: 'a' })

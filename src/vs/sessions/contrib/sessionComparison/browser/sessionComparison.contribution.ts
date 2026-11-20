@@ -8,14 +8,16 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../workbench/common/contributions.js';
-import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../common/sessionComparison.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
 import { SessionComparisonToolContribution } from './sessionComparisonTool.js';
+import { ModelEvaluationToolContribution } from './modelEvaluationTools.js';
 import { SessionComparisonGridController } from './sessionComparisonGridController.js';
 import { ISessionComparisonViewService, SessionComparisonViewService } from './sessionComparisonViewService.js';
 
 registerSingleton(ISessionComparisonViewService, SessionComparisonViewService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(SessionComparisonToolContribution.ID, SessionComparisonToolContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ModelEvaluationToolContribution.ID, ModelEvaluationToolContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(SessionComparisonGridController.ID, SessionComparisonGridController, WorkbenchPhase.Eventually);
 
 registerAction2(class extends Action2 {

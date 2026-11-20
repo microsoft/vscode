@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../base/common/errors.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { isNative } from '../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -30,6 +30,7 @@ import { coalesce } from '../../../base/common/arrays.js';
 import { ICanonicalUriService } from '../../../platform/workspace/common/canonicalUri.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { IWorkspaceFolderLocationService } from '../../../platform/workspace/common/folderLocations.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace extends Disposable implements MainThreadWorkspaceShape {
@@ -37,6 +38,8 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 	private readonly _queryBuilder: QueryBuilder;
+	private _locationsRequested = false;
+	private readonly _locationResolves = new Map<string, CancellationTokenSource>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -55,6 +58,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
 	) {
 		super();
 		this._queryBuilder = this._instantiationService.createInstance(QueryBuilder);
@@ -64,9 +68,18 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		// from the extension host. So initialize now knowing that `rootPath` is undefined.
 		if (workspace.configuration && !isNative && !fileService.hasProvider(workspace.configuration)) {
 			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted());
+			this._updateFolderLocations();
 		} else {
-			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted()));
+			this._contextService.getCompleteWorkspace().then(workspace => {
+				if (this._store.isDisposed) {
+					return;
+				}
+				this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted());
+				this._updateFolderLocations();
+			});
 		}
+		this._register(this._folderLocationService.onDidChangeProviders(() => this._updateFolderLocations()));
+		this._register(this._folderLocationService.onDidChangeLocations(() => this._updateFolderLocations()));
 		this._register(this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this));
 		this._register(this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this));
 		this._register(this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this));
@@ -75,6 +88,12 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 
 	override dispose(): void {
 		super.dispose();
+
+		// disposing a token source does not cancel it
+		for (const cts of this._locationResolves.values()) {
+			cts.dispose(true);
+		}
+		this._locationResolves.clear();
 
 		for (const requestId in this._activeCancelTokens) {
 			const tokenSource = this._activeCancelTokens[requestId];
@@ -90,7 +109,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		// Indicate in status message
 		this._notificationService.status(this.getStatusMessage(extensionName, workspaceFoldersToAdd.length, deleteCount), { hideAfter: 10 * 1000 /* 10s */ });
 
-		return this._workspaceEditingService.updateFolders(index, deleteCount, workspaceFoldersToAdd, true);
+		return this._workspaceEditingService.updateFolders(index, deleteCount, workspaceFoldersToAdd, { donotNotifyError: true, force: true });
 	}
 
 	private getStatusMessage(extensionName: string, addCount: number, removeCount: number): string {
@@ -127,6 +146,50 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 
 	private _onDidChangeWorkspace(): void {
 		this._proxy.$acceptWorkspaceData(this.getWorkspaceData(this._contextService.getWorkspace()));
+		this._updateFolderLocations();
+	}
+
+	$getWorkspaceFolderLocations(): void {
+		if (!this._locationsRequested) {
+			this._locationsRequested = true;
+			this._updateFolderLocations();
+		}
+	}
+
+	/**
+	 * Resolves the locations of every workspace folder and pushes them to the extension host.
+	 * A newer resolve of a folder cancels the one in flight, and results of cancelled resolves are dropped.
+	 */
+	private _updateFolderLocations(): void {
+		if (!this._locationsRequested || this._store.isDisposed || !this._contextService.hasWorkspaceData()) {
+			return;
+		}
+		const workspace = this._contextService.getWorkspace();
+		const current = new Set<string>();
+		for (const folder of workspace.folders) {
+			const key = folder.uri.toString();
+			current.add(key);
+			const cts = new CancellationTokenSource();
+			this._locationResolves.get(key)?.dispose(true);
+			this._locationResolves.set(key, cts);
+			this._folderLocationService.getFolderLocations(folder, cts.token).then(result => {
+				// the resolver may ignore the token, so check that this resolve is still the current one
+				if (!cts.token.isCancellationRequested && this._locationResolves.get(key) === cts) {
+					const locations = result.map(l => ({ uri: l.uri, name: l.label }));
+					this._proxy.$acceptWorkspaceFolderLocations([{ folder: folder.uri, locations }]);
+				}
+			}, error => {
+				if (!isCancellationError(error)) {
+					onUnexpectedError(error);
+				}
+			});
+		}
+		for (const key of [...this._locationResolves.keys()]) {
+			if (!current.has(key)) {
+				this._locationResolves.get(key)?.dispose(true);
+				this._locationResolves.delete(key);
+			}
+		}
 	}
 
 	private getWorkspaceData(workspace: IWorkspace): IWorkspaceData | null {

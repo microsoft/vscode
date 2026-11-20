@@ -104,6 +104,41 @@ suite('ChatModifiedFilesConfirmationSubPart', () => {
 		}
 	}
 
+	test('renders the disclaimer between the message and the changed files', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatMarkdownAnchorService, store.add(new ChatMarkdownAnchorService()));
+		instantiationService.stub(ILanguageModelToolsService, { getTool: () => undefined });
+		instantiationService.stub(IChatToolRiskAssessmentService, { isEnabled: () => false });
+		instantiationService.stub(IChatPetService, { unlockAchievement: () => false });
+		const invocation = new ChatToolInvocation({
+			confirmationMessages: {
+				title: 'Edit file?',
+				message: 'Edit the parser',
+				disclaimer: new MarkdownString('Assisted permissions didn\'t review this request.'),
+			},
+			toolSpecificData: {
+				kind: 'modifiedFilesConfirmation',
+				options: ['Allow'],
+				modifiedFiles: [{ uri: URI.file('/workspace/parser.ts'), editKind: 'edit' }],
+			},
+		}, { id: 'edit', displayName: 'Edit', modelDescription: 'Edit', source: ToolDataSource.Internal }, 'tool-call', undefined, {});
+		const context = upcastPartial<IChatContentPartRenderContext>({
+			element: upcastPartial<IChatResponseViewModel>({ sessionResource: URI.parse('chat-session://test/session') }),
+		});
+		const listPool = store.add(instantiationService.createInstance(CollapsibleListPool, Event.None, undefined, undefined));
+		const part = store.add(instantiationService.createInstance(ChatModifiedFilesConfirmationSubPart, invocation, context, listPool));
+		const content = part.domNode.querySelector('.chat-modified-files-confirmation');
+		const sections = ['rendered-markdown', 'disclaimer', 'chat-modified-files-confirmation-list'];
+
+		assert.deepStrictEqual({
+			order: [...content?.children ?? []].map(child => sections.find(section => child.classList.contains(section))),
+			disclaimer: content?.querySelector('.disclaimer')?.textContent?.trim(),
+		}, {
+			order: sections,
+			disclaimer: 'Assisted permissions didn\'t review this request.',
+		});
+	});
+
 	test('creates editor inputs for pending file changes', () => {
 		const resource = URI.file('/workspace/package.json');
 		const originalUri = URI.parse('vscode-agent-host://local/package.json?original');

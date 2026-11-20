@@ -496,7 +496,7 @@
 			"type": "node",
 			"request": "launch",
 			"name": "Git Unit Tests",
-			"program": "${workspaceFolder}/extensions/git/node_modules/mocha/bin/_mocha",
+			"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
 			"stopOnEntry": false,
 			"cwd": "${workspaceFolder}/extensions/git",
 			"outFiles": [

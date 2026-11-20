@@ -59,7 +59,7 @@ suite('Automation cron segmented input', () => {
 			captions: Array.from(container.querySelectorAll('.automation-cron-caption'), caption => caption.textContent),
 		}, {
 			initial: { value: '', error: '' }, value: '*/2 * * * *',
-			expressionLabel: 'CRON expression', expressionAriaLabel: 'CRON expression',
+			expressionLabel: 'Cron expression', expressionAriaLabel: 'Cron expression',
 			labels: ['Minute', 'Hour', 'Day of month', 'Month', 'Day of week'],
 			placeholders: ['*', '*', '*', '*', '*'],
 			captions: ['min', 'hour', 'day', 'month', 'weekday'],

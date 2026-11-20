@@ -17,7 +17,7 @@ import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta
 import type { Message, ToolDefinition } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, MessageKind } from '../../common/state/sessionState.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
-import { AgentHostTelemetryReporter, type IAgentHostTurnCompletedReport, type IAgentHostTurnHungReport } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, toTelemetryModel, type IAgentHostTurnCompletedReport, type IAgentHostTurnHungReport } from '../../node/agentHostTelemetryReporter.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -57,6 +57,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps): void {
 		this.githubStandardEvents.push({ eventName, properties });
 	}
+	sendGHTelemetryEventForContext(): void { }
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.enhancedEvents.push({ eventName, properties });
 		this.enhancedMeasurements.push(measurements);
@@ -122,17 +123,19 @@ suite('AgentHostTelemetryReporter', () => {
 		};
 	}
 
-	test('reports whether a turn used or discarded a pre-warmed session, and nothing when it found none', () => {
+	test('reports whether a turn used, discarded or skipped a pre-warmed session, and nothing when none applies', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 		const completion = createTurnCompletedReport('copilotcli');
 		reporter.turnCompleted(completion);
-		reporter.turnCompleted({ ...completion, providerTelemetryContext: { usedPrewarmedSession: true } });
+		reporter.turnCompleted({ ...completion, providerTelemetryContext: { usedPrewarmedSession: true, prewarmReadyAfterTurnStartMs: 1200, prewarmReadyBeforeTurnStartMs: 0, prewarmLaunchCount: 2, prewarmWarmUpComplete: false } });
 		reporter.turnCompleted({ ...completion, providerTelemetryContext: { prewarmedSessionDiscardReason: 'clientToolsChanged' } });
-		assert.deepStrictEqual(service.standardEvents.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => ({ used: event.data?.usedPrewarmedSession, discardReason: event.data?.prewarmedSessionDiscardReason })), [
-			{ used: undefined, discardReason: undefined },
-			{ used: true, discardReason: undefined },
-			{ used: undefined, discardReason: 'clientToolsChanged' },
+		reporter.turnCompleted({ ...completion, providerTelemetryContext: { prewarmSkipReason: 'expired' } });
+		assert.deepStrictEqual(service.standardEvents.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => ({ used: event.data?.usedPrewarmedSession, discardReason: event.data?.prewarmedSessionDiscardReason, skipReason: event.data?.prewarmSkipReason, readyAfter: event.data?.prewarmReadyAfterTurnStartMs, readyBefore: event.data?.prewarmReadyBeforeTurnStartMs, launchCount: event.data?.prewarmLaunchCount, warmUpComplete: event.data?.prewarmWarmUpComplete })), [
+			{ used: undefined, discardReason: undefined, skipReason: undefined, readyAfter: undefined, readyBefore: undefined, launchCount: undefined, warmUpComplete: undefined },
+			{ used: true, discardReason: undefined, skipReason: undefined, readyAfter: 1200, readyBefore: 0, launchCount: 2, warmUpComplete: false },
+			{ used: undefined, discardReason: 'clientToolsChanged', skipReason: undefined, readyAfter: undefined, readyBefore: undefined, launchCount: undefined, warmUpComplete: undefined },
+			{ used: undefined, discardReason: undefined, skipReason: 'expired', readyAfter: undefined, readyBefore: undefined, launchCount: undefined, warmUpComplete: undefined },
 		]);
 	});
 
@@ -495,13 +498,14 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.internalEvents, [expected]);
 	});
 
-	test('modelMessageText emits conversation.messageText (source=model) with headerRequestId, and no-ops on empty content', async () => {
+	test('modelMessageText emits conversation.messageText (source=model) as structured JSON with headerRequestId, and no-ops on empty content and reasoning', async () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '', 3, 'client-1'); // dropped: no content
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '', 3, 'client-1'); // dropped: no content or reasoning
 		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, 'sure, here you go', 3, 'client-1'); // emitted
 
+		const structured = JSON.stringify({ role: 'assistant', content: 'sure, here you go' });
 		const expected: IRestrictedCall = {
 			eventName: 'conversation.messageText',
 			properties: {
@@ -511,12 +515,92 @@ suite('AgentHostTelemetryReporter', () => {
 				initiatorClientType: 'agents_window',
 				turnIndex: '3',
 				headerRequestId: 'client-1',
-				messageText: 'sure, here you go',
-				messageTextChunk: zlib.gzipSync(Buffer.from('sure, here you go', 'utf8')).toString('base64'),
+				messageText: structured,
+				messageTextChunk: zlib.gzipSync(Buffer.from(structured, 'utf8')).toString('base64'),
 			},
 		};
 		assert.deepStrictEqual(service.enhancedEvents, [expected]);
 		assert.deepStrictEqual(service.internalEvents, [expected]);
+	});
+
+	test('modelMessageText separates inline think/thinking/analysis tags (closed and unclosed) and wire reasoningText', async () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<think>Find call sites.</think>Renamed `getUser`.', 1, 'req-1');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<thinking>Let me check the config file.', 1, 'req-2');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<analysis>Compare options.</analysis>Use option A.', 1, 'req-3');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<analysis>Checking imports before calling tool', 1, 'req-4');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '', 1, 'req-5', undefined, 'Wire-only reasoning');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, 'Example:\n```xml\n<think>literal</think>\n<analysis>literal</analysis>\n```', 1, 'req-6');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<think>Plan</think>\n  ```xml\n  <think>literal code</think>\n  ```', 1, 'req-7');
+
+		assert.deepStrictEqual(
+			service.enhancedEvents.map(event => ({
+				messageText: JSON.parse(event.properties!.messageText!),
+				chunkMatches: zlib.gunzipSync(Buffer.from(event.properties!.messageTextChunk!, 'base64')).toString('utf8') === event.properties!.messageText,
+			})),
+			[
+				{ messageText: { role: 'assistant', content: 'Renamed `getUser`.', reasoning_text: 'Find call sites.' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: '', reasoning_text: 'Let me check the config file.' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: 'Use option A.', reasoning_text: 'Compare options.' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: '', reasoning_text: 'Checking imports before calling tool' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: '', reasoning_text: 'Wire-only reasoning' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: 'Example:\n```xml\n<think>literal</think>\n<analysis>literal</analysis>\n```' }, chunkMatches: true },
+				{ messageText: { role: 'assistant', content: '  ```xml\n  <think>literal code</think>\n  ```', reasoning_text: 'Plan' }, chunkMatches: true },
+			]
+		);
+	});
+
+	test('modelMessageText no-ops when restricted telemetry is inactive', async () => {
+		const service = new TestRestrictedTelemetryService();
+		Object.defineProperty(service, 'isRestrictedTelemetryActive', { value: false });
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '<think>reasoning</think>answer', 1, 'req-1');
+		assert.deepStrictEqual({ enhanced: service.enhancedEvents, internal: service.internalEvents }, { enhanced: [], internal: [] });
+	});
+
+	test('text and tools retain SDK conversation identity independently of host grouping and chat hashes', async () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const peer = buildDefaultChatUri('agent-session://copilot/other-host');
+		for (const { sdkSessionId, host, channel } of [
+			{ sdkSessionId: 'sdk-a', host: session, channel: chat },
+			{ sdkSessionId: 'sdk-b', host: session, channel: chat },
+			{ sdkSessionId: 'sdk-a', host: 'agent-session://copilot/other-host', channel: peer },
+		]) {
+			await reporter.userMessageText(host, channel, AgentHostClientType.AgentsWindow, 'prompt', 0, sdkSessionId);
+			await reporter.assistantMessageReceived(host, channel, AgentHostClientType.AgentsWindow, 'request', tools, sdkSessionId);
+			await reporter.modelMessageText(host, channel, AgentHostClientType.AgentsWindow, 'response', 0, 'request', sdkSessionId);
+		}
+		assert.deepStrictEqual(service.enhancedEvents.map(({ eventName, properties }) => ({
+			eventName,
+			sdkSessionId: properties?.sdkSessionId,
+			conversationId: properties?.conversationId,
+			chatSessionId: properties?.chatSessionId,
+		})), [
+			{ sdkSessionId: 'sdk-a', conversationId: 'abc', chatSessionId: getTelemetryChatSessionId(chat) },
+			{ sdkSessionId: 'sdk-b', conversationId: 'abc', chatSessionId: getTelemetryChatSessionId(chat) },
+			{ sdkSessionId: 'sdk-a', conversationId: 'other-host', chatSessionId: getTelemetryChatSessionId(peer) },
+		].flatMap(correlation => ['conversation.messageText', 'request.options.tools', 'conversation.messageText'].map(eventName => ({ eventName, ...correlation }))));
+		assert.deepStrictEqual(service.internalEvents.map(event => event.properties?.sdkSessionId), ['sdk-a', 'sdk-a', 'sdk-b', 'sdk-b', 'sdk-a', 'sdk-a']);
+		assert.deepStrictEqual(service.standardEvents, []);
+	});
+
+	test('text and tools omit unavailable SDK identity without changing suppression rules', async () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		for (const sdkSessionId of [undefined, '']) {
+			await reporter.userMessageText(session, chat, AgentHostClientType.AgentsWindow, 'prompt', 0, sdkSessionId);
+			await reporter.assistantMessageReceived(session, chat, AgentHostClientType.AgentsWindow, 'request', tools, sdkSessionId);
+			await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, 'response', 0, 'request', sdkSessionId);
+		}
+		await reporter.userMessageText(session, chat, AgentHostClientType.AgentsWindow, '', 0, 'sdk-a');
+		await reporter.assistantMessageReceived(session, chat, AgentHostClientType.AgentsWindow, undefined, tools, 'sdk-a');
+		await reporter.assistantMessageReceived(session, chat, AgentHostClientType.AgentsWindow, 'request', [], 'sdk-a');
+		await reporter.modelMessageText(session, chat, AgentHostClientType.AgentsWindow, '', 0, 'request', 'sdk-a');
+		assert.deepStrictEqual(service.enhancedEvents.map(({ properties }) => Object.hasOwn(properties!, 'sdkSessionId')), [false, false, false, false, false, false]);
 	});
 
 	test('toolCallDetails emits standard and restricted aggregates whenever tools were available, and no-ops when none were', async () => {
@@ -1104,5 +1188,28 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.enhancedEvents.length, 1);
 		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionId, '');
 		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionVersion, '');
+	});
+
+	test('skillInvoked reports the invocation trigger, bounding unknown values', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const base = { provider: 'copilotcli', session, owner: session, turnId: 'turn-1' };
+
+		reporter.skillInvoked({ ...base, sdkEventId: 'e1', trigger: 'agent-invoked', isSubagentInvocation: false, telemetryContext: { copilotSku: 'sku-a' } });
+		reporter.skillInvoked({ ...base, sdkEventId: 'e2', trigger: 'something-new', isSubagentInvocation: true });
+
+		const chatSessionId = getTelemetryChatSessionId(session);
+		assert.deepStrictEqual(service.standardEvents, [
+			{ eventName: 'agentHost.skillInvoked', data: { copilotSku: 'sku-a', provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e1', trigger: 'agent-invoked', isSubagentInvocation: false } },
+			{ eventName: 'agentHost.skillInvoked', data: { provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e2', trigger: 'unknown', isSubagentInvocation: true } },
+		]);
+	});
+
+	test('reports a trusted model router as modelRouter, never its name', () => {
+		assert.deepStrictEqual([
+			toTelemetryModel('model-router:secret', 'trusted'),
+			toTelemetryModel('claude-opus-5', 'trusted'),
+			toTelemetryModel('model-router:secret', 'unknown'),
+		], [new TelemetryTrustedValue('modelRouter'), new TelemetryTrustedValue('claude-opus-5'), 'unknown']);
 	});
 });

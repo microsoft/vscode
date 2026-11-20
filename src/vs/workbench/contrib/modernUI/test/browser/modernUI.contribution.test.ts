@@ -38,12 +38,15 @@ import { WorkbenchState } from '../../../../../platform/workspace/common/workspa
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
 import '../../../../browser/media/style.css';
+import '../../../../browser/media/part.css';
 import '../../../../browser/media/floatingPanels.css';
 import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
 import '../../../../browser/parts/editor/media/multieditortabscontrol.css';
 import '../../../../browser/parts/editor/media/modalEditorPart.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
+import '../../../../browser/parts/sidebar/media/sidebarpart.css';
+import '../../../../browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
 import '../../../../browser/parts/statusbar/media/statusbarpart.css';
 import '../../../../browser/parts/titlebar/media/menubarControl.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
@@ -51,6 +54,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
 import '../../../../browser/parts/notifications/media/notificationsToasts.css';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class ModernUITestPane extends Pane {
 
@@ -123,12 +127,17 @@ function createEditorTabLabel(parent: HTMLElement, extraClasses?: string): { lab
 function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean, icon = false): { actionItem: HTMLElement; actionLabel: HTMLElement; indicator: HTMLElement } {
 	root.style.setProperty('--vscode-spacing-size20', '2px');
 	root.style.setProperty('--vscode-spacing-size40', '4px');
+	root.style.setProperty('--vscode-spacing-size60', '6px');
+	root.style.setProperty('--vscode-spacing-size100', '10px');
+	root.style.setProperty('--vscode-spacing-size160', '16px');
 	root.style.setProperty('--vscode-spacing-size240', '24px');
+	root.style.setProperty('--vscode-spacing-size280', '28px');
 	root.style.setProperty('--vscode-spacing-size320', '32px');
+	root.style.setProperty('--vscode-spacing-size360', '36px');
 	root.style.setProperty('--vscode-fontWeight-regular', '400');
 	root.style.setProperty('--vscode-fontWeight-semiBold', '600');
 	const part = appendElement(root, 'part pane-composite-part');
-	const title = appendElement(part, 'title');
+	const title = appendElement(part, 'title has-composite-bar');
 	title.style.height = `${titleHeight}px`;
 	const compositeBarContainer = appendElement(title, 'composite-bar-container');
 	const compositeBar = appendElement(compositeBarContainer, 'composite-bar');
@@ -138,6 +147,8 @@ function createCompositeAction(root: HTMLElement, titleHeight: number, checked: 
 	actionItem.tabIndex = 0;
 	const actionLabel = appendElement(actionItem, 'action-label');
 	const indicator = appendElement(actionItem, 'active-item-indicator');
+	appendElement(indicator, 'tab-connected-edge');
+	appendElement(actionItem, 'tab-divider');
 	return { actionItem, actionLabel, indicator };
 }
 
@@ -842,7 +853,7 @@ suite('ModernUIContribution', () => {
 		root.className = 'monaco-workbench modern-ui';
 
 		function createExplorerTitles(workbenchState: WorkbenchState, configuration: URI | null) {
-			const preserveCase = shouldPreserveWorkspaceNameCase(workbenchState, { id: 'test', folders: [], configuration }, TestEnvironmentService);
+			const preserveCase = shouldPreserveWorkspaceNameCase(workbenchState, testIWorkspace({ id: 'test', folders: [], configuration }), TestEnvironmentService);
 			const part = appendElement(root, preserveCase ? `part ${PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS}` : 'part');
 			const mergedTitle = document.createElement('h2');
 			appendElement(appendElement(part, 'title'), 'title-label').appendChild(mergedTitle);
@@ -1000,6 +1011,967 @@ suite('ModernUIContribution', () => {
 			auxiliaryLabelWeight: '400',
 			agentsLabelWeight: '400',
 		});
+	});
+
+	for (const theme of ['', 'vs', 'hc-black', 'hc-light']) {
+		test(`connects text and icon pane tabs to their own surfaces (${theme || 'vs-dark'})`, () => {
+			const root = document.createElement('div');
+			root.className = `monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs ${theme}`;
+			for (const [name, value] of Object.entries({
+				'--vscode-strokeThickness': '1px',
+				'--vscode-cornerRadius-small': '4px',
+				'--vscode-cornerRadius-medium': '6px',
+				'--vscode-sideBar-background': '#123456',
+				'--vscode-panel-background': '#654321',
+				'--vscode-modernPanel-border': '#778899',
+				'--vscode-activityBarTop-activeBorder': '#ffffff',
+				'--vscode-contrastBorder': '#abcdef',
+				'--modern-ui-connected-tab-strip-background': '#223344',
+			})) {
+				root.style.setProperty(name, value);
+			}
+			document.body.appendChild(root);
+			store.add(toDisposable(() => root.remove()));
+
+			const actual = [];
+			const expected = [];
+			for (const partClass of ['sidebar', 'panel', 'auxiliarybar']) {
+				for (const headerClass of ['title', 'header-or-footer header', 'header-or-footer footer']) {
+					for (const icon of [false, true]) {
+						const { actionItem, actionLabel, indicator } = createCompositeAction(root, 32, true, icon);
+						const part = actionItem.closest('.part')!;
+						part.classList.add(partClass);
+						const title = actionItem.closest<HTMLElement>('.title')!;
+						title.className = headerClass === 'title' ? 'title has-composite-bar' : headerClass;
+						actionLabel.classList.toggle('codicon', icon);
+						const targetWindow = getWindow(root);
+						const style = targetWindow.getComputedStyle(indicator);
+						const edgeStyle = targetWindow.getComputedStyle(indicator.querySelector('.tab-connected-edge')!);
+						const shoulder = targetWindow.getComputedStyle(indicator, '::before');
+						const footer = headerClass.endsWith('footer');
+						const toolbar = appendElement(title, 'title-actions');
+						actual.push({
+							partClass, headerClass, icon,
+							targetHeight: actionItem.getBoundingClientRect().height,
+							capHeight: indicator.getBoundingClientRect().height,
+							padding: [targetWindow.getComputedStyle(actionItem).paddingLeft, targetWindow.getComputedStyle(actionItem).paddingRight],
+							capInlineInset: [style.left, style.right],
+							iconWidth: icon ? actionItem.getBoundingClientRect().width : undefined,
+							background: style.backgroundColor,
+							borderColor: edgeStyle.borderTopColor,
+							strokeClip: edgeStyle.clipPath,
+							shoulderColor: shoulder.borderBottomColor,
+							borderBottom: style.borderBottomWidth,
+							firstEdge: [style.borderLeftWidth, style.borderTopLeftRadius, shoulder.content],
+							transform: style.transform,
+							shoulder: [shoulder.display, shoulder.width, shoulder.borderBottomRightRadius, shoulder.borderBottomWidth],
+							strip: targetWindow.getComputedStyle(title).backgroundImage,
+							bodySeam: targetWindow.getComputedStyle(title).boxShadow,
+							toolbar: targetWindow.getComputedStyle(toolbar).backgroundColor,
+							pointerEvents: style.pointerEvents,
+						});
+						expected.push({
+							partClass, headerClass, icon,
+							targetHeight: 32,
+							capHeight: 32,
+							padding: icon ? ['10px', '10px'] : ['16px', '16px'],
+							capInlineInset: ['0px', '0px'],
+							iconWidth: icon ? 36 : undefined,
+							background: partClass === 'panel' ? 'rgb(101, 67, 33)' : 'rgb(18, 52, 86)',
+							borderColor: theme.startsWith('hc-') ? 'rgb(171, 205, 239)' : 'rgb(119, 136, 153)',
+							strokeClip: 'inset(0px 0px 7px)',
+							shoulderColor: theme.startsWith('hc-') ? 'rgb(171, 205, 239)' : 'rgb(119, 136, 153)',
+							borderBottom: '0px',
+							firstEdge: ['0px', '0px', 'none'],
+							transform: footer ? 'matrix(1, 0, 0, -1, 0, 0)' : 'none',
+							shoulder: ['block', '7px', '7px', '1px'],
+							strip: 'linear-gradient(rgb(34, 51, 68), rgb(34, 51, 68))',
+							bodySeam: `${theme.startsWith('hc-') ? 'rgb(171, 205, 239)' : 'rgb(119, 136, 153)'} 0px ${footer ? '1px' : '-1px'} 0px 0px inset`,
+							toolbar: 'rgba(0, 0, 0, 0)',
+							pointerEvents: 'none',
+						});
+					}
+				}
+			}
+			assert.deepStrictEqual(actual, expected);
+		});
+	}
+
+	test('connected pane geometry switches with the option without changing inactive tabs or Agents headers', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs';
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const active = createCompositeAction(root, 32, true);
+		const inactive = createCompositeAction(root, 32, false, true);
+		const targetWindow = getWindow(root);
+		const state = () => [active, inactive].map(({ indicator }) => {
+			const style = targetWindow.getComputedStyle(indicator);
+			return { height: style.height, radius: style.borderRadius, transform: style.transform };
+		});
+		const pill = state();
+		root.classList.add('modern-ui-connected-editor-tabs');
+		const connected = state();
+		root.classList.add('agent-sessions-workbench');
+		const agents = state();
+		root.classList.remove('agent-sessions-workbench', 'modern-ui');
+		const disabled = state();
+		root.classList.add('modern-ui');
+		root.classList.remove('modern-ui-connected-editor-tabs');
+		assert.deepStrictEqual({ pill, connected, agents, disabled, restored: state() }, {
+			pill: [{ height: '24px', radius: '4px', transform: 'matrix(1, 0, 0, 1, 0, -12)' }, { height: '24px', radius: '4px', transform: 'matrix(1, 0, 0, 1, 0, -12)' }],
+			connected: [{ height: '32px', radius: '0px 7px 0px 0px', transform: 'none' }, { height: '24px', radius: '4px', transform: 'matrix(1, 0, 0, 1, -12, -12)' }],
+			agents: pill,
+			disabled: pill,
+			restored: pill,
+		});
+	});
+
+	test('legacy and Agents underline colors are retained while Pill underlines stay hidden', () => {
+		const actual = [];
+		for (const classes of [
+			'monaco-workbench',
+			'monaco-workbench modern-ui modern-ui-tabs',
+			'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs agent-sessions-workbench',
+		]) {
+			const root = document.createElement('div');
+			root.className = classes;
+			root.style.setProperty('--vscode-activityBarTop-activeBorder', '#ffffff');
+			document.body.appendChild(root);
+			store.add(toDisposable(() => root.remove()));
+			for (const partClass of ['sidebar', 'auxiliarybar']) {
+				const { actionItem, indicator } = createCompositeAction(root, 32, true, true);
+				actionItem.closest('.part')!.classList.add(partClass);
+				actionItem.closest('.title')!.className = 'header-or-footer footer';
+				const style = getWindow(root).getComputedStyle(indicator, '::before');
+				actual.push(root.classList.contains('modern-ui') ? style.display : style.borderBottomColor);
+			}
+		}
+		assert.deepStrictEqual(actual, [
+			'rgb(255, 255, 255)', 'rgb(255, 255, 255)',
+			'none', 'none',
+			'rgb(255, 255, 255)', 'rgb(255, 255, 255)',
+		]);
+	});
+
+	test('connected pane styling leaves standalone view titles untinted', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs hc-black';
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		root.style.setProperty('--modern-ui-connected-tab-strip-background', '#223344');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const { actionItem, indicator } = createCompositeAction(root, 32, true, true);
+		const targetWindow = getWindow(root);
+		const actual = {
+			strip: targetWindow.getComputedStyle(actionItem.closest('.title')!).backgroundImage,
+			shoulder: targetWindow.getComputedStyle(indicator, '::before').display,
+			height: targetWindow.getComputedStyle(indicator).height,
+		};
+		actionItem.closest('.title')!.classList.remove('has-composite-bar');
+		assert.deepStrictEqual({ ...actual, standaloneBackground: targetWindow.getComputedStyle(actionItem.closest('.title')!).backgroundImage }, {
+			strip: 'linear-gradient(rgb(34, 51, 68), rgb(34, 51, 68))',
+			shoulder: 'block',
+			height: '32px',
+			standaloneBackground: 'none',
+		});
+	});
+
+	test('connected pane overflow controls retain their original width', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const { actionItem } = createCompositeAction(root, 32, false, true);
+		actionItem.setAttribute('aria-haspopup', 'true');
+		assert.strictEqual(actionItem.getBoundingClientRect().width, 28);
+	});
+
+	test('connected pane dividers match editor colors and only separate inactive tabs', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-tab-divider', '#223344');
+		root.style.setProperty('--activity-bar-action-gap', '8px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const first = createCompositeAction(root, 32, false);
+		const actions = first.actionItem.parentElement!;
+		const items = [first.actionItem];
+		for (let index = 0; index < 4; index++) {
+			const item = appendElement(actions, 'action-item');
+			appendElement(item, 'tab-divider');
+			items.push(item);
+		}
+		items[4].setAttribute('aria-haspopup', 'true');
+		const targetWindow = getWindow(root);
+		const displays = () => items.map(item => targetWindow.getComputedStyle(item.querySelector('.tab-divider')!).display);
+		const allInactive = displays();
+		items[0].classList.add('checked');
+		const firstSelected = displays();
+		items[0].classList.remove('checked');
+		items[2].classList.add('checked');
+		const middleSelected = displays();
+		const divider = items[1].querySelector('.tab-divider')!;
+		const horizontal = targetWindow.getComputedStyle(divider);
+		const horizontalStyle = { width: horizontal.width, height: horizontal.height, color: horizontal.backgroundColor, pointerEvents: horizontal.pointerEvents };
+		const container = first.actionItem.closest('.composite-bar-container')!;
+		container.classList.add('dragged-over');
+		const dragging = displays();
+		container.classList.remove('dragged-over');
+		root.classList.remove('modern-ui-connected-editor-tabs');
+		const pill = displays();
+		root.classList.add('modern-ui-connected-editor-tabs', 'agent-sessions-workbench');
+		const agents = displays();
+		root.classList.remove('agent-sessions-workbench');
+
+		const bar = first.actionItem.closest<HTMLElement>('.composite-bar')!;
+		const part = first.actionItem.closest<HTMLElement>('.part')!;
+		part.className = 'part activitybar left';
+		const content = appendElement(part, 'content');
+		content.appendChild(bar);
+		assert.deepStrictEqual({
+			allInactive, firstSelected, middleSelected, dragging, pill, agents,
+			horizontal: horizontalStyle,
+			verticalDisplays: displays(),
+		}, {
+			allInactive: ['none', 'block', 'block', 'block', 'none'],
+			firstSelected: ['none', 'none', 'block', 'block', 'none'],
+			middleSelected: ['none', 'block', 'none', 'none', 'none'],
+			dragging: ['none', 'none', 'none', 'none', 'none'],
+			pill: ['none', 'none', 'none', 'none', 'none'],
+			agents: ['none', 'none', 'none', 'none', 'none'],
+			horizontal: { width: '1px', height: '16px', color: 'rgb(34, 51, 68)', pointerEvents: 'none' },
+			verticalDisplays: ['none', 'none', 'none', 'none', 'none'],
+		});
+	});
+
+	test('connected pane caps share the card stroke and only the first tab omits its leading edge', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs floating-panels';
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		root.style.setProperty('--vscode-cornerRadius-large', '8px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const actual = [];
+		const expected = [];
+		for (const footer of [false, true]) {
+			const { actionItem, indicator } = createCompositeAction(root, 32, true);
+			const part = actionItem.closest<HTMLElement>('.part')!;
+			part.classList.add('panel');
+			part.style.width = '200px';
+			const header = actionItem.closest<HTMLElement>('.title')!;
+			if (footer) {
+				header.className = 'header-or-footer footer';
+			}
+			const targetWindow = getWindow(root);
+			const capture = () => {
+				const style = targetWindow.getComputedStyle(indicator.querySelector('.tab-connected-edge')!);
+				const shoulder = targetWindow.getComputedStyle(indicator, '::before');
+				const frame = part.getBoundingClientRect();
+				const cap = indicator.getBoundingClientRect();
+				return {
+					frameEdge: footer ? cap.bottom - frame.bottom : cap.top - frame.top,
+					leftInset: cap.left - frame.left,
+					height: cap.height,
+					leadingStroke: style.borderLeftWidth,
+					leadingRadius: style.borderTopLeftRadius,
+					leadingShoulder: shoulder.content,
+				};
+			};
+			actual.push(capture());
+			expected.push({ frameEdge: 0, leftInset: 1, height: 33, leadingStroke: '0px', leadingRadius: '7px 8px', leadingShoulder: 'none' });
+
+			const previous = document.createElement('div');
+			previous.className = 'action-item';
+			actionItem.before(previous);
+			const middle = capture();
+			actual.push({ leadingStroke: middle.leadingStroke, leadingRadius: middle.leadingRadius, leadingShoulder: middle.leadingShoulder });
+			expected.push({ leadingStroke: '1px', leadingRadius: '7px', leadingShoulder: '""' });
+		}
+		assert.deepStrictEqual(actual, expected);
+	});
+
+	test('floating connected headers follow the card frame across layout changes', () => {
+		const actual = [];
+		const expected = [];
+		for (const partClass of ['sidebar', 'auxiliarybar', 'panel']) {
+			for (const stripClass of ['composite title has-composite-bar', 'header-or-footer header']) {
+				if (partClass === 'sidebar' && stripClass.startsWith('composite')) {
+					continue;
+				}
+				const root = document.createElement('div');
+				root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs floating-panels noactivitybar hc-black';
+				root.style.cssText = 'position: absolute; left: 20px; top: 20px; width: 240px; height: 120px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-medium: 6px; --vscode-cornerRadius-large: 8px; --vscode-surface-border: #778899; --vscode-modernPanel-border: #778899; --vscode-contrastBorder: #abcdef; --vscode-focusBorder: #13579b;';
+				document.body.appendChild(root);
+				store.add(toDisposable(() => root.remove()));
+
+				const { actionItem, indicator } = createCompositeAction(appendElement(root, 'monaco-grid-view'), 32, true, stripClass.startsWith('header'));
+				const part = actionItem.closest<HTMLElement>('.part')!;
+				part.classList.add(partClass);
+				if (partClass !== 'sidebar') {
+					part.classList.add('basepanel', partClass === 'panel' ? 'bottom' : 'right');
+				}
+				part.style.cssText = 'position: relative; width: 200px; height: 96px;';
+				const strip = actionItem.closest<HTMLElement>('.title')!;
+				strip.className = stripClass;
+				const edge = indicator.querySelector<HTMLElement>('.tab-connected-edge')!;
+				edge.style.pointerEvents = 'auto';
+				const targetWindow = getWindow(root);
+				const geometry = () => {
+					const partStyle = targetWindow.getComputedStyle(part);
+					const capStyle = targetWindow.getComputedStyle(indicator);
+					const edgeStyle = targetWindow.getComputedStyle(edge);
+					const frame = part.getBoundingClientRect();
+					return {
+						borderBoxClip: partStyle.overflow === 'clip' && partStyle.getPropertyValue('overflow-clip-margin') === 'border-box'
+							|| partStyle.overflow === 'visible' && partStyle.clipPath.startsWith('inset('),
+						stripRadius: targetWindow.getComputedStyle(strip).borderTopLeftRadius,
+						capRadius: capStyle.borderTopLeftRadius,
+						capBackgroundClip: capStyle.backgroundClip,
+						edgeClip: edgeStyle.clipPath,
+						edgeColor: edgeStyle.borderTopColor,
+						perimeterVisible: targetWindow.document.elementFromPoint(frame.left + 16.5, frame.top + 0.5) === edge,
+					};
+				};
+				const rounded = geometry();
+				actionItem.focus();
+				// Electron can retain document.activeElement while its window is inactive, so CSS :focus does not match.
+				const hasCssFocus = actionItem.matches(':focus');
+				const focusedStyle = targetWindow.getComputedStyle(indicator);
+				const focused = {
+					active: targetWindow.document.activeElement === actionItem,
+					outline: hasCssFocus ? [focusedStyle.outlineStyle, focusedStyle.outlineWidth, focusedStyle.outlineColor] : undefined,
+					capRadius: focusedStyle.borderTopLeftRadius,
+				};
+				actionItem.blur();
+				root.classList.add('modern-ui-compact');
+				const compact = geometry();
+				root.classList.remove('modern-ui-compact', 'modern-ui-connected-editor-tabs');
+				const pill = targetWindow.getComputedStyle(part).overflow;
+				root.classList.add('modern-ui-connected-editor-tabs', 'agent-sessions-workbench');
+				const agents = targetWindow.getComputedStyle(part).overflow;
+				actual.push({ partClass, stripClass, rounded, focused, compact, pill, agents });
+				expected.push({
+					partClass, stripClass,
+					rounded: { borderBoxClip: true, stripRadius: '8px', capRadius: '7px 8px', capBackgroundClip: 'padding-box', edgeClip: 'inset(0px 0px 7px 7px)', edgeColor: 'rgb(171, 205, 239)', perimeterVisible: true },
+					focused: { active: true, outline: hasCssFocus ? ['solid', '1px', 'rgb(19, 87, 155)'] : undefined, capRadius: '7px 8px' },
+					compact: { borderBoxClip: true, stripRadius: '0px', capRadius: '0px', capBackgroundClip: 'border-box', edgeClip: 'inset(0px 0px 7px)', edgeColor: 'rgb(171, 205, 239)', perimeterVisible: true },
+					pill: 'hidden',
+					agents: 'hidden',
+				});
+			}
+		}
+		assert.deepStrictEqual(actual, expected);
+	});
+
+	test('plain floating titles follow the sidebar card frame', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-connected-editor-tabs floating-panels');
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;';
+		store.add(toDisposable(() => root.remove()));
+		const part = appendElement(appendElement(root, 'monaco-grid-view'), 'part pane-composite-part sidebar left');
+		const title = appendElement(part, 'title');
+		const targetWindow = getWindow(root);
+		const capture = (strip: HTMLElement) => {
+			const partStyle = targetWindow.getComputedStyle(part);
+			const stripStyle = targetWindow.getComputedStyle(strip);
+			return {
+				part: [partStyle.borderTopLeftRadius, partStyle.borderTopRightRadius],
+				strip: [stripStyle.borderTopLeftRadius, stripStyle.borderTopRightRadius],
+			};
+		};
+
+		const withActivityBar = capture(title);
+		root.classList.add('noactivitybar');
+		const withoutActivityBar = capture(title);
+		root.classList.add('modern-ui-compact');
+		const compact = capture(title);
+		root.classList.remove('modern-ui-compact');
+		const header = appendElement(part, 'header-or-footer header');
+		part.prepend(header);
+		const withTopHeader = { header: capture(header), title: capture(title) };
+
+		assert.deepStrictEqual({ withActivityBar, withoutActivityBar, compact, withTopHeader }, {
+			withActivityBar: { part: ['0px', '8px'], strip: ['0px', '8px'] },
+			withoutActivityBar: { part: ['8px', '8px'], strip: ['8px', '8px'] },
+			compact: { part: ['0px', '0px'], strip: ['0px', '0px'] },
+			withTopHeader: {
+				header: { part: ['8px', '8px'], strip: ['8px', '8px'] },
+				title: { part: ['8px', '8px'], strip: ['0px', '0px'] },
+			},
+		});
+	});
+
+	test('frame-touching caps follow Activity Bar and native window corners', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs floating-panels noactivitybar';
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-medium: 6px; --vscode-cornerRadius-large: 8px; --modern-ui-window-corner-radius: 16px;';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const header = createCompositeAction(root, 32, true);
+		const footer = createCompositeAction(root, 32, true);
+		const part = header.actionItem.closest<HTMLElement>('.part')!;
+		part.className = 'part pane-composite-part sidebar left floating-part-outer-left floating-part-outer-bottom';
+		header.actionItem.closest<HTMLElement>('.title')!.className = 'header-or-footer header';
+		const footerStrip = appendElement(part, 'header-or-footer footer');
+		footerStrip.appendChild(footer.actionItem.closest<HTMLElement>('.composite-bar-container')!);
+		const targetWindow = getWindow(root);
+		const fallback = targetWindow.getComputedStyle(part).overflow === 'visible';
+		const capture = () => ({
+			radii: [
+				targetWindow.getComputedStyle(header.indicator).borderTopLeftRadius,
+				targetWindow.getComputedStyle(footer.indicator).borderTopLeftRadius,
+			],
+			clip: targetWindow.getComputedStyle(part).clipPath,
+		});
+		const actual = [capture()];
+		root.classList.remove('noactivitybar');
+		actual.push(capture());
+		root.classList.add('mac', 'nostatusbar');
+		actual.push(capture());
+		root.classList.add('fullscreen');
+		actual.push(capture());
+		root.classList.remove('fullscreen');
+		part.classList.replace('left', 'right');
+		part.classList.replace('floating-part-outer-left', 'floating-part-outer-right');
+		actual.push(capture());
+		root.classList.add('web');
+		actual.push(capture());
+		root.classList.add('modern-ui-compact');
+		actual.push(capture());
+		const clip = (value: string) => fallback ? value : 'none';
+		assert.deepStrictEqual(actual, [
+			{ radii: ['7px 8px', '7px 8px'], clip: clip('inset(0px round 8px)') },
+			{ radii: ['0px', '0px'], clip: clip('inset(0px round 0px 8px 8px 0px)') },
+			{ radii: ['0px', '15px 16px'], clip: clip('inset(0px round 0px 8px 8px 16px)') },
+			{ radii: ['0px', '0px'], clip: clip('inset(0px round 0px 8px 8px 0px)') },
+			{ radii: ['7px 8px', '7px 8px'], clip: clip('inset(0px round 8px 0px 16px 8px)') },
+			{ radii: ['7px 8px', '7px 8px'], clip: clip('inset(0px round 8px 0px 0px 8px)') },
+			{ radii: ['0px', '0px'], clip: clip('inset(0px)') },
+		]);
+	});
+
+	test('repaints the connected pane frame without clipping content overlays', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs floating-panels noactivitybar';
+		root.style.cssText = 'position: absolute; top: 20px; left: 20px; width: 600px; height: 200px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-medium: 6px; --vscode-cornerRadius-large: 8px; --vscode-toolsPanel-cornerRadius: 8px; --vscode-primarySideBar-cornerRadius: 8px; --modern-ui-floating-card-stroke-width: 1px; --vscode-modernPanel-border: #778899; --vscode-surface-border: #778899;';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const targetWindow = getWindow(root);
+		const createPart = (className: string, left: number) => {
+			const part = appendElement(root, `part pane-composite-part ${className}`);
+			part.style.cssText = `position: absolute; top: 0; left: ${left}px; width: 240px; height: 120px; margin: 0;`;
+			const content = appendElement(part, 'content');
+			content.style.cssText = 'position: absolute; top: 32px; left: 1px; width: 238px; height: 87px;';
+			return { part, content };
+		};
+		const panel = createPart('panel', 0);
+		const completion = appendElement(panel.content, 'workbench-suggest-widget');
+		const panelBounds = panel.part.getBoundingClientRect();
+		completion.style.cssText = `display: block; position: fixed; z-index: 40; top: ${panelBounds.top + 8}px; left: ${panelBounds.left + 80}px; width: 60px; height: 12px;`;
+		const sidebar = createPart('sidebar left', 300);
+		const progress = appendElement(sidebar.content, 'monaco-progress-container');
+		const sidebarBounds = sidebar.part.getBoundingClientRect();
+		progress.style.cssText = `position: fixed; z-index: 5; top: ${sidebarBounds.top + 8}px; left: ${sidebarBounds.left + 80}px; width: 60px; height: 12px;`;
+		const frame = () => {
+			const corner = (pseudo: '::before' | '::after') => {
+				const style = targetWindow.getComputedStyle(panel.part, pseudo);
+				return {
+					borderBottomWidth: style.borderBottomWidth,
+					borderBottomLeftRadius: style.borderBottomLeftRadius,
+					borderBottomRightRadius: style.borderBottomRightRadius,
+					height: style.height,
+					width: style.width,
+					zIndex: style.zIndex,
+				};
+			};
+			return {
+				left: corner('::before'),
+				right: corner('::after'),
+			};
+		};
+		const overlays = {
+			completion: targetWindow.document.elementFromPoint(panelBounds.left + 100, panelBounds.top + 14) === completion,
+			progress: targetWindow.document.elementFromPoint(sidebarBounds.left + 100, sidebarBounds.top + 14) === progress,
+			panelContentClip: targetWindow.getComputedStyle(panel.content).clipPath,
+			sidebarContentClip: targetWindow.getComputedStyle(sidebar.content).clipPath,
+		};
+		const rounded = frame();
+		appendElement(panel.part, 'workbench-suggest-widget').style.display = 'none';
+		const withTrailingOverlay = frame();
+		root.style.setProperty('--vscode-toolsPanel-cornerRadius', '2px');
+		const customized = frame();
+		panel.part.classList.add('has-footer');
+		const footer = appendElement(panel.part, 'header-or-footer footer');
+		const withFooter = {
+			frame: frame(),
+			footerRadii: [
+				targetWindow.getComputedStyle(footer).borderBottomLeftRadius,
+				targetWindow.getComputedStyle(footer).borderBottomRightRadius,
+			],
+		};
+		root.classList.add('modern-ui-compact');
+		panel.part.classList.remove('has-footer');
+		const compact = frame();
+		const visibleFrame = (radius: string) => ({
+			left: {
+				borderBottomWidth: '1px',
+				borderBottomLeftRadius: radius,
+				borderBottomRightRadius: '0px',
+				height: radius,
+				width: radius,
+				zIndex: '4',
+			},
+			right: {
+				borderBottomWidth: '1px',
+				borderBottomLeftRadius: '0px',
+				borderBottomRightRadius: radius,
+				height: radius,
+				width: radius,
+				zIndex: '4',
+			},
+		});
+		const hiddenFrame = {
+			left: {
+				borderBottomWidth: '0px',
+				borderBottomLeftRadius: '0px',
+				borderBottomRightRadius: '0px',
+				height: 'auto',
+				width: 'auto',
+				zIndex: 'auto',
+			},
+			right: {
+				borderBottomWidth: '0px',
+				borderBottomLeftRadius: '0px',
+				borderBottomRightRadius: '0px',
+				height: 'auto',
+				width: 'auto',
+				zIndex: 'auto',
+			},
+		};
+
+		assert.deepStrictEqual({ overlays, rounded, withTrailingOverlay, customized, withFooter, compact }, {
+			overlays: {
+				completion: true,
+				progress: true,
+				panelContentClip: 'none',
+				sidebarContentClip: 'none',
+			},
+			rounded: visibleFrame('8px'),
+			withTrailingOverlay: visibleFrame('8px'),
+			customized: visibleFrame('2px'),
+			withFooter: {
+				frame: hiddenFrame,
+				footerRadii: ['2px', '2px'],
+			},
+			compact: hiddenFrame,
+		});
+	});
+
+	test('lower frame repaints align with the card border rather than its padding edge', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-connected-editor-tabs floating-panels');
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px; --vscode-modernPanel-border: #778899; --vscode-surface-border: #778899; --window-corner-radius: 20px; --vscode-spacing-size40: 4px;';
+		store.add(toDisposable(() => root.remove()));
+		const targetWindow = getWindow(root);
+		root.style.setProperty('--window-device-pixel-ratio', String(targetWindow.devicePixelRatio));
+		const actual = [];
+		const expected = [];
+
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const className of ['panel bottom', 'sidebar left', 'sidebar right', 'auxiliarybar']) {
+				const part = appendElement(root, `part pane-composite-part ${className} floating-part-outer-left floating-part-outer-right floating-part-outer-bottom`);
+				part.style.cssText = 'position: relative; width: 240px; height: 120px;';
+				for (const radius of ['0px', '2px', '8px', '16px']) {
+					for (const token of ['toolsPanel', 'primarySideBar', 'secondarySideBar']) {
+						root.style.setProperty(`--vscode-${token}-cornerRadius`, radius);
+					}
+					for (const zoom of [1, 1.25, 1.5, 2]) {
+						root.style.zoom = String(zoom);
+						root.style.setProperty('--window-device-pixel-ratio', String(targetWindow.devicePixelRatio * zoom));
+						for (const nativeWindow of [false, true]) {
+							root.classList.toggle('mac', nativeWindow);
+							root.classList.toggle('nostatusbar', nativeWindow);
+							const frame = targetWindow.getComputedStyle(part);
+							const left = targetWindow.getComputedStyle(part, '::before');
+							const right = targetWindow.getComputedStyle(part, '::after');
+							const aligned = (offset: number) => Math.abs(offset) < 1 / 64;
+							const state = { theme, className, radius, zoom, nativeWindow };
+							actual.push({
+								...state,
+								left: aligned(parseFloat(frame.borderLeftWidth) + parseFloat(left.left) - parseFloat(left.width) - parseFloat(left.borderLeftWidth)),
+								right: aligned(parseFloat(frame.borderRightWidth) + parseFloat(right.right) - parseFloat(right.width) - parseFloat(right.borderRightWidth)),
+								bottom: [left, right].map(corner => aligned(parseFloat(frame.borderBottomWidth) + parseFloat(corner.bottom) - parseFloat(corner.height) - parseFloat(corner.borderBottomWidth))),
+								boxSizing: [left.boxSizing, right.boxSizing],
+								translate: [left.translate, right.translate],
+								radii: [left.borderBottomLeftRadius, right.borderBottomRightRadius],
+							});
+							expected.push({
+								...state,
+								left: true,
+								right: true,
+								bottom: [true, true],
+								boxSizing: ['content-box', 'content-box'],
+								translate: ['-100% 100%', '100% 100%'],
+								radii: [frame.borderBottomLeftRadius, frame.borderBottomRightRadius],
+							});
+						}
+					}
+				}
+				part.remove();
+			}
+			root.classList.remove(theme, 'mac', 'nostatusbar');
+		}
+
+		assert.deepStrictEqual(actual, expected);
+	});
+
+	test('floating connected caps follow their semantic corner-radius customizations', () => {
+		const actual = [];
+		const expected = [];
+		for (const { partClass, token, radius, capRadius } of [
+			{ partClass: 'panel', token: '--vscode-toolsPanel-cornerRadius', radius: '0px', capRadius: '0px' },
+			{ partClass: 'sidebar', token: '--vscode-primarySideBar-cornerRadius', radius: '2px', capRadius: '1px 2px' },
+			{ partClass: 'auxiliarybar', token: '--vscode-secondarySideBar-cornerRadius', radius: '4px', capRadius: '3px 4px' },
+		]) {
+			const root = document.createElement('div');
+			root.className = 'monaco-workbench modern-ui modern-ui-connected-editor-tabs floating-panels noactivitybar';
+			root.style.cssText = `--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px; ${token}: ${radius};`;
+			document.body.appendChild(root);
+			store.add(toDisposable(() => root.remove()));
+
+			const { actionItem, indicator } = createCompositeAction(root, 32, true);
+			const part = actionItem.closest<HTMLElement>('.part')!;
+			part.classList.add(partClass);
+			const targetWindow = getWindow(root);
+			const partStyle = targetWindow.getComputedStyle(part);
+			const frameRadius = partStyle.borderTopLeftRadius;
+			const clipPath = partStyle.overflow === 'visible' ? partStyle.clipPath : 'not-applicable';
+			actual.push({
+				frameRadius,
+				capRadius: targetWindow.getComputedStyle(indicator).borderTopLeftRadius,
+				clipPath,
+			});
+			expected.push({
+				frameRadius: radius,
+				capRadius,
+				clipPath: partStyle.overflow === 'visible' ? (radius === '0px' ? 'inset(0px)' : `inset(0px round ${radius})`) : 'not-applicable',
+			});
+		}
+		assert.deepStrictEqual(actual, expected);
+	});
+
+	test('floating connected footers paint through the strip without covering the card perimeter', () => {
+		const actual = [];
+		const expected = [];
+		for (const partClass of ['sidebar', 'auxiliarybar']) {
+			for (const compact of [false, true]) {
+				for (const theme of ['', 'hc-black', 'hc-light']) {
+					const root = document.createElement('div');
+					root.className = `monaco-workbench modern-ui modern-ui-tabs floating-panels noactivitybar ${theme}${compact ? ' modern-ui-compact' : ''}`;
+					root.style.cssText = 'position: absolute; left: 20px; top: 20px; width: 240px; height: 100px;';
+					for (const [name, value] of Object.entries({
+						'--vscode-strokeThickness': '1px',
+						'--vscode-spacing-sizeNone': '0px',
+						'--vscode-spacing-size40': '4px',
+						'--vscode-cornerRadius-small': '4px',
+						'--vscode-cornerRadius-medium': '6px',
+						'--vscode-cornerRadius-large': '8px',
+						'--vscode-sideBar-background': '#123456',
+						'--vscode-surface-background': '#123456',
+						'--vscode-surface-border': '#778899',
+						'--vscode-modernPanel-border': '#778899',
+						'--vscode-contrastBorder': '#abcdef',
+						'--modern-ui-connected-tab-strip-background': '#223344',
+					})) {
+						root.style.setProperty(name, value);
+					}
+					document.body.appendChild(root);
+					store.add(toDisposable(() => root.remove()));
+
+					const { actionItem, indicator } = createCompositeAction(appendElement(root, 'monaco-grid-view'), 32, true, true);
+					const part = actionItem.closest<HTMLElement>('.part')!;
+					part.classList.add(partClass);
+					part.style.cssText = 'position: relative; width: 200px;';
+					const footer = actionItem.closest<HTMLElement>('.title')!;
+					footer.className = 'header-or-footer footer';
+					const content = appendElement(part, 'content');
+					content.style.height = '32px';
+					footer.before(content);
+					const joinProbe = appendElement(indicator, 'join-probe');
+					joinProbe.style.cssText = 'position: absolute; top: calc(100% - 1px); left: 16px; width: 1px; height: 1px; pointer-events: auto;';
+					const outsideProbe = appendElement(part, 'outside-probe');
+					outsideProbe.style.cssText = 'position: absolute; top: 16px; left: calc(100% + 1px); width: 1px; height: 1px;';
+					const targetWindow = getWindow(root);
+					const edge = indicator.querySelector<HTMLElement>('.tab-connected-edge')!;
+					const clips = () => ({
+						card: targetWindow.getComputedStyle(part).overflow,
+						footer: targetWindow.getComputedStyle(footer).overflow,
+					});
+					const isVisible = (element: HTMLElement) => {
+						const bounds = element.getBoundingClientRect();
+						return targetWindow.document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2) === element;
+					};
+					const pill = clips();
+					root.classList.add('modern-ui-connected-editor-tabs');
+					const edgeStyle = targetWindow.getComputedStyle(edge);
+					const edgeColor = edgeStyle.borderTopColor;
+					const edgePointerEvents = edgeStyle.pointerEvents;
+					edge.style.pointerEvents = 'auto';
+					const frame = part.getBoundingClientRect();
+					const footerBounds = footer.getBoundingClientRect();
+					const joinBounds = joinProbe.getBoundingClientRect();
+					const edgeAt = (x: number) => targetWindow.document.elementFromPoint(x, frame.bottom - 0.5) === edge;
+					const connected = {
+						perimeterVisible: edgeAt(frame.left + 16.5),
+						cornerStrokeVisible: edgeAt(frame.left + 4.5),
+						edgeColor,
+						edgePointerEvents,
+						joinVisible: isVisible(joinProbe),
+						joinAtContentEdge: joinBounds.top === footerBounds.top,
+						spillClipped: !isVisible(outsideProbe),
+						cardRadius: targetWindow.getComputedStyle(part).borderRadius,
+					};
+					indicator.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+					const scroll = [part.scrollLeft, part.scrollTop];
+					const previous = appendElement(actionItem.parentElement!, 'action-item icon');
+					actionItem.before(previous);
+					const middle = {
+						edgeColor: targetWindow.getComputedStyle(edge).borderTopColor,
+						edgeClip: targetWindow.getComputedStyle(edge).clipPath,
+						perimeterVisible: edgeAt(edge.getBoundingClientRect().left + 16.5),
+					};
+					root.classList.add('agent-sessions-workbench');
+					const agents = clips();
+					root.classList.remove('agent-sessions-workbench', 'modern-ui-connected-editor-tabs');
+					actual.push({ partClass, compact, theme, pill, connected, scroll, middle, agents, restored: clips() });
+					const legacyClips = { card: 'hidden', footer: 'hidden' };
+					const expectedEdgeColor = theme ? 'rgb(171, 205, 239)' : 'rgb(119, 136, 153)';
+					expected.push({
+						partClass, compact, theme,
+						pill: legacyClips,
+						connected: {
+							perimeterVisible: true,
+							cornerStrokeVisible: compact,
+							edgeColor: expectedEdgeColor,
+							edgePointerEvents: 'none',
+							joinVisible: true,
+							joinAtContentEdge: true,
+							spillClipped: true,
+							cardRadius: compact ? '0px' : '8px',
+						},
+						scroll: [0, 0],
+						middle: { edgeColor: expectedEdgeColor, edgeClip: 'inset(0px 0px 7px)', perimeterVisible: true },
+						agents: legacyClips,
+						restored: legacyClips,
+					});
+				}
+			}
+		}
+		assert.deepStrictEqual(actual, expected);
+	});
+
+	test('selected horizontal tab shoulders retain their shape through focus and blur', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const actual = [];
+		for (const position of ['header', 'footer']) {
+			const { actionItem, indicator } = createCompositeAction(root, 32, true, true);
+			actionItem.closest('.part')!.classList.add('sidebar');
+			actionItem.closest('.title')!.className = `header-or-footer ${position}`;
+			const previous = appendElement(actionItem.parentElement!, 'action-item icon');
+			actionItem.before(previous);
+			const targetWindow = getWindow(root);
+			const capture = () => ['::before', '::after'].map(pseudo => {
+				const style = targetWindow.getComputedStyle(indicator, pseudo);
+				return { radius: style.borderRadius, top: style.top, bottom: style.bottom };
+			});
+			const initial = capture();
+			actionItem.focus();
+			assert.strictEqual(document.activeElement, actionItem);
+			const focused = capture();
+			actionItem.blur();
+			actual.push({ initial, focused, blurred: capture() });
+		}
+		const shoulders = [
+			{ radius: '0px 0px 7px', top: '24px', bottom: '0px' },
+			{ radius: '0px 0px 0px 7px', top: '24px', bottom: '0px' },
+		];
+		assert.deepStrictEqual(actual, [
+			{ initial: shoulders, focused: shoulders, blurred: shoulders },
+			{ initial: shoulders, focused: shoulders, blurred: shoulders },
+		]);
+	});
+
+	test('the first horizontal tab retains its leading edge while a compact menu precedes it', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const actual = [];
+		for (const position of ['header', 'footer']) {
+			const { actionItem, indicator } = createCompositeAction(root, 32, true, true);
+			actionItem.closest('.part')!.classList.add('sidebar');
+			actionItem.closest('.title')!.className = `header-or-footer ${position}`;
+			const bar = actionItem.closest<HTMLElement>('.composite-bar')!;
+			const targetWindow = getWindow(root);
+			const capture = () => ({
+				radius: targetWindow.getComputedStyle(indicator).borderTopLeftRadius,
+				stroke: targetWindow.getComputedStyle(indicator.querySelector('.tab-connected-edge')!).borderLeftWidth,
+				shoulder: targetWindow.getComputedStyle(indicator, '::before').content,
+			});
+			const initial = capture();
+			const menu = document.createElement('div');
+			menu.className = 'menubar compact';
+			menu.style.width = '38px';
+			menu.style.flexShrink = '0';
+			bar.before(menu);
+			const menuVisible = capture();
+			menu.remove();
+			actual.push({ initial, menuVisible, menuRemoved: capture() });
+		}
+		const frameEdge = { radius: '0px', stroke: '0px', shoulder: 'none' };
+		const freestanding = { radius: '7px', stroke: '1px', shoulder: '""' };
+		assert.deepStrictEqual(actual, [
+			{ initial: frameEdge, menuVisible: freestanding, menuRemoved: frameEdge },
+			{ initial: frameEdge, menuVisible: freestanding, menuRemoved: frameEdge },
+		]);
+	});
+
+	test('pane caps use the same convex radius as editor tabs', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs floating-panels';
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const strip = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(strip, 'tabs-container');
+		const editorFill = appendElement(appendElement(tabs, 'tab active'), 'tab-fill');
+		const paneFill = createCompositeAction(root, 32, true).indicator;
+		const targetWindow = getWindow(root);
+		const actual = ['6px', '8px'].map(radius => {
+			root.style.setProperty('--vscode-cornerRadius-medium', radius);
+			return [
+				targetWindow.getComputedStyle(editorFill).borderTopRightRadius,
+				targetWindow.getComputedStyle(paneFill).borderTopRightRadius,
+			];
+		});
+		assert.deepStrictEqual(actual, [['7px', '7px'], ['9px', '9px']]);
+	});
+
+	test('connected tabs leave the default Activity Bar selection unchanged', () => {
+		for (const { compact, baseWidth } of [
+			{ compact: false, baseWidth: 36 },
+			{ compact: false, baseWidth: 28 },
+			{ compact: true, baseWidth: 36 },
+			{ compact: true, baseWidth: 28 },
+		]) {
+			for (const side of ['left', 'right']) {
+				for (const theme of ['', 'hc-black', 'hc-light']) {
+					const root = document.createElement('div');
+					root.className = `monaco-workbench modern-ui modern-ui-tabs floating-panels ${theme}${compact ? ' modern-ui-compact' : ''}`;
+					root.style.display = 'inline-flex';
+					for (const [name, value] of Object.entries({
+						'--vscode-spacing-sizeNone': '0px',
+						'--vscode-spacing-size20': '2px',
+						'--vscode-spacing-size40': '4px',
+						'--vscode-spacing-size80': '8px',
+						'--vscode-strokeThickness': '1px',
+						'--vscode-cornerRadius-small': '4px',
+						'--vscode-cornerRadius-medium': '6px',
+						'--activity-bar-width': `${baseWidth}px`,
+						'--activity-bar-action-height': `${baseWidth}px`,
+						'--vscode-sideBar-background': '#123456',
+						'--vscode-modernActivityBarItem-activeBackground': '#234567',
+						'--vscode-modernPanel-border': '#778899',
+						'--vscode-contrastBorder': '#abcdef',
+					})) {
+						root.style.setProperty(name, value);
+					}
+					document.body.appendChild(root);
+					store.add(toDisposable(() => root.remove()));
+					const activityBar = appendElement(root, `part activitybar ${side}`);
+					activityBar.classList.toggle('compact', baseWidth === 28);
+					const content = appendElement(activityBar, 'content');
+					const actionBar = appendElement(appendElement(content, 'composite-bar'), 'monaco-action-bar vertical');
+					const actions = appendElement(actionBar, 'actions-container');
+					const item = appendElement(actions, 'action-item checked');
+					appendElement(item, 'action-label codicon');
+					const indicator = appendElement(item, 'active-item-indicator');
+					appendElement(indicator, 'tab-connected-edge');
+					const targetWindow = getWindow(root);
+					const capture = () => {
+						const style = targetWindow.getComputedStyle(indicator);
+						const bounds = indicator.getBoundingClientRect();
+						return {
+							size: [bounds.width, bounds.height],
+							radius: style.borderRadius,
+							background: style.backgroundColor,
+							outline: style.outline,
+							overflow: targetWindow.getComputedStyle(activityBar).overflow,
+							frameOverlay: targetWindow.getComputedStyle(activityBar, '::after').content,
+							shoulder: targetWindow.getComputedStyle(indicator, '::after').content,
+						};
+					};
+					const pill = capture();
+					root.classList.add('modern-ui-connected-editor-tabs');
+					const connected = capture();
+					root.classList.remove('modern-ui-connected-editor-tabs');
+					assert.deepStrictEqual({ connected, restored: capture() }, { connected: pill, restored: pill });
+				}
+			}
+		}
+	});
+
+	test('connected icon hover fills remain square and centered in top and bottom strips', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const actual = ['title', 'header-or-footer header', 'header-or-footer footer'].map(headerClass => {
+			const { actionItem, actionLabel, indicator } = createCompositeAction(root, 32, false, true);
+			actionItem.closest('.title')!.className = headerClass;
+			actionLabel.style.width = '16px';
+			actionLabel.style.height = '16px';
+			const fill = indicator.getBoundingClientRect();
+			const label = actionLabel.getBoundingClientRect();
+			return {
+				size: [fill.width, fill.height],
+				centerOffset: [fill.left + fill.width / 2 - label.left - label.width / 2, fill.top + fill.height / 2 - label.top - label.height / 2],
+			};
+		});
+		assert.deepStrictEqual(actual, [
+			{ size: [24, 24], centerOffset: [0, 0] },
+			{ size: [24, 24], centerOffset: [0, 0] },
+			{ size: [24, 24], centerOffset: [0, 0] },
+		]);
 	});
 
 	test('pane composite overflow uses the icon foreground', () => {

@@ -8,7 +8,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../base/common/life
 import { ILogService } from '../../log/common/log.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { CompletionItem, CompletionItemKind, CompletionsParams, CompletionsResult } from '../common/state/protocol/commands.js';
-import { isAhpChatChannel, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, type Customization, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export const IAgentHostCompletions = createDecorator<IAgentHostCompletions>('agentHostCompletions');
@@ -66,6 +66,14 @@ export interface IAgentHostCompletionContext {
 	 * current clients send). `undefined` when the host knows neither.
 	 */
 	readonly chat: ProtocolURI | undefined;
+
+	/**
+	 * The customizations the host last published for the session that owns
+	 * the requested channel. Providers on the keystroke path read these
+	 * instead of resolving the session's customizations again, which can wait
+	 * on the agent runtime. `undefined` when the host has published none yet.
+	 */
+	readonly customizations?: readonly Customization[];
 }
 
 /**
@@ -135,6 +143,7 @@ export class AgentHostCompletions extends Disposable implements IAgentHostComple
 			chat: isAhpChatChannel(params.channel)
 				? (this._stateManager.getChatOwner(params.channel) !== undefined ? params.channel : undefined)
 				: this._stateManager.getDefaultChat(params.channel),
+			customizations: this._stateManager.getSessionState(params.channel)?.customizations,
 		};
 		const settled = await Promise.allSettled(
 			matching.map(p => p.provideCompletionItems(params, context, token)),

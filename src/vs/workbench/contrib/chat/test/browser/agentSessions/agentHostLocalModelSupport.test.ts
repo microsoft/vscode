@@ -104,6 +104,11 @@ suite('AgentHostLocalModelSupport', () => {
 			fallbackExplainabilityHidden: getLocalModelTurnPresentation({ execution: 'fallback', fallbackModel: 'gpt-5-mini' }, { ...context, hideCloudModelName: true })?.name,
 			direct: getLocalModelTurnPresentation({ execution: 'local' }, { ...context, isAuto: false }),
 			unnamed: [getLocalModelTurnPresentation({ execution: 'local' }, { ...context, localName: undefined })?.name, getLocalModelTurnPresentation({ execution: 'local' }, { ...context, isAuto: false, localName: undefined })?.name],
+			fusion: [
+				getLocalModelTurnPresentation({ execution: 'local', familyId: mai.familyId }, { ...context, fusion: true })?.name,
+				getLocalModelTurnPresentation({ execution: 'fallback', fallbackModel: 'gpt-5-mini' }, { ...context, fusion: true })?.routed?.reason,
+				getLocalModelTurnPresentation({ execution: 'mixed', fallbackModel: 'gpt-5-mini' }, { ...context, fusion: true })?.name,
+			],
 		}, {
 			local: {
 				name: 'Auto (Example Flash 1.0 \u00b7 On-device)',
@@ -126,6 +131,11 @@ suite('AgentHostLocalModelSupport', () => {
 			fallbackExplainabilityHidden: 'Auto (a cloud model)',
 			direct: { name: 'Example Flash 1.0 \u00b7 On-device', pricing: 'No usage limit' },
 			unnamed: ['Auto (On-device model)', 'On-device model'],
+			fusion: [
+				'Copilot Fusion (Example Flash 1.0 \u00b7 On-device)',
+				'Copilot Fusion routed task to GPT-5 mini. The on-device model was unavailable, so a cloud model was used.',
+				'Copilot Fusion (On-device + GPT-5 mini)',
+			],
 		});
 	});
 

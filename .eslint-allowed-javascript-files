@@ -9,7 +9,9 @@
 # Lines starting with `#` are comments. Blank lines are ignored.
 
 .github/skills/heap-snapshot-analysis/helpers/streamSnapshot.mjs
+.pnpmfile.mjs
 .vscode-test.js
+build/.pnpmfile.mjs
 build/azure-pipelines/common/installPlaywright.js
 build/azure-pipelines/github-check-run.js
 build/builtin/browser-main.js
@@ -30,7 +32,6 @@ extensions/copilot/.vscode-test.mjs
 extensions/copilot/.vscode/extensions/visualization-runner/entry.js
 extensions/copilot/script/electron/simulationWorkbenchMain.js
 extensions/copilot/src/extension/completions-core/vscode-node/extension/test/run.js
-extensions/copilot/src/extension/test/node/fixtures/gitdiff/generate-diffs.js
 extensions/copilot/src/platform/parser/test/node/fixtures/test.js
 extensions/copilot/test/simulation/fixtures/review/binary-search-1.js
 extensions/copilot/test/simulation/fixtures/review/binary-search-2.js
@@ -54,7 +55,6 @@ extensions/microsoft-authentication/packageMocks/dpapi/dpapi.js
 extensions/microsoft-authentication/packageMocks/keytar/index.js
 extensions/objective-c/build/update-grammars.js
 extensions/php/build/update-grammar.mjs
-extensions/postinstall.mjs
 extensions/razor/build/update-grammar.mjs
 extensions/rust/build/update-grammar.mjs
 extensions/search-result/syntaxes/generateTMLanguage.js
@@ -70,6 +70,7 @@ extensions/vscode-colorize-tests/test/colorize-fixtures/test.js
 extensions/vscode-colorize-tests/test/colorize-fixtures/test6916.js
 extensions/yaml/build/update-grammar.js
 gulpfile.mjs
+remote/.pnpmfile.mjs
 scripts/chat-simulation/common/perf-scenarios.js
 scripts/chat-simulation/common/utils.js
 scripts/chat-simulation/merge-ci-summary.js

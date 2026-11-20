@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -21,6 +21,7 @@ import { AgentHostCodexEnabledConfigKey } from '../../common/agentHostSchema.js'
 import type { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { buildChatUri, MessageKind } from '../../common/state/sessionState.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -42,6 +43,7 @@ class ChatAgent extends MockAgent {
 
 	constructor(id: string, private readonly _defaultMode: string, multipleChats = true, multipleWorkingDirectories = false) {
 		super(id, { ...(multipleChats ? { multipleChats: { fork: true, sideChat: true } } : {}), ...(multipleWorkingDirectories ? { multipleWorkingDirectories: {} } : {}) });
+		this.initialChatProviderData = `${id}-backing`;
 		const createChat = this.chats.createChat;
 		this.chats.createChat = (chat, context, options) => {
 			this.onCreateChat?.(chat);
@@ -122,11 +124,30 @@ suite('AgentService - chats with their own agent', () => {
 		return { session, chat };
 	}
 
+	/**
+	 * Resolves once the host has stored a spawned `chat`: its agent and then its row. The host stores them in the
+	 * background of the spawn event, through asynchronous database writes, so a test awaits this rather than a fixed
+	 * time. Call it before the event that spawns the chat.
+	 */
+	function whenSpawnedChatStored(service: AgentService, chat: URI): Promise<void> {
+		const database = getTestAgentHostDatabase(service);
+		const insert = database.insertPrivateChatV2.bind(database);
+		const stored = new DeferredPromise<void>();
+		database.insertPrivateChatV2 = async (...args) => {
+			const result = await insert(...args);
+			if (args[1].chat === chat.toString() && (result.status === 'applied' || result.status === 'replayed')) {
+				stored.complete();
+			}
+			return result;
+		};
+		return stored.p;
+	}
+
 	/** Completes a first turn in `chat`: a chat moves only once its first turn started. */
 	function startTurn(service: AgentService, chat: URI | string): void {
 		const stateManager = getTestAgentStateManager(service);
-		stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
-		stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
+		stateManager.dispatchServerAction(chat.toString(), chatTurnStarted('first-turn', 'Hello', new Date(0).toISOString()));
+		stateManager.dispatchServerAction(chat.toString(), chatTurnComplete('first-turn', 1));
 	}
 
 	async function rejection(promise: Promise<unknown>): Promise<string | undefined> {
@@ -515,7 +536,7 @@ suite('AgentService - chats with their own agent', () => {
 			await sendTurn(service, second, chat, 'copilot-model');
 			const ignored = { changed: second.changeModelCalls.map(call => call.model.id), sent: second.sendMessageCalls.length };
 			second.sendMessageCalls.length = 0;
-			getTestAgentStateManager(service).dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'turn-copilot-model', duration: 1 });
+			getTestAgentStateManager(service).dispatchServerAction(chat.toString(), chatTurnComplete('turn-copilot-model', 1));
 			await sendTurn(service, second, chat, 'second-model');
 
 			assert.deepStrictEqual({ ignored, applied: second.changeModelCalls.map(call => call.model.id), copilot: copilot.changeModelCalls.length }, {
@@ -577,14 +598,15 @@ suite('AgentService - chats with their own agent', () => {
 		const { service, second } = createService(true);
 		const { session, chat } = await createSessionWithSecondChat(service);
 		const subagent = URI.parse(buildChatUri(session, 'subagent'));
+		const spawnStored = whenSpawnedChatStored(service, subagent);
 		second.spawnEmitter.fire({ session, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
-		await timeout(10);
-		const recorded = await getTestAgentHostDatabase(service).readChatAgentProviders?.();
+		await spawnStored;
+		const recorded = (await getTestAgentHostDatabase(service).readChatAgentProviders?.())?.get(subagent.toString());
 
 		assert.deepStrictEqual({
 			stateProvider: getTestAgentStateManager(service).getChatProvider(subagent.toString()),
 			agent: getTestAgentHostProviderService(service).getProviderForChat(session, subagent)?.id,
-			recorded: recorded?.get(subagent.toString()),
+			recorded,
 		}, { stateProvider: 'second', agent: 'second', recorded: 'second' });
 	});
 
@@ -642,8 +664,9 @@ suite('AgentService - chats with their own agent', () => {
 		const { service, second } = createService(true);
 		const { session, chat } = await createSessionWithSecondChat(service);
 		const subagent = URI.parse(buildChatUri(session, 'subagent'));
+		const spawnStored = whenSpawnedChatStored(service, subagent);
 		second.spawnEmitter.fire({ session, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
-		await timeout(10);
+		await spawnStored;
 		const database = getTestAgentHostDatabase(service);
 		const before = [...(await database.readChatAgentProviders?.())?.keys() ?? []].sort();
 

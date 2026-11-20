@@ -43,8 +43,6 @@ export async function run(fullPath: string, testFullName: string) {
 		languageModelCacheMode: CacheMode.Default,
 		resourcesCacheMode: CacheMode.Default,
 		disabledTools: new Set(),
-		summarizeHistory: true,
-		useExperimentalCodeSearchService: false,
 		configs: undefined,
 	};
 	const testingServiceCollection = await createSimulationAccessor(

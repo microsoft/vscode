@@ -21,6 +21,7 @@ import './media/chatSystemNotificationContentPart.css';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart } from './chatContentParts.js';
 import { ChatProgressSubPart } from './chatProgressContentPart.js';
+import { renderSubagentChatLinks } from './chatSubagentOpenChat.js';
 
 const transparentButtonStyles: IButtonStyles = {
 	buttonBackground: undefined,
@@ -38,9 +39,15 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 	readonly domNode: HTMLElement;
 	readonly inlineTimingContainer: HTMLElement | undefined;
 
+	/** Whether the notification stays out of the completed-steps disclosure. */
+	get keepVisible(): boolean {
+		return !!this.notification.alwaysVisible;
+	}
+
 	constructor(
 		private readonly notification: IChatSystemNotificationPart,
 		renderer: IMarkdownRenderer,
+		private readonly parentSessionResource: string | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
@@ -110,6 +117,9 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 
 	private _renderNotification(notification: IChatSystemNotificationPart, renderer: IMarkdownRenderer, instantiationService: IInstantiationService): HTMLElement {
 		const rendered = this._register(renderer.render(notification.content));
+		if (this.parentSessionResource) {
+			this._register(renderSubagentChatLinks(rendered.element, this.parentSessionResource, instantiationService));
+		}
 		return this._register(instantiationService.createInstance(ChatProgressSubPart, rendered.element, notification.icon ?? Codicon.check, undefined)).domNode;
 	}
 

@@ -23,8 +23,11 @@ import { IModelPickerComparison } from './modelPickerComparison.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.js';
+import { IAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
 
 export interface IModelPickerPresentationOptions {
+	/** Offered models come from a live provider catalog, not the language model startup cache. */
+	readonly hasLiveModelCatalog?: boolean;
 	readonly showManageModelsAction: boolean;
 	readonly showUnavailableFeatured: boolean;
 	readonly showAutoModel: boolean;
@@ -35,6 +38,8 @@ export interface IModelPickerDelegate {
 	readonly comparison?: IModelPickerComparison;
 	/** Whether a committed comparison is currently being submitted. */
 	readonly comparisonBusy?: IObservable<boolean>;
+	/** May replace an available picker's presentation, leaving unavailable states to the shared widget. */
+	showPicker?(anchor: HTMLElement, configuration: boolean): boolean;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**
@@ -49,6 +54,7 @@ export interface IModelPickerDelegate {
 	 */
 	setModelProgrammatically?(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
+	getAgentModelPreferences?(): IAgentModelPreferences | undefined;
 	/**
 	 * Models offered while configuring a comparison. When omitted, comparisons
 	 * use the same model pool as ordinary selection.
@@ -69,6 +75,12 @@ export interface IModelPickerDelegate {
 	 * the Manage Models editor to that harness's Copilot models.
 	 */
 	getSessionType?(): string | undefined;
+	/**
+	 * Starts the prompt input that owns the picker with the given text, keeping what is already
+	 * written after it, and moves focus there, so the picker can hand the user to a slash command.
+	 * Owners with no prompt to write in omit it.
+	 */
+	startPromptWith?(text: string): void;
 	/** The Agent Host connection the chat runs on, for its on-device models; when omitted, a local Copilot Agent Host chat assumes the local Agent Host. */
 	getLocalModelConnection?(): IAgentConnection | undefined;
 	/**

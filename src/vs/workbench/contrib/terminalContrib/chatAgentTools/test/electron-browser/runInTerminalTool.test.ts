@@ -37,12 +37,13 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatSendRequestOptions, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, type ITerminalSandboxCommand, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../../chat/common/tools/languageModelToolsConfirmationService.js';
 import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultCompressor.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -2811,7 +2812,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		const toolSpecificData = { kind: 'terminal', commandLine: { original: 'npm test' }, language: 'bash' } as IChatTerminalToolInvocationData;
-		// eslint-disable-next-line @typescript-eslint/naming-convention
+		// eslint-disable-next-line ts-eslint-js/naming-convention
 		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'npm test', toolSpecificData);
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -2869,7 +2870,7 @@ suite('RunInTerminalTool', () => {
 			getOutput: () => output,
 		});
 
-		// eslint-disable-next-line @typescript-eslint/naming-convention
+		// eslint-disable-next-line ts-eslint-js/naming-convention
 		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'npm init', toolSpecificData, outputMonitor);
 
@@ -2916,7 +2917,7 @@ suite('RunInTerminalTool', () => {
 			getOutput: () => output,
 		});
 
-		// eslint-disable-next-line @typescript-eslint/naming-convention
+		// eslint-disable-next-line ts-eslint-js/naming-convention
 		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'git --no-pager diff -- foo.ts', toolSpecificData, outputMonitor);
 
@@ -2969,7 +2970,7 @@ suite('RunInTerminalTool', () => {
 		// the agent has already received `output` as the tool result, so the BG
 		// monitor's first re-detection of the same prompt must not fire a steering
 		// message that would yield the agent's in-flight `send_to_terminal` reply.
-		// eslint-disable-next-line @typescript-eslint/naming-convention
+		// eslint-disable-next-line ts-eslint-js/naming-convention
 		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }, alreadyNotifiedInputNeededOutput?: string) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'mkdir -p foo && cd foo && npm init', toolSpecificData, outputMonitor, output);
 
@@ -3025,7 +3026,7 @@ suite('RunInTerminalTool', () => {
 			dispose: () => { },
 		});
 
-		// eslint-disable-next-line @typescript-eslint/naming-convention
+		// eslint-disable-next-line ts-eslint-js/naming-convention
 		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'ssh host', toolSpecificData, outputMonitor);
 
@@ -3116,7 +3117,7 @@ suite('RunInTerminalTool', () => {
 	suite('input-needed steering text', () => {
 		function buildSteeringText(hungHint: 'none' | 'timeout' | 'idleSilence'): string {
 			const sessionResource = LocalChatSessionUri.forSession('input-needed-steering-session');
-			// eslint-disable-next-line @typescript-eslint/naming-convention
+			// eslint-disable-next-line ts-eslint-js/naming-convention
 			return (runInTerminalTool as unknown as { _buildInputNeededSteeringText(s: URI, t: string, h: 'none' | 'timeout' | 'idleSilence'): string })
 				._buildInputNeededSteeringText(sessionResource, 'test-term-id', hungHint);
 		}
@@ -3571,6 +3572,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			readToolSet: new ToolSet('read', 'read', Codicon.book, ToolDataSource.Internal, undefined, undefined, undefined, undefined, undefined, contextKeyService),
 		};
 		instantiationService.stub(ILanguageModelToolsService, mockToolsService as ILanguageModelToolsService);
+		instantiationService.stub(ILanguageModelToolsConfirmationService, { registerConfirmationContribution: () => toDisposable(() => { }) });
 
 		instantiationService.stub(IToolResultCompressor, {
 			_serviceBrand: undefined,
@@ -3604,6 +3606,38 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		await createContribution();
 		ok(registeredToolData.has(TerminalToolId.RunInTerminal), 'Expected run_in_terminal tool to be registered');
 	});
+
+	for (const { key, enabledValue, disabledValue, source } of [
+		{ key: TerminalChatAgentToolsSettingId.EnableAutoApprove, enabledValue: true, disabledValue: false, source: ConfigurationTarget.USER },
+		{ key: ChatConfiguration.GlobalAutoApprove, enabledValue: true, disabledValue: false, source: ConfigurationTarget.USER },
+		{ key: ChatConfiguration.DefaultPermissionLevel, enabledValue: ChatPermissionLevel.AutoApprove, disabledValue: ChatPermissionLevel.Default, source: ConfigurationTarget.USER },
+		{ key: ChatConfiguration.DefaultPermissionLevel, enabledValue: ChatPermissionLevel.Autopilot, disabledValue: ChatPermissionLevel.Default, source: ConfigurationTarget.USER },
+		{ key: ChatConfiguration.DefaultPermissionLevel, enabledValue: ChatPermissionLevel.AutoApprove, disabledValue: ChatPermissionLevel.Default, source: ConfigurationTarget.WORKSPACE },
+	]) {
+		test(`should refresh elevation guidance when ${key} changes to ${enabledValue} and back (source ${source})`, async () => {
+			await configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
+			await configurationService.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, false);
+			await configurationService.setUserConfiguration(ChatConfiguration.DefaultPermissionLevel, ChatPermissionLevel.Default);
+			await createContribution();
+
+			const hasElevationGuidance = () => registeredToolData.get(TerminalToolId.RunInTerminal)?.modelDescription.includes('sudo');
+			const guidanceStates = [hasElevationGuidance()];
+			for (const value of [enabledValue, disabledValue]) {
+				await configurationService.setUserConfiguration(key, value);
+				await waitForToolDataRegistration(() => {
+					configurationService.onDidChangeConfigurationEmitter.fire({
+						affectsConfiguration: candidate => candidate === key,
+						affectedKeys: new Set([key]),
+						source,
+						change: null!,
+					});
+				});
+				guidanceStates.push(hasElevationGuidance());
+			}
+
+			deepStrictEqual(guidanceStates, [false, true, false]);
+		});
+	}
 
 	test('should refresh run_in_terminal tool data when sandbox setting changes', async () => {
 		await createContribution();

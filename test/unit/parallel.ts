@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Runs the unit tests in several worker processes at once (`--workers <count>`).
+ * Runs the unit tests in several worker processes at once (`--workers <count>`): all test files,
+ * or the listed ones (`--runList`).
  *
- * Every worker loads all test files, but a test file only runs in the worker that claims it
+ * Every worker loads all test files of the run, but a test file only runs in the worker that claims it
  * first. Claims are atomic directory creations in a directory shared by all workers, so every
  * file runs exactly once. The browser runner's page claims files through the test server of its
  * worker process. Workers claim files lazily whenever they run out of suites to run, so
@@ -15,8 +16,15 @@
  * process would. This way, tests that leak global state cannot affect tests that ran before
  * them in a single process.
  *
+ * A worker also starts a process, and a window or browser, and loads all test files of the run, so a
+ * run of listed files starts fewer workers for fewer files, but at least 2 for 2 or more files, so
+ * that a slow test file does not hold up all the others (see getWorkerCountForFiles).
+ *
  * Only the first attempt runs in workers. Every worker reports its failures to the process that
  * started it, which reruns them in a single process or browser (see `--rerun-failed-files`).
+ *
+ * `--isolate` instead runs every test file alone in a fresh process (see runEachFileAlone), to find
+ * test files that only pass when the other test files of a run are loaded too.
  */
 
 const cp: typeof import('child_process') = require('child_process');
@@ -90,6 +98,29 @@ function getWorkerCount(value: string | undefined): number {
 		console.log(`Using ${capped} instead of ${count} worker processes: ${cpuLimit} CPUs and ${Math.round(os.totalmem() / 1024 ** 3)} GB of memory available`);
 	}
 	return capped;
+}
+
+/**
+ * The test files per worker of a run of listed files (`--runList`) beyond its first 2 workers. Every
+ * worker starts a process, and a window or browser, and loads all listed test files before it runs its
+ * share, so more workers only pay off for longer lists.
+ */
+const FILES_PER_WORKER = 75;
+
+/**
+ * @param count the number of workers from {@link getWorkerCount}
+ * @param fileCount how many of the listed test files the runner runs
+ * @returns the number of workers to start for a run of listed test files (`--runList`): one per
+ * {@link FILES_PER_WORKER} test files, but at least 2, and at most `count` and one per test file. The
+ * number of files does not tell how long they take: in a single process, one slow test file would hold
+ * up all the others, while a second worker costs about a second.
+ */
+function getWorkerCountForFiles(count: number, fileCount: number): number {
+	const forFiles = Math.max(1, Math.min(count, fileCount, Math.max(2, Math.floor(fileCount / FILES_PER_WORKER))));
+	if (forFiles < count) {
+		console.log(`Using ${forFiles} instead of ${count} worker processes for ${fileCount} test files: one per ${FILES_PER_WORKER} test files, but at least 2 and at most one per test file`);
+	}
+	return forFiles;
 }
 
 /**
@@ -203,6 +234,72 @@ async function runInWorkers({ name, count, command, args }: { name: string; coun
 	const failureCount = failures.length + unattributedFailures.length;
 	await write(`\n=== ${name}: ${failureCount ? `${failureCount} failure(s)` : `all ${count} workers passed`} after ${formatDuration(Date.now() - start)} ===\n`);
 	return { failures, unattributedFailures };
+}
+
+/**
+ * Runs `command args --run <file>` for every test file, each in a fresh process, at most `count`
+ * at once, and prints the output of each process when it finishes. A test file that passes in a
+ * run with other test files but fails here depends on what they load, such as a contribution that
+ * registers something it reads.
+ * @returns the test files whose process failed, in the order of `files`
+ */
+async function runEachFileAlone({ name, files, count, command, args }: { name: string; files: string[]; count: number; command: string; args: string[] }): Promise<string[]> {
+	const parallel = Math.max(1, Math.min(count, files.length));
+	await write(`${name}: running each of ${files.length} test file(s) alone in a fresh process, ${parallel} at once\n`);
+
+	const start = Date.now();
+	const running = new Map<string, import('child_process').ChildProcess>();
+
+	// Name the files that did not finish if we are interrupted, e.g. by a CI step timeout
+	const onSignal = () => {
+		try {
+			fs.writeSync(1, `\n=== ${name}: interrupted while running these test files alone: ===\n${[...running.keys()].join('\n')}\n`);
+		} catch {
+			// best effort
+		}
+		for (const child of running.values()) {
+			child.kill();
+		}
+		process.exit(1);
+	};
+	process.once('SIGINT', onSignal);
+	process.once('SIGTERM', onSignal);
+
+	const failed = new Set<string>();
+	let next = 0;
+	const runNext = async () => {
+		while (next < files.length) {
+			const file = files[next++];
+			const output: Buffer[] = [];
+			const { code, signal } = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => {
+				const child = cp.spawn(command, [...args, '--run', file], { stdio: ['ignore', 'pipe', 'pipe'] });
+				running.set(file, child);
+				child.stdout.on('data', (chunk: Buffer) => output.push(chunk));
+				child.stderr.on('data', (chunk: Buffer) => output.push(chunk));
+				child.on('error', error => output.push(Buffer.from(`${error}\n`)));
+				child.on('close', (code, signal) => {
+					running.delete(file);
+					resolve({ code, signal });
+				});
+			});
+			// test.bat treats 255 as success too, see https://github.com/microsoft/vscode/issues/28582
+			const passed = signal === null && (code === 0 || (process.platform === 'win32' && code === 255));
+			if (!passed) {
+				failed.add(file);
+			}
+			await write(Buffer.concat([
+				Buffer.from(`\n=== ${name}: ${file} ${passed ? 'passed' : 'FAILED'} alone (exit code ${signal ?? code}) after ${formatDuration(Date.now() - start)} ===\n`),
+				...output,
+			]));
+		}
+	};
+
+	await Promise.all(Array.from({ length: parallel }, runNext));
+	process.off('SIGINT', onSignal);
+	process.off('SIGTERM', onSignal);
+
+	await write(`\n=== ${name}: ${failed.size ? `${failed.size} of ${files.length} test file(s) failed alone` : `all ${files.length} test file(s) passed alone`} after ${formatDuration(Date.now() - start)} ===\n`);
+	return files.filter(file => failed.has(file));
 }
 
 /**
@@ -406,4 +503,4 @@ function formatDuration(ms: number): string {
 	return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
 }
 
-module.exports = { getWorkerCount, removeArgument, runInWorkers, writeWorkerReport, trackTestFiles, distributeTestFiles, createTestFileClaims, distributeClaimedTestFiles };
+module.exports = { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, runEachFileAlone, writeWorkerReport, trackTestFiles, distributeTestFiles, createTestFileClaims, distributeClaimedTestFiles };

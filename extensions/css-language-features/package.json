@@ -23,10 +23,10 @@
     }
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
-    "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
-    "test": "npm run test --prefix server",
-    "install-client-next": "npm install vscode-languageclient@next"
+    "compile": "pnpm exec gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
+    "watch": "pnpm exec gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
+    "test": "pnpm -C server run test",
+    "install-client-next": "pnpm add vscode-languageclient@next"
   },
   "categories": [
     "Programming Languages"

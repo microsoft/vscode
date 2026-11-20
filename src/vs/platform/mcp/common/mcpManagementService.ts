@@ -243,7 +243,7 @@ export class McpServerManifestParser {
 			if (input.variables && Object.keys(input.variables).length) {
 				value = replaceMcpServerVariableReferences(value, input.variables);
 				variables.push(...this.getVariables(input.variables));
-			} else if (!value && (input.description || input.choices || input.default !== undefined)) {
+			} else if (!value && (input.isRequired || input.isSecret || input.description || input.choices || input.default !== undefined)) {
 				// Only create auto-generated input variable if no explicit variables and no value
 				variables.push({
 					id: input.name,

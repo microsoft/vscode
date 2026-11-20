@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
-import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
-export default new class ApiEventNaming implements eslint.Rule.RuleModule {
+export default new class ApiEventNaming implements CreateRule {
 
 	private static _nameRegExp = /on(Did|Will)([A-Z][a-z]+)([A-Z][a-z]+)?/;
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		docs: {
 			url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines#event-naming'
 		},
@@ -24,16 +22,16 @@ export default new class ApiEventNaming implements eslint.Rule.RuleModule {
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
 		const config = context.options[0] as { allowed: string[]; verbs: string[] };
 		const allowed = new Set(config.allowed);
 		const verbs = new Set(config.verbs);
 
 		return {
-			['TSTypeAnnotation TSTypeReference Identifier[name="Event"]']: (node: ESTree.Identifier) => {
+			['TSTypeAnnotation TSTypeReference Identifier[name="Event"]']: (node: ESTree.IdentifierReference) => {
 
-				const def = (node as TSESTree.Identifier).parent?.parent?.parent;
+				const def = node.parent?.parent?.parent;
 				const ident = this.getIdent(def);
 
 				if (!ident) {
@@ -83,14 +81,14 @@ export default new class ApiEventNaming implements eslint.Rule.RuleModule {
 		};
 	}
 
-	private getIdent(def: TSESTree.Node | undefined): TSESTree.Identifier | undefined {
+	private getIdent(def: ESTree.Node | null | undefined): ESTree.IdentifierReference | ESTree.IdentifierName | ESTree.BindingIdentifier | undefined {
 		if (!def) {
 			return;
 		}
 
-		if (def.type === AST_NODE_TYPES.Identifier) {
+		if (def.type === 'Identifier') {
 			return def;
-		} else if ((def.type === AST_NODE_TYPES.TSPropertySignature || def.type === AST_NODE_TYPES.PropertyDefinition) && def.key.type === AST_NODE_TYPES.Identifier) {
+		} else if ((def.type === 'TSPropertySignature' || def.type === 'PropertyDefinition') && def.key.type === 'Identifier') {
 			return def.key;
 		}
 

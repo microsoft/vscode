@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { addDisposableListener, getWindow } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { EventType as TouchEventType } from '../../../base/browser/touch.js';
+import { Gesture, EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import type { IManagedHoverContent, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
 import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
-import { timeout } from '../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { isLinuxWebKit } from '../../../base/test/browser/linuxWebKit.js';
 import { Action, IAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Event } from '../../../base/common/event.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
@@ -24,6 +26,7 @@ import { constObservable, derived, observableValue } from '../../../base/common/
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
+import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../platform/actionWidget/browser/actionList.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
@@ -64,6 +67,7 @@ suite('ChatPills', () => {
 						preserveLabelOnRefresh: title !== undefined,
 						ariaLabel: `Open ${typeLabel} #123${title ? ': Live title' : ''}`,
 						dropdownAriaLabel: `#123, Open ${typeLabel}${title ? ': Live title' : ''}`,
+						ariaDescription: undefined,
 					},
 				});
 			});
@@ -80,6 +84,20 @@ suite('ChatPills', () => {
 				labels: ['Recorded title', 'Live title'],
 				identity: Array.from({ length: 2 }, () => ({ badge: '#123', badgeBeforeLabel: true, pillLabel: '#123' })),
 				preserveLabelOnRefresh: [false, true],
+			});
+		});
+
+		test(`${kind} replaces a generic URL description with reference semantics`, () => {
+			const url = `https://github.com/microsoft/vscode/${kind === 'pullRequest' ? 'pull' : 'issues'}/123`;
+			const entry: Pick<IChatPillEntry, 'ariaLabel' | 'ariaDescription'> = { ariaDescription: url };
+			Object.assign(entry, getChatReferencePillPresentation(kind, '#123', undefined, 'Recorded title').entry);
+
+			assert.deepStrictEqual({
+				ariaLabel: entry.ariaLabel,
+				ariaDescription: entry.ariaDescription,
+			}, {
+				ariaLabel: `Open ${typeLabel} #123: Recorded title`,
+				ariaDescription: undefined,
 			});
 		});
 	}
@@ -122,6 +140,41 @@ suite('ChatPills', () => {
 			{ preferred: AnchorPosition.ABOVE, fixed: undefined },
 			{ preferred: AnchorPosition.BELOW, fixed: undefined },
 		]);
+	});
+
+	test('shows the dropdown in the window of the pill, not in the window that has focus', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const pillWindowContainer = mainWindow.document.createElement('div');
+		const focusedWindowContainer = mainWindow.document.createElement('div');
+		instantiationService.stub(ILayoutService, upcastPartial<ILayoutService>({
+			get activeContainer() { return focusedWindowContainer; },
+			getContainer: window => window === mainWindow ? pillWindowContainer : focusedWindowContainer,
+		}));
+		let shownIn: HTMLElement | undefined;
+		instantiationService.stub(IActionWidgetService, {
+			isVisible: false,
+			show: (_user, _preview, _items, _delegate, _anchor, container) => { shownIn = container; },
+			hide: () => { },
+		});
+		const action = store.add(new Action('references', 'References'));
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable<readonly IChatPillSection[]>([{
+			title: 'References',
+			entries: [{ id: 'first', label: 'First', open: () => { } }, { id: 'second', label: 'Second', open: () => { } }],
+		}]), {
+			widgetId: 'references',
+			icon: Codicon.references,
+			title: 'References',
+			summaryLabel: count => `${count} References`,
+			summaryAriaLabel: count => `Show ${count} references`,
+		}));
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		viewItem.render(container);
+
+		container.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.click();
+
+		assert.strictEqual(shownIn, pillWindowContainer);
 	});
 
 	test('prefetches at most five entries on open and exposes deferred prefetch for virtualized rows', () => {
@@ -369,6 +422,32 @@ suite('ChatPills', () => {
 			imageMaxHeight: '350px',
 			imageMinHeight: '0px',
 			imageObjectFit: 'contain',
+		});
+	});
+
+	test('shared image previews show an image at once, and still report its load, when it is previewed again', async () => {
+		const canvas = mainWindow.document.createElement('canvas');
+		canvas.width = canvas.height = 16;
+		const data = decodeBase64(canvas.toDataURL('image/png').split(',')[1]).buffer;
+		const preview = () => {
+			const loaded = new DeferredPromise<void>();
+			const content = createChatImageHoverContent(URI.file('/repo/again.png'), '/repo/again.png', data, 'test-preview-again', () => loaded.complete());
+			store.add(content.disposable);
+			const image = content.element.querySelector<HTMLImageElement>('.chat-image-hover-image')!;
+			return { image, loaded: loaded.p, sourceAtOnce: image.getAttribute('src') };
+		};
+
+		const first = preview();
+		await first.loaded;
+		const second = preview();
+		await second.loaded;
+
+		assert.deepStrictEqual({
+			firstSourceAtOnce: first.sourceAtOnce,
+			secondSharesFirstSource: second.sourceAtOnce === first.image.src,
+		}, {
+			firstSourceAtOnce: null,
+			secondSharesFirstSource: true,
 		});
 	});
 
@@ -946,7 +1025,11 @@ suite('ChatPills', () => {
 		return { row, widget, actions, pills, initialPills, collapsed, labelsVisible, resize, widthWithCollapsed };
 	}
 
-	test('automatic compact mode collapses only the necessary trailing pills and restores them as space returns', () => {
+	// The fonts of WebKit on Linux (Playwright's port) measure the labels wider, so one more pill collapses than in
+	// Chromium and WebKit on macOS
+	const testUnlessLinuxWebKit = isLinuxWebKit ? test.skip : test;
+
+	testUnlessLinuxWebKit('automatic compact mode collapses only the necessary trailing pills and restores them as space returns', () => {
 		const harness = createResponsiveRow();
 		const widths = [0, 1, 2, 3, 4].map(count => harness.widthWithCollapsed(count));
 		const buttons = harness.widget.getPillElements();
@@ -979,7 +1062,7 @@ suite('ChatPills', () => {
 		});
 	});
 
-	test('automatic compact mode recomputes on label and membership changes', async () => {
+	testUnlessLinuxWebKit('automatic compact mode recomputes on label and membership changes', async () => {
 		const harness = createResponsiveRow();
 		const width = harness.widthWithCollapsed(1);
 		harness.resize(width);
@@ -1083,6 +1166,87 @@ suite('ChatPills', () => {
 				middle: { left: true, right: true, masked: true },
 				end: { left: true, right: false, masked: true },
 				resized: { left: false, right: false, masked: false },
+			});
+		});
+	}
+
+	function dispatchTouch(target: HTMLElement, type: 'touchstart' | 'touchmove' | 'touchend', pageX: number) {
+		const touch = { identifier: 1, target, pageX, pageY: 10 };
+		const list = (items: readonly typeof touch[]) => Object.assign([...items], { item: (index: number) => items[index] ?? null });
+		const activeTouches = list(type === 'touchend' ? [] : [touch]);
+		target.dispatchEvent(Object.assign(new mainWindow.Event(type, { bubbles: true, cancelable: true }), {
+			touches: activeTouches,
+			targetTouches: activeTouches,
+			changedTouches: list([touch]),
+		}));
+	}
+
+	for (const empty of [false, true]) {
+		test(`long presses request the pill menu for an ${empty ? 'empty' : 'occupied'} row`, () => {
+			const touchDevice = sinon.stub(Gesture, 'isTouchDevice').returns(true);
+			const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+			store.add(toDisposable(() => touchDevice.restore()));
+			store.add(toDisposable(() => clock.restore()));
+			const harness = createResponsiveRow(false);
+			if (empty) {
+				harness.pills.set([], undefined);
+				harness.row.setEmpty(true, 'Configure Session Status Pills');
+			}
+			const target = empty ? harness.row.content : harness.widget.getPillElements()[0];
+			const anchors: HTMLElement[] = [];
+			store.add(harness.row.onDidRequestContextMenu(anchor => anchors.push(anchor)));
+
+			dispatchTouch(target, 'touchstart', 100);
+			clock.tick(1000);
+			dispatchTouch(target, 'touchend', 100);
+
+			assert.deepStrictEqual(anchors, [target]);
+		});
+	}
+
+	for (const { compact, width } of [
+		{ compact: false, width: 320 },
+		{ compact: false, width: 390 },
+		{ compact: true, width: 60 },
+		{ compact: 'auto', width: 60 },
+	] as const) {
+		test(`touch swipes scroll pills without activating them at width ${width} in compact mode ${compact}`, () => {
+			const touchDevice = sinon.stub(Gesture, 'isTouchDevice').returns(true);
+			store.add(toDisposable(() => touchDevice.restore()));
+			const harness = createResponsiveRow(compact);
+			harness.row.element.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+			harness.row.element.style.setProperty('--vscode-strokeThickness', '1px');
+			harness.actions[0].label = 'Changes to Files in a Repository with a Long Name';
+			harness.resize(width);
+			let activations = 0;
+			harness.actions[0].run = async () => { activations++; };
+			const button = harness.widget.getPillElements()[0];
+			const maximumScrollLeft = harness.row.content.scrollWidth - harness.row.content.clientWidth;
+
+			dispatchTouch(button, 'touchstart', 200);
+			dispatchTouch(button, 'touchmove', 120);
+			const forward = harness.row.content.scrollLeft;
+			dispatchTouch(button, 'touchend', 120);
+			dispatchTouch(button, 'touchstart', 120);
+			dispatchTouch(button, 'touchmove', 300);
+			const backward = harness.row.content.scrollLeft;
+			dispatchTouch(button, 'touchend', 300);
+			const activatedBySwipe = activations;
+			dispatchTouch(button, 'touchstart', 200);
+			dispatchTouch(button, 'touchend', 200);
+
+			assert.deepStrictEqual({
+				overflows: maximumScrollLeft > 0,
+				forward,
+				backward,
+				activatedBySwipe,
+				activatedByTap: activations,
+			}, {
+				overflows: true,
+				forward: Math.min(80, maximumScrollLeft),
+				backward: 0,
+				activatedBySwipe: 0,
+				activatedByTap: 1,
 			});
 		});
 	}

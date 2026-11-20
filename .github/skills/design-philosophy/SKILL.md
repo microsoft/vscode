@@ -105,6 +105,8 @@ The UI should read like a person talking. Prefer a word to a mystery glyph; writ
 
 An explanation should last as long as it's needed. If a field needs a label, its purpose shouldn't disappear when you start typing or wait behind a hover. A clear screen-reader name matters too; neither replaces the other. Gestures need the same kindness: a visible invitation and a keyboard alternative, not a blank patch you have to know to drag.
 
+And an invitation should be honest. A grab hand says *"you can move this"* - does that move make sense in the layout the user can see? Moving a pane beside another, detaching it, and moving the window are different promises. Make the intended one clear, and make sure the gesture delivers it.
+
 *Carried out by:* [words & casing](#words-casing).
 
 ##### Make unavailable features understandable
@@ -167,6 +169,8 @@ How rounded - and how raised - a surface is *means something*: it tells you wher
 
 Equivalent elements must look equivalent, because they pull from the same named scale. When two similar things differ, that difference should *mean* something; accidental drift is the enemy. This is why every size, radius, weight, and color is a **named token with a role**, not a literal - the literal is only ever a stand-in for the token it lands on.
 
+Sameness includes how something responds, not just its resting shape. The same icon in two different-sized buttons still feels like two different controls. Compare the whole thing - the space around it, the hover, the focus, the area you can click. A difference in role or density can earn a difference in treatment; an accident can't.
+
 *Carried out by:* every move below - they *are* the shared scales. See especially [design tokens](#design-tokens), [the spacing ramp](#spacing-ramp), [the type ramp](#type-ramp), [icon sizes](#icon-sizes), [one stroke](#one-stroke).
 
 > **Worked example - two mismatched dialogs**
@@ -184,6 +188,8 @@ Equivalent elements must look equivalent, because they pull from the same named 
 Motion, reveals, and finishing touches are welcome - but each must **do a job**: guide the eye, confirm an action, orient the user, or smooth a jump. If there's no answer to the question, it's decoration, and decoration reads as noise (back to **Calm**). Keep it subtle, short, and interruptible; honor `prefers-reduced-motion`; never animate for its own sake.
 
 A delight bug sounds like *"this transition is doing nothing for me"* (cut it) or *"this jump is disorienting - it needs a functional transition"* (add one) - not a duration or easing value to fiddle with.
+
+Watch the journey, not just the landing. Swapping one view for another shouldn't make a stable layout seem to bounce or resize. Ask *"what is this movement helping me understand?"* of each surface, not the window as a whole. Cut the motion that has no job, keep the motion that does, and check the experience with motion both on and off.
 
 An invitation isn't an interruption. A preview shouldn't open just because the pointer crosses a busy route to another control, or cover a picker the user has already opened. Judge automatic reveals by whether they respect intent; keep explicit click and keyboard activation dependable, even when there is nothing to preview.
 
@@ -364,8 +370,8 @@ A fix isn't finished when one screenshot looks right. The principle should hold 
 - **Name what should get better.** Start with the feeling, surface, and principle. Then find what owns the problem before changing it everywhere. Space between panels and space inside a panel do different jobs, even when they happen to measure the same.
 - **Follow the change.** Hover, then use the keyboard. Open, close, pin, unpin, move, and resize the same surface. Check the themes, densities, and window types the change touches - not every possible combination, but the ones that could tell a different story. The [layout](../ux-css-layout/SKILL.md#8-responsive-layout) and [interaction-state](../ux-theming/SKILL.md#high-contrast-interaction-state-contract) guidance cover the mechanics.
 - **Try the thing, not its description.** A declared radius doesn't prove the corner looks right; a focused element doesn't prove you can see focus. Look at the painted result and use the control. Tests should catch the original problem, not merely confirm the new implementation's description of itself.
-- **Make sure you're seeing the state you mean.** A screenshot called "hover" should actually show hover; a keyboard check should follow the keyboard path. Check empty and already-open states too. Use the [rendered-state guidance](../ux-theming/SKILL.md#testing-rendered-interaction-states) and [fixture guidance](../component-fixtures/SKILL.md#validating-fixtures) to keep that evidence honest.
+- **Make sure you're seeing the state you mean.** A screenshot called "hover" should actually show hover; a keyboard check should follow the keyboard path. Simulating an event isn't always the same as making the interaction happen. Check empty and already-open states too. Use the [rendered-state guidance](../ux-theming/SKILL.md#testing-rendered-interaction-states) and [fixture guidance](../component-fixtures/SKILL.md#validating-fixtures) to keep that evidence honest.
 - **Understand feedback before chasing it.** Several review comments may describe one problem, or include an incorrect proposed remedy. Verify the failure and the API contract, group duplicate findings by root cause, and fix the affected consumers together. A green check may miss the experience entirely; a passing rerun isn't an explanation.
-- **Show the fix you actually shipped.** Capture the final version, look beyond the intended surface for surprises, and check again after a refinement changes the result. Exercise affected interactions before accepting new screenshot baselines. Reuse useful checks rather than repeating everything; a browser capture can't speak for a native window you haven't tried.
+- **Show the fix you actually shipped.** Capture the final version, look beyond the intended surface for surprises, and check again after a refinement changes the result. Exercise the affected interactions before accepting new screenshot baselines. Reuse useful checks rather than repeating everything, and say what was tested and what wasn't - a browser capture can't speak for a native window you haven't tried.
 - **Spend CI time on a question.** Batch the smallest checks that could disprove the fix, including affected shared consumers. Separate implementation errors, fixture-contract errors, and infrastructure failures using the failed step and logs, not the color of the check. Record the revision, commands, results, and gaps; do not reshape the UI to chase an unrelated setup failure. Follow the [CI investigation workflow](../fix-ci-failures/SKILL.md) when remote checks fail.
 - **Check the guidance itself.** A reusable CSS example is an implementation others will copy. Verify that its combined-state selectors express the stated precedence, including intentionally focusable disabled controls. Parse Markdown after structural edits: a missing blank line before `---` can turn prose into a heading.

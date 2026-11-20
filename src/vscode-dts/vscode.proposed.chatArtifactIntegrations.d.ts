@@ -19,6 +19,16 @@ declare module 'vscode' {
 		readonly detailsId: string;
 	}
 
+	/** The presentation of the artifact as a whole. */
+	export interface ChatArtifactMainPresentation extends ChatArtifactPresentation {
+		/**
+		 * Labels the artifact where it shows as a pill of its own, rather than as a row of a pill's dropdown, which shows
+		 * {@link ChatArtifactPresentation.label label}. Keep it short, such as its kind and number: `Papercut #7`.
+		 * One line of plain text. Defaults to the label.
+		 */
+		readonly pillLabel?: string;
+	}
+
 	export interface ChatArtifactSection extends ChatArtifactPresentation {
 		readonly id: string;
 	}
@@ -94,12 +104,12 @@ declare module 'vscode' {
 	/** A complete presentation snapshot; replacing it and firing onDidChange updates every observing surface. */
 	export interface ChatArtifactIntegrationState {
 		readonly availability?: ChatArtifactAvailability;
-		readonly main?: ChatArtifactPresentation;
+		readonly main?: ChatArtifactMainPresentation;
 		/**
 		 * Gives this artifact a pill of its own, shared with every other artifact assigned the same ID, including those of
 		 * other providers, and named by {@link ChatArtifactIntegrationProvider.groupLabel}. Without one, the artifact is listed
-		 * in the pill for its kind, such as Artifacts, with the other artifacts. Only consulted when this provider presents
-		 * the artifact's main part.
+		 * in the pill for its kind, such as Artifacts, with the other artifacts. References are always listed in the
+		 * References pill with the other references. Only consulted when this provider presents the artifact's main part.
 		 */
 		readonly groupId?: string;
 		/**
@@ -271,7 +281,7 @@ declare module 'vscode' {
 	export type ChatArtifactMatchResult = ChatArtifactResourceMatch | {
 		readonly kind: 'authenticationRequired';
 		readonly reason: string;
-		readonly main: ChatArtifactPresentation;
+		readonly main: ChatArtifactMainPresentation;
 	};
 
 	export interface ChatArtifactIntegrationProvider {

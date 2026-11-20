@@ -16,7 +16,7 @@ const markers: FoldingMarkers = {
 };
 
 suite('FoldingRanges', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const foldRange = (from: number, to: number, collapsed: boolean | undefined = undefined, source: FoldSource = FoldSource.provider, type: string | undefined = undefined) =>
 		<FoldRange>{
 			startLineNumber: from,
@@ -67,31 +67,27 @@ suite('FoldingRanges', () => {
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		const textModel = createTextModel(lines.join('\n'));
-		try {
-			const actual = computeRanges(textModel, false, markers);
-			// let r0 = r(1, 2);
-			// let r1 = r(3, 12);
-			// let r2 = r(4, 11);
-			// let r3 = r(5, 6);
-			// let r4 = r(9, 10);
+		const textModel = store.add(createTextModel(lines.join('\n')));
+		const actual = computeRanges(textModel, false, markers);
+		// let r0 = r(1, 2);
+		// let r1 = r(3, 12);
+		// let r2 = r(4, 11);
+		// let r3 = r(5, 6);
+		// let r4 = r(9, 10);
 
-			assert.strictEqual(actual.findRange(1), 0, '1');
-			assert.strictEqual(actual.findRange(2), 0, '2');
-			assert.strictEqual(actual.findRange(3), 1, '3');
-			assert.strictEqual(actual.findRange(4), 2, '4');
-			assert.strictEqual(actual.findRange(5), 3, '5');
-			assert.strictEqual(actual.findRange(6), 3, '6');
-			assert.strictEqual(actual.findRange(7), 2, '7');
-			assert.strictEqual(actual.findRange(8), 2, '8');
-			assert.strictEqual(actual.findRange(9), 4, '9');
-			assert.strictEqual(actual.findRange(10), 4, '10');
-			assert.strictEqual(actual.findRange(11), 2, '11');
-			assert.strictEqual(actual.findRange(12), 1, '12');
-			assert.strictEqual(actual.findRange(13), -1, '13');
-		} finally {
-			textModel.dispose();
-		}
+		assert.strictEqual(actual.findRange(1), 0, '1');
+		assert.strictEqual(actual.findRange(2), 0, '2');
+		assert.strictEqual(actual.findRange(3), 1, '3');
+		assert.strictEqual(actual.findRange(4), 2, '4');
+		assert.strictEqual(actual.findRange(5), 3, '5');
+		assert.strictEqual(actual.findRange(6), 3, '6');
+		assert.strictEqual(actual.findRange(7), 2, '7');
+		assert.strictEqual(actual.findRange(8), 2, '8');
+		assert.strictEqual(actual.findRange(9), 4, '9');
+		assert.strictEqual(actual.findRange(10), 4, '10');
+		assert.strictEqual(actual.findRange(11), 2, '11');
+		assert.strictEqual(actual.findRange(12), 1, '12');
+		assert.strictEqual(actual.findRange(13), -1, '13');
 
 
 	});

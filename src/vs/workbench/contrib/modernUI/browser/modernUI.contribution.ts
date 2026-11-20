@@ -41,6 +41,7 @@ import './media/statusBar.css';
 import './media/suggestWidget.css';
 import './media/tabs.css';
 import './connectedEditorTabs.js';
+import './media/connectedPaneTabs.css';
 import './media/titlebar.css';
 import '../../../services/themes/browser/modernTabColorCustomizations.js';
 

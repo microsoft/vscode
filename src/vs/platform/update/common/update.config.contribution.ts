@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWeb, isWindows } from '../../../base/common/platform.js';
+import { isMacintosh, isWeb, isWindows } from '../../../base/common/platform.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
@@ -71,11 +71,50 @@ configurationRegistry.registerConfiguration({
 			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background."),
 			included: isWindows && !isWeb
 		},
+		'update.enableEarlyStaging': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'auto' },
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			included: isMacintosh && !isWeb,
+			description: localize('enableEarlyStaging', "Controls whether downloaded updates on macOS are staged in the background before restarting, reducing the time it takes to restart and apply an update.")
+		},
+		'update.restartWhenIdle': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'auto' },
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			included: !isWeb,
+			description: localize('restartWhenIdle', "Controls whether to restart automatically to apply a downloaded update after the screen has been locked for a minute while on power, keeping the machine from going to sleep until then. The restart only happens if every window can be restored exactly as it was, for example when no terminal process, task, debug session, chat request, or agent session is running, and it does not take focus from another application. Only supported on macOS."),
+			policy: {
+				name: 'UpdateRestartWhenIdle',
+				category: PolicyCategory.Update,
+				minimumVersion: '1.145',
+				localization: {
+					description: {
+						key: 'restartWhenIdle',
+						value: localize('restartWhenIdle', "Controls whether to restart automatically to apply a downloaded update after the screen has been locked for a minute while on power, keeping the machine from going to sleep until then. The restart only happens if every window can be restored exactly as it was, for example when no terminal process, task, debug session, chat request, or agent session is running, and it does not take focus from another application. Only supported on macOS."),
+					}
+				},
+			}
+		},
 		'update.showReleaseNotes': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
+			tags: ['usesOnlineServices'],
+			agentsWindow: { default: false, readOnly: true },
+		},
+		'update.showReleaseHighlightsVideo': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'auto' },
+			scope: ConfigurationScope.APPLICATION,
+			included: !isWeb,
+			description: localize('showReleaseHighlightsVideo', "Include an available highlights video when opening release notes. The video does not play automatically. Videos are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices'],
 			agentsWindow: { default: false, readOnly: true },
 		},

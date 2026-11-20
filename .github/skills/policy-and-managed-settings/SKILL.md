@@ -27,7 +27,7 @@ Supporting references:
 - New Copilot controls go directly in the shared managed-settings schema/SDK contract. Do not add a VS Code setting to mirror or bridge one.
 - Closed to new properties (existing entries stay for compatibility): GitHub token/account `IPolicyData` fields consumed by `AccountPolicyService`, the legacy VS Code setting bridge, and pre-1.133 permission translation.
 - Split controls: add the runtime capability first and keep existing editor behavior until it ships. Keep both projections semantically aligned; keep permission authorization separate from sandbox containment; make create/resume/removal/peer/subagent/cloud behavior explicit.
-- Every VS Code or extension policy change needs an `agentHostPolicySupport` entry and `npm run export-policy-data`. Never hand-edit `build/lib/policies/policyData.jsonc`.
+- Every VS Code or extension policy change needs an `agentHostPolicySupport` entry and `pnpm run export-policy-data`. Never hand-edit `build/lib/policies/policyData.jsonc`.
 - Never log raw enterprise rules/values or add telemetry containing them.
 - Trust source and tests over these docs. Document decisions and invariants; link to source instead of copying it.
 

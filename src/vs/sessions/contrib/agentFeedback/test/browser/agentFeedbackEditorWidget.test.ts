@@ -26,10 +26,10 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { getIconRegistry, IconContribution } from '../../../../../platform/theme/common/iconRegistry.js';
-import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService, ICodeReviewSuggestion } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { AgentFeedbackEditorWidget, IComposerDraftState } from '../../browser/agentFeedbackEditorWidget.js';
-import { IAgentFeedbackContext } from '../../browser/agentFeedbackEditorUtils.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IAgentFeedbackContext, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 
 suite('AgentFeedbackEditorWidget', () => {

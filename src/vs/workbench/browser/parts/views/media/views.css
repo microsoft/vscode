@@ -167,6 +167,8 @@
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox {
+	/* Stack above the twistie, which is translated over the start of the row contents, so the whole checkbox is clickable */
+	position: relative;
 	width: 16px;
 	height: 16px;
 	margin: 3px 6px 3px 0px;

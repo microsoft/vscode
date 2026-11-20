@@ -18,8 +18,9 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ICanvasService, CanvasInput } from '../common/canvas.js';
 import { registerCanvasCommands } from './canvasCommands.js';
-import { CanvasEditor, SessionCanvasFocusedContext } from './canvasEditor.js';
+import { CanvasEditor } from './canvasEditor.js';
 import { CanvasService } from './canvasService.js';
+import { getFocusedCanvasView, SessionCanvasFocusedContext } from './canvasView.js';
 
 registerSingleton(ICanvasService, CanvasService, InstantiationType.Delayed);
 
@@ -45,6 +46,11 @@ class CanvasesContribution extends Disposable implements IWorkbenchContribution 
 				name: `sessionCanvas-${type}`,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionCanvasFocusedContext),
 				getProvider: accessor => {
+					// Every canvas surface, such as an editor or a pinned canvas page, describes itself.
+					const focused = getFocusedCanvasView();
+					if (focused) {
+						return focused.createAccessibleProvider(type);
+					}
 					const pane = accessor.get(IEditorService).activeEditorPane;
 					return pane instanceof CanvasEditor ? pane.createAccessibleProvider(type) : undefined;
 				},

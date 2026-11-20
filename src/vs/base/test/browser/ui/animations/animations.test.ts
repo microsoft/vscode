@@ -49,13 +49,14 @@ suite('Animations', () => {
 					const effect = particle.getAnimations()[0]?.effect as KeyframeEffect | undefined;
 					const duration = effect?.getTiming().duration;
 					const keyframes = effect?.getKeyframes();
+					// WebKit rounds animation durations to microseconds.
 					return typeof duration === 'number'
 						&& duration >= 1150
 						&& duration < 1510
 						&& keyframes !== undefined
 						&& keyframes.length >= 30
 						&& keyframes.every((keyframe, index) =>
-							keyframe.easing === 'steps(1)' && (index === 0 || (keyframe.computedOffset - keyframes[index - 1].computedOffset) * duration <= 40 + 1e-10));
+							keyframe.easing === 'steps(1)' && (index === 0 || (keyframe.computedOffset - keyframes[index - 1].computedOffset) * duration <= 40 + 1e-3));
 				}),
 				allParticlesHaveShortFalls: particles.every(particle => {
 					const keyframes = (particle.getAnimations()[0]?.effect as KeyframeEffect | undefined)?.getKeyframes() ?? [];

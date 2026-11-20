@@ -23,11 +23,12 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IMobileContentSheetApi } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
-import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
-import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
-import './connectionDiagnosticsService.js';
-import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from './connectionDiagnosticsReport.js';
+import { IMobileContentSheetApi } from '../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
+import { isPhoneLayout } from '../../../../../workbench/browser/parts/sessions/mobileLayout.js';
+import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { ConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsService.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsReport.js';
 
 const connectionDiagnosticsFocused = new RawContextKey<boolean>('connectionDiagnosticsFocused', false);
 
@@ -228,3 +229,5 @@ for (const type of [AccessibleViewType.Help, AccessibleViewType.View]) {
 		getProvider: () => getWorkbenchContribution<ConnectionDiagnosticsContribution>(ConnectionDiagnosticsContribution.ID).getAccessibleProvider(type),
 	});
 }
+
+registerSingleton(IConnectionDiagnosticsService, ConnectionDiagnosticsService, InstantiationType.Delayed);

@@ -11,10 +11,11 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getWindowHost, IFocusedSessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { isSessionCreated, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createParallelTasksTour } from './tours/parallelTasksTour.js';
 
 const SESSION_COUNT_LIMIT = 3;
@@ -30,6 +31,7 @@ export class ParallelTasksTourContribution extends Disposable implements IWorkbe
 	constructor(
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@IStorageService storageService: IStorageService,
 		@IViewsService viewsService: IViewsService,
 	) {
@@ -43,13 +45,15 @@ export class ParallelTasksTourContribution extends Disposable implements IWorkbe
 		})));
 		this._register(sessionsManagementService.onDidStartSession(session => this._startedSessionId.set(session.sessionId, undefined)));
 		this._register(autorun(reader => {
-			const session = sessionsService.activeSession.read(reader);
+			// A session started in the main window: the tour points at its sessions list, not at a chat window's session
+			const host = focusedSessionHostService.focusedHost.read(reader);
+			const session = getWindowHost(host).kind === SessionHostKind.MainWindow ? host.session.read(reader) : undefined;
 			const startedSessionId = this._startedSessionId.read(reader);
 			const eligible = sessionsService.initialRestoreComplete.read(reader)
 				&& createdSessionCount.read(reader) < SESSION_COUNT_LIMIT
 				&& session !== undefined
 				&& session.sessionId === startedSessionId
-				&& session.isCreated.read(reader)
+				&& isSessionCreated(session, reader)
 				&& !session.isArchived.read(reader)
 				&& !session.isAutomation?.read(reader)
 				&& session.status.read(reader) === SessionStatus.InProgress;

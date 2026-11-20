@@ -24,6 +24,7 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, registerWorkbenchServices } from '../fixtureUtils.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 export class FixtureWorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 	constructor(
@@ -117,7 +118,7 @@ export function createMultiDiffEditorFixtureServices(disposableStore: Disposable
 			});
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
-			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 			reg.definePartialInstance(INotebookDocumentService, { getNotebook: () => undefined });
 			reg.define(IListService, ListService);
 			registerWorkbenchServices(reg);

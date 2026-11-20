@@ -1493,6 +1493,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 interface ITestElementTemplateData {
 	current?: TestItemTreeElement;
 	label: HTMLElement;
+	hover: IManagedHover;
 	icon: HTMLElement;
 	wrapper: HTMLElement;
 	actionBar: ActionBar;
@@ -1531,6 +1532,7 @@ class TestItemRenderer extends Disposable
 		const icon = dom.append(wrapper, dom.$('.computed-state'));
 		const label = dom.append(wrapper, dom.$('.label'));
 		const disposable = new DisposableStore();
+		const hover = disposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), label, ''));
 
 		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(icons.testingHiddenIcon)));
 		const actionBar = disposable.add(new ActionBar(wrapper, {
@@ -1554,7 +1556,7 @@ class TestItemRenderer extends Disposable
 			}
 		}));
 
-		const templateData: ITestElementTemplateData = { wrapper, label, actionBar, icon, elementDisposable: new DisposableStore(), templateDisposable: disposable };
+		const templateData: ITestElementTemplateData = { wrapper, label, hover, actionBar, icon, elementDisposable: new DisposableStore(), templateDisposable: disposable };
 		return templateData;
 	}
 
@@ -1562,7 +1564,8 @@ class TestItemRenderer extends Disposable
 	 * @inheritdoc
 	 */
 	disposeTemplate(templateData: ITestElementTemplateData): void {
-		templateData.templateDisposable.clear();
+		templateData.elementDisposable.dispose();
+		templateData.templateDisposable.dispose();
 	}
 
 	/**
@@ -1570,6 +1573,7 @@ class TestItemRenderer extends Disposable
 	 */
 	disposeElement(_element: ITreeNode<TestItemTreeElement, FuzzyScore>, _: number, templateData: ITestElementTemplateData): void {
 		templateData.elementDisposable.clear();
+		templateData.hover.hide();
 	}
 
 	private fillActionBar(element: TestItemTreeElement, data: ITestElementTemplateData) {
@@ -1589,7 +1593,13 @@ class TestItemRenderer extends Disposable
 		data.elementDisposable.clear();
 		data.current = node.element;
 
-		data.elementDisposable.add(node.element.onChange(() => this._renderElement(node, data)));
+		const render = data.elementDisposable.add(new RunOnceScheduler(() => this._renderElement(node, data), 0));
+		data.elementDisposable.add(node.element.onChange(() => {
+			// A batch of test results can update the same parent's state and duration many times.
+			if (!render.isScheduled()) {
+				render.schedule();
+			}
+		}));
 		this._renderElement(node, data);
 	}
 
@@ -1609,7 +1619,7 @@ class TestItemRenderer extends Disposable
 			data.icon.className += ' retired';
 		}
 
-		data.elementDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, getLabelForTestTreeElement(node.element)));
+		data.hover.update(getLabelForTestTreeElement(node.element));
 		if (node.element.test.item.label.trim()) {
 			dom.reset(data.label, ...renderLabelWithIcons(node.element.test.item.label));
 		} else {

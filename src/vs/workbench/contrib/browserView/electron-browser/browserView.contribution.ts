@@ -14,20 +14,16 @@ import { BrowserViewUri } from '../../../../platform/browserView/common/browserV
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { raceTimeout } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
-import { waitForState } from '../../../../base/common/observable.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IBrowserViewCDPService, IBrowserViewModel, IBrowserViewWorkbenchService } from '../common/browserView.js';
+import { BROWSER_FILE_SCHEMES, BrowserRemoteProxyEnabledSettingId, IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
-import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
-import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 // Register actions and browser features
 import './features/webContentsViewRendererFeature.js';
@@ -71,6 +67,8 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IBrowserViewWorkbenchService browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeBrowser}:/**`,
@@ -110,41 +108,48 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 			}
 		);
 
-		for (const extension of ['html', 'htm', 'mhtml', 'mht']) {
-			editorResolverService.registerEditor(
-				`${Schemas.file}:/**/*.${extension}`,
-				{
-					id: BrowserEditorInput.EDITOR_ID,
-					label: localize('browser.htmlEditorLabel', "Integrated Browser"),
-					priority: RegisteredEditorPriority.option
-				},
-				{
-					canSupportResource: resource => resource.scheme === Schemas.file,
-					singlePerResource: true
-				},
-				{
-					createEditorInput: ({ resource, options }) => {
-						logBrowserOpen(telemetryService, 'fileResource');
+		// Only the Agents window has a network resolver for agent hosts.
+		const fileSchemes = BROWSER_FILE_SCHEMES.filter(scheme => scheme !== AGENT_HOST_SCHEME || environmentService.isSessionsWindow);
+		for (const scheme of fileSchemes) {
+			for (const extension of ['html', 'htm', 'mhtml', 'mht']) {
+				editorResolverService.registerEditor(
+					`${scheme}:/**/*.${extension}`,
+					{
+						id: BrowserEditorInput.EDITOR_ID,
+						label: localize('browser.htmlEditorLabel', "Integrated Browser"),
+						priority: RegisteredEditorPriority.option
+					},
+					{
+						canSupportResource: resource => resource.scheme === scheme && (
+							scheme === Schemas.file ||
+							!!configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId)
+						),
+						singlePerResource: true
+					},
+					{
+						createEditorInput: ({ resource, options }) => {
+							logBrowserOpen(telemetryService, 'fileResource');
 
-						const viewState = reviveBrowserEditorViewState(options?.viewState);
-						const browserInput = browserViewWorkbenchService.getOrCreateLazy({
-							id: generateUuid(),
-							associatedResource: resource,
-							...viewState,
-							url: viewState.url ?? resource.toString()
-						});
-						void browserInput.resolve();
+							const viewState = reviveBrowserEditorViewState(options?.viewState);
+							const browserInput = browserViewWorkbenchService.getOrCreateLazy({
+								id: generateUuid(),
+								associatedResource: resource,
+								...viewState,
+								url: viewState.url ?? resource.toString()
+							});
+							void browserInput.resolve();
 
-						return {
-							editor: browserInput,
-							options: {
-								pinned: true,
-								...options
-							}
-						};
+							return {
+								editor: browserInput,
+								options: {
+									pinned: true,
+									...options
+								}
+							};
+						}
 					}
-				}
-			);
+				);
+			}
 		}
 	}
 }
@@ -153,49 +158,3 @@ registerWorkbenchContribution2(BrowserEditorResolverContribution.ID, BrowserEdit
 
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IBrowserViewCDPService, BrowserViewCDPService, InstantiationType.Delayed);
-
-const extensionTestBrowserViews = new Map<string, IBrowserViewModel>();
-
-CommandsRegistry.registerCommand('_workbench.test.openBrowserViewViaAgentHostNetwork', async (accessor, url: string, expectedTitle?: string) => {
-	const environmentService = accessor.get(IWorkbenchEnvironmentService);
-	if (!environmentService.extensionTestsLocationURI) {
-		throw new Error('Command is only available when running extension tests.');
-	}
-	const agentHostService = accessor.get(IAgentHostService);
-	const browserViewService = accessor.get(IBrowserViewWorkbenchService);
-	agentHostService.startAgentHost();
-	const initialized = await raceTimeout(waitForState(agentHostService.initializeResult, result => result?.tcpConnections !== undefined), 30_000);
-	if (!initialized) {
-		throw new Error('Agent Host TCP forwarding did not become available');
-	}
-	const resolver = browserViewService.registerNetworkResolver({
-		resolveNetwork: () => ({ authority: AMBIENT_AGENT_HOST_AUTHORITY }),
-		getNetworkStatus: () => ({ label: 'Agent Host', connected: true, proxySupported: true }),
-		onDidChangeNetworkStatus: Event.None,
-	});
-	let model: IBrowserViewModel;
-	try {
-		model = await browserViewService.createExternalBrowserView(url, 'canvas', { type: 'agent', sessionId: 'extension-test' }, true);
-	} finally {
-		resolver.dispose();
-	}
-	extensionTestBrowserViews.set(model.id, model);
-	Event.once(model.onWillDispose)(() => extensionTestBrowserViews.delete(model.id));
-	if (expectedTitle && model.title !== expectedTitle) {
-		const changed = await raceTimeout(Event.toPromise(Event.filter(model.onDidChangeTitle, event => event.title === expectedTitle)), 30_000);
-		if (!changed) {
-			const details = `current title '${model.title}', URL '${model.url}', error '${model.error?.errorDescription ?? 'none'}'`;
-			model.dispose();
-			throw new Error(`Browser view did not reach expected title '${expectedTitle}': ${details}`);
-		}
-	}
-	return { id: model.id, title: model.title, networkAuthority: model.network?.authority };
-});
-
-CommandsRegistry.registerCommand('_workbench.test.closeExternalBrowserView', (accessor, id: string) => {
-	const environmentService = accessor.get(IWorkbenchEnvironmentService);
-	if (!environmentService.extensionTestsLocationURI) {
-		throw new Error('Command is only available when running extension tests.');
-	}
-	extensionTestBrowserViews.get(id)?.dispose();
-});

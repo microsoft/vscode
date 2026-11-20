@@ -80,7 +80,7 @@
 }
 
 .review-widget .body .review-comment .avatar-container {
-	margin-top: 4px !important;
+	margin-top: 4px;
 }
 
 .review-widget .body .avatar-container img.avatar {
@@ -505,17 +505,19 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	display: none !important;
 }
 
-.monaco-editor .comment-diff-added {
+.monaco-editor .comment-diff-added,
+.monaco-editor .comment-thread-bar {
 	border-left-width: 3px;
 	border-left-style: solid;
 }
 
 .monaco-editor .comment-diff-added,
+.monaco-editor .comment-thread-bar,
 .monaco-editor .comment-range-glyph.multiline-add {
 	border-left-color: var(--vscode-editorGutter-commentRangeForeground);
 }
 
-.monaco-editor .comment-diff-added:before,
+.monaco-editor .comment-diff-added-glyph:before,
 .monaco-editor .comment-range-glyph.line-hover:before {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
@@ -541,7 +543,7 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	margin-left: 13px;
 }
 
-.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
+.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added-glyph:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before,
 .monaco-editor .comment-range-glyph.comment-thread:before,
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before,
@@ -574,11 +576,10 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	margin-top: 2px;
 }
 
-.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
+.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added-glyph:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before {
 	content: var(--vscode-icon-plus-content);
 	font-family: var(--vscode-icon-plus-font-family);
-	font-family: "codicon";
 	border-radius: 3px;
 	width: 18px !important;
 	margin-left: -5px;
@@ -626,4 +627,237 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 .monaco-editor.inline-comment .margin-view-overlays .dirty-diff-glyph {
 	margin-left: 25px;
+}
+
+/* Floating comment thread widget (`comments.thread.experimental.style: floating`) */
+
+/* The frame is quiet at rest, and takes the thread's state color while focus is in the widget, like its connector. */
+.monaco-editor .comment-thread-floating-widget {
+	z-index: 10;
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--comment-thread-state-color));
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-peekViewResult-background);
+	box-shadow: var(--vscode-shadow-lg);
+}
+
+.monaco-editor .comment-thread-floating-widget:focus-within {
+	border-color: var(--comment-thread-state-color);
+}
+
+.monaco-editor .comment-thread-floating-widget.front {
+	z-index: 11;
+}
+
+.monaco-editor .comment-thread-floating-widget > .review-widget {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+	border-radius: calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness));
+}
+
+/* The title bar sits on the window's background, without a line below it. */
+.monaco-editor .comment-thread-floating-widget > .review-widget > .head {
+	flex-shrink: 0;
+	cursor: grab;
+	background-color: transparent;
+}
+
+.monaco-editor .comment-thread-floating-widget > .review-widget > .head .review-title {
+	cursor: inherit;
+	margin-left: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-editor .comment-thread-floating-widget > .review-widget > .head .review-actions {
+	padding-right: 12px;
+}
+
+.monaco-editor .comment-thread-floating-widget.dragging,
+.monaco-editor .comment-thread-floating-widget.dragging > .review-widget > .head {
+	cursor: grabbing;
+}
+
+/* Scrollable comments (`ICommentThreadWidgetOptions.scrollableComments`) fill the height they are given. */
+.review-widget .body .comments-scroll-viewport {
+	height: 100%;
+}
+
+/* The body shrinks and scrolls when the widget is too short for the reply and additional actions, such as in a short editor. */
+.monaco-editor .comment-thread-floating-widget > .review-widget > .comment-thread-body-scrollable {
+	flex: 0 1 auto;
+	min-height: 0;
+}
+
+.monaco-editor .comment-thread-floating-widget > .review-widget > .comment-thread-body-scrollable > .body {
+	position: relative;
+	height: 100%;
+}
+
+/* The reply looks like an input, and fills the window's width like the comments, without the author's avatar beside it. */
+.monaco-editor .comment-thread-floating-widget .review-widget .body .comment-form-container {
+	margin: 8px 12px 12px;
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .comment-form-container .comment-form .avatar-container {
+	display: none;
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .comment-form-container .review-thread-reply-button {
+	border-radius: var(--vscode-cornerRadius-small);
+	outline-color: var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+	color: var(--vscode-editor-placeholder-foreground);
+	font-family: var(--comment-thread-editor-font-family, var(--monaco-monospace-font));
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .comment-form-container .monaco-editor,
+.monaco-editor .comment-thread-floating-widget .review-widget .body .edit-container .monaco-editor {
+	border-radius: var(--vscode-cornerRadius-small);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+	background-color: var(--vscode-editorCommentsWidget-replyInputBackground);
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .monaco-editor.focused {
+	outline-color: var(--vscode-focusBorder);
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .comment-form-container .form-actions {
+	margin: 8px 0 0;
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .comment-additional-actions {
+	margin: 0 12px 12px;
+}
+
+/* Each comment's author is above it, in a row with the comment's actions, so that the comment fills the window's width. */
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	align-items: center;
+	padding: 8px 12px;
+}
+
+/* The parts of the comment are laid out in the comment's grid. */
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents,
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .comment-title {
+	display: contents;
+}
+
+/* Below the author's row, the parts of the comment fill its width. */
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents > * {
+	grid-column: 1 / -1;
+	min-width: 0;
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment > .avatar-container {
+	grid-area: 1 / 1;
+	display: flex;
+	margin: 0 6px 0 0;
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment > .avatar-container:empty {
+	display: none;
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment > .avatar-container img.avatar {
+	width: 20px;
+	height: 20px;
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment comment-header-info {
+	grid-area: 1 / 2;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents .author {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents .timestamp,
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents .isPending {
+	margin: 0 0 0 6px;
+	padding: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .comment-actions {
+	grid-area: 1 / 4;
+}
+
+/* Without reactions to show, the reaction picker is among the comment's actions rather than in a row of its own. */
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents > .comment-reactions.picker-only {
+	grid-area: 1 / 3;
+	margin: 0;
+	min-height: 0;
+}
+
+/* It has the geometry of the other actions in the row, those of `.monaco-action-bar .action-label`. */
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .review-comment-contents > .comment-reactions.picker-only .action-item a.action-label.toolbar-toggle-pickReactions {
+	width: 16px;
+	height: 16px;
+	padding: 3px;
+	margin-top: 0;
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .edit-textarea {
+	margin: 4px 0 0;
+}
+
+/* The editor's padding takes the width that it leaves of its container (`COMMENT_EDITOR_HORIZONTAL_INSET`), so that it fills the container. */
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .edit-container .monaco-editor {
+	padding-right: 2px;
+}
+
+.monaco-editor .comment-thread-floating-widget .review-widget .body .review-comment .edit-container .form-actions {
+	margin: 8px 0 0;
+	padding-top: 0;
+}
+
+.monaco-editor .comment-thread-floating-connector {
+	z-index: 9;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.monaco-editor .comment-thread-floating-connector > svg {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+
+/* The outline and connector are subtle at rest and become prominent while focus is in the widget. */
+.monaco-editor .comment-thread-floating-connector .code-outline,
+.monaco-editor .comment-thread-floating-connector .connector-line {
+	fill: none;
+	stroke: var(--comment-thread-state-color);
+	stroke-width: var(--vscode-strokeThickness);
+	stroke-opacity: 0.5;
+}
+
+.monaco-editor .comment-thread-floating-connector .connector-anchor {
+	fill: var(--comment-thread-state-color);
+	fill-opacity: 0.5;
+}
+
+.monaco-editor .comment-thread-floating-connector.active .code-outline,
+.monaco-editor .comment-thread-floating-connector.active .connector-line,
+.monaco-editor.hc-black .comment-thread-floating-connector .code-outline,
+.monaco-editor.hc-black .comment-thread-floating-connector .connector-line,
+.monaco-editor.hc-light .comment-thread-floating-connector .code-outline,
+.monaco-editor.hc-light .comment-thread-floating-connector .connector-line {
+	stroke-opacity: 1;
+}
+
+.monaco-editor .comment-thread-floating-connector.active .connector-anchor,
+.monaco-editor.hc-black .comment-thread-floating-connector .connector-anchor,
+.monaco-editor.hc-light .comment-thread-floating-connector .connector-anchor {
+	fill-opacity: 1;
 }

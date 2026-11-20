@@ -8,7 +8,7 @@ import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -99,7 +99,7 @@ class ScriptedCredentialsService extends mock<ICloudSandboxApiService>() {
 
 suite('CloudSandboxCredentialRefresher', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Request credentials explicitly, respecting retry state until the attempt limit or a stop. */
 	async function runRefresher(
@@ -149,20 +149,19 @@ suite('CloudSandboxCredentialRefresher', () => {
 			const creds = { token: initialToken };
 			const state = new CloudSandboxCredentialRefreshState();
 			const refresher = new CloudSandboxCredentialRefresher('cloudsandbox:env_1', { environmentId: 'env_1' }, 'client-1', creds, state, credentials, telemetry, new NullLogService());
-			try {
-				const snapshots = [];
-				for (const elapsed of [60_000, 120_000, 600_000, 12 * 60 * 60_000]) {
-					await clock.tickAsync(START_TIME + elapsed - Date.now());
-					snapshots.push({ elapsed, calls: credentials.callCount, token: creds.token, stopped: state.stopped, failures: state.unhealthyCycles });
-				}
-				assert.deepStrictEqual({ snapshots, stops: telemetry.stops }, {
-					snapshots: [60_000, 120_000, 600_000, 12 * 60 * 60_000].map(elapsed => ({ elapsed, calls: 0, token: initialToken, stopped: false, failures: 0 })),
-					stops: [],
-				});
-			} finally {
+			store.add(toDisposable(() => {
 				refresher.dispose();
 				clock.restore();
+			}));
+			const snapshots = [];
+			for (const elapsed of [60_000, 120_000, 600_000, 12 * 60 * 60_000]) {
+				await clock.tickAsync(START_TIME + elapsed - Date.now());
+				snapshots.push({ elapsed, calls: credentials.callCount, token: creds.token, stopped: state.stopped, failures: state.unhealthyCycles });
 			}
+			assert.deepStrictEqual({ snapshots, stops: telemetry.stops }, {
+				snapshots: [60_000, 120_000, 600_000, 12 * 60 * 60_000].map(elapsed => ({ elapsed, calls: 0, token: initialToken, stopped: false, failures: 0 })),
+				stops: [],
+			});
 		});
 	}
 
@@ -459,6 +458,50 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		return { refresher, credentials, creds, telemetry };
 	}
 
+	test('sleep pauses a pending credential retry and does not exhaust its request budget', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		let attempts = 0;
+		const state = new CloudSandboxCredentialRefreshState();
+		const { refresher, credentials, telemetry } = createRefresher(tokenExpiringIn(0, START_TIME), () => {
+			if (++attempts === 1) {
+				throw new CloudSandboxRequestError(503, 'temporarily unavailable', 30);
+			}
+			return { kind: 'token', token: tokenExpiringIn(40, Date.now()) };
+		}, state);
+		await assert.rejects(refresher.refreshConnectionCredentials());
+		const recovering = refresher.refreshConnectionCredentials();
+		refresher.suspend();
+		await timeout(600_000);
+		const whileAsleep = credentials.callCount;
+		refresher.resume();
+		await recovering;
+		assert.deepStrictEqual({ whileAsleep, calls: credentials.callCount, stopped: state.stopped, stops: telemetry.stops }, {
+			whileAsleep: 1, calls: 2, stopped: false, stops: [],
+		});
+	}));
+
+	test('a network request interrupted by sleep does not consume the credential failure budget', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const response = new DeferredPromise<CloudSandboxConnectResult>();
+		const state = new CloudSandboxCredentialRefreshState();
+		const { refresher, telemetry } = createRefresher(tokenExpiringIn(0, START_TIME), () => response.p, state);
+		const rejected = assert.rejects(refresher.refreshConnectionCredentials());
+		refresher.suspend();
+		await response.error(new CloudSandboxRequestError(503, 'network interrupted'));
+		await rejected;
+		refresher.resume();
+		assert.deepStrictEqual({ failures: state.unhealthyCycles, requestFailures: state.requestFailures, stopped: state.stopped, stops: telemetry.stops }, {
+			failures: 0, requestFailures: 0, stopped: false, stops: [],
+		});
+	}));
+
+	test('disposal cancels credential acquisition waiting for wake', async () => {
+		const { refresher, credentials } = createRefresher(tokenExpiringIn(0, START_TIME), () => assert.fail('request while suspended'));
+		refresher.suspend();
+		const rejected = assert.rejects(refresher.refreshConnectionCredentials(), isCancellationError);
+		refresher.dispose();
+		await rejected;
+		assert.strictEqual(credentials.callCount, 0);
+	});
+
 	for (const scenario of ['authentication', 'retry', 'permanentError', 'wakingLimit', 'invalidExpiry', 'cancelledWait'] as const) {
 		test(`user-local ${scenario} preserves credential behavior and stop aggregates without lifecycle events`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
 			const observations = [];
@@ -686,30 +729,27 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 
 	test('connection repair waits for retry-after without an unattended retry', async () => {
 		const clock = sinon.useFakeTimers({ now: START_TIME, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
-		try {
-			const response = new DeferredPromise<CloudSandboxConnectResult>();
-			let requests = 0;
-			const { refresher, credentials, creds } = createRefresher(tokenExpiringIn(0, START_TIME), () => {
-				if (++requests === 1) {
-					throw new CloudSandboxRequestError(429, 'rate limited', 45);
-				}
-				return response.p;
-			});
-			await assert.rejects(refresher.refreshConnectionCredentials(), /usable future expiry/);
-			let outcome = 'pending';
-			const recovery = refresher.refreshConnectionCredentials().then(() => { outcome = 'ready'; }, () => { outcome = 'rejected'; });
-			await clock.tickAsync(44_999);
-			const beforeRetry = { outcome, calls: credentials.callCount };
-			await clock.tickAsync(1);
-			await response.complete({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'shared' }) });
-			await recovery;
-			assert.deepStrictEqual({ beforeRetry, outcome, calls: credentials.callCount, token: creds.token.access_token }, {
-				beforeRetry: { outcome: 'pending', calls: 1 }, outcome: 'ready', calls: 2, token: 'shared',
-			});
-			refresher.dispose();
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		const response = new DeferredPromise<CloudSandboxConnectResult>();
+		let requests = 0;
+		const { refresher, credentials, creds } = createRefresher(tokenExpiringIn(0, START_TIME), () => {
+			if (++requests === 1) {
+				throw new CloudSandboxRequestError(429, 'rate limited', 45);
+			}
+			return response.p;
+		});
+		await assert.rejects(refresher.refreshConnectionCredentials(), /usable future expiry/);
+		let outcome = 'pending';
+		const recovery = refresher.refreshConnectionCredentials().then(() => { outcome = 'ready'; }, () => { outcome = 'rejected'; });
+		await clock.tickAsync(44_999);
+		const beforeRetry = { outcome, calls: credentials.callCount };
+		await clock.tickAsync(1);
+		await response.complete({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'shared' }) });
+		await recovery;
+		assert.deepStrictEqual({ beforeRetry, outcome, calls: credentials.callCount, token: creds.token.access_token }, {
+			beforeRetry: { outcome: 'pending', calls: 1 }, outcome: 'ready', calls: 2, token: 'shared',
+		});
+		refresher.dispose();
 	});
 
 	test('concurrent retry waits can use a newly refreshed short-lived ticket', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {

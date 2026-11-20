@@ -43,7 +43,6 @@ import { createScoreRenderer, printTime } from './util';
 export interface ITestResult {
 	test: string;
 	outcomeDirectory: string;
-	conversationPath?: string;
 	score: number;
 	usage: APIUsage;
 	// FIXME@ulugbekna: specify when the outcome is undefined
@@ -222,7 +221,6 @@ async function executeTestNTimes(
 	return {
 		test: test.fullName,
 		outcomeDirectory: path.relative(ctx.outputPath, outcomeDirectory),
-		conversationPath: test.options.conversationPath,
 		score: currentScore,
 		duration,
 		usage,

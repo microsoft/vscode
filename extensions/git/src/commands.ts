@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputCustom, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
@@ -3553,7 +3553,15 @@ export class CommandCenter {
 		}
 
 		try {
-			await repository.createWorktree({ path: worktreePath, branch, commitish: commitish });
+			const createdWorktreePath = await repository.createWorktree({ path: worktreePath, branch, commitish: commitish });
+
+			// Remember the location picked by the user so that it is used as the default next time
+			const worktreeRootStorageKey = `${Repository.WORKTREE_ROOT_STORAGE_KEY}:${repository.root}`;
+			const worktreeRoot = path.dirname(createdWorktreePath);
+			const lastWorktreeRoot = this.globalState.get<string>(worktreeRootStorageKey);
+			if (!lastWorktreeRoot || !pathEquals(worktreeRoot, lastWorktreeRoot)) {
+				await this.globalState.update(worktreeRootStorageKey, worktreeRoot);
+			}
 		} catch (err) {
 			if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
 				await this.handleWorktreeAlreadyExists(err);
@@ -3619,7 +3627,8 @@ export class CommandCenter {
 				}
 			} else {
 				// Check whether the selected branch is checked out in an existing worktree
-				const worktree = repository.worktrees.find(worktree => worktree.ref === choice.refId);
+				const worktrees = await repository.getWorktrees();
+				const worktree = worktrees.find(worktree => worktree.ref === choice.refId);
 				if (worktree) {
 					const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', choice.refName, worktree.path);
 					await this.handleWorktreeConflict(worktree.path, message);
@@ -4734,16 +4743,9 @@ export class CommandCenter {
 			return undefined;
 		}
 
-		// Stash
-		const regex = /^stash@{(\d+)}$/;
-		const match = regex.exec(stashUri.ref);
-		if (!match) {
-			return undefined;
-		}
-
-		const [, index] = match;
+		// Stash (the uri references the stash commit hash since the stash index changes)
 		const stashes = await repository.getStashes();
-		const stash = stashes.find(stash => stash.index === parseInt(index));
+		const stash = stashes.find(stash => stash.hash === stashUri.ref);
 		if (!stash) {
 			return undefined;
 		}
@@ -4771,7 +4773,7 @@ export class CommandCenter {
 		}
 
 		const title = `Git Stash #${stash.index}: ${stash.description}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), stash.hash, { scheme: 'git-stash' });
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of stashChanges) {
@@ -5430,6 +5432,14 @@ export class CommandCenter {
 			return;
 		}
 
+		if (repository.kind === 'worktree' && pathEquals(artifact.id, repository.root)) {
+			// A repository cannot delete its own worktree, as that would dispose
+			// it while the delete operation is still running. Delete the worktree
+			// through the main repository instead.
+			await this.deleteWorktree(repository);
+			return;
+		}
+
 		await repository.deleteWorktree(artifact.id);
 	}
 
@@ -5716,6 +5726,12 @@ export class CommandCenter {
 		// fall back to its modified resource.
 		if (!uri && window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputNotebookDiff) {
 			uri = window.tabGroups.activeTabGroup.activeTab.input.modified;
+		}
+
+		// A custom editor (e.g. the image preview) is neither the active text nor
+		// notebook editor, so fall back to its resource.
+		if (!uri && window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputCustom) {
+			uri = window.tabGroups.activeTabGroup.activeTab.input.uri;
 		}
 
 		this.logger.debug(`[CommandCenter][getSCMResource] git.getSCMResource.uri: ${uri && uri.toString()}`);

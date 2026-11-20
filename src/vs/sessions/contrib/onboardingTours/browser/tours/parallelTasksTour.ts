@@ -12,7 +12,8 @@ import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../w
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { NewSessionOnboardingHandoffContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 
 export const PARALLEL_TASKS_TOUR_ID = 'sessions.onboarding.parallelTasks';
 export const PARALLEL_TASKS_ONBOARDING_SEEN_KEY = 'sessions.onboarding.parallelTasks.seen';

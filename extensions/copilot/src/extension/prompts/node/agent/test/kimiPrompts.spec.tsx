@@ -55,6 +55,7 @@ suite('KimiPrompts', () => {
 			renderSystemPrompt('kimi-k2.6'),
 			renderSystemPrompt('kimi-k2.7-code'),
 			renderSystemPrompt('kimi-k3'),
+			renderSystemPrompt('kimi-k4'),
 		]);
 
 		for (const renderedPrompt of renderedPrompts) {

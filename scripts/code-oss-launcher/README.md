@@ -64,7 +64,7 @@ On Windows, the lock probe briefly renames a run directory and restores it. Tran
 ## Tests
 
 ```powershell
-npm --prefix scripts\code-oss-launcher test
+pnpm -C scripts\code-oss-launcher test
 ```
 
 No dependency installation or VS Code build is needed. Tests cover slim profile copying, extension selection and synchronization, JSONC settings, CDP validation and deadlines, plus the real CLI against a synthetic Node-based application for readiness ordering, exit-code propagation, argument forwarding, profile isolation, early exit and cleanup isolation between two live runs. They do **not** validate a live Electron workbench or real encrypted credentials.

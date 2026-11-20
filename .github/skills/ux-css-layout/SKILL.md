@@ -128,11 +128,11 @@ container.appendChild(scrollable.getDomNode());
 scrollable.scanDomNode(); // call after content changes
 ```
 
-Keep scroll handlers lightweight: batch layout reads before writes, coalesce duplicate measurements, and skip unchanged CSSOM writes. Validate unchanged scrolling and resizing that changes appearance without changing the item count.
+Keep scroll handlers lightweight: batch layout reads before writes, coalesce duplicate measurements, and skip unchanged CSSOM writes. Cache numeric values rather than comparing rounded style strings. Validate both unchanged scrolling and resizing that changes appearance without changing the item count.
 
-For content-sized lists and trees, distinguish logical item height from the complete scroll extent. Horizontal-scrollbar reservation can make `scrollHeight` larger than `contentHeight`; size a floating host from the extent it must display, with host chrome accounted for separately. Test horizontal scrolling enabled and disabled.
+For content-sized lists and trees, distinguish logical item height from the complete scroll extent. Horizontal-scrollbar reservation can make `scrollHeight` larger than `contentHeight`; size a floating host from the extent it must actually display, with its own chrome accounted for separately. Test horizontal scrolling enabled and disabled.
 
-Verify actual scrollbar dragging and pointer acquisition after changing margins or clipping. In maximized/fullscreen layouts, check screen-edge hit regions as well as visual placement.
+Verify actual scrollbar dragging and pointer acquisition after changing margins or clipping. In maximized/fullscreen layouts, check screen-edge hit regions as well as visual placement; an inset control must not become unnecessarily difficult to acquire.
 
 ## 8. Responsive Layout
 
@@ -153,11 +153,11 @@ Validate layout at the boundaries where dimensions are consumed:
 
 - Keep grid allocation, CSS margins/borders, and child-content dimensions consistent. Exercise the real `layout()` path and inspect both root bounds and dimensions passed to children; helper values and outer screenshots alone cannot prove content fits.
 - Read current viewport and density state during layout rather than relying solely on constructor-selected behavior. Test transitions in both directions on the same instance, including collapse/expand and narrow/wide layouts, without shifting unrelated siblings.
-- Use existing screen-aware sizing helpers and the target window's effective pixel ratio for fractional scaling. Zoom alone is not device pixel ratio. Check CSS geometry and the painted result rather than adding compensating pixels or arbitrary tolerances.
-- Keep startup/restored geometry aligned with runtime layout, including missing-state fallbacks. Preserve intentional exclusions such as modal or auxiliary surfaces.
-- Keep inter-panel spacing separate from pane-internal padding, exterior gutters, and the frame's reserved stroke. Inspect every consumer before changing a shared margin helper. Test zero, one-pixel, odd, and maximum supported gaps; small gaps cannot fund an unconditional inset on both sides.
-- Resolve configurable geometry consistently for CSS, numeric grid layout, startup paint, and auxiliary/native content. Clearing a customization must restore inheritance. Discarding stale saved bounds must not also discard valid appearance preferences.
-- Refresh derived sash endpoints and gripper placement after grid topology changes such as moving or aligning a panel, not only after a window resize. Check newly created sashes and removal of stale state when returning to compact or gapless layouts.
+- Use existing screen-aware sizing helpers and the target window's effective pixel ratio for fractional scaling. Zoom alone is not device pixel ratio. Check margins, borders, and gap symmetry in CSS coordinates and physical pixels instead of adding compensating pixels or arbitrary tolerances.
+- Keep startup/restored geometry aligned with runtime layout, including missing-state fallbacks. Check affected visibility, density, and window variants, and preserve intentional exclusions such as modal or auxiliary surfaces.
+- Keep inter-panel spacing separate from pane-internal padding, exterior gutters, and the frame's reserved stroke. Before changing a shared margin helper, inspect all consumers. Test zero, one-pixel, odd, and maximum supported gaps; small gaps cannot fund an unconditional inset on both sides.
+- Resolve configurable geometry consistently for CSS, numeric grid layout, startup paint, and auxiliary/native content. Clearing a customization must restore inheritance. Preserve resolved appearance when stale saved bounds are discarded; invalid geometry does not necessarily invalidate the user's size preferences.
+- Refresh derived sash endpoints and gripper placement after grid topology changes such as moving or aligning a panel, not only after a window resize. Check odd-gap centers, newly created sashes, and removal of stale state when returning to compact or gapless layouts.
 
 ### Floating and docked surfaces
 
@@ -269,22 +269,22 @@ For `IconLabel` and list/tree renderers, this is handled automatically. For cust
 - **Never** forget `min-width: 0` on flex children that need to truncate.
 - **Never** truncate text without providing a hover/tooltip for the full string.
 
-### Clipping and alignment
+### Clipping and Alignment
 
 - Measure content items separately from adjacent actions and toolbars. Recalculate clipping when labels, status indicators, or actions change width, even if the viewport is unchanged.
-- Check first/last and partially visible items with long labels and combined hover/focus/selection states. Masks must not cover actions or scroll hit targets; clear stale clipping state when overflow ends.
-- Keep hover/focus geometry stable so controls do not jump under the pointer. Test existing elements through transitions as well as fresh renders.
+- Check first/last and partially visible items with long labels and combined hover/focus/selection states. Masks must not cover actions or scroll hit targets. Recreated overflow edges must preserve the source edge's shape and border state, and clear stale state when clipping ends.
+- Keep hover/focus geometry stable so controls do not jump under the pointer. Test state transitions on existing elements as well as fresh renders.
 - Define which semantic value should align in compound badges or labels. Centering a variable-width string does not preserve the alignment of its trailing status; compare short and long compound values alongside single-value rows.
 
 ### Rounded-surface geometry
 
-- Trace the painted perimeter through production ancestors. Identify the owner of the frame stroke, content paint, material layer, connected cap, and overlays. A child can report the correct radius while an ancestor clips its outline or content paints over it.
-- Match reference boxes as well as radii. A pseudo-element inside a host border does not share the host's outer curve merely because it inherits `border-radius`. Use browser-resolved border/padding-box geometry, including unequal or elliptical corners and fractional border widths.
-- Do not repair an obscured corner by clipping the whole content subtree. Progress indicators and fixed completion widgets may intentionally escape it; transforms or filters can change fixed-position containing blocks. Isolate decorative paint and preserve overlay stacking and hit targets.
-- Repainting an edge must not create a second inset frame or double-paint a translucent stroke. Align replacement paint to the original frame and inspect all exposed corners, including square corners. A computed radius or an overlay hit test alone cannot prove the perimeter is correct.
-- Derive connected caps, clipping fallbacks, and nested frames from the owning surface's semantic radius and effective inset, not a generic default. Honor custom radii, asymmetric Activity Bar seams, footer presence, and native-window overrides. Check both header and footer ancestors when the Activity Bar can move.
+- Trace the painted perimeter through the production ancestors before changing a radius or overflow rule. Identify the owner of the frame stroke, content paint, material layer, connected cap, and overlays. A child can report the correct radius while an ancestor clips its outline or content paints over it.
+- Match the reference boxes as well as the radius. A pseudo-element positioned inside a host border does not share the host's outer curve merely because it inherits `border-radius`. Use the appropriate border/padding-box geometry; for unequal or elliptical corners and fractional border widths, prefer browser-resolved curves over a uniform subtraction.
+- Do not repair an obscured corner by clipping the entire content subtree. Progress indicators and fixed completion widgets may intentionally escape it, and transforms or filters can change fixed-position containing blocks. Isolate decorative paint from interactive content and preserve overlay stacking and hit targets.
+- Repainting an edge must not create a second, inset frame or double-paint a translucent stroke. Align the replacement paint to the original frame and verify the composited result at all exposed corners, including square corners. A computed radius or an overlay hit test alone cannot prove the perimeter is correct.
+- Derive connected caps, clipping fallbacks, and nested frames from the owning surface's semantic radius and effective inset, not a generic default. Honor square/custom radii, asymmetric Activity Bar seams, footer presence, and native window overrides. Check both header and footer ancestors when the Activity Bar can move.
 - At adjoining surfaces, assign each visible edge one owner in every relevant density/theme. If a compact card omits its trailing frame, the adjacent column may need to paint the separator; adding borders to both creates a doubled edge. Verify full-height coverage and that unaffected default/HC layouts do not gain an extra stroke.
-- Verify painted outlines and overlay interactions in affected browser engines. Include short/narrow panes, retained hidden overlay siblings, footer add/remove, fractional scaling, and relevant maximized/fullscreen/native-window states. Keep native-platform evidence distinct from a web-only reproduction.
+- Verify painted outlines and overlay interactions in the affected browser engines. Include short/narrow panes, retained hidden overlay siblings, footer add/remove, fractional scaling, and the relevant maximized/fullscreen/native-window states. Keep native-platform evidence distinct from a web-only reproduction.
 
 ---
 
@@ -318,7 +318,7 @@ Scale (px): `0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40` → `--vscode-sp
 
 The ramp describes generic design defaults, not a replacement for component-specific geometry. When a panel exposes a semantic size customization, its frame and dependent paint must consume that resolved value, including `0`, rather than snapping it back to a generic radius. Keep native-window radii and control/overlay tiers separate from panel preferences.
 
-At supported standalone or fixture boundaries where size tokens may be absent, provide valid length fallbacks for required padding, insets, radii, and outlines. A `var()` fallback handles an unavailable property, not a defined value of the wrong type or a unitless length. Follow the host contract rather than adding speculative fallbacks everywhere.
+At supported standalone or fixture boundaries where size tokens may be absent, provide valid length fallbacks for required padding, insets, radii, and outlines. A `var()` fallback handles an unavailable custom property, not a defined value of the wrong type or a unitless length. Follow the existing host contract rather than adding speculative fallbacks to every token.
 
 ### Font size & weight
 

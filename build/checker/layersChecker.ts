@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API, SymbolFlags, type Checker, type Program, type Project, type Symbol } from '@typescript/native/unstable/async';
-import { isExportSpecifier, isIdentifier, isImportSpecifier, isPropertyAccessExpression, type Identifier, type Node, type SourceFile } from '@typescript/native/unstable/ast';
+import { API, SymbolFlags, type Checker, type Program, type Project, type Symbol } from '@typescript/native/async';
+import { isExportSpecifier, isIdentifier, isImportSpecifier, isPropertyAccessExpression, type Identifier, type Node, type SourceFile } from '@typescript/native/ast';
 import { dirname, join, relative, resolve } from 'path';
 import minimatch from 'minimatch';
 
@@ -378,9 +378,9 @@ export async function checkLayers(tsconfigPath: string, rules: readonly IRule[])
 
 	try {
 		const { fileNames } = await api.parseConfigFile(tsconfigPath);
-		const snapshot = await api.updateSnapshot({ openProjects: [tsconfigPath] });
+		const snapshot = await api.createSnapshot({ openProjects: [tsconfigPath] });
 
-		const project = snapshot.getProject(tsconfigPath);
+		const project = snapshot.getConfiguredProject(tsconfigPath);
 		if (!project) {
 			throw new Error(`Unable to load a project from '${tsconfigPath}'.`);
 		}

@@ -59,10 +59,12 @@ jobs:
           continueOnError: true
           sbomEnabled: false
     variables:
-      - name: SANITY_NODE_VERSION
-        value: 22.22.0
+      - name: SANITY_NODE_VERSION_SPEC
+        value: 24.x
+      # The sanity tests, with only their dependencies, which `pnpm deploy` copies out of the workspace
+      # below: a filtered `pnpm install` would also install the root project's dependencies.
       - name: TEST_DIR
-        value: $(Build.SourcesDirectory)/test/sanity
+        value: $(Build.SourcesDirectory)/.build/sanity
       - name: LOG_FILE
         value: $(TEST_DIR)/results.xml
       - name: SCREENSHOTS_DIR
@@ -79,6 +81,11 @@ jobs:
           value: --artifacts-dir /root/artifacts
         ${{ else }}:
           value: --artifacts-dir $(ARTIFACTS_DIR)
+      # The pnpm store that the cache below restores (restore-pnpm-store.yml needs more of the
+      # repository than this job checks out). The job installs only test/sanity, so pnpm's metadata
+      # cache, which saves little here, isn't cached with it.
+      - name: PNPM_CONFIG_STORE_DIR
+        value: $(Pipeline.Workspace)/pnpm-store
       - name: SETUID_SANDBOX_GREP
         ${{ if or(eq(length(parameters.artifacts), 0), and(contains(join(',', parameters.artifacts), '_deb-package'), contains(join(',', parameters.artifacts), '_rpm-package'))) }}:
           value: desktop-linux-(deb|rpm)-
@@ -92,33 +99,11 @@ jobs:
       - checkout: self
         fetchDepth: 1
         fetchTags: false
-        sparseCheckoutDirectories: build/azure-pipelines/config build/azure-pipelines/common test/sanity .nvmrc
+        # The root files of the workspace are always checked out; build/npm has the pnpmfile's hooks and
+        # the patches of the lockfile.
+        sparseCheckoutDirectories: build/azure-pipelines/config build/azure-pipelines/common build/azure-pipelines/win32 build/checksums build/npm test/sanity .nvmrc
         retryCountOnTaskFailure: 3
         displayName: Checkout test/sanity
-
-      - ${{ each artifact in parameters.artifacts }}:
-        - task: DownloadPipelineArtifact@2
-          inputs:
-            artifact: ${{ artifact }}
-            path: $(ARTIFACTS_DIR)/${{ artifact }}
-          retryCountOnTaskFailure: 3
-          displayName: Download ${{ artifact }}
-
-      - ${{ if eq(parameters.os, 'windows') }}:
-        - script: mkdir "$(SCREENSHOTS_DIR)"
-          displayName: Create Screenshots Directory
-
-      - ${{ else }}:
-        - bash: mkdir -p "$(SCREENSHOTS_DIR)"
-          displayName: Create Screenshots Directory
-
-      - ${{ if eq(parameters.os, 'windows') }}:
-        - script: mkdir "$(CRASH_DUMPS_DIR)"
-          displayName: Create Crash Dumps Directory
-
-      - ${{ else }}:
-        - bash: mkdir -p "$(CRASH_DUMPS_DIR)"
-          displayName: Create Crash Dumps Directory
 
       - ${{ if and(eq(parameters.os, 'windows'), eq(parameters.arch, 'arm64')) }}:
         - task: NuGetAuthenticate@1
@@ -165,6 +150,29 @@ jobs:
           displayName: Clear NuGet access token
           condition: always()
 
+      # Resolve the latest release before restoring caches so a new Node.js release gets fresh caches.
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - powershell: |
+            $ErrorActionPreference = 'Stop'
+            $sums = & curl.exe -fsSL --connect-timeout 20 --max-time 60 --retry 3 "https://nodejs.org/dist/latest-v$(SANITY_NODE_VERSION_SPEC)/SHASUMS256.txt"
+            if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the latest Node.js release' }
+            $match = [regex]::Match(($sums -join "`n"), 'node-v(24\.\d+\.\d+)-')
+            if (-not $match.Success) { throw 'No Node.js 24 release found' }
+            Write-Host "##vso[task.setvariable variable=SANITY_NODE_VERSION]$($match.Groups[1].Value)"
+          displayName: Resolve latest Node.js 24 release
+
+      - ${{ else }}:
+        - bash: |
+            set -euo pipefail
+            sums=$(curl -fsSL --connect-timeout 20 --max-time 60 --retry 3 "https://nodejs.org/dist/latest-v$(SANITY_NODE_VERSION_SPEC)/SHASUMS256.txt")
+            version=$(printf '%s\n' "$sums" | sed -n 's/.* node-v\(24\.[0-9]*\.[0-9]*\)-.*/\1/p' | sort -u)
+            if [[ ! "$version" =~ ^24\.[0-9]+\.[0-9]+$ ]]; then
+              echo 'Could not resolve the latest Node.js 24 release' >&2
+              exit 1
+            fi
+            echo "##vso[task.setvariable variable=SANITY_NODE_VERSION]$version"
+          displayName: Resolve latest Node.js 24 release
+
       # Node.js comes from the pipeline cache when possible. nodejs.org stalls from the shared
       # agent pools at times, so the bounded download below is only the fallback.
       - task: Cache@2
@@ -190,29 +198,59 @@ jobs:
 
       - task: Cache@2
         inputs:
-          key: '"sanity-node_modules" | "$(Agent.OS)" | "${{ parameters.arch }}" | $(TEST_DIR)/package-lock.json'
-          path: $(TEST_DIR)/node_modules
-          cacheHitVar: SANITY_NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
+          key: '"pnpm_store" | "sanity" | "$(Agent.OS)" | "${{ parameters.arch }}" | $(Build.SourcesDirectory)/pnpm-lock.yaml'
+          restoreKeys: '"pnpm_store" | "sanity" | "$(Agent.OS)" | "${{ parameters.arch }}"'
+          path: $(PNPM_CONFIG_STORE_DIR)
+          cacheHitVar: PNPM_STORE_RESTORED
+        displayName: Restore pnpm store cache
         retryCountOnTaskFailure: 2
+        continueOnError: true
 
-      - script: npm config set registry "$(NPM_REGISTRY)" --location=project
-        workingDirectory: $(TEST_DIR)
-        displayName: Configure NPM Registry
-        condition: and(succeeded(), ne(variables.SANITY_NODE_MODULES_RESTORED, 'true'))
+      # Sets the registry and its authentication in the user npm configuration, as the product build
+      # jobs do: `npm install -g pnpm` (also on a cache hit) doesn't read a project .npmrc, and these
+      # agents can't reach registry.npmjs.org. `pnpm deploy` below uses the same configuration.
+      - template: ./install-pnpm.yml@self
+        parameters:
+          setupRegistry: true
+          os: ${{ parameters.os }}
 
-      - task: npmAuthenticate@0
-        inputs:
-          workingFile: $(TEST_DIR)/.npmrc
-        displayName: Authenticate with NPM Registry
-        condition: and(succeeded(), ne(variables.SANITY_NODE_MODULES_RESTORED, 'true'))
+      # Copies test/sanity to TEST_DIR, with its dependencies from the root pnpm-lock.yaml in its own
+      # node_modules, so that the container runs, which mount only TEST_DIR, see them too. The
+      # dependencies don't build anything.
+      - script: pnpm --filter code-oss-dev-sanity-test deploy --frozen-lockfile --ignore-scripts "$(TEST_DIR)"
+        workingDirectory: $(Build.SourcesDirectory)
+        displayName: Install Dependencies
 
-      - script: npm ci
-        workingDirectory: $(TEST_DIR)
-        displayName: Install NPM Dependencies
-        condition: and(succeeded(), ne(variables.SANITY_NODE_MODULES_RESTORED, 'true'))
+      - template: ./prune-pnpm-store.yml@self
+        parameters:
+          os: ${{ parameters.os }}
 
-      - script: npm run compile
+      # After the deploy, which needs an empty folder.
+      - ${{ each artifact in parameters.artifacts }}:
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: ${{ artifact }}
+            path: $(ARTIFACTS_DIR)/${{ artifact }}
+          retryCountOnTaskFailure: 3
+          displayName: Download ${{ artifact }}
+
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: mkdir "$(SCREENSHOTS_DIR)"
+          displayName: Create Screenshots Directory
+
+      - ${{ else }}:
+        - bash: mkdir -p "$(SCREENSHOTS_DIR)"
+          displayName: Create Screenshots Directory
+
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: mkdir "$(CRASH_DUMPS_DIR)"
+          displayName: Create Crash Dumps Directory
+
+      - ${{ else }}:
+        - bash: mkdir -p "$(CRASH_DUMPS_DIR)"
+          displayName: Create Crash Dumps Directory
+
+      - script: pnpm run compile
         workingDirectory: $(TEST_DIR)
         displayName: Compile Sanity Tests
 
@@ -224,6 +262,14 @@ jobs:
           SecretsFilter: "sanity-tests-account,sanity-tests-password"
 
       # Windows
+      # run-win32.cmd installs the WSL release pinned in build/checksums/wsl.txt on x64
+      - ${{ if and(eq(parameters.os, 'windows'), eq(parameters.arch, 'amd64')) }}:
+        - task: Cache@2
+          inputs:
+            key: '"wsl-installer" | "win32-x64" | build/checksums/wsl.txt'
+            path: $(Build.SourcesDirectory)/.build/wsl-installer
+          displayName: Restore WSL installer cache
+
       - ${{ if eq(parameters.os, 'windows') }}:
         - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
@@ -231,6 +277,7 @@ jobs:
           env:
             GITHUB_ACCOUNT: $(sanity-tests-account)
             GITHUB_PASSWORD: $(sanity-tests-password)
+            WSL_INSTALLER_CACHE_DIR: $(Build.SourcesDirectory)/.build/wsl-installer
 
       # macOS
       - ${{ if eq(parameters.os, 'macOS') }}:

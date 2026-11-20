@@ -18,6 +18,7 @@ import { CustomizationType, McpServerStatus, type AgentCustomization, type HookC
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
 import { withSkillArgumentHintMeta } from '../../agentHost/common/meta/skillCustomizationMeta.js';
+import { toAgentCustomizationMeta } from '../../agentHost/common/meta/agentCustomizationMeta.js';
 import { readAgentPluginManifest } from './agentPluginParser.js';
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,11 @@ export interface INamedPluginResource {
 /** A parsed agent resource with the frontmatter metadata shared by providers. */
 export interface IAgentPluginResource extends INamedPluginResource {
 	readonly model?: string;
+	readonly models?: readonly string[];
+	readonly reasoningEffort?: string;
+	readonly modelPolicy?: 'preferred' | 'required';
+	readonly argumentHint?: string;
+	readonly welcomeMessage?: string;
 	readonly tools?: readonly string[];
 	readonly disableModelInvocation?: boolean;
 	readonly disableUserInvocation?: boolean;
@@ -386,6 +392,7 @@ function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomizat
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
 		...(resource.model ? { model: resource.model } : {}),
+		...(resource.models || resource.reasoningEffort || resource.modelPolicy || resource.argumentHint || resource.welcomeMessage ? { _meta: toAgentCustomizationMeta({ 'vscode.models': resource.models, 'vscode.reasoningEffort': resource.reasoningEffort, 'vscode.modelPolicy': resource.modelPolicy, 'vscode.argumentHint': resource.argumentHint, 'vscode.welcomeMessage': resource.welcomeMessage }) } : {}),
 		...(resource.tools?.length ? { tools: [...resource.tools] } : {}),
 		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
 		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
@@ -787,6 +794,8 @@ const HOOK_TYPE_MAP: Record<string, string> = {
 	'userPromptTransformed': 'UserPromptTransformed',
 	'preToolUse': 'PreToolUse',
 	'postToolUse': 'PostToolUse',
+	'preCompact': 'PreCompact',
+	'subagentStart': 'SubagentStart',
 	'agentStop': 'Stop',
 	'subagentStop': 'SubagentStop',
 	'errorOccurred': 'ErrorOccurred',
@@ -1256,6 +1265,11 @@ export async function readAgentComponents(
 				name: parsed.name || file.name,
 				...(parsed.description ? { description: parsed.description } : {}),
 				...(parsed.model ? { model: parsed.model } : {}),
+				...(parsed.models && parsed.models.length > 1 ? { models: parsed.models } : {}),
+				...(parsed.reasoningEffort ? { reasoningEffort: parsed.reasoningEffort } : {}),
+				...(parsed.modelPolicy ? { modelPolicy: parsed.modelPolicy } : {}),
+				...(parsed.argumentHint ? { argumentHint: parsed.argumentHint } : {}),
+				...(parsed.welcomeMessage ? { welcomeMessage: parsed.welcomeMessage } : {}),
 				...(parsed.tools?.length ? { tools: parsed.tools } : {}),
 				...(parsed.disableModelInvocation ? { disableModelInvocation: true } : {}),
 				...(parsed.userInvocable === false ? { disableUserInvocation: true } : {}),
@@ -1278,7 +1292,7 @@ export async function readAgentComponents(
 	return result;
 }
 
-export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; tools?: readonly string[]; disableModelInvocation?: boolean }> {
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; argumentHint?: string; userInvocable?: boolean; model?: string; models?: readonly string[]; reasoningEffort?: string; modelPolicy?: 'preferred' | 'required'; welcomeMessage?: string; tools?: readonly string[]; disableModelInvocation?: boolean }> {
 	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
 	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
@@ -1286,12 +1300,20 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const frontmatter = parseFrontMatter(content.value.toString());
 		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
 		const description = frontmatter?.getStringValue('description')?.trim();
+		const argumentHint = frontmatter?.getStringValue('argument-hint')?.trim() || undefined;
 		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
-		const model = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).find(Boolean);
+		const models = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).filter(Boolean);
+		const model = models?.[0];
+		const reasoningEffort = frontmatter?.getStringValue('reasoning-effort');
+		const policy = frontmatter?.getStringValue('model-policy');
+		const modelPolicy = policy === 'preferred' || policy === 'required' ? policy : undefined;
+		const vscode = frontmatter?.header?.type === 'map' ? frontmatter.header.properties.find(property => property.key.value === 'vscode')?.value : undefined;
+		const message = vscode?.type === 'map' ? vscode.properties.find(property => property.key.value === 'welcome-message')?.value : undefined;
+		const welcomeMessage = message?.type === 'scalar' && message.value.trim() ? message.value : undefined;
 		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
 		const infer = frontmatter?.getBooleanValue('infer');
 		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
-		return { name, description, userInvocable, model, tools, disableModelInvocation };
+		return { name, description, ...(argumentHint ? { argumentHint } : {}), userInvocable, model, ...(models && models.length > 1 ? { models } : {}), ...(reasoningEffort ? { reasoningEffort } : {}), ...(modelPolicy ? { modelPolicy } : {}), ...(welcomeMessage ? { welcomeMessage } : {}), tools, disableModelInvocation };
 	} catch {
 		return { name: nameFromFile };
 	}

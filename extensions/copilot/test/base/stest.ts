@@ -24,9 +24,6 @@ export interface ISimulationTestOptions {
 	optional?: boolean;
 	skip?: (opts: SimulationOptions) => boolean;
 	location?: ITestLocation;
-	conversationPath?: string;
-	scenarioFolderPath?: string;
-	stateFile?: string;
 }
 
 export class SimulationTestOptions {
@@ -54,18 +51,6 @@ export class SimulationTestOptions {
 
 	public get location(): ITestLocation | undefined {
 		return this._opts.location;
-	}
-
-	public get conversationPath(): string | undefined {
-		return this._opts.conversationPath;
-	}
-
-	public get scenarioFolderPath() {
-		return this._opts.scenarioFolderPath;
-	}
-
-	public get stateFile() {
-		return this._opts.stateFile;
 	}
 
 	constructor(

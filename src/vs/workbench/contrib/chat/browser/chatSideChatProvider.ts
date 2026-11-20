@@ -56,7 +56,7 @@ export class EditorSideChatProviderContribution extends Disposable implements IC
 			({ editor }) => editor instanceof ChatEditorInput && isEqual(editor.sessionResource, sessionResource),
 		);
 		const sourceGroup = this.editorGroupsService.getGroup(sourceEditor?.groupId ?? this.editorGroupsService.activeGroup.id);
-		const sideChat = await this.chatSessionsService.createSideChat(sessionResource, turn.id, options?.token ?? CancellationToken.None, selection);
+		const sideChat = await this.chatSessionsService.createSideChat(sessionResource, turn.id, options?.token ?? CancellationToken.None, selection, options?.includeSourceContext);
 		const direction = preferredSideBySideGroupDirection(this.configurationService);
 		const target = sourceGroup && sourceGroup.id !== this.editorGroupsService.activeGroup.id
 			? this.editorGroupsService.findGroup({ direction }, sourceGroup) ?? this.editorGroupsService.addGroup(sourceGroup, direction)

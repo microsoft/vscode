@@ -10,7 +10,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReaderWithStore, observableValue } from '../../../../base/common/observable.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { canvasOwnerKey, compareCanvasDefinitions, type CanvasDefinitionSnapshot, ICanvasDefinition, ICanvasOwner, isOpenableExtensionCanvasDefinition } from './canvas.js';
+import { compareCanvasDefinitions, type CanvasDefinitionSnapshot, ICanvasDefinition, isOpenableExtensionCanvasDefinition } from './canvas.js';
+import { canvasOwnerKey, ICanvasOwner } from '../../../common/canvasReference.js';
 
 /** The chat whose registered canvas types a {@link CanvasDefinitionStore} lists. */
 export interface ICanvasDefinitionSource {
