@@ -186,7 +186,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 				label: localize('returnToPrimaryFolderLocation', "Return to Primary Location"),
 				run: () => {
 					if (this.isStillAt(primary, location)) {
-						return this.workspaceEditingService.setFolderLocation(primary).catch(error => this.logService.error('Failed to return the folder to its primary location', error));
+						return this.workspaceEditingService.setFolderLocation(primary, { reason: 'user' }).catch(error => this.logService.error('Failed to return the folder to its primary location', error));
 					}
 					return undefined;
 				}
