@@ -193,6 +193,8 @@ export interface IAutomationRun {
 	/** Opaque identifier, unique across concrete providers and historical archives. */
 	readonly id: string;
 	readonly automationId: string;
+	/** Preserves scheduled-chat provenance after the definition is removed. */
+	readonly purpose?: 'scheduledChat';
 	readonly status: AutomationRunStatus;
 	readonly trigger: AutomationRunTrigger;
 

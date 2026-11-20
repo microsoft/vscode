@@ -33,7 +33,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
-import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -75,8 +75,11 @@ export interface ISessionHeaderBarContext {
 	readonly isDraft?: boolean;
 }
 
+/** The close actions of a session header's toolbar, which come after its More Actions, last. */
+const SESSION_TOOLBAR_CLOSE_COMMAND_IDS: ReadonlySet<string> = new Set([CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID]);
+
 export function getSessionToolbarSecondaryActionsPosition(primaryActions: readonly IAction[]): number {
-	const closeActionIndex = primaryActions.findIndex(action => action.id === CLOSE_CHAT_COMMAND_ID || action.id === CLOSE_SESSION_COMMAND_ID);
+	const closeActionIndex = primaryActions.findIndex(action => SESSION_TOOLBAR_CLOSE_COMMAND_IDS.has(action.id));
 	return closeActionIndex === -1 ? primaryActions.length : closeActionIndex;
 }
 

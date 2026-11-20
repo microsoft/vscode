@@ -29,7 +29,7 @@ import { ToggleMenuAction } from '../../../../../../base/browser/ui/toolbar/tool
 import { ChatHeader } from '../../../browser/parts/chatHeader.js';
 import { SessionHeader } from '../../../browser/parts/sessionHeader.js';
 import { SessionHeaderBar } from '../../../browser/parts/sessionHeaderBar.js';
-import { CLOSE_CHAT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
@@ -863,66 +863,68 @@ suite('Sessions - Headers', () => {
 		assert.strictEqual(header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text .label-name')?.textContent, 'New Session');
 	});
 
-	test('renders the overflow action before the small close control', () => {
-		const { store, instantiationService, session, secondChat } = createHarness(disposables);
-		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
-			override createMenu(_menuId: MenuId): IMenu {
-				return {
-					onDidChange: Event.None,
-					dispose: () => { },
-					getActions: menuOptions => [[
-						'navigation',
-						[
-							instantiationService.createInstance(MenuItemAction, { id: 'sessions.pin', title: 'Pin', icon: Codicon.pin }, undefined, menuOptions, undefined, undefined),
-							instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close', icon: Codicon.closeSmall }, undefined, menuOptions, undefined, undefined),
-						],
-					], [
-						'secondary/4_manage',
-						[
-							instantiationService.createInstance(MenuItemAction, { id: 'sessions.rename', title: 'Rename' }, undefined, menuOptions, undefined, undefined),
-						],
-					]],
-				};
-			}
-		});
-		const bar = store.add(instantiationService.createInstance(SessionHeaderBar, undefined));
-		bar.setContext({ session, chat: constObservable(secondChat), actionsTargetChat: true });
-		bar.setVisible(true);
-		const toolbar = Reflect.get(bar, '_toolbar') as MenuWorkbenchToolBar;
-		const root = mainWindow.document.createElement('div');
-		root.classList.add('monaco-workbench', 'agent-sessions-workbench');
-		root.style.setProperty('--vscode-spacing-size200', '20px');
-		root.appendChild(bar.element);
-		mainWindow.document.body.appendChild(root);
+	for (const closeCommandId of [CLOSE_CHAT_COMMAND_ID, AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID]) {
+		test(`renders the overflow action before the small close control (${closeCommandId})`, () => {
+			const { store, instantiationService, session, secondChat } = createHarness(disposables);
+			instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+				override createMenu(_menuId: MenuId): IMenu {
+					return {
+						onDidChange: Event.None,
+						dispose: () => { },
+						getActions: menuOptions => [[
+							'navigation',
+							[
+								instantiationService.createInstance(MenuItemAction, { id: 'sessions.pin', title: 'Pin', icon: Codicon.pin }, undefined, menuOptions, undefined, undefined),
+								instantiationService.createInstance(MenuItemAction, { id: closeCommandId, title: 'Close', icon: Codicon.closeSmall }, undefined, menuOptions, undefined, undefined),
+							],
+						], [
+							'secondary/4_manage',
+							[
+								instantiationService.createInstance(MenuItemAction, { id: 'sessions.rename', title: 'Rename' }, undefined, menuOptions, undefined, undefined),
+							],
+						]],
+					};
+				}
+			});
+			const bar = store.add(instantiationService.createInstance(SessionHeaderBar, undefined));
+			bar.setContext({ session, chat: constObservable(secondChat), actionsTargetChat: true });
+			bar.setVisible(true);
+			const toolbar = Reflect.get(bar, '_toolbar') as MenuWorkbenchToolBar;
+			const root = mainWindow.document.createElement('div');
+			root.classList.add('monaco-workbench', 'agent-sessions-workbench');
+			root.style.setProperty('--vscode-spacing-size200', '20px');
+			root.appendChild(bar.element);
+			mainWindow.document.body.appendChild(root);
 
-		disposables.add(toDisposable(() => root.remove()));
-		const actionIds = Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
-		const labels = Array.from(toolbar.getElement().querySelectorAll<HTMLElement>('.action-label')).map(label => label.getAttribute('aria-label'));
-		const closeLabel = toolbar.getElement().querySelector<HTMLElement>('.action-label.codicon-close-small');
-		const closeStyle = closeLabel ? mainWindow.getComputedStyle(closeLabel) : undefined;
+			disposables.add(toDisposable(() => root.remove()));
+			const actionIds = Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
+			const labels = Array.from(toolbar.getElement().querySelectorAll<HTMLElement>('.action-label')).map(label => label.getAttribute('aria-label'));
+			const closeLabel = toolbar.getElement().querySelector<HTMLElement>('.action-label.codicon-close-small');
+			const closeStyle = closeLabel ? mainWindow.getComputedStyle(closeLabel) : undefined;
 
-		assert.deepStrictEqual({
-			actionIds,
-			labels,
-			closeControl: closeStyle ? {
-				width: closeStyle.width,
-				height: closeStyle.height,
-				paddingInline: closeStyle.paddingInline,
-				alignItems: closeStyle.alignItems,
-				justifyContent: closeStyle.justifyContent,
-			} : undefined,
-		}, {
-			actionIds: ['sessions.pin', ToggleMenuAction.ID, CLOSE_CHAT_COMMAND_ID],
-			labels: ['Pin', 'More Actions...', 'Close'],
-			closeControl: {
-				width: '20px',
-				height: '20px',
-				paddingInline: '0px',
-				alignItems: 'center',
-				justifyContent: 'center',
-			},
+			assert.deepStrictEqual({
+				actionIds,
+				labels,
+				closeControl: closeStyle ? {
+					width: closeStyle.width,
+					height: closeStyle.height,
+					paddingInline: closeStyle.paddingInline,
+					alignItems: closeStyle.alignItems,
+					justifyContent: closeStyle.justifyContent,
+				} : undefined,
+			}, {
+				actionIds: ['sessions.pin', ToggleMenuAction.ID, closeCommandId],
+				labels: ['Pin', 'More Actions...', 'Close'],
+				closeControl: {
+					width: '20px',
+					height: '20px',
+					paddingInline: '0px',
+					alignItems: 'center',
+					justifyContent: 'center',
+				},
+			});
 		});
-	});
+	}
 
 	test('uses a full-width backing surface with evenly inset titles and controls and no separator', () => {
 		const { header } = createHarness(disposables);
