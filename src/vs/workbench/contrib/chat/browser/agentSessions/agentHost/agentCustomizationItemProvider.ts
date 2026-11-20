@@ -181,10 +181,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		if (!customization.children?.length && customization.contents === CustomizationType.Hook
 			&& !hasReadableCustomizationContent(URI.parse(customization.uri))
 			&& (customization.load?.kind === CustomizationLoadStatus.Error || customization.load?.kind === CustomizationLoadStatus.Degraded)) {
+			// A disabled, degraded directory without hooks still explains why hooks won't run, such as hooks being turned off.
+			const wontRun = customization.enabled === false && customization.load.kind === CustomizationLoadStatus.Degraded;
 			items.push({
 				itemKey: customization.id, uri: this.toRemoteUri(customization.uri), type: PromptsType.hook,
 				name: customization.name, source, description: customization.load.message,
 				extensionId: undefined, pluginUri: undefined,
+				...(wontRun ? { enabled: false, status: 'degraded', statusMessage: customization.load.message, badge: localize('customizationWontRun', "Won't run"), badgeTooltip: customization.load.message } : {}),
 			});
 		}
 		// A disabled directory that reports a degraded load explains why its disabled children won't run.
@@ -570,7 +573,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	 */
 	private async getCustomAgentHooks(items: readonly ICustomizationItem[]): Promise<ICustomizationHookItem[]> {
 		// The host lists agent files whose hooks the session leaves out, as in an untrusted folder, as hooks that won't run. A session
-		// leaves out the hooks of every custom agent when any of its folders is untrusted, including agents the host could not list.
+		// leaves out the hooks of every custom agent when any of its folders is untrusted or hooks are turned off, including agents the
+		// host could not list, so the host also publishes a row with the reason when hooks are turned off.
 		const notRunningItems = items.filter(item => item.type === PromptsType.hook && item.enabled === false && item.status === 'degraded');
 		const notRunning = new ResourceSet(notRunningItems.map(item => item.uri));
 		const notRunningMessage = notRunningItems[0]?.statusMessage;

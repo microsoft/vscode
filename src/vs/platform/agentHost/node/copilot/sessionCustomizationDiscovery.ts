@@ -1002,15 +1002,16 @@ export class SessionCustomizationDiscovery extends Disposable {
 			uri: file.toString(),
 			name: basename(file.path),
 			enabled: false,
-			_meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository' }),
+			// Custom agent files can come from the user's home as well as from the session's folders.
+			_meta: withCustomizationDiscoveryMeta(undefined, { source: this._containingWorkspaceRoot(file) ? 'repository' : 'user' }),
 		};
 	}
 
-	/** The hooks that sessions leave out because `chat.useHooks` is off. */
-	private toTurnedOffHooksDirectory(hooks: readonly ChildCustomization[]): DirectoryCustomization | undefined {
-		if (hooks.length === 0) {
-			return undefined;
-		}
+	/**
+	 * The hooks that sessions leave out because `chat.useHooks` is off. Published even without hooks, because sessions
+	 * also leave out the hooks of custom agents the host doesn't list, such as agents forwarded by the client.
+	 */
+	private toTurnedOffHooksDirectory(hooks: readonly ChildCustomization[]): DirectoryCustomization {
 		const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks/turnedOff' });
 		return {
 			type: CustomizationType.Directory, id: customizationId(uri.toString()), uri: uri.toString(),
