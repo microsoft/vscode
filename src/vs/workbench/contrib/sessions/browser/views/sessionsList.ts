@@ -9536,6 +9536,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!this.isInboxAutoAdvanceEnabled() || !this.visible || !this.isInboxLayout() || this.pendingOpenRequest || !isEqual(this._mainWindowShown.get()?.chat.resource, resource)) {
 				return;
 			}
+			if (this.configurationService.getValue<string>(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING) === 'newSession') {
+				void this.commandService.executeCommand(NEW_SESSION_ACTION_ID).catch(onUnexpectedError);
+				return;
+			}
 			this.update();
 			const visible = new Set(this.getVisibleSessions());
 			const next = candidates.find(session => visible.has(session) && this.canAcknowledgeInboxSession(session) && this.getInboxSection(session) === SessionInboxSection.ReadyForYou);
@@ -9559,8 +9563,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private isInboxAutoAdvanceEnabled(): boolean {
-		const mode = this.configurationService.getValue<'auto' | 'on' | 'off'>(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING) ?? 'auto';
-		return mode === 'on' || mode === 'auto' && !this.accessibilityService.isScreenReaderOptimized();
+		const mode = this.configurationService.getValue<'auto' | 'on' | 'off' | 'newSession'>(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING) ?? 'auto';
+		return mode === 'newSession' || mode === 'on' || mode === 'auto' && !this.accessibilityService.isScreenReaderOptimized();
 	}
 
 	private async explainInboxAutoAdvance(session: ISession, hasNext: boolean): Promise<void> {
