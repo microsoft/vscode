@@ -1408,6 +1408,42 @@ export function withSessionSourceControlState(meta: SessionMeta | undefined, sta
 }
 
 /**
+ * Reserved key under {@link SessionMeta} for a map from a Branch changeset URI,
+ * as advertised in the changeset catalogue, to the base branch exactly as the
+ * host uses it for that changeset's description and diff (for example
+ * `origin/main`).
+ */
+export const SESSION_META_BRANCH_CHANGESET_BASES_KEY = 'vscode.branchChangesetBases';
+
+/** Reads the base branch the host compares the given Branch changeset against. */
+export function readBranchChangesetBaseBranch(meta: SessionMeta | undefined, changeset: string): string | undefined {
+	const bases = meta?.[SESSION_META_BRANCH_CHANGESET_BASES_KEY];
+	if (!bases || typeof bases !== 'object' || Array.isArray(bases) || !Object.hasOwn(bases, changeset)) {
+		return undefined;
+	}
+	const baseBranch = (bases as Record<string, unknown>)[changeset];
+	return typeof baseBranch === 'string' && baseBranch.length > 0 ? baseBranch : undefined;
+}
+
+/** Returns session metadata with the base branch of the given Branch changeset updated or removed. */
+export function withBranchChangesetBaseBranch(meta: SessionMeta | undefined, changeset: string, baseBranch: string | undefined): SessionMeta | undefined {
+	const current = meta?.[SESSION_META_BRANCH_CHANGESET_BASES_KEY];
+	const bases: Record<string, unknown> = current && typeof current === 'object' && !Array.isArray(current) ? { ...current } : {};
+	if (baseBranch) {
+		bases[changeset] = baseBranch;
+	} else {
+		delete bases[changeset];
+	}
+	const next: SessionMeta = { ...meta };
+	if (Object.keys(bases).length > 0) {
+		next[SESSION_META_BRANCH_CHANGESET_BASES_KEY] = bases;
+	} else {
+		delete next[SESSION_META_BRANCH_CHANGESET_BASES_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
  * GitHub state of a session, carried under {@link SessionMeta} at
  * {@link SESSION_META_GITHUB_KEY}. Used by clients to drive GitHub-specific
  * affordances (e.g. PR/merge buttons in the Agents app).

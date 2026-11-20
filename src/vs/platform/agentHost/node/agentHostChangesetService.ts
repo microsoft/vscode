@@ -49,6 +49,8 @@ import {
 	isHostNoticeTurn,
 	lastAttributableTurnId,
 	SessionLifecycle,
+	readBranchChangesetBaseBranch,
+	withBranchChangesetBaseBranch,
 	withSessionGitState,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -404,8 +406,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const workspaceless = chatOwned ? isChatWorkspaceless(this._stateManager, session, this._sessionStateStore.peek(URI.parse(sessionUri)), sessionWorkspaceless) : sessionWorkspaceless;
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, branchChangesetOwner)?.sourceUri ?? session;
 		const baseBranch = this._getBranchBaseBranch(source, this._sessionStateStore.peek(URI.parse(sessionUri)));
-		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, this._chatOwnership.isRegisteredDefaultChat(session), workspaceless, catalogState, branchChangesetOwner,
-			(folderKey, recordedChat) => resolveAgentMergeOwningChat(this._stateManager, sessionUri, folderKey, recordedChat), baseBranch));
+		const catalogue = buildDefaultChangesetCatalog(session, this._chatOwnership.isRegisteredDefaultChat(session), workspaceless, catalogState, branchChangesetOwner,
+			(folderKey, recordedChat) => resolveAgentMergeOwningChat(this._stateManager, sessionUri, folderKey, recordedChat), baseBranch);
+		this._stateManager.setChangesets(session, catalogue);
+
+		const branchChangeset = catalogue.find(entry => entry.changeKind === ChangesetKind.Branch);
+		const sessionState = branchChangeset && this._stateManager.getSessionState(sessionUri);
+		if (branchChangeset && sessionState && readBranchChangesetBaseBranch(sessionState._meta, branchChangeset.uriTemplate) !== (baseBranch || undefined)) {
+			this._stateManager.setSessionMeta(sessionUri, withBranchChangesetBaseBranch(sessionState._meta, branchChangeset.uriTemplate, baseBranch));
+		}
 	}
 
 	private _getBranchChangesetOwner(owner: ProtocolURI): ProtocolURI {

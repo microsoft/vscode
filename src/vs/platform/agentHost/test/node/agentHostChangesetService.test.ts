@@ -21,7 +21,7 @@ import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirecto
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
-import { ChangesetFileStatus, ChangesetStatus, ChatOriginKind, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
+import { ChangesetFileStatus, ChangesetStatus, ChatOriginKind, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, readBranchChangesetBaseBranch, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { createFileEditDiscardRecord, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
@@ -2795,6 +2795,45 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		svc.refreshChangesetCatalog(peer);
 
 		assert.strictEqual(stateManager.getChatState(peer)?.changesets?.find(changeset => changeset.changeKind === 'branch')?.description, 'peer-feature → origin/peer-base');
+	});
+
+	test('publishes the base branch of each Branch changeset exactly as its description shows it', async () => {
+		const chat = buildDefaultChatUri(sessionStr);
+		const peer = buildChatUri(sessionStr, 'peer');
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repo'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn', workingDirectories: ['file:///peer'] },
+		});
+		stateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }));
+		testGitStates.set(peer, { branchName: 'peer-feature', baseBranchName: 'stale-base' });
+		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
+		await svc.stateStore.write(URI.parse(sessionStr), sessionStatePatch({
+			chats: [{ chat: peer, isDefault: false, fields: { workingDirectories: ['file:///peer'] } }],
+		}), SessionStateMirrorFlush.Immediate);
+		await svc.stateStore.writeMetadata(URI.parse(sessionStr), URI.parse(peer), { [META_DIFF_BASE_BRANCH]: 'origin/peer-base' }, SessionStateMirrorFlush.Immediate);
+		const branchBases = () => [chat, peer].map(resource => {
+			const branch = stateManager.getChatState(resource)?.changesets?.find(changeset => changeset.changeKind === 'branch');
+			return { description: branch?.description, published: branch && readBranchChangesetBaseBranch(stateManager.getSessionState(sessionStr)?._meta, branch.uriTemplate) };
+		});
+
+		svc.refreshChangesetCatalog(chat);
+		svc.refreshChangesetCatalog(peer);
+		const gitStateFallback = branchBases();
+		await svc.stateStore.writeMetadata(URI.parse(sessionStr), URI.parse(sessionStr), { [META_DIFF_BASE_BRANCH]: 'origin/release' }, SessionStateMirrorFlush.Immediate);
+		svc.refreshChangesetCatalog(chat);
+
+		assert.deepStrictEqual({ gitStateFallback, persisted: branchBases() }, {
+			gitStateFallback: [
+				{ description: 'feature → main', published: 'main' },
+				{ description: 'peer-feature → origin/peer-base', published: 'origin/peer-base' },
+			],
+			persisted: [
+				{ description: 'feature → origin/release', published: 'origin/release' },
+				{ description: 'peer-feature → origin/peer-base', published: 'origin/peer-base' },
+			],
+		});
 	});
 
 	test('a chat gets its catalogue once it is restored, and refreshing it before that logs nothing', async () => {
