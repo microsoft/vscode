@@ -47,7 +47,11 @@ suite('PromptTimelineGutterRail', () => {
 		const handle = rail.domNode.querySelector<HTMLButtonElement>('.prompt-timeline-gutter-rest')!;
 		append(rail.domNode, $('style')).textContent = store.add(getIconsStyleSheet(undefined)).getCSS().toString();
 		panel.style.maxHeight = '100px';
-		const visible = () => getWindow(panel).getComputedStyle(panel, '::before').content !== 'none';
+		const visible = () => {
+			const button = panel.querySelector<HTMLElement>('[role=button]');
+			const chevron = button?.querySelector<HTMLElement>('.codicon');
+			return !!chevron && chevron.getClientRects().length > 0 && getWindow(chevron).getComputedStyle(chevron, '::before').content !== 'none';
+		};
 		const hover = () => panel.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 		hover();
 		const complete = visible();
@@ -66,6 +70,51 @@ suite('PromptTimelineGutterRail', () => {
 		rail.setOlderHistoryLoader(undefined);
 		assert.deepStrictEqual({ complete, closed, atTop, scrolled, afterHome, exhausted: visible(), hint: handle.ariaDescription, loads },
 			{ complete: false, closed: false, atTop: true, scrolled: false, afterHome: true, exhausted: false, hint: null, loads: 0 });
+	});
+
+	test('clicking the full chevron strip shows an earlier page; keyboard activation reaches the start', async () => {
+		const recent = Array.from({ length: 10 }, (_, i) => tick(21 + i));
+		const earlier = Array.from({ length: 10 }, (_, i) => tick(11 + i));
+		const firstPage = new DeferredPromise<void>();
+		const rail = createRail(recent);
+		const selected: string[] = [];
+		store.add(rail.onDidSelect(id => selected.push(id)));
+		const panel = rail.domNode.querySelector<HTMLElement>('.prompt-timeline-gutter-panel')!;
+		panel.style.maxHeight = '100px';
+		panel.style.transition = 'none';
+		for (const size of [4, 24, 32]) {
+			panel.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+		}
+		let loads = 0;
+		rail.setOlderHistoryLoader(async () => {
+			if (++loads === 1) {
+				await firstPage.p;
+				for (let i = earlier.length - 1; i >= 0; i--) {
+					rail.setTicks([...earlier.slice(i), ...recent]);
+				}
+			} else {
+				rail.setOlderHistoryLoader(undefined);
+				rail.setTicks([tick(2), ...earlier, ...recent]);
+				rail.setTicks([tick(1), tick(2), ...earlier, ...recent]);
+			}
+		});
+		panel.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		const button = panel.querySelector<HTMLElement>('[role=button][aria-label="Load Earlier Prompts"]')!;
+		const area = button.getBoundingClientRect();
+		const edge = panel.getBoundingClientRect();
+		const hit = (x: number) => document.elementFromPoint(x, area.top + area.height / 2);
+		assert.ok(area.height >= 24 && area.width >= panel.clientWidth - 10 && hit(edge.left + 8) === button && hit(edge.left + panel.clientWidth - 8) === button,
+			`button ${JSON.stringify(area)}, panel ${JSON.stringify(edge)}, hit ${hit(edge.left + 8)?.className} / ${hit(edge.left + panel.clientWidth - 8)?.className}`);
+		hit(edge.left + 8)!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		button.click();
+		const pending = { loads, disabled: button.ariaDisabled };
+		await firstPage.complete();
+		await Promise.resolve();
+		const first = { top: panel.scrollTop, prompt: rowParts(rail)[0].jump.textContent, focused: document.activeElement === button };
+		keydown(button, 'Enter', 13);
+		await Promise.resolve();
+		assert.deepStrictEqual({ pending, first, loads, selected, hidden: !button.getClientRects().length, focused: document.activeElement?.textContent },
+			{ pending: { loads: 1, disabled: 'true' }, first: { top: 0, prompt: '11', focused: true }, loads: 2, selected: [], hidden: true, focused: '1' });
 	});
 
 	test('loads one older page at the gutter boundary and preserves the focused row and column', async () => {
@@ -96,6 +145,25 @@ suite('PromptTimelineGutterRail', () => {
 		predecessor.jump.click();
 		assert.deepStrictEqual({ loadsBeforeGesture, loads, preserved, focusedPrevious, selected, more: panel.classList.contains('has-older-prompts') },
 			{ loadsBeforeGesture: 0, loads: 1, preserved: true, focusedPrevious: true, selected: ['89'], more: false });
+	});
+
+	test('a page arriving after the reader moves on does not take their place in the gutter', async () => {
+		const recent = Array.from({ length: 10 }, (_, i) => tick(21 + i));
+		const rail = createRail(recent);
+		const panel = rail.domNode.querySelector<HTMLElement>('.prompt-timeline-gutter-panel')!;
+		panel.style.maxHeight = '100px';
+		const page = new DeferredPromise<void>();
+		rail.setOlderHistoryLoader(() => page.p);
+		panel.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		const button = panel.querySelector<HTMLElement>('[role=button]')!;
+		button.click();
+		keydown(button, 'End', 35);
+		const last = rowParts(rail).at(-1)!.jump;
+		const before = last.offsetTop - panel.scrollTop;
+		rail.setTicks([tick(20), ...recent]);
+		await page.complete();
+		assert.deepStrictEqual({ focused: document.activeElement === last, top: last.offsetTop - panel.scrollTop },
+			{ focused: true, top: before });
 	});
 
 	test('a page without user prompts still offers paging without inventing a prompt row', () => {

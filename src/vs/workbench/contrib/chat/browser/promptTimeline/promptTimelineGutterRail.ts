@@ -6,6 +6,9 @@
 import { $, addDisposableListener, append, clearNode, EventType, getWindow } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -133,6 +136,8 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 	private _focusColumn: RowColumn = 'jump';
 	private _loadOlder: (() => Promise<void>) | undefined;
 	private _loadingOlder: (() => Promise<void>) | undefined;
+	private _olderButton: Button | undefined;
+	private _loadingFromButton = false;
 	private _historyError: HTMLElement | undefined;
 
 	private readonly _onDidSelect = this._register(new Emitter<string>());
@@ -170,7 +175,7 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		this._list = append(this._domNode, $('.prompt-timeline-gutter-panel'));
 		this._list.id = panelId;
 		this._register(addDisposableListener(this._list, EventType.SCROLL, () => {
-			if (this._loadOlder) {
+			if (this._loadOlder || this._loadingFromButton) {
 				this._updateOlderHistoryChevron();
 			}
 		}));
@@ -278,13 +283,38 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 	setOlderHistoryLoader(loadOlder: (() => Promise<void>) | undefined): void {
 		if (this._loadOlder !== loadOlder) {
 			this._loadOlder = loadOlder;
+			if (loadOlder && !this._olderButton) {
+				this._olderButton = this._createOlderButton();
+			}
+			if (loadOlder && this._olderButton && this._loadingOlder !== loadOlder) {
+				this._loadingFromButton = false;
+				this._olderButton.enabled = true;
+			}
 			this._historyError?.remove();
 			this._historyError = undefined;
-			this._list.classList.toggle('has-older-prompts', !!loadOlder);
 			this._rest.classList.toggle('has-older-prompts', !!loadOlder);
 			this._rest.ariaDescription = loadOlder ? localize('promptTimeline.gutter.olderPromptsHint', "Press Up Arrow on the first prompt to load earlier prompts.") : null;
 			this._updateOlderHistoryChevron();
 		}
+	}
+
+	private _createOlderButton(): Button {
+		const label = localize('promptTimeline.gutter.loadEarlier', "Load Earlier Prompts");
+		const button = this._register(new Button(this._list, { ariaLabel: label, title: label }));
+		button.element.classList.add('prompt-timeline-gutter-older');
+		const icon = button.element.appendChild(renderIcon(Codicon.chevronUpCompact));
+		icon.ariaHidden = 'true';
+		this._list.prepend(button.element);
+		this._register(addDisposableListener(button.element, EventType.FOCUS, () => {
+			this._open = true;
+			this._updateRevealed();
+		}));
+		this._register(button.onDidClick(() => {
+			button.focus();
+			void this._requestOlder(true);
+		}));
+		this._register(button.onDidEscape(() => this._close()));
+		return button;
 	}
 
 	private _atHistoryStart(): boolean {
@@ -292,15 +322,27 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 	}
 
 	private _updateOlderHistoryChevron(): void {
-		this._list.classList.toggle('show-older-prompts-chevron', !!this._loadOlder && this._atHistoryStart());
+		// The final cursor can disappear before all the prompts from that page have been inserted.
+		const hasOlder = !!this._loadOlder || (this._loadingFromButton && !!this._olderButton?.hasFocus());
+		const show = hasOlder && this._atHistoryStart();
+		if (!show && this._olderButton?.hasFocus()) {
+			const target = hasOlder ? this._cell(this._focusRow, this._focusColumn) : this._rows[0]?.jump;
+			(target ?? this._rest).focus({ preventScroll: true });
+		}
+		this._list.classList.toggle('has-older-prompts', hasOlder);
+		this._list.classList.toggle('show-older-prompts-chevron', show);
 	}
 
-	private async _requestOlder(): Promise<void> {
+	private async _requestOlder(fromButton = false): Promise<void> {
 		const load = this._loadOlder;
 		if (!load || this._loadingOlder === load || (!this._open && !this._hovering)) {
 			return;
 		}
 		this._loadingOlder = load;
+		this._loadingFromButton = fromButton;
+		if (this._olderButton) {
+			this._olderButton.enabled = false;
+		}
 		this._historyError?.remove();
 		this._historyError = undefined;
 		try {
@@ -309,11 +351,16 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			if (load === this._loadOlder && !this._store.isDisposed && (this._open || this._hovering)) {
 				this._historyError = $('span.prompt-timeline-gutter-error', { role: 'status' });
 				this._list.prepend(this._historyError);
-				this._historyError.textContent = localize('promptTimeline.gutter.historyError', "Could not load earlier prompts. Navigate up to retry.");
+				this._historyError.textContent = localize('promptTimeline.gutter.historyError', "Could not load earlier prompts. Try again.");
 			}
 		} finally {
 			if (this._loadingOlder === load) {
 				this._loadingOlder = undefined;
+				this._loadingFromButton = false;
+				if (this._olderButton && !this._store.isDisposed) {
+					this._olderButton.enabled = true;
+					this._updateOlderHistoryChevron();
+				}
 			}
 		}
 	}
@@ -485,7 +532,8 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		const start = this._rows.length && ticks.length > this._rows.length ? ticks.findIndex(t => t.requestId === this._rows[0].tick.requestId) : -1;
 		if (start >= 0 && this._rows.every((r, i) => r.tick.requestId === ticks[start + i]?.requestId)) {
 			const first = this._rows[0].container;
-			const preserveScroll = start > 0 && (this._open || this._hovering);
+			const showButtonPage = start > 0 && this._loadingFromButton && this._olderButton?.hasFocus() && this._atHistoryStart();
+			const preserveScroll = start > 0 && !showButtonPage && (this._open || this._hovering);
 			const relativeTop = preserveScroll ? first.offsetTop - this._list.scrollTop : 0;
 			this._setPreview(-1);
 			const prefix = ticks.slice(0, start).map(t => this._createRow(t));
@@ -500,7 +548,9 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 				this._rows.push(row);
 			}
 			this._renderDots(ticks.length);
-			if (preserveScroll) {
+			if (showButtonPage) {
+				this._list.scrollTop = 0;
+			} else if (preserveScroll) {
 				this._list.scrollTop = first.offsetTop - relativeTop;
 			}
 		}
@@ -530,10 +580,12 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		}
 
 		this._rowDisposables.clear();
+		for (const row of this._rows) {
+			row.container.remove();
+		}
 		this._rows.length = 0;
 		this._previewIndex = -1;
 		this._previewBand = -1;
-		clearNode(this._list);
 		// The resting dots preview how many prompts the flyout holds and where the transcript is.
 		this._renderDots(ticks.length);
 

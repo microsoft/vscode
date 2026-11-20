@@ -715,20 +715,34 @@
 }
 
 .prompt-timeline-gutter-panel.has-older-prompts {
-	padding-top: var(--vscode-spacing-size160);
+	padding-top: var(--vscode-spacing-size320);
 	overscroll-behavior-y: contain;
 }
 
-.prompt-timeline-rail-gutter.revealed .prompt-timeline-gutter-panel.show-older-prompts-chevron::before {
-	content: var(--vscode-icon-chevron-up-compact-content) / '';
-	font-family: var(--vscode-icon-chevron-up-compact-font-family);
-	font-size: var(--vscode-codiconFontSize-compact);
-	line-height: 1;
+.prompt-timeline-gutter-panel .prompt-timeline-gutter-older {
+	display: none;
 	position: absolute;
-	top: var(--vscode-spacing-size20);
-	inset-inline: 0;
-	text-align: center;
-	pointer-events: none;
+	top: var(--vscode-spacing-size40);
+	inset-inline: var(--vscode-spacing-size40);
+	height: var(--vscode-spacing-size240);
+	align-items: center;
+	justify-content: center;
+	color: inherit;
+	background: var(--vscode-toolbar-hoverBackground);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+}
+
+.prompt-timeline-rail-gutter.revealed .show-older-prompts-chevron .prompt-timeline-gutter-older {
+	display: flex;
+}
+
+.prompt-timeline-gutter-older .codicon-chevron-up-compact {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.prompt-timeline-gutter-older:not(.disabled):hover {
+	background: var(--vscode-list-hoverBackground);
 }
 
 .prompt-timeline-gutter-error {
@@ -821,12 +835,14 @@
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
 }
 
+.prompt-timeline-gutter-older:is(:focus-visible, .focus-visible),
 .prompt-timeline-gutter-row-jump:is(:focus-visible, .focus-visible),
 .prompt-timeline-gutter-row-diff:is(:focus-visible, .focus-visible) {
 	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
+.monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-older:hover:not(.disabled, :focus-visible, .focus-visible),
 .monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-row-jump:is(:hover, .hovered):not(:focus-visible, .focus-visible),
 .monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-row-diff:is(:hover, .hovered):not(:focus-visible, .focus-visible) {
 	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder);
