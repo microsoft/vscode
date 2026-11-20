@@ -19,9 +19,7 @@ import { createTextModel } from '../../../../../../../../editor/test/common/test
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../../platform/actions/common/actions.js';
 import { NullLogService } from '../../../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
-import { ChatInputSessionLinkDetector, ChatInputSessionLinkProvider, recoverSessionLinkMentions } from '../../../../../browser/widget/input/editor/chatInputSessionLinkProvider.js';
-import { getInlineRequestAttachments } from '../../../../../common/attachments/chatInlineAttachments.js';
-import { IChatRequestVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
+import { ChatInputSessionLinkDetector, ChatInputSessionLinkProvider, linkSessionMentions } from '../../../../../browser/widget/input/editor/chatInputSessionLinkProvider.js';
 import { ChatRequestDynamicVariablePart, ChatRequestTextPart } from '../../../../../common/requestParser/chatParserTypes.js';
 
 suite('ChatInputSessionLinkProvider', () => {
@@ -117,36 +115,26 @@ suite('ChatInputSessionLinkProvider', () => {
 		].join('\n')), []);
 	});
 
-	test('recovers sent session links without changing the request or existing attachment references', () => {
+	test('links sent session links in rendered text without changing the request or other parts', () => {
 		const externalLink = `vscode-insiders://${externalPath}`;
 		const text = `See (${externalLink}),\r\n${internalLink} and #attachment:a.ts`;
 		const fileStart = text.indexOf('#attachment:');
 		const positions = new PositionOffsetTransformer(text);
 		const fileUri = URI.file('/a.ts');
-		const file: IChatRequestVariableEntry = { kind: 'file', id: 'sessionLink:5', name: 'a.ts', value: fileUri };
-		const filePart = new ChatRequestDynamicVariablePart(new OffsetRange(fileStart, text.length), Range.fromPositions(positions.getPosition(fileStart), positions.getPosition(text.length)), text.slice(fileStart), file.id, undefined, file.value, undefined, undefined, true, false, undefined, true);
+		const filePart = new ChatRequestDynamicVariablePart(new OffsetRange(fileStart, text.length), Range.fromPositions(positions.getPosition(fileStart), positions.getPosition(text.length)), text.slice(fileStart), 'file', undefined, fileUri, undefined, undefined, true, false, undefined, true);
 		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, fileStart), Range.fromPositions(positions.getPosition(0), positions.getPosition(fileStart)), text.slice(0, fileStart)), filePart] };
-		const variables = [file];
-		const result = recoverSessionLinkMentions(message, variables, new ChatInputSessionLinkDetector('code-oss', store.add(new NullLogService())));
-		const attachments = getInlineRequestAttachments(result.message.parts, result.variables, text);
+		const result = linkSessionMentions(message, new ChatInputSessionLinkDetector('code-oss', store.add(new NullLogService())));
 		assert.deepStrictEqual({
-			text: result.message.text,
-			originalParts: message.parts.length,
-			originalVariables: variables.length,
-			parts: [...attachments].map(([index, entry]) => ({
-				text: result.message.parts[index].text,
-				kind: entry.kind,
-				value: URI.isUri(entry.value) ? entry.value.toString() : undefined,
-			})),
+			text: result.text,
+			parts: result.parts.map(part => part.text),
+			filePart: result.parts[1] === filePart,
 		}, {
 			text,
-			originalParts: 2,
-			originalVariables: 1,
 			parts: [
-				{ text: externalLink, kind: 'sessionLink', value: internalLink },
-				{ text: internalLink, kind: 'sessionLink', value: internalLink },
-				{ text: '#attachment:a.ts', kind: 'file', value: fileUri.toString() },
+				`See ([vscode-insiders://${externalPath.replace(/_/g, '\\_')}](${internalLink})),\r\n[${internalLink.replace(/_/g, '\\_')}](${internalLink}) and `,
+				'#attachment:a.ts',
 			],
+			filePart: true,
 		});
 	});
 
@@ -173,8 +161,7 @@ suite('ChatInputSessionLinkProvider', () => {
 		].join('\n');
 		const positions = new PositionOffsetTransformer(text);
 		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), Range.fromPositions(positions.getPosition(0), positions.getPosition(text.length)), text)] };
-		const result = recoverSessionLinkMentions(message, [], new ChatInputSessionLinkDetector('code-oss', store.add(new NullLogService())));
-		assert.strictEqual(result.message, message);
+		assert.strictEqual(linkSessionMentions(message, new ChatInputSessionLinkDetector('code-oss', store.add(new NullLogService()))), message);
 	});
 
 	test('makes the keyboard command discoverable when chat is enabled', async () => {

@@ -135,8 +135,7 @@ import { ChatExternalEditContentPart } from './chatContentParts/chatExternalEdit
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationBatchPart } from './chatContentParts/chatImageGenerationBatchPart.js';
 import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { IChatAttachmentWidgetRegistry } from '../attachments/chatAttachmentWidgetRegistry.js';
-import { ChatInputSessionLinkDetector, recoverSessionLinkMentions } from './input/editor/chatInputSessionLinkProvider.js';
+import { ChatInputSessionLinkDetector, linkSessionMentions } from './input/editor/chatInputSessionLinkProvider.js';
 import { getInlineRequestAttachments, recoverAttachmentMentions } from '../../common/attachments/chatInlineAttachments.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatInputNotificationWidget } from './input/chatInputNotificationWidget.js';
@@ -1082,7 +1081,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService productService: IProductService,
-		@IChatAttachmentWidgetRegistry private readonly attachmentWidgetRegistry: IChatAttachmentWidgetRegistry,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -3486,7 +3484,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry), inlineAttachmentParts?: ReadonlySet<number>): MarkdownString | undefined {
 		const markdown = isChatFollowup(element.message)
 			? new MarkdownString(element.message.message)
-			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, this.getRenderedRequestMessage(element.message, element.variables).message, inlineAttachmentParts);
+			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, linkSessionMentions(this.getRenderedRequestMessage(element.message, element.variables), this._sessionLinkDetector), inlineAttachmentParts);
 		const attachmentSummary = !element.messageText.trim() && !explicitFileOrImageVariables.length
 			? getExplicitFileOrImageAttachmentSummary(element.variables)
 			: undefined;
@@ -3499,14 +3497,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * host's history does, gets the mentions of its attachments back as
 	 * references, which show as pills.
 	 */
-	private getRenderedRequestMessage(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[]): { message: IParsedChatRequest; variables: readonly IChatRequestVariableEntry[] } {
-		if (!this.configService.getValue<boolean>(ChatConfiguration.InlineAttachmentsEnabled)) {
-			return { message, variables };
-		}
-		message = recoverAttachmentMentions(message, variables);
-		return this.attachmentWidgetRegistry.hasFactory('sessionLink')
-			? recoverSessionLinkMentions(message, variables, this._sessionLinkDetector)
-			: { message, variables };
+	private getRenderedRequestMessage(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[]): IParsedChatRequest {
+		return this.configService.getValue<boolean>(ChatConfiguration.InlineAttachmentsEnabled) ? recoverAttachmentMentions(message, variables) : message;
 	}
 
 	/**
@@ -3518,8 +3510,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (isChatFollowup(element.message) || !this.configService.getValue<boolean>(ChatConfiguration.InlineAttachmentsEnabled)) {
 			return new Map();
 		}
-		const rendered = this.getRenderedRequestMessage(element.message, element.variables);
-		return getInlineRequestAttachments(rendered.message.parts, rendered.variables, element.message.text);
+		return getInlineRequestAttachments(this.getRenderedRequestMessage(element.message, element.variables).parts, element.variables, element.message.text);
 	}
 
 	private createInlineRequestAttachmentRenderer(element: IChatRequestViewModel): ChatInlineAttachmentRenderer | undefined {

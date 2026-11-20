@@ -78,6 +78,21 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}],
 		}),
 	}),
+	sentSessionLinkInChat: defineComponentFixture({
+		render: context => renderChatWidget(context, {
+			width: 720,
+			height: 320,
+			inputVisible: false,
+			linkPresentationService: createLinkPresentationService(buildAgentSessionLinkPresentation('Implement rich links', 'Agent session', 'inProgress')),
+			messages: [{
+				user: 'Review the changes in agent-host-session://copilotcli/rich-links before merging',
+				assistant: [{
+					kind: 'markdown',
+					text: 'I will review the [implementation session](agent-host-session://copilotcli/rich-links).',
+				}],
+			}],
+		}),
+	}),
 	githubPullRequestInChat: defineComponentFixture({
 		render: context => renderChatWidget(context, {
 			width: 720,

@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { escapeMarkdownSyntaxTokens } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import { escape } from '../../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -13,16 +15,15 @@ import { ILinksList, LinkProvider } from '../../../../../../../editor/common/lan
 import { Edge, ILinkComputerTarget, LinkComputer, State, StateMachine } from '../../../../../../../editor/common/languages/linkComputer.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
-import { localize, localize2 } from '../../../../../../../nls.js';
+import { localize2 } from '../../../../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, parseExternalOpenSessionLinkUri, parseOpenSessionLinkUri } from '../../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { getMarkdownCodeRanges } from '../../../../common/attachments/chatInlineAttachments.js';
-import { IChatRequestSessionLinkVariableEntry, IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { chatInputSchemes } from '../../../../common/constants.js';
-import { ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest, IParsedChatRequestPart } from '../../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestTextPart, IParsedChatRequest } from '../../../../common/requestParser/chatParserTypes.js';
 
 /** A link to an agent session in a chat input. */
 export interface IChatInputSessionLink {
@@ -97,52 +98,48 @@ function hasLineIncluding(model: ILinkComputerTarget, text: string): boolean {
 	return false;
 }
 
-/** Reconstructs presentation-only session references from a submitted request's text. */
-export function recoverSessionLinkMentions(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[], detector: ChatInputSessionLinkDetector): { message: IParsedChatRequest; variables: readonly IChatRequestVariableEntry[] } {
+/**
+ * Turns the plain session links in the text of a submitted request into
+ * Markdown links, so that they render as rich session links, as they do in
+ * responses. The text parts of the result hold Markdown and are for rendering
+ * only; the request keeps its text.
+ */
+export function linkSessionMentions(message: IParsedChatRequest, detector: ChatInputSessionLinkDetector): IParsedChatRequest {
 	const lines = message.text.split(/\r?\n/);
 	const links = detector.detect({ getLineCount: () => lines.length, getLineContent: lineNumber => lines[lineNumber - 1] });
 	if (!links.length) {
-		return { message, variables };
+		return message;
 	}
 
 	const positions = new PositionOffsetTransformer(message.text);
 	const codeRanges = getMarkdownCodeRanges(message.text);
 	const matches = links.map(({ range, link }) => ({
-		range,
 		link,
 		offset: new OffsetRange(positions.getOffset(range.getStartPosition()), positions.getOffset(range.getEndPosition())),
 	})).filter(match => isPlainMarkdownLink(message.text, match.offset) && !codeRanges.some(range => range.intersects(match.offset)));
-	const parts: IParsedChatRequestPart[] = [];
-	const added: IChatRequestSessionLinkVariableEntry[] = [];
-	const usedIds = new Set(variables.map(variable => variable.id));
-	for (const part of message.parts) {
+	let changed = false;
+	const parts = message.parts.map(part => {
 		if (!(part instanceof ChatRequestTextPart)) {
-			parts.push(part);
-			continue;
+			return part;
 		}
+		let markdown = '';
 		let copiedUntil = part.range.start;
-		for (const match of matches) {
-			const { start, endExclusive } = match.offset;
-			if (start < copiedUntil || endExclusive > part.range.endExclusive) {
+		for (const { link, offset } of matches) {
+			if (offset.start < copiedUntil || offset.endExclusive > part.range.endExclusive) {
 				continue;
 			}
-			if (start > copiedUntil) {
-				parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, start), Range.fromPositions(positions.getPosition(copiedUntil), positions.getPosition(start)), message.text.slice(copiedUntil, start)));
-			}
-			let id = `sessionLink:${start}`;
-			while (usedIds.has(id)) {
-				id += ':';
-			}
-			usedIds.add(id);
-			added.push({ kind: 'sessionLink', id, name: localize('chat.inlineAttachment.sessionLink', "Session"), value: match.link });
-			parts.push(new ChatRequestDynamicVariablePart(match.offset, match.range, message.text.slice(start, endExclusive), id, undefined, match.link, undefined, undefined, undefined, undefined, undefined, true));
-			copiedUntil = endExclusive;
+			const label = escapeMarkdownSyntaxTokens(escape(message.text.slice(offset.start, offset.endExclusive)));
+			const href = link.toString().replace(/\(/g, '%28').replace(/\)/g, '%29');
+			markdown += `${message.text.slice(copiedUntil, offset.start)}[${label}](${href})`;
+			copiedUntil = offset.endExclusive;
 		}
-		if (copiedUntil < part.range.endExclusive) {
-			parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, part.range.endExclusive), Range.fromPositions(positions.getPosition(copiedUntil), positions.getPosition(part.range.endExclusive)), message.text.slice(copiedUntil, part.range.endExclusive)));
+		if (copiedUntil === part.range.start) {
+			return part;
 		}
-	}
-	return added.length ? { message: { text: message.text, parts }, variables: [...variables, ...added] } : { message, variables };
+		changed = true;
+		return new ChatRequestTextPart(part.range, part.editorRange, markdown + message.text.slice(copiedUntil, part.range.endExclusive));
+	});
+	return changed ? { text: message.text, parts } : message;
 }
 
 /**
