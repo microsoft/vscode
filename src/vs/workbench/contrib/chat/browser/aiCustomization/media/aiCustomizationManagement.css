@@ -1290,6 +1290,9 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .list-search-and-button-container,
 .ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .mcp-list-container,
 .ai-customization-management-editor .plugin-content-container > .plugin-list-widget .plugin-card-scroll,
+.ai-customization-management-editor .plugin-content-container > .plugin-marketplaces-widget > .section-title-header,
+.ai-customization-management-editor .plugin-content-container > .plugin-marketplaces-widget > .list-search-and-button-container,
+.ai-customization-management-editor .plugin-content-container > .plugin-marketplaces-widget > .mcp-list-container,
 .ai-customization-management-editor .tools-content-container > .tools-list-widget > .section-title-header,
 .ai-customization-management-editor .tools-content-container > .tools-list-widget > .tools-list-search-and-button-container,
 .ai-customization-management-editor .tools-list-tree {
@@ -2753,6 +2756,45 @@ per-word capitalization does not survive translation. */
 	height: 100%;
 	min-height: 0;
 	overflow: hidden;
+}
+
+.plugin-marketplaces-widget .marketplace-list-item {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	gap: var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size80);
+}
+
+.plugin-marketplaces-widget .marketplace-list-item-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.plugin-marketplaces-widget .marketplace-list-item-name,
+.plugin-marketplaces-widget .marketplace-list-item-description {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.plugin-marketplaces-widget .marketplace-list-item-name {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.plugin-marketplaces-widget .marketplace-list-item-description {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 1.4;
+}
+
+.plugin-marketplaces-widget .marketplace-list-item-actions {
+	flex-shrink: 0;
+}
+
+.plugin-marketplaces-widget .marketplaces-message {
+	padding: var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
 }
 
 .mcp-list-widget .mcp-list-container {
