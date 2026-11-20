@@ -19,6 +19,8 @@ import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from '
 export const MODEL_PICKER_BUILT_IN_DESTINATION = 'builtIn';
 /** The on-device models of the chat's local Agent Host, placed right after the built-in provider. */
 export const MODEL_PICKER_ON_DEVICE_DESTINATION = 'onDevice';
+/** The chat's model routers, placed last, after every provider. */
+export const MODEL_PICKER_ROUTERS_DESTINATION = 'routers';
 /** Prefix for the destination each provider the user added gets. */
 const PROVIDER_DESTINATION_PREFIX = 'provider:';
 

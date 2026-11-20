@@ -200,6 +200,12 @@ export interface IChatViewHostService extends IChatViewHost {
 	/** The sessions list that the Chat view shows in place of its own: of the contribution registered last that gives one. */
 	readonly sessionsList: IObservable<IChatViewSessionsListProvider | undefined>;
 	/**
+	 * Whether a feature is going to give the Chat view a sessions list ({@link sessionsList}) that has not registered yet, such as
+	 * while the window restores. Until it does, the Chat view shows no sessions list, rather than its own that the provided one
+	 * would replace.
+	 */
+	readonly sessionsListExpected: IObservable<boolean>;
+	/**
 	 * Whether the Chat view shows only its sessions, without its chat: while a contribution asks for it
 	 * ({@link IChatViewContribution.sessionsOnly}), a host replaces the Chat view, and the Chat view does not host the chat
 	 * shown last.

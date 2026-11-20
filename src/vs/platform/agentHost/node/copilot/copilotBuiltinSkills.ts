@@ -10,13 +10,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_BUILTIN_SKILL_SCHEME } from '../../common/agentHostCustomizationUri.js';
 import { MODEL_ROUTER_FOLDER } from '../../common/modelRouter.js';
+import { ModelRouterSkillName } from '../../common/modelRouterConfig.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
 import { AhpErrorCodes, ContentEncoding, ProtocolError, type ResourceReadResult } from '../../common/state/sessionProtocol.js';
 import type { IAgentHostResourceProvider } from '../agentHostResourceProviders.js';
 
 const troubleshootName = 'troubleshoot';
-const modelRouterName = 'model-router';
 const skillsDirectory = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
 const troubleshootUri = URI.from({ scheme: AGENT_BUILTIN_SKILL_SCHEME, path: '/troubleshoot/SKILL.md' });
 const modelRouterUri = URI.from({ scheme: AGENT_BUILTIN_SKILL_SCHEME, path: '/model-router/SKILL.md' });
@@ -31,7 +31,7 @@ function troubleshootDescriptor() {
 
 function modelRouterDescriptor() {
 	return {
-		name: modelRouterName,
+		name: ModelRouterSkillName,
 		description: localize('copilot.builtinModelRouter.description', "Create, edit, clean up or fix a model router: a .model-router.yaml file that picks the model for a chat from routes the user writes. Checks every edit with check_model_router."),
 		userInvocable: true,
 	};
@@ -70,7 +70,7 @@ export function createCopilotSkillProvider(sdkConversationId: string, copilotHom
 	return {
 		listSkills: () => isModelRouterEnabled() ? [troubleshootDescriptor(), modelRouterDescriptor()] : [troubleshootDescriptor()],
 		readSkill: (name, { signal }) => {
-			if (name === modelRouterName) {
+			if (name === ModelRouterSkillName) {
 				return isModelRouterEnabled()
 					? modelRouterSkillContent
 						.replace('{{COPILOT_MODEL_ROUTERS}}', () => joinPath(copilotHome, MODEL_ROUTER_FOLDER).fsPath)

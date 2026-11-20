@@ -19,6 +19,7 @@ import { InstantiationService } from '../../../../util/vs/platform/instantiation
 import { ServiceCollection } from '../../../../util/vs/platform/instantiation/common/serviceCollection';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { IAuthenticationChatUpgradeService } from '../../../authentication/common/authenticationUpgrade';
+import { CopilotToken } from '../../../authentication/common/copilotToken';
 import { ConfigKey } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
@@ -33,7 +34,7 @@ import { NullExperimentationService } from '../../../telemetry/common/nullExperi
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { NullWorkspaceService } from '../../../workspace/common/workspaceService';
-import { CodeSearchChunkSearch } from '../../node/codeSearch/codeSearchChunkSearch';
+import { CodeSearchChunkSearch, ExternalIngestEnablement } from '../../node/codeSearch/codeSearchChunkSearch';
 import { AdoCodeSearchRepo, CodeSearchRepoStatus } from '../../node/codeSearch/codeSearchRepo';
 import { TrackedRepoState, TrackedRepoStatus } from '../../node/codeSearch/repoTracker';
 import { IWorkspaceFileIndex } from '../../node/workspaceFileIndex';
@@ -56,14 +57,14 @@ class TestAuthenticationService extends mock<IAuthenticationService>() {
 	override anyGitHubSession: AuthenticationSession | undefined = session('any');
 	override permissiveGitHubSession: AuthenticationSession | undefined = session('permissive');
 	override anyAdoSession: AuthenticationSession | undefined = session('ado-any');
-	override readonly copilotToken = undefined;
+	override copilotToken: CopilotToken | undefined = undefined;
 }
 
 class TestRepoTracker extends Disposable {
 	readonly changes = this._register(new Emitter<TrackedRepoState>());
 	readonly onDidAddOrUpdateRepo = this.changes.event;
 	readonly onDidRemoveRepo = Event.None;
-	private readonly repos: TrackedRepoState[] = [];
+	readonly repos: TrackedRepoState[] = [];
 	async initialize(): Promise<void> { }
 	getAllTrackedRepos(): readonly TrackedRepoState[] { return this.repos; }
 	add(repo: TrackedRepoState): void {
@@ -78,13 +79,20 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 		vi.restoreAllMocks();
 	});
 
-	async function create() {
+	async function create(options: { readonly extraFolders?: readonly URI[]; readonly externalIngestPolicy?: boolean; readonly trackedBeforeConstruction?: boolean } = {}) {
 		const authentication = new TestAuthenticationService();
 		disposables.add(authentication.changes);
 		disposables.add(authentication.adoChanges);
+		if (options.externalIngestPolicy) {
+			authentication.copilotToken = new class extends mock<CopilotToken>() {
+				override isBlackbirdExternalIndexingEnabled() { return true; }
+			}();
+		}
 		const tracker = disposables.add(new TestRepoTracker());
 		const config = disposables.add(new InMemoryConfigurationService(disposables.add(new DefaultsOnlyConfigurationService())));
 		await config.setConfig(ConfigKey.Advanced.WorkspaceEnableCodeSearch, true);
+		// Keep the external ingest index uninitialized; these tests only cover how its enablement is scoped
+		await config.setConfig(ConfigKey.Advanced.WorkspaceEnableCodeSearchExternalIngest, false);
 		const remote = new class extends mock<IGithubCodeSearchService>() {
 			override getRemoteIndexState = vi.fn<IGithubCodeSearchService['getRemoteIndexState']>().mockResolvedValue(Result.ok({
 				status: RemoteCodeSearchIndexStatus.Ready,
@@ -100,6 +108,15 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 		), true));
 		vi.spyOn(instantiation, 'createInstance').mockReturnValueOnce(tracker);
 		const root = URI.parse('file:///workspace');
+		const trackedRepo: TrackedRepoState = {
+			status: TrackedRepoStatus.Resolved,
+			repo: { rootUri: root },
+			resolvedRemoteInfo: { repoId: new GithubRepoId('owner', 'repo'), fetchUrl: undefined },
+		};
+		if (options.trackedBeforeConstruction) {
+			// Like Remote Repositories roots, which the tracker resolves before anyone subscribes to it
+			tracker.repos.push(trackedRepo);
+		}
 		const search = disposables.add(new CodeSearchChunkSearch(
 			EmbeddingType.text3small_512,
 			instantiation,
@@ -114,13 +131,11 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 			log,
 			telemetry,
 			new class extends mock<IWorkspaceFileIndex>() { }(),
-			disposables.add(new NullWorkspaceService([root])),
+			disposables.add(new NullWorkspaceService([root, ...options.extraFolders ?? []])),
 		));
-		tracker.add({
-			status: TrackedRepoStatus.Resolved,
-			repo: { rootUri: root },
-			resolvedRemoteInfo: { repoId: new GithubRepoId('owner', 'repo'), fetchUrl: undefined },
-		});
+		if (!options.trackedBeforeConstruction) {
+			tracker.add(trackedRepo);
+		}
 		await vi.waitFor(() => expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.Ready]));
 		expect(remote.getRemoteIndexState).toHaveBeenCalledTimes(1);
 		return { authentication, remote, search };
@@ -163,6 +178,24 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 			requests: remote.getRemoteIndexState.mock.calls.length,
 			statuses: search.getRemoteIndexState(false).repos.map(repo => repo.status),
 		}).toEqual({ requests: 1, statuses: [CodeSearchRepoStatus.Ready] });
+	});
+
+	test.each([
+		{ name: 'GitHub repo only, policy off', externalIngestPolicy: false, extraFolders: [], expected: { enablement: undefined, offer: false } },
+		{ name: 'GitHub repo only, policy on', externalIngestPolicy: true, extraFolders: [], expected: { enablement: undefined, offer: false } },
+		{ name: 'non-GitHub folder, policy off', externalIngestPolicy: false, extraFolders: [URI.parse('file:///other')], expected: { enablement: ExternalIngestEnablement.DisabledByPolicy, offer: false } },
+		{ name: 'non-GitHub folder, policy on', externalIngestPolicy: true, extraFolders: [URI.parse('file:///other')], expected: { enablement: ExternalIngestEnablement.DisabledBySetting, offer: true } },
+	])('external ingest is only reported and offered for content outside GitHub repos: $name', async ({ externalIngestPolicy, extraFolders, expected }) => {
+		const { search } = await create({ externalIngestPolicy, extraFolders });
+		expect({
+			enablement: search.getRemoteIndexState(false).externalIngestEnablement,
+			offer: await search.shouldOfferToEnableExternalIngest(),
+		}).toEqual(expected);
+	});
+
+	test('repos the tracker resolved before code search subscribed are still opened', async () => {
+		// create() waits for the repo to reach Ready, which fails if it was never opened
+		await create({ trackedBeforeConstruction: true });
 	});
 });
 

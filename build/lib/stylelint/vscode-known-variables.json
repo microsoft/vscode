@@ -1035,6 +1035,8 @@
 		"--session-group-insertion-depth",
 		"--session-group-interaction-foreground",
 		"--session-group-selection-foreground",
+		"--session-indent-guides",
+		"--session-indent-guides-indented",
 		"--editor-font-size",
 		"--background-dark",
 		"--background-light",

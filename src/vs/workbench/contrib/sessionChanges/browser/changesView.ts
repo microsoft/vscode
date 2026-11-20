@@ -17,6 +17,7 @@ import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -39,13 +40,14 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../sessions/common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext, SessionChangesEditorDrawsHeaderContext } from '../../sessions/common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -372,6 +374,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@INotificationService notificationService: INotificationService,
 	) {
 		super();
 
@@ -408,6 +411,14 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			const operation = changes.changesetOperationsObs.get().find(operation => operation.id === e.action.id);
 			if (!operation || !isSessionPullRequestOperation(operation)) {
 				unlockChatPetCreatePullRequestAchievement(e.action.id, chatPetService);
+			}
+		}));
+		// The button bar's action runner catches what an operation throws, such
+		// as a merge the agent host rejects, so report it here.
+		this._register(buttonBar.onDidRun(({ action, error }) => {
+			if (error && !isCancellationError(error)) {
+				this.logService.error(`[ChangesWorkbenchButtonBarWidget] Changeset operation failed: operation=${action.id}`, error);
+				notificationService.error(error);
 			}
 		}));
 		this.onDidChangeActions = Event.signal(buttonBar.onDidChange);
@@ -782,7 +793,7 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
-interface IChangesPickerLabel {
+export interface IChangesPickerLabel {
 	readonly label: string;
 	readonly tooltip?: string;
 	readonly isNonDefault: boolean;
@@ -2199,6 +2210,12 @@ export class VersionsPickerAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: desktopChangesEditorHeader,
+			}, {
+				// The header that the Changes editor draws itself, where the editor part around it does not
+				id: Menus.SessionsEditorHeaderPrimary,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionChangesEditorDrawsHeaderContext),
 			}],
 		});
 	}

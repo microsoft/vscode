@@ -44,8 +44,6 @@ export const SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING = 'sessions.list.inboxAuto
 /** When automation sessions automatically also appear in the Sessions list. */
 export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
 
-export const SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING = 'sessions.automations.showSharedByOthers';
-
 export const enum AutomationSessionsListMode {
 	/** Every automation session is listed. */
 	Always = 'always',

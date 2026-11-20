@@ -758,6 +758,7 @@ export interface IAgentTurnInteraction {
 	readonly steeredFromTurn?: string;
 	readonly interactionIds: readonly string[];
 	readonly interactionIdsTruncated: boolean;
+	readonly steeringDelivery?: 'steering' | 'idle' | 'queued' | 'unknown';
 }
 
 /** A point-in-time snapshot; missing counters and missing snapshots remain unknown. */
@@ -2261,9 +2262,6 @@ export interface IAgent {
 
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
-
-	/** Native snapshots can arrive after host cancellation or steering has already ended a turn. */
-	readonly onDidStoreTurnEdits?: Event<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
 
 	/** Host-wide progress for provider setup, including work without a chat yet. */
 	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;

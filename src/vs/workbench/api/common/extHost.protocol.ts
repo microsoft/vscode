@@ -2431,7 +2431,7 @@ export type ChatArtifactRunDto = Pick<ArtifactRun, 'id' | 'actionId' | 'source' 
 
 export interface ChatArtifactAutomationSnapshotDto {
 	readonly revision: number;
-	readonly configuration: Omit<ArtifactAutomationConfiguration, 'enabledAt' | 'grants'> & { readonly enabledAt: Readonly<Record<string, number>> };
+	readonly configuration: Omit<ArtifactAutomationConfiguration, 'enabledAt' | 'grants' | 'disabledBy'> & { readonly enabledAt: Readonly<Record<string, number>> };
 	readonly state: { readonly revision: number; readonly value?: string };
 	readonly runs: readonly ChatArtifactRunDto[];
 }

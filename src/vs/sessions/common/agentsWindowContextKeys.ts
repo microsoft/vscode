@@ -34,6 +34,7 @@ export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVi
 export const AutomationsCustomViewFocusContext = new RawContextKey<boolean>('automationsCustomViewFocus', false, localize('automationsCustomViewFocus', "Whether the Automations custom view has keyboard focus"));
 export const AutomationsHasItemsContext = new RawContextKey<boolean>('automationsHasItems', false, localize('automationsHasItems', "Whether there is at least one automation"));
 export const AutomationsHasOthersContext = new RawContextKey<boolean>('automationsHasOthers', false, localize('automationsHasOthers', "Whether there is a shared automation not known to be created by the current user"));
+export const ShowSharedAutomationsByOthersContext = new RawContextKey<boolean>('automationsShowSharedByOthers', false, localize('automationsShowSharedByOthers', "Whether shared automations created by others are shown"));
 
 //#endregion
 

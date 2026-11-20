@@ -46,10 +46,10 @@ type ArtifactChatNotice = SystemNotificationResponsePart & { readonly content: s
  * them, so that it reads the same as the notices it is later merged into.
  */
 function toNoticePart(notice: ArtifactAutomationNotice): ArtifactChatNotice {
-	const changes = notice.changes && notice.enabledRules
-		? { artifactId: notice.artifact.id, artifactLabel: notice.artifact.label, changes: notice.changes, enabledRules: notice.enabledRules }
+	const changes: IArtifactIntegrationNoticeChanges | undefined = notice.changes && notice.enabledRules
+		? { artifactId: notice.artifact.id, artifactLabel: notice.artifact.label, ...(notice.artifactKind ? { artifactKind: notice.artifactKind } : {}), changes: notice.changes, enabledRules: notice.enabledRules }
 		: undefined;
-	return toNoticeResponsePart(changes ? formatArtifactAutomationNotice(changes.artifactLabel, changes.changes, changes.enabledRules) : notice, notice.iconId, changes);
+	return toNoticeResponsePart(changes ? formatArtifactAutomationNotice(changes.artifactLabel, changes.changes, changes.enabledRules, changes.artifactKind) : notice, notice.iconId, changes);
 }
 
 function toNoticeResponsePart({ kind, content }: Pick<ArtifactAutomationNotice, 'kind' | 'content'>, iconId: string | undefined, changes: IArtifactIntegrationNoticeChanges | undefined): ArtifactChatNotice {
@@ -67,9 +67,10 @@ function mergeNoticeParts(previous: SystemNotificationResponsePart, next: System
 	if (!notices) {
 		return undefined;
 	}
-	const merged = { artifactId: later.artifactId, artifactLabel: later.artifactLabel, ...notices };
+	const artifactKind = later.artifactKind ?? earlier.artifactKind;
+	const merged: IArtifactIntegrationNoticeChanges = { artifactId: later.artifactId, artifactLabel: later.artifactLabel, ...(artifactKind ? { artifactKind } : {}), ...notices };
 	const iconId = readArtifactIntegrationNotice(next)?.iconId ?? readArtifactIntegrationNotice(previous)?.iconId;
-	return toNoticeResponsePart(formatArtifactAutomationNotice(merged.artifactLabel, merged.changes, merged.enabledRules), iconId, merged);
+	return toNoticeResponsePart(formatArtifactAutomationNotice(merged.artifactLabel, merged.changes, merged.enabledRules, merged.artifactKind), iconId, merged);
 }
 
 export interface IAgentHostArtifactCallbacks {
@@ -144,6 +145,10 @@ export class AgentHostArtifactRuntime extends Disposable {
 				}
 			},
 			isOwner: () => !this._store.isDisposed,
+			getAgentName: chat => {
+				const provider = stateManager.getChatState(chat)?.provider ?? stateManager.getSessionState(chat)?.provider;
+				return stateManager.rootState.agents.find(agent => agent.provider === provider)?.displayName;
+			},
 			onDidDeleteSession: callbacks.onDidDeleteSession,
 			acquireSession: async session => {
 				const reference = await this.acquire(session, callbacks, (): ArtifactSessionState => {

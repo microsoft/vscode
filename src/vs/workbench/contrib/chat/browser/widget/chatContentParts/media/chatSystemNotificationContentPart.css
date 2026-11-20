@@ -60,7 +60,8 @@
 }
 
 /* Name the disclosure as well to outrank `.monaco-workbench .codicon[class*='codicon-']`, which otherwise
-	resets the chevron to the base codicon size. */
+	resets the leading icon and the chevron to the base codicon size. */
+.chat-system-notification-disclosure > .chat-system-notification-disclosure-header > .chat-system-notification-disclosure-icon.codicon,
 .chat-system-notification-disclosure > .chat-system-notification-disclosure-header > .chat-collapsible-hover-chevron.codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
@@ -72,10 +73,6 @@
 .chat-system-notification-disclosure-header:hover .chat-collapsible-hover-chevron,
 .chat-system-notification-disclosure-header:focus-visible .chat-collapsible-hover-chevron {
 	opacity: 1;
-}
-
-.chat-system-notification-disclosure-icon.codicon {
-	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .chat-system-notification-disclosure-icon.codicon-check-compact {

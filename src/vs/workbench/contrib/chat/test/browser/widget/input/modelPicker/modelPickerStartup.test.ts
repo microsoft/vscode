@@ -69,11 +69,11 @@ function autoModel(fusion = false): ILanguageModelChatMetadataAndIdentifier {
 suite('Model picker startup rendering', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createPickers(initial?: ILanguageModelChatMetadataAndIdentifier, live = false) {
+	function createPickers(initial?: ILanguageModelChatMetadataAndIdentifier, source: 'cache' | 'registered' | 'providerCatalog' = 'cache') {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const changes = disposables.add(new Emitter<string>());
 		const registered = new Map<string, ILanguageModelChatMetadataAndIdentifier['metadata']>();
-		if (initial && live) {
+		if (initial && source === 'registered') {
 			registered.set(initial.identifier, initial.metadata);
 		}
 		let models = initial ? [initial] : [];
@@ -119,7 +119,7 @@ suite('Model picker startup rendering', () => {
 			currentModel: selected,
 			getModels: () => models,
 			setModel: value => selected.set(value, undefined),
-			getPresentationOptions: () => ({ showAutoModel: true, showManageModelsAction: false, showUnavailableFeatured: false, showModelIcon: false }),
+			getPresentationOptions: () => ({ hasLiveModelCatalog: source === 'providerCatalog', showAutoModel: true, showManageModelsAction: false, showUnavailableFeatured: false, showModelIcon: false }),
 		};
 		const container = dom.append(document.body, dom.$('div'));
 		disposables.add(toDisposable(() => container.remove()));
@@ -177,10 +177,22 @@ suite('Model picker startup rendering', () => {
 	});
 
 	test('live legacy Auto keeps its provider name and configuration', () => {
-		assert.deepStrictEqual(createPickers(autoModel(), true).read(), {
+		assert.deepStrictEqual(createPickers(autoModel(), 'registered').read(), {
 			desktop: 'Auto',
 			desktopAria: 'Models, Auto',
 			configuration: 'Efficiency',
+			phone: 'Auto',
+			phoneAria: 'Pick Mode and Model, Agent, Auto',
+		});
+	});
+
+	test('Auto from a live provider catalog needs no language model registration', () => {
+		const auto = autoModel();
+		const catalogAuto = { identifier: 'auto', metadata: { ...auto.metadata, vendor: 'copilot', modelGroup: undefined, configurationSchema: undefined } };
+		assert.deepStrictEqual(createPickers(catalogAuto, 'providerCatalog').read(), {
+			desktop: 'Auto',
+			desktopAria: 'Models, Auto',
+			configuration: undefined,
 			phone: 'Auto',
 			phoneAria: 'Pick Mode and Model, Agent, Auto',
 		});
