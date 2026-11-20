@@ -383,14 +383,23 @@ suite('TerminalLinkManager', () => {
 	});
 
 	suite('link activation', () => {
-		test('should only prevent default for the primary button so middle click paste works', async () => {
+		async function activateWordLinkWithEachButton(): Promise<boolean[]> {
 			await new Promise<void>(r => xterm.write('foo', r));
 			const [link] = (await linkManager.getDetectedLinks(1, 'word'))!;
 			const events = [0, 1, 2].map(button => new MouseEvent('mouseup', { button, cancelable: true }));
 			for (const e of events) {
 				link.activate(e, link.text);
 			}
-			deepStrictEqual(events.map(e => e.defaultPrevented), [true, false, false]);
+			return events.map(e => e.defaultPrevented);
+		}
+
+		test('should only prevent default for the primary button so middle click paste works', async () => {
+			deepStrictEqual(await activateWordLinkWithEachButton(), [true, false, false]);
+		});
+
+		test('should also prevent default for the middle button when middleClickBehavior is paste so it only pastes once', async () => {
+			configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, middleClickBehavior: 'paste' } });
+			deepStrictEqual(await activateWordLinkWithEachButton(), [true, true, false]);
 		});
 	});
 });
