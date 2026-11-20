@@ -30,3 +30,27 @@ export async function resolveDirectRemoteAuthority(
 
 	return { authority: { authority, connectTo: { type: RemoteConnectionType.WebSocket, host, port }, connectionToken } };
 }
+
+/** Keep the resolved token across reconnects for the lifetime of the workbench. */
+export class DirectRemoteAuthorityResolver {
+	private readonly _connectionTokens = new Map<string, Promise<string | undefined>>();
+
+	constructor(
+		private readonly _getConnectionToken: (authority: string) => Promise<string | undefined>,
+		private readonly _confirmConnection: (host: string, port: number) => Promise<void>,
+	) { }
+
+	resolve(authority: string): Promise<ResolverResult> {
+		return resolveDirectRemoteAuthority(authority, async authority => {
+			let token = this._connectionTokens.get(authority);
+			if (!token) {
+				token = this._getConnectionToken(authority).catch(error => {
+					this._connectionTokens.delete(authority);
+					throw error;
+				});
+				this._connectionTokens.set(authority, token);
+			}
+			return token;
+		}, this._confirmConnection);
+	}
+}

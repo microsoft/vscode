@@ -32,7 +32,7 @@ import { PersistentConnectionEventType } from '../../../../platform/remote/commo
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
-import { resolveDirectRemoteAuthority } from '../common/directRemoteAuthority.js';
+import { DirectRemoteAuthorityResolver } from '../common/directRemoteAuthority.js';
 import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
 import { updateProxyConfigurationsScope } from '../../../../platform/request/common/request.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -64,6 +64,7 @@ import { AsyncIterableEmitter, AsyncIterableProducer } from '../../../../base/co
 export class NativeExtensionService extends AbstractExtensionService implements IExtensionService {
 
 	private readonly _extensionScanner: CachedExtensionScanner;
+	private readonly _directRemoteAuthorityResolver: DirectRemoteAuthorityResolver;
 	private readonly _localCrashTracker = new ExtensionHostCrashTracker();
 
 	constructor(
@@ -129,6 +130,10 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		);
 
 		this._extensionScanner = extensionScanner;
+		this._directRemoteAuthorityResolver = new DirectRemoteAuthorityResolver(
+			authority => this._nativeHostService.getRemoteConnectionToken(authority),
+			(host, port) => this._confirmDirectRemoteConnection(host, port)
+		);
 
 		// delay extension host creation and extension scanning
 		// until the workbench is running. we cannot defer the
@@ -277,11 +282,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
-			return resolveDirectRemoteAuthority(
-				remoteAuthority,
-				authority => this._nativeHostService.getRemoteConnectionToken(authority),
-				(host, port) => this._confirmDirectRemoteConnection(host, port)
-			);
+			return this._directRemoteAuthorityResolver.resolve(remoteAuthority);
 		}
 
 		return this._resolveAuthorityOnExtensionHosts(ExtensionHostKind.LocalProcess, remoteAuthority);

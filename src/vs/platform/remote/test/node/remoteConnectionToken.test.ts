@@ -29,7 +29,7 @@ import { RemoteAuthorityResolverService } from '../../electron-browser/remoteAut
 import { RemoteConnectionTokenFile, validateRemoteConnectionTokenArguments, WindowRemoteConnectionTokens } from '../../node/remoteConnectionToken.js';
 import { RemoteSocketFactoryService } from '../../common/remoteSocketFactoryService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { resolveDirectRemoteAuthority } from '../../../../workbench/services/extensions/common/directRemoteAuthority.js';
+import { DirectRemoteAuthorityResolver } from '../../../../workbench/services/extensions/common/directRemoteAuthority.js';
 
 class ReconnectTestSocket implements ISocket {
 	private readonly _onData = new Emitter<VSBuffer>();
@@ -206,7 +206,7 @@ suite('Remote connection token file', () => {
 		await assert.rejects(token.getValue('127.0.0.1:8001'), /does not belong/);
 	});
 
-	test('reload and reconnection reread the file, observe replacement and reject deletion', async () => {
+	test('reading a retained window binding observes file replacement and deletion', async () => {
 		const tokens = new WindowRemoteConnectionTokens<object>();
 		const window = {};
 		tokens.bind(window, authority, await credential());
@@ -312,11 +312,11 @@ suite('Remote connection token file', () => {
 			const window = {};
 			tokens.bind(window, authority, source);
 
-			const resolvedAuthorityResult = await resolveDirectRemoteAuthority(
-				authority,
-				async a => tokens.get(window, a),
+			const directResolver = new DirectRemoteAuthorityResolver(
+				a => tokens.get(window, a),
 				async () => { }
 			);
+			const resolvedAuthorityResult = await directResolver.resolve(authority);
 
 			assert.strictEqual(resolvedAuthorityResult.authority.connectionToken, initialToken);
 
@@ -335,7 +335,16 @@ suite('Remote connection token file', () => {
 				quality: undefined,
 				addressProvider: {
 					getAddress: async () => {
-						const { authority: resolved } = await resolverService.resolveAuthority(authority);
+						// Desktop reconnection clears and resolves the authority again before reading it.
+						resolverService._clearResolvedAuthority(authority);
+						const address = resolverService.resolveAuthority(authority);
+						try {
+							const result = await directResolver.resolve(authority);
+							resolverService._setResolvedAuthority(result.authority, result.options);
+						} catch (error) {
+							resolverService._setResolvedAuthorityError(authority, error);
+						}
+						const { authority: resolved } = await address;
 						return { connectTo: resolved.connectTo, connectionToken: resolved.connectionToken };
 					}
 				},
@@ -363,8 +372,8 @@ suite('Remote connection token file', () => {
 			assert.strictEqual(connection.reconnectedTokens[0], initialToken);
 			assert.strictEqual(resolverService.getConnectionData(authority)?.connectionToken, initialToken);
 
-			assert.notStrictEqual(connection.reconnectedTokens[0], mutatedToken);
-			assert.notStrictEqual(resolverService.getConnectionData(authority)?.connectionToken, mutatedToken);
+			const reloadedResolver = new DirectRemoteAuthorityResolver(a => tokens.get(window, a), async () => { });
+			assert.strictEqual((await reloadedResolver.resolve(authority)).authority.connectionToken, mutatedToken);
 		} finally {
 			disposables.dispose();
 		}
