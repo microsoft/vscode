@@ -30,7 +30,7 @@ export interface ICustomViewDescriptor {
 
 	readonly actions?: ICustomViewActions;
 
-	/** Keep the desktop bottom panel available while this view replaces the session content. */
+	/** Allow explicitly opening the desktop bottom panel while this view replaces the session content. */
 	readonly allowPanel?: boolean;
 
 	/** Handle an unparameterized New Session action without leaving this view. */

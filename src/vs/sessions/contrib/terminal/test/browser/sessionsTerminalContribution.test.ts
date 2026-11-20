@@ -591,6 +591,70 @@ suite('SessionsTerminalContribution', () => {
 		});
 	}
 
+	test('custom-view terminals stay alive but cannot be reused by a session with the same cwd', async () => {
+		const session = makeAgentSession({ worktree: HOME_DIR, providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
+		await tick();
+		const sessionTerminal = terminalInstances.get(1)!;
+
+		const automations = upcastPartial<ICustomViewDescriptor>({ id: 'automations', allowPanel: true });
+		activeCustomViewObs.set(automations, undefined);
+		await tick();
+		const afterEntering = [...backgroundedInstances];
+		const customTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
+		terminalInstances.set(customTerminal.instanceId, customTerminal);
+		onDidCreateInstance.fire(customTerminal);
+		await tick();
+
+		activeCustomViewObs.set(undefined, undefined);
+		await tick();
+		const afterLeaving = [...backgroundedInstances];
+		activeCustomViewObs.set(automations, undefined);
+		await tick();
+
+		assert.deepStrictEqual({
+			afterEntering,
+			afterLeaving,
+			afterReturning: [...backgroundedInstances],
+			created: createdTerminals.length,
+			disposed: disposedInstances.map(instance => instance.instanceId),
+			trackedCustom: contribution.getChatWindowTerminalOwner(customTerminal),
+		}, {
+			afterEntering: [sessionTerminal.instanceId],
+			afterLeaving: [customTerminal.instanceId],
+			afterReturning: [sessionTerminal.instanceId],
+			created: 1,
+			disposed: [],
+			trackedCustom: undefined,
+		});
+	});
+
+	test('different panel-capable custom views do not share terminals', async () => {
+		const firstView = upcastPartial<ICustomViewDescriptor>({ id: 'first', allowPanel: true });
+		const secondView = upcastPartial<ICustomViewDescriptor>({ id: 'second', allowPanel: true });
+		activeCustomViewObs.set(firstView, undefined);
+		const firstTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
+		terminalInstances.set(firstTerminal.instanceId, firstTerminal);
+		onDidCreateInstance.fire(firstTerminal);
+		await tick();
+		activeCustomViewObs.set(secondView, undefined);
+		await tick();
+		const secondTerminal = makeTerminalInstance(nextInstanceId++, HOME_DIR.fsPath);
+		terminalInstances.set(secondTerminal.instanceId, secondTerminal);
+		onDidCreateInstance.fire(secondTerminal);
+		await tick();
+		activeCustomViewObs.set(firstView, undefined);
+		await tick();
+
+		assert.deepStrictEqual({
+			backgrounded: [...backgroundedInstances],
+			disposed: disposedInstances.map(instance => instance.instanceId),
+		}, {
+			backgrounded: [secondTerminal.instanceId],
+			disposed: [],
+		});
+	});
+
 	test('creates a terminal at the worktree for a background session', async () => {
 		const worktreeUri = URI.file('/worktree');
 		const session = makeAgentSession({ worktree: worktreeUri, repository: URI.file('/repo'), providerType: AgentSessionProviders.Background });

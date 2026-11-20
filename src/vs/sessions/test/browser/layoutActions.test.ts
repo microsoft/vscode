@@ -91,7 +91,7 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
-	test('panel-capable custom views keep the title-bar panel toggle available', () => {
+	test('custom views hide the title-bar panel toggle without disabling its command', () => {
 		const panelItems = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarSessionMenu)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === TOGGLE_PANEL_ACTION_ID);
@@ -102,12 +102,20 @@ suite('Sessions - Layout Actions', () => {
 			})[key] as T | undefined,
 		};
 
-		assert.deepStrictEqual(panelItems.map(item => ({
-			visible: item.when?.evaluate(context) !== false,
-			enabled: item.command.precondition?.evaluate(context) !== false,
-		})), [
-			{ visible: true, enabled: true },
-			{ visible: false, enabled: true },
+		assert.deepStrictEqual([false, true].map(visible => {
+			const values: Record<string, ContextKeyValue> = {
+				[CustomViewVisibleContext.key]: true,
+				[CustomViewAllowsPanelContext.key]: true,
+				panelVisible: visible,
+			};
+			const customViewContext: IContext = { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
+			return panelItems.map(item => ({
+				visible: item.when?.evaluate(customViewContext) !== false,
+				enabled: item.command.precondition?.evaluate(context) !== false,
+			}));
+		}), [
+			[{ visible: false, enabled: true }, { visible: false, enabled: true }],
+			[{ visible: false, enabled: true }, { visible: false, enabled: true }],
 		]);
 	});
 

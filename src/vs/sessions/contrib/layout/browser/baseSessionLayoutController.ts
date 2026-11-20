@@ -1262,6 +1262,9 @@ export abstract class BaseLayoutController extends Disposable {
 	// --- Panel [B1] ---
 
 	private _syncPanelVisibility(sessionResource: URI | undefined): void {
+		if (this._isCustomViewVisible()) {
+			return;
+		}
 		if (!sessionResource) {
 			this._layoutService.setPartHidden(true, Parts.PANEL_PART);
 			return;
@@ -1280,7 +1283,7 @@ export abstract class BaseLayoutController extends Disposable {
 	 * otherwise reveal the panel, whose visibility is governed elsewhere.
 	 */
 	private _syncPanelView(sessionResource: URI | undefined): void {
-		if (!sessionResource || !this._layoutService.isVisible(Parts.PANEL_PART)) {
+		if (this._isCustomViewVisible() || !sessionResource || !this._layoutService.isVisible(Parts.PANEL_PART)) {
 			return;
 		}
 		const viewContainerId = this._panelViewBySession.get(sessionResource) ?? TERMINAL_VIEW_ID;

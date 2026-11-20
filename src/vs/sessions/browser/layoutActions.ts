@@ -357,10 +357,9 @@ const titleBarPanelWhen = ContextKeyExpr.and(
 	IsAuxiliaryWindowContext.toNegated(),
 	SessionsWelcomeVisibleContext.toNegated(),
 	IsPhoneLayoutContext.negate(),
-	ContextKeyExpr.or(
-		CustomViewAllowsPanelContext,
-		ContextKeyExpr.and(SessionActivityBarLayoutActionsContext.negate(), SessionActivityBarDockedContext.negate()),
-	),
+	CustomViewVisibleContext.negate(),
+	SessionActivityBarLayoutActionsContext.negate(),
+	SessionActivityBarDockedContext.negate(),
 );
 const sessionActivityBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext);
 const panelAvailable = ContextKeyExpr.or(CustomViewVisibleContext.negate(), CustomViewAllowsPanelContext);

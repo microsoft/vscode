@@ -504,6 +504,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private _customViewVisibleKey!: IContextKey<boolean>;
 	private _customViewAllowsPanelKey!: IContextKey<boolean>;
 	private _customViewAllowsPanel = false;
+	private _customViewId: string | undefined;
+	private _customViewPanelVisible = false;
 	/** Guards the grid updates that show/hide the custom view from feeding back into the desired part visibility. */
 	private _applyingCustomViewGridVisibility = false;
 	private _customViewCoveredPartWidths: { editor?: number; auxiliaryBar?: number } | undefined;
@@ -1292,7 +1294,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// Open default view containers for each visible part
 		const partsToRestore: { location: ViewContainerLocation; visible: boolean }[] = [
 			{ location: ViewContainerLocation.Sidebar, visible: this.partVisibility.sidebar },
-			{ location: ViewContainerLocation.Panel, visible: this.partVisibility.panel },
+			{ location: ViewContainerLocation.Panel, visible: this._effectiveVisible(Parts.PANEL_PART) },
 			{ location: ViewContainerLocation.AuxiliaryBar, visible: this.partVisibility.auxiliaryBar },
 		];
 
@@ -2481,10 +2483,13 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	/** Whether a part is actually rendered right now. */
 	protected _effectiveVisible(part: Parts): boolean {
+		if (part === Parts.PANEL_PART && this.partVisibility.customViewGrid) {
+			return this._customViewAllowsPanel && this._customViewPanelVisible;
+		}
 		if (!this._desiredVisible(part)) {
 			return false;
 		}
-		return !this.partVisibility.customViewGrid || (part === Parts.PANEL_PART && this._customViewAllowsPanel);
+		return !this.partVisibility.customViewGrid;
 	}
 
 	/**
@@ -2827,7 +2832,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	private setPanelHidden(hidden: boolean): void {
-		if (this.partVisibility.panel === !hidden) {
+		const customViewVisible = this.partVisibility.customViewGrid;
+		if ((customViewVisible ? this._customViewPanelVisible : this.partVisibility.panel) === !hidden) {
 			return;
 		}
 
@@ -2838,7 +2844,11 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 		const panelHadFocus = !hidden || this.hasFocus(Parts.PANEL_PART);
 
-		this.partVisibility.panel = !hidden;
+		if (customViewVisible) {
+			this._customViewPanelVisible = !hidden;
+		} else {
+			this.partVisibility.panel = !hidden;
+		}
 		this.mainContainer.classList.toggle(LayoutClasses.PANEL_HIDDEN, !this._effectiveVisible(Parts.PANEL_PART));
 
 		// Propagate to grid
@@ -2876,7 +2886,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// The desktop layout governs the panel at the workbench level, so its
 		// visibility persists across reloads (like the side pane). The mobile
 		// layout remembers it per session and never persists it here.
-		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
+		if (!customViewVisible && this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
 			this._savePartVisibility();
 		}
 	}
@@ -2907,7 +2917,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		const wasCustomViewVisible = this.partVisibility.customViewGrid;
 		const customViewAllowedPanel = this._customViewAllowsPanel;
 		const customViewVisibilityChanged = visible !== wasCustomViewVisible;
-		if (this.partVisibility.customViewGrid === visible && this._customViewAllowsPanel === allowsPanel) {
+		const customViewChanged = customViewVisibilityChanged || descriptor?.id !== this._customViewId;
+		if (!customViewChanged && this._customViewAllowsPanel === allowsPanel) {
 			// Swapping one custom view for another only changes what is rendered.
 			this.customViewGridPartService.setView(descriptor);
 			if (visible) {
@@ -2936,6 +2947,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.customViewGridPartService.setView(descriptor);
 		this.partVisibility.customViewGrid = visible;
 		this._customViewAllowsPanel = allowsPanel;
+		this._customViewId = descriptor?.id;
+		if (customViewChanged) {
+			this._customViewPanelVisible = false;
+		}
 		this._customViewVisibleKey.set(visible);
 		this._customViewAllowsPanelKey.set(allowsPanel);
 

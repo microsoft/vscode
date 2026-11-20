@@ -21,6 +21,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../platform/telemet
 import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { DesktopChangesEditorTransitionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ActiveEditorContext } from '../../../workbench/common/contextkeys.js';
+import { ViewContainerLocation } from '../../../workbench/common/views.js';
 import { MockContextKeyService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { EmptyFileEditorInput } from '../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
@@ -250,6 +251,7 @@ suite('Sessions - Workbench', () => {
 	interface IGridDescriptorTestHarness extends ITestWorkbench {
 		_panelAlignment: PanelAlignment;
 		_customViewAllowsPanel?: boolean;
+		_customViewPanelVisible?: boolean;
 		_savedPartSizes: { sidebar?: number; auxiliaryBar?: number; auxiliaryBarHeight?: number; editor?: number; sessions?: number; panel?: number };
 		layoutPolicy: {
 			getPartSizes(width: number, height: number): { sideBarSize: number; auxiliaryBarSize: number; panelSize: number };
@@ -523,6 +525,7 @@ suite('Sessions - Workbench', () => {
 			_customViewVisibleKey: { set: () => { } },
 			_customViewAllowsPanelKey: { set: () => { } },
 			_customViewAllowsPanel: false,
+			_customViewPanelVisible: false,
 			sessionsPartService: {
 				focusNewSessionSlot: () => { focusedSessions++; },
 				setContentVisible: (visible: boolean) => {
@@ -4815,6 +4818,7 @@ suite('Sessions - Workbench', () => {
 	test('round trips panel alignment while a custom view covers the sessions and editor', () => {
 		const descriptorHost = createHost({ single: true, partVisibility: { sidebar: true, sessions: false, editor: false, auxiliaryBar: false, panel: true, customViewGrid: true } }) as IGridDescriptorTestHarness;
 		descriptorHost._customViewAllowsPanel = true;
+		descriptorHost._customViewPanelVisible = true;
 		descriptorHost.layoutPolicy = {
 			getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
 			viewportClass: { get: () => 'desktop' },
@@ -4941,25 +4945,49 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('a desktop custom view may keep the bottom panel available', () => {
+	test('a desktop custom view starts with the panel closed and does not change the session panel preference', () => {
 		const host = createHost({ single: true, partVisibility: { panel: true, sessions: true } });
 		const descriptor = { allowPanel: true };
 
 		applyCustomViewGridVisibility.call(host, descriptor);
+		const initialPanelVisible = isVisible.call(host, Parts.PANEL_PART);
+		setPanelHidden.call(host, false);
+		const explicitlyOpened = isVisible.call(host, Parts.PANEL_PART);
+		applyCustomViewGridVisibility.call(host, { id: 'other', allowPanel: true });
+		const otherViewPanelVisible = isVisible.call(host, Parts.PANEL_PART);
+		applyCustomViewGridVisibility.call(host, undefined);
 
 		assert.deepStrictEqual({
-			customViewGrid: isVisible.call(host, Parts.CUSTOM_VIEW_GRID_PART),
-			sessions: isVisible.call(host, Parts.SESSIONS_PART),
-			panel: isVisible.call(host, Parts.PANEL_PART),
-			panelGridNode: host.gridVisibility.get(host.panelPartView),
+			initialPanelVisible,
+			explicitlyOpened,
+			otherViewPanelVisible,
+			sessionPanelRestored: isVisible.call(host, Parts.PANEL_PART),
+			savedPreferences: host.counts.save,
 		}, {
-			customViewGrid: true,
-			sessions: false,
-			panel: true,
-			panelGridNode: true,
+			initialPanelVisible: false,
+			explicitlyOpened: true,
+			otherViewPanelVisible: false,
+			sessionPanelRestored: true,
+			savedPreferences: 0,
 		});
 	});
 
+	test('startup does not open the remembered session panel over a restored custom view', () => {
+		const host = createHost({
+			single: true,
+			partVisibility: { sidebar: false, panel: true, auxiliaryBar: false, sessions: true },
+			viewDescriptorService: { getDefaultViewContainer: () => ({ id: 'default' }) },
+		});
+		const opened: ViewContainerLocation[] = [];
+		Object.assign(host.paneCompositeService, {
+			openPaneComposite: (_id: string, location: ViewContainerLocation) => { opened.push(location); },
+		});
+		applyCustomViewGridVisibility.call(host, { allowPanel: true });
+		const restoreParts = Reflect.get(Workbench.prototype, 'restoreParts') as (this: ITestWorkbench) => void;
+		restoreParts.call(host);
+
+		assert.deepStrictEqual(opened, []);
+	});
 	test('reparenting a centered panel preserves editor constraints', () => {
 		const host = createHost({ single: true, partVisibility: { editor: true, panel: true, sessions: true } }) as ITestWorkbench & IPanelAlignmentTestHarness;
 		host._panelAlignment = 'center';
@@ -4996,6 +5024,7 @@ suite('Sessions - Workbench', () => {
 		host.paneCompositeService.getActivePaneComposite = () => ({});
 		host.paneCompositeService.hideActivePaneComposite = () => { };
 		applyCustomViewGridVisibility.call(host, { allowPanel: true });
+		setPanelHidden.call(host, false);
 
 		setPanelHidden.call(host, true);
 

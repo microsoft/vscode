@@ -376,6 +376,26 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
 	});
 
+	test('[B1/B6] hidden session changes do not overwrite the custom view panel state', () => {
+		createController();
+		const first = makeSession(URI.parse('session:1'));
+		const second = makeSession(URI.parse('session:2'));
+		harness.activeSessionObs.set(first, undefined);
+		harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, true);
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+		harness.activePaneCompositeId = 'view.custom';
+		harness.openPaneCompositeCalls = [];
+		harness.activeSessionObs.set(second, undefined);
+
+		assert.deepStrictEqual({
+			panelVisible: harness.partVisibility.get(Parts.PANEL_PART),
+			opened: harness.openPaneCompositeCalls,
+		}, {
+			panelVisible: true,
+			opened: [],
+		});
+	});
+
 	test('[B6] persists the session\'s panel view', () => {
 		createWorkbenchPanelController();
 		harness.partVisibility.set(Parts.PANEL_PART, true);
