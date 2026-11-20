@@ -108,12 +108,23 @@ export class ArtifactActivities extends ArtifactDetailsCard {
 		}
 	}
 
+	/** The height of the list within `maxHeight`, or 0 while the list is not shown. */
+	listHeight(maxHeight: number): number {
+		if (this.content.hidden || this.element.hidden) {
+			return 0;
+		}
+		return Math.min((this.data?.items.length ?? 0) * 28, Math.max(28, Math.floor(maxHeight / 28) * 28));
+	}
+
+	/** The rendered height of the list. */
+	get renderedListHeight(): number { return this.listContainer.offsetHeight; }
+
 	layout(maxHeight: number): void {
 		this.maxHeight = maxHeight;
-		if (this.content.hidden || this.element.hidden) {
+		const height = this.listHeight(maxHeight);
+		if (!height) {
 			return;
 		}
-		const height = Math.min((this.data?.items.length ?? 0) * 28, Math.max(28, Math.floor(maxHeight / 28) * 28));
 		this.listContainer.style.height = `${height}px`;
 		this.list.layout(height, this.listContainer.clientWidth);
 	}

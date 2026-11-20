@@ -62,7 +62,7 @@ class ArtifactStateList extends Disposable {
 			WorkbenchList<ArtifactDetailsItem>, 'ArtifactStateList', this.itemsContainer,
 			{ getHeight: () => renderer.rowHeight, getTemplateId: () => renderer.templateId }, [renderer],
 			{
-				multipleSelectionSupport: false, openOnSingleClick: true,
+				multipleSelectionSupport: false, openOnSingleClick: true, alwaysConsumeMouseWheel: false,
 				identityProvider: { getId: item => item.id },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: item => item.label },
 				accessibilityProvider: { getWidgetAriaLabel: () => this.data.title, getAriaLabel: getArtifactDetailsItemLabel },
@@ -336,6 +336,12 @@ export class ArtifactStateLists extends Disposable {
 	}
 
 	focusAction(id: string): boolean { return this.actions.focus(id); }
+
+	/** Whether a list is expanded, which then takes the height given to {@link layout}. */
+	get expanded(): boolean { return this.selected !== undefined; }
+
+	/** The rendered height of the expanded list. */
+	get renderedHeight(): number { return this.listsContainer.offsetHeight; }
 
 	layout(height: number): void {
 		this.listsContainer.style.height = `${height}px`;
