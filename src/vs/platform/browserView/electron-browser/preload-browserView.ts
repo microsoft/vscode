@@ -33,6 +33,11 @@ let localizedStrings: IBrowserViewPreloadLocalizedStrings = {
  */
 function init() {
 	const { contextBridge, ipcRenderer } = require('electron');
+	const dialogProbeToken: string = ipcRenderer.sendSync('vscode:browserView:dialogProbe');
+	if (typeof dialogProbeToken !== 'string' || !dialogProbeToken) {
+		throw new Error('Missing browser dialog probe token');
+	}
+	const nativeConfirm = window.confirm;
 
 	// #######################################################################
 	// ###                                                                 ###
@@ -263,6 +268,10 @@ function init() {
 	const mainWorldHelpers = {
 		getElement,
 		prompt(message = '', defaultValue = ''): string | null {
+			// Let Blink apply modal eligibility, including inherited and CSP sandbox restrictions.
+			if (!nativeConfirm(dialogProbeToken)) {
+				return null;
+			}
 			return ipcRenderer.sendSync('vscode:browserView:prompt', String(message), String(defaultValue));
 		},
 		/** Opaque token exposed for CDP-side frame matching. */

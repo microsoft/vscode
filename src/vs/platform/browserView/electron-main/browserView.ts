@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { nativeImage, screen, WebContentsView, webContents } from 'electron';
+import { randomUUID } from 'crypto';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -43,6 +44,7 @@ enum NewPageLocation {
  */
 export class BrowserView extends Disposable {
 	private readonly _view: WebContentsView;
+	private readonly _dialogProbeToken = randomUUID();
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 	presentation = BrowserViewPresentation.Listed;
 
@@ -732,7 +734,14 @@ export class BrowserView extends Disposable {
 		// Replace Electron's native message boxes with the same per-tab queue as sign-in.
 		contents.removeAllListeners('-run-dialog');
 		contents.removeAllListeners('-cancel-dialogs');
+		contents.ipc.on('vscode:browserView:dialogProbe', event => {
+			event.returnValue = this._dialogProbeToken;
+		});
 		(contents as NodeJS.EventEmitter).on('-run-dialog', (info: { frame: Electron.WebFrameMain; dialogType: 'alert' | 'confirm' | 'prompt'; messageText: string; defaultPromptText?: string }, callback: (accept: boolean, text: string) => void) => {
+			if (info.dialogType === 'confirm' && info.messageText === this._dialogProbeToken) {
+				callback(true, '');
+				return;
+			}
 			void this.debugger.enableFrameEvents().catch(error => this.logService.error('Failed to watch browser dialog frame', error));
 			const isValid = () => !info.frame.isDestroyed() && !info.frame.detached;
 			this.dialogs.request({

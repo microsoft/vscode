@@ -143,7 +143,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 	test('click and typing tools can handle dialogs in main, opaque, and nested frames', async function () {
 		this.timeout(90_000);
 		await waitForCondition(() => vscode.lm.tools.some(tool => tool.name === 'click_element'));
-		const frameBody = '<input id="message" aria-label="Message" value="Frame"><button id="alert" onclick="alert(message.value)">Alert</button><button id="confirm" onclick="confirm(message.value)">Confirm</button>';
+		const frameBody = '<input id="message" aria-label="Message" value="Frame"><button id="alert" onclick="alert(message.value)">Alert</button><button id="confirm" onclick="confirm(message.value)">Confirm</button><button id="prompt" onclick="window.promptResult=prompt(message.value)">Prompt</button>';
 		const frame = (id: string, body: string, sandbox = '') => `<iframe id="${id}" ${sandbox} style="width:100%;height:180px" srcdoc="${body.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"></iframe>`;
 		const html = `<html><body>${frameBody}
 			${frame('same', frameBody)}
@@ -164,24 +164,71 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			assert.ok(pageId, output);
 			const enterFrame = ' >> internal:control=enter-frame >> ';
 			await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+			const answerDialog = async (action: string, promptText?: string): Promise<string> => {
+				const handled = await invokeTool('handle_dialog', { pageId, acceptModal: true, promptText });
+				assert.ok(!handled.includes('No active modal dialog') && !handled.includes('Timeout'), handled);
+				const deferredResultId = action.match(/\[deferredResultId=(?<id>[^\]]+)\]/)?.groups?.id;
+				if (!deferredResultId) {
+					return action;
+				}
+				const completed = await invokeTool('run_playwright_code', { pageId, deferredResultId });
+				assert.ok(!completed.includes('Timeout') && !completed.includes('Active ') && !completed.includes('[deferredResultId='), completed);
+				return completed;
+			};
 			for (const prefix of ['', '#same' + enterFrame, '#opaque' + enterFrame, '#outer' + enterFrame, '#outer' + enterFrame + '#nested' + enterFrame]) {
 				for (const type of ['alert', 'confirm']) {
 					const clicked = await invokeTool('click_element', { pageId, selector: prefix + '#' + type, element: type });
 					assert.ok(clicked.includes(`Active ${type} dialog:`), clicked);
-					await new Promise(resolve => setTimeout(resolve, 300));
-					const handled = await invokeTool('handle_dialog', { pageId, acceptModal: true });
-					assert.ok(!handled.includes('No active modal dialog') && !handled.includes('Timeout'), handled);
+					await answerDialog(clicked);
 				}
 				const typed = await invokeTool('type_in_page', { pageId, selector: prefix + '#message', element: 'Message', text: 'Typed after handling' });
 				assert.ok(!typed.includes('Timeout'), typed);
 				const pressed = await invokeTool('type_in_page', { pageId, selector: prefix + '#alert', element: 'Alert', key: 'Enter' });
 				assert.ok(pressed.includes('Active alert dialog:'), pressed);
-				await new Promise(resolve => setTimeout(resolve, 300));
-				const handled = await invokeTool('handle_dialog', { pageId, acceptModal: true });
-				assert.ok(!handled.includes('No active modal dialog'), handled);
+				await answerDialog(pressed);
 			}
 			const blocked = await invokeTool('click_element', { pageId, selector: '#blocked' + enterFrame + '#alert', element: 'Sandboxed alert' });
 			assert.ok(!blocked.includes('Active alert dialog:') && !blocked.includes('Timeout'), blocked);
+			const sandboxed = await invokeTool('run_playwright_code', {
+				pageId,
+				code: `const dialogs = [];
+					const dismiss = dialog => { dialogs.push(dialog.type()); return dialog.dismiss(); };
+					page.on('dialog', dismiss);
+					try {
+						const frame = await (await page.locator('#blocked').elementHandle()).contentFrame();
+						return { results: await frame.evaluate(() => [prompt('Blocked prompt'), window.__vscode_helpers.prompt('Blocked helper')]), dialogs };
+					} finally { page.off('dialog', dismiss); }`,
+			});
+			assert.ok(!sandboxed.includes('Active prompt dialog:'), sandboxed);
+			assert.ok(sandboxed.includes('{'), sandboxed);
+			const sandboxedResult = JSON.parse(sandboxed.slice(sandboxed.indexOf('{'), sandboxed.lastIndexOf('}') + 1));
+			assert.deepStrictEqual(sandboxedResult, { results: [null, null], dialogs: [] });
+			const allowed = await invokeTool('click_element', { pageId, selector: '#opaque' + enterFrame + '#prompt', element: 'Sandboxed prompt with allow-modals' });
+			assert.match(allowed, /Active prompt dialog:/);
+			await answerDialog(allowed, 'Allowed answer');
+			let focus = await invokeTool('run_playwright_code', {
+				pageId,
+				code: `const frame = await (await page.locator('#opaque').elementHandle()).contentFrame();
+					await frame.locator('#message').focus();
+					const dialogs = [];
+					const accept = dialog => { dialogs.push(dialog.type()); return dialog.accept('Focus answer'); };
+					page.on('dialog', accept);
+					try {
+						return { focus: await frame.evaluate(() => {
+							const before = { focused: document.hasFocus(), active: document.activeElement.id };
+							const result = prompt('Focus check');
+							return { before, after: { focused: document.hasFocus(), active: document.activeElement.id }, result, previous: window.promptResult };
+						}), dialogs };
+					} finally { page.off('dialog', accept); }`,
+			});
+			if (focus.includes('Active prompt dialog:')) {
+				focus = await answerDialog(focus, 'Focus answer');
+			}
+			assert.match(focus, /"result":\s*"Focus answer"/);
+			assert.match(focus, /"previous":\s*"Allowed answer"/);
+			assert.match(focus, /"dialogs":\s*\["prompt"\]/);
+			const focusResult: { focus: { before: { focused: boolean; active: string }; after: { focused: boolean; active: string } } } = JSON.parse(focus.slice(focus.indexOf('{'), focus.lastIndexOf('}') + 1));
+			assert.deepStrictEqual(focusResult.focus.after, { ...focusResult.focus.before, active: 'message' });
 		} finally {
 			await new Promise<void>((resolve, reject) => {
 				server.close(error => error ? reject(error) : resolve());
