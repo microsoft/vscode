@@ -114,6 +114,7 @@ import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/too
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
+import { MobileSessionsListPresentation } from '../../../mobile/browser/mobileSessionsListPresentation.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { renderSessionsHeader, SessionsView, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
@@ -16283,12 +16284,14 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(heights.taskA && heights.taskB && parseInt(heights.taskA) > parseInt(heights.taskB), `expected Task A (${heights.taskA}) taller than Task B (${heights.taskB})`);
 		});
 
-		test('centers quick chats in phone rows and keeps the status icon on the title line above an approval', () => {
+		test('centers title-only quick chats in shorter phone drawer rows and keeps approvals and metadata full height', () => {
 			const quick = createTestSession('Quick', { isQuickChat: true, isRead: false }).session;
 			const waiting = createTestSession('Waiting', { isQuickChat: true, status: SessionStatus.NeedsInput }).session;
 			const repo = createTestSession('Project', { repository: 'example/project' }).session;
+			const hydrating: ISession = { ...createTestSession('Loading').session, workspace: constObservable(undefined) };
 			const main = waiting.mainChat.get();
-			const harness = createListHarness(disposables, [quick, waiting, repo], instantiationService => {
+			const pending = observableValue<IAgentSessionApprovalInfo | undefined>('pending', terminalApproval(main, 'echo test'));
+			const harness = createListHarness(disposables, [quick, waiting, repo, hydrating], instantiationService => {
 				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
 			});
 			IsPhoneLayoutContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(true);
@@ -16299,12 +16302,15 @@ suite('Sessions - SessionsList', () => {
 				grouping: () => SessionsGrouping.Repository,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
-				approvalModel: createApprovalModel(new Map([[main.resource.toString(), terminalApproval(main, 'echo test')]])),
+				titleOnlyQuickChatRowHeight: harness.instantiationService.createInstance(MobileSessionsListPresentation).titleOnlyQuickChatRowHeight,
+				approvalModel: new class extends mock<AgentSessionApprovalModel>() {
+					override getApproval(resource: URI) { return isEqual(resource, main.resource) ? pending : constObservable(undefined); }
+				}(),
 			}));
 			list.layout(600, 390);
 			list.setHeaderCollapsed(QUICK_CHATS_SECTION_ID, false);
 
-			for (const session of [quick, waiting, repo]) {
+			for (const [session, height] of [[quick, 52], [waiting, 110], [repo, 78]] as const) {
 				const row = list.getItemRow({ session: session.resource })!;
 				const bounds = row.getBoundingClientRect();
 				const title = row.querySelector('.session-title')!.getBoundingClientRect();
@@ -16312,13 +16318,23 @@ suite('Sessions - SessionsList', () => {
 				const approval = row.querySelector('.session-approval-row.visible')?.getBoundingClientRect();
 				const above = title.top - bounds.top;
 				const below = bounds.bottom - (approval ?? (details.height ? details : title)).bottom;
-				assert.ok(bounds.height >= 44 && title.height > 0);
+				assert.strictEqual(bounds.height, height);
+				assert.ok(title.height > 0);
 				assert.deepStrictEqual({ details: details.height > 0, approval: !!approval }, { details: session === repo, approval: session === waiting });
 				if (session !== repo) {
 					assert.strictEqual(row.querySelector('.session-icon > .codicon')!.getBoundingClientRect().top, title.top);
 				}
 				assert.ok(Math.abs(above - below) <= 1, `expected centered content; got ${above}px above and ${below}px below`);
 			}
+			assert.strictEqual(list.getItemRow({ session: hydrating.resource })!.offsetHeight, 78);
+			const waitingHeight = () => list.getItemRow({ session: waiting.resource })!.offsetHeight;
+			pending.set(undefined, undefined);
+			assert.strictEqual(waitingHeight(), 52);
+			list.layout(1, 390);
+			assert.strictEqual(list.getItemRow({ session: waiting.resource }), undefined, 'approval must arrive while its row is offscreen');
+			pending.set(terminalApproval(main, 'echo test'), undefined);
+			list.layout(600, 390);
+			assert.strictEqual(waitingHeight(), 110);
 		});
 
 		test('reserves approval rounding slack in phone chat rows', () => {
