@@ -97,7 +97,7 @@ import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { resolveRuntimeByokModelId, toAgentByokCurrentModel, toAgentByokModelId } from './copilotByokModelIds.js';
 import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { areCopilotCustomAgentHooksTrusted, clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { areCopilotCustomAgentHooksTrusted, clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotWorkingDirectoryTrust, hasWithdrawnDirectByokProvider, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import type { ICopilotCreatedWorktree, ICopilotProjectExtensionTrustReconciliation } from './copilotProjectExtensionLaunchPolicy.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
@@ -8613,7 +8613,8 @@ export class CopilotAgentSession extends Disposable {
 	 * launched, e.g. for a chat restored before the renderer's first BYOK
 	 * snapshot reached the agent host. External BYOK is additive (see
 	 * {@link composeByokSessionConfig}) and a no-op when nothing new was
-	 * reported; the on-device rows are replaced by the provider's
+	 * reported, except that a model the window no longer routes directly is
+	 * moved to the bridge; the on-device rows are replaced by the provider's
 	 * current contribution. Serialized so concurrent callers observe each
 	 * other's registrations.
 	 */
@@ -8624,12 +8625,13 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const current = await this._sessionLauncher.resolveByokSessionConfig(this.sessionId);
-			const merged = composeByokSessionConfig(this._registeredByokConfig, current, this._launchPlan.localModelProvider?.contributeSessionConfig());
-			// A restart across the await swapped in a wrapper with its own launch
-			// config, so `merged` is no longer a valid basis for that session.
+			const bridgeProvider = hasWithdrawnDirectByokProvider(this._registeredByokConfig, current) ? await this._sessionLauncher.resolveByokBridgeProvider(this.sessionId) : undefined;
+			// A restart across the awaits swapped in a wrapper with its own launch
+			// config, so this session's registration is no longer a valid basis for it.
 			if (this._store.isDisposed || this._wrapper !== wrapper) {
 				return;
 			}
+			const merged = composeByokSessionConfig(this._registeredByokConfig, current, this._launchPlan.localModelProvider?.contributeSessionConfig(), bridgeProvider);
 			this._latestByokConfig = current;
 			if (!merged) {
 				return;

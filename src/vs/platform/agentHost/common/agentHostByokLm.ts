@@ -263,6 +263,13 @@ export interface IByokLmDirectEndpoint extends IByokLmRuntimeEndpoint {
 export interface IByokLmCredentialRequest {
 	readonly vendor: string;
 	readonly group: string;
+	/**
+	 * The {@link IByokLmDirectEndpoint.credentialVersion} of the model snapshot
+	 * the agent host registers the key with. The window refuses the request when
+	 * the group's key changed since, so a new key never reaches the endpoint of an
+	 * older snapshot; the agent host registers it once the newer snapshot arrives.
+	 */
+	readonly credentialVersion?: string;
 }
 
 /** The API key of a provider group. Absent when the group has none. */

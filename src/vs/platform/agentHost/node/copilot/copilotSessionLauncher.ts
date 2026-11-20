@@ -449,6 +449,14 @@ export interface ICopilotSessionLauncher {
 	 * off or the renderer reports no BYOK models.
 	 */
 	resolveByokSessionConfig(sessionId: string): Promise<ICopilotByokSessionConfig>;
+
+	/**
+	 * Starts the BYOK bridge proxy if needed and returns the factory for providers
+	 * that route `sessionId`'s requests through it, or `undefined` when the proxy
+	 * cannot start. Used to stop a live session from calling an endpoint the window
+	 * no longer routes directly (see {@link mergeByokSessionConfig}).
+	 */
+	resolveByokBridgeProvider(sessionId: string): Promise<ByokBridgeProviderFactory | undefined>;
 }
 
 type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession' | 'deleteSession'> & {
@@ -999,13 +1007,8 @@ export async function synthesizeByokSessionConfig(
 		logService.warn(`[Copilot:${sessionId}] Failed to start BYOK loopback proxy`, err);
 		return direct.models.length ? { providers: direct.providers, models: direct.models } : {};
 	}
-	const providers: NamedProviderConfig[] = [...new Set(bridgedModels.map(m => m.vendor))].map(vendor => ({
-		name: vendor,
-		type: 'openai',
-		wireApi: 'responses',
-		baseUrl: handle.providerBaseUrl(vendor),
-		bearerToken: `${handle.nonce}.${sessionId}`,
-	}));
+	const bridgeProvider = createByokBridgeProvider(handle, sessionId);
+	const providers: NamedProviderConfig[] = [...new Set(bridgedModels.map(m => m.vendor))].map(vendor => bridgeProvider(vendor, vendor));
 	const models: ProviderModelConfig[] = bridgedModels.map(m => ({
 		id: getByokLmSelectionModelId(m),
 		provider: m.vendor,
@@ -1020,6 +1023,19 @@ export async function synthesizeByokSessionConfig(
 		...(m.supportsVision !== undefined ? { capabilities: { supports: { vision: m.supportsVision } } } : {}),
 	}));
 	return { providers: [...providers, ...direct.providers], models: [...models, ...direct.models] };
+}
+
+/** Builds a provider, named `name`, whose requests go through the BYOK bridge proxy to the window's model of `vendor`. */
+export type ByokBridgeProviderFactory = (name: string, vendor: string) => NamedProviderConfig;
+
+function createByokBridgeProvider(handle: IByokLmProxyHandle, sessionId: string): ByokBridgeProviderFactory {
+	return (name, vendor) => ({
+		name,
+		type: 'openai',
+		wireApi: 'responses',
+		baseUrl: handle.providerBaseUrl(vendor),
+		bearerToken: `${handle.nonce}.${sessionId}`,
+	});
 }
 
 interface IDirectByokSessionConfig {
@@ -1043,11 +1059,11 @@ async function resolveDirectByokSessionConfig(sessionId: string, byokModels: rea
 	}
 	const bridge = connection;
 	const credentials = new Map<string, Promise<IByokLmCredential | undefined>>();
-	const credentialOf = (vendor: string, group: string) => {
-		const key = JSON.stringify([vendor, group]);
+	const credentialOf = (vendor: string, group: string, credentialVersion: string | undefined) => {
+		const key = JSON.stringify([vendor, group, credentialVersion]);
 		let credential = credentials.get(key);
 		if (!credential) {
-			credential = (async () => bridge.resolveCredential?.({ vendor, group }))().catch(err => {
+			credential = (async () => bridge.resolveCredential?.({ vendor, group, credentialVersion }))().catch(err => {
 				logService.warn(`[Copilot:${sessionId}] Failed to fetch the API key of a ${vendor} provider group; its models keep using the bridge: ${getErrorMessage(err)}`);
 				return undefined;
 			});
@@ -1055,7 +1071,7 @@ async function resolveDirectByokSessionConfig(sessionId: string, byokModels: rea
 		}
 		return credential;
 	};
-	const resolved = await Promise.all(candidates.map(async model => ({ model, credential: await credentialOf(model.vendor, model.direct.group) })));
+	const resolved = await Promise.all(candidates.map(async model => ({ model, credential: await credentialOf(model.vendor, model.direct.group, model.direct.credentialVersion) })));
 
 	const providers: NamedProviderConfig[] = [];
 	const models: ProviderModelConfig[] = [];
@@ -1114,16 +1130,45 @@ function toDirectByokModelConfig(provider: string, localModelId: string, model: 
  * session, and a renderer can transiently report an empty or partial model set
  * (e.g. while a window reloads), which must not silently change the session's model.
  *
- * A kept direct provider loses its API key, though: the window stopped serving
- * it (BYOK was disabled by policy, or the provider group or direct routing was
- * removed), so requests must fail as they do on the bridge until it returns.
+ * A direct provider missing from `current` no longer calls its endpoint, though:
+ * the window stopped routing its model directly (BYOK was disabled by policy, the
+ * provider group was removed or changed, or direct routing was turned off). With
+ * `bridgeProvider`, it is pointed at the BYOK bridge under the same name, so the
+ * session keeps its selection and each request is checked by the window like any
+ * bridged request. Without it, the provider and its models are withdrawn.
  */
-export function mergeByokSessionConfig(applied: ICopilotByokSessionConfig, current: ICopilotByokSessionConfig): ICopilotByokSessionConfig | undefined {
-	const providers = new Map((applied.providers ?? []).map(p => [p.name, withoutDirectByokCredential(p)]));
+export function mergeByokSessionConfig(applied: ICopilotByokSessionConfig, current: ICopilotByokSessionConfig, bridgeProvider?: ByokBridgeProviderFactory): ICopilotByokSessionConfig | undefined {
+	const currentProviderNames = new Set((current.providers ?? []).map(p => p.name));
+	const withdrawnProviderNames = new Set<string>();
+	const bridgedProviderNames = new Set<string>();
+	const providers = new Map<string, NamedProviderConfig>();
+	for (const provider of applied.providers ?? []) {
+		const vendor = toAgentByokProviderId(provider.name);
+		if (vendor === undefined || currentProviderNames.has(provider.name)) {
+			providers.set(provider.name, provider);
+		} else if (bridgeProvider) {
+			providers.set(provider.name, bridgeProvider(provider.name, vendor));
+			bridgedProviderNames.add(provider.name);
+		} else {
+			withdrawnProviderNames.add(provider.name);
+		}
+	}
 	for (const provider of current.providers ?? []) {
 		providers.set(provider.name, provider);
 	}
-	const models = new Map((applied.models ?? []).map(m => [`${m.provider}/${m.id}`, m]));
+	const models = new Map<string, ProviderModelConfig>();
+	for (const model of applied.models ?? []) {
+		if (withdrawnProviderNames.has(model.provider)) {
+			continue;
+		}
+		if (bridgedProviderNames.has(model.provider) && model.wireModel !== undefined) {
+			// The bridge resolves the window's model from the selection's local id, as for every bridged model.
+			const { wireModel: _wireModel, ...bridged } = model;
+			models.set(`${model.provider}/${model.id}`, bridged);
+		} else {
+			models.set(`${model.provider}/${model.id}`, model);
+		}
+	}
 	for (const model of current.models ?? []) {
 		models.set(`${model.provider}/${model.id}`, model);
 	}
@@ -1132,12 +1177,10 @@ export function mergeByokSessionConfig(applied: ICopilotByokSessionConfig, curre
 	return objectsEqual(merged, registered) ? undefined : merged;
 }
 
-function withoutDirectByokCredential(provider: NamedProviderConfig): NamedProviderConfig {
-	if (provider.apiKey === undefined || toAgentByokProviderId(provider.name) === undefined) {
-		return provider;
-	}
-	const { apiKey: _apiKey, ...withoutKey } = provider;
-	return withoutKey;
+/** Whether `applied` registers a direct provider that `current` no longer has (see {@link mergeByokSessionConfig}). */
+export function hasWithdrawnDirectByokProvider(applied: ICopilotByokSessionConfig, current: ICopilotByokSessionConfig): boolean {
+	const currentProviderNames = new Set((current.providers ?? []).map(p => p.name));
+	return (applied.providers ?? []).some(provider => toAgentByokProviderId(provider.name) !== undefined && !currentProviderNames.has(provider.name));
 }
 
 // #region On-device model rows
@@ -1163,12 +1206,12 @@ export function withLocalModelSessionConfig(byok: ICopilotByokSessionConfig, loc
  * The BYOK snapshot to sync onto a live session: external BYOK stays additive ({@link mergeByokSessionConfig}), while
  * on-device rows are replaced, so an uninstalled model's row is withdrawn. `undefined` when nothing changes.
  */
-export function composeByokSessionConfig(applied: ICopilotByokSessionConfig, external: ICopilotByokSessionConfig, local: ILocalModelSessionConfigContribution | undefined): ICopilotByokSessionConfig | undefined {
+export function composeByokSessionConfig(applied: ICopilotByokSessionConfig, external: ICopilotByokSessionConfig, local: ILocalModelSessionConfigContribution | undefined, bridgeProvider?: ByokBridgeProviderFactory): ICopilotByokSessionConfig | undefined {
 	if (!local) {
-		return mergeByokSessionConfig(applied, external);
+		return mergeByokSessionConfig(applied, external, bridgeProvider);
 	}
 	const appliedExternal = withoutLocalModelEntries(applied);
-	const mergedExternal = mergeByokSessionConfig(appliedExternal, withoutLocalModelEntries(external)) ?? appliedExternal;
+	const mergedExternal = mergeByokSessionConfig(appliedExternal, withoutLocalModelEntries(external), bridgeProvider) ?? appliedExternal;
 	const composed: ICopilotByokSessionConfig = {
 		providers: [...(mergedExternal.providers ?? []), ...local.providers],
 		models: [...(mergedExternal.models ?? []), ...local.models],
@@ -1634,12 +1677,23 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (!enabled) {
 			return Promise.resolve({});
 		}
-		return synthesizeByokSessionConfig(sessionId, this._byokLmBridgeRegistry, () => {
-			if (!this._byokProxyHandle) {
-				this._byokProxyHandle = this._byokLmProxyService.start();
-			}
-			return this._byokProxyHandle;
-		}, this._logService);
+		return synthesizeByokSessionConfig(sessionId, this._byokLmBridgeRegistry, () => this._startByokProxy(), this._logService);
+	}
+
+	async resolveByokBridgeProvider(sessionId: string): Promise<ByokBridgeProviderFactory | undefined> {
+		try {
+			return createByokBridgeProvider(await this._startByokProxy(), sessionId);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to start BYOK loopback proxy`, err);
+			return undefined;
+		}
+	}
+
+	private _startByokProxy(): Promise<IByokLmProxyHandle> {
+		if (!this._byokProxyHandle) {
+			this._byokProxyHandle = this._byokLmProxyService.start();
+		}
+		return this._byokProxyHandle;
 	}
 
 	/**

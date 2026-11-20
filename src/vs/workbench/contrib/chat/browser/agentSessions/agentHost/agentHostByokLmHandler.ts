@@ -50,6 +50,12 @@ const REASONING_METADATA_PREFIX = 'vscode-reasoning-metadata:';
 const VSCODE_REASONING_SUMMARY_PART_DONE = 'vscode_reasoning_summary_part_done';
 const CLIENT_BYOK_CONTEXT_KEYS = new Set([ChatEntitlementContextKeys.clientByokEnabled.key]);
 
+/** Identifies a provider group's stored API key without revealing it: a hash of the key's secret storage reference. */
+function getCredentialVersion(group: ILanguageModelsProviderGroup): string | undefined {
+	const secretKey = getLanguageModelSecretStorageKey(group.apiKey);
+	return secretKey ? hash(secretKey).toString(16) : undefined;
+}
+
 /**
  * Renderer-side {@link IAgentHostByokLmHandler}. Services BYOK chat requests
  * forwarded by the node agent host's OpenAI proxy by calling the VS Code LM
@@ -236,6 +242,12 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		if (!this._chatEntitlementService.clientByokEnabled || !this._isCustomEndpointDirectEnabled() || request.vendor !== CUSTOM_ENDPOINT_BYOK_VENDOR) {
 			return undefined;
 		}
+		const group = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().find(candidate => candidate.vendor === request.vendor && candidate.name === request.group);
+		// The agent host registers the key with the endpoint of the snapshot it holds, so a key replaced since is not served.
+		if (!group || getCredentialVersion(group) !== request.credentialVersion) {
+			return undefined;
+		}
+		// Reads the same group configuration synchronously, before its first await.
 		const apiKey = await this._languageModelsService.resolveLanguageModelsProviderGroupApiKey(request.vendor, request.group);
 		return apiKey ? { apiKey } : {};
 	}
@@ -292,7 +304,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			direct: {
 				...resolution.endpoint,
 				group: group.name,
-				...(secretKey ? { credentialVersion: hash(secretKey).toString(16) } : {}),
+				...(secretKey ? { credentialVersion: getCredentialVersion(group) } : {}),
 			},
 		};
 	}
