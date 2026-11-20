@@ -410,11 +410,13 @@ export function setup(logger: Logger, quality: Quality) {
 				// resolves inside the container, so a proxy configured on the CI machine cannot reach it.
 				'http.useLocalProxyConfiguration': false,
 			},
-			// Environment containers have no devcontainer.json of the workspace to point them at the mock server.
-			extraEnv: () => ({
+			// Environment containers have no devcontainer.json of the workspace to point them at the mock server, or to
+			// install a CLI when the update server has none for the commit of the build under test.
+			extraEnv: options => ({
 				VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({
 					containerEnv: devContainerMockEnvironment(handoff.mockServer.port),
 					runArgs: ['--add-host=vscode-smoke.test:host-gateway'],
+					postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
 				}),
 			}),
 			// Runs once the app exited, and before the mock server closes, which waits for the containers' connections.
@@ -1168,7 +1170,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 	/** Records the mock server's requests, so a test can wait for a prompt with `waitForPromptRequest`. */
 	readonly captureRequests?: boolean;
 	/** More environment variables of the app, computed once the mock server has started. */
-	readonly extraEnv?: () => Record<string, string | undefined>;
+	readonly extraEnv?: (options: ApplicationOptions) => Record<string, string | undefined>;
 	/**
 	 * Credentials to fill the proxy login dialogs with from the start of the app: requests of the app itself can open
 	 * one before the first window is ready, which keyboard input to it would otherwise cancel.
@@ -1256,7 +1258,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// instead of api.github.com, which would 401 with the fake token.
 				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: getMockLlmServerUrl(mockServer),
 				VSCODE_SMOKE_TEST_TUNNEL_TOKEN: undefined,
-				...config.extraEnv?.(),
+				...config.extraEnv?.(opts),
 				...remoteFixture?.extraEnv,
 			},
 		}));

@@ -8,9 +8,11 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { createCommandUri, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { LRUCache } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -21,6 +23,7 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, IDevContainerAgentHostService, isDevContainerHandoffEnabled, LocalDevContainerEnvironmentHost } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { getDevContainerSourceEntry } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/devContainerSource.js';
 import { IRemoteSessionService, IRemoteSessionWorkspace } from '../../../remoteSessions/common/remoteSessions.js';
 
 export const CreateDevContainerToolId = 'vscode_create_dev_container';
@@ -62,6 +65,9 @@ interface IDevContainerHost {
  */
 export class CreateDevContainerTool implements IToolImpl {
 
+	/** The host that the user approved for each tool call, so a changed default cannot move the container elsewhere. */
+	private readonly approvedHosts = new LRUCache<string, string>(100);
+
 	constructor(
 		@IDevContainerAgentHostService private readonly devContainerService: IDevContainerAgentHostService,
 		@ISessionsProvidersService private readonly providersService: ISessionsProvidersService,
@@ -69,6 +75,7 @@ export class CreateDevContainerTool implements IToolImpl {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISessionsManagementService private readonly sessionsService: ISessionsManagementService,
 		@IRemoteSessionService private readonly remoteSessionService: IRemoteSessionService,
+		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 	) { }
 
 	getToolData(): IToolData {
@@ -101,6 +108,7 @@ export class CreateDevContainerTool implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const host = this.resolveHost(context.parameters, context.originatingChatResource ?? context.chatSessionResource);
+		this.approvedHosts.set(context.toolCallId, host.id);
 		return {
 			invocationMessage: creatingMessage(host.label),
 			pastTenseMessage: localize('createDevContainer.past', "Created Dev Container on {0}", host.label),
@@ -112,7 +120,9 @@ export class CreateDevContainerTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const host = this.resolveHost(invocation.parameters, invocation.originatingChatResource ?? invocation.context?.sessionResource);
+		const approvedHost = this.approvedHosts.get(invocation.callId);
+		this.approvedHosts.delete(invocation.callId);
+		const host = this.resolveHost(invocation.parameters, invocation.originatingChatResource ?? invocation.context?.sessionResource, approvedHost);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -161,7 +171,8 @@ export class CreateDevContainerTool implements IToolImpl {
 		return rejections;
 	}
 
-	private resolveHost(parameters: unknown, chatResource: URI | undefined): IDevContainerHost {
+	/** Resolves the host to create the container on; `approvedHostId` is the host that the user approved in the confirmation. */
+	private resolveHost(parameters: unknown, chatResource: URI | undefined, approvedHostId?: string): IDevContainerHost {
 		if (!isDevContainerHandoffEnabled(this.configurationService)) {
 			throw new Error(localize('createDevContainer.disabled', "Creating Dev Containers is disabled."));
 		}
@@ -173,6 +184,13 @@ export class CreateDevContainerTool implements IToolImpl {
 			throw new Error(localize('createDevContainer.invalidHost', "{0} must be a non-empty string.", 'host'));
 		}
 		const hosts = this.getHosts();
+		if (approvedHostId !== undefined) {
+			const approved = hosts.find(host => host.id === approvedHostId);
+			if (!approved) {
+				throw new Error(localize('createDevContainer.approvedHostUnavailable', "The Dev Container was not created: the approved host {0} can no longer run Dev Containers. Available hosts: {1}", approvedHostId, JSON.stringify(hosts.map(({ id, label }) => ({ id, label })))));
+			}
+			return approved;
+		}
 		if (!hosts.length) {
 			throw new Error(localize('createDevContainer.noHosts', "No Docker host is available. Start Docker on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker."));
 		}
@@ -191,22 +209,33 @@ export class CreateDevContainerTool implements IToolImpl {
 
 	/**
 	 * The address of the host that the invoking session runs on, as in {@link IDevContainerHost.address}. For a
-	 * session in a Dev Container environment, that is the host that runs the container.
+	 * session in a Dev Container, that is the host that runs the container.
 	 */
 	private getSessionHostAddress(chatResource: URI | undefined): string | undefined {
 		const session = chatResource && (this.sessionsService.getSessionForChatResource(chatResource)?.session ?? this.sessionsService.getSession(chatResource));
 		if (!session) {
 			return undefined;
 		}
-		const environment = this.devContainerService.environments.get().find(environment => environment.providerId === session.providerId);
-		if (environment) {
-			return environment.sourceAddress;
-		}
 		if (session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
 			return LocalDevContainerEnvironmentHost;
 		}
 		const provider = this.providersService.getProvider(session.providerId);
-		return provider && isAgentHostProvider(provider) ? provider.remoteAddress : undefined;
+		if (!provider || !isAgentHostProvider(provider)) {
+			return undefined;
+		}
+		if (provider.devContainerEnvironmentHost) {
+			return provider.devContainerEnvironmentHost;
+		}
+		// The Dev Container of a folder runs on the host of the folder.
+		const sourceWorkspace = provider.devContainerSourceWorkspace;
+		if (sourceWorkspace) {
+			if (sourceWorkspace.scheme === Schemas.file) {
+				return LocalDevContainerEnvironmentHost;
+			}
+			const entry = getDevContainerSourceEntry(sourceWorkspace, this.remoteAgentHostService);
+			return entry && getEntryAddress(entry);
+		}
+		return provider.remoteAddress;
 	}
 
 	/** This computer first, then the connected hosts that can run Dev Containers now, as in Remote Environments. */

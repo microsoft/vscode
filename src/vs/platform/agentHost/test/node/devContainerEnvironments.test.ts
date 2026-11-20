@@ -19,7 +19,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { devContainerEnvironmentImage, devContainerEnvironmentUri, findDevContainerEnvironment } from '../../common/devContainerEnvironments.js';
 import { DevContainerAgentHostMainService } from '../../node/devContainerAgentHostService.js';
 import { devContainerEnvironmentLabel, devContainerVolumeLabel, prepareDevContainerEnvironment, readDevContainerEnvironmentTestConfiguration, removeDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
-import { getDevContainerStateVolumeName } from '../../node/devContainerState.js';
+import { getDevContainerStateVolumeLabels, getDevContainerStateVolumeName } from '../../node/devContainerState.js';
 
 suite('Dev Container environments', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -138,7 +138,7 @@ suite('Dev Container environments', () => {
 
 	test('adds the container settings that smoke tests configure, and rejects malformed ones', async () => {
 		const testConfiguration = readDevContainerEnvironmentTestConfiguration({
-			VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({ containerEnv: { COPILOT_API_URL: 'http://vscode-smoke.test:1234' }, runArgs: ['--add-host=vscode-smoke.test:host-gateway'] }),
+			VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({ containerEnv: { COPILOT_API_URL: 'http://vscode-smoke.test:1234' }, runArgs: ['--add-host=vscode-smoke.test:host-gateway'], postCreateCommand: 'install-cli' }),
 		});
 		await prepareDevContainerEnvironment({ environmentId, image: devContainerEnvironmentImage }, cacheDirectory, {
 			onContainerStarted: () => { },
@@ -146,19 +146,22 @@ suite('Dev Container environments', () => {
 			devcontainer: async () => ({ stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: `/workspaces/${volumeName}` }), stderr: '', code: 0 }),
 			testConfiguration,
 		}, true);
-		const { runArgs, containerEnv } = JSON.parse(await readFile(join(cacheDirectory, 'devcontainer.json'), 'utf8'));
+		const { runArgs, containerEnv, postCreateCommand } = JSON.parse(await readFile(join(cacheDirectory, 'devcontainer.json'), 'utf8'));
 		assert.deepStrictEqual({
 			unset: readDevContainerEnvironmentTestConfiguration({}),
 			runArgs: runArgs.slice(-1),
 			keepsSandboxArgs: runArgs.length > 1,
 			containerEnv,
+			postCreateCommand,
 		}, {
 			unset: undefined,
 			runArgs: ['--add-host=vscode-smoke.test:host-gateway'],
 			keepsSandboxArgs: true,
 			containerEnv: { COPILOT_API_URL: 'http://vscode-smoke.test:1234' },
+			postCreateCommand: 'install-cli',
 		});
 		assert.throws(() => readDevContainerEnvironmentTestConfiguration({ VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({ image: 'other' }) }), /must be a JSON object/);
+		assert.throws(() => readDevContainerEnvironmentTestConfiguration({ VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG: JSON.stringify({ postCreateCommand: ['install-cli'] }) }), /must be a JSON object/);
 	});
 
 	test('rejects unsupported images before starting a container', async () => {
@@ -199,12 +202,34 @@ suite('Dev Container environments', () => {
 			removed: true,
 			calls: [
 				`volume ls ${workspaceVolumeFilter} --format {{.Name}}`,
+				`volume ls --filter label=${devContainerEnvironmentLabel}=${environmentId} --format {{.Name}}`,
 				`ps --all --quiet --filter label=vsc.devcontainer.volume.name=${volumeName} --filter label=vsc.devcontainer.volume.folder=${volumeName}`,
 				'rm --force first second',
-				`volume ls --filter label=${devContainerEnvironmentLabel}=${environmentId} --format {{.Name}}`,
 				`volume rm ${volumeName} ${stateVolumeName}`,
 			],
 			cacheRemoved: true,
+		});
+	});
+
+	test('removes a state volume created before state volumes were labeled with the environment, but not one of another container with its name', async () => {
+		const idLabels = [`vsc.devcontainer.volume.name=${volumeName}`, `vsc.devcontainer.volume.folder=${volumeName}`];
+		const stateVolumeName = getDevContainerStateVolumeName(idLabels);
+		const remove = async (stateLabels: readonly string[]) => {
+			const calls: string[] = [];
+			await removeDevContainerEnvironment(environmentId, join(cacheDirectory, 'environment'), async args => {
+				calls.push(args.join(' '));
+				const stdout = args[1] === 'inspect' ? JSON.stringify(Object.fromEntries(stateLabels.map(label => [label.slice(0, label.indexOf('=')), label.slice(label.indexOf('=') + 1)])))
+					: args[1] === 'ls' ? (args.includes('--filter') ? volumeName : `${volumeName}\n${stateVolumeName}`) : '';
+				return { stdout, stderr: '', code: 0 };
+			});
+			return calls.filter(call => call.startsWith('volume rm'));
+		};
+		assert.deepStrictEqual({
+			legacy: await remove(getDevContainerStateVolumeLabels(idLabels)),
+			other: await remove(getDevContainerStateVolumeLabels(['vsc.devcontainer.volume.name=other', 'vsc.devcontainer.volume.folder=other'])),
+		}, {
+			legacy: [`volume rm ${volumeName} ${stateVolumeName}`],
+			other: [`volume rm ${volumeName}`],
 		});
 	});
 

@@ -12,7 +12,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IToolInvocation } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -49,19 +50,23 @@ suite('CreateDevContainerTool', () => {
 			id: 'agenthost-container',
 			label: 'Dev Container',
 			remoteAddress: 'devcontainer:1',
+			devContainerEnvironmentHost: 'ssh:build',
 		});
 		const providers = [
 			upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-build', label: 'Build', remoteAddress: 'ssh:build' }),
 			upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-other', label: 'Other', remoteAddress: 'ssh:other' }),
 			container,
+			// Dev Containers of folders on Build and on this computer.
+			upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-build-folder', label: 'app Dev Container (Build)', remoteAddress: 'devcontainer:2', devContainerSourceWorkspace: URI.parse(`vscode-agent-host://${agentHostAuthority('ssh:build')}/file/-/src/app`) }),
+			upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-local-folder', label: 'app Dev Container', remoteAddress: 'devcontainer:3', devContainerSourceWorkspace: URI.file('/src/app') }),
 		];
 		const created: string[] = [];
 		const trusted: string[] = [];
 		const readinessChecks: string[] = [];
 		let rejections: readonly string[] = ['No usable agents have been advertised.'];
+		const environmentHosts = observableValue<ReadonlySet<string>>('hosts', new Set(options.hosts ?? [LocalDevContainerEnvironmentHost, 'ssh:build']));
 		const devContainerService = upcastPartial<IDevContainerAgentHostService>({
-			environmentHosts: observableValue('hosts', new Set(options.hosts ?? [LocalDevContainerEnvironmentHost, 'ssh:build'])),
-			environments: observableValue<readonly IDevContainerEnvironment[]>('environments', [{ address: 'devcontainer:1', sourceAddress: 'ssh:build', providerId: container.id }]),
+			environmentHosts,
 			createEnvironment: async (sourceAddress: string, createOptions?: { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment> => {
 				created.push(sourceAddress);
 				const environment = { address: 'devcontainer:1', sourceAddress, providerId: container.id };
@@ -87,9 +92,13 @@ suite('CreateDevContainerTool', () => {
 					return rejections;
 				},
 			}),
+			upcastPartial<IRemoteAgentHostService>({
+				configuredEntries: [{ name: 'Build', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:build', hostName: 'build' } }],
+			}),
 		);
 		const becomeReady = () => { rejections = []; };
-		return { tool, created, trusted, readinessChecks, becomeReady };
+		const disconnect = (address: string) => environmentHosts.set(new Set([...environmentHosts.get()].filter(host => host !== address)), undefined);
+		return { tool, created, trusted, readinessChecks, becomeReady, disconnect };
 	}
 
 	async function prepare(tool: CreateDevContainerTool, parameters: unknown, originatingChatResource?: URI) {
@@ -133,15 +142,31 @@ suite('CreateDevContainerTool', () => {
 		assert.deepStrictEqual({
 			remoteSession: await prepare(tool, {}, chatOn('agenthost-build')),
 			containerSession: await prepare(tool, {}, chatOn('agenthost-container')),
+			remoteFolderContainerSession: await prepare(tool, {}, chatOn('agenthost-build-folder')),
+			localFolderContainerSession: await prepare(tool, {}, chatOn('agenthost-local-folder')),
 			localSession: await prepare(tool, {}, chatOn(LOCAL_AGENT_HOST_PROVIDER_ID)),
 			hostWithoutDocker: await prepare(tool, {}, chatOn('agenthost-other')),
 			requestedHost: await prepare(tool, { host: 'local' }, chatOn('agenthost-build')),
 		}, {
 			remoteSession: 'Creating Dev Container on Build',
 			containerSession: 'Creating Dev Container on Build',
+			remoteFolderContainerSession: 'Creating Dev Container on Build',
+			localFolderContainerSession: 'Creating Dev Container on This Computer',
 			localSession: 'Creating Dev Container on This Computer',
 			hostWithoutDocker: 'Creating Dev Container on This Computer',
 			requestedHost: 'Creating Dev Container on This Computer',
+		});
+	});
+
+	test('creates nothing when the approved host can no longer run Dev Containers, instead of using another host', async () => {
+		const { tool, created, disconnect } = setup();
+		const originatingChatResource = chatOn('agenthost-build');
+		await tool.prepareToolInvocation({ toolCallId: 'call', parameters: {}, chatSessionResource: undefined, originatingChatResource }, CancellationToken.None);
+		disconnect('ssh:build');
+		const error = await tool.invoke({ callId: 'call', toolId: tool.getToolData().id, parameters: {}, originatingChatResource, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None).then(() => undefined, (error: Error) => error.message);
+		assert.deepStrictEqual({ error, created }, {
+			error: 'The Dev Container was not created: the approved host agenthost-build can no longer run Dev Containers. Available hosts: [{"id":"local","label":"This Computer"}]',
+			created: [],
 		});
 	});
 

@@ -32,6 +32,8 @@ const testConfigurationEnvironmentKey = 'VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRON
 export interface IDevContainerEnvironmentTestConfiguration {
 	readonly containerEnv?: Readonly<Record<string, string>>;
 	readonly runArgs?: readonly string[];
+	/** Installs a CLI in the container for builds whose commit has none on the update server. */
+	readonly postCreateCommand?: string;
 }
 
 /** Reads the configuration that smoke tests set in {@link testConfigurationEnvironmentKey}, if any. */
@@ -43,15 +45,18 @@ export function readDevContainerEnvironmentTestConfiguration(environment: NodeJS
 	const configuration: unknown = JSON.parse(value);
 	const containerEnv = isRecord(configuration) ? configuration.containerEnv : undefined;
 	const runArgs = isRecord(configuration) ? configuration.runArgs : undefined;
+	const postCreateCommand = isRecord(configuration) ? configuration.postCreateCommand : undefined;
 	if (!isRecord(configuration)
-		|| Object.keys(configuration).some(key => key !== 'containerEnv' && key !== 'runArgs')
+		|| Object.keys(configuration).some(key => key !== 'containerEnv' && key !== 'runArgs' && key !== 'postCreateCommand')
 		|| (containerEnv !== undefined && (!isRecord(containerEnv) || Object.values(containerEnv).some(entry => typeof entry !== 'string')))
-		|| (runArgs !== undefined && (!Array.isArray(runArgs) || runArgs.some(arg => typeof arg !== 'string')))) {
-		throw new Error(`${testConfigurationEnvironmentKey} must be a JSON object with optional containerEnv strings and runArgs.`);
+		|| (runArgs !== undefined && (!Array.isArray(runArgs) || runArgs.some(arg => typeof arg !== 'string')))
+		|| (postCreateCommand !== undefined && typeof postCreateCommand !== 'string')) {
+		throw new Error(`${testConfigurationEnvironmentKey} must be a JSON object with optional containerEnv strings, runArgs and a postCreateCommand string.`);
 	}
 	return {
 		...(containerEnv ? { containerEnv: containerEnv as Record<string, string> } : {}),
 		...(runArgs ? { runArgs: runArgs as string[] } : {}),
+		...(postCreateCommand ? { postCreateCommand } : {}),
 	};
 }
 
@@ -183,6 +188,7 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 		updateRemoteUserUID: false,
 		...(runArgs.length ? { runArgs } : {}),
 		...(commands.testConfiguration?.containerEnv ? { containerEnv: commands.testConfiguration.containerEnv } : {}),
+		...(commands.testConfiguration?.postCreateCommand ? { postCreateCommand: commands.testConfiguration.postCreateCommand } : {}),
 	}));
 	const cliArgs = ['--override-config', configPath, ...idLabels.flatMap(label => ['--id-label', label])];
 	// Lifecycle commands run after linking user state, so their changes to it persist.
@@ -219,15 +225,20 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 export async function removeDevContainerEnvironment(environmentId: string, cacheDirectory: string, docker: DockerCommand): Promise<void> {
 	validateEnvironmentId(environmentId);
 	const volumeName = await findEnvironmentVolume(docker, environmentId);
+	const volumes = new Set(await listVolumes(docker, [`${devContainerEnvironmentLabel}=${environmentId}`]));
 	if (volumeName) {
 		const idLabels = getIdLabels(volumeName);
 		const containerIds = checked(await docker(['ps', '--all', '--quiet', ...idLabels.flatMap(label => ['--filter', `label=${label}`])]), 'docker ps').trim().split(/\r?\n/).filter(Boolean);
 		if (containerIds.length) {
 			checked(await docker(['rm', '--force', ...containerIds]), 'docker rm');
 		}
+		// State volumes created before they got the environment's label are found by their name and identity labels.
+		const stateVolumeName = getDevContainerStateVolumeName(idLabels);
+		if (!volumes.has(stateVolumeName) && (await listVolumes(docker)).includes(stateVolumeName) && await isEnvironmentStateVolume(docker, stateVolumeName, idLabels)) {
+			volumes.add(stateVolumeName);
+		}
 	}
-	const volumes = await listVolumes(docker, [`${devContainerEnvironmentLabel}=${environmentId}`]);
-	if (volumes.length) {
+	if (volumes.size) {
 		checked(await docker(['volume', 'rm', ...volumes]), 'docker volume rm');
 	}
 	await rm(cacheDirectory, { recursive: true, force: true });

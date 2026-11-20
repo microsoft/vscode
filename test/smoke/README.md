@@ -144,7 +144,7 @@ Run the local and SSH Dev Container cases:
 pnpm run smoketest --tracing -g 'Agents Window \((SSH )?Dev Container AgentHost\)'
 ```
 
-The Dev Container handoff suite has a scripted agent create a Dev Container environment on this computer with `create_dev_container`, then start a session in it with `create_remote_session`. It approves both tool confirmations, waits for the new session's request to reach the mock server from the container, and removes the environment's container and volume afterwards. Environment containers have no workspace `devcontainer.json`, so the suite passes the container settings that point their Agent Host at the mock server in `VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG`:
+The Dev Container handoff suite has a scripted agent create a Dev Container environment on this computer with `create_dev_container`, then start a session in it with `create_remote_session`. It approves both tool confirmations, waits for the new session's request to reach the mock server from the container, and removes the environment's container and volume afterwards. Environment containers have no workspace `devcontainer.json`, so the suite passes the container settings that point their Agent Host at the mock server in `VSCODE_SMOKE_TEST_DEV_CONTAINER_ENVIRONMENT_CONFIG`. It also passes a `postCreateCommand` that installs a CLI in the container, like the folder Dev Container suite: the update server has none for the commit of an unpublished build, such as one of a CI run. Run it with:
 
 ```bash
 pnpm run smoketest --tracing -g 'Agents Window \(Dev Container handoff\)'
