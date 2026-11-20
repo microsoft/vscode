@@ -13,7 +13,9 @@ parameters:
 jobs:
   - job: PublishBuild
     displayName: Publish Build
-    timeoutInMinutes: 180
+    # Publish starts with the build and waits for every stage, then for ESRP to release what's left, so it needs the
+    # slowest legitimate build plus a slow ESRP release. macOS Sign alone may take up to 240 minutes.
+    timeoutInMinutes: 300
     pool:
       name: ${{ parameters.VSCODE_POOL_NAME }}
       os: windows
