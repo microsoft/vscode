@@ -385,6 +385,19 @@ suite('CanvasService', () => {
 		}, { closedWhileHidden: [true], shownAgain: 1 });
 	});
 
+	test('shows the canvas again once its owner is visible after a folder location working-set swap closed it while the owner was hidden', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const input = harness.opened[0];
+		harness.visible.set(new Set(), undefined);
+		harness.openEditors.length = 0;
+		input.dispose();
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ reopened: harness.openEditors.length, opened: harness.opened.length }, { reopened: 1, opened: 2 });
+	});
+
 	test('closes the canvas of a hidden owner when the visible owner has not settled its canvases', async () => {
 		const harness = createHarness();
 		harness.canvases.set([harness.canvas], undefined);
