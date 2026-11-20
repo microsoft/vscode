@@ -33,7 +33,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostHooksEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { withAgentToolFullReferenceName, withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
@@ -4376,6 +4376,41 @@ suite('CopilotSessionLauncher resume config', () => {
 			allFoldersTrusted: ['guard.agent.md', 'helper.agent.md', 'copied.agent.md'],
 			additionalFolderUntrusted: [],
 			primaryFolderUntrusted: [],
+		});
+	});
+
+	test('chat.useHooks off leaves out repository, custom agent and VS Code-run plugin hooks, but keeps VS Code\'s own callbacks', async () => {
+		const store = disposables.add(new DisposableStore());
+		const agent = URI.file('/workspace/.github/agents/guard.agent.md');
+		const snapshot: CopilotSessionLaunchPlan['snapshot'] = {
+			discoveredAgents: [{ name: 'guard', uri: agent, customization: { type: CustomizationType.Agent, id: agent.toString(), uri: agent.toString(), name: 'guard' } }],
+			additionalRootInstructions: [], tools: [], mcpServers: {},
+			// A plugin without a folder, whose hooks VS Code runs through SDK callbacks.
+			plugins: [{
+				format: PluginFormat.Copilot, mcpServers: [], agents: [], skills: [], instructions: [],
+				hooks: [{ type: 'SessionStart', commands: [{ command: 'echo start' }], uri: URI.file('/plugin/hooks.json'), originalId: 'SessionStart', customization: { type: CustomizationType.Hook, id: 'hook:start', uri: 'file:///plugin/hooks.json', name: 'hooks.json' } }],
+			}],
+		};
+		const configFor = async (hooksEnabled: boolean | undefined) => {
+			const config = await buildResumeConfig(createLauncher(store, {
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file('/workspace').toString()] },
+				[AgentHostHooksEnabledConfigKey]: hooksEnabled,
+			}, '---\nname: guard\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody'), undefined, snapshot);
+			return {
+				repositoryHooks: config.hooks?.enableRepositoryHooks,
+				customAgentHooks: config.agents?.definitions?.find(definition => definition.name === getSdkCustomAgentName(agent))?.hooks !== undefined,
+				handlers: Object.keys(config.hooks?.handlers ?? {}).sort(),
+			};
+		};
+		const vscodeCallbacks = ['onPostToolUse', 'onPostToolUseFailure', 'onPreToolUse', 'onUserPromptSubmitted'];
+		assert.deepStrictEqual({
+			unset: await configFor(undefined),
+			on: await configFor(true),
+			off: await configFor(false),
+		}, {
+			unset: { repositoryHooks: true, customAgentHooks: true, handlers: [...vscodeCallbacks, 'onSessionStart'].sort() },
+			on: { repositoryHooks: true, customAgentHooks: true, handlers: [...vscodeCallbacks, 'onSessionStart'].sort() },
+			off: { repositoryHooks: false, customAgentHooks: false, handlers: vscodeCallbacks },
 		});
 	});
 
