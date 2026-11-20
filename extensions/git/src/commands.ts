@@ -2423,8 +2423,11 @@ export class CommandCenter {
 				}
 			}
 
+			// a merge with all conflicts resolved can be committed even if the index matches HEAD
+			const mergeReadyToCommit = repository.mergeInProgress && repository.mergeGroup.resourceStates.length === 0;
+
 			// no changes, and the user has not configured to commit all in this case
-			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all && !opts.amend) {
+			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all && !opts.amend && !mergeReadyToCommit) {
 				const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 				if (!suggestSmartCommit) {
@@ -2454,7 +2457,7 @@ export class CommandCenter {
 
 			// smart commit
 			if (enableSmartCommit && !opts.all) {
-				opts = { ...opts, all: noStagedChanges };
+				opts = { ...opts, all: noStagedChanges && !mergeReadyToCommit };
 			}
 		}
 
