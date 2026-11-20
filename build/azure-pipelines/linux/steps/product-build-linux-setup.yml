@@ -151,6 +151,8 @@ steps:
     ${{ if eq(parameters.VSCODE_WORKSPACE_IMAGE, 'build') }}:
       condition: and(succeeded(), eq(variables['WORKSPACE_IMAGE_USED'], 'true'))
 
+  - template: ./restore-chromium-build-files.yml@self
+
   - script: |
       set -e
 

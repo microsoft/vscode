@@ -635,6 +635,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					'vscode.reasoningEffort': reasoningEffort,
 					'vscode.modelPolicy': parsed.modelPolicy,
 					'vscode.assistedApprovalInstructions': parsed.assistedApprovalInstructions,
+					'vscode.argumentHint': parsed.argumentHint,
 					'vscode.welcomeMessage': parsed.welcomeMessage,
 				});
 				agents.push({

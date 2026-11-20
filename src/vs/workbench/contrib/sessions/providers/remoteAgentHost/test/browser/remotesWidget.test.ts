@@ -126,7 +126,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	async updateServer(id: string): Promise<void> {
 		this.serverUpdates.push(id);
 		await this.pendingManagement?.p;
-		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected } : remote), undefined);
+		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected, canUpdateServer: undefined } : remote), undefined);
 	}
 
 	async setSharedAsGitHubEnvironment(id: string, shared: boolean): Promise<void> {
@@ -2552,7 +2552,7 @@ suite('RemotesWidget', () => {
 		const { parent, model } = createWidget();
 		const ssh = model.remotes.get().find(remote => remote.kind === 'ssh')!;
 		model.remotes.set([{
-			...ssh, canDelete: true,
+			...ssh, canDelete: true, canUpdateServer: true,
 			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Version mismatch', ['1'], ['2'], 'vendor/update'),
 		}], undefined);
 		assert.deepStrictEqual(getMenuActions(parent, ssh.id).map(action => action.id === 'vs.actions.separator' ? '---' : action.label), [
@@ -3008,21 +3008,25 @@ suite('RemotesWidget', () => {
 
 	}
 
-	test('Update Server follows advertised capability as a row changes status', () => {
+	test('Update Server follows the update capability on incompatible and connected rows', () => {
 		const { parent, model } = createWidget();
 		const remote = model.remotes.get()[0];
-		const statuses = [
-			RemoteAgentHostConnectionStatus.disconnected,
-			RemoteAgentHostConnectionStatus.incompatible('Too old', ['1']),
-			RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], ['2'], 'vendor/update'),
-			RemoteAgentHostConnectionStatus.connecting,
-			RemoteAgentHostConnectionStatus.connected,
+		const rows: Partial<ICustomizationRemote>[] = [
+			{ connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], ['2'], 'vendor/update'), canUpdateServer: true },
+			{ connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Too old', ['1']) },
+			{ connectionStatus: RemoteAgentHostConnectionStatus.connected, canUpdateServer: true },
+			{ connectionStatus: RemoteAgentHostConnectionStatus.connected },
 		];
-		const labels = statuses.map(connectionStatus => {
-			model.remotes.set([{ ...remote, connectionStatus }], undefined);
-			return findMenuAction(parent, remote.id, 'updateServer')?.label ?? null;
+		const menus = rows.map(row => {
+			model.remotes.set([{ ...remote, ...row }], undefined);
+			return getMenuActions(parent, remote.id).map(action => action.label).filter(label => ['New Session', 'Connect', 'Disconnect', 'Update Server'].includes(label));
 		});
-		assert.deepStrictEqual(labels, [null, null, 'Update Server', null, null]);
+		assert.deepStrictEqual(menus, [
+			['Connect', 'Update Server'],
+			['Connect'],
+			['New Session', 'Disconnect', 'Update Server'],
+			['New Session', 'Disconnect'],
+		]);
 	});
 
 	for (const shared of [false, true]) {
@@ -3082,7 +3086,7 @@ suite('RemotesWidget', () => {
 	test('Update Server in overflow blocks duplicates and restores focus when it disappears', async () => {
 		const { parent, model } = createWidget();
 		model.remotes.set([{
-			...model.remotes.get()[0],
+			...model.remotes.get()[0], canUpdateServer: true,
 			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], undefined, 'vendor/update'),
 		}], undefined);
 		model.pendingManagement = new DeferredPromise<void>();
@@ -3102,7 +3106,7 @@ suite('RemotesWidget', () => {
 	test('failed Update Server reports the error and re-enables the action', async () => {
 		const { parent, model, errors } = createWidget();
 		model.remotes.set([{
-			...model.remotes.get()[0],
+			...model.remotes.get()[0], canUpdateServer: true,
 			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], undefined, 'vendor/update'),
 		}], undefined);
 		model.pendingManagement = new DeferredPromise<void>();
@@ -3118,7 +3122,7 @@ suite('RemotesWidget', () => {
 	test('run behavior respects the shared busy state of an overflow update', async () => {
 		const { parent, model } = createWidget();
 		model.remotes.set([{
-			...model.remotes.get()[0],
+			...model.remotes.get()[0], canUpdateServer: true,
 			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], undefined, 'vendor/update'),
 		}], undefined);
 		model.pendingManagement = new DeferredPromise<void>();

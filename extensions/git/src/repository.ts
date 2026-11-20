@@ -3376,7 +3376,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private onFileChange(_uri: Uri): void {
+	private onFileChange(uri: Uri): void {
 		const config = workspace.getConfiguration('git');
 		const autorefresh = config.get<boolean>('autorefresh');
 
@@ -3385,7 +3385,9 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		if (this.isRepositoryHuge) {
+		// A change to the repository root or to its git folder (e.g. the worktree being
+		// removed) must still run git status, so that a deleted repository gets disposed
+		if (this.isRepositoryHuge && !pathEquals(uri.fsPath, this.root) && !pathEquals(uri.fsPath, this.dotGit.path)) {
 			this.logger.trace('[Repository][onFileChange] Skip running git status because repository is huge.');
 			return;
 		}

@@ -1388,6 +1388,31 @@ suite('ProtocolServerHandler', () => {
 		transport.dispose();
 	});
 
+	test('initialize advertises the upgrade method to direct clients only when a managing CLI is present', () => {
+		const originalEnv = process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+		disposables.add(toDisposable(() => {
+			if (originalEnv === undefined) {
+				delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+			} else {
+				process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = originalEnv;
+			}
+		}));
+		const advertised = (clientId: string, relay: boolean) => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, relay ? clientId : undefined));
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }));
+			const response = findResponse(transport.sent, 1) as { result?: InitializeResult };
+			transport.simulateClose();
+			return response.result?._meta?.['vscode.upgradeMethod'];
+		};
+		delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+		const withoutCli = advertised('client-without-cli', false);
+		process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = '/tmp/mock-supervisor.sock';
+		assert.deepStrictEqual({ withoutCli, direct: advertised('client-direct', false), relay: advertised('client-relay', true) }, {
+			withoutCli: undefined, direct: '_vscodeUpgrade', relay: undefined,
+		});
+	});
+
 	test('_vscodeUpgrade RPC returns MethodNotFound when no supervisor is available', async () => {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);

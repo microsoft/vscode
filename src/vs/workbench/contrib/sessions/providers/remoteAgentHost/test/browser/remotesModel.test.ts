@@ -8,9 +8,9 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../../../base/common/errors.js';
-import { constObservable, derived, observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, derived, ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { isWindows, OperatingSystem } from '../../../../../../../base/common/platform.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { cloudSandboxAddress } from '../../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -22,7 +22,8 @@ import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgen
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
-import { PathStyle } from '../../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
+import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { InitializeResult, PathStyle } from '../../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IVscodeUpgradeResult } from '../../../../../../../platform/agentHost/common/state/protocolUpgrade.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
 import { IWSLCachedDistro, IWSLDistro, IWSLRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
@@ -119,6 +120,15 @@ suite('RemotesModel', () => {
 			displayNamesChanged.fire(address);
 		};
 		let connectionFailure: Error | undefined;
+		const initializeResults = new Map<string, ISettableObservable<InitializeResult | undefined>>();
+		const initializeResultFor = (address: string) => {
+			let result = initializeResults.get(address);
+			if (!result) {
+				result = observableValue<InitializeResult | undefined>(store, undefined);
+				initializeResults.set(address, result);
+			}
+			return result;
+		};
 		const logEntries: { message: string; args: readonly unknown[] }[] = [];
 		let wslDiscoveryCalls = 0;
 		const wslState: { discoveryFailure?: Error; runningFailure?: Error } = {};
@@ -164,6 +174,7 @@ suite('RemotesModel', () => {
 			setDisplayName,
 			reconnect: address => { reconnects.push(address); },
 			removeRemoteAgentHost: async address => { removedConnections.push(address); },
+			getConnection: address => upcastPartial<IAgentConnection>({ initializeResult: initializeResultFor(address) }),
 			triggerServerUpgrade: async (address, method) => {
 				upgrades.push({ address, method });
 				if (upgrade.failure) {
@@ -407,6 +418,7 @@ suite('RemotesModel', () => {
 			},
 			addEnvironmentProvider: (id: string, localRegistration?: LocalAgentHostRegistration) => addProvider(cloudSandboxAddress(id), localRegistration),
 			addProvider,
+			setInitializeResultMeta: (address: string, meta: Record<string, unknown> | undefined) => initializeResultFor(address).set({ protocolVersion: '1.0.0', serverSeq: 0, snapshots: [], _meta: meta }, undefined),
 		};
 	}
 
@@ -1089,6 +1101,51 @@ suite('RemotesModel', () => {
 		await assert.rejects(model.updateServer('tunnel:laptop'), /no longer available/);
 		assert.deepStrictEqual(upgrades, []);
 	});
+
+	test('connected hosts offer Update Server when they advertise the method, and ask before updating', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, providers, upgrade, upgrades, confirmations, connectionChanges, environmentState, setInitializeResultMeta } = setup();
+		await model.refresh(CancellationToken.None);
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		const canUpdate = () => model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canUpdateServer;
+		const absent = canUpdate();
+		await assert.rejects(model.updateServer('tunnel:laptop'), /does not support updating/);
+		setInitializeResultMeta('tunnel:laptop', { 'vscode.upgradeMethod': 42 });
+		const malformed = canUpdate();
+		setInitializeResultMeta('tunnel:laptop', { 'vscode.upgradeMethod': 'vendor/update' });
+		const advertised = canUpdate();
+		const declined = new DeferredPromise<IConfirmationResult>();
+		void declined.complete({ confirmed: false });
+		environmentState.pendingConfirmation = declined;
+		await model.updateServer('tunnel:laptop');
+		const afterDecline = [...upgrades];
+		environmentState.pendingConfirmation = undefined;
+		upgrade.result = { ok: true, upgradeStarted: true, restartDelayMs: 1000 };
+		const start = Date.now();
+		await model.updateServer('tunnel:laptop');
+		assert.deepStrictEqual({
+			absent, malformed, advertised, afterDecline, upgrades, connectionChanges, elapsed: Date.now() - start,
+			confirmations: confirmations.map(({ message, primaryButton }) => ({ message, primaryButton })),
+		}, {
+			absent: undefined, malformed: undefined, advertised: true, afterDecline: [],
+			upgrades: [{ address: 'tunnel:laptop', method: 'vendor/update' }],
+			// The connection stayed up through the restart delay, so the update reconnects explicitly.
+			connectionChanges: [{ id: 'tunnel:laptop', connected: true }], elapsed: 3000,
+			confirmations: Array(2).fill({ message: 'Update the server on \'Laptop\'?', primaryButton: '&&Update Server' }),
+		});
+	}));
+
+	test('updating a connected server leaves reconnecting to a connection that drops during the restart', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, providers, upgrade, connectionChanges, setInitializeResultMeta } = setup();
+		await model.refresh(CancellationToken.None);
+		const provider = providers.get('tunnel:laptop')!;
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		setInitializeResultMeta('tunnel:laptop', { 'vscode.upgradeMethod': '_vscodeUpgrade' });
+		upgrade.result = { ok: true, upgradeStarted: true, restartDelayMs: 1000 };
+		setTimeout(() => provider.connectionStatus.set(RemoteAgentHostConnectionStatus.reconnecting, undefined), 1500);
+		const start = Date.now();
+		await model.updateServer('tunnel:laptop');
+		assert.deepStrictEqual({ connectionChanges, elapsed: Date.now() - start }, { connectionChanges: [], elapsed: 2000 });
+	}));
 
 	test('Connect asks to update a server that requires it and connects through the update', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { model, providers, upgrade, upgrades, confirmations, connectionChanges, environmentState } = setup();

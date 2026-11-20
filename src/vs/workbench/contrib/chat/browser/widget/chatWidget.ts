@@ -3198,6 +3198,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderFollowups();
 			this.renderChatSuggestNextWidget();
 		}));
+		// Also when the selected agent's file changes its `argument-hint` in place.
+		store.add(autorun(reader => {
+			input.currentModeObs.read(reader).argumentHint?.read(reader);
+			this._applyInputPlaceholder();
+		}));
 		if (!isInlineEdit) {
 			store.add(this._observeAgentEmptyChatMessage(input));
 		}
@@ -3642,6 +3647,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (this._lockedAgent) {
 			placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder
 				|| localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
+		}
+		// The selected agent's own hint (`argument-hint`) is more specific; it is not the session's, so it stays out of the view model.
+		const argumentHint = this.input.currentModeObs.get().argumentHint?.get();
+		if (argumentHint) {
+			this._updateInputPlaceholder(argumentHint);
+			this._appliedInputPlaceholder = true;
+			return;
 		}
 		// Routed through `_updateInputPlaceholder`, so a host-supplied placeholder still wins.
 		if (placeholder) {
