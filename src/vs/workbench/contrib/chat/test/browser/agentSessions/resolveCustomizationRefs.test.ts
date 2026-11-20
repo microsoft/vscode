@@ -1381,7 +1381,7 @@ suite('resolveLocalCustomAgents', () => {
 			name: 'Inbox',
 			description: 'Triage GitHub notifications',
 			disableUserInvocation: true,
-			_meta: { 'vscode.welcomeMessage': 'Welcome' },
+			_meta: { 'vscode.pickerWhenSelected': true, 'vscode.welcomeMessage': 'Welcome' },
 		}]);
 	});
 
