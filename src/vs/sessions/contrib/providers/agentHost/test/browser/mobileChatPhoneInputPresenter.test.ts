@@ -52,7 +52,10 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../../
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
-import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { AgentContextValuePick } from '../../../../../../workbench/contrib/chat/browser/actions/chatContext.js';
+import { OpenModePickerAction } from '../../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
+import { ChatInputPart } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { resetShownWarnings } from '../../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { ChatPhoneInputPresenterRequest, IChatPhoneInputPresenter, IChatPhoneInputSessionContext, IChatPhoneSessionModelPicker, MobileChatInputCombinedPickerActionItem } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
@@ -984,6 +987,33 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 			});
 		});
 	}
+
+	test('the Agent shortcut and Add Context open at Agent, while the model command opens at Model', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { container, delegates, presenter, instantiationService, close } = createHarness();
+			const inputPart: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				options: {},
+				chatPhoneInputPresenter: presenter,
+				inputActionsToolbar: { getElement: () => container },
+				_createModePickerDelegate: () => delegates.modeDelegate,
+				_createModelPickerDelegate: () => delegates.modelDelegate,
+			});
+			const widget = upcastPartial<IChatWidget>({ input: inputPart, inputPart });
+			instantiationService.stub(IChatWidgetService, { lastFocusedWidget: widget });
+			const focusedRows = [];
+			for (const open of [
+				() => instantiationService.invokeFunction(accessor => new OpenModePickerAction().run(accessor)),
+				() => new AgentContextValuePick().asAttachment(widget),
+				() => inputPart.openModelPicker(),
+			]) {
+				await open();
+				focusedRows.push(mainWindow.document.activeElement?.querySelector('.mobile-picker-sheet-label')?.textContent);
+				close();
+				await timeout(500);
+			}
+			assert.deepStrictEqual(focusedRows, ['Agent', 'Agent', 'Model 0']);
+		});
+	});
 
 	test('cancelling model selection returns to Model even when the sheet opened from Mode', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
