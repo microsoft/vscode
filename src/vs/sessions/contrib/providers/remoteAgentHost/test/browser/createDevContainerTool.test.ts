@@ -16,7 +16,6 @@ import { agentHostAuthority } from '../../../../../../platform/agentHost/common/
 import { IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { IToolInvocation } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -110,6 +109,12 @@ suite('CreateDevContainerTool', () => {
 		}
 	}
 
+	/** Invokes the tool like the tools service does, after preparing the call to confirm it. */
+	async function confirmAndInvoke(tool: CreateDevContainerTool, parameters: Record<string, unknown>, originatingChatResource: URI | undefined, report: (message: unknown) => void = () => { }) {
+		await tool.prepareToolInvocation({ toolCallId: 'call', parameters, chatSessionResource: undefined, originatingChatResource }, CancellationToken.None);
+		return tool.invoke({ callId: 'call', toolId: tool.getToolData().id, parameters, originatingChatResource, context: undefined }, async () => 0, { report: step => report(step.message) }, CancellationToken.None);
+	}
+
 	test('resolves this computer by default, remote hosts by their list_agent_hosts ID, and explains unavailable hosts', async () => {
 		const { tool } = setup();
 		const onlyRemotes = setup({ hosts: ['ssh:build', 'ssh:other'] });
@@ -170,11 +175,29 @@ suite('CreateDevContainerTool', () => {
 		});
 	});
 
+	test('keeps the approved host of each chat when chats use the same call ID, and creates nothing for a call it did not confirm', async () => {
+		const { tool, created, becomeReady } = setup();
+		becomeReady();
+		const invoke = (callId: string, originatingChatResource: URI) => tool.invoke({ callId, toolId: tool.getToolData().id, parameters: {}, originatingChatResource, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None).then(() => 'created', (error: Error) => error.message);
+		await tool.prepareToolInvocation({ toolCallId: 'call', parameters: {}, chatSessionResource: undefined, originatingChatResource: chatOn('agenthost-build') }, CancellationToken.None);
+		await tool.prepareToolInvocation({ toolCallId: 'call', parameters: {}, chatSessionResource: undefined, originatingChatResource: chatOn(LOCAL_AGENT_HOST_PROVIDER_ID) }, CancellationToken.None);
+		assert.deepStrictEqual({
+			build: await invoke('call', chatOn('agenthost-build')),
+			local: await invoke('call', chatOn(LOCAL_AGENT_HOST_PROVIDER_ID)),
+			again: await invoke('call', chatOn('agenthost-build')),
+			created,
+		}, {
+			build: 'created',
+			local: 'created',
+			again: 'The Dev Container was not created because the host of its confirmation is no longer known. Call the tool again.',
+			created: ['ssh:build', LocalDevContainerEnvironmentHost],
+		});
+	});
+
 	test('creates the environment, trusts its new workspace, and returns what create_remote_session needs once it can start sessions there', () => runWithFakedTimers({}, async () => {
 		const { tool, created, trusted, readinessChecks, becomeReady } = setup();
-		const invocation: IToolInvocation = { callId: 'call', toolId: tool.getToolData().id, parameters: {}, originatingChatResource: chatOn('agenthost-build'), context: undefined };
 		const reported: unknown[] = [];
-		const result = tool.invoke(invocation, async () => 0, { report: step => reported.push(step.message) }, CancellationToken.None);
+		const result = confirmAndInvoke(tool, {}, chatOn('agenthost-build'), message => reported.push(message));
 		await timeout(0);
 		const beforeReady = { created: [...created], trusted: [...trusted], readinessChecks: [...readinessChecks] };
 		becomeReady();
@@ -199,7 +222,7 @@ suite('CreateDevContainerTool', () => {
 
 	test('reports a container that cannot start sessions in time as not ready, with its IDs and recovery guidance', () => runWithFakedTimers({ maxTaskCount: 200 }, async () => {
 		const { tool } = setup();
-		const response = await tool.invoke({ callId: 'call', toolId: tool.getToolData().id, parameters: { host: 'local' }, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None);
+		const response = await confirmAndInvoke(tool, { host: 'local' }, undefined);
 		const content = response.content[0];
 		assert.deepStrictEqual({ result: content.kind === 'text' ? JSON.parse(content.value) : content, message: asLink(response.toolResultMessage) }, {
 			result: {

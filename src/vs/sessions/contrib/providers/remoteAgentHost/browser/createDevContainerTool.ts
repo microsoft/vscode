@@ -48,6 +48,11 @@ function creatingMessage(hostLabel: string): string {
 	return localize('createDevContainer.invocation', "Creating Dev Container on {0}", hostLabel);
 }
 
+/** Identifies a tool call: agents choose call IDs, so different chats can use the same one. */
+function approvalKey(chatResource: URI | undefined, callId: string): string {
+	return JSON.stringify([chatResource?.toString() ?? null, callId]);
+}
+
 /** How long to wait until a new Dev Container can start sessions, so the next tool call can start one there. */
 const READY_TIMEOUT_MS = 30_000;
 const READY_POLL_MS = 500;
@@ -109,8 +114,9 @@ export class CreateDevContainerTool implements IToolImpl {
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation> {
-		const host = this.resolveHost(context.parameters, context.originatingChatResource ?? context.chatSessionResource);
-		this.approvedHosts.set(context.toolCallId, host.id);
+		const chatResource = context.originatingChatResource ?? context.chatSessionResource;
+		const host = this.resolveHost(context.parameters, chatResource);
+		this.approvedHosts.set(approvalKey(chatResource, context.toolCallId), host.id);
 		return {
 			invocationMessage: creatingMessage(host.label),
 			pastTenseMessage: localize('createDevContainer.past', "Created Dev Container on {0}", host.label),
@@ -122,9 +128,7 @@ export class CreateDevContainerTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const approvedHost = this.approvedHosts.get(invocation.callId);
-		this.approvedHosts.delete(invocation.callId);
-		const host = this.resolveHost(invocation.parameters, invocation.originatingChatResource ?? invocation.context?.sessionResource, approvedHost);
+		const host = this.getApprovedHost(approvalKey(invocation.originatingChatResource ?? invocation.context?.sessionResource, invocation.callId));
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -173,8 +177,25 @@ export class CreateDevContainerTool implements IToolImpl {
 		return rejections;
 	}
 
-	/** Resolves the host to create the container on; `approvedHostId` is the host that the user approved in the confirmation. */
-	private resolveHost(parameters: unknown, chatResource: URI | undefined, approvedHostId?: string): IDevContainerHost {
+	/** The host that the user approved in the confirmation of the call, if it can still run Dev Containers. */
+	private getApprovedHost(key: string): IDevContainerHost {
+		const approvedHostId = this.approvedHosts.get(key);
+		this.approvedHosts.delete(key);
+		if (!isDevContainerHandoffEnabled(this.configurationService)) {
+			throw new Error(localize('createDevContainer.disabled', "Creating Dev Containers is disabled."));
+		}
+		if (approvedHostId === undefined) {
+			throw new Error(localize('createDevContainer.notPrepared', "The Dev Container was not created because the host of its confirmation is no longer known. Call the tool again."));
+		}
+		const hosts = this.getHosts();
+		const approved = hosts.find(host => host.id === approvedHostId);
+		if (!approved) {
+			throw new Error(localize('createDevContainer.approvedHostUnavailable', "The Dev Container was not created: the approved host {0} can no longer run Dev Containers. Available hosts: {1}", approvedHostId, JSON.stringify(hosts.map(({ id, label }) => ({ id, label })))));
+		}
+		return approved;
+	}
+
+	private resolveHost(parameters: unknown, chatResource: URI | undefined): IDevContainerHost {
 		if (!isDevContainerHandoffEnabled(this.configurationService)) {
 			throw new Error(localize('createDevContainer.disabled', "Creating Dev Containers is disabled."));
 		}
@@ -186,13 +207,6 @@ export class CreateDevContainerTool implements IToolImpl {
 			throw new Error(localize('createDevContainer.invalidHost', "{0} must be a non-empty string.", 'host'));
 		}
 		const hosts = this.getHosts();
-		if (approvedHostId !== undefined) {
-			const approved = hosts.find(host => host.id === approvedHostId);
-			if (!approved) {
-				throw new Error(localize('createDevContainer.approvedHostUnavailable', "The Dev Container was not created: the approved host {0} can no longer run Dev Containers. Available hosts: {1}", approvedHostId, JSON.stringify(hosts.map(({ id, label }) => ({ id, label })))));
-			}
-			return approved;
-		}
 		if (!hosts.length) {
 			throw new Error(localize('createDevContainer.noHosts', "No Docker host is available. Start Docker on this computer, or connect to an SSH, Tunnel, or WSL host that has Docker."));
 		}
