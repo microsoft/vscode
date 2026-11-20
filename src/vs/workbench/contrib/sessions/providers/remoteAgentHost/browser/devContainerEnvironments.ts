@@ -120,7 +120,7 @@ export class DevContainerEnvironments extends Disposable {
 		this._reconcile();
 	}
 
-	async create(sourceAddress: string): Promise<ICreatedDevContainerEnvironment> {
+	async create(sourceAddress: string, onWillConnect?: (environment: IDevContainerEnvironment) => void): Promise<ICreatedDevContainerEnvironment> {
 		if (!areDevContainerEnvironmentsEnabled(this._configurationService)) {
 			throw new Error(localize('devContainerEnvironment.disabled', "Dev Container environments are not enabled."));
 		}
@@ -133,6 +133,7 @@ export class DevContainerEnvironments extends Disposable {
 		this._writeStored([...this._readStored(), stored]);
 		this._publish();
 		try {
+			onWillConnect?.(this._toEnvironment(state));
 			await this._connect(state.address, true);
 		} catch (error) {
 			// Removing the container would connect a host that was disconnected meanwhile, and with it its other environments.

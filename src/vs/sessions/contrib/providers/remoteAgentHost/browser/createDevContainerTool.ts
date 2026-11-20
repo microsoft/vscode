@@ -8,9 +8,10 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { createCommandUri, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -21,6 +22,26 @@ import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/c
 import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, IDevContainerAgentHostService, isDevContainerHandoffEnabled, LocalDevContainerEnvironmentHost } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 
 export const CreateDevContainerToolId = 'vscode_create_dev_container';
+
+/** Opens the log of the Dev Container environment whose Sessions provider ID is the argument. */
+export const ShowDevContainerEnvironmentLogCommandId = 'sessions.devContainer.showEnvironmentLog';
+
+CommandsRegistry.registerCommand(ShowDevContainerEnvironmentLogCommandId, async (accessor, providerId: unknown) => {
+	const provider = typeof providerId === 'string' ? accessor.get(ISessionsProvidersService).getProvider(providerId) : undefined;
+	if (provider && isAgentHostProvider(provider)) {
+		await provider.showConnectionLog?.();
+	}
+});
+
+/** A message that opens the environment's log when clicked. */
+function logLink(providerId: string, label: string): MarkdownString {
+	return new MarkdownString('', { isTrusted: { enabledCommands: [ShowDevContainerEnvironmentLogCommandId] } })
+		.appendLink(createCommandUri(ShowDevContainerEnvironmentLogCommandId, providerId).toString(), label, localize('createDevContainer.showLog', "Show Dev Container Log"));
+}
+
+function creatingMessage(hostLabel: string): string {
+	return localize('createDevContainer.invocation', "Creating Dev Container on {0}", hostLabel);
+}
 
 /** How long to wait for the agents of a new Dev Container, so the next tool call can start a session there. */
 const AGENTS_TIMEOUT_MS = 30_000;
@@ -76,7 +97,7 @@ export class CreateDevContainerTool implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const host = this.resolveHost(context.parameters);
 		return {
-			invocationMessage: localize('createDevContainer.invocation', "Creating Dev Container on {0}", host.label),
+			invocationMessage: creatingMessage(host.label),
 			pastTenseMessage: localize('createDevContainer.past', "Created Dev Container on {0}", host.label),
 			confirmationMessages: {
 				title: localize('createDevContainer.confirmationTitle', "Create Dev Container?"),
@@ -85,12 +106,15 @@ export class CreateDevContainerTool implements IToolImpl {
 		};
 	}
 
-	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const host = this.resolveHost(invocation.parameters);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const environment = await this.devContainerService.createEnvironment(host.address);
+		const environment = await this.devContainerService.createEnvironment(host.address, {
+			// Building the container can take minutes; like the Dev Container session preparation, its message opens the log.
+			onWillConnect: created => progress.report({ message: logLink(created.providerId, creatingMessage(host.label)) }),
+		});
 		const provider = this.providersService.getProvider(environment.providerId);
 		if (!environment.workspaceUri || !provider) {
 			throw new Error(localize('createDevContainer.workspaceUnavailable', "The Dev Container was created, but its workspace folder is not available. It is listed in Remote Environments."));
@@ -114,7 +138,7 @@ export class CreateDevContainerTool implements IToolImpl {
 		};
 		return {
 			content: [{ kind: 'text', value: JSON.stringify(result) }],
-			toolResultMessage: localize('createDevContainer.result', "Created {0} on {1}", provider.label, host.label),
+			toolResultMessage: logLink(environment.providerId, localize('createDevContainer.result', "Created {0} on {1}", provider.label, host.label)),
 		};
 	}
 

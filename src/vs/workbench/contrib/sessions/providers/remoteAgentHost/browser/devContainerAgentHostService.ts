@@ -281,8 +281,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		}));
 	}
 
-	createEnvironment(sourceAddress: string): Promise<ICreatedDevContainerEnvironment> {
-		return this._environments.create(sourceAddress);
+	createEnvironment(sourceAddress: string, options?: { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment> {
+		return this._environments.create(sourceAddress, options?.onWillConnect);
 	}
 
 	deleteEnvironment(address: string): Promise<void> {

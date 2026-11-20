@@ -151,8 +151,11 @@ export interface IDevContainerAgentHostService {
 	 * {@link canUseDevContainerEnvironments} is true, regardless of the experiment-controlled setting.
 	 */
 	readonly environmentHosts: IObservable<ReadonlySet<string>>;
-	/** Creates a Dev Container environment on a host from {@link environmentHosts} and connects to it. */
-	createEnvironment(sourceAddress: string): Promise<ICreatedDevContainerEnvironment>;
+	/**
+	 * Creates a Dev Container environment on a host from {@link environmentHosts} and connects to it.
+	 * `onWillConnect` receives the environment once it is listed, before its container starts, e.g. to show its log.
+	 */
+	createEnvironment(sourceAddress: string, options?: { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment>;
 	/** Removes an environment's container and workspace volume, or only forgets it when its host is no longer configured. */
 	deleteEnvironment(address: string): Promise<void>;
 }

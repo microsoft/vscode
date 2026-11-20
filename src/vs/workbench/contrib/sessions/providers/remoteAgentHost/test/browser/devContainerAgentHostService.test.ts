@@ -388,8 +388,9 @@ suite('Dev Container Agent Host Service', () => {
 		const afterRestore = { status: restored.status.kind, connections: createdUris.length };
 		await restored.config.connectOnDemand!();
 		const afterFirstUse = { status: restored.status.kind, connections: createdUris.length };
-		const created = await service.createEnvironment(LocalDevContainerEnvironmentHost);
-		const afterCreate = { status: service.provider!.status.kind, host: service.provider!.config.devContainerEnvironmentHost, connections: createdUris.length };
+		let announced: { readonly providerId: string; readonly connections: number } | undefined;
+		const created = await service.createEnvironment(LocalDevContainerEnvironmentHost, { onWillConnect: environment => announced = { providerId: environment.providerId, connections: createdUris.length } });
+		const afterCreate = { status: service.provider!.status.kind, host: service.provider!.config.devContainerEnvironmentHost, connections: createdUris.length, announcedBeforeConnecting: announced?.providerId === created.providerId && announced.connections === 1 };
 		await service.deleteEnvironment(created.address);
 		assert.deepStrictEqual({
 			hosts: [...service.environmentHosts.get()],
@@ -400,7 +401,7 @@ suite('Dev Container Agent Host Service', () => {
 			hosts: [LocalDevContainerEnvironmentHost],
 			afterRestore: { status: 'disconnected', connections: 0 },
 			afterFirstUse: { status: 'connected', connections: 1 },
-			afterCreate: { status: 'connected', host: LocalDevContainerEnvironmentHost, connections: 2 },
+			afterCreate: { status: 'connected', host: LocalDevContainerEnvironmentHost, connections: 2, announcedBeforeConnecting: true },
 			sources: ['local', 'local', 'local'],
 			environments: [LocalDevContainerEnvironmentHost],
 		});

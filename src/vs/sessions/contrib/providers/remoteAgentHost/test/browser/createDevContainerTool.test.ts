@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { createCommandUri, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -18,9 +19,9 @@ import { IToolInvocation } from '../../../../../../workbench/contrib/chat/common
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostService, LocalDevContainerEnvironmentHost } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, DevContainerHandoffEnabledSettingId, ICreatedDevContainerEnvironment, IDevContainerAgentHostService, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionType } from '../../../../../../workbench/services/sessions/common/session.js';
-import { CreateDevContainerTool } from '../../browser/createDevContainerTool.js';
+import { CreateDevContainerTool, ShowDevContainerEnvironmentLogCommandId } from '../../browser/createDevContainerTool.js';
 
 suite('CreateDevContainerTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,9 +52,11 @@ suite('CreateDevContainerTool', () => {
 		const trusted: string[] = [];
 		const devContainerService = upcastPartial<IDevContainerAgentHostService>({
 			environmentHosts: observableValue('hosts', new Set(options.hosts ?? [LocalDevContainerEnvironmentHost, 'ssh:build'])),
-			createEnvironment: async (sourceAddress: string): Promise<ICreatedDevContainerEnvironment> => {
+			createEnvironment: async (sourceAddress: string, createOptions?: { readonly onWillConnect?: (environment: IDevContainerEnvironment) => void }): Promise<ICreatedDevContainerEnvironment> => {
 				created.push(sourceAddress);
-				return { address: 'devcontainer:1', sourceAddress, providerId: container.id, workspaceUri };
+				const environment = { address: 'devcontainer:1', sourceAddress, providerId: container.id };
+				createOptions?.onWillConnect?.(environment);
+				return { ...environment, workspaceUri };
 			},
 		});
 		const tool = new CreateDevContainerTool(
@@ -108,13 +111,21 @@ suite('CreateDevContainerTool', () => {
 	test('creates the environment, trusts its new workspace, and returns what create_remote_session needs once its agents are known', async () => {
 		const { tool, created, trusted, announceSessionTypes } = setup();
 		const invocation: IToolInvocation = { callId: 'call', toolId: tool.getToolData().id, parameters: { host: 'agenthost-build' }, context: undefined };
-		const result = tool.invoke(invocation, async () => 0, { report: () => { } }, CancellationToken.None);
+		const reported: unknown[] = [];
+		const result = tool.invoke(invocation, async () => 0, { report: step => reported.push(step.message) }, CancellationToken.None);
 		await timeout(0);
 		const beforeAgents = { created: [...created], trusted: [...trusted] };
 		announceSessionTypes();
 		const response = await result;
-		assert.deepStrictEqual({ beforeAgents, content: response.content, message: response.toolResultMessage }, {
+		// Both messages open the environment's log.
+		const logLink = (label: string) => ({
+			value: `[${label}](${createCommandUri(ShowDevContainerEnvironmentLogCommandId, 'agenthost-container').toString()} "Show Dev Container Log")`,
+			isTrusted: { enabledCommands: [ShowDevContainerEnvironmentLogCommandId] },
+		});
+		const asLink = (message: unknown) => message instanceof MarkdownString ? { value: message.value, isTrusted: message.isTrusted } : message;
+		assert.deepStrictEqual({ beforeAgents, reported: reported.map(asLink), content: response.content, message: asLink(response.toolResultMessage) }, {
 			beforeAgents: { created: ['ssh:build'], trusted: [workspaceUri.toString()] },
+			reported: [logLink('Creating Dev Container on Build')],
 			content: [{
 				kind: 'text', value: JSON.stringify({
 					status: 'created',
@@ -124,7 +135,7 @@ suite('CreateDevContainerTool', () => {
 					createdOn: { id: 'agenthost-build', label: 'Build' },
 				}),
 			}],
-			message: 'Created Dev Container on Build',
+			message: logLink('Created Dev Container on Build'),
 		});
 	});
 

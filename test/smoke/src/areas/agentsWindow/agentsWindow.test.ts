@@ -432,10 +432,12 @@ export function setup(logger: Logger, quality: Quality) {
 
 			try {
 				const requestsBefore = handoff.mockServer.getRequests().length;
-				await app.workbench.agentsWindow.waitForNewSessionView();
-				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				// The remote session tools register late in startup; a session started after the warm-up has them.
+				await warmUpAgentHostModel(app, logger, 'Agents Window (Dev Container handoff)');
 				await app.workbench.agentsWindow.submitNewSessionPrompt(`continue in a Dev Container [scenario:${DEV_CONTAINER_HANDOFF_SCENARIO_ID}]`);
 				await app.workbench.agentsWindow.waitForActiveSessionView();
+				// The tool's progress message opens the log of the container it creates.
+				await app.workbench.agentsWindow.showDevContainerLogFromLink('sessions.devContainer.showEnvironmentLog');
 				// Approves creating the container and then the session, which the scripted agent requests.
 				await app.workbench.agentsWindow.waitForAssistantText(DEV_CONTAINER_HANDOFF_REPLY, 8 * 60 * 1000, { acceptToolConfirmations: true });
 				// Only the Agent Host in the container reaches the mock server through vscode-smoke.test.
