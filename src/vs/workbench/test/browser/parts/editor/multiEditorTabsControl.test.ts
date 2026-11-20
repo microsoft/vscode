@@ -4986,7 +4986,7 @@ suite('MultiEditorTabsControl', () => {
 			override hideContextView(): void { const menu = shownMenu; shownMenu = undefined; menu?.onHide?.(true); }
 		}());
 
-		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), 		{ recentFirst: true, defaultEntry: true, context: { groupId: 7 } }));
+		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true, context: { groupId: 7 } }));
 		const press = (button: EditorAddTabControl, clientX?: number) => {
 			const bounds = button.element.getBoundingClientRect();
 			button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, clientX: clientX ?? bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 }));
