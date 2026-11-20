@@ -123,20 +123,53 @@ export function isTimelineRelevantRepositoryChange(uri: Uri): boolean {
 }
 
 /**
- * Whether an operation that ran in a repository can change its timeline: successful operations that are not read-only
- * and not status operations. A fetch only changes it when it moves the upstream commit of HEAD, which decides the
- * commits that are not published yet.
+ * Whether an operation that ran in a repository can change its timeline: successful operations that are not read-only.
+ * A fetch or a status only changes it when it moves the upstream commit of HEAD, which decides the commits that are not
+ * published yet.
  */
 export function isTimelineRelevantOperation(result: OperationResult, upstreamCommitBefore: string | undefined, upstreamCommitAfter: string | undefined): boolean {
-	if (result.error || result.operation.readOnly || result.operation.kind === OperationKind.Status) {
+	if (result.error || result.operation.readOnly) {
 		return false;
 	}
 
-	if (result.operation.kind === OperationKind.Fetch) {
+	if (result.operation.kind === OperationKind.Fetch || result.operation.kind === OperationKind.Status) {
 		return upstreamCommitBefore !== upstreamCommitAfter;
 	}
 
 	return true;
+}
+
+/**
+ * Tracks the upstream commit of HEAD of each repository, to tell which of the operations that run in it can change its
+ * timeline.
+ */
+export class TimelineUpstreamTracker {
+	private readonly upstreamCommits = new Map<string, string | undefined>();
+
+	track(root: string, upstreamCommit: string | undefined): void {
+		this.upstreamCommits.set(root, upstreamCommit);
+	}
+
+	untrack(root: string): void {
+		this.upstreamCommits.delete(root);
+	}
+
+	/**
+	 * Whether an operation that ran in a repository can change its timeline, given the upstream commit of HEAD after it.
+	 * Read-only and failed operations leave the upstream commit as it was: an operation updates the state of the
+	 * repository before it completes, with read-only operations such as `GetRefs`, which must not hide from it that it
+	 * moved the upstream.
+	 */
+	onDidRunOperation(root: string, result: OperationResult, upstreamCommit: string | undefined): boolean {
+		if (result.error || result.operation.readOnly) {
+			return false;
+		}
+
+		const upstreamCommitBefore = this.upstreamCommits.get(root);
+		this.upstreamCommits.set(root, upstreamCommit);
+
+		return isTimelineRelevantOperation(result, upstreamCommitBefore, upstreamCommit);
+	}
 }
 
 export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineProvider {
@@ -155,12 +188,14 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 	private repo: Repository | undefined;
 	private repoDisposable: Disposable | undefined;
 	private repoOperationDate: Date | undefined;
-	private repoUpstreamCommit: string | undefined;
+
+	private readonly upstreamTracker = new TimelineUpstreamTracker();
+	private readonly repositoryOperationDisposables = new Map<Repository, Disposable>();
 
 	constructor(private readonly model: Model, private commands: CommandCenter) {
 		this.disposable = Disposable.from(
 			model.onDidOpenRepository(this.onRepositoriesChanged, this),
-			model.onDidCloseRepository(() => this.fireWorkspaceChanged()),
+			model.onDidCloseRepository(this.onRepositoryClosed, this),
 			model.onDidChangeRepository(e => {
 				if (isTimelineRelevantRepositoryChange(e.uri)) {
 					this.fireWorkspaceChanged();
@@ -168,6 +203,10 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 			}),
 			workspace.onDidChangeConfiguration(this.onConfigurationChanged, this)
 		);
+
+		for (const repository of model.repositories) {
+			this.trackRepositoryOperations(repository);
+		}
 
 		if (model.repositories.length) {
 			this.ensureProviderRegistration();
@@ -177,6 +216,11 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 	dispose() {
 		this.providerDisposable?.dispose();
 		this.disposable.dispose();
+
+		for (const disposable of this.repositoryOperationDisposables.values()) {
+			disposable.dispose();
+		}
+		this.repositoryOperationDisposables.clear();
 	}
 
 	async provideTimeline(uri: Uri, options: TimelineOptions, token: CancellationToken): Promise<Timeline> {
@@ -186,7 +230,6 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 		if (!repo) {
 			this.repoDisposable?.dispose();
 			this.repoOperationDate = undefined;
-			this.repoUpstreamCommit = undefined;
 			this.repo = undefined;
 
 			return { items: [] };
@@ -197,11 +240,9 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 
 			this.repo = repo;
 			this.repoOperationDate = new Date();
-			this.repoUpstreamCommit = repo.HEAD?.upstream?.commit;
 			this.repoDisposable = Disposable.from(
 				repo.onDidChangeRepository(uri => this.onRepositoryChanged(repo, uri)),
-				repo.onDidRunGitStatus(() => this.onRepositoryStatusChanged(repo)),
-				repo.onDidRunOperation(result => this.onRepositoryOperationRun(repo, result))
+				repo.onDidRunGitStatus(() => this.onRepositoryStatusChanged(repo))
 			);
 		}
 
@@ -478,14 +519,32 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 		}
 	}
 
-	private onRepositoriesChanged(_repo: Repository) {
+	private onRepositoriesChanged(repo: Repository) {
 		// console.log(`GitTimelineProvider.onRepositoriesChanged`);
 
+		this.trackRepositoryOperations(repo);
 		this.ensureProviderRegistration();
 
 		// TODO@eamodio: Being naive for now and just always refreshing each time there is a new repository
 		this.fireChanged();
 		this.fireWorkspaceChanged();
+	}
+
+	private onRepositoryClosed(repo: Repository) {
+		this.repositoryOperationDisposables.get(repo)?.dispose();
+		this.repositoryOperationDisposables.delete(repo);
+		this.upstreamTracker.untrack(repo.root);
+
+		this.fireWorkspaceChanged();
+	}
+
+	private trackRepositoryOperations(repo: Repository) {
+		if (this.repositoryOperationDisposables.has(repo)) {
+			return;
+		}
+
+		this.upstreamTracker.track(repo.root, repo.HEAD?.upstream?.commit);
+		this.repositoryOperationDisposables.set(repo, repo.onDidRunOperation(result => this.onRepositoryOperationRun(repo, result)));
 	}
 
 	private onRepositoryChanged(_repo: Repository, uri: Uri) {
@@ -510,16 +569,19 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 	private onRepositoryOperationRun(repo: Repository, result: OperationResult) {
 		// console.log(`GitTimelineProvider.onRepositoryOperationRun`);
 
-		const upstreamCommitBefore = this.repoUpstreamCommit;
-		this.repoUpstreamCommit = repo.HEAD?.upstream?.commit;
+		if (!this.upstreamTracker.onDidRunOperation(repo.root, result, repo.HEAD?.upstream?.commit)) {
+			return;
+		}
 
-		if (isTimelineRelevantOperation(result, upstreamCommitBefore, this.repoUpstreamCommit)) {
+		if (this.repo === repo) {
 			// This is less than ideal, but for now just save the last time an
 			// operation was run and use that as the timestamp for staged items
 			this.repoOperationDate = new Date();
 
 			this.fireChanged();
 		}
+
+		this.fireWorkspaceChanged();
 	}
 
 	@debounce(500)
