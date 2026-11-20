@@ -531,7 +531,7 @@ suite('Changes View Actions', () => {
 			initial: { label: 'Branch → origin/main', tooltip: 'feature -> main', ariaLabel: 'Branch → origin/main: feature -> main' },
 			baseChanged: { label: 'Branch → origin/release/1.108', tooltip: 'feature -> main', ariaLabel: 'Branch → origin/release/1.108: feature -> main' },
 			updated: { label: 'Branch → origin/release', tooltip: 'feature -> release', ariaLabel: 'Branch → origin/release: feature -> release' },
-			loadingCatalogue: { label: 'Branch → origin/release', tooltip: 'feature -> release', ariaLabel: 'Branch → origin/release: feature -> release' },
+			loadingCatalogue: { label: 'Branch', tooltip: 'feature -> release', ariaLabel: 'Branch: feature -> release' },
 			missing: { label: 'Branch → origin/main', tooltip: 'Branch → origin/main', ariaLabel: 'Branch → origin/main' },
 			noBase: { label: 'Branch', tooltip: 'feature -> main', ariaLabel: 'Branch: feature -> main' },
 			empty: { label: 'Branch', tooltip: 'Branch', ariaLabel: 'Branch' },

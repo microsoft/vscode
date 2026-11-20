@@ -789,10 +789,11 @@ interface IChangesPickerLabel {
 }
 
 export function createChangesPickerLabelObservable(owner: object, changes: IChangesSessionObservables): IObservable<IChangesPickerLabel | undefined> {
-	return derivedObservableWithCache<IChangesPickerLabel | undefined>(owner, (reader, lastValue) => {
+	return derivedObservableWithCache<(IChangesPickerLabel & { readonly changesetLabel: string }) | undefined>(owner, (reader, lastValue) => {
 		const changeset = changes.changesetObs.read(reader);
 		if (!changeset && changes.changesetsLoadingObs.read(reader)) {
-			return lastValue;
+			// Keeps the label stable, but without a base branch the incoming changesets may not share.
+			return lastValue && { ...lastValue, label: lastValue.changesetLabel };
 		}
 		if (!changeset) {
 			return undefined;
@@ -803,6 +804,7 @@ export function createChangesPickerLabelObservable(owner: object, changes: IChan
 			label: baseBranchName
 				? localize({ key: 'changesView.picker.branchLabel', comment: ['{0} is the changeset label, for example Branch. {1} is the base branch the host compares the changes against, as shown in the Branch row, for example origin/main.'] }, "{0} → {1}", changeset.label, baseBranchName)
 				: changeset.label,
+			changesetLabel: changeset.label,
 			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
 			isNonDefault: changeset.id !== defaultChangeset?.id,
 		};
