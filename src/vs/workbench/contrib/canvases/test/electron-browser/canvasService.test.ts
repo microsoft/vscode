@@ -366,6 +366,73 @@ suite('CanvasService', () => {
 		}, { hiddenCount: 0, count: 2, identitiesDistinct: true });
 	});
 
+	test('closes the canvas of an owner that stops being visible and shows it again once the owner is visible', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const input = harness.opened[0];
+		const peerOwner = { ...harness.owner, chat: URI.parse('chat:/peer') };
+		harness.contexts.set([{ owner: harness.owner, canvases: harness.canvases }, { owner: peerOwner, canvases: observableValue('peerCanvases', []) }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(peerOwner)]), undefined);
+		await timeout(0);
+		const closedWhileHidden = harness.closed.slice();
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		await timeout(0);
+		assert.deepStrictEqual({
+			closedWhileHidden: closedWhileHidden.map(closed => closed === input),
+			shownAgain: harness.openEditors.length,
+		}, { closedWhileHidden: [true], shownAgain: 1 });
+	});
+
+	test('closes the canvas of a hidden owner when the visible owner has not settled its canvases', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const input = harness.opened[0];
+		const peerOwner = { ...harness.owner, chat: URI.parse('chat:/peer') };
+		harness.contexts.set([{ owner: harness.owner, canvases: harness.canvases }, { owner: peerOwner, canvases: observableValue<undefined>('peerCanvases', undefined) }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(peerOwner)]), undefined);
+		await timeout(0);
+		assert.deepStrictEqual(harness.closed.map(closed => closed === input), [true]);
+	});
+
+	test('closes the canvas of a hidden owner whose canvases became unsettled, or whose context was dropped, when another owner is visible', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const input = harness.opened[0];
+		const peerOwner = { ...harness.owner, chat: URI.parse('chat:/peer') };
+		const peerContext = { owner: peerOwner, canvases: observableValue('peerCanvases', []) };
+		harness.contexts.set([{ owner: harness.owner, canvases: harness.canvases }, peerContext], undefined);
+		harness.canvases.set(undefined, undefined);
+		harness.visible.set(new Set([canvasOwnerKey(peerOwner)]), undefined);
+		await timeout(0);
+		const closedWhileUnsettled = harness.closed.map(closed => closed === input);
+
+		const droppedHarness = createHarness();
+		droppedHarness.canvases.set([droppedHarness.canvas], undefined);
+		await timeout(0);
+		const droppedInput = droppedHarness.opened[0];
+		droppedHarness.contexts.set([{ owner: peerOwner, canvases: observableValue('peerCanvases', []) }], undefined);
+		droppedHarness.visible.set(new Set([canvasOwnerKey(peerOwner)]), undefined);
+		await timeout(0);
+		assert.deepStrictEqual({
+			closedWhileUnsettled,
+			closedWhenDropped: droppedHarness.closed.map(closed => closed === droppedInput),
+		}, { closedWhileUnsettled: [true], closedWhenDropped: [true] });
+	});
+
+	test('keeps its canvases while no owner is visible, and with working sets leaves the swap to them', async () => {
+		const harness = createHarness({ workingSets: true });
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const peerOwner = { ...harness.owner, chat: URI.parse('chat:/peer') };
+		harness.contexts.set([{ owner: harness.owner, canvases: harness.canvases }, { owner: peerOwner, canvases: observableValue('peerCanvases', []) }], undefined);
+		harness.visible.set(new Set([canvasOwnerKey(peerOwner)]), undefined);
+		await timeout(0);
+		assert.deepStrictEqual(harness.closed.length, 0);
+	});
+
 	test('manual reveals enforce exact owner visibility, live sources, and AI enablement', async () => {
 		const harness = createHarness();
 		harness.canvases.set([harness.canvas], undefined);

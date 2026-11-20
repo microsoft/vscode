@@ -293,6 +293,10 @@ export class NewChatView extends AbstractChatView {
 		return this._widget instanceof NewChatWidget ? this._widget.applyNoWorkspace(options) : 'notReady';
 	}
 
+	override selectEnvironment(providerId: string): WorkspaceSelectionResult {
+		return this._widget instanceof NewChatWidget ? this._widget.selectEnvironment(providerId) : 'notReady';
+	}
+
 	override get chatWidget(): IChatWidget | undefined {
 		return this._widget.chatWidget;
 	}

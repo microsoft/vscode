@@ -423,7 +423,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			hostDescription: derived(this, reader => {
 				const hosts = this._inventory.hosts.read(reader);
 				const host = hosts.find(host => host.id === id);
-				return host?.status === 'online' ? localize('missionControl.available', "Online")
+				return host?.status === 'online' ? localize('missionControl.available', "Available")
 					: localize('missionControl.unavailable', "Offline");
 			}),
 			connectionLabels: {

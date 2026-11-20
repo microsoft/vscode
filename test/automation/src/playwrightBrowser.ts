@@ -7,14 +7,19 @@ import * as playwright from '@playwright/test';
 import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
 import * as fs from 'fs';
+import { tmpdir } from 'os';
 import { URI } from 'vscode-uri';
 import { Logger, measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
-import { PlaywrightDriver } from './playwrightDriver';
+import { PlaywrightDriver, saveOrDeleteNetLog } from './playwrightDriver';
 
 const root = join(__dirname, '..', '..', '..');
 
 let port = 9000;
+let netLogCounter = 1;
+
+// A workbench load logs about 80 MB, so this keeps a whole load while bounding a runaway log.
+const NET_LOG_MAX_SIZE_MB = 200;
 
 export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess; driver: PlaywrightDriver }> {
 
@@ -22,11 +27,11 @@ export async function launch(options: LaunchOptions): Promise<{ serverProcess: C
 	const { serverProcess, endpoint } = await launchServer(options);
 
 	// Launch browser
-	const { browser, context, page, pageLoadedPromise, videoStartedAt } = await launchBrowser(options, endpoint);
+	const { browser, context, page, pageLoadedPromise, videoStartedAt, netLogPath } = await launchBrowser(options, endpoint);
 
 	return {
 		serverProcess,
-		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options, videoStartedAt)
+		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options, videoStartedAt, netLogPath)
 	};
 }
 
@@ -101,10 +106,19 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 
 	const playwrightImpl = options.playwright ?? playwright;
 	const [browserType, browserChannel] = (options.browser ?? 'chromium').split('-');
+
+	// Windows Chromium only: record a network log so that a workbench module request
+	// failing with `ERR_CONNECTION_REFUSED` on `localhost` can be root caused. The log
+	// is written outside of the logs folder and the driver only keeps a compressed copy
+	// when the workbench did not restore (see `PlaywrightDriver.close`).
+	const netLogPath = process.platform === 'win32' && browserType === 'chromium'
+		? join(tmpdir(), `vscode-smoke-netlog-${process.pid}-${netLogCounter++}.json`)
+		: undefined;
 	const browser = await measureAndLog(() => playwrightImpl[browserType as unknown as 'chromium' | 'webkit' | 'firefox'].launch({
 		headless: headless ?? false,
 		timeout: 0,
 		channel: browserChannel,
+		args: netLogPath ? [`--log-net-log=${netLogPath}`, `--net-log-max-size-mb=${NET_LOG_MAX_SIZE_MB}`] : undefined,
 	}), 'playwright#launch', logger);
 
 	browser.on('disconnected', () => logger.log(`Playwright: browser disconnected`));
@@ -188,9 +202,22 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	const gotoPromise = measureAndLog(() => page.goto(url), 'page.goto()', logger);
 	const pageLoadedPromise = page.waitForLoadState('load');
 
-	await gotoPromise;
+	try {
+		await gotoPromise;
+	} catch (error) {
+		// No driver will close this browser, so keep its network log here
+		if (netLogPath) {
+			try {
+				await browser.close();
+			} catch {
+				// Ignore
+			}
+			await measureAndLog(() => saveOrDeleteNetLog(netLogPath, options.logsPath, true, logger), 'saveOrDeleteNetLog()', logger).catch(e => logger.log(`Error saving network log (${e})`));
+		}
+		throw error;
+	}
 
-	return { browser, context, page, pageLoadedPromise, videoStartedAt };
+	return { browser, context, page, pageLoadedPromise, videoStartedAt, netLogPath };
 }
 
 function waitForEndpoint(server: ChildProcess, logger: Logger): Promise<string> {

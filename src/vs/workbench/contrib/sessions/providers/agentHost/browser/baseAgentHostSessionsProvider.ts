@@ -4953,6 +4953,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _hydrationRequestedSessions = new Set<string>();
 
 	protected _cacheInitialized = false;
+	protected readonly _sessionListVersion = observableValue(this, 0);
+	readonly sessionListVersion: IObservable<number> = this._sessionListVersion;
 
 	private static readonly SESSION_REFRESH_RETRY_MIN_MS = 1_000;
 	private static readonly SESSION_REFRESH_RETRY_MAX_MS = 30_000;
@@ -9976,7 +9978,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return;
 		}
+		const previous = cached.mode.get()?.id;
 		cached.reconcileSelectedAgent(getEffectiveAgents(state.customizations));
+		const rebased = cached.mode.get()?.id;
+		if (previous && rebased && previous !== rebased) {
+			const inputModel = this._chatService.getSession(cached.mainChat.get().resource)?.inputModel;
+			if (inputModel?.state.get()?.mode.id === previous) {
+				inputModel.setState({ mode: { id: rebased, kind: ChatModeKind.Agent } });
+			}
+		}
 	}
 
 	/**
@@ -10552,6 +10562,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			}
 			this._onHostReconciledSessions(new Set(this._sessionCache.keys()));
+			this._sessionListVersion.set(this._sessionListVersion.get() + 1, undefined);
 
 			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 				this._onDidChangeSessions.fire({ added, removed, changed });

@@ -10,7 +10,6 @@ import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { IResizeEvent, ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Color } from '../../../../base/common/color.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
@@ -254,6 +253,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		}
 
 		await this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight), shouldReveal);
+		// The widget is placed among the other widgets at its size, which includes the reply's.
+		await this._commentThreadWidget.whenReplyInitialized();
 		if (this._isDisposed) {
 			return;
 		}
@@ -261,25 +262,19 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
 			this._show();
 		}
-		this._bindCommentThreadListeners();
 
-		// If this is a new comment thread awaiting user input then we need to reveal it.
+		// If this is a new comment thread awaiting user input then we need to reveal it. A new comment for code in view
+		// goes within the view, rather than the editor scrolling away from where it's being written.
 		if (shouldReveal) {
-			// The reply only has its full size once it's set up, which can be after the thread is displayed. The widget is
-			// placed and revealed at that size, so that it fits in the view next to its code rather than the view
-			// scrolling to make room for it.
-			await this._commentThreadWidget.whenReplyInitialized.catch(onUnexpectedError);
-			if (this._isDisposed) {
-				return;
-			}
-			if (this._isAttached && !this._layout?.isChosenByUser) {
-				// The widget was shown before the reply was set up, so it was placed for a smaller size.
-				this._placeAmongOtherWidgets();
-			}
-			// The reply couldn't take focus while the widget wasn't shown. A new comment for code in view goes within the
-			// view, rather than the editor scrolling away from where it's being written.
-			this._makeVisible(undefined, CommentWidgetFocus.Editor, true);
+			this._makeVisible(undefined, CommentWidgetFocus.None, true);
+			// The editor moves the widget to where it was just placed or scrolled to when it next renders. Focusing the
+			// reply before then, where the widget was, could make the browser scroll the editor to it.
+			this.editor.render();
 		}
+		// The reply was initialized before the widget was in the editor, so it couldn't take focus then.
+		this._commentThreadWidget.focusReplyIfPending();
+
+		this._bindCommentThreadListeners();
 	}
 
 	async update(commentThread: languages.CommentThread<IRange>): Promise<void> {
@@ -521,12 +516,6 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		this._revealInEditor(placeWithinView);
 		if (commentUniqueId !== undefined) {
 			this._commentThreadWidget.revealComment(commentUniqueId);
-		}
-
-		if (focus !== CommentWidgetFocus.None) {
-			// The editor moves the widget to where it was just placed or scrolled to when it next renders. Focusing the
-			// widget before then, where it was, could make the browser scroll the editor to it.
-			this.editor.render();
 		}
 
 		if (focus === CommentWidgetFocus.Widget) {

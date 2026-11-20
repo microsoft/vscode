@@ -80,8 +80,6 @@ export function vNullable<T>(validator: IValidator<T>): IValidator<T | null> {
 	return vUnion(validator, vNullValidator);
 }
 
-export type ObjectProperties = Record<string, any>;
-
 export function vRequired<T>(validator: IValidator<T>): IValidator<T> {
 	return {
 		validate(content: unknown): { content: T; error: undefined } | { content: undefined; error: ValidationError } {

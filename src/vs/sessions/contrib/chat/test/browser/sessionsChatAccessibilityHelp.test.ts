@@ -22,6 +22,7 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
@@ -77,11 +78,34 @@ suite('SessionsChatAccessibilityHelp', () => {
 			restoreGrouping: content.includes('restore your previous grouping, remembered across reloads'),
 			screenReaderDefault: content.includes('auto, keeps you in the current conversation when a screen reader is attached'),
 			explicitChoices: content.includes('Set it to off to always stay, or on to always advance'),
-			settingsLink: content.includes('Settings link and Show Session button'),
-			persistentNotification: content.includes('notification stays visible until you dismiss it or choose Show Session'),
+			automaticSpotlight: content.includes('When onboarding is enabled, the first automatic move spotlights the session you replied to in Working'),
+			noNotification: content.includes('in Working instead of showing a notification'),
 			returnAction: content.includes('Choose Return to Session'),
 			dismiss: content.includes('press Escape or Got It to dismiss the spotlight'),
-		}, { toggle: true, toggleKeyboard: true, restoreGrouping: true, screenReaderDefault: true, explicitChoices: true, settingsLink: true, persistentNotification: true, returnAction: true, dismiss: true });
+			settingsLink: content.includes('The Change auto-advance link in the spotlight opens this setting.'),
+		}, { toggle: true, toggleKeyboard: true, restoreGrouping: true, screenReaderDefault: true, explicitChoices: true, automaticSpotlight: true, noNotification: true, returnAction: true, dismiss: true, settingsLink: true });
+	});
+
+	test('documents side chats in the side panel, and leaves them out of the archive help, while side chats show there', () => {
+		const help = (sideChatsInSidePane: boolean) => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService();
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration, undefined, sideChatsInSidePane);
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiation.stub(ISessionsHostLayoutService, {});
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			return { sidePanel: content.includes('open as tabs of the side panel'), archiveListsSideChats: content.includes('including a /btw side chat') };
+		};
+
+		assert.deepStrictEqual([help(false), help(true)], [
+			{ sidePanel: false, archiveListsSideChats: true },
+			{ sidePanel: true, archiveListsSideChats: false },
+		]);
 	});
 
 	test('defers to webview Find help while the Find input is focused', () => {
@@ -279,7 +303,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			[null, null],
 			[
 				'To show a chat in a window of its own, choose New Window in the Open in submenu of its session or chat context menu in the sessions list, choose Open in New Window in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window\'s title bar to show the chat, the editor area or both, side by side or stacked<keybinding:workbench.action.chatWindow.toggleArrangement>. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen after a restart. Move to Main Window shows the chat in the main window again.',
-				'In a chat window, New Session<keybinding:sessions.chatWindow.newSession> opens a new session as a tab of the window\'s active chat. It starts with that chat\'s workspace, agent, model and mode, which you can change before sending, and joins the group of that chat\'s session in the sessions list. While the window\'s active chat is a new session that has not been sent, New Session moves focus to it instead. Choosing New Session in the Sessions picker of a chat window opens it in that window too, beside the active chat when opened to the side. Press Enter to send its first prompt: the tab becomes the session\'s chat. Use Send in Background<keybinding:sessions.sendInBackground> to start the session in the background: the tab stays a new session, and its status offers Open Session, which opens the started session beside it. If a background start fails, its prompt goes back into the new session when nothing changed there since; otherwise a notification offers Copy Prompt, and Restore Prompt while the new session is still open. A new session that has not been sent can\'t move to the main window or to another window: send it first, or close it to discard it. It reopens with its prompt after a restart. Compare Agents is available in the main window\'s new session.',
+				'In a chat window, New Session<keybinding:sessions.chatWindow.newSession> opens a new session as a tab of the window\'s active chat. It starts with that chat\'s workspace, agent, model and mode, which you can change before sending, and joins the group of that chat\'s session in the sessions list. While the window\'s active chat is a new session that has not been sent, New Session moves focus to it instead. Choosing New Session in the Sessions picker of a chat window opens it in that window too, beside the active chat when opened to the side. Press Enter to send its first prompt: the tab becomes the session\'s chat. Use Send in Background<keybinding:sessions.sendInBackground> to start the session in the background: the tab stays a new session, and its status says the session is starting, then that its message was sent, with Open Session, which opens the session beside it. If a background start fails, its prompt goes back into the new session when nothing changed there since; otherwise a notification offers Copy Prompt, and Restore Prompt while the new session is still open. A new session that has not been sent can\'t move to the main window or to another window: send it first, or close it to discard it. It reopens with its prompt after a restart. Compare Agents is available in the main window\'s new session.',
 			],
 		]);
 	});
@@ -466,7 +490,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true, reopenAction: true, reopenProgress: true, preservedDraft: true, silentRefresh: true, refreshAction: true });
 	});
 
-	test('documents layout density and the empty editor Add Tab list only on desktop', () => {
+	test('documents desktop controls only on desktop and explains phone customization limits', () => {
 		const densityHelp = [false, true].map(phone => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService();
@@ -485,12 +509,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 				density: content.includes('Choose Default or Compact from View > Appearance > Layout Density'),
 				addTabList: content.includes('When the side panel\'s editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions'),
 				addTabSubmenu: content.includes('press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list'),
+				customizations: content.includes('Activate Customizations with Enter or Space to open its editor'),
+				sessionMenu: content.includes('choose Open Customizations'),
+				migrations: content.includes('Use Tab to reach Review Migrations'),
+				phoneCustomizations: content.includes('Use a desktop window to manage customizations'),
 			};
 		});
 
 		assert.deepStrictEqual(densityHelp, [
-			{ density: true, addTabList: true, addTabSubmenu: true },
-			{ density: false, addTabList: false, addTabSubmenu: false },
+			{ density: true, addTabList: true, addTabSubmenu: true, customizations: true, sessionMenu: true, migrations: true, phoneCustomizations: false },
+			{ density: false, addTabList: false, addTabSubmenu: false, customizations: false, sessionMenu: false, migrations: false, phoneCustomizations: true },
 		]);
 	});
 
@@ -526,7 +554,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	}
 
-	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT): void {
+	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, sideChatsInSidePane = false): void {
 		instantiationService.stub(IChatViewFactory, { newSessionInput: worktreeSuggestionInputPresentation, newSessionPresentation: defaultNewSessionPresentation });
 		instantiationService.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
@@ -534,6 +562,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: configuration.getValue('chat.disableAIFeatures') === true } });
 		const contextKeyService = store.add(new ContextKeyService(configuration));
 		SessionsListPromoteNewChatActionContext.bindTo(contextKeyService).set(promoteNewChatAction);
+		ChatContextKeys.sideChatsInSidePane.bindTo(contextKeyService).set(sideChatsInSidePane);
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	}
 

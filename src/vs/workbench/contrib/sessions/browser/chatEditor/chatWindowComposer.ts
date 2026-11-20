@@ -177,11 +177,11 @@ export class ChatWindowComposerBackgroundSends extends Disposable {
 	}
 }
 
-/** Whether `a` and `b` aim a new session at the same folder, provider, session type, model, mode and placement. */
+/** Whether `a` and `b` aim a new session at the same folder, provider, session type, model, mode, placement and whether it is a preference. */
 function isSameNewSessionTarget(a: INewSessionTarget, b: INewSessionTarget, extUri: IExtUri): boolean {
 	return (a.folderUri && b.folderUri ? extUri.isEqual(a.folderUri, b.folderUri) : a.folderUri === b.folderUri)
 		&& a.providerId === b.providerId && a.sessionTypeId === b.sessionTypeId && a.modelId === b.modelId && a.modeId === b.modeId
-		&& a.requireDevContainer === b.requireDevContainer && a.placement === b.placement;
+		&& a.requireDevContainer === b.requireDevContainer && a.placement === b.placement && !!a.placementIsPreference === !!b.placementIsPreference;
 }
 
 /** What a composer of a chat window starts with. */
@@ -242,6 +242,10 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
+
+	private readonly _onDidPickTarget = this._register(new Emitter<INewSessionTarget>());
+	/** Fires with what it aims for as the user changes it, such as picks another folder, agent, model or mode. */
+	readonly onDidPickTarget = this._onDidPickTarget.event;
 
 	private readonly _onDidRetarget = this._register(new Emitter<INewSessionTarget>());
 	/** Fires as its host aims it at another folder ({@link retargetFolder}) or target ({@link requestTarget}), for which it creates its draft. */
@@ -320,6 +324,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		this._requestedTarget.set(target, undefined);
 		if (reason === 'user') {
 			this._targetGeneration++;
+			this._onDidPickTarget.fire(target);
 		}
 	}
 

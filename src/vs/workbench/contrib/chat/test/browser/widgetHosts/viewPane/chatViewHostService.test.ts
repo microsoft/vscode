@@ -13,6 +13,7 @@ import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
+import { stubChatViewHostServiceDependencies } from '../../../common/chatViewSessionsListServiceTestUtils.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../../common/views.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
@@ -72,6 +73,7 @@ suite('ChatViewHostService', () => {
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({
 			withProgress: (async (_options: unknown, task: () => Promise<void>) => { calls.push('progress'); await task(); calls.push('progress done'); }) as IProgressService['withProgress'],
 		}));
+		stubChatViewHostServiceDependencies(instantiationService);
 		const showView = () => { viewCreated = true; viewVisibility.fire({ id: ChatViewId, visible: true }); };
 		return { service: disposables.add(instantiationService.createInstance(ChatViewHostService)), widget, view, created, calls, accesses: () => accesses, shownSession, showView };
 	}

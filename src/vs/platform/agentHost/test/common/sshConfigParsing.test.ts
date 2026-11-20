@@ -118,6 +118,19 @@ suite('SSH Config Parsing', () => {
 
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['myserver']);
 		});
+
+		test('skips GitHub hosts', () => {
+			const config = [
+				'Host GitHub.com ssh.github.com myserver',
+				'	HostName 10.0.0.1',
+				'',
+				'Host github-work',
+				'	HostName github.com',
+			].join('\n');
+
+			// Aliases are kept even when their HostName points at GitHub: the effective HostName depends on OpenSSH's precedence rules.
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['myserver', 'github-work']);
+		});
 	});
 
 	suite('parseSSHConfigIncludePaths', () => {
@@ -219,6 +232,22 @@ suite('SSH Config Parsing', () => {
 				parseSSHGOutput('proxycommand NONE').proxyCommand,
 				parseSSHGOutput('').proxyCommand,
 			], ['"/opt/docker tools/sbx" ssh proxy %n', undefined, undefined, undefined]);
+		});
+
+		test('parses PubkeyAuthentication and PreferredAuthentications', () => {
+			const parse = (output: string) => {
+				const { pubkeyAuthentication, preferredAuthentications } = parseSSHGOutput(output);
+				return { pubkeyAuthentication, preferredAuthentications };
+			};
+			assert.deepStrictEqual([
+				parse('pubkeyauthentication false\npreferredauthentications keyboard-interactive,password'),
+				parse('pubkeyauthentication no'),
+				parse('pubkeyauthentication true\npreferredauthentications gssapi-with-mic,hostbased,publickey,keyboard-interactive,password'),
+			], [
+				{ pubkeyAuthentication: false, preferredAuthentications: ['keyboard-interactive', 'password'] },
+				{ pubkeyAuthentication: false, preferredAuthentications: undefined },
+				{ pubkeyAuthentication: undefined, preferredAuthentications: ['gssapi-with-mic', 'hostbased', 'publickey', 'keyboard-interactive', 'password'] },
+			]);
 		});
 
 		test('does not guess boundaries of unquoted known-hosts paths containing spaces', () => {

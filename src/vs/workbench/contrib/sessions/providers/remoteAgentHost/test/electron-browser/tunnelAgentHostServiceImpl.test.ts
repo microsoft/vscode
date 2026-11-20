@@ -11,7 +11,7 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
-import { ITunnelGatewayInventory, TunnelAuthenticationRequiredError } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ITunnelGatewayInventory, TUNNEL_DISCOVERY_UNAUTHORIZED, TunnelAuthenticationRequiredError } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -177,6 +177,16 @@ suite('TunnelAgentHostService discovery', () => {
 	test('rejects silent discovery when authentication is unavailable', async () => {
 		const service = createService(() => []);
 		await assert.rejects(service.listTunnels({ silent: true }), TunnelAuthenticationRequiredError);
+	});
+
+	test('turns an IPC authorization refusal into recovery for the provider that was used', async () => {
+		const service = createService(provider => [{ id: provider, accessToken: 'token', scopes: ['tunnel'], account: { id: provider, label: provider } }], new class extends mock<IChannel>() {
+			override async call<T>(): Promise<T> {
+				throw Object.assign(new Error('Unauthorized'), { name: TUNNEL_DISCOVERY_UNAUTHORIZED });
+			}
+		}());
+		await assert.rejects(service.listTunnels({ silent: true, authProvider: 'microsoft' }),
+			error => error instanceof TunnelAuthenticationRequiredError && error.authProvider === 'microsoft');
 	});
 
 	test('a cached token without the tunnel scope fails silent discovery without network enumeration or prompting', async () => {

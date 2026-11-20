@@ -90,14 +90,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	/**
-	 * Resolves once the reply is set up, which can be after the thread is displayed. Until then, the thread doesn't
-	 * have its full size.
-	 */
-	get whenReplyInitialized(): Promise<void> {
-		return this._commentReply?.whenInitialized ?? Promise.resolve();
-	}
-
-	/**
 	 * Measures the width the thread needs to show its title actions, reply and additional actions in full, and the
 	 * width at which none of its content wraps or is cut off. Neither depends on the thread's width.
 	 */
@@ -367,6 +359,22 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _refresh(dimension: dom.Dimension) {
 		this._body.layout();
 		this._onDidResize.fire(dimension);
+	}
+
+	/**
+	 * Resolves once the reply has its final content, which can be after {@link display} resolves. Until then, the
+	 * thread can be shorter than it will be.
+	 */
+	async whenReplyInitialized(): Promise<void> {
+		await this._commentReply?.whenInitialized;
+	}
+
+	/**
+	 * Focuses the reply if it was to take focus before the thread was in the document, such as when the thread is shown
+	 * only once its reply is initialized.
+	 */
+	focusReplyIfPending(): void {
+		this._commentReply?.focusIfPending();
 	}
 
 	override dispose() {

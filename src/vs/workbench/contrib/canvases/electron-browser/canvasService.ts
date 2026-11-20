@@ -142,13 +142,18 @@ export class CanvasService extends Disposable implements ICanvasService {
 			}
 			const knownOwners = new Set<string>();
 			const liveKeys = new Set<string>();
+			let anyOwnerVisible = false;
 			for (const context of contexts) {
 				const canvases = context.canvases.read(reader);
+				const visible = enabled && contextService.isOwnerVisible(context.owner, reader);
+				if (visible) {
+					// Also when its canvases are not settled yet: the window already shows this owner.
+					anyOwnerVisible = true;
+				}
 				if (canvases === undefined) {
 					continue;
 				}
 				knownOwners.add(canvasOwnerKey(context.owner));
-				const visible = enabled && contextService.isOwnerVisible(context.owner, reader);
 				const workingSetPresented = (!restoring && (!workingSetOwner || workingSetIncludes(workingSetOwner, context.owner)))
 					|| contextService.presentsOutsideWorkingSets?.(context.owner, reader) === true;
 				const requests = context.openRequests?.read(reader);
@@ -226,7 +231,9 @@ export class CanvasService extends Disposable implements ICanvasService {
 				}
 			}
 			for (const [key, input] of this.inputs) {
-				if (!enabled || (knownOwners.has(canvasOwnerKey(input.reference)) && !liveKeys.has(key))) {
+				// A window without working sets keeps no canvas of a conversation it no longer shows, once it shows another.
+				const followsVisibleOwner = !contextService.workingSets && anyOwnerVisible && !contextService.isOwnerVisible(input.reference, reader) && !this.opening.has(input);
+				if (!enabled || followsVisibleOwner || (knownOwners.has(canvasOwnerKey(input.reference)) && !liveKeys.has(key))) {
 					void this.closeInput(key, input).catch(error => this.reportError('Failed to close canvas', error));
 				}
 			}

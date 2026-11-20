@@ -30,8 +30,6 @@ export type IGetRepositoryInfoResponseData = Endpoints['GET /repos/{owner}/{repo
 export const IGithubRepositoryService = createServiceIdentifier<IGithubRepositoryService>('IGithubRepositoryService');
 export const IOctoKitService = createServiceIdentifier<IOctoKitService>('IOctoKitService');
 
-export const VSCodeTeamId = 1682102;
-
 export interface IGithubRepositoryService {
 
 	_serviceBrand: undefined;

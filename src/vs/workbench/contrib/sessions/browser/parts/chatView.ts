@@ -162,6 +162,8 @@ export interface INewSessionTarget {
 	 * Worktree for it. A draft whose agent cannot is reported, not created in the folder silently.
 	 */
 	readonly placement?: 'worktree';
+	/** Whether {@link placement} is a remembered preference, which the composer drops silently where it cannot apply it. */
+	readonly placementIsPreference?: boolean;
 }
 
 /** A background send of a composer ({@link INewSessionDraftHost.trackBackgroundSend}). */
@@ -351,6 +353,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * Views without a ready workspace picker return notReady.
 	 */
 	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
+		return 'notReady';
+	}
+
+	/** Start in the environment of a provider's sessions. Views without an Environment picker return notReady. */
+	selectEnvironment(_providerId: string): WorkspaceSelectionResult {
 		return 'notReady';
 	}
 

@@ -7,6 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
@@ -59,11 +60,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	private _commentEditorActions!: CommentFormActions;
 	private _reviewThreadReplyButton!: HTMLElement;
 	private _editorHeight = MIN_EDITOR_HEIGHT;
-
-	/**
-	 * Resolves once the reply is set up, which is after it's created, as its editor gets its model asynchronously.
-	 */
+	/** Resolves once the reply's editor has its model and the reply has its final content, such as its reply button. */
 	readonly whenInitialized: Promise<void>;
+	/** Whether the comment editor was to be focused while the reply wasn't in the document, where it can't take focus. */
+	private _isFocusPending = false;
 
 	constructor(
 		readonly owner: string,
@@ -92,7 +92,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this.commentEditorIsEmpty.set(!this._pendingComment);
 
-		this.whenInitialized = this.initialize(focus);
+		this.whenInitialized = this.initialize(focus).catch(onUnexpectedError);
 	}
 
 	private async initialize(focus: boolean) {
@@ -199,7 +199,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	public layout(widthInPixel: number) {
-		this.commentEditor.layout({ height: this._editorHeight, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ - this.getAvatarWidth() });
+		const width = this.getCommentEditorWidthInForm() ?? widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ - this.getAvatarWidth();
+		this.commentEditor.layout({ height: this._editorHeight, width });
+		// The comment wraps at the editor's width, so the height that fits it can change with the width.
+		if (this.calculateEditorHeight()) {
+			this.commentEditor.layout({ height: this._editorHeight, width });
+		}
 	}
 
 	/**
@@ -210,18 +215,29 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	/**
-	 * Sizes the comment editor to the space that the author's avatar leaves in the comment form.
+	 * The width of the space that the author's avatar leaves for the comment editor in the comment form, or `undefined`
+	 * when the form isn't rendered, so there is nothing to measure.
 	 */
-	private layoutCommentEditorInForm(): void {
+	private getCommentEditorWidthInForm(): number | undefined {
 		const editorNode = this.commentEditor.getDomNode();
 		const formWidth = dom.getContentWidth(this._form);
 		if (!editorNode || formWidth <= 0) {
-			// The form isn't rendered, so there is nothing to measure.
+			return undefined;
+		}
+		const editorFrameWidth = dom.getTotalWidth(editorNode) - dom.getContentWidth(editorNode);
+		return formWidth - this.getAvatarWidth() - editorFrameWidth;
+	}
+
+	/**
+	 * Sizes the comment editor to the space that the author's avatar leaves in the comment form.
+	 */
+	private layoutCommentEditorInForm(): void {
+		const width = this.getCommentEditorWidthInForm();
+		if (width === undefined) {
 			this.commentEditor.layout();
 			return;
 		}
-		const editorFrameWidth = dom.getTotalWidth(editorNode) - dom.getContentWidth(editorNode);
-		this.commentEditor.layout({ height: this._editorHeight, width: formWidth - this.getAvatarWidth() - editorFrameWidth });
+		this.commentEditor.layout({ height: this._editorHeight, width });
 	}
 
 	public focusIfNeeded() {
@@ -248,7 +264,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	private updateAuthorInfo() {
 		this.avatar.textContent = '';
 		if (typeof this._commentThread.canReply !== 'boolean' && this._commentThread.canReply.iconPath) {
-			this.avatar.style.display = 'block';
+			// The avatar's styles decide whether it's shown, such as in a floating widget, which doesn't show it.
+			this.avatar.style.display = '';
 			const img = dom.append(this.avatar, dom.$('img.avatar')) as HTMLImageElement;
 			img.src = FileAccess.uriToBrowserUri(URI.revive(this._commentThread.canReply.iconPath)).toString(true);
 		} else {
@@ -445,9 +462,25 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		if (!this.isReplyExpanded) {
 			this._container.classList.add('expand');
 			if (focus) {
-				this.commentEditor.focus();
+				if (this._container.isConnected) {
+					this.commentEditor.focus();
+				} else {
+					// Focus can't move into an element that isn't in the document.
+					this._isFocusPending = true;
+				}
 			}
 			this.layoutCommentEditorInForm();
+		}
+	}
+
+	/**
+	 * Focuses the comment editor if it was to be focused while the reply wasn't in the document yet, such as when the
+	 * reply is initialized before its thread is shown.
+	 */
+	focusIfPending(): void {
+		if (this._isFocusPending && this._container.isConnected) {
+			this._isFocusPending = false;
+			this.commentEditor.focus();
 		}
 	}
 

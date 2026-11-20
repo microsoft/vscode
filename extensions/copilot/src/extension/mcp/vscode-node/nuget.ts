@@ -9,7 +9,6 @@ import path from 'path';
 import { l10n } from 'vscode';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
-import { IStringDictionary } from '../../../util/vs/base/common/collections';
 import { randomPath } from '../../../util/vs/base/common/extpath';
 import { isObject } from '../../../util/vs/base/common/types';
 import { ValidatePackageErrorType, ValidatePackageResult } from './commands';
@@ -852,11 +851,6 @@ export interface IGalleryMcpServerConfiguration {
 	readonly remotes?: ReadonlyArray<SseTransport | StreamableHttpTransport>;
 }
 
-export const enum GalleryMcpServerStatus {
-	Active = 'active',
-	Deprecated = 'deprecated'
-}
-
 export interface IInstallableMcpServer {
 	readonly name: string;
 	readonly config: IMcpServerConfiguration;
@@ -1145,8 +1139,3 @@ export interface IMcpRemoteServerConfiguration extends ICommonMcpServerConfigura
 }
 
 export type IMcpServerConfiguration = IMcpStdioServerConfiguration | IMcpRemoteServerConfiguration;
-
-export interface IMcpServersConfiguration {
-	servers?: IStringDictionary<IMcpServerConfiguration>;
-	inputs?: IMcpServerVariable[];
-}
