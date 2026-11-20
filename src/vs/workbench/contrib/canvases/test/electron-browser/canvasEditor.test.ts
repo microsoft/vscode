@@ -18,7 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { IAccessibleViewService, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IBrowserViewBounds, IBrowserViewLoadError, IBrowserViewLoadingEvent } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDialog, IBrowserViewLoadError, IBrowserViewLoadingEvent } from '../../../../../platform/browserView/common/browserView.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -57,11 +57,15 @@ suite('CanvasEditor', () => {
 		const warningLogged = new DeferredPromise<string>();
 		const ownerVisible = observableValue('ownerVisible', true);
 		const loadingState = store.add(new Emitter<IBrowserViewLoadingEvent>());
+		const dialogChanged = store.add(new Emitter<IBrowserViewDialog | undefined>());
+		let pendingDialog: IBrowserViewDialog | undefined;
 		let modelError: IBrowserViewLoadError | undefined;
 		store.add(loadingState.event(event => { modelError = event.error; }));
 		const model = upcastPartial<IBrowserViewModel>({
 			url: 'https://example.test',
 			get error() { return modelError; },
+			get pendingDialog() { return pendingDialog; },
+			onDidChangeDialog: dialogChanged.event,
 			screenshot: harnessOptions?.screenshot,
 			onDidChangeFocus: Event.None,
 			onDidChangeLoadingState: loadingState.event,
@@ -143,6 +147,10 @@ suite('CanvasEditor', () => {
 			get created() { return created; },
 			requested, reloads,
 			loadingState,
+			showDialog: () => {
+				pendingDialog = { requestId: 'load-dialog', type: 'alert', origin: 'https://example.test', message: 'Hello' };
+				dialogChanged.fire(pendingDialog);
+			},
 			failPage: () => loadingState.fire({ loading: false, error: { url: model.url, errorCode: -102, errorDescription: 'ERR_CONNECTION_REFUSED' } }),
 			reloadButton: () => parent.querySelector<HTMLAnchorElement>('.session-canvas-status [role="button"]')!,
 			frozenFrame: () => parent.querySelector<HTMLElement>('.session-canvas-frozen-frame')?.style.backgroundImage,
@@ -163,16 +171,35 @@ suite('CanvasEditor', () => {
 		};
 	}
 
-	test('attaches the canvas host before initial navigation finishes so load-time dialogs can show', async () => {
-		const initialLoad = new DeferredPromise<void>();
-		const harness = createHarness({ initialLoad });
-		await harness.show();
-		await harness.open();
-		await timeout(0);
-		const attachedWhileLoading = harness.attached.includes(harness.model);
-		await initialLoad.complete();
-		assert.strictEqual(attachedWhileLoading, true);
-	});
+	for (const dialogTiming of ['none', 'pending', 'during load', 'stale load']) {
+		test(`keeps initial navigation hidden unless a current dialog needs its host: ${dialogTiming}`, async () => {
+			const initialLoad = new DeferredPromise<void>();
+			const harness = createHarness({ initialLoad });
+			if (dialogTiming === 'pending') {
+				harness.showDialog();
+			}
+			await harness.show();
+			await harness.open();
+			await timeout(0);
+			const attachedBeforeDialog = harness.attached.includes(harness.model);
+			if (dialogTiming === 'stale load') {
+				harness.editor.clearInput();
+			}
+			if (dialogTiming === 'during load' || dialogTiming === 'stale load') {
+				harness.showDialog();
+			}
+			const attachedBeforeCompletion = harness.attached.includes(harness.model);
+			await initialLoad.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				attachedBeforeDialog, attachedBeforeCompletion, attachedAfterCompletion: harness.attached.includes(harness.model),
+			}, {
+				attachedBeforeDialog: dialogTiming === 'pending',
+				attachedBeforeCompletion: dialogTiming === 'pending' || dialogTiming === 'during load',
+				attachedAfterCompletion: dialogTiming !== 'stale load',
+			});
+		});
+	}
 
 	test('does not revive hidden native content when an old rectangle is laid out', async () => {
 		const harness = createHarness();

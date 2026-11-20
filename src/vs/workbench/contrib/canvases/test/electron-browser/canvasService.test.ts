@@ -177,7 +177,7 @@ suite('CanvasService', () => {
 		};
 	}
 
-	test('publishes the retained model to hosts while its initial navigation is still pending', async () => {
+	test('publishes the model to hosts while its first load is still in progress', async () => {
 		const loaded = new DeferredPromise<IBrowserViewModel>();
 		const model = upcastPartial<IBrowserViewModel>({ onWillDispose: Event.None, dispose: () => { } });
 		const observed: IBrowserViewModel[] = [];
