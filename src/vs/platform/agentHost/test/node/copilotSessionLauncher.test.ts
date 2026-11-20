@@ -7,7 +7,9 @@ import type { CopilotClient, CopilotSession, PermissionHandler, PermissionReques
 import assert from 'assert';
 import { CopilotMcpServerLogs, mcpDiagnosticEntryToLogRecord } from '../../node/copilot/copilotMcpServerLogs.js';
 import type { IOtlpLogRecord } from '../../common/otlp/otlpLogEmitter.js';
-import { homedir } from 'os';
+import { mkdir, mkdtemp, realpath, rm, symlink } from 'fs/promises';
+import { homedir, tmpdir } from 'os';
+import { join } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { isDeepStrictEqual } from 'util';
 import { useFakeTimers } from 'sinon';
@@ -16,7 +18,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { isLinux } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
@@ -68,7 +70,7 @@ import { ISessionSandboxPathService } from '../../node/sessionSandboxPathService
 import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentCustomization, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotRuntimeWorkingDirectory, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
@@ -5362,6 +5364,31 @@ suite('CopilotSessionLauncher working directory trust', () => {
 			resumeUntrusted: ['false'],
 			workspaceless: ['false'],
 		});
+	});
+
+	test('gives the runtime the real path of a folder opened through a symbolic link', async function () {
+		if (isWindows) {
+			this.skip(); // Creating symbolic links needs extra privileges on Windows.
+		}
+		const root = await realpath(await mkdtemp(join(tmpdir(), 'copilot-working-directory-')));
+		try {
+			const real = join(root, 'repo');
+			await mkdir(real);
+			await symlink(real, join(root, 'link'));
+			assert.deepStrictEqual({
+				linked: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.file(join(root, 'link')) }),
+				real: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.file(real) }),
+				missing: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.file(join(root, 'missing')) }),
+				virtual: await getCopilotRuntimeWorkingDirectory({ workingDirectory: URI.from({ scheme: 'vscode-vfs', path: '/repos/project' }) }),
+			}, {
+				linked: real,
+				real,
+				missing: join(root, 'missing'),
+				virtual: URI.from({ scheme: 'vscode-vfs', path: '/repos/project' }).fsPath,
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test('grants no trust to workspace-less, folderless, or non-file working directories, even with trust disabled', async () => {

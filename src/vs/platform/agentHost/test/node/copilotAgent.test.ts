@@ -33,6 +33,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Promises } from '../../../../base/node/pfs.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -12610,7 +12611,7 @@ suite('CopilotAgent', () => {
 				skillDiscoveryProjectPaths: client.skillDiscoveryRequests.at(-1)?.projectPaths,
 			}, {
 				resumedConfigs: [{
-					workingDirectory: next.fsPath,
+					workingDirectory: await Promises.realpath(next.fsPath),
 					skillDirectories: [],
 					instructionDirectories: [],
 					mcpServerNames: ['workspace-server'],
@@ -32665,7 +32666,7 @@ suite('CopilotAgent', () => {
 					skillDiscoveryProjectPaths: client.skillDiscoveryRequests.at(-1)?.projectPaths,
 				},
 				{
-					workingDirectory: worktree.fsPath,
+					workingDirectory: await Promises.realpath(worktree.fsPath),
 					skillDirectories: [],
 					instructionDirectories: [],
 					agentDiscoveryProjectPaths: [worktree.fsPath],
