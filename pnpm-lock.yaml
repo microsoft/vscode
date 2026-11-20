@@ -523,9 +523,9 @@ importers:
       deemon:
         specifier: ^1.13.6
         version: 1.13.6
-      event-stream:
-        specifier: 3.3.4
-        version: 3.3.4
+      duplexer:
+        specifier: 0.1.1
+        version: 0.1.1
       events:
         specifier: ^3.3.0
         version: 3.3.0
