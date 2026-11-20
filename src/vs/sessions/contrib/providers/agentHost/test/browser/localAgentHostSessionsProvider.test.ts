@@ -4829,7 +4829,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('rebases the selected agent and its matching draft before the working directory flips', () => {
 		const folderAgent = 'file:///Users/me/vscode/.github/agents/sessions.md';
 		const worktreeAgent = 'file:///Users/me/vscode.worktrees/rebase-worktree/.github/agents/sessions.md';
-		const draft = observableValue<IChatModelInputState>('draft', { inputText: 'keep this', attachments: [], mode: { id: folderAgent, kind: ChatModeKind.Agent } });
+		const draft = observableValue<IChatModelInputState>({ debugName: 'draft' }, {
+			inputText: 'keep this', attachments: [], selections: [], selectedModel: undefined, contrib: {},
+			mode: { id: folderAgent, kind: ChatModeKind.Agent },
+		});
 		const model = upcastPartial<IChatModel>({
 			inputModel: upcastPartial<IInputModel>({ state: draft, setState: update => draft.set({ ...draft.get(), ...update }, undefined) }),
 		});
