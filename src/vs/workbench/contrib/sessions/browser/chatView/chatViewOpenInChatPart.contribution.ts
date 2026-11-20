@@ -195,10 +195,18 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
 				reader.store.add(sessionsRuntime.enable({ viewIds: [ChatViewId] }));
-				// The chats show in the chat part, so the Chat view shows only its sessions, except while it hosts a chat that the chat
-				// part leaves to it, such as a local chat: the seam owns that rule.
-				reader.store.add(this._chatViewHostService.register({ sessionsOnly: true }));
-				// No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions
+			}
+		}));
+		// The chats show in the chat part or in editors, so the Chat view shows only its sessions, except while it hosts a chat that the
+		// chat part leaves to it, such as a local chat: the seam owns that rule.
+		const sessionsOnly = derived(this, reader => {
+			const setting = openChatIn.read(reader);
+			return (setting === ChatViewSessionsOpenChatIn.ChatArea || setting === ChatViewSessionsOpenChatIn.EditorArea) && orientation.read(reader) !== 'stacked' && chatAvailable.read(reader);
+		});
+		this._register(autorun(reader => {
+			if (sessionsOnly.read(reader)) {
+				reader.store.add(this._chatViewHostService.register({ chatsOpenElsewhere: true }));
+				// No local chats, which the chat part and editors of sessions do not show: as with the sessions list of the Chat view, whose chats are those of sessions
 				reader.store.add(this._localChatAvailabilityService.hide());
 			}
 		}));

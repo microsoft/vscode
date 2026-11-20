@@ -102,7 +102,7 @@ import { ICreateNewSessionOptions, ISessionsChangeEvent, ISessionsManagementServ
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionHasGitHubRepositoryContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatCopyKind, IChatRequestAcceptedEvent, IChatService, IChatToolInvocation, IChatUserActionEvent } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -5932,6 +5932,76 @@ suite('Sessions - SessionsList', () => {
 
 	suite('groupSessionsForList', () => {
 
+		for (const { count, screenReader, scenario } of [
+			{ count: 3, screenReader: false, scenario: 'reply' },
+			{ count: 1, screenReader: false, scenario: 'reply' },
+			{ count: 3, screenReader: true, scenario: 'reply' },
+			...(['hidden', 'workspace', 'new', 'background', 'navigated', 'settingChanged'] as const).map(scenario => ({ count: 3, screenReader: false, scenario })),
+		]) {
+			test(`Inbox replies with newSession do not show onboarding (items: ${count}, screen reader: ${screenReader}, scenario: ${scenario})`, async () => {
+				const built = Array.from({ length: count }, (_, i) => buildTestSession({ id: `reply-${i}`, title: `Reply ${i}`, minutesAgo: i }));
+				const source = built[0];
+				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
+				const harness = createListHarness(disposables, built.map(item => item.session));
+				const commands = sinon.stub(harness.commandService, 'executeCommand').resolves();
+				disposables.add(toDisposable(() => commands.restore()));
+				const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+				await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, 'newSession');
+				harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isScreenReaderOptimized(): boolean { return screenReader; }
+				});
+				let notifications = 0;
+				harness.instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+					override prompt() { notifications++; return new NoOpNotification(); }
+				});
+				let tours = 0;
+				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+					runScenario: async () => { tours++; return OnboardingOutcome.Aborted; },
+				}));
+				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				const opened: URI[] = [];
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => scenario === 'workspace' ? SessionsGrouping.Workspace : SessionsGrouping.Inbox,
+					sorting: () => SessionsSorting.Updated,
+					onSessionOpen: resource => { opened.push(resource); },
+				}));
+				list.layout(600, 400);
+				if (scenario === 'hidden') {
+					list.setVisible(false);
+				}
+				transaction(tx => {
+					source.status.set(SessionStatus.InProgress, tx);
+					source.mainChat.status.set(SessionStatus.InProgress, tx);
+				});
+				accepted.fire({
+					chatSessionResource: (scenario === 'background' ? built[1] : source).session.mainChat.get().resource,
+					isNewSession: scenario === 'new',
+				});
+				const commandsBeforeFrame = commands.args.slice();
+				if (scenario === 'navigated') {
+					shown.set({ session: built[1].session, chat: built[1].session.mainChat.get() }, undefined);
+				}
+				if (scenario === 'settingChanged') {
+					await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, 'off');
+				}
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+
+				assert.deepStrictEqual({ commandsBeforeFrame, commands: commands.args, opened, tours, notifications }, {
+					commandsBeforeFrame: [],
+					commands: scenario === 'reply' ? [[NEW_SESSION_ACTION_ID]] : [],
+					opened: [],
+					tours: 0,
+					notifications: 0,
+				});
+			});
+		}
+
 		for (const { count, index, expected, mode, screenReader } of [
 			{ count: 3, index: 0, expected: 'reply-1', mode: undefined, screenReader: false },
 			{ count: 3, index: 1, expected: 'reply-2', mode: undefined, screenReader: false },
@@ -8302,7 +8372,7 @@ suite('Sessions - SessionsList', () => {
 			(source.isConnected ? source : listNode)?.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
 		}
 
-		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false) {
+		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false, settings: Readonly<Record<string, unknown>> = {}) {
 			let currentGrouping = grouping;
 			const now = Date.now();
 			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', repository: grouping === SessionsGrouping.Repository ? 'microsoft/vscode' : undefined, createdAt: new Date(now - minutesAgo * 60_000) }).session;
@@ -8350,6 +8420,9 @@ suite('Sessions - SessionsList', () => {
 				}
 			});
 			const container = harness.createContainer(400, 800);
+			for (const [key, value] of Object.entries(settings)) {
+				void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(key, value);
+			}
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => currentGrouping,
 				sorting: () => SessionsSorting.Created,
@@ -8573,6 +8646,57 @@ suite('Sessions - SessionsList', () => {
 					],
 				});
 			}
+		});
+
+		test('draws indent guides only beside the rows that step in below a header', () => {
+			const outline = (indentItems: boolean) => {
+				const { container } = render(SessionsGrouping.Workspace, new Map(), false, {
+					'workbench.tree.renderIndentGuides': 'onHover',
+					[SESSIONS_LIST_INDENT_ITEMS_SETTING]: indentItems,
+				});
+				for (const size of [2, 6, 10, 16]) {
+					container.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+				}
+				return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+					.map(row => {
+						const indent = row.querySelector<HTMLElement>('.monaco-tl-indent')!.getBoundingClientRect();
+						const shownGuides = [...row.querySelectorAll('.monaco-tl-indent > .indent-guide')]
+							.filter(guide => guide.getBoundingClientRect().left < indent.right).length;
+						return `${'  '.repeat(shownGuides)}${labelOf(row)}`;
+					});
+			};
+
+			assert.deepStrictEqual({ indentItemsOff: outline(false), indentItemsOn: outline(true) }, {
+				indentItemsOff: [
+					'Release work',
+					'  Hotfixes',
+					'    Urgent',
+					'    Patch CVE',
+					'  Fix login',
+					'  Docs',
+					'  No session',
+					'Ship notes',
+					'Triage',
+					'Flaky test',
+					'vscode',
+					'Ungrouped',
+				],
+				indentItemsOn: [
+					'Release work',
+					'  Hotfixes',
+					'    Urgent',
+					'      Patch CVE',
+					'    Fix login',
+					'  Docs',
+					'    No session',
+					'  Ship notes',
+					'Triage',
+					'  Flaky test',
+					'vscode',
+					'  Ungrouped',
+				],
+			});
 		});
 
 		test('drops a group inside another group, next to a nested group, or back at the top level, but never inside itself', () => {

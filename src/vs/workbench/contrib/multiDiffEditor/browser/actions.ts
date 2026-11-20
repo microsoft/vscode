@@ -38,20 +38,13 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 });
 
 // The Agents window offers Toggle Details instead of Toggle Files, and contributes
-// the Files View & Position submenu to its own editor title menu.
+// the Files View & Position submenu to the editor title menu of its chat windows.
 const filesViewWhen = ContextKeyExpr.and(ActiveMultiDiffEditorHasFileListContext, IsSessionsWindowContext.toNegated());
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	submenu: MultiDiffEditorFilesViewAndPositionMenu,
-	title: localize('filesViewAndPosition', "Files View & Position"),
-	group: 'z_files',
-	when: filesViewWhen,
-});
-
-// Toggle Files, with a dropdown that puts the list on either side of the diffs.
+// Toggle Files, with a dropdown that switches the list between a list and a tree, and puts it on either side of the diffs.
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: MultiDiffEditorFileListToggleMenu,
-	title: localize('filesPosition', "Files Position"),
+	title: localize('filesViewAndPosition', "Files View & Position"),
 	icon: Codicon.listFlat,
 	isSplitButton: { excludePrimaryActionFromDropdown: true },
 	isAlwaysShown: true,
@@ -267,12 +260,16 @@ abstract class SetFileListViewModeAction extends Action2 {
 			title,
 			toggled: MultiDiffEditorFileListViewModeContext.isEqualTo(_viewMode),
 			precondition: ActiveMultiDiffEditorHasFileListContext,
-			menu: {
+			menu: [{
 				id: MultiDiffEditorFilesViewAndPositionMenu,
 				group: '1_view',
 				order: _viewMode === 'list' ? 1 : 2,
 				when: ActiveMultiDiffEditorHasFileListContext,
-			},
+			}, {
+				id: MultiDiffEditorFileListToggleMenu,
+				group: '1_view',
+				order: _viewMode === 'list' ? 1 : 2,
+			}],
 		});
 	}
 

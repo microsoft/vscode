@@ -63,6 +63,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
 import { getEditorTransferVetoDetail } from './editorTransferVeto.js';
+import { getEditorTelemetryId } from './editorTelemetry.js';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -784,6 +785,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private toEditorTelemetryDescriptor(editor: EditorInput): ITelemetryData {
 		const descriptor = editor.getTelemetryDescriptor();
+		descriptor.editorId = getEditorTelemetryId(editor.editorId);
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"editorId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The ID of the editor (for example the text editor or a custom editor) if it is a known editor, 'other' for any other editor, 'none' if the editor has no ID." }
+			}
+		*/
 
 		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
 		if (URI.isUri(resource)) {

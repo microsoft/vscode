@@ -30,13 +30,14 @@ export const sessionsListConfigurationProperties = {
 	[SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING]: {
 		type: 'string',
 		tags: ['accessibility'],
-		enum: ['auto', 'on', 'off'],
+		enum: ['auto', 'on', 'off', 'newSession'],
 		enumDescriptions: [
 			localize('sessions.list.inboxAutoAdvance.auto', "Automatically move to the next Inbox session after sending a reply, unless a screen reader is attached."),
 			localize('sessions.list.inboxAutoAdvance.on', "Always move to the next Inbox session after sending a reply."),
 			localize('sessions.list.inboxAutoAdvance.off', "Stay in the current session after sending a reply."),
+			localize('sessions.list.inboxAutoAdvance.newSession', "Open New Session and focus its chat input after sending a reply."),
 		],
-		description: localize('sessions.list.inboxAutoAdvance', "Controls whether sending a reply in an Inbox session opens the next visible Inbox session, or focuses the Inbox heading when none remain."),
+		description: localize('sessions.list.inboxAutoAdvance', "Controls where focus moves after sending a reply in an Inbox session: the next visible Inbox session (or the Inbox heading when none remain), the current session, or the New Session chat input."),
 		default: 'auto',
 	},
 	[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: {

@@ -15,8 +15,7 @@ export interface INewSessionWelcomeMessagesConfiguration {
 
 const WELCOME_NAME_PLACEHOLDER = /\$?\{name\}/gu;
 /** Matches `${name}` or legacy `{name}` together with an adjoining separator and whitespace. */
-// allow-any-unicode-next-line
-const WELCOME_NAME_PLACEHOLDER_SEGMENT = /\s*[,—–-]?\s*\$?\{name\}\s*[,—–-]?\s*/gu;
+const WELCOME_NAME_PLACEHOLDER_SEGMENT = /\s*[,\u2014\u2013-]?\s*\$?\{name\}\s*[,\u2014\u2013-]?\s*/gu;
 const SPACE_BEFORE_PUNCTUATION = /\s+([!?.,;:])/gu;
 
 function getDefaultWelcomePhrases(accountName: string | undefined): string[] {
