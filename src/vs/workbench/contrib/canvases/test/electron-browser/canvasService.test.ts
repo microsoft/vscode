@@ -49,6 +49,7 @@ suite('CanvasService', () => {
 		const contextService = upcastPartial<ICanvasContextService>({
 			contexts, onDidRemoveOwner: removed.event,
 			isOwnerVisible: (owner, reader) => visible.read(reader).has(canvasOwnerKey(owner)),
+			resolveOwner: candidate => candidate.providerId === 'session-pill' ? owner : undefined,
 			getContext: (owner, reader) => contexts.read(reader).find(context => isCanvasOwner(context.owner, owner)),
 			getEditorGroup: (_owner, _input, restore) => {
 				groupRestores.push(restore);
@@ -451,6 +452,16 @@ suite('CanvasService', () => {
 		assert.deepStrictEqual({ afterHidden, afterUnavailable, afterDisabled: harness.opened.length }, {
 			afterHidden: 1, afterUnavailable: 1, afterDisabled: 1,
 		});
+	});
+
+	test('reveals a canvas through an owner that a pill built outside the chat widget, once the editor was closed', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const reference = harness.opened[0].reference;
+		harness.opened[0].dispose();
+		await harness.service.revealCanvas({ ...reference, providerId: 'session-pill', chat: URI.parse('chat:/pill') });
+		assert.strictEqual(harness.opened.length, 2);
 	});
 
 	test('preserves manual reveal intent while a dismissed canvas source recovers', async () => {

@@ -273,12 +273,15 @@ export class CanvasService extends Disposable implements ICanvasService {
 		);
 	}
 
-	async revealCanvas(reference: ICanvasReference): Promise<void> {
+	async revealCanvas(requested: ICanvasReference): Promise<void> {
+		const owner = this.contextService.resolveOwner?.(requested);
+		const reference: ICanvasReference = owner ? { ...owner, canvas: requested.canvas } : requested;
 		const key = getCanvasReferenceKey(reference);
 		// After a working-set restore, and once an editor of the canvas that is closing closed, which a new one would reveal
 		// instead of opening; what to reveal is resolved after both.
 		while (true) {
 			if (this.workingSetState.get().restoring && !await this.waitForWorkingSetRestore()) {
+				this.logService.warn(`[Canvas] Not revealing ${key}: the working set restore did not complete`);
 				return;
 			}
 			const pendingClose = this.pendingCloses.get(key);
@@ -290,15 +293,19 @@ export class CanvasService extends Disposable implements ICanvasService {
 				return;
 			}
 		}
-		const context = this.isOwnerPresentable(reference)
-			? this.contextService.contexts.get().find(context => isCanvasOwner(context.owner, reference))
-			: undefined;
+		if (!this.isOwnerPresentable(reference)) {
+			this.logService.warn(`[Canvas] Not revealing ${key}: canvases enabled=${this.enabled.get()}, owner visible=${this.contextService.isOwnerVisible(reference)}`);
+			return;
+		}
+		const context = this.contextService.contexts.get().find(context => isCanvasOwner(context.owner, reference));
 		const canvas = context?.canvases.get()?.find(canvas => isEqual(canvas.resource, reference.canvas));
 		if (!canvas) {
+			this.logService.warn(`[Canvas] Not revealing ${key}: ${context ? 'the owner has no such canvas' : 'no context for the owner'}`);
 			return;
 		}
 		this.deleteDismissed(key);
 		if (canvas.source === undefined) {
+			this.logService.warn(`[Canvas] Not revealing ${key}: the canvas has no source`);
 			return;
 		}
 		const input = this.getOrCreateInput(reference, canvas);
@@ -482,6 +489,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		const suppression = restoreFallback ? this.contextService.workingSets?.suppressEditorPartAutoVisibility() : undefined;
 		try {
 			if (!this.isOwnerPresentable(input.reference)) {
+				this.logService.warn(`[Canvas] Not opening ${key}: its owner is not visible`);
 				return;
 			}
 			const options: IEditorOptions = restoreFallback

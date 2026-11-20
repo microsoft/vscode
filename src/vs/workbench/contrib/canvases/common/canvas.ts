@@ -130,6 +130,11 @@ export interface ICanvasContextService {
 	readonly workingSets?: ICanvasWorkingSets;
 	isOwnerVisible(owner: ICanvasOwner, reader?: IReader): boolean;
 	/**
+	 * Maps an owner that surfaces outside the chat widget, such as a session pill built from the
+	 * session model, to the canonical owner of the visible chat it belongs to. `undefined` when no visible chat matches.
+	 */
+	resolveOwner?(owner: ICanvasOwner): ICanvasOwner | undefined;
+	/**
 	 * Resolves an owner that this window can still look up, including one that is
 	 * not visible. Its canvases are `undefined` while membership is unknown;
 	 * `undefined` means the owner is outside this window's live scope.
