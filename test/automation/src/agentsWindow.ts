@@ -236,7 +236,9 @@ export class AgentsWindow {
 		// A hidden button keeps its label, so it still identifies the row and whether the remote is connected. `has`
 		// locators match within the row, so they must not repeat the widget scope.
 		const page = this.code.driver.currentPage;
-		const rowButton = page.getByLabel(`Connect to ${name}`, { exact: true }).or(page.getByLabel(`Disconnect ${name}`, { exact: true }));
+		// While it connects, the button's label is its progress, such as `Connecting: name`.
+		const rowButton = page.getByLabel(`Connect to ${name}`, { exact: true }).or(page.getByLabel(`Disconnect ${name}`, { exact: true }))
+			.or(page.locator(`.remotes-connect-action[aria-label$=${JSON.stringify(`: ${name}`)}]`));
 		const row = widget.locator('.monaco-list-row').filter({ has: rowButton }).first();
 		await row.waitFor({ timeout: 30_000 });
 		if (await connect.count()) {
