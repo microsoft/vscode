@@ -88,10 +88,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 			toggle: help.includes('arrow keys to reach Toggle Inbox'),
 			tree: help.includes('Left Arrow to collapse categories, Right Arrow to expand them'),
 			autoAdvance: help.includes('keeps you in the current conversation when a screen reader is attached'),
+			approvalNavigation: help.includes('controls navigation after replying or approving a request in Inbox'),
 			choices: help.includes('Set it to off to always stay, on to always advance'),
 			newSession: help.includes('newSession to open New Session and focus its input'),
 			triageAlgorithms: /aggregate status|last 7 days|first automatic move spotlights/.test(help),
-		}, { toggle: true, tree: true, autoAdvance: true, choices: true, newSession: true, triageAlgorithms: false });
+		}, { toggle: true, tree: true, autoAdvance: true, approvalNavigation: true, choices: true, newSession: true, triageAlgorithms: false });
 	});
 
 	test('only includes scheduled-message navigation when Send Later is enabled', () => {
