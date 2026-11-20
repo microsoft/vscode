@@ -12,7 +12,7 @@ import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { readAgentHostUpgradeMethod } from '../../../../../../platform/agentHost/common/meta/agentHostUpgradeMeta.js';
+import { isNewerAgentHostBuildAvailable, readAgentHostBuild, readAgentHostUpgradeMethod } from '../../../../../../platform/agentHost/common/meta/agentHostUpgradeMeta.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -236,13 +236,18 @@ export async function runServerUpgrade(accessor: ServicesAccessor, provider: IAg
 /**
  * The method that asks a host's managing VS Code CLI to update its server. A host that rejected
  * this client's protocol version advertises it in the rejection, a connected host in its
- * `initialize` result. `undefined` when the server can't be updated from here.
+ * `initialize` result. A connected host only offers it while it runs an older build than this
+ * client, so an update is available. `undefined` when the server can't be updated from here.
  */
-export function getRemoteHostUpgradeMethod(status: RemoteAgentHostConnectionStatus | undefined, connection: Pick<IAgentConnection, 'initializeResult'> | undefined, reader?: IReader): string | undefined {
+export function getRemoteHostUpgradeMethod(status: RemoteAgentHostConnectionStatus | undefined, connection: Pick<IAgentConnection, 'initializeResult'> | undefined, clientBuild: Pick<IProductService, 'commit' | 'quality' | 'date'>, reader?: IReader): string | undefined {
 	if (RemoteAgentHostConnectionStatus.isIncompatible(status)) {
 		return status.vscodeUpgradeMethod;
 	}
-	return RemoteAgentHostConnectionStatus.isConnected(status) ? readAgentHostUpgradeMethod(connection?.initializeResult.read(reader)) : undefined;
+	if (!RemoteAgentHostConnectionStatus.isConnected(status)) {
+		return undefined;
+	}
+	const result = connection?.initializeResult.read(reader);
+	return isNewerAgentHostBuildAvailable(readAgentHostBuild(result), clientBuild) ? readAgentHostUpgradeMethod(result) : undefined;
 }
 
 /**
@@ -256,7 +261,7 @@ export async function confirmRemoteHostServerUpdate(dialogService: IDialogServic
 	}
 	const { confirmed } = await dialogService.confirm({
 		message: localize('remoteHostUpdateConnected', "Update the server on '{0}'?", label),
-		detail: localize('remoteHostUpdateConnectedDetail', "If a newer version is available, the server restarts, which interrupts sessions running on it, and then reconnects."),
+		detail: localize('remoteHostUpdateConnectedDetail', "A newer version is available. Updating restarts the server, which interrupts sessions running on it, and then reconnects."),
 		primaryButton: localize({ key: 'remoteHostUpdateConnectedButton', comment: ['&& denotes a mnemonic'] }, "&&Update Server"),
 	});
 	return confirmed;
@@ -609,7 +614,7 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 
 	const status = provider.connectionStatus?.get();
 	const isConnected = RemoteAgentHostConnectionStatus.isConnected(status);
-	const upgradeMethod = getRemoteHostUpgradeMethod(status, remoteAgentHostService.getConnection(address));
+	const upgradeMethod = getRemoteHostUpgradeMethod(status, remoteAgentHostService.getConnection(address), productService);
 	// Distinct from `address` for SSH hosts, whose live address is a
 	// forwarded local endpoint - falls back to `address` for hosts with no
 	// separate stable identity (tunnels, WSL, cloud sandbox).

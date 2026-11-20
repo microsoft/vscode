@@ -50,7 +50,7 @@ import { ISessionsProvidersService } from '../../../browser/sessionsProvidersSer
 import { INewSessionComposerService } from '../../../browser/newSessionComposerService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
-import { getConnectionProblem, getGitHubEnvironmentLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
+import { getConnectionProblem, getGitHubEnvironmentLabel, getServerUpdateLabel, getRemoteActivityTime, getRemoteAddressLabel, getRemoteAvailabilityLabel, getRemoteMetadataDetails, getRemoteMetadataLabel, getRemoteStatusGroup, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, remoteStatusGroups as statusGroups, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
 import { RemoteEnvironmentDetails } from './remoteEnvironmentDetails.js';
 import './media/remotesWidget.css';
 import '../../../browser/media/disclosure.css';
@@ -1182,6 +1182,10 @@ export class RemotesWidget extends Disposable {
 		const gitHubEnvironment = getGitHubEnvironmentLabel(remote);
 		if (gitHubEnvironment) {
 			sentences.push(gitHubEnvironment);
+		}
+		const serverUpdate = getServerUpdateLabel(remote);
+		if (serverUpdate) {
+			sentences.push(serverUpdate);
 		}
 		if (remote.contributedBy) {
 			sentences.push(localize('remotes.accessibleContributedBy', "Registered by the {0} extension.", remote.contributedBy.displayName));
