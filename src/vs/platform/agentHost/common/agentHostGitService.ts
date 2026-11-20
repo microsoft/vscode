@@ -88,7 +88,11 @@ export interface IDiffPatchResult {
 export interface IPushOptions {
 	/** The branch or refspec to push. Defaults to the current branch. */
 	readonly ref?: string;
-	/** The remote to push to. Defaults to `origin`. */
+	/**
+	 * The remote to push to. Defaults to the branch's configured push remote,
+	 * else the GitHub remote (preferring `origin`), else `origin`, else the
+	 * only remote.
+	 */
 	readonly remote?: string;
 	/**
 	 * When true, the push uses `-u` so the pushed branch tracks the remote
@@ -357,8 +361,8 @@ export interface IAgentHostGitService {
 	pull(workingDirectory: URI, options?: IPullOptions): Promise<void>;
 
 	/**
-	 * Pushes the current branch (or {@link IPushOptions.ref}) to the remote
-	 * (`origin` unless {@link IPushOptions.remote} overrides it). When
+	 * Pushes the current branch (or {@link IPushOptions.ref}) to
+	 * {@link IPushOptions.remote}, or to the branch's default push remote. When
 	 * {@link IPushOptions.setUpstream} is true, the push uses `-u` so
 	 * subsequent fetch/push commands track the remote branch.
 	 */

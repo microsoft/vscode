@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append, getWindow } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, getWindow } from '../../../../../../base/browser/dom.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -379,6 +379,24 @@ suite('PromptTimelineGutterRail', () => {
 		});
 	});
 
+	test('activates the focused row target with Enter without letting chat keybindings see it', () => {
+		const rail = createRail([tick(0), tick(1, { added: 1, removed: 0, fileCount: 1 })]);
+		const rows = rowParts(rail);
+		const selected: string[] = [];
+		const reviewed: string[] = [];
+		const escaped: string[] = [];
+		store.add(rail.onDidSelect(id => selected.push(id)));
+		store.add(rail.onDidReview(t => reviewed.push(t.requestId)));
+		store.add(addDisposableListener(document.body, 'keydown', e => escaped.push(e.key)));
+
+		rows[0].jump.focus();
+		keydown(rows[0].jump, 'Enter', 13);
+		rows[1].diff.focus();
+		keydown(rows[1].diff, 'Enter', 13);
+
+		assert.deepStrictEqual({ selected, reviewed, escaped }, { selected: ['0'], reviewed: ['1'], escaped: [] });
+	});
+
 	test('keeps focus in the flyout when a streaming update removes the focused review target', () => {
 		const stat = { added: 1, removed: 0, fileCount: 1 };
 		const rail = createRail([tick(0, stat)]);
@@ -483,6 +501,30 @@ suite('PromptTimelineGutterRail', () => {
 		}, {
 			panelReceivesPointer: true,
 			transcriptChromeReceivesPointer: false,
+		});
+	});
+
+	test('widens the transcript gutter for the rail, except for a request being edited inline', () => {
+		const session = document.createElement('div');
+		session.classList.add('interactive-session', 'prompt-timeline-host', 'prompt-timeline-with-gutter');
+		session.style.setProperty('--vscode-spacing-size240', '24px');
+		document.body.appendChild(session);
+		store.add(toDisposable(() => session.remove()));
+		const row = (...classes: string[]) => {
+			const element = document.createElement('div');
+			element.classList.add('interactive-item-container', ...classes);
+			session.appendChild(element);
+			return getWindow(element).getComputedStyle(element).paddingLeft;
+		};
+
+		assert.deepStrictEqual({
+			response: row('interactive-response'),
+			request: row('interactive-request'),
+			editing: row('interactive-request', 'editing'),
+		}, {
+			response: '24px',
+			request: '24px',
+			editing: '0px',
 		});
 	});
 });

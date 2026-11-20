@@ -45,7 +45,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../sessions/common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext, SessionChangesEditorDrawsHeaderContext } from '../../sessions/common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -782,7 +782,7 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
-interface IChangesPickerLabel {
+export interface IChangesPickerLabel {
 	readonly label: string;
 	readonly tooltip?: string;
 	readonly isNonDefault: boolean;
@@ -2199,6 +2199,12 @@ export class VersionsPickerAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: desktopChangesEditorHeader,
+			}, {
+				// The header that the Changes editor draws itself, where the editor part around it does not
+				id: Menus.SessionsEditorHeaderPrimary,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionChangesEditorDrawsHeaderContext),
 			}],
 		});
 	}

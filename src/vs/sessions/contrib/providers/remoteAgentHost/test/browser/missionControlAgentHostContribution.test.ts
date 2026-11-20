@@ -801,7 +801,7 @@ suite('Mission Control native provider inventory', () => {
 		});
 	});
 
-	test('host descriptions contain only availability even for duplicate names', () => {
+	test('host descriptions use overview availability terms even for duplicate names', () => {
 		const { hosts, created } = fixture();
 		const host: IMissionControlHost = { id: 'env_11111111', name: 'Machine', kind: 'user-local', status: 'online' };
 		hosts.set([host], undefined);
@@ -813,7 +813,7 @@ suite('Mission Control native provider inventory', () => {
 		const duplicates = created.map(entry => entry.options.hostDescription!.get());
 		hosts.set([{ ...host, displayName: 'Renamed' }, { ...host, id: 'env_22222222' }], undefined);
 		assert.deepStrictEqual({ online, offline, duplicates, renamed: description.get() }, {
-			online: 'Online', offline: 'Offline', duplicates: ['Online', 'Online'], renamed: 'Online',
+			online: 'Available', offline: 'Offline', duplicates: ['Available', 'Available'], renamed: 'Available',
 		});
 	});
 

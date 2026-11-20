@@ -48,8 +48,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { FileService } from '../../../files/common/fileService.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
@@ -116,7 +118,8 @@ import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaK
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
 import { EmptyOwnershipDatabase, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
-import { ProxyEnvironmentIsolatedAgentHostProxyResolver } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentServiceComposition, ProxyEnvironmentIsolatedAgentHostProxyResolver } from './agentServiceTestUtils.js';
+import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { FileSystemResources } from '../../node/resourceProviders/fileSystemResources.js';
 
 // ---- Mock helpers -----------------------------------------------------------
@@ -4686,6 +4689,46 @@ suite('ProtocolServerHandler', () => {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` } },
 			errorCount: 0,
 			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+		});
+	});
+
+	test('does not serve a cached session-addressed turn changeset on initialize, subscribe, or reconnect', async () => {
+		handler.dispose();
+		const fileService = disposables.add(new FileService(logService));
+		const service = disposables.add(createTestAgentService(logService, fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const { stateManager, chatOwnership } = getTestAgentServiceComposition(service);
+		disposables.add(new ProtocolServerHandler(service, stateManager, server, {}, fileSystemProvider, logService, agentHostTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, chatOwnership, proxyResolver));
+		const session = 'ahp-session:/retired-turn';
+		stateManager.createSession(makeSessionSummary(session));
+		const channel = buildTurnChangesetUri(session, 'turn-1');
+		stateManager.registerChangeset(channel);
+
+		const clientId = 'retired-turn-changeset';
+		const transport = connectClient(clientId, [ROOT_STATE_URI, channel]);
+		const initialized = findResponse(transport.sent, 1) ?? await waitForResponse(transport, 1);
+		assert.ok(hasKey(initialized, { result: true }));
+		assert.deepStrictEqual((initialized.result as InitializeResult).snapshots.map(snapshot => snapshot.resource), [ROOT_STATE_URI]);
+
+		transport.sent.length = 0;
+		stateManager.dispatchServerAction(channel, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+		assert.deepStrictEqual(findNotifications(transport.sent, 'action'), []);
+
+		const subscribed = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel }));
+		assert.deepStrictEqual(await subscribed, {
+			jsonrpc: '2.0', id: 2, error: { code: AHP_SESSION_NOT_FOUND, message: `Resource not found: ${channel}` },
+		});
+
+		transport.simulateClose();
+		const returning = new MockProtocolTransport();
+		server.simulateConnection(returning);
+		const reconnected = waitForResponse(returning, 3);
+		returning.simulateMessage(request(3, 'reconnect', {
+			clientId, lastSeenServerSeq: stateManager.serverSeq, subscriptions: [channel],
+		}));
+		assert.deepStrictEqual(await reconnected, {
+			jsonrpc: '2.0', id: 3, result: { type: 'replay', actions: [], missing: [channel] },
 		});
 	});
 

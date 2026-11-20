@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
@@ -27,14 +27,24 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostConnectionsService, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { ChatPartEnabledContext, ChatPartVisibleContext } from '../../../../../../common/contextkeys.js';
+import { IChatViewHost, IChatViewHostService } from '../../../../browser/chatViewHost.js';
+import { ChatViewHostService } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
+import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
+import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
+import { IViewDescriptorService } from '../../../../../../common/views.js';
+import { IWorkbenchLayoutService } from '../../../../../../services/layout/browser/layoutService.js';
+import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../common/chatSessionsService.js';
 
 suite('Agent host New Chat entries', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('the New Chat dropdown offers New Chat in Worktree with worktree support, with or without the Sessions list, never New Chat (No Workspace), only with AI features on', () => {
-		const shown = (options: { readonly worktree: boolean; readonly sessionsList: boolean; readonly chatPart?: boolean; readonly ai?: boolean; readonly agentHost?: boolean; readonly remote?: string; readonly sessionsWindow?: boolean }) => {
-			const configuration = new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: options.worktree, 'chat.viewSessions.sessionsList.enabled': options.sessionsList });
+		const shown = (options: { readonly worktree: boolean; readonly sessionsList: boolean; readonly chatPart?: { readonly openInChatPart: boolean; readonly enabled: boolean; readonly visible: boolean }; readonly ai?: boolean; readonly agentHost?: boolean; readonly remote?: string; readonly sessionsWindow?: boolean }) => {
+			const configuration = new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: options.worktree, 'chat.viewSessions.sessionsList.enabled': options.sessionsList, [ChatConfiguration.ChatViewSessionsOpenChatIn]: options.chatPart?.openInChatPart ? 'chatArea' : 'chatPanel' });
 			// The Chat view's title in a local window with a single folder
 			const contextKeyService = store.add(new ContextKeyService(configuration));
 			contextKeyService.createKey(ChatContextKeys.enabled.key, options.ai ?? true);
@@ -42,8 +52,9 @@ suite('Agent host New Chat entries', () => {
 			contextKeyService.createKey('remoteName', options.remote ?? '');
 			contextKeyService.createKey(AGENT_HOST_ENABLED_CONTEXT_KEY.key, options.agentHost ?? true);
 			contextKeyService.createKey('isSessionsWindow', options.sessionsWindow ?? false);
-			if (options.chatPart !== undefined) {
-				contextKeyService.createKey('chatPartEnabled', options.chatPart);
+			if (options.chatPart) {
+				contextKeyService.createKey(ChatPartEnabledContext.key, options.chatPart.enabled);
+				contextKeyService.createKey(ChatPartVisibleContext.key, options.chatPart.visible);
 			}
 			return MenuRegistry.getMenuItems(MenuId.ChatNewMenu).filter(isIMenuItem)
 				.filter(item => (item.command.id === NewChatInWorktreeAction.ID || item.command.id === 'workbench.action.chat.newChatWithoutWorkspace') && contextKeyService.contextMatchesRules(item.when))
@@ -59,13 +70,12 @@ suite('Agent host New Chat entries', () => {
 			noAgentHost: shown({ worktree: true, sessionsList: true, agentHost: false }),
 			remote: shown({ worktree: true, sessionsList: true, remote: 'ssh-remote' }),
 			agentsWindow: shown({ worktree: true, sessionsList: true, sessionsWindow: true }),
-			// New Chat opens in the chat area, which cannot start a chat in a worktree yet
-			chatPartEnabled: shown({ worktree: true, sessionsList: true, chatPart: true }),
-			chatPartDisabled: shown({ worktree: true, sessionsList: true, chatPart: false }),
+			// Wherever New Chat starts its chats, the chat part or the Chat view: the entry starts the chat there
+			chatPart: [false, true].flatMap(openInChatPart => [false, true].flatMap(enabled => [false, true].map(visible => shown({ worktree: true, sessionsList: true, chatPart: { openInChatPart, enabled, visible } })))),
 		}, isWeb ? {
 			// In a browser, whose agent host is not available either: `isWeb` is a constant that the entries' `when` takes in as
 			// it is made, so tests in a browser can see only this
-			neither: [], worktree: [], sessionsList: [], both: [], aiOff: [], noAgentHost: [], remote: [], agentsWindow: [], chatPartEnabled: [], chatPartDisabled: [],
+			neither: [], worktree: [], sessionsList: [], both: [], aiOff: [], noAgentHost: [], remote: [], agentsWindow: [], chatPart: Array.from({ length: 8 }, () => []),
 		} : {
 			neither: [],
 			worktree: ['New Chat in Worktree'],
@@ -75,8 +85,7 @@ suite('Agent host New Chat entries', () => {
 			noAgentHost: [],
 			remote: [],
 			agentsWindow: [],
-			chatPartEnabled: [],
-			chatPartDisabled: ['New Chat in Worktree'],
+			chatPart: Array.from({ length: 8 }, () => ['New Chat in Worktree']),
 		});
 	});
 
@@ -153,10 +162,74 @@ suite('Agent host New Chat entries', () => {
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ warn: (message: unknown) => { warnings.push(String(message)); return undefined!; } }));
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => upcastPartial<ResolvedChatSessionsExtensionPoint>({ type: SessionType.AgentHostCopilot, displayName: 'Copilot' }) }));
 		instantiationService.stub(IAgentHostEnablementService, upcastPartial<IAgentHostEnablementService>({ enabled: constObservable(false) }));
+		const newChats: unknown[] = [];
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ replaced: constObservable(true), newChat: async target => { newChats.push(target); return true; } }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode') })] }) }));
 		const run = (id: string) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
 
 		const opened = await run(NewChatInWorktreeAction.ID);
 
-		assert.deepStrictEqual({ opened, warned: warnings.length }, { opened: undefined, warned: 1 });
+		assert.deepStrictEqual({ opened, warned: warnings.length, newChats }, { opened: undefined, warned: 1, newChats: [] });
+	});
+
+	test('New Chat in Worktree starts the chat where New Chat does: in a host that replaces the Chat view, of the local agent host in a new worktree of the folder, else, or where the host does not take it, in the Chat view', async () => {
+		const folder = URI.file('/work/vscode');
+		const run = async (host: 'none' | 'takes' | 'declines') => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const routes: unknown[] = [];
+			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ warn: () => undefined! }));
+			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => upcastPartial<ResolvedChatSessionsExtensionPoint>({ type: SessionType.AgentHostCopilot, displayName: 'Copilot' }) }));
+			instantiationService.stub(IAgentHostEnablementService, upcastPartial<IAgentHostEnablementService>({ enabled: constObservable(true) }));
+			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({
+				replaced: constObservable(host !== 'none'),
+				newChat: async (target, options) => { routes.push({ host: { target, options } }); return host === 'takes'; },
+			}));
+			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }));
+			// The Chat view's path, which seeds the new worktree of its new chat first: here the agent host does not prepare it
+			instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: Event.None, setNewWorktree: () => { routes.push('chatView'); }, isNewWorktree: () => false, clear: () => { } }));
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ onDidChange: Event.None, getPreparedSessionConfig: () => undefined, prepareSessionConfig: async () => { }, releaseSession: () => { } }));
+			instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ onDidChangeSessionResolution: Event.None }));
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(NewChatInWorktreeAction.ID)!.handler(accessor));
+			return routes;
+		};
+
+		const host = { host: { target: { folder, providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilotcli', placement: 'worktree' }, options: undefined } };
+		assert.deepStrictEqual({ none: await run('none'), takes: await run('takes'), declines: await run('declines') }, {
+			none: ['chatView'],
+			takes: [host],
+			declines: [host, 'chatView'],
+		});
+	});
+
+	test('where the host that replaces the Chat view does not take it, New Chat in Worktree prepares its chat in the Chat view, not the Chat view\'s default new chat', async () => {
+		const folder = URI.file('/work/vscode');
+		const instantiationService = store.add(new TestInstantiationService());
+		const routes: string[] = [];
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ warn: () => undefined! }));
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => upcastPartial<ResolvedChatSessionsExtensionPoint>({ type: SessionType.AgentHostCopilot, displayName: 'Copilot' }) }));
+		instantiationService.stub(IAgentHostEnablementService, upcastPartial<IAgentHostEnablementService>({ enabled: constObservable(true) }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }));
+		// The Chat view, whose New Chat starts its default new chat, whatever it aims at
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: <T>() => null as T | null,
+			isViewVisible: () => true,
+			openView: async <T>() => upcastPartial<ChatViewPane>({ newChat: async () => { routes.push('defaultNewChat'); return true; } }) as unknown as T,
+		}));
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		const chatViewHostService = store.add(instantiationService.createInstance(ChatViewHostService));
+		instantiationService.stub(IChatViewHostService, chatViewHostService);
+		// A host that replaces the Chat view and does not take the new chat
+		store.add(chatViewHostService.register({ host: upcastPartial<IChatViewHost>({ newChat: async () => { routes.push('hostDeclines'); return false; } }) }));
+		// The Chat view's own path, which seeds its new chat's worktree first: here the agent host does not prepare it
+		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: Event.None, setNewWorktree: () => { routes.push('prepareWorktree'); }, isNewWorktree: () => false, clear: () => { } }));
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ onDidChange: Event.None, getPreparedSessionConfig: () => undefined, prepareSessionConfig: async () => { }, releaseSession: () => { } }));
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ onDidChangeSessionResolution: Event.None }));
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(NewChatInWorktreeAction.ID)!.handler(accessor));
+
+		assert.deepStrictEqual(routes, ['hostDeclines', 'prepareWorktree']);
 	});
 });

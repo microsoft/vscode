@@ -18,7 +18,7 @@ import { applyArtifactAutomationSelection, artifactOptionConsent, disableArtifac
 import { isArtifactActionDescriptor, isArtifactAuthenticationRequest, isArtifactJsonValue } from './artifactIntegrationValidation.js';
 import { hasValidArtifactPresentationReferences, isArtifactContributionView, isArtifactDetails } from './artifactPresentationValidation.js';
 import { ArtifactExecutionService, IArtifactExecutionBinding } from './artifactExecutionService.js';
-import { getArtifactAutomationNotices } from './artifactIntegrationNotices.js';
+import { getArtifactAutomationNotices, IArtifactAutomationNoticeLabels } from './artifactIntegrationNotices.js';
 import { IArtifactIntegrationRegistry, IRegisteredArtifactIntegration } from './artifactIntegrationRegistry.js';
 import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactIntegrationStore, ArtifactStoredBinding } from './artifactIntegrationStore.js';
 import { ArtifactAutomationNotice, ArtifactSessionState, IArtifactIntegrationStorage, IArtifactRuntime, isArtifactRuntimeAvailable } from './artifactRuntime.js';
@@ -74,9 +74,13 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 		if (this.runtime.postNotice) {
 			const posts = new SequencerByKey<string>();
 			let previous = this.ledger.state.get();
+			const labels: IArtifactAutomationNoticeLabels = {
+				getAgentName: chat => this.runtime.getAgentName?.(chat),
+				getArtifactKind: integrationId => this.registry.integrations.get().find(integration => integration.id === integrationId)?.artifactKind,
+			};
 			this._register(autorun(reader => {
 				const current = this.ledger.state.read(reader);
-				const notices = getArtifactAutomationNotices(previous, current);
+				const notices = getArtifactAutomationNotices(previous, current, labels);
 				previous = current;
 				for (const notice of notices) {
 					void posts.queue(notice.session, async () => {

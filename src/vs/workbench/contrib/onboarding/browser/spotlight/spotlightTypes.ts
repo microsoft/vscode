@@ -50,6 +50,9 @@ export interface ISpotlightStep {
 	/** Callout body (localized string or markdown). */
 	readonly description: string | IMarkdownString;
 
+	/** Handles links in the callout description. */
+	readonly onDidClickLink?: (link: string) => void;
+
 	/** Replaces {@link title} and {@link description} when the target already has a selected value as the step shows. */
 	readonly selectedContent?: {
 		readonly title: string;

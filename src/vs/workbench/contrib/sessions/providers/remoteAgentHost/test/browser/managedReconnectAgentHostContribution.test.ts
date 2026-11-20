@@ -72,7 +72,7 @@ suite('ManagedReconnectAgentHostContribution', () => {
 
 	test('incompatible reconnect status reports the versions offered by the client', async () => {
 		const { contribution, statuses } = setup();
-		await contribution.attempt(new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] }));
+		await assert.rejects(contribution.attempt(new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] })), /Unsupported protocol version/);
 		assert.deepStrictEqual(statuses, [
 			RemoteAgentHostConnectionStatus.connecting,
 			RemoteAgentHostConnectionStatus.disconnected,
@@ -82,13 +82,13 @@ suite('ManagedReconnectAgentHostContribution', () => {
 
 	test('provider status does not embed the last connection error', async () => {
 		const { contribution, statuses } = setup();
-		await contribution.attempt(new Error('connect ECONNREFUSED 127.0.0.1:43192'));
+		await assert.rejects(contribution.attempt(new Error('connect ECONNREFUSED 127.0.0.1:43192')), /ECONNREFUSED/);
 		assert.deepStrictEqual(statuses.at(-1), RemoteAgentHostConnectionStatus.disconnected);
 	});
 
 	test('user cancellation keeps a plain disconnected status without an error warning', async () => {
 		const { contribution, statuses } = setup();
-		await contribution.attempt(new CancellationError(), true);
+		await assert.rejects(contribution.attempt(new CancellationError(), true), CancellationError);
 		assert.deepStrictEqual(statuses, [RemoteAgentHostConnectionStatus.connecting, RemoteAgentHostConnectionStatus.disconnected]);
 	});
 

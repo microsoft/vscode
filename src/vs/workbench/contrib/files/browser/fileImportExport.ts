@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
-import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStat, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IExplorerService } from './files.js';
@@ -535,13 +535,23 @@ export class ExternalFileImport {
 				}
 
 				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
+					const targetFile = joinPath(target.resource, basename(resource));
+					if (await canMergeFolders(this.fileService, resource, targetFile)) {
+						const choice = await confirmMergeOrReplace(this.dialogService, [targetFile]);
+						if (choice === FolderConflictChoice.Cancel) {
+							return undefined;
+						}
+
+						return { resource, merge: choice === FolderConflictChoice.Merge };
+					}
+
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
 						return undefined;
 					}
 				}
 
-				return resource;
+				return { resource, merge: false };
 			}))));
 
 			if (inaccessibleFileCount > 0) {
@@ -549,20 +559,24 @@ export class ExternalFileImport {
 			}
 
 			// Copy resources through bulk edit API
-			const resourceFileEdits = resourcesFiltered.map(resource => {
+			const resourceFileEdits = (await Promise.all(resourcesFiltered.map(async ({ resource, merge }) => {
+				if (merge) {
+					return getMergeFileEdits(this.fileService, [resource], target.resource, true);
+				}
+
 				const sourceFileName = basename(resource);
 				const targetFile = joinPath(target.resource, sourceFileName);
 
-				return new ResourceFileEdit(resource, targetFile, { overwrite: true, copy: true });
-			});
+				return [new ResourceFileEdit(resource, targetFile, { overwrite: true, copy: true })];
+			}))).flat();
 
 			const undoLevel = this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 			await this.explorerService.applyBulkEdit(resourceFileEdits, {
 				undoLabel: resourcesFiltered.length === 1 ?
-					localize({ comment: ['substitution will be the name of the file that was imported'], key: 'importFile' }, "Import {0}", basename(resourcesFiltered[0])) :
+					localize({ comment: ['substitution will be the name of the file that was imported'], key: 'importFile' }, "Import {0}", basename(resourcesFiltered[0].resource)) :
 					localize({ comment: ['substitution will be the number of files that were imported'], key: 'importnFile' }, "Import {0} resources", resourcesFiltered.length),
 				progressLabel: resourcesFiltered.length === 1 ?
-					localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0])) :
+					localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0].resource)) :
 					localize({ comment: ['substitution will be the number of files that were copied'], key: 'copyingnFile' }, "Copying {0} resources", resourcesFiltered.length),
 				progressLocation: ProgressLocation.Window,
 				confirmBeforeUndo: undoLevel === UndoConfirmLevel.Verbose || undoLevel === UndoConfirmLevel.Default,
@@ -570,7 +584,7 @@ export class ExternalFileImport {
 
 			// if we only add one file, just open it directly
 			const autoOpen = this.configurationService.getValue<IFilesConfiguration>().explorer.autoOpenDroppedFile;
-			if (autoOpen && resourceFileEdits.length === 1) {
+			if (autoOpen && resourcesFiltered.length === 1 && !resourcesFiltered[0].merge) {
 				const item = this.explorerService.findClosest(resourceFileEdits[0].newResource!);
 				if (item && !item.isDirectory) {
 					this.editorService.openEditor({ resource: item.resource, options: { pinned: true } });
@@ -885,6 +899,104 @@ export function getMultipleFilesOverwriteConfirm(files: URI[]): IConfirmation {
 	}
 
 	return getFileOverwriteConfirm(basename(files[0]));
+}
+
+export enum FolderConflictChoice {
+	Merge,
+	Replace,
+	Cancel
+}
+
+/**
+ * Asks the user whether folders that already exist in the destination folder
+ * should be merged with the folders being moved or copied, or be replaced.
+ */
+export async function confirmMergeOrReplace(dialogService: IDialogService, files: URI[]): Promise<FolderConflictChoice> {
+	const detail = [
+		localize('mergeDetail', "Merging combines the contents of the folders and replaces files with the same name."),
+		localize('irreversible', "This action is irreversible!")
+	];
+	if (files.length > 1) {
+		detail.unshift(getFileNamesMessage(files));
+	}
+
+	const { result } = await dialogService.prompt<FolderConflictChoice>({
+		type: Severity.Warning,
+		message: files.length > 1 ?
+			localize('confirmManyMerges', "The following {0} files and/or folders already exist in the destination folder. Do you want to merge or replace them?", files.length) :
+			localize('confirmMerge', "A folder with the name '{0}' already exists in the destination folder. Do you want to merge or replace it?", basename(files[0])),
+		detail: detail.join('\n'),
+		buttons: [
+			{
+				label: localize({ key: 'mergeButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Merge"),
+				run: () => FolderConflictChoice.Merge
+			},
+			{
+				label: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+				run: () => FolderConflictChoice.Replace
+			}
+		],
+		cancelButton: {
+			run: () => FolderConflictChoice.Cancel
+		}
+	});
+
+	return result;
+}
+
+/**
+ * Returns whether `source` is a folder that can be merged into the existing folder `target`.
+ */
+export async function canMergeFolders(fileService: IFileService, source: URI, target: URI): Promise<boolean> {
+	return await isExistingMergeableFolder(fileService, source) && await isExistingMergeableFolder(fileService, target);
+}
+
+/**
+ * Computes the edits to move or copy `sources` into the folder `target`. Folders
+ * that already exist in `target` are merged recursively instead of being replaced,
+ * files that already exist are replaced. When moving, the merged source folders
+ * are deleted after their contents have been moved.
+ */
+export async function getMergeFileEdits(fileService: IFileService, sources: readonly URI[], target: URI, copy: boolean): Promise<ResourceFileEdit[]> {
+	const edits: ResourceFileEdit[] = [];
+	for (const source of sources) {
+		await collectMergeFileEdits(fileService, await fileService.stat(source), target, copy, edits);
+	}
+
+	return edits;
+}
+
+type MergeSource = Pick<IFileStat, 'resource' | 'name' | 'isDirectory' | 'isSymbolicLink'>;
+
+async function collectMergeFileEdits(fileService: IFileService, source: MergeSource, target: URI, copy: boolean, edits: ResourceFileEdit[]): Promise<void> {
+	const newResource = joinPath(target, source.name);
+	if (isMergeableFolder(source) && await isExistingMergeableFolder(fileService, newResource)) {
+		const { children } = await fileService.resolve(source.resource);
+		for (const child of children ?? []) {
+			await collectMergeFileEdits(fileService, child, newResource, copy, edits);
+		}
+
+		if (!copy) {
+			// Not recursive so that the folder is only deleted if all of its contents have been moved
+			edits.push(new ResourceFileEdit(source.resource, undefined, { folder: true, skipTrashBin: true }));
+		}
+	} else {
+		edits.push(new ResourceFileEdit(source.resource, newResource, { overwrite: true, copy }));
+	}
+}
+
+function isMergeableFolder(stat: MergeSource): boolean {
+	// Symbolic links (as source or as target) are moved, copied or replaced as is
+	// instead of merging the contents of the folder they point to
+	return stat.isDirectory && !stat.isSymbolicLink;
+}
+
+async function isExistingMergeableFolder(fileService: IFileService, resource: URI): Promise<boolean> {
+	try {
+		return isMergeableFolder(await fileService.stat(resource));
+	} catch {
+		return false;
+	}
 }
 
 //#endregion

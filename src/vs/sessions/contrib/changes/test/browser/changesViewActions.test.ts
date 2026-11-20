@@ -55,7 +55,7 @@ import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISess
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService, NoChangesEditorScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { IsPhoneLayoutContext, SessionArtifactIntegrationsEnabledContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionArtifactIntegrationsEnabledContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext, SessionChangesEditorDrawsHeaderContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
@@ -312,6 +312,7 @@ suite('Changes View Actions', () => {
 					hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
 					hasTransitionGate: when.includes(DesktopChangesEditorTransitionContext.key),
 					hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
+					hasOwnHeaderGate: when.includes(SessionChangesEditorDrawsHeaderContext.key),
 				};
 			}),
 			visibleWhileCatalogueLoads,
@@ -320,11 +321,19 @@ suite('Changes View Actions', () => {
 			hiddenForOtherEditor,
 			mobileHeaderHasDiffStatsAction,
 		}, {
+			// The header that the editor part draws, then the one that the Changes editor draws itself where it does not
 			desktopHeader: [{
 				id: 'chatEditing.versionsPicker',
 				hasActiveEditorGate: true,
 				hasTransitionGate: true,
 				hasDesktopLayoutGate: true,
+				hasOwnHeaderGate: false,
+			}, {
+				id: 'chatEditing.versionsPicker',
+				hasActiveEditorGate: false,
+				hasTransitionGate: false,
+				hasDesktopLayoutGate: false,
+				hasOwnHeaderGate: true,
 			}],
 			visibleWhileCatalogueLoads: true,
 			hiddenWithoutEditor: true,
@@ -757,9 +766,9 @@ suite('Changes View Actions', () => {
 		const withFileList = render(true);
 		const filesViewAndPosition = getLabels(Menus.ChangesFilesViewAndPosition, withFileListContext!);
 		assert.deepStrictEqual({ withFileList, filesViewAndPosition, withoutFileList: render(false) }, {
-			withFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
-			filesViewAndPosition: [['1_view', ['View as List', 'View as Tree']], ['2_position', ['On the Left', 'On the Right']]],
-			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
+			withFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [] },
+			filesViewAndPosition: [['1_view', ['View as List', 'View as Tree']], ['2_position', ['Left', 'Right']]],
+			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [] },
 		});
 	});
 

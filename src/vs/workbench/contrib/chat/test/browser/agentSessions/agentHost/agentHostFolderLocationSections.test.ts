@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { groupFolderLocations } from '../../common/folderLocationSections.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { groupFolderLocations } from '../../../../browser/agentSessions/agentHost/agentHostFolderLocationSections.js';
 
 suite('FolderLocationSections', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -74,7 +75,9 @@ export type LocalAgentHostRegistration = 'devTunnel' | 'githubEnvironment';
 export function getAgentHostConnectionStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	return status.kind === 'connected' ? localize('agentHost.connected', "Connected")
 		: status.kind === 'connecting' ? localize('agentHost.connecting', "Connecting")
-			: localize('agentHost.disconnected', "Disconnected");
+			: status.kind === 'reconnecting' ? localize('agentHost.reconnecting', "Reconnecting")
+				: status.kind === 'incompatible' ? localize('agentHost.updateRequired', "Update required")
+					: localize('agentHost.disconnected', "Disconnected");
 }
 
 /**
@@ -196,6 +199,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+	/** Successful session-list revision for this connection; zero means the host list has not resolved. */
+	readonly sessionListVersion?: IObservable<number>;
 	/** Progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Opens this host's connection log, including while connecting. */
@@ -495,7 +500,7 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 }
 
-export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+export { LOCAL_AGENT_HOST_PROVIDER_ID };
 
 export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;

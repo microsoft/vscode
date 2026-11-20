@@ -44,6 +44,17 @@
 	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap) + var(--prompt-timeline-scrollbar-gutter));
 }
 
+/* The gutter rail's handle sits in the transcript rows' left padding. The Agents window's centered rows
+ * already leave room for it; elsewhere the rows' default padding would put the dots against the
+ * message text, so widen it while the gutter rail is mounted (`.prompt-timeline-with-gutter`). The
+ * second selector mirrors chat.css's `.interactive-session:not(.chat-widget > .interactive-session)`
+ * row padding so it outranks it. A request being edited inline keeps its own (zero) padding: its
+ * composer is laid out from the full widget width, so narrowing the row would clip the editor. */
+.prompt-timeline-host.prompt-timeline-with-gutter.interactive-session .interactive-item-container:not(.chat-sticky-progress, .editing),
+.prompt-timeline-host.prompt-timeline-with-gutter.interactive-session:not(.chat-widget > .interactive-session) .interactive-item-container:not(.chat-sticky-progress, .editing) {
+	padding-left: var(--vscode-spacing-size240);
+}
+
 .prompt-timeline-rail.hidden {
 	display: none;
 }
