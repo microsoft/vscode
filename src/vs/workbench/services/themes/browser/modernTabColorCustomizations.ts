@@ -8,6 +8,7 @@ import { ColorIdentifier, editorBackground } from '../../../../platform/theme/co
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, TAB_UNFOCUSED_HOVER_FOREGROUND, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { ColorThemeData } from '../common/colorThemeData.js';
+import { resolveTabDividerBorderCustomization } from '../common/tabDividerColor.js';
 
 /**
  * Resolves the tab color to emit as a Modern UI variable, or `undefined` to leave the CSS default in place.
@@ -91,6 +92,7 @@ function collectModernTabColorCustomizations(theme: ColorThemeData, collector: (
 	addColorVariable(collector, '--modern-ui-editor-tab-unfocused-hover-foreground', resolveLegacyTabColor(theme, TAB_UNFOCUSED_HOVER_FOREGROUND, [MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_TAB_HOVER_FOREGROUND], TAB_HOVER_FOREGROUND));
 	addColorVariable(collector, '--modern-ui-editor-tab-border', tabBorder);
 	addColorVariable(collector, '--modern-ui-editor-tab-custom-border', tabBorder);
+	addColorVariable(collector, '--vscode-tab-divider', resolveTabDividerBorderCustomization(theme));
 	addColorVariable(collector, '--modern-ui-editor-tab-last-pinned-border', resolveLegacyTabColor(theme, TAB_LAST_PINNED_BORDER, []));
 	addColorVariable(collector, '--modern-ui-editor-tab-active-border', resolveLegacyTabColor(theme, TAB_ACTIVE_BORDER, []));
 	addColorVariable(collector, '--modern-ui-editor-tab-unfocused-active-border', resolveLegacyTabColor(theme, TAB_UNFOCUSED_ACTIVE_BORDER, [], TAB_ACTIVE_BORDER));

@@ -229,6 +229,8 @@ export const EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND = registerColor('edit
 
 export const EDITOR_GROUP_HEADER_TABS_BORDER = registerColor('editorGroupHeader.tabsBorder', null, localize('tabsContainerBorder', "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
+export const EDITOR_GROUP_HEADER_CONNECTED_TABS_BORDER = registerColor('editorGroupHeader.connectedTabsBorder', null, localize('connectedTabsContainerBorder', "Border color of the selected connected tab outline and the separator beneath connected tabs in editor and panel title headers. When not set, the editor group or panel border is used."));
+
 export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroupHeader.noTabsBackground', editorBackground, localize('editorGroupHeaderBackground', "Background color of the editor group title header when (`\"workbench.editor.showTabs\": \"single\"`). Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_BORDER = registerColor('editorGroupHeader.border', {

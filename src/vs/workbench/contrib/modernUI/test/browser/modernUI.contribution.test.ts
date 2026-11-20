@@ -2866,6 +2866,39 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('connected tab outlines prefer the connected tabs border', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		for (const [name, value] of Object.entries({
+			'--vscode-editorGroupHeader-tabsBorder': '#111111',
+			'--vscode-modernPanel-border': '#222222',
+			'--vscode-contrastBorder': '#333333',
+		})) {
+			root.style.setProperty(name, value);
+		}
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const group = appendElement(appendElement(appendElement(root, 'part editor'), 'content'), 'editor-group-container');
+		const parts = ['sidebar', 'auxiliarybar', 'panel'].map(part => appendElement(root, `part ${part}`));
+		const borders = () => [group, ...parts].map(element => getWindow(root).getComputedStyle(element).getPropertyValue('--modern-ui-connected-tab-border').trim());
+
+		const unset = borders();
+		root.style.setProperty('--vscode-editorGroupHeader-connectedTabsBorder', '#444444');
+		const connected = borders();
+		root.style.setProperty('--modern-ui-editor-tab-custom-border', '#555555');
+		const customized = borders();
+		root.classList.add('hc-black');
+		const highContrast = borders();
+
+		assert.deepStrictEqual({ unset, connected, customized, highContrast }, {
+			unset: ['#111111', '#222222', '#222222', '#222222'],
+			connected: ['#444444', '#444444', '#444444', '#444444'],
+			customized: ['#555555', '#444444', '#444444', '#444444'],
+			highContrast: ['#333333', '#333333', '#333333', '#333333'],
+		});
+	});
+
 	test('uses the modern UI shell background color', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels';
@@ -5189,6 +5222,7 @@ suite('ModernUIContribution', () => {
 			modernEditorTabColors,
 			editorGroupHeaderColors: [
 				'editorGroupHeader.connectedTabsBackground',
+				'editorGroupHeader.connectedTabsBorder',
 				'editorGroupHeader.tabsBackground',
 				'editorGroupHeader.tabsBorder',
 			].filter(id => ids.includes(id)),
@@ -5244,6 +5278,7 @@ suite('ModernUIContribution', () => {
 			],
 			editorGroupHeaderColors: [
 				'editorGroupHeader.connectedTabsBackground',
+				'editorGroupHeader.connectedTabsBorder',
 				'editorGroupHeader.tabsBackground',
 				'editorGroupHeader.tabsBorder',
 			],
