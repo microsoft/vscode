@@ -3,71 +3,120 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../media/automationsCards.css';
-import './automationsAccessibility.js';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { toAction } from '../../../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../base/common/objects.js';
+import { autorun, constObservable, derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { type AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
-import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
-import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
-import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { getAutomationAfterDate } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
-
-import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { Menus } from '../../../../browser/menus.js';
-import { Action2, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../../base/common/actions.js';
-import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../common/contextkeys.js';
-import { SessionsFlatList, SessionItemStatusContext } from './sessionsList.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
-import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import type { AutomationTarget, IAutomationDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AUTOMATION_BLUEPRINT_FILE_SUFFIX } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
+import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { observableShowSharedAutomationsByOthers } from '../../../../../workbench/contrib/chat/common/automations/automationViewState.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, AutomationsHasOthersContext, ShowSharedAutomationsByOthersContext } from '../../../../common/agentsWindowContextKeys.js';
+import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
+import { formatSchedule, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getAutomationsViewContent, getConnectedAutomationRemoteCount, getUnavailableAutomationsReasons, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
+import { isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
+import { AUTOMATIONS_MODAL_SETTING } from '../../../automations/browser/automationsEditorInput.js';
+
+
+import '../../../../../workbench/contrib/sessions/browser/media/disclosure.css';
+import '../media/automationsCards.css';
+import './automationsAccessibility.js';
+
+
+import { AutomationHeaderButtonActionViewItem, AutomationHeaderSplitButtonActionViewItem } from '../../../automations/browser/automationActionViewItems.js';
+import { AutomationCommands, getErrorMessage, importAutomationBlueprint, isAutomationBlueprintResource, refreshAutomations, showAutomationEditDialog, showAutomationsDisabled } from '../../../automations/browser/automationCommands.js';
+
+import { AutomationHistorySection, markAllAutomationRunsRead, resolveAutomationRunSessions } from '../../../automations/browser/automationRunHistory.js';
+
 
 const $ = DOM.$;
-const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
+
+
+
+
+
+
+
+
+
+
 export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
+export const SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY = 'sessions.automations.showDisabled';
+const ShowDisabledAutomationsContext = new RawContextKey<boolean>('sessionsAutomationsShowDisabled', false);
+const TOGGLE_SHOW_DISABLED_AUTOMATIONS_COMMAND_ID = 'sessions.automations.toggleShowDisabled';
+/** Onboarding spotlight targets shared by creation introductions and checklist tours. */
+const AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID = 'sessions.automations.templates';
+const CREATE_AUTOMATION_ONBOARDING_TARGET_ID = 'sessions.automations.create';
+const CREATE_AUTOMATION_WITH_AGENT_COMMAND_ID = 'sessions.automations.createWithAgent';
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanUpdateContext = new RawContextKey<boolean>('sessionsAutomationCardCanUpdate', false);
+const AutomationCardHasExternalResourceContext = new RawContextKey<boolean>('sessionsAutomationCardHasExternalResource', false);
 const AutomationCardEnabledContext = new RawContextKey<boolean>('sessionsAutomationCardEnabled', false);
+const AutomationCardHasLimitsContext = new RawContextKey<boolean>('sessionsAutomationCardHasLimits', false);
+
+
+const AutomationCardIsCloudContext = new RawContextKey<boolean>('sessionsAutomationCardIsCloud', false);
+const AutomationCardHasEventTriggerContext = new RawContextKey<boolean>('sessionsAutomationCardHasEventTrigger', false);
 
 function areAutomationTemplatesEqual(first: readonly IAutomationTemplate[], second: readonly IAutomationTemplate[]): boolean {
 	return first.length === second.length && first.every((template, index) => {
@@ -78,9 +127,12 @@ function areAutomationTemplatesEqual(first: readonly IAutomationTemplate[], seco
 			&& template.prompt === other.prompt
 			&& template.enabled === other.enabled
 			&& template.schedule.interval === other.schedule.interval
+			&& template.schedule.cronExpression === other.schedule.cronExpression
+			&& template.schedule.cronTimeZone === other.schedule.cronTimeZone
 			&& template.schedule.scheduleHour === other.schedule.scheduleHour
 			&& template.schedule.scheduleMinute === other.schedule.scheduleMinute
 			&& template.schedule.scheduleDay === other.schedule.scheduleDay
+			&& equals(template.disableConditions ?? [], other.disableConditions ?? [])
 			&& template.source?.label === other.source?.label
 			&& ((!template.source && !other.source) || (!!template.source && !!other.source && isEqual(template.source.uri, other.source.uri)));
 	});
@@ -98,39 +150,42 @@ interface IAutomationCardEntry {
 	readonly runButton: IButton;
 	readonly moreActionsButton: IButton;
 	readonly canDeleteContext: IContextKey<boolean>;
+	readonly hasExternalResourceContext: IContextKey<boolean>;
 	readonly canUpdateContext: IContextKey<boolean>;
 	readonly enabledContext: IContextKey<boolean>;
+	readonly hasLimitsContext: IContextKey<boolean>;
+	readonly isCloudContext: IContextKey<boolean>;
+	readonly hasEventTriggerContext: IContextKey<boolean>;
 	readonly nameText: HTMLElement;
+	readonly startingIcon: HTMLElement;
+	readonly startingRuns: ISettableObservable<ReadonlySet<string> | undefined>;
 	readonly scheduleEl: HTMLElement;
+	readonly scheduleHover: MutableDisposable<IDisposable>;
+	readonly scheduleRefresh: MutableDisposable<IDisposable>;
 	readonly folderEl: HTMLElement;
 	readonly folderHover: MutableDisposable<IDisposable>;
 	readonly promptEl: HTMLElement;
-	readonly disabledBadge: HTMLElement;
 	readonly disposables: DisposableStore;
 }
 
-interface IAutomationHistoryItem {
-	readonly run: IAutomationRun;
-	readonly session: ISession;
-}
-
-interface IAutomationHistoryGroup {
-	readonly element: HTMLElement;
-	readonly header: HTMLElement;
-	readonly temporaryRowsContainer: HTMLElement;
-	readonly temporaryRows: DisposableMap<string, IAutomationTemporaryRunRow>;
-	readonly listContainer: HTMLElement;
-	readonly listDisposables: MutableDisposable<DisposableStore>;
-	list: SessionsFlatList | undefined;
-	readonly runsBySession: Map<string, IAutomationRun>;
-	sessions: readonly ISession[];
-	readonly disposables: DisposableStore;
-}
-
-interface IAutomationTemporaryRunRow extends IDisposable {
-	readonly element: HTMLElement;
+interface IAutomationOwnershipSection {
+	readonly section: HTMLDetailsElement;
+	readonly summary: HTMLElement;
 	readonly title: HTMLElement;
+	readonly grid: HTMLElement;
+	readonly emptyState: HTMLElement | undefined;
+	readonly disposables: DisposableStore;
 }
+
+
+
+
+
+
+
+
+
+
 
 interface IAutomationTemplateSectionOptions {
 	readonly className: string;
@@ -174,9 +229,33 @@ export class AutomationsCardsWidget extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
+		logAutomationViewShown(this.telemetryService);
+		const showSharedByOthers = observableShowSharedAutomationsByOthers(this, storageService, this._store);
+		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
+		const visibleContent = derived(this, reader => {
+			configurationChanged.read(reader);
+			return getAutomationsViewContent(
+				this.automationService.automations.read(reader),
+				this.automationService.runs.read(reader),
+				showSharedByOthers.read(reader),
+				configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
+			);
+		});
+		const visibleAutomations = derived(this, reader => {
+			configurationChanged.read(reader);
+			return getAutomationsViewContent(
+				this.automationService.automations.read(reader), [],
+				showSharedByOthers.read(reader),
+				configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
+			).automations;
+		});
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
 		const focusContext = AutomationsCustomViewFocusContext.bindTo(contextKeyService);
@@ -185,15 +264,30 @@ export class AutomationsCardsWidget extends Disposable {
 		this._register(focusTracker.onDidBlur(() => focusContext.set(false)));
 		this._register(toDisposable(() => focusContext.reset()));
 		const scrollContent = DOM.append(this.element, $('.automations-cards-scroll-content'));
-
 		this.cardsSection = this._register(instantiationService.createInstance(AutomationCardsSection, scrollContent, this.element));
-		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.element, this.isMarkingAllRead));
+		const historyState = DOM.append(scrollContent, $('.automations-history-state', { role: 'status' }));
+		this._register(autorun(reader => {
+			const state = this.automationService.historyState?.read(reader);
+			const catalogueState = this.automationService.catalogueState.read(reader);
+			const hasAutomations = visibleAutomations.read(reader).length > 0;
+			const hasRuns = visibleContent.read(reader).runs.length > 0;
+			const message = state === 'error'
+				? hasRuns
+					? localize('historyRefreshFailed', "Run history could not be refreshed. Showing the last available history. Use Refresh to try again.")
+					: localize('historyLoadFailed', "Run history could not be loaded. Use Refresh to try again.")
+				: catalogueState === 'ready' && (state === undefined || state === 'ready') && hasAutomations && !hasRuns ? localize('historyEmpty', "No runs yet. Wait for the automation's next trigger, or run it now when available.") : '';
+			historyState.textContent = message;
+			historyState.style.display = message ? '' : 'none';
+		}));
+		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.element, this.isMarkingAllRead, {}));
 
 		this._register(autorun(reader => {
 			const catalogueState = this.automationService.catalogueState.read(reader);
-			const items = this.automationService.automations.read(reader);
+			this.automationService.availableProviders.read(reader);
+			const unavailableProviders = this.automationService.unavailableProviders.read(reader);
+			const items = visibleAutomations.read(reader);
 			const templates = readAutomationTemplates(this.agentPluginService.plugins.read(reader), reader);
-			this.cardsSection.render(items, catalogueState, templates);
+			this.cardsSection.render(items, catalogueState, unavailableProviders, templates, this.cardsSection.showDisabled.read(reader));
 		}));
 
 		const sessionDeleted = observableSignalFromEvent(this, this.sessionsManagementService.onDidDeleteSession);
@@ -204,24 +298,32 @@ export class AutomationsCardsWidget extends Disposable {
 			}
 			sessionDeleted.read(reader);
 			sessionsChanged.read(reader);
+			this.automationService.availableProviders.read(reader);
+			this.automationService.catalogueState.read(reader);
 			this.automationService.automations.read(reader);
-			const allRuns = this.automationService.runs.read(reader);
-			const sessionsByResource = new Map(this.sessionsManagementService.getSessions().map(session => [
-				this.uriIdentityService.extUri.getComparisonKey(session.resource),
-				session,
-			]));
-			const sessions = new Map<string, ISession>();
-			for (const run of allRuns) {
-				if (!run.sessionResource) {
-					continue;
-				}
-				const session = sessionsByResource.get(this.uriIdentityService.extUri.getComparisonKey(run.sessionResource));
-				if (session) {
-					sessions.set(run.id, session);
-				}
-			}
-			this.historySection.render(allRuns, sessions);
+			const allRuns = visibleContent.read(reader).runs;
+			const sessions = resolveAutomationRunSessions(allRuns, this.sessionsManagementService.getSessions(), this.uriIdentityService);
+			this.historySection.render(allRuns, sessions, reader);
+			this.cardsSection.setPresentedRunIds(sessions.keys());
 		}));
+		const refreshScheduler = this._register(new RunOnceScheduler(() => {
+			void refresh();
+		}, 60_000));
+		const refresh = async (): Promise<void> => {
+			refreshScheduler.cancel();
+			await refreshAutomations(this.automationService, this.logService, undefined, { background: true });
+			if (!this._store.isDisposed && !this.automationService.isRefreshing?.get()) {
+				refreshScheduler.schedule();
+			}
+		};
+		this._register(autorun(reader => {
+			if (this.automationService.isRefreshing?.read(reader)) {
+				refreshScheduler.cancel();
+			} else {
+				refreshScheduler.schedule();
+			}
+		}));
+		void refresh();
 	}
 
 	layout(width: number, height: number): void {
@@ -241,6 +343,7 @@ export class AutomationsCardsWidget extends Disposable {
  */
 class AutomationCardsSection extends Disposable {
 
+	readonly showDisabled: ISettableObservable<boolean>;
 	private readonly container: HTMLElement;
 	private readonly emptyContainer: HTMLElement;
 	private readonly loadingContainer: HTMLElement;
@@ -249,11 +352,12 @@ class AutomationCardsSection extends Disposable {
 	private readonly templatesContainer: HTMLElement;
 	private readonly partialStateContainer: HTMLElement;
 	private readonly dropOverlay: HTMLElement;
-	private readonly partialLoadingIcon: HTMLElement;
 	private readonly partialErrorIcon: HTMLElement;
 	private readonly partialStateMessage: HTMLElement;
 	private readonly persistentCards = new Map<string, IAutomationCardEntry>();
+	private readonly ownershipSections = new Map<string, IAutomationOwnershipSection>();
 	private readonly latestAutomations = new Map<string, IAutomationDescriptor>();
+	private readonly presentedRunIds = observableValue<ReadonlySet<string>>(this, new Set());
 	private readonly emptyStateDisposables = this._register(new DisposableStore());
 	private readonly templateDisposables = this._register(new DisposableStore());
 	private readonly stateDisposables = this._register(new DisposableStore());
@@ -273,9 +377,14 @@ class AutomationCardsSection extends Disposable {
 	private emptyCreateButton: IButton | undefined;
 	private readonly loadingCreateButton: IButton;
 	private readonly unavailableCreateButton: IButton;
+	private readonly unavailableDescription: HTMLElement;
 	private readonly errorCreateButton: IButton;
 	private visibleContainer: HTMLElement | undefined;
 	private partialState: AutomationCatalogueState = 'ready';
+	private partialUnavailableProviders: readonly IAutomationProviderDescriptor[] = [];
+	private manageRemotesVisible = false;
+	private managedDisconnectedProviderIds: ReadonlySet<string> = new Set();
+	private ignoredGitHubEnvironmentProviderIds: ReadonlySet<string> = new Set();
 	private pendingFocusAutomationId: string | undefined;
 	private focusRequestGeneration = 0;
 
@@ -293,26 +402,40 @@ class AutomationCardsSection extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IMissionControlEnvironmentService private readonly missionControlEnvironmentService: IMissionControlEnvironmentService,
 	) {
 		super();
+		// Storage restores the preference; delayed storage echoes must not overwrite live input.
+		this.showDisabled = observableValue(this, this.storageService.getBoolean(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE, false));
+		const showDisabledContext = ShowDisabledAutomationsContext.bindTo(this.contextKeyService);
+		this._register(toDisposable(() => showDisabledContext.reset()));
+		this._register(autorun(reader => showDisabledContext.set(this.showDisabled.read(reader))));
+		this._register(CommandsRegistry.registerCommand(TOGGLE_SHOW_DISABLED_AUTOMATIONS_COMMAND_ID, () => {
+			this.showDisabled.set(!this.showDisabled.get(), undefined);
+			this.storageService.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, this.showDisabled.get(), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}));
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, this._store)(() => {
 			this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
 			this.updatePluginTemplateUnreadState(false);
 		}));
+		this.container = DOM.append(parent, $('.automations-cards-grid'));
+		this.container.style.display = 'none';
 		this.partialStateContainer = DOM.append(parent, $('.automations-cards-partial-state'));
 		this.partialStateContainer.setAttribute('role', 'status');
 		this.partialStateContainer.setAttribute('aria-live', 'polite');
 		this.partialStateContainer.style.display = 'none';
-		this.partialLoadingIcon = DOM.append(this.partialStateContainer, $('span.automations-cards-partial-state-icon'));
-		this.partialLoadingIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
-		this.partialLoadingIcon.setAttribute('aria-hidden', 'true');
 		this.partialErrorIcon = DOM.append(this.partialStateContainer, $('span.automations-cards-partial-state-icon'));
 		this.partialErrorIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
 		this.partialErrorIcon.setAttribute('aria-hidden', 'true');
-		this.partialStateMessage = DOM.append(this.partialStateContainer, $('span.automations-cards-partial-state-message'));
-		this.container = DOM.append(parent, $('.automations-cards-grid'));
-		this.container.style.display = 'none';
+		const partialStateContent = DOM.append(this.partialStateContainer, $('.automations-cards-partial-state-content'));
+		this.partialStateMessage = DOM.append(partialStateContent, $('div.automations-cards-partial-state-message'));
 		this.emptyContainer = DOM.append(parent, $('.automations-cards-empty'));
 		this.emptyContainer.style.display = 'none';
 		this.loadingContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-loading'));
@@ -320,7 +443,11 @@ class AutomationCardsSection extends Disposable {
 		this.loadingCreateButton = this.renderLoadingState();
 		this.unavailableContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-unavailable'));
 		this.unavailableContainer.style.display = 'none';
-		this.unavailableCreateButton = this.renderUnavailableState();
+		const unavailableState = this.renderUnavailableState();
+		this.unavailableCreateButton = unavailableState.createButton;
+		this.unavailableDescription = unavailableState.description;
+		this.renderManageRemotesLink(partialStateContent);
+		this.renderManageRemotesLink(unavailableState.manageRemotesTarget);
 		this.errorContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-error'));
 		this.errorContainer.style.display = 'none';
 		this.errorCreateButton = this.renderErrorState();
@@ -361,6 +488,11 @@ class AutomationCardsSection extends Disposable {
 			}
 			this.persistentCards.clear();
 			this.latestAutomations.clear();
+			for (const section of this.ownershipSections.values()) {
+				section.disposables.dispose();
+				section.section.remove();
+			}
+			this.ownershipSections.clear();
 		}));
 	}
 
@@ -401,10 +533,11 @@ class AutomationCardsSection extends Disposable {
 			this.configurationService,
 			this.dialogService,
 			this.logService,
+			this.telemetryService,
 		);
 	}
 
-	render(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[]): void {
+	render(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState, unavailableProviders: readonly IAutomationProviderDescriptor[], templates: readonly IAutomationTemplate[], showDisabled: boolean): void {
 		const activeElement = DOM.getActiveElement();
 		const contentOwnedFocus = DOM.isHTMLElement(activeElement) && (
 			this.visibleContainer?.contains(activeElement) || this.templatesContainer.contains(activeElement)
@@ -420,29 +553,45 @@ class AutomationCardsSection extends Disposable {
 			this.latestAutomations.delete(automationId);
 		}
 
-		let index = 0;
-
-		for (const automation of automations) {
-			const prev = this.latestAutomations.get(automation.id);
-			this.latestAutomations.set(automation.id, automation);
-
-			let card = this.persistentCards.get(automation.id);
-			if (!card) {
-				card = this.renderCard(automation);
-				this.persistentCards.set(automation.id, card);
-			} else if (prev !== automation) {
-				this.updateCard(card, automation, prev);
+		const visibleAutomations = automations.filter(automation => showDisabled || automation.enabled || automation.ownership === 'repository');
+		const hiddenDisabledDescription = visibleAutomations.length < automations.length
+			? localize('hiddenDisabledAutomations', "Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.")
+			: undefined;
+		const groups = getAutomationOwnershipGroups(automations);
+		for (const [ownership, rendered] of this.ownershipSections) {
+			if (!groups.some(group => group.ownership === ownership)) {
+				rendered.disposables.dispose();
+				rendered.section.remove();
+				this.ownershipSections.delete(ownership);
 			}
-
-			const currentElement = this.container.children.item(index);
-			if (currentElement !== card.element) {
-				this.container.insertBefore(card.element, currentElement);
+		}
+		for (const [groupIndex, group] of groups.entries()) {
+			let rendered = this.ownershipSections.get(group.ownership);
+			if (!rendered) {
+				rendered = this.renderOwnershipSection(group.ownership, group.label, group.description);
+				this.ownershipSections.set(group.ownership, rendered);
 			}
-			index++;
+			rendered.title.textContent = group.label;
+			if (group.ownership === 'user') {
+				if (hiddenDisabledDescription) {
+					rendered.summary.setAttribute('aria-description', hiddenDisabledDescription);
+				} else {
+					rendered.summary.removeAttribute('aria-description');
+				}
+			}
+			if (rendered.emptyState) {
+				rendered.emptyState.style.display = visibleAutomations.every(automation => automation.ownership === 'repository') ? '' : 'none';
+			}
+			const currentSection = Array.from(this.container.children).filter(child => child !== this.builtInTemplatesSection)[groupIndex];
+			if (currentSection !== rendered.section) {
+				this.container.insertBefore(rendered.section, currentSection ?? null);
+			}
+			this.renderCardsInto(rendered.grid, group.automations, group.ownership !== 'user' || showDisabled);
 		}
 
+		const showBuiltInTemplates = hasEmptyAutomationSection(visibleAutomations);
 		if (!this.builtInTemplatesUserToggled) {
-			const defaultExpanded = automations.length === 0;
+			const defaultExpanded = showBuiltInTemplates;
 			if (this.builtInTemplatesExpanded !== defaultExpanded) {
 				this.builtInTemplatesExpanded = defaultExpanded;
 				if (this.builtInTemplatesSection) {
@@ -452,7 +601,7 @@ class AutomationCardsSection extends Disposable {
 		}
 
 		if (!this.pluginTemplatesUserToggled) {
-			const defaultExpanded = automations.length === 0;
+			const defaultExpanded = visibleAutomations.length === 0;
 			if (this.pluginTemplatesExpanded !== defaultExpanded) {
 				this.pluginTemplatesExpanded = defaultExpanded;
 				if (this.pluginTemplatesSection) {
@@ -465,25 +614,45 @@ class AutomationCardsSection extends Disposable {
 			this.renderTemplates(templates);
 			this.renderedTemplates = templates;
 		}
+		if (this.builtInTemplatesSection) {
+			this.builtInTemplatesSection.style.display = showBuiltInTemplates ? '' : 'none';
+			const sharedSection = showBuiltInTemplates ? this.ownershipSections.get('repository')?.section : undefined;
+			const parent = sharedSection ? this.container : this.templatesContainer;
+			const nextSibling = sharedSection ?? this.pluginTemplatesSection ?? null;
+			if (this.builtInTemplatesSection.parentElement !== parent || this.builtInTemplatesSection.nextSibling !== nextSibling) {
+				parent.insertBefore(this.builtInTemplatesSection, nextSibling);
+			}
+		}
 
 		this.updatePluginTemplateUnreadState(
-			this.pluginTemplatesUserToggled || (catalogueState === 'ready' && automations.length === 0)
+			this.pluginTemplatesUserToggled || (catalogueState === 'ready' && visibleAutomations.length === 0)
 		);
-		const showTemplateSections = templates.length > 0;
+		const showTemplateSections = templates.some(template => template.source || showBuiltInTemplates && this.builtInTemplatesSection?.parentElement === this.templatesContainer);
 		this.templatesContainer.style.display = showTemplateSections ? '' : 'none';
 
-		const nextContainer = automations.length === 0 ? this.getEmptyStateContainer(catalogueState) : this.container;
+		this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
+		const nextContainer = visibleAutomations.length === 0 ? this.getEmptyStateContainer(catalogueState) : this.container;
+		for (const button of [this.emptyCreateButton, this.loadingCreateButton, this.unavailableCreateButton, this.errorCreateButton]) {
+			if (hiddenDisabledDescription && visibleAutomations.length === 0) {
+				button?.element.setAttribute('aria-description', hiddenDisabledDescription);
+			} else {
+				button?.element.removeAttribute('aria-description');
+			}
+		}
 		const previousContainer = this.visibleContainer;
 		if (previousContainer !== nextContainer) {
 			nextContainer.style.display = '';
 			this.visibleContainer = nextContainer;
 		}
-		this.renderPartialState(automations.length > 0 ? catalogueState : 'ready');
+		this.renderPartialState(visibleAutomations.length > 0 ? catalogueState : 'ready', unavailableProviders);
 
 		// Move focus before hiding its previous container.
 		if (!this.focusPendingAutomation() && contentOwnedFocus && DOM.isHTMLElement(activeElement)) {
-			if (!nextContainer.contains(activeElement) && !(showTemplateSections && this.isVisibleTemplateElement(activeElement))) {
-				this.focusVisibleState(automations, catalogueState);
+			const hiddenCard = activeElement.closest<HTMLElement>('.automations-card-wrapper');
+			if (hiddenCard?.style.display === 'none') {
+				this.focusHiddenAutomation();
+			} else if (!nextContainer.contains(activeElement) && !this.isVisibleTemplateElement(activeElement)) {
+				this.focusVisibleState(visibleAutomations, catalogueState);
 			} else if (!DOM.isActiveElement(activeElement)) {
 				activeElement.focus();
 			}
@@ -494,13 +663,71 @@ class AutomationCardsSection extends Disposable {
 		}
 	}
 
+	private renderOwnershipSection(ownership: string, label: string, description?: string): IAutomationOwnershipSection {
+		const disposables = new DisposableStore();
+		const section = $<HTMLDetailsElement>('details.automations-ownership-section');
+		section.open = true;
+		const summary = DOM.append(section, $('summary.automations-ownership-summary'));
+		const heading = DOM.append(summary, $('span.automations-ownership-heading.agent-sessions-interactive.agent-sessions-interactive-list'));
+		const chevron = DOM.append(heading, $('span.automations-ownership-chevron'));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		chevron.setAttribute('aria-hidden', 'true');
+		const title = DOM.append(heading, $('span.automations-ownership-title'));
+		title.id = `automations-${ownership}-${this.templateAriaId}`;
+		title.setAttribute('role', 'heading');
+		title.setAttribute('aria-level', '3');
+		title.textContent = label;
+		summary.setAttribute('aria-labelledby', title.id);
+		if (description) {
+			summary.setAttribute('aria-description', description);
+			const info = DOM.append(heading, renderIcon(Codicon.info));
+			info.classList.add('automations-ownership-info');
+			info.setAttribute('aria-hidden', 'true');
+			disposables.add(this.hoverService.setupDelayedHover(info, { content: description, style: HoverStyle.Pointer }, { groupId: this.templateAriaId }));
+			disposables.add(DOM.addDisposableListener(info, DOM.EventType.CLICK, event => {
+				event.preventDefault();
+				event.stopPropagation();
+			}));
+		}
+		const grid = DOM.append(section, $('.automations-ownership-grid'));
+		grid.setAttribute('role', 'group');
+		grid.setAttribute('aria-labelledby', title.id);
+		const emptyState = ownership === 'user'
+			? DOM.append(section, $('.automations-ownership-empty.automations-cards-empty'))
+			: undefined;
+		if (emptyState) {
+			this.renderEmptyState(emptyState, disposables);
+			emptyState.style.display = 'none';
+		}
+		return { section, summary, title, grid, emptyState, disposables };
+	}
+
 	private isVisibleTemplateElement(element: HTMLElement): boolean {
-		if (!this.templatesContainer.contains(element)) {
+		if (!this.templatesContainer.contains(element) && !this.builtInTemplatesSection?.contains(element)) {
 			return false;
 		}
 		const section = element.closest<HTMLDetailsElement>('details.automations-template-section');
 		const summary = element.closest<HTMLElement>('summary');
-		return !section || section.open || summary?.parentElement === section;
+		return !section || section.style.display !== 'none' && (section.open || summary?.parentElement === section);
+	}
+
+	private renderCardsInto(grid: HTMLElement, automations: readonly IAutomationDescriptor[], showDisabled: boolean): void {
+		for (const [cardIndex, automation] of automations.entries()) {
+			const prev = this.latestAutomations.get(automation.id);
+			this.latestAutomations.set(automation.id, automation);
+			let card = this.persistentCards.get(automation.id);
+			if (!card) {
+				card = this.renderCard(automation);
+				this.persistentCards.set(automation.id, card);
+			} else {
+				this.updateCard(card, automation, prev);
+			}
+			card.element.style.display = automation.enabled || showDisabled ? '' : 'none';
+			const currentElement = grid.children.item(cardIndex);
+			if (currentElement !== card.element) {
+				grid.insertBefore(card.element, currentElement);
+			}
+		}
 	}
 
 	private getEmptyStateContainer(catalogueState: AutomationCatalogueState): HTMLElement {
@@ -513,7 +740,7 @@ class AutomationCardsSection extends Disposable {
 				return this.errorContainer;
 			case 'ready':
 				if (!this.emptyStateRendered) {
-					this.renderEmptyState();
+					this.emptyCreateButton = this.renderEmptyState(this.emptyContainer, this.emptyStateDisposables);
 					this.emptyStateRendered = true;
 				}
 				return this.emptyContainer;
@@ -523,12 +750,16 @@ class AutomationCardsSection extends Disposable {
 	private renderCard(automation: IAutomationDescriptor): IAutomationCardEntry {
 		const disposables = new DisposableStore();
 		const wrapper = $('.automations-card-wrapper');
-		const card = DOM.append(wrapper, $('.automations-card'));
+		const card = DOM.append(wrapper, $('.automations-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered'));
 		card.setAttribute('role', 'group');
 		const cardContextKeyService = disposables.add(this.contextKeyService.createScoped(card));
 		const canDeleteContext = AutomationCardCanDeleteContext.bindTo(cardContextKeyService);
 		const canUpdateContext = AutomationCardCanUpdateContext.bindTo(cardContextKeyService);
+		const hasExternalResourceContext = AutomationCardHasExternalResourceContext.bindTo(cardContextKeyService);
 		const enabledContext = AutomationCardEnabledContext.bindTo(cardContextKeyService);
+		const hasLimitsContext = AutomationCardHasLimitsContext.bindTo(cardContextKeyService);
+		const isCloudContext = AutomationCardIsCloudContext.bindTo(cardContextKeyService);
+		const hasEventTriggerContext = AutomationCardHasEventTriggerContext.bindTo(cardContextKeyService);
 		disposables.add(Gesture.addTarget(card));
 
 		const main = DOM.append(card, $<HTMLButtonElement>('button.automations-card-main', {
@@ -537,41 +768,50 @@ class AutomationCardsSection extends Disposable {
 
 		const nameRow = DOM.append(main, $('.automations-card-name'));
 		const nameTextEl = DOM.append(nameRow, $('span.automations-card-name-text'));
-		const disabledBadge = DOM.append(nameRow, $('span.automations-card-disabled-badge'));
-		disabledBadge.textContent = localize('disabled', "Disabled");
+		const startingIcon = DOM.append(nameRow, $('span' + ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin')), { 'aria-hidden': 'true' }));
+		const startingRuns = observableValue<ReadonlySet<string> | undefined>(this, undefined);
+
+		const promptEl = DOM.append(main, $('.automations-card-prompt'));
+		const promptHover = disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), promptEl, () => promptEl.textContent ?? ''));
+		const promptFocusHover = disposables.add(new MutableDisposable());
+		disposables.add(DOM.addDisposableListener(main, DOM.EventType.FOCUS, () => {
+			if (main.matches(':focus-visible')) {
+				promptFocusHover.value = this.hoverService.showInstantHover({
+					content: promptEl.textContent ?? '',
+					target: promptEl,
+					appearance: { showPointer: true },
+					position: { hoverPosition: HoverPosition.BELOW },
+				});
+			}
+		}));
+		disposables.add(DOM.addDisposableListener(main, DOM.EventType.BLUR, () => {
+			promptHover.hide();
+			promptFocusHover.clear();
+		}));
 
 		const metaEl = DOM.append(main, $('.automations-card-meta'));
 		const scheduleEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-schedule'));
 		const folderEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-folder'));
 		const folderHover = disposables.add(new MutableDisposable());
 
-		const promptEl = DOM.append(main, $('.automations-card-prompt'));
-
 		const actions = DOM.append(card, $('.automations-card-actions'));
 		actions.setAttribute('role', 'group');
 		const buttonBar = disposables.add(new ButtonBar(actions));
 		const runNowLabel = localize('runNow', "Run now");
-		const runningLabel = localize('running', "Running");
-		const runBtn = this.createIconButton(buttonBar, Codicon.play, runNowLabel, this.automationService.canRunAutomation?.(automation.id) === false);
+		const runBtn = this.createIconButton(buttonBar, Codicon.play, runNowLabel, !this.automationService.canRunAutomation(automation.id));
 		runBtn.element.classList.add('automations-card-run-button');
 		disposables.add(runBtn.onDidClick((e) => {
 			e?.stopPropagation();
 			const currentAutomation = this.latestAutomations.get(automation.id);
-			if (!currentAutomation || this.automationService.canRunAutomation?.(automation.id) === false) {
+			if (!currentAutomation || startingRuns.get() || !this.automationService.canRunAutomation(automation.id)) {
 				return;
 			}
-			runBtn.enabled = false;
-			runBtn.setAriaLabel(runningLabel);
-			runBtn.setTitle(runningLabel);
-			disposableTimeout(() => {
-				runBtn.enabled = this.automationService.canRunAutomation?.(automation.id) !== false;
-				runBtn.setAriaLabel(runNowLabel);
-				runBtn.setTitle(runNowLabel);
-			}, 10_000, disposables);
-			void this.runNow(currentAutomation);
+			startingRuns.set(new Set(this.automationService.runs.get().map(run => run.id)), undefined);
+			status(localize('automationStartingStatus', "Starting automation {0}", currentAutomation.name));
+			void this.runNow(currentAutomation, entry);
 		}));
 
-		const moreActionsButton = this.createIconButton(buttonBar, Codicon.kebabVertical, localize('moreActionsForAutomation', "More Actions for {0}", automation.name), false);
+		const moreActionsButton = this.createIconButton(buttonBar, Codicon.kebabVertical, localize('moreActions', "More Actions..."), false);
 		moreActionsButton.element.classList.add('automations-card-more-actions-button');
 		moreActionsButton.element.setAttribute('aria-haspopup', 'menu');
 		moreActionsButton.element.setAttribute('aria-expanded', 'false');
@@ -584,7 +824,7 @@ class AutomationCardsSection extends Disposable {
 			actions.classList.add('menu-open');
 			moreActionsButton.element.setAttribute('aria-expanded', 'true');
 			this.contextMenuService.showContextMenu({
-				menuId: Menus.AutomationCardContext,
+				menuId: AgentsWindowMenus.AutomationCardContext,
 				menuActionOptions: { shouldForwardArgs: true, arg: currentAutomation },
 				getAnchor: () => moreActionsButton.element,
 				contextKeyService: cardContextKeyService,
@@ -602,7 +842,7 @@ class AutomationCardsSection extends Disposable {
 					return;
 				}
 				const currentAutomation = this.latestAutomations.get(automation.id);
-				if (!currentAutomation || this.automationService.canUpdateAutomation?.(automation.id) === false) {
+				if (!currentAutomation || !this.automationService.canUpdateAutomation(automation.id)) {
 					return;
 				}
 				void this.openEditDialog(currentAutomation);
@@ -617,59 +857,139 @@ class AutomationCardsSection extends Disposable {
 			runButton: runBtn,
 			moreActionsButton,
 			canDeleteContext,
+			hasExternalResourceContext,
 			canUpdateContext,
 			enabledContext,
+			hasLimitsContext,
+			isCloudContext,
+			hasEventTriggerContext,
 			nameText: nameTextEl,
+			startingIcon,
+			startingRuns,
 			scheduleEl,
+			scheduleHover: disposables.add(new MutableDisposable<IDisposable>()),
+			scheduleRefresh: disposables.add(new MutableDisposable<IDisposable>()),
 			folderEl,
 			folderHover,
 			promptEl,
-			disabledBadge,
 			disposables,
 		};
 		this.updateCard(entry, automation);
+		disposables.add(autorun(reader => {
+			const starting = startingRuns.read(reader);
+			const runs = this.automationService.runs.read(reader);
+			const presentedRunIds = this.presentedRunIds.read(reader);
+			const state = this.automationService.catalogueState.read(reader);
+			const historyState = this.automationService.historyState?.read(reader);
+			if (starting && (runs.some(run => run.automationId === automation.id && !starting.has(run.id)
+				&& !isLocalAutomationRunStarting(run, () => presentedRunIds.has(run.id), resource => this.sessionsManagementService.getSession(resource) !== undefined))
+				|| (state === 'unavailable' && !this.automationService.canRunAutomation(automation.id)) || state === 'error' || historyState === 'error')) {
+				startingRuns.set(undefined, undefined);
+			}
+			this.updateCardRunState(entry, this.latestAutomations.get(automation.id) ?? automation);
+		}));
 		return entry;
 	}
 
 	private updateCard(card: IAutomationCardEntry, automation: IAutomationDescriptor, previous?: IAutomationDescriptor): void {
-		card.main.disabled = this.automationService.canUpdateAutomation?.(automation.id) === false;
-		card.runButton.enabled = this.automationService.canRunAutomation?.(automation.id) !== false;
-		card.canDeleteContext.set(this.automationService.canDeleteAutomation?.(automation.id) !== false);
-		card.canUpdateContext.set(this.automationService.canUpdateAutomation?.(automation.id) !== false);
+		card.main.disabled = !this.automationService.canUpdateAutomation(automation.id);
+		this.updateCardRunState(card, automation);
+		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));
+		card.hasExternalResourceContext.set(automation.externalResource !== undefined);
+		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
 		card.enabledContext.set(automation.enabled);
-		const schedule = formatSchedule(automation.schedule);
-		const scheduleChanged = !previous || formatSchedule(previous.schedule) !== schedule;
+		card.hasLimitsContext.set(getAutomationAfterDate(automation.disableConditions) !== undefined);
+		card.isCloudContext.set(automation.cloudTrigger !== undefined || automation.ownership !== undefined);
+		card.hasEventTriggerContext.set(hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {}));
+		const triggerSummary = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
+		const enabledChanged = !previous || previous.enabled !== automation.enabled;
+		const scheduleChanged = !previous || enabledChanged || formatSchedule(previous.schedule) !== formatSchedule(automation.schedule)
+			|| automationTriggerSummary(previous.cloudTrigger?.triggers ?? {}) !== triggerSummary
+			|| !equals(previous.disableConditions, automation.disableConditions);
 		const nameChanged = !previous || previous.name !== automation.name;
-		if (nameChanged || scheduleChanged) {
-			card.card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, schedule));
-		}
 		if (nameChanged) {
 			card.main.setAttribute('aria-label', localize('editAutomationNamed', "Edit automation {0}", automation.name));
 			card.actions.setAttribute('aria-label', localize('automationActions', "Actions for {0}", automation.name));
 			const moreActionsLabel = localize('moreActionsForAutomation', "More Actions for {0}", automation.name);
 			card.moreActionsButton.setAriaLabel(moreActionsLabel);
-			card.moreActionsButton.setTitle(moreActionsLabel);
 			card.nameText.textContent = automation.name;
 		}
-		if (!previous || previous.enabled !== automation.enabled) {
-			card.disabledBadge.style.display = automation.enabled ? 'none' : '';
+		if (enabledChanged) {
+			card.card.classList.toggle('automation-disabled', !automation.enabled);
 		}
 		if (scheduleChanged) {
-			card.scheduleEl.textContent = schedule;
+			this.updateCardSchedule(card, automation);
 		}
 
-		const folderLabel = getAutomationTargetLabel(automation.target);
-		if (!previous || getAutomationTargetLabel(previous.target) !== folderLabel) {
-			card.folderEl.textContent = folderLabel;
-			card.folderHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel);
+		const folderLabel = automation.targetDisplay?.label ?? getAutomationTargetLabel(automation.target);
+		const folderName = automation.targetDisplay ? folderLabel.substring(folderLabel.lastIndexOf('/') + 1) : folderLabel;
+		if (!previous || enabledChanged || previous.targetDisplay !== automation.targetDisplay || getAutomationTargetLabel(previous.target) !== folderLabel) {
+			const showFolder = (automation.enabled || !!automation.targetDisplay) && automation.target.kind === 'workspace';
+			card.folderEl.style.display = showFolder ? '' : 'none';
+			DOM.reset(card.folderEl,
+				$('span' + ThemeIcon.asCSSSelector(automation.targetDisplay?.icon ?? Codicon.folder), { 'aria-hidden': 'true' }),
+				$('span.automations-card-meta-label', undefined, folderName));
+			card.folderEl.setAttribute('aria-label', folderLabel);
+			card.folderHover.value = showFolder
+				? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel)
+				: undefined;
 		}
 
-		if (!previous || previous.prompt !== automation.prompt) {
-			const maxLength = 120;
-			card.promptEl.textContent = automation.prompt.length > maxLength
-				? automation.prompt.slice(0, maxLength) + '…'
-				: automation.prompt;
+	}
+
+	private updateCardSchedule(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
+		const triggerSummary = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
+		const schedule = automation.enabled ? automationTriggerSummary(automation.cloudTrigger?.triggers ?? {}, true) ?? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
+		const limit = automation.enabled ? formatAutomationLimit(automation) : undefined;
+		const label = limit ? localize('automationScheduleWithEndDate', "{0} {1}", schedule, limit.label) : schedule;
+		const icon = !automation.enabled ? Codicon.circleSlash : automation.schedule.interval === 'manual' ? Codicon.person : Codicon.clockface;
+		DOM.reset(card.scheduleEl,
+			$('span' + ThemeIcon.asCSSSelector(icon), { 'aria-hidden': 'true' }),
+			$('span.automations-card-meta-label', undefined, label));
+		card.scheduleHover.value = triggerSummary || limit
+			? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.scheduleEl, triggerSummary ?? limit!.description)
+			: undefined;
+		if (!limit) {
+			card.main.removeAttribute('aria-description');
+			card.scheduleRefresh.clear();
+			return;
 		}
+		card.main.setAttribute('aria-description', limit.description);
+		const targetWindow = DOM.getWindow(card.scheduleEl);
+		const now = new Date();
+		const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+		const handle = targetWindow.setTimeout(() => {
+			const currentAutomation = this.latestAutomations.get(automation.id);
+			if (currentAutomation) {
+				this.updateCardSchedule(card, currentAutomation);
+			}
+		}, nextDay.getTime() - now.getTime());
+		card.scheduleRefresh.value = toDisposable(() => targetWindow.clearTimeout(handle));
+	}
+
+	private updateCardRunState(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
+		const eventTriggered = hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {});
+		if (eventTriggered && DOM.isActiveElement(card.runButton.element)) {
+			card.moreActionsButton.focus();
+		}
+		card.runButton.element.style.display = eventTriggered ? 'none' : '';
+		const starting = card.startingRuns.get() !== undefined || this.automationService.runs.get().some(run =>
+			run.automationId === automation.id
+			&& isLocalAutomationRunStarting(run, () => this.presentedRunIds.get().has(run.id), resource => this.sessionsManagementService.getSession(resource) !== undefined)
+		);
+		card.startingIcon.style.display = starting ? '' : 'none';
+		card.promptEl.textContent = starting ? localize('automationStarting', "Starting run...") : automation.prompt;
+		card.runButton.enabled = !starting && this.automationService.canRunAutomation(automation.id);
+		const label = starting ? localize('running', "Running") : localize('runNow', "Run now");
+		card.runButton.setAriaLabel(label);
+		card.runButton.setTitle(label);
+		const triggerSummary = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
+		const schedule = automation.enabled ? triggerSummary ?? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
+		card.card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, starting ? localize('running', "Running") : schedule));
+	}
+
+	setPresentedRunIds(runIds: Iterable<string>): void {
+		this.presentedRunIds.set(new Set(runIds), undefined);
 	}
 
 	private createIconButton(buttonBar: ButtonBar, icon: ThemeIcon, tooltip: string, disabled: boolean): IButton {
@@ -684,14 +1004,19 @@ class AutomationCardsSection extends Disposable {
 		return button;
 	}
 
-	private async runNow(automation: IAutomationDescriptor): Promise<void> {
-		if (!await this.ensureEnabled()) {
-			return;
-		}
+	private async runNow(automation: IAutomationDescriptor, card: IAutomationCardEntry): Promise<void> {
+		let accepted = false;
 		try {
-			const operation = this.automationRunner.runOnce(automation, 'manual', 0, CancellationToken.None);
+			if (!await this.ensureEnabled()) {
+				return;
+			}
+			const operation = this.automationRunner.runOnce(automation, CancellationToken.None);
 			const dispatch = await operation.whenDispatched;
 			switch (dispatch.kind) {
+				case 'accepted':
+					accepted = true;
+					status(localize('automationAcceptedStatus', "Run requested for {0}. Its history will update when available.", automation.name));
+					break;
 				case 'started':
 					status(localize('automationStartedStatus', "Started automation {0}", automation.name));
 					break;
@@ -702,34 +1027,71 @@ class AutomationCardsSection extends Disposable {
 					status(localize('automationNotStartedStatus', "Automation {0} did not start", automation.name));
 					break;
 			}
+			if (!accepted) {
+				card.startingRuns.set(undefined, undefined);
+			}
 			await operation.whenCompleted;
 		} catch (error) {
+			accepted = false;
 			this.logService.error('[AutomationsCards] Failed to run automation', error);
 			await this.dialogService.error(
 				localize('automationRunActionFailed', "Failed to run automation."),
 				getErrorMessage(error),
 			);
+		} finally {
+			if (!accepted) {
+				card.startingRuns.set(undefined, undefined);
+			}
 		}
 	}
 
-	private renderEmptyState(): void {
-		const title = DOM.append(this.emptyContainer, $('h3.automations-cards-empty-title'));
+	private renderEmptyState(container: HTMLElement, disposables: DisposableStore): IButton {
+		const title = DOM.append(container, $('h3.automations-cards-empty-title'));
 		title.textContent = localize('noAutomationsYet', "No automations yet");
-		const desc = DOM.append(this.emptyContainer, $('p.automations-cards-empty-description'));
-		desc.textContent = localize('noAutomationsDesc', "Create an automation to schedule an agent session to run on a cadence you choose.");
+		const desc = DOM.append(container, $('p.automations-cards-empty-description'));
+		desc.textContent = localize('noAutomationsDesc', "Describe what you want to automate, then choose when it runs.");
+		return this.renderCreateWithAgentButton(container, disposables, 'automations-cards-create-button');
+	}
 
-		const createButton = this.emptyStateDisposables.add(new Button(this.emptyContainer, {
+	private renderCreateWithAgentButton(container: HTMLElement, disposables: DisposableStore, buttonClassName: string): IButton {
+		const label = localize('createWithAgent', "Create with Agent");
+		const createButton = disposables.add(new Button(container, {
 			...defaultButtonStyles,
-			title: localize('createAutomation', "Create Automation"),
+			title: label,
 		}));
-		this.emptyCreateButton = createButton;
-		createButton.label = localize('createAutomation', "Create Automation");
-		createButton.element.classList.add('automations-cards-create-button');
-		this.emptyStateDisposables.add(createButton.onDidClick(() => this.openCreateDialog()));
+		createButton.label = label;
+		this.configureCreateWithAgentButton(createButton, disposables, buttonClassName, createButton.element);
+		return createButton;
+	}
+
+	private configureCreateWithAgentButton(button: IButton, disposables: DisposableStore, buttonClassName: string, onboardingElement: HTMLElement): void {
+		button.element.classList.add(buttonClassName);
+		const updateEnabled = () => {
+			button.enabled = this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+		};
+		updateEnabled();
+		const enabledContextKeys = new Set([ChatContextKeys.enabled.key]);
+		disposables.add(this.contextKeyService.onDidChangeContext(event => {
+			if (event.affectsSome(enabledContextKeys)) {
+				updateEnabled();
+			}
+		}));
+		disposables.add(button.onDidClick(() => {
+			void this.commandService.executeCommand(CREATE_AUTOMATION_WITH_AGENT_COMMAND_ID).catch(error => {
+				if (!isCancellationError(error)) {
+					this.logService.error('[Automations] Failed to open agent creation session', error);
+					this.notificationService.error(localize('automationsAgentCreationFailed', "Could not open a session to create an automation: {0}", getErrorMessage(error)));
+				}
+			});
+		}));
+		disposables.add(markOnboardingTarget(onboardingElement, CREATE_AUTOMATION_ONBOARDING_TARGET_ID, {
+			onDidActivate: Event.map(button.onDidClick, () => undefined),
+		}));
 	}
 
 	private renderTemplates(templates: readonly IAutomationTemplate[]): void {
 		this.templateDisposables.clear();
+		this.builtInTemplatesSection?.remove();
 		DOM.clearNode(this.templatesContainer);
 		const builtInTemplates = templates.filter(template => !template.source);
 		const pluginTemplates = templates.filter(template => !!template.source);
@@ -751,6 +1113,13 @@ class AutomationCardsSection extends Disposable {
 				}
 			},
 		}).section;
+		this.templateDisposables.add(markOnboardingTarget(this.builtInTemplatesSection, AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID, {
+			open: () => {
+				if (this.builtInTemplatesSection) {
+					this.builtInTemplatesSection.open = true;
+				}
+			},
+		}));
 
 		if (pluginTemplates.length > 0) {
 			const rendered = this.renderTemplateSection({
@@ -775,7 +1144,7 @@ class AutomationCardsSection extends Disposable {
 	private renderTemplateSection(options: IAutomationTemplateSectionOptions): IRenderedAutomationTemplateSection {
 		const section = DOM.append(this.templatesContainer, $<HTMLDetailsElement>(`details.automations-template-section.${options.className}`));
 		section.open = options.expanded;
-		const summary = DOM.append(section, $('summary.automations-template-section-summary'));
+		const summary = DOM.append(section, $('summary.automations-template-section-summary.agent-sessions-interactive.agent-sessions-interactive-list.sessions-disclosure'));
 		const chevron = DOM.append(summary, $('span.automations-template-section-chevron'));
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
 		chevron.setAttribute('aria-hidden', 'true');
@@ -865,15 +1234,82 @@ class AutomationCardsSection extends Disposable {
 		return this.renderStateCreateButton(this.loadingContainer);
 	}
 
-	private renderUnavailableState(): IButton {
-		const icon = DOM.append(this.unavailableContainer, $('span.automations-cards-state-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.debugDisconnect));
-		icon.setAttribute('aria-hidden', 'true');
+	private renderUnavailableState(): { readonly createButton: IButton; readonly description: HTMLElement; readonly manageRemotesTarget: HTMLElement } {
 		const title = DOM.append(this.unavailableContainer, $('h3.automations-cards-state-title'));
-		title.textContent = localize('automationsUnavailable', "Some automations are unavailable");
-		const description = DOM.append(this.unavailableContainer, $('p.automations-cards-state-description'));
+		title.textContent = localize('noAutomationsYet', "No automations yet");
+		const emptyDescription = DOM.append(this.unavailableContainer, $('p.automations-cards-state-description'));
+		emptyDescription.textContent = localize('noAutomationsDesc', "Describe what you want to automate, then choose when it runs.");
+		const manageRemotesTarget = DOM.append(this.unavailableContainer, $('div.automations-manage-remotes-target'));
+		const description = DOM.append(this.unavailableContainer, $('div.automations-cards-state-description.automations-cards-unavailable-message'));
 		description.textContent = localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
-		return this.renderStateCreateButton(this.unavailableContainer);
+		return { createButton: this.renderStateCreateButton(this.unavailableContainer), description, manageRemotesTarget };
+	}
+
+	private renderManageRemotesLink(parent: HTMLElement): void {
+		const container = DOM.append(parent, $('span.automations-manage-remotes'));
+		const count = DOM.append(container, $('span.automations-manage-remotes-count'));
+		count.setAttribute('aria-hidden', 'true');
+		this._register(this.instantiationService.createInstance(Link, container, {
+			label: localize('automationsManageRemotes', "Manage Remotes"),
+			href: `command:${OPEN_REMOTES_EDITOR_COMMAND_ID}`,
+		}, {
+			opener: () => {
+				void this.commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID).catch(error => {
+					this.logService.error('[Automations] Failed to open Remote Environments.', error);
+					this.notificationService.error(error);
+				});
+			},
+		}));
+		const link = container.lastElementChild as HTMLAnchorElement;
+		const configurationChanged = observableSignalFromEvent(this, this.configurationService.onDidChangeConfiguration);
+		const remoteHostsChanged = observableSignalFromEvent(this, Event.any(
+			this.remoteAgentHostService.onDidChangeConnections,
+			this.remoteAgentHostService.onDidChangeConfiguredEntries,
+		));
+		this._register(autorun(reader => {
+			configurationChanged.read(reader);
+			remoteHostsChanged.read(reader);
+			const catalogueState = this.automationService.catalogueState.read(reader);
+			const automations = this.automationService.automations.read(reader);
+			const unavailableProviders = this.automationService.unavailableProviders.read(reader);
+			const configuredEntries = this.remoteAgentHostService.configuredEntries;
+			const remoteManagementEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)
+				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
+			const presentation = getAutomationRemoteStatusPresentation(
+				unavailableProviders,
+				configuredEntries,
+				this.missionControlEnvironmentService.hosts.read(reader).map(host => host.id),
+				remoteManagementEnabled,
+			);
+			const managedDisconnectedProviderIds = presentation.replacedTunnelProviderIds;
+			const ignoredGitHubEnvironmentProviderIds = presentation.ignoredGitHubEnvironmentProviderIds;
+			const visible = catalogueState === 'unavailable' && managedDisconnectedProviderIds.size > 0;
+			const connectedCount = getConnectedAutomationRemoteCount(presentation.tunnelEntries, this.remoteAgentHostService.connections);
+			const countLabel = localize('automationsDetectedRemotes', "{0}/{1} remotes detected", connectedCount, presentation.tunnelEntries.length);
+			count.textContent = countLabel;
+			link.setAttribute('aria-label', localize('automationsManageRemotesWithCount', "{0}, Manage Remotes", countLabel));
+			if (!visible && container.contains(DOM.getActiveElement())) {
+				this.focusRoot.focus();
+			}
+			container.style.display = visible ? '' : 'none';
+			const managedProvidersChanged = managedDisconnectedProviderIds.size !== this.managedDisconnectedProviderIds.size
+				|| [...managedDisconnectedProviderIds].some(id => !this.managedDisconnectedProviderIds.has(id));
+			const ignoredProvidersChanged = ignoredGitHubEnvironmentProviderIds.size !== this.ignoredGitHubEnvironmentProviderIds.size
+				|| [...ignoredGitHubEnvironmentProviderIds].some(id => !this.ignoredGitHubEnvironmentProviderIds.has(id));
+			if (this.manageRemotesVisible !== visible || managedProvidersChanged || ignoredProvidersChanged) {
+				this.manageRemotesVisible = visible;
+				this.managedDisconnectedProviderIds = managedDisconnectedProviderIds;
+				this.ignoredGitHubEnvironmentProviderIds = ignoredGitHubEnvironmentProviderIds;
+				if (catalogueState === 'unavailable') {
+					this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
+					const hasPartialMessage = this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+					if (automations.length > 0) {
+						this.partialStateContainer.style.display = hasPartialMessage || visible ? '' : 'none';
+					}
+				}
+			}
+		}));
 	}
 
 	private renderErrorState(): IButton {
@@ -889,40 +1325,59 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private renderStateCreateButton(container: HTMLElement): IButton {
-		const createButton = this.stateDisposables.add(new Button(container, {
-			...defaultButtonStyles,
-			title: localize('createAutomation', "Create Automation"),
-		}));
-		createButton.label = localize('createAutomation', "Create Automation");
-		createButton.element.classList.add('automations-cards-state-create-button');
-		this.stateDisposables.add(createButton.onDidClick(() => this.openCreateDialog()));
-		return createButton;
+		return this.renderCreateWithAgentButton(container, this.stateDisposables, 'automations-cards-state-create-button');
 	}
 
-	private renderPartialState(catalogueState: AutomationCatalogueState): void {
-		if (this.partialState === catalogueState) {
+	private renderPartialState(catalogueState: AutomationCatalogueState, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {
+		const unavailableProvidersChanged = catalogueState === 'unavailable'
+			&& (unavailableProviders.length !== this.partialUnavailableProviders.length
+				|| unavailableProviders.some((provider, index) => provider.id !== this.partialUnavailableProviders[index].id
+					|| provider.label !== this.partialUnavailableProviders[index].label
+					|| provider.unavailableReasonCode !== this.partialUnavailableProviders[index].unavailableReasonCode
+					|| provider.unavailableReason !== this.partialUnavailableProviders[index].unavailableReason
+					|| provider.unavailableMessage !== this.partialUnavailableProviders[index].unavailableMessage));
+		if (this.partialState === catalogueState && !unavailableProvidersChanged) {
 			return;
 		}
 		this.partialState = catalogueState;
-		if (catalogueState === 'ready') {
+		this.partialUnavailableProviders = catalogueState === 'unavailable' ? [...unavailableProviders] : [];
+		if (catalogueState === 'ready' || catalogueState === 'loading') {
 			this.partialStateContainer.style.display = 'none';
 			return;
 		}
 		const isError = catalogueState === 'error';
-		const isLoading = catalogueState === 'loading';
 		this.partialStateContainer.style.display = '';
 		this.partialStateContainer.classList.toggle('automations-cards-partial-state-error', isError);
-		this.partialLoadingIcon.style.display = isLoading ? '' : 'none';
-		this.partialErrorIcon.style.display = isLoading ? 'none' : '';
-		this.partialStateMessage.textContent = isError
-			? localize('automationsPartialLoadError', "Some automations could not be loaded.")
-			: catalogueState === 'unavailable'
-				? localize('automationsPartialUnavailable', "Some automations are unavailable.")
-				: localize('automationsPartialLoading', "Loading additional automations...");
+		if (catalogueState === 'unavailable') {
+			const hasMessage = this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+			this.partialStateContainer.style.display = hasMessage || this.manageRemotesVisible ? '' : 'none';
+		} else {
+			this.partialStateMessage.style.display = '';
+			this.partialStateMessage.textContent = localize('automationsPartialLoadError', "Some automations could not be loaded.");
+		}
+	}
+
+	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): boolean {
+		const visibleProviders = unavailableProviders.filter(provider =>
+			!this.ignoredGitHubEnvironmentProviderIds.has(provider.id)
+			&& (!this.manageRemotesVisible || !this.managedDisconnectedProviderIds.has(provider.id)));
+		const reasons = getUnavailableAutomationsReasons(visibleProviders);
+		const suppressedAllReasons = unavailableProviders.length > 0 && visibleProviders.length === 0;
+		container.style.display = suppressedAllReasons ? 'none' : '';
+		if (reasons.length === 1) {
+			container.textContent = reasons[0];
+		} else if (reasons.length > 1) {
+			DOM.reset(container, $('ul.automations-unavailable-reasons', undefined, ...reasons.map(reason => $('li', undefined, reason))));
+		} else if (!suppressedAllReasons) {
+			container.textContent = localize('automationsPartialUnavailable', "Some automations are unavailable.");
+		} else {
+			DOM.clearNode(container);
+		}
+		return !suppressedAllReasons;
 	}
 
 	private renderTemplateCard(container: HTMLElement, template: IAutomationTemplate): void {
-		const card = DOM.append(container, $<HTMLButtonElement>('button.automations-template-card', { type: 'button' }));
+		const card = DOM.append(container, $<HTMLButtonElement>('button.automations-template-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered', { type: 'button' }));
 		const schedule = formatSchedule(template.schedule);
 		card.setAttribute('aria-label', template.source
 			? localize('usePluginAutomationTemplate', "Use template: {0}, {1}, from {2}", template.name, schedule, template.source.label)
@@ -931,7 +1386,7 @@ class AutomationCardsSection extends Disposable {
 		const nameRow = DOM.append(card, $('.automations-template-card-name'));
 		const name = DOM.append(nameRow, $('span.automations-template-card-name-text'));
 		name.textContent = template.name;
-		this.templateDisposables.add(this.hoverService.setupDelayedHover(name, { content: template.name }));
+		this.templateDisposables.add(this.hoverService.setupDelayedHover(name, { content: template.name, style: HoverStyle.Pointer }, { groupId: this.templateAriaId }));
 		const badge = DOM.append(nameRow, $('span.automations-template-card-badge'));
 		badge.textContent = template.source
 			? localize('automationPluginTemplateBadge', "Plugin")
@@ -941,21 +1396,22 @@ class AutomationCardsSection extends Disposable {
 		if (template.source) {
 			const source = DOM.append(card, $('span.automations-template-card-source'));
 			source.textContent = localize('automationTemplateSource', "From {0}", template.source.label);
-			this.templateDisposables.add(this.hoverService.setupDelayedHover(source, { content: template.source.label }));
+			this.templateDisposables.add(this.hoverService.setupDelayedHover(source, { content: template.source.label, style: HoverStyle.Pointer }, { groupId: this.templateAriaId }));
 		}
-		const scheduleElement = DOM.append(card, $('span.automations-template-card-schedule'));
-		scheduleElement.textContent = schedule;
 		const description = DOM.append(card, $('span.automations-template-card-prompt'));
 		description.id = `automations-template-${this.templateAriaId}-${template.id}-description`;
 		description.textContent = template.description;
-		this.templateDisposables.add(this.hoverService.setupDelayedHover(description, { content: template.prompt }));
+		this.templateDisposables.add(this.hoverService.setupDelayedHover(description, { content: template.prompt, style: HoverStyle.Pointer, position: { hoverPosition: HoverPosition.RIGHT } }, { groupId: this.templateAriaId }));
 		card.setAttribute('aria-describedby', description.id);
+		const scheduleElement = DOM.append(card, $('span.automations-template-card-schedule'));
+		scheduleElement.textContent = schedule;
 
 		this.templateDisposables.add(DOM.addDisposableListener(card, DOM.EventType.CLICK, () => {
 			void this.openCreateDialog({
 				name: template.name,
 				prompt: template.prompt,
 				schedule: template.schedule,
+				...(template.disableConditions !== undefined ? { disableConditions: template.disableConditions } : {}),
 				...(template.enabled !== undefined ? { enabled: template.enabled } : {}),
 			});
 		}));
@@ -967,16 +1423,27 @@ class AutomationCardsSection extends Disposable {
 			return;
 		}
 		try {
-			const result = await this.automationDialogService.showAutomationDialog(initialValues ? { initialValues } : {});
-			if (!result || result.kind !== 'create' || this._store.isDisposed) {
+			let created: IAutomationDescriptor | undefined;
+			let restoreFocus = false;
+			let focusRequestGeneration = this.focusRequestGeneration;
+			const result = await this.automationDialogService.showAutomationDialog({
+				...(initialValues ? { initialValues } : {}),
+				commit: async result => {
+					if (result.kind === 'create') {
+						if (this._store.isDisposed) {
+							throw new Error(localize('automationViewClosedBeforeSave', "The automations view was closed before the automation could be saved."));
+						}
+						this.throwIfDisabled();
+						restoreFocus = DOM.isAncestorOfActiveElement(this.focusRoot) || !!this.focusRoot.closest('.automation-dialog-open');
+						focusRequestGeneration = this.focusRequestGeneration;
+						created = await withAutomationDialogPersistenceTelemetry(this.telemetryService, 'create', () =>
+							this.automationService.createAutomation(result.value, () => this.throwIfDisabled()));
+					}
+				},
+			});
+			if (!result || !created || this._store.isDisposed) {
 				return;
 			}
-			const restoreFocus = DOM.isAncestorOfActiveElement(this.focusRoot);
-			const focusRequestGeneration = this.focusRequestGeneration;
-			if (!await this.ensureEnabled()) {
-				return;
-			}
-			const created = await this.automationService.createAutomation(result.value, () => this.throwIfDisabled());
 			if (restoreFocus && focusRequestGeneration === this.focusRequestGeneration && !this._store.isDisposed && DOM.isAncestorOfActiveElement(this.focusRoot)) {
 				this.pendingFocusAutomationId = created.id;
 				this.focusPendingAutomation();
@@ -1009,13 +1476,19 @@ class AutomationCardsSection extends Disposable {
 			return false;
 		}
 		this.pendingFocusAutomationId = undefined;
-		card.main.focus();
+		this.focusCard(card);
 		return true;
 	}
 
 	private focusVisibleState(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState): void {
 		if (automations.length > 0) {
-			(this.persistentCards.get(automations[0].id)?.main ?? this.focusRoot).focus();
+			const firstSection = [...this.ownershipSections.values()].find(section => section.section === this.container.firstElementChild);
+			const card = [...this.persistentCards.values()].find(card => card.element === firstSection?.grid.firstElementChild) ?? this.persistentCards.get(automations[0].id);
+			if (card) {
+				this.focusCard(card);
+			} else {
+				this.focusRoot.focus();
+			}
 			return;
 		}
 		switch (catalogueState) {
@@ -1029,7 +1502,27 @@ class AutomationCardsSection extends Disposable {
 				this.errorCreateButton.focus();
 				return;
 			case 'ready':
-				(this.emptyCreateButton?.element ?? this.focusRoot).focus();
+				(this.emptyCreateButton ?? this.focusRoot).focus();
+		}
+	}
+
+	private focusCard(card: IAutomationCardEntry): void {
+		if (card.element.style.display === 'none') {
+			this.focusHiddenAutomation();
+			return;
+		}
+		const section = card.element.closest<HTMLDetailsElement>('details.automations-ownership-section');
+		if (section) {
+			section.open = true;
+		}
+		card.main.focus();
+	}
+
+	private focusHiddenAutomation(): void {
+		if (this.visibleContainer === this.container) {
+			this.ownershipSections.get('user')?.summary.focus();
+		} else {
+			this.focusVisibleState([], this.automationService.catalogueState.get());
 		}
 	}
 
@@ -1037,19 +1530,17 @@ class AutomationCardsSection extends Disposable {
 		if (!await this.ensureEnabled()) {
 			return;
 		}
+		const focusedElement = DOM.getActiveElement();
 		try {
-			const result = await this.automationDialogService.showAutomationDialog({ existing: automation });
+			const result = await showAutomationEditDialog(automation, this.automationDialogService, this.automationService, this.configurationService, this.telemetryService);
+			// The dialog cannot restore focus to a card hidden by the filter.
+			if (!this._store.isDisposed && this.focusRoot.isConnected && DOM.isHTMLElement(focusedElement)
+				&& focusedElement.closest<HTMLElement>('.automations-card-wrapper')?.style.display === 'none'
+				&& DOM.getActiveElement() === DOM.getWindow(this.focusRoot).document.body) {
+				this.focusHiddenAutomation();
+			}
 			if (!result || result.kind !== 'update') {
 				return;
-			}
-			if (!await this.ensureEnabled()) {
-				return;
-			}
-			const updateResult = await this.automationService.updateAutomationIfUnchanged(result.id, result.value, automation, () => this.throwIfDisabled());
-			if (updateResult.kind === 'conflict') {
-				throw new Error(updateResult.current
-					? localize('automationChangedDuringEdit', "This automation changed while the dialog was open. Reopen it to review the latest values.")
-					: localize('automationDeletedDuringEdit', "This automation was deleted while the dialog was open."));
 			}
 			status(localize('automationUpdatedStatus', "Updated automation {0}", automation.name));
 		} catch (err) {
@@ -1084,539 +1575,68 @@ class AutomationCardsSection extends Disposable {
 
 //#region AutomationHistorySection
 
+/** Combines authoritative run history with newer local conversation progress. */
+
+
 /**
  * Renders the run history list grouped by date. Groups are persistent to avoid
  * the context-key default-value flash that a full tear-down/rebuild would cause.
  */
-class AutomationHistorySection extends Disposable {
 
-	private readonly container: HTMLElement;
-	private readonly groupsContainer: HTMLElement;
-	private readonly headerDisposables = this._register(new DisposableStore());
-	private readonly persistentGroups = new Map<string, IAutomationHistoryGroup>();
-	private readonly runFocusTargets = new Map<string, { readonly list: SessionsFlatList; readonly session: ISession }>();
-	private readonly approvalModel: AgentSessionApprovalModel;
-	private renderedFocusableRunIds: string[] = [];
-	private pendingFocusRunId: string | undefined;
-	private shouldRestoreFocus = false;
-	private headerRow: HTMLElement | undefined;
-	private markAllButton: Button | undefined;
-	private readonly currentRuns = observableValue<readonly IAutomationRun[]>(this, []);
-	private readonly currentSessions = observableValue<ReadonlyMap<string, ISession>>(this, new Map());
 
-	override dispose(): void {
-		this.disposeAllGroups();
-		super.dispose();
-	}
-
-	constructor(
-		parent: HTMLElement,
-		private readonly focusFallback: HTMLElement,
-		private readonly isMarkingAllRead: ISettableObservable<boolean>,
-		@IAutomationService private readonly automationService: IAutomationService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@ILogService private readonly logService: ILogService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) {
-		super();
-		this.container = DOM.append(parent, $('.automations-history'));
-		this.groupsContainer = DOM.append(this.container, $('.automations-history-groups'));
-		this.approvalModel = this._register(this.instantiationService.createInstance(AgentSessionApprovalModel));
-	}
-
-	render(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): void {
-		const sessionRuns = runs.filter(run => sessions.has(run.id));
-		const visibleRuns = runs.filter(run =>
-			sessions.has(run.id)
-			|| isTemporaryAutomationRun(run)
-			|| (!!run.sessionResource && !!this.sessionsManagementService.getSession(run.sessionResource))
-		);
-		transaction(tx => {
-			this.currentRuns.set(sessionRuns, tx);
-			this.currentSessions.set(sessions, tx);
-		});
-		this.runFocusTargets.clear();
-		this.renderedFocusableRunIds = [];
-
-		if (visibleRuns.length === 0) {
-			this.container.style.display = 'none';
-			this.disposeAllGroups();
-			this.restoreFocusAfterRender();
-			return;
-		}
-
-		this.container.style.display = '';
-		this.ensureHeader();
-
-		const groups = groupRunsByDate(visibleRuns);
-		const activeKeys = new Set(groups.map(group => group.key));
-		for (const [key, entry] of this.persistentGroups) {
-			if (!activeKeys.has(key)) {
-				entry.disposables.dispose();
-				entry.element.remove();
-				this.persistentGroups.delete(key);
-			}
-		}
-
-		let index = 0;
-
-		for (const group of groups) {
-			const sessionItems = this.resolveSessionItems(group.runs, sessions);
-			const temporaryRuns = group.runs.filter(run => !sessions.has(run.id));
-
-			let entry = this.persistentGroups.get(group.key);
-			if (entry) {
-				if (entry.header.textContent !== group.label) {
-					entry.header.textContent = group.label;
-				}
-				this.updateTemporaryRuns(entry, temporaryRuns);
-				this.updateGroupSessions(entry, sessionItems);
-			} else {
-				entry = this.createGroup(group.key, group.label, temporaryRuns, sessionItems);
-			}
-
-			const currentElement = this.groupsContainer.children.item(index);
-			if (currentElement !== entry.element) {
-				this.groupsContainer.insertBefore(entry.element, currentElement);
-				if (entry.list) {
-					this.layoutSessionList(entry.listContainer, entry.list);
-				}
-			}
-			index++;
-
-			for (const item of sessionItems) {
-				if (!entry.list) {
-					continue;
-				}
-				this.renderedFocusableRunIds.push(item.run.id);
-				this.runFocusTargets.set(item.run.id, { list: entry.list, session: item.session });
-			}
-		}
-
-		this.restoreFocusAfterRender();
-	}
-
-	layout(): void {
-		for (const entry of this.persistentGroups.values()) {
-			if (entry.list) {
-				this.layoutSessionList(entry.listContainer, entry.list);
-			}
-		}
-	}
-
-	private ensureHeader(): void {
-		if (this.headerRow) {
-			return;
-		}
-		this.headerDisposables.clear();
-		this.headerRow = DOM.$('.automations-history-header');
-		this.container.insertBefore(this.headerRow, this.groupsContainer);
-		const headerLabel = DOM.append(this.headerRow, $('span'));
-		headerLabel.textContent = localize('historyHeader', "History");
-
-		this.markAllButton = this.headerDisposables.add(new Button(this.headerRow, {
-			...defaultButtonStyles,
-			secondary: true,
-			title: localize('markAllRead', "Mark all as read"),
-		}));
-		this.markAllButton.label = localize('markAllRead', "Mark all as read");
-		this.markAllButton.element.classList.add('automations-mark-all-read');
-		this.headerDisposables.add(this.markAllButton.onDidClick(() => {
-			void this.markAllRunsRead(this.currentRuns.get());
-		}));
-		this.headerDisposables.add(autorun(reader => {
-			const runs = this.currentRuns.read(reader);
-			const sessions = this.currentSessions.read(reader);
-			const isMarkingAllRead = this.isMarkingAllRead.read(reader);
-			const hasUnread = runs.some(run => isUnreadAutomationRun(run, sessions.get(run.id), reader));
-			this.markAllButton!.element.style.display = hasUnread ? '' : 'none';
-			this.markAllButton!.enabled = hasUnread && !isMarkingAllRead;
-		}));
-	}
-
-	private resolveSessionItems(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): IAutomationHistoryItem[] {
-		const items: IAutomationHistoryItem[] = [];
-		for (const run of runs) {
-			const session = sessions.get(run.id);
-			if (session) {
-				items.push({ run, session });
-			}
-		}
-		return items;
-	}
-
-	private createGroup(key: string, label: string, temporaryRuns: readonly IAutomationRun[], items: readonly IAutomationHistoryItem[]): IAutomationHistoryGroup {
-		const disposables = new DisposableStore();
-		const element = $('.automations-history-group');
-		const header = DOM.append(element, $('.automations-history-group-header'));
-		header.textContent = label;
-		const runsContainer = DOM.append(element, $('.automations-history-group-runs'));
-		const temporaryRowsContainer = DOM.append(runsContainer, $('.automations-temporary-runs'));
-		const listContainer = DOM.append(runsContainer, $('.automations-run-session-list'));
-
-		const runsBySession = new Map<string, IAutomationRun>();
-		const entry: IAutomationHistoryGroup = {
-			element,
-			header,
-			temporaryRowsContainer,
-			temporaryRows: disposables.add(new DisposableMap()),
-			listContainer,
-			listDisposables: disposables.add(new MutableDisposable()),
-			list: undefined,
-			runsBySession,
-			sessions: [],
-			disposables,
-		};
-		this.persistentGroups.set(key, entry);
-
-		this.updateTemporaryRuns(entry, temporaryRuns);
-		this.updateGroupSessions(entry, items);
-		return entry;
-	}
-
-	private ensureGroupList(entry: IAutomationHistoryGroup): SessionsFlatList {
-		if (entry.list) {
-			return entry.list;
-		}
-
-		const disposables = new DisposableStore();
-		const list = disposables.add(this.instantiationService.createInstance(SessionsFlatList, entry.listContainer, {
-			showSessionHover: false,
-			alwaysConsumeMouseWheel: false,
-			useCompactQuickChatRows: false,
-			toolbarMenuId: Menus.AutomationsHistoryItem,
-			contextMenuId: Menus.AutomationsHistoryItemContext,
-			markSessionReadOnOpen: false,
-			approvalModel: this.approvalModel,
-			onSessionOpen: resource => void this.openRunSession(resource),
-			onToolbarAction: (action, session) => this.handleSessionAction(action, session, entry.runsBySession),
-			onContextMenuAction: (action, session) => this.handleSessionAction(action, session, entry.runsBySession),
-		}));
-		disposables.add(list.onDidChangeContentHeight(() => this.layoutSessionList(entry.listContainer, list)));
-		entry.list = list;
-		entry.listDisposables.value = disposables;
-		return list;
-	}
-
-	private updateTemporaryRuns(entry: IAutomationHistoryGroup, runs: readonly IAutomationRun[]): void {
-		const activeRunIds = new Set(runs.map(run => run.id));
-		for (const runId of entry.temporaryRows.keys()) {
-			if (!activeRunIds.has(runId)) {
-				entry.temporaryRows.deleteAndDispose(runId);
-			}
-		}
-
-		let index = 0;
-		for (const run of runs) {
-			const title = this.getAutomationName(run);
-			let row = entry.temporaryRows.get(run.id);
-			if (!row) {
-				row = this.createTemporaryRunRow(title);
-				entry.temporaryRows.set(run.id, row);
-			} else if (row.title.textContent !== title) {
-				row.title.textContent = title;
-				row.element.setAttribute('aria-label', localize('automationRunWorkingAriaLabel', "{0}, Working...", title));
-			}
-
-			const currentElement = entry.temporaryRowsContainer.children.item(index);
-			if (currentElement !== row.element) {
-				entry.temporaryRowsContainer.insertBefore(row.element, currentElement);
-			}
-			index++;
-		}
-	}
-
-	private createTemporaryRunRow(title: string): IAutomationTemporaryRunRow {
-		const disposables = new DisposableStore();
-		const element = $('.automations-temporary-run.session-item');
-		element.setAttribute('role', 'group');
-		element.setAttribute('aria-label', localize('automationRunWorkingAriaLabel', "{0}, Working...", title));
-		const icon = DOM.append(element, $('.session-icon'));
-		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, icon));
-		statusIcon.setStatus(SessionStatus.InProgress, true, false);
-		const main = DOM.append(element, $('.session-main'));
-		const titleRow = DOM.append(main, $('.session-title-row'));
-		const titleElement = DOM.append(titleRow, $('span.session-title'));
-		titleElement.textContent = title;
-		const detailsRow = DOM.append(main, $('.session-details-row'));
-		DOM.append(detailsRow, $('span.session-description')).textContent = localize('automationRunWorking', "Working...");
-		return {
-			element,
-			title: titleElement,
-			dispose: () => {
-				disposables.dispose();
-				element.remove();
-			},
-		};
-	}
-
-	private updateGroupSessions(
-		entry: IAutomationHistoryGroup,
-		items: readonly IAutomationHistoryItem[],
-	): void {
-		entry.runsBySession.clear();
-		for (const item of items) {
-			entry.runsBySession.set(item.session.resource.toString(), item.run);
-		}
-
-		const sessions = items.map(item => item.session);
-		if (entry.sessions.length === sessions.length && entry.sessions.every((session, index) => session === sessions[index])) {
-			return;
-		}
-		entry.sessions = sessions;
-		if (sessions.length === 0) {
-			entry.list = undefined;
-			entry.listDisposables.clear();
-			DOM.clearNode(entry.listContainer);
-			entry.listContainer.style.height = '';
-			return;
-		}
-		const list = this.ensureGroupList(entry);
-		list.setSessions(sessions);
-		this.layoutSessionList(entry.listContainer, list);
-	}
-
-	private disposeAllGroups(): void {
-		for (const [key, entry] of this.persistentGroups) {
-			entry.disposables.dispose();
-			entry.element.remove();
-			this.persistentGroups.delete(key);
-		}
-		if (this.headerRow) {
-			this.headerRow.remove();
-			this.headerRow = undefined;
-			this.markAllButton = undefined;
-			this.headerDisposables.clear();
-		}
-	}
-
-	private layoutSessionList(container: HTMLElement, list: SessionsFlatList): void {
-		const height = list.getContentHeight();
-		const width = container.clientWidth;
-		container.style.height = `${height}px`;
-		list.layout(height, width);
-	}
-
-	private async handleSessionAction(action: IAction, session: ISession, runsBySession: ReadonlyMap<string, IAutomationRun>): Promise<boolean> {
-		const run = runsBySession.get(session.resource.toString());
-		if (!run) {
-			return false;
-		}
-		switch (action.id) {
-			case STOP_AUTOMATION_RUN_SESSION_COMMAND_ID:
-				action.enabled = false;
-				await this.stopRunSession(session, this.getAutomationName(run), action);
-				return true;
-			case ARCHIVE_SESSION_COMMAND_ID:
-				await this.sessionsManagementService.archiveSession(session);
-				return true;
-			default:
-				return false;
-		}
-	}
-
-	private getAutomationName(run: IAutomationRun): string {
-		return this.automationService.automations.get().find(automation => automation.id === run.automationId)?.name
-			?? localize('unknownAutomation', "Unknown");
-	}
-
-	private async openRunSession(resource: URI): Promise<void> {
-		if (!this.sessionsManagementService.getSession(resource)) {
-			return;
-		}
-		try {
-			await this.sessionsService.openSession(resource, { preserveFocus: false, source: 'automation' });
-		} catch (error) {
-			this.logService.error('[AutomationsCards] Failed to open automation run', error);
-			await this.dialogService.error(
-				localize('automationRunOpenFailed', "Failed to open automation run."),
-				getErrorMessage(error),
-			);
-		}
-	}
-
-	private async stopRunSession(session: ISession, automationName: string, action: IAction): Promise<void> {
-		try {
-			await this.sessionsManagementService.cancelCurrentRequest(session);
-			status(localize('automationRunSessionStoppedStatus', "Stopped the session for {0}", automationName));
-		} catch (error) {
-			action.enabled = true;
-			this.logService.error('[AutomationsCards] Failed to stop automation run session', error);
-			await this.dialogService.error(
-				localize('automationRunSessionStopFailed', "Failed to stop the automation run session."),
-				getErrorMessage(error),
-			);
-		}
-	}
-
-	private restoreFocusAfterRender(): void {
-		if (!this.shouldRestoreFocus) {
-			return;
-		}
-		const target = this.pendingFocusRunId ? this.runFocusTargets.get(this.pendingFocusRunId) : undefined;
-		this.clearPendingFocus();
-		if (target) {
-			target.list.focusSession(target.session);
-		} else {
-			this.focusFallback.focus();
-		}
-	}
-
-	private clearPendingFocus(): void {
-		this.pendingFocusRunId = undefined;
-		this.shouldRestoreFocus = false;
-	}
-
-	private async markAllRunsRead(runs: readonly IAutomationRun[]): Promise<void> {
-		this.isMarkingAllRead.set(true, undefined);
-		const sessions = new Map<string, ISession>();
-		try {
-			for (const run of runs) {
-				if ((run.status === 'completed' || run.status === 'failed') && run.sessionResource) {
-					const session = this.sessionsManagementService.getSession(run.sessionResource);
-					if (session && !session.isRead.get()) {
-						sessions.set(session.resource.toString(), session);
-					}
-				}
-			}
-			await this.sessionsManagementService.markAllRead([...sessions.values()]);
-		} catch (error) {
-			this.logService.error('[AutomationsCards] Failed to mark automation runs read', error);
-			await this.dialogService.error(
-				localize('automationMarkAllReadFailed', "Failed to mark automation runs as read."),
-				getErrorMessage(error),
-			);
-		} finally {
-			this.isMarkingAllRead.set(false, undefined);
-		}
-	}
-}
 
 //#endregion
 
 //#region Helpers
 
-function isUnreadAutomationRun(run: IAutomationRun, session: ISession | undefined, reader: IReader): boolean {
-	return (run.status === 'completed' || run.status === 'failed') && !!session && !session.isRead.read(reader);
-}
 
-function isTemporaryAutomationRun(run: IAutomationRun): boolean {
-	return run.status === 'pending' || run.status === 'running';
-}
 
-function formatSchedule(schedule: IAutomationSchedule): string {
-	const { interval, scheduleHour, scheduleMinute } = schedule;
-	const time = formatHourMinute(scheduleHour, scheduleMinute);
-	switch (interval) {
-		case 'hourly': return localize('scheduleHourly', "Hourly");
-		case 'daily': return localize('scheduleDailyAt', "Daily at {0}", time);
-		case 'weekly': {
-			const day = DAYS_OF_WEEK[((schedule.scheduleDay % 7) + 7) % 7];
-			return localize('scheduleWeeklyAt', "{0} at {1}", day, time);
-		}
-		case 'manual': return localize('scheduleManual', "Manual");
-		default: return localize('scheduleManual', "Manual");
-	}
-}
 
-function formatHourMinute(hour: number, minute: number): string {
-	const date = new Date(Date.UTC(2000, 0, 1, Math.max(0, Math.min(23, hour | 0)), Math.max(0, Math.min(59, minute | 0))));
-	return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
-}
 
 function getAutomationTargetLabel(target: AutomationTarget): string {
-	return target.kind === 'workspace' ? basename(target.folderUri) : localize('quickChat', "No workspace");
+	return target.kind === 'workspace' ? basename(target.folderUri) : '';
 }
 
-function groupRunsByDate(runs: readonly IAutomationRun[]): { key: string; label: string; runs: IAutomationRun[] }[] {
-	const now = new Date();
-	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-	const yesterday = new Date(today);
-	yesterday.setDate(yesterday.getDate() - 1);
-	const lastWeekStart = new Date(today);
-	lastWeekStart.setDate(lastWeekStart.getDate() - 7);
-
-	const groups: Map<string, { key: string; label: string; order: number; runs: IAutomationRun[] }> = new Map();
-
-	for (const run of runs) {
-		const t = Date.parse(run.startedAt);
-		if (Number.isNaN(t)) {
-			continue;
-		}
-		const date = new Date(t);
-		const { key, label, order } = getDateBucket(date, today, yesterday, lastWeekStart);
-
-		let group = groups.get(key);
-		if (!group) {
-			group = { key, label, order, runs: [] };
-			groups.set(key, group);
-		}
-		group.runs.push(run);
+function formatAutomationLimit(automation: IAutomationDescriptor): { label: string; description: string } | undefined {
+	const date = getAutomationAfterDate(automation.disableConditions);
+	if (date === undefined) {
+		return undefined;
 	}
-
-	return [...groups.values()].sort((a, b) => a.order - b.order);
+	const endDate = new Date(date);
+	const formattedDate = endDate.toLocaleString(undefined, {
+		year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+	});
+	const time = endDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+	const today = new Date();
+	const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+	const label = isSameLocalDate(endDate, today)
+		? localize('automationCardEndDateToday', "until today at {0}", time)
+		: isSameLocalDate(endDate, tomorrow)
+			? localize('automationCardEndDateTomorrow', "until tomorrow at {0}", time)
+			: localize('automationCardEndDate', "until {0} {1}", endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), time);
+	return {
+		label,
+		description: localize('automationCardEndDateDescription', "Stops scheduling at {0}.", formattedDate),
+	};
 }
 
-function getDateBucket(date: Date, today: Date, yesterday: Date, lastWeekStart: Date): { key: string; label: string; order: number } {
-	if (date >= today) {
-		return { key: 'today', label: localize('today', "Today"), order: 0 };
-	}
-	if (date >= yesterday) {
-		return { key: 'yesterday', label: localize('yesterday', "Yesterday"), order: 1 };
-	}
-	if (date >= lastWeekStart) {
-		return { key: 'week', label: localize('lastWeek', "Last week"), order: 2 };
-	}
-	const monthLabel = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-	const monthIndex = date.getFullYear() * 12 + date.getMonth();
-	const order = 30000 - monthIndex;
-	return { key: `month-${date.getFullYear()}-${date.getMonth()}`, label: monthLabel, order };
+function isSameLocalDate(first: Date, second: Date): boolean {
+	return first.getFullYear() === second.getFullYear()
+		&& first.getMonth() === second.getMonth()
+		&& first.getDate() === second.getDate();
 }
 
-function getErrorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
 
-function getAutomationBlueprintErrorMessage(error: unknown): string {
-	if (!(error instanceof AutomationBlueprintParseError)) {
-		return getErrorMessage(error);
-	}
-	switch (error.code) {
-		case 'invalidFrontmatter':
-			return localize('automationBlueprint.invalidFrontmatter', "The file must start with valid YAML frontmatter.");
-		case 'unknownProperty':
-			return localize('automationBlueprint.unknownProperty', "The property '{0}' is not supported.", error.property ?? '');
-		case 'invalidField':
-			return localize('automationBlueprint.invalidField', "The property '{0}' is missing or invalid.", error.property ?? '');
-		case 'unsupportedVersion':
-			return localize('automationBlueprint.unsupportedVersion', "Automation blueprint version {0} is not supported.", error.property ?? '');
-		case 'invalidId':
-			return localize('automationBlueprint.invalidId', "The blueprint id '{0}' is invalid.", error.property ?? '');
-		case 'unsupportedSchedule':
-			return localize('automationBlueprint.unsupportedSchedule', "The cron expression '{0}' cannot be represented by the current Automation editor.", error.property ?? '');
-		case 'unsupportedTimeZone':
-			return localize('automationBlueprint.unsupportedTimeZone', "The time zone '{0}' is not supported. Use 'local' so the schedule follows the importing user's time zone.", error.property ?? '');
-		case 'missingPrompt':
-			return localize('automationBlueprint.missingPrompt', "The Automation prompt must follow the frontmatter.");
-	}
-}
 
-function normalizeAutomationBlueprintResource(resource: URI): URI {
-	let name = basename(resource);
-	while (name.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX)) {
-		name = name.slice(0, -AUTOMATION_BLUEPRINT_FILE_SUFFIX.length);
-	}
-	if (name.toLowerCase().endsWith('.md')) {
-		name = name.slice(0, -'.md'.length);
-	}
-	return joinPath(dirname(resource), `${name || 'automation'}${AUTOMATION_BLUEPRINT_FILE_SUFFIX}`);
-}
 
-function isAutomationBlueprintResource(resource: URI): boolean {
-	return resource.path.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX);
-}
+
+
+
+
+
+
+
+
 
 function getAutomationDropData(event: DragEvent): AutomationDropData {
 	const editors = extractEditorsDropData(event);
@@ -1649,113 +1669,15 @@ function getAutomationDropData(event: DragEvent): AutomationDropData {
 		: { kind: 'invalid', reason: 'unsupported' };
 }
 
-async function importAutomationBlueprint(
-	readContent: () => Promise<string>,
-	automationDialogService: IAutomationDialogService,
-	automationService: IAutomationService,
-	configurationService: IConfigurationService,
-	dialogService: IDialogService,
-	logService: ILogService,
-): Promise<void> {
-	const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
-	if (!isEnabled()) {
-		await showAutomationsDisabled(dialogService);
-		return;
-	}
 
-	let blueprint;
-	try {
-		blueprint = parseAutomationBlueprint(await readContent());
-	} catch (error) {
-		logService.error('[Automations] Failed to read Automation blueprint', error);
-		await dialogService.error(
-			localize('automationImportReadFailed', "Failed to import automation."),
-			getAutomationBlueprintErrorMessage(error),
-		);
-		return;
-	}
 
-	const result = await automationDialogService.showAutomationDialog({
-		initialValues: {
-			name: blueprint.name,
-			prompt: blueprint.prompt,
-			schedule: blueprint.schedule,
-			enabled: false,
-		},
-	});
-	if (!result || result.kind !== 'create') {
-		return;
-	}
-	if (!isEnabled()) {
-		await showAutomationsDisabled(dialogService);
-		return;
-	}
 
-	try {
-		const automation = await automationService.createAutomation(result.value, () => {
-			if (!isEnabled()) {
-				throw new Error(localize('automationsDisabledBeforeImport', "Automations were disabled before the imported automation could be saved."));
-			}
-		});
-		status(localize('automationImportedStatus', "Imported automation {0}", automation.name));
-	} catch (error) {
-		logService.error('[Automations] Failed to import Automation blueprint', error);
-		await dialogService.error(
-			localize('automationImportFailed', "Failed to import automation."),
-			getErrorMessage(error),
-		);
-	}
-}
 
-async function showAutomationsDisabled(dialogService: IDialogService): Promise<void> {
-	await dialogService.info(
-		localize('automationsDisabledTitle', "Automations are disabled."),
-		localize('automationsDisabledDetail', "Enable \u201C{0}\u201D to make changes.", CHAT_AUTOMATIONS_ENABLED_SETTING),
-	);
-}
 
-async function confirmAndDeleteAutomation(
-	automation: IAutomationDescriptor,
-	automationService: IAutomationService,
-	configurationService: IConfigurationService,
-	dialogService: IDialogService,
-	logService: ILogService,
-): Promise<void> {
-	if (automationService.canDeleteAutomation?.(automation.id) === false) {
-		return;
-	}
-	const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
-	if (!isEnabled()) {
-		await showAutomationsDisabled(dialogService);
-		return;
-	}
-	const confirmed = await dialogService.confirm({
-		message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
-		detail: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
-		primaryButton: localize('delete', "Delete"),
-	});
-	if (!confirmed.confirmed) {
-		return;
-	}
-	if (!isEnabled()) {
-		await showAutomationsDisabled(dialogService);
-		return;
-	}
-	try {
-		await automationService.deleteAutomation(automation.id, () => {
-			if (!isEnabled()) {
-				throw new Error(localize('automationsDisabledBeforeDelete', "Automations were disabled before the automation could be deleted."));
-			}
-		});
-		status(localize('automationDeletedStatus', "Deleted automation {0}", automation.name));
-	} catch (error) {
-		logService.error('[AutomationsCards] Failed to delete automation', error);
-		await dialogService.error(
-			localize('automationDeleteFailed', "Failed to delete automation."),
-			getErrorMessage(error),
-		);
-	}
-}
+
+
+
+
 
 //#endregion
 
@@ -1769,7 +1691,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 
 	readonly title: IObservable<string> = constObservable(localize('automationsTitle', "Automations"));
 	override readonly description: IObservable<string | undefined> = constObservable(
-		localize('automationsDescription', "Schedule agent sessions to run automatically on a cadence you choose."));
+		localize('automationsDescription', "Configure agent sessions to run automatically from events or on a schedule."));
 
 	private _widget: AutomationsCardsWidget | undefined;
 
@@ -1800,7 +1722,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 export class AutomationsCustomViewContribution extends Disposable {
 
 	static readonly ID = 'sessions.contrib.automationsCustomView';
-	private readonly historyItemActions = this._register(new MutableDisposable<IDisposable>());
+	private readonly viewRegistration = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		@ICustomViewService customViewService: ICustomViewService,
@@ -1808,30 +1730,49 @@ export class AutomationsCustomViewContribution extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAutomationService automationService: IAutomationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ICommandService commandService: ICommandService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
-		const registerHistoryItemActions = () => {
-			this.historyItemActions.value = registerAutomationHistoryItemActions(getChatSessionArchiveActionWording(configurationService));
-		};
-		registerHistoryItemActions();
-		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
-				registerHistoryItemActions();
-			}
-		}));
-
 		const hasItemsContext = AutomationsHasItemsContext.bindTo(contextKeyService);
+		const hasOthersContext = AutomationsHasOthersContext.bindTo(contextKeyService);
+		const showOthersContext = ShowSharedAutomationsByOthersContext.bindTo(contextKeyService);
+		const showSharedByOthers = observableShowSharedAutomationsByOthers(this, storageService, this._store);
+		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
 		this._register(autorun(reader => {
-			hasItemsContext.set(automationService.automations.read(reader).length > 0);
+			configurationChanged.read(reader);
+			showOthersContext.set(showSharedByOthers.read(reader));
+			const automations = automationService.automations.read(reader);
+			hasOthersContext.set(automations.some(automation => automation.ownership === 'repository' && automation.isCreatedByCurrentUser !== true));
+			hasItemsContext.set(getAutomationsViewContent(
+				automations, [],
+				showSharedByOthers.read(reader),
+				configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true,
+			).automations.length > 0);
 		}));
 
-		this._register(customViewService.registerCustomView({
-			id: AUTOMATIONS_CUSTOM_VIEW_ID,
-			ctor: new SyncDescriptor(AutomationsCustomView),
-			actions: { style: 'buttonBar', menuId: Menus.CustomViewAutomations },
-		}, {
-			restore: contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key) === true,
+		const updateRegistration = () => {
+			if (configurationService.getValue<boolean>(AUTOMATIONS_MODAL_SETTING) === true) {
+				if (customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
+					customViewService.hideCustomView();
+				}
+				this.viewRegistration.clear();
+			} else if (!this.viewRegistration.value) {
+				this.viewRegistration.value = customViewService.registerCustomView({
+					id: AUTOMATIONS_CUSTOM_VIEW_ID,
+					ctor: new SyncDescriptor(AutomationsCustomView),
+					actions: { style: 'buttonBar', menuId: AgentsWindowMenus.CustomViewAutomations },
+				}, {
+					restore: contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key) === true,
+				});
+			}
+		};
+		updateRegistration();
+		this._register(configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(AUTOMATIONS_MODAL_SETTING)) {
+				updateRegistration();
+			}
 		}));
 
 		const automationContextKeys = new Set([ChatAutomationsEnabledContext.key]);
@@ -1844,451 +1785,167 @@ export class AutomationsCustomViewContribution extends Disposable {
 		}));
 
 		// Header actions share one control treatment while preserving primary/secondary hierarchy.
-		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessionsView.newAutomation', (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, CREATE_AUTOMATION_WITH_AGENT_COMMAND_ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, false);
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, false, CREATE_AUTOMATION_ONBOARDING_TARGET_ID);
 		}));
-		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessions.automations.import', (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, 'sessionsView.newAutomation', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true);
+			const importAutomation = toAction({ id: 'sessions.automations.import', label: localize('importAutomationMenu', "Import Automation..."), run: () => commandService.executeCommand('sessions.automations.import') });
+			return instantiationService.createInstance(AutomationHeaderSplitButtonActionViewItem, action, options, [importAutomation]);
 		}));
-	}
-}
-
-function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchiveActionWording): IDisposable {
-	const archivePresentation = getChatSessionArchiveActionPresentation(archiveWording);
-	return combinedDisposable(
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItem, {
-			command: {
-				id: STOP_AUTOMATION_RUN_SESSION_COMMAND_ID,
-				title: localize('stopAutomationRunSessionAction', "Stop"),
-				icon: Codicon.stopCircle,
-			},
-			group: 'navigation',
-			order: 1,
-			when: ContextKeyExpr.or(
-				SessionItemStatusContext.isEqualTo(SessionStatus.InProgress),
-				SessionItemStatusContext.isEqualTo(SessionStatus.NeedsInput),
-			),
-		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
-			command: {
-				id: MARK_SESSION_READ_COMMAND_ID,
-				title: localize('markAutomationRunSessionReadAction', "Mark as Read"),
-			},
-			group: '0_read',
-			order: 1,
-			when: ContextKeyExpr.and(SessionIsReadContext.negate(), SessionIsArchivedContext.negate()),
-		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
-			command: {
-				id: MARK_SESSION_UNREAD_COMMAND_ID,
-				title: localize('markAutomationRunSessionUnreadAction', "Mark as Unread"),
-			},
-			group: '0_read',
-			order: 1,
-			when: ContextKeyExpr.and(SessionIsReadContext, SessionIsArchivedContext.negate()),
-		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
-			command: {
-				id: RENAME_SESSION_COMMAND_ID,
-				title: localize('renameAutomationRunSessionAction', "Rename..."),
-			},
-			group: '1_edit',
-			order: 1,
-			when: SessionSupportsRenameContext,
-		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
-			command: {
-				id: ARCHIVE_SESSION_COMMAND_ID,
-				title: archivePresentation.archive.title,
-			},
-			group: '1_edit',
-			order: 2,
-			when: SessionIsArchivedContext.negate(),
-		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
-			command: {
-				id: UNARCHIVE_SESSION_COMMAND_ID,
-				title: archivePresentation.unarchive.title,
-			},
-			group: '1_edit',
-			order: 2,
-			when: SessionIsArchivedContext,
-		}),
-	);
-}
-
-class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
-
-	private button: Button | undefined;
-
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean) {
-		super(context, action, options);
-	}
-
-	override render(container: HTMLElement): void {
-		this.element = container;
-		container.classList.add('chat-pill-item');
-		const button = this.button = this._register(new Button(container, { secondary: this.secondary, ...defaultButtonStyles }));
-		button.element.classList.add('monaco-text-button', 'chat-pill-button');
-		this._register(button.onDidClick(() => {
-			if (this._action.enabled) {
-				this.actionRunner.run(this._action, this._context);
+		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, AgentsWindowMenus.AutomationsMoreActions, (action, options, instantiationService) => {
+			if (!(action instanceof SubmenuItemAction)) {
+				return undefined;
 			}
-		}));
-		this.updateLabel();
-		this.updateEnabled();
-	}
-
-	// Focus must restore the tab stop that `blur` removed, otherwise arrow
-	// navigation can leave the containing toolbar with no tabbable item.
-	override focus(): void { if (this.button) { this.button.element.tabIndex = 0; this.button.focus(); } }
-	override blur(): void { if (this.button) { this.button.element.tabIndex = -1; this.button.element.blur(); } }
-	override setFocusable(focusable: boolean): void { if (this.button) { this.button.element.tabIndex = focusable ? 0 : -1; } }
-
-	protected override updateEnabled(): void {
-		if (this.button) { this.button.enabled = this._action.enabled; }
-	}
-
-	protected override updateLabel(): void {
-		if (!this.button) { return; }
-		DOM.reset(this.button.element, this._action.label);
-	}
-}
-
-registerAction2(class NewAutomationAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsView.newAutomation',
-			title: localize2('newAutomation', "New Automation"),
-			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],
-		});
-	}
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const automationDialogService = accessor.get(IAutomationDialogService);
-		const automationService = accessor.get(IAutomationService);
-		const configurationService = accessor.get(IConfigurationService);
-		const dialogService = accessor.get(IDialogService);
-		const logService = accessor.get(ILogService);
-		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
-		if (!isEnabled()) {
-			await showAutomationsDisabled(dialogService);
-			return;
-		}
-		const result = await automationDialogService.showAutomationDialog({});
-		if (!result || result.kind !== 'create') {
-			return;
-		}
-		if (!isEnabled()) {
-			await showAutomationsDisabled(dialogService);
-			return;
-		}
-		try {
-			await automationService.createAutomation(result.value, () => {
-				if (!isEnabled()) {
-					throw new Error(localize('automationsDisabledBeforeSave', "Automations were disabled before the change could be saved."));
-				}
+			return instantiationService.createInstance(SubmenuEntryActionViewItem, action, {
+				...options,
+				classNames: [...ThemeIcon.asClassNameArray(Codicon.more), 'automations-more-actions'],
+				menuClassName: 'automations-more-actions-menu',
 			});
-		} catch (err) {
-			logService.error('[Automations] Failed to create automation', err);
-			await dialogService.error(
-				localize('automationCreateFailed', "Failed to create automation."),
-				getErrorMessage(err),
-			);
-		}
+		}));
 	}
-});
+}
 
-registerAction2(class ImportAutomationAction extends Action2 {
+
+
+
+
+
+
+
+
+registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.automations.import',
-			title: localize2('importAutomation', "Import Automation"),
-			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
+			id: 'sessions.automations.markAllRead',
+			title: localize2('markAllAutomationRunsRead', "Mark All as Read"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+			menu: {
+				id: Menus.AutomationsContext,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+			},
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const dialogService = accessor.get(IDialogService);
-		const fileDialogService = accessor.get(IFileDialogService);
-		const fileService = accessor.get(IFileService);
-		const logService = accessor.get(ILogService);
-		const automationDialogService = accessor.get(IAutomationDialogService);
-		const automationService = accessor.get(IAutomationService);
-		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
-		if (!isEnabled()) {
-			await showAutomationsDisabled(dialogService);
-			return;
-		}
-
-		const resources = await fileDialogService.showOpenDialog({
-			title: localize('importAutomationDialogTitle', "Import Automation"),
-			openLabel: localize('importAutomationDialogOpen', "Import"),
-			canSelectFiles: true,
-			canSelectFolders: false,
-			canSelectMany: false,
-			filters: [{ name: localize('automationBlueprintFileFilter', "Automation Blueprint"), extensions: ['automation.md'] }],
-		});
-		const resource = resources?.[0];
-		if (!resource) {
-			return;
-		}
-		if (!isAutomationBlueprintResource(resource)) {
-			await dialogService.error(
-				localize('automationDropFailed', "Unable to import automation."),
-				localize('automationDropUnsupported', "Only .automation.md files can be imported."),
-			);
-			return;
-		}
-
-		await importAutomationBlueprint(
-			async () => (await fileService.readFile(resource)).value.toString(),
-			automationDialogService,
-			automationService,
-			configurationService,
-			dialogService,
-			logService,
-		);
-	}
-});
-
-registerAction2(class DuplicateAutomationAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.automations.duplicate',
-			title: localize2('duplicateAutomation', "Duplicate"),
-			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
-		const automationDialogService = accessor.get(IAutomationDialogService);
-		const automationService = accessor.get(IAutomationService);
-		const configurationService = accessor.get(IConfigurationService);
-		const dialogService = accessor.get(IDialogService);
-		const logService = accessor.get(ILogService);
-		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
-		if (!isEnabled()) {
-			await showAutomationsDisabled(dialogService);
-			return;
-		}
-
-		try {
-			const name = getDuplicateAutomationName(automation.name, automationService.automations.get());
-			const result = await automationDialogService.showAutomationDialog({
-				initialValues: {
-					name,
-					prompt: automation.prompt,
-					schedule: automation.schedule,
-					target: automation.target,
-					...(automation.sessionTemplate
-						? { sessionTemplate: automation.sessionTemplate }
-						: {
-							modelId: automation.modelId,
-							mode: automation.mode,
-							permissionLevel: automation.permissionLevel,
-						}),
-					enabled: automation.enabled,
-				},
-			});
-			if (!result || result.kind !== 'create') {
-				return;
-			}
-			if (!isEnabled()) {
-				await showAutomationsDisabled(dialogService);
-				return;
-			}
-			const duplicate = await automationService.createAutomation(result.value, () => {
-				if (!isEnabled()) {
-					throw new Error(localize('automationsDisabledBeforeDuplicate', "Automations were disabled before the duplicate could be saved."));
-				}
-			});
-			status(localize('automationDuplicatedStatus', "Created duplicate automation {0}", duplicate.name));
-		} catch (error) {
-			logService.error('[Automations] Failed to duplicate automation', error);
-			await dialogService.error(
-				localize('automationDuplicateFailed', "Failed to duplicate automation."),
-				getErrorMessage(error),
-			);
-		}
-	}
-});
-
-registerAction2(class ExportAutomationAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.automations.export',
-			title: localize2('exportAutomation', "Export"),
-			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 3, when: ChatAutomationsEnabledContext }],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const dialogService = accessor.get(IDialogService);
-		const fileDialogService = accessor.get(IFileDialogService);
-		const fileService = accessor.get(IFileService);
-		const logService = accessor.get(ILogService);
-		if (configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true) {
-			await showAutomationsDisabled(dialogService);
-			return;
-		}
-
-		let defaultUri = joinPath(await fileDialogService.defaultFilePath(), createAutomationBlueprintFileName(automation.name));
-		let resource: URI;
-		while (true) {
-			const selectedResource = await fileDialogService.showSaveDialog({
-				title: localize('exportAutomationDialogTitle', "Export Automation"),
-				saveLabel: localize('exportAutomationDialogSave', "Export"),
-				defaultUri,
-				filters: [{ name: localize('automationBlueprintFileFilter', "Automation Blueprint"), extensions: ['md'] }],
-			});
-			if (!selectedResource) {
-				return;
-			}
-			const normalizedResource = normalizeAutomationBlueprintResource(selectedResource);
-			if (isEqual(selectedResource, normalizedResource)) {
-				resource = selectedResource;
-				break;
-			}
-			await dialogService.error(
-				localize('automationExportInvalidFileNameTitle', "Unable to export automation."),
-				localize('automationExportInvalidFileName', "Use a file name ending in exactly one .automation.md suffix."),
-			);
-			defaultUri = normalizedResource;
-		}
-
-		try {
-			const content = serializeAutomationBlueprint(automationToBlueprint(automation));
-			await fileService.writeFile(resource, VSBuffer.fromString(content));
-			status(localize('automationExportedStatus', "Exported automation {0}", automation.name));
-		} catch (error) {
-			logService.error('[Automations] Failed to export Automation blueprint', error);
-			await dialogService.error(
-				localize('automationExportFailed', "Failed to export automation."),
-				getErrorMessage(error),
-			);
-		}
-	}
-});
-
-registerAction2(class DeleteAutomationAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.automations.delete',
-			title: localize2('deleteAutomationContextMenu', "Delete"),
-			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanDeleteContext),
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 4, when: ChatAutomationsEnabledContext }],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
-		await confirmAndDeleteAutomation(
-			automation,
-			accessor.get(IAutomationService),
+		await markAllAutomationRunsRead(
+			accessor.get(IAutomationService), accessor.get(ISessionsManagementService), accessor.get(IUriIdentityService),
+			accessor.get(IChatService).chatModels.get(), accessor.get(ILogService), accessor.get(IDialogService),
 			accessor.get(IConfigurationService),
-			accessor.get(IDialogService),
-			accessor.get(ILogService),
+			accessor.get(IStorageService),
 		);
 	}
 });
 
-registerAction2(class DisableAutomationAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.automations.disable',
-			title: localize2('disableAutomationContextMenu', "Disable"),
-			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanUpdateContext),
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext) }],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
-		await setAutomationEnabled(accessor, automation, false);
-	}
+MenuRegistry.appendMenuItem(AgentsWindowMenus.CustomViewAutomations, {
+	submenu: AgentsWindowMenus.AutomationsMoreActions,
+	title: localize('automationsViewOptions', "View options"),
+	icon: Codicon.more,
+	group: 'navigation',
+	order: 4,
+	when: ContextKeyExpr.and(ChatAutomationsEnabledContext, ChatEntitlementContextKeys.Setup.hidden.negate()),
 });
 
-registerAction2(class EnableAutomationAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.automations.enable',
-			title: localize2('enableAutomationContextMenu', "Enable"),
-			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanUpdateContext),
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext.negate()) }],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
-		await setAutomationEnabled(accessor, automation, true);
-	}
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsMoreActions, {
+	command: {
+		id: TOGGLE_SHOW_DISABLED_AUTOMATIONS_COMMAND_ID,
+		title: localize2('showDisabledAutomations', "Show disabled automations"),
+		toggled: ShowDisabledAutomationsContext,
+		precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, ChatEntitlementContextKeys.Setup.hidden.negate()),
+	},
+	group: '1_state',
+	order: 0,
+	when: ContextKeyExpr.and(ChatAutomationsEnabledContext, ChatEntitlementContextKeys.Setup.hidden.negate()),
 });
 
-async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAutomationDescriptor, enabled: boolean): Promise<void> {
-	const automationService = accessor.get(IAutomationService);
-	if (automation.enabled === enabled || automationService.canUpdateAutomation?.(automation.id) === false) {
-		return;
-	}
-	const configurationService = accessor.get(IConfigurationService);
-	const dialogService = accessor.get(IDialogService);
-	const logService = accessor.get(ILogService);
-	const automationsEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
-	if (!automationsEnabled()) {
-		await showAutomationsDisabled(dialogService);
-		return;
-	}
-	try {
-		const result = await automationService.updateAutomationIfUnchanged(automation.id, { enabled }, automation, () => {
-			if (!automationsEnabled()) {
-				throw new Error(enabled
-					? localize('automationsDisabledBeforeEnable', "Automations were disabled before the automation could be enabled.")
-					: localize('automationsDisabledBeforeDisable', "Automations were disabled before the automation could be updated."));
-			}
-		});
-		if (result.kind === 'conflict') {
-			throw new Error(result.current
-				? (enabled
-					? localize('automationChangedDuringEnable', "This automation changed before it could be enabled. Try again.")
-					: localize('automationChangedDuringDisable', "This automation changed before it could be disabled. Try again."))
-				: (enabled
-					? localize('automationDeletedDuringEnable', "This automation was deleted before it could be enabled.")
-					: localize('automationDeletedDuringDisable', "This automation was deleted before it could be disabled.")));
-		}
-		status(enabled
-			? localize('automationEnabledStatus', "Enabled automation {0}", automation.name)
-			: localize('automationDisabledStatus', "Disabled automation {0}", automation.name));
-	} catch (error) {
-		logService.error(enabled ? '[Automations] Failed to enable automation' : '[Automations] Failed to disable automation', error);
-		await dialogService.error(
-			enabled
-				? localize('automationEnableFailed', "Failed to enable automation.")
-				: localize('automationDisableFailed', "Failed to disable automation."),
-			getErrorMessage(error),
-		);
-	}
-}
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsMoreActions, {
+	command: { ...AutomationCommands.showSharedByOthers, precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext) },
+	group: '1_state',
+	order: 2,
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.equals(`config.${CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING}`, true), AutomationsHasOthersContext),
+});
 
-function getDuplicateAutomationName(name: string, automations: readonly IAutomationDescriptor[]): string {
-	const existingNames = new Set(automations.map(automation => automation.name));
-	const copyName = localize('automationCopyName', "{0} Copy", name);
-	if (!existingNames.has(copyName)) {
-		return copyName;
-	}
-	for (let index = 2; ; index++) {
-		const indexedCopyName = localize('automationIndexedCopyName', "{0} Copy {1}", name, index);
-		if (!existingNames.has(indexedCopyName)) {
-			return indexedCopyName;
-		}
-	}
-}
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsMoreActions, {
+	command: { ...AutomationCommands.refresh, precondition: ChatAutomationsEnabledContext },
+	group: '1_state',
+	order: 1,
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.equals(`config.${CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING}`, true)),
+
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.CustomViewAutomations, {
+	command: { ...AutomationCommands.createManually, precondition: ChatAutomationsEnabledContext },
+	group: 'navigation',
+	order: 2,
+	when: ChatAutomationsEnabledContext,
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.CustomViewAutomations, {
+	command: { ...AutomationCommands.createWithAgent, precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext) },
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext),
+
+});
+
+
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationCardContext, {
+	command: { ...AutomationCommands.duplicate, precondition: ChatAutomationsEnabledContext },
+	group: '3_copy',
+	order: 1,
+	when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasEventTriggerContext.negate()),
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationCardContext, {
+	command: { ...AutomationCommands.export, precondition: ChatAutomationsEnabledContext },
+	group: '3_copy',
+	order: 2,
+	when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardIsCloudContext.negate()),
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationCardContext, {
+	command: { ...AutomationCommands.openOnGitHub, precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasExternalResourceContext) },
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasExternalResourceContext),
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationCardContext, {
+	command: { ...AutomationCommands.delete, precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanDeleteContext) },
+	group: '4_manage',
+	order: 1,
+	when: ChatAutomationsEnabledContext,
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationCardContext, {
+	command: { ...AutomationCommands.disable, precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanUpdateContext) },
+	group: '1_state',
+	order: 1,
+	when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext),
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationCardContext, {
+	command: { ...AutomationCommands.removeEndDate, precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationCardCanUpdateContext, AutomationCardHasLimitsContext) },
+	group: '1_state',
+	order: 1.5,
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationCardHasLimitsContext),
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationCardContext, {
+	command: { ...AutomationCommands.enable, precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanUpdateContext) },
+	group: '1_state',
+	order: 1,
+	when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext.negate()),
+});
+
+
+
+
 
 //#endregion

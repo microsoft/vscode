@@ -20,31 +20,6 @@ export class TestLogTarget implements ICompletionsLogTargetService {
 		this._messages.push({ level, category: category, extra });
 	}
 
-	hasMessage(level: LogLevel, ...extra: unknown[]) {
-		return this._messages.some(
-			m =>
-				m.level === level &&
-				m.extra.length === extra.length &&
-				m.extra
-					.filter(e => !(e instanceof Error))
-					.every((e, i) => {
-						return util.isDeepStrictEqual(e, extra[i]);
-					})
-		);
-	}
-
-	assertHasMessage(level: LogLevel, ...extra: unknown[]) {
-		if (!this.hasMessage(level, ...extra)) {
-			throw new Error(
-				`Expected message not found: ${LogLevel[level]} ${JSON.stringify(
-					extra
-				)}. Actual messages: ${this._messages
-					.map(m => '\n- ' + LogLevel[m.level] + ': ' + JSON.stringify(m.extra))
-					.join('')}`
-			);
-		}
-	}
-
 	/**
 	 * Checks for a logged message matching a given regex. Emulates
 	 * OutputChannelLog for conversion of log message to string.
@@ -63,10 +38,6 @@ export class TestLogTarget implements ICompletionsLogTargetService {
 					.join('')}`
 			);
 		}
-	}
-
-	get messageCount() {
-		return this._messages.length;
 	}
 
 	isEmpty() {

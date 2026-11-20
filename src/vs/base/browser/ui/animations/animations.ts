@@ -13,21 +13,63 @@ export const enum ClickAnimation {
 	RadiantLines = 4,
 }
 
+export interface IAnimationTarget {
+	readonly element: HTMLElement;
+	readonly rect: DOMRectReadOnly;
+	readonly container: HTMLElement;
+}
+
+/** Captures the animation's position and container before the element can move or be removed. */
+export function captureAnimationTarget(element: HTMLElement): IAnimationTarget {
+	return {
+		element,
+		rect: element.getBoundingClientRect(),
+		container: element.closest<HTMLElement>('.monaco-workbench') ?? dom.getWindow(element).document.body,
+	};
+}
+
 const confettiColors = [
-	'var(--vscode-charts-red)',
-	'var(--vscode-charts-orange)',
-	'var(--vscode-charts-yellow)',
-	'var(--vscode-charts-green)',
-	'var(--vscode-charts-blue)',
-	'var(--vscode-charts-purple)',
+	'var(--vscode-confetti-color1)',
+	'var(--vscode-confetti-color2)',
+	'var(--vscode-confetti-color3)',
+	'var(--vscode-confetti-color4)',
+	'var(--vscode-confetti-color5)',
+	'var(--vscode-confetti-color6)',
 ];
 
 /**
- * Creates a fixed-positioned overlay centered on the given element.
+ * Defines a range used to vary a confetti animation value.
  */
-function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number; cy: number } {
-	const rect = element.getBoundingClientRect();
-	const ownerDocument = dom.getWindow(element).document;
+export interface IConfettiAnimationRange {
+	readonly min: number;
+	readonly max: number;
+}
+
+/**
+ * Controls the timing and vertical travel of a confetti burst.
+ */
+export interface IConfettiAnimationOptions {
+	/** Time particles take to reach their apex, in milliseconds. */
+	readonly launchDuration?: IConfettiAnimationRange;
+	/** Time particles take to fall from their apex, in milliseconds. */
+	readonly fallDuration?: IConfettiAnimationRange;
+	/** Final downward travel range in pixels. */
+	readonly fallDistance?: IConfettiAnimationRange;
+}
+
+const defaultConfettiLaunchDuration = { min: 210, max: 290 };
+const defaultConfettiFallDuration = { min: 940, max: 1220 };
+const defaultConfettiFallDistance = { min: 48, max: 72 };
+
+function randomInRange(range: IConfettiAnimationRange): number {
+	return range.min + Math.random() * (range.max - range.min);
+}
+
+/**
+ * Creates a fixed-positioned overlay centered on the live or captured target.
+ */
+function createOverlay(target: HTMLElement | IAnimationTarget): { overlay: HTMLElement; cx: number; cy: number; element: HTMLElement; rect: DOMRectReadOnly } {
+	const { element, rect, container } = dom.isHTMLElement(target) ? captureAnimationTarget(target) : target;
 
 	const overlay = dom.$('.animation-overlay');
 	overlay.style.position = 'fixed';
@@ -38,9 +80,9 @@ function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number
 	overlay.style.pointerEvents = 'none';
 	overlay.style.overflow = 'visible';
 	overlay.style.zIndex = '10000';
-	(element.closest('.monaco-workbench') ?? ownerDocument.body).appendChild(overlay);
+	container.appendChild(overlay);
 
-	return { overlay, cx: rect.width / 2, cy: rect.height / 2 };
+	return { overlay, cx: rect.width / 2, cy: rect.height / 2, element, rect };
 }
 
 /**
@@ -96,10 +138,64 @@ export function bounceElement(element: HTMLElement, opts: { scale?: number[]; ro
 }
 
 /**
- * Confetti: colorful particles burst upward from the element center and fall.
+ * Confetti: independent pixel squares arc upward, drift, and fall.
  */
-export function triggerConfettiAnimation(element: HTMLElement) {
-	const { overlay, cx, cy } = createOverlay(element);
+export function triggerConfettiAnimation(target: HTMLElement | IAnimationTarget, options: IConfettiAnimationOptions = {}) {
+	const { overlay, cx, cy, element, rect } = createOverlay(target);
+	const launchDuration = options.launchDuration ?? defaultConfettiLaunchDuration;
+	const fallDuration = options.fallDuration ?? defaultConfettiFallDuration;
+	const fallDistance = options.fallDistance ?? defaultConfettiFallDistance;
+	const pixelSize = 4;
+	const frameDuration = 40;
+	const particleCount = 24;
+	const particles = Array.from({ length: particleCount }, () => {
+		const launchTime = randomInRange(launchDuration);
+		const fallTime = randomInRange(fallDuration);
+		const angle = (-150 + Math.random() * 120) * Math.PI / 180;
+		const distance = 24 + Math.random() * 20;
+		const keyframes: Keyframe[] = [];
+		return {
+			launchTime,
+			fallTime,
+			duration: launchTime + fallTime,
+			peakX: Math.cos(angle) * distance,
+			peakY: Math.sin(angle) * distance * 1.5,
+			fallDistance: randomInRange(fallDistance),
+			driftX: (Math.random() - 0.5) * 16,
+			flutterPhase: Math.random() * Math.PI * 2,
+			revealTime: 20 + Math.random() * 140,
+			keyframes,
+		};
+	});
+	const duration = Math.max(...particles.map(particle => particle.duration));
+	const frameCount = Math.ceil(duration / frameDuration);
+	for (let frame = 0; frame <= frameCount; frame++) {
+		const time = Math.min(frame * frameDuration, duration);
+		const occupiedPixels = new Set<string>();
+		for (const particle of particles) {
+			const launchProgress = Math.min(1, time / particle.launchTime);
+			const rise = 1 - (1 - launchProgress) ** 2;
+			const horizontalProgress = (1 - Math.exp(-2 * time / particle.launchTime)) / (1 - Math.exp(-2));
+			const fallProgress = Math.min(1, Math.max(0, (time - particle.launchTime) / particle.fallTime));
+			const flutter = Math.sin(fallProgress * Math.PI * 4 + particle.flutterPhase) * pixelSize * fallProgress;
+			let x = Math.round((particle.peakX * horizontalProgress + particle.driftX * fallProgress + flutter) / pixelSize) * pixelSize;
+			const y = Math.round((particle.peakY * rise + particle.fallDistance * fallProgress ** 1.5) / pixelSize) * pixelSize;
+			const opacity = time < particle.revealTime ? 0 : 1 - fallProgress;
+			if (opacity > 0) {
+				// Separate actual overlaps without imposing lanes or a minimum gap.
+				while (occupiedPixels.has(`${x},${y}`)) {
+					x += particle.peakX < 0 ? -pixelSize : pixelSize;
+				}
+				occupiedPixels.add(`${x},${y}`);
+			}
+			particle.keyframes.push({
+				opacity,
+				transform: `translate(${x}px, ${y}px)`,
+				offset: time / duration,
+				easing: 'steps(1, end)',
+			});
+		}
+	}
 
 	// Element bounce
 	bounceElement(element, {
@@ -109,51 +205,30 @@ export function triggerConfettiAnimation(element: HTMLElement) {
 	});
 
 	// Confetti particles
-	const particleCount = 24;
 	for (let i = 0; i < particleCount; i++) {
-		const width = 4 + (i % 3) * 1.5;
-		const height = 3 + ((i + 1) % 3);
-		const angle = (-160 + Math.random() * 140) * Math.PI / 180;
-		const distance = 30 + Math.random() * 30;
-		const peakX = Math.cos(angle) * distance;
-		const peakY = Math.sin(angle) * distance;
-		const endX = peakX * 1.4 + (Math.random() - 0.5) * 20;
-		const endY = 25 + Math.random() * 30;
-		const rotation = (Math.random() - 0.5) * 720;
-
 		const part = dom.$('.animation-particle.animation-confetti-particle');
 		part.style.position = 'absolute';
-		part.style.width = `${width}px`;
-		part.style.height = `${height}px`;
-		part.style.borderRadius = i % 4 === 0 ? '50%' : '1px';
+		part.style.width = `${pixelSize}px`;
+		part.style.height = `${pixelSize}px`;
 		part.style.backgroundColor = confettiColors[i % confettiColors.length];
-		part.style.left = `${cx}px`;
-		part.style.top = `${cy}px`;
+		part.style.left = `${Math.round((rect.left + cx) / pixelSize) * pixelSize - rect.left}px`;
+		part.style.top = `${Math.round((rect.top + cy) / pixelSize) * pixelSize - rect.top}px`;
 		overlay.appendChild(part);
 
-		part.animate([
-			{ opacity: 0, transform: 'translate(-50%, -50%) scale(0) rotate(0deg)' },
-			{ opacity: 1, transform: `translate(calc(-50% + ${peakX * 0.35}px), calc(-50% + ${peakY * 0.55}px)) scale(1) rotate(${rotation * 0.2}deg)`, offset: 0.15 },
-			{ opacity: 1, transform: `translate(calc(-50% + ${peakX}px), calc(-50% + ${peakY}px)) rotate(${rotation * 0.5}deg)`, offset: 0.45 },
-			{ opacity: 0.9, transform: `translate(calc(-50% + ${endX * 0.9}px), calc(-50% + ${endY * 0.35}px)) rotate(${rotation * 0.8}deg)`, offset: 0.75 },
-			{ opacity: 0, transform: `translate(calc(-50% + ${endX}px), calc(-50% + ${endY}px)) rotate(${rotation}deg)` },
-		], {
-			duration: 900 + Math.random() * 400,
-			delay: Math.random() * 100,
-			easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)',
+		part.animate(particles[i].keyframes, {
+			duration,
 			fill: 'both',
 		});
 	}
 
-	cleanupOverlay(overlay, 2000);
+	cleanupOverlay(overlay, launchDuration.max + fallDuration.max + 200);
 }
 
 /**
  * Floating Icons: small icons float upward from the element.
  */
-export function triggerFloatingIconsAnimation(element: HTMLElement, icon: ThemeIcon) {
-	const { overlay, cx, cy } = createOverlay(element);
-	const rect = element.getBoundingClientRect();
+export function triggerFloatingIconsAnimation(target: HTMLElement | IAnimationTarget, icon: ThemeIcon) {
+	const { overlay, cx, cy, element, rect } = createOverlay(target);
 
 	// Element bounce upward
 	bounceElement(element, {
@@ -220,9 +295,8 @@ export function triggerFloatingIconsAnimation(element: HTMLElement, icon: ThemeI
 /**
  * Pulse Wave: expanding rings and sparkle dots radiate from the element center.
  */
-export function triggerPulseWaveAnimation(element: HTMLElement) {
-	const { overlay, cx, cy } = createOverlay(element);
-	const rect = element.getBoundingClientRect();
+export function triggerPulseWaveAnimation(target: HTMLElement | IAnimationTarget) {
+	const { overlay, cx, cy, element, rect } = createOverlay(target);
 
 	// Element bounce with slight rotation
 	bounceElement(element, {
@@ -314,8 +388,8 @@ export function triggerPulseWaveAnimation(element: HTMLElement) {
 /**
  * Radiant Lines: lines and dots emanate outward from the element center.
  */
-export function triggerRadiantLinesAnimation(element: HTMLElement) {
-	const { overlay, cx, cy } = createOverlay(element);
+export function triggerRadiantLinesAnimation(target: HTMLElement | IAnimationTarget) {
+	const { overlay, cx, cy, element } = createOverlay(target);
 
 	// Element scale bounce
 	bounceElement(element, {
@@ -400,26 +474,23 @@ export function triggerRadiantLinesAnimation(element: HTMLElement) {
 }
 
 /**
- * Triggers the specified click animation on the element.
- * @param element The target element to animate.
- * @param animation The type of click animation to trigger.
- * @param icon Optional icon for animations that require it (e.g., FloatingIcons).
+ * Triggers the specified click animation on a live element or a captured target.
  */
-export function triggerClickAnimation(element: HTMLElement, animation: ClickAnimation, icon?: ThemeIcon) {
+export function triggerClickAnimation(target: HTMLElement | IAnimationTarget, animation: ClickAnimation, icon?: ThemeIcon) {
 	switch (animation) {
 		case ClickAnimation.Confetti:
-			triggerConfettiAnimation(element);
+			triggerConfettiAnimation(target);
 			break;
 		case ClickAnimation.FloatingIcons:
 			if (icon) {
-				triggerFloatingIconsAnimation(element, icon);
+				triggerFloatingIconsAnimation(target, icon);
 			}
 			break;
 		case ClickAnimation.PulseWave:
-			triggerPulseWaveAnimation(element);
+			triggerPulseWaveAnimation(target);
 			break;
 		case ClickAnimation.RadiantLines:
-			triggerRadiantLinesAnimation(element);
+			triggerRadiantLinesAnimation(target);
 			break;
 	}
 }

@@ -7,9 +7,10 @@ import { deepStrictEqual } from 'assert';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ITextEditorSelection, ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
-import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { IResourceEditorInputIdentifier, ITextEditorSelection, ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
+import { IEditorIdentifier } from '../../../../../common/editor.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
@@ -19,7 +20,8 @@ import { TerminalBuiltinLinkType } from '../../browser/links.js';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from '../../browser/terminalLinkOpeners.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import type { Terminal } from '@xterm/xterm';
@@ -32,6 +34,7 @@ import { TerminalCommand } from '../../../../../../platform/terminal/common/capa
 import type { IMarker } from '@xterm/headless';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
+import { TestFileService } from './linkTestUtils.js';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -42,19 +45,6 @@ interface ITerminalLinkActivationResult {
 class TestCommandDetectionCapability extends CommandDetectionCapability {
 	setCommands(commands: TerminalCommand[]) {
 		this._commands = commands;
-	}
-}
-
-class TestFileService extends FileService {
-	private _files: URI[] | '*' = '*';
-	override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
-		if (this._files === '*' || this._files.some(e => e.toString() === resource.toString())) {
-			return { isFile: true, isDirectory: false, isSymbolicLink: false } as IFileStatWithPartialMetadata;
-		}
-		throw new Error('ENOENT');
-	}
-	setFiles(files: URI[] | '*'): void {
-		this._files = files;
 	}
 }
 
@@ -81,7 +71,15 @@ suite('Workbench - TerminalLinkOpeners', () => {
 	let fileService: TestFileService;
 	let searchService: TestSearchService;
 	let activationResult: ITerminalLinkActivationResult | undefined;
+	let openedInGroup: PreferredGroup | undefined;
 	let xterm: Terminal;
+
+	/** The parts of the windows, the first of each window its main part, and the active group. */
+	const editorParts: { parts: IEditorPart[]; activeGroup: IEditorGroup | undefined; openedIn: number[] } = { parts: [], activeGroup: undefined, openedIn: [] };
+	function createPart(windowId: number, groupId: number): IEditorPart {
+		const group = { id: groupId } as IEditorGroup;
+		return { windowId, activeGroup: group, groups: [group] } as Partial<IEditorPart> as IEditorPart;
+	}
 
 	setup(async () => {
 		instantiationService = store.add(new TestInstantiationService());
@@ -104,8 +102,27 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				}
 			}
 		} as Partial<IQuickInputService>);
+		editorParts.parts = [];
+		editorParts.activeGroup = undefined;
+		editorParts.openedIn = [];
+		openedInGroup = undefined;
+		instantiationService.stub(IEditorGroupsService, {
+			get parts() { return editorParts.parts; },
+			get activeGroup() { return editorParts.activeGroup ?? editorParts.parts[0]?.activeGroup; },
+			getPart(group: IEditorGroup) { return editorParts.parts.find(part => part.groups.includes(group))!; },
+			getGroup(id: number) {
+				const part = editorParts.parts.find(candidate => candidate.groups.some(group => group.id === id));
+				return part && { id, windowId: part.windowId } as IEditorGroup;
+			},
+			activeModalEditorPart: undefined,
+		} as Partial<IEditorGroupsService>);
 		instantiationService.stub(IEditorService, {
-			async openEditor(editor: ITextResourceEditorInput): Promise<any> {
+			findEditors(resource: URI | IResourceEditorInputIdentifier): readonly IEditorIdentifier[] {
+				const uri = URI.isUri(resource) ? resource : resource.resource;
+				return editorParts.openedIn.map(groupId => ({ groupId, editor: { resource: uri } as Partial<EditorInput> as EditorInput }));
+			},
+			async openEditor(editor: ITextResourceEditorInput, group?: PreferredGroup): Promise<any> {
+				openedInGroup = group;
 				activationResult = {
 					source: 'editor',
 					link: editor.resource?.toString()
@@ -118,6 +135,31 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		} as Partial<IEditorService>);
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, logger: TestXtermLogger }));
+	});
+
+	suite('TerminalLocalFileLinkOpener', () => {
+		test('opens a file in the main part of the window it is opened from, such as from a terminal in another part of the window, else in the active group', async () => {
+			const mainWindowPart = createPart(1, 1);
+			const windowMainPart = createPart(2, 2);
+			const terminalsPart = createPart(2, 3);
+			editorParts.parts = [mainWindowPart, windowMainPart, terminalsPart];
+			const opener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+			const groups: (number | undefined)[] = [];
+			for (const active of [mainWindowPart, windowMainPart, terminalsPart]) {
+				editorParts.activeGroup = active.activeGroup;
+				await opener.open({ text: 'foo', uri: URI.file('/foo'), type: TerminalBuiltinLinkType.LocalFile, bufferRange: { start: { x: 1, y: 1 }, end: { x: 3, y: 1 } } });
+				groups.push((openedInGroup as IEditorGroup | undefined)?.id);
+			}
+			// Open already in another group of the window, it shows there, as without a group it would; open in another window, not.
+			editorParts.openedIn = [1, 4];
+			editorParts.parts = [mainWindowPart, windowMainPart, terminalsPart, createPart(2, 4)];
+			editorParts.activeGroup = terminalsPart.activeGroup;
+			await opener.open({ text: 'foo', uri: URI.file('/foo'), type: TerminalBuiltinLinkType.LocalFile, bufferRange: { start: { x: 1, y: 1 }, end: { x: 3, y: 1 } } });
+			const revealed = openedInGroup;
+			editorParts.openedIn = [1];
+			await opener.open({ text: 'foo', uri: URI.file('/foo'), type: TerminalBuiltinLinkType.LocalFile, bufferRange: { start: { x: 1, y: 1 }, end: { x: 3, y: 1 } } });
+			deepStrictEqual({ groups, revealed, notInOtherWindow: (openedInGroup as IEditorGroup | undefined)?.id }, { groups: [undefined, undefined, 2], revealed: 4, notInOtherWindow: 2 });
+		});
 	});
 
 	suite('TerminalSearchLinkOpener', () => {

@@ -12,6 +12,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import * as colorRegistry from '../../../../platform/theme/common/colorRegistry.js';
 import { getSizeRegistry, sizeValueToCss } from '../../../../platform/theme/common/sizeRegistry.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
 import { IWorkbenchColorTheme, IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { WebviewStyles } from './webview.js';
 
@@ -32,12 +33,14 @@ export class WebviewThemeDataProvider extends Disposable {
 	constructor(
 		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISizeService private readonly _sizeService: ISizeService,
 	) {
 		super();
 
 		this._register(this._themeService.onDidColorThemeChange(() => {
 			this._reset();
 		}));
+		this._register(this._sizeService.onDidChangeSizes(() => this._reset()));
 
 		const webviewConfigurationKeys = ['editor.fontFamily', 'editor.fontWeight', 'editor.fontSize', 'editor.fontLigatures', 'accessibility.underlineLinks'];
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -71,7 +74,7 @@ export class WebviewThemeDataProvider extends Disposable {
 
 			const sizeRegistry = getSizeRegistry();
 			const exportedSizes = sizeRegistry.getSizes().reduce<Record<string, string>>((sizes, entry) => {
-				const sizeValue = sizeRegistry.resolveDefaultSize(entry.id, theme);
+				const sizeValue = this._sizeService.getSize(entry.id, theme);
 				if (sizeValue) {
 					sizes['vscode-' + entry.id.replace(/\./g, '-')] = sizeValueToCss(sizeValue);
 				}

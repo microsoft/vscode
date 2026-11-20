@@ -5,20 +5,24 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ExtHostTreeViews } from '../../common/extHostTreeViews.js';
 import { ExtHostCommands } from '../../common/extHostCommands.js';
 import { MainThreadTreeViewsShape, MainContext, MainThreadCommandsShape } from '../../common/extHost.protocol.js';
-import { TreeDataProvider, TreeItem } from 'vscode';
+import { TreeDataProvider, TreeItem, DataTransfer as ApiDataTransfer, DataTransferItem as ApiDataTransferItem, TreeDragAndDropController } from 'vscode';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from '../../../common/views.js';
+import { TreeItemCollapsibleState, ITreeItem, IRevealOptions, TreeCommand } from '../../../common/views.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import type { IDisposable } from '../../../../base/common/lifecycle.js';
 import { nullExtensionDescription as extensionsDescription } from '../../../services/extensions/common/extensions.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { TreeViewsDnDService } from '../../../../editor/common/services/treeViewsDnd.js';
+import { DataTransferItem } from '../../common/extHostTypes.js';
 
 function unBatchChildren(result: (readonly (number | ITreeItem)[])[] | undefined): readonly ITreeItem[] | undefined {
 	if (!result || result.length === 0) {
@@ -57,6 +61,7 @@ suite('ExtHostTreeView', function () {
 	}
 
 	let testObject: ExtHostTreeViews;
+	let extHostCommands: ExtHostCommands;
 	let target: RecordingShape;
 	let onDidChangeTreeNode: Emitter<{ key: string } | undefined>;
 	let onDidChangeTreeNodeWithId: Emitter<{ key: string }>;
@@ -85,7 +90,7 @@ suite('ExtHostTreeView', function () {
 			override $registerCommand() { }
 		});
 		target = new RecordingShape();
-		testObject = store.add(new ExtHostTreeViews(target, new ExtHostCommands(
+		extHostCommands = new ExtHostCommands(
 			rpcProtocol,
 			new NullLogService(),
 			new class extends mock<IExtHostTelemetry>() {
@@ -93,7 +98,8 @@ suite('ExtHostTreeView', function () {
 					return true;
 				}
 			}
-		), new NullLogService()));
+		);
+		testObject = store.add(new ExtHostTreeViews(target, extHostCommands, new NullLogService()));
 		onDidChangeTreeNode = new Emitter<{ key: string } | undefined>();
 		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
 		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
@@ -101,6 +107,90 @@ suite('ExtHostTreeView', function () {
 		testObject.createTreeView('testNodeWithHighlightsTreeProvider', { treeDataProvider: aNodeWithHighlightedLabelTreeDataProvider() }, extensionsDescription);
 
 		return loadCompleteTree('testNodeTreeProvider');
+	});
+
+	async function prepareDragTransfer(handleDrag: TreeDragAndDropController<{ key: string }>['handleDrag'], handleDrop?: TreeDragAndDropController<{ key: string }>['handleDrop']) {
+		store.add(testObject.createTreeView('dragTransferTree', {
+			treeDataProvider: aNodeTreeDataProvider(),
+			dragAndDropController: { dragMimeTypes: ['text/plain'], dropMimeTypes: ['text/plain'], handleDrag, handleDrop }
+		}, extensionsDescription));
+		const children = unBatchChildren(await testObject.$getChildren('dragTransferTree'));
+		assert.ok(children?.length);
+		const service: TreeViewsDnDService<ApiDataTransfer> = Reflect.get(testObject, '_treeDragAndDropService');
+		const operations: Map<string, Promise<ApiDataTransfer | undefined>> = Reflect.get(service, '_dragOperations');
+		return { handle: children[0].handle, operations };
+	}
+
+	test('drag transfer remains available until it is consumed', async () => {
+		const state = await prepareDragTransfer((_items, transfer) => transfer.set('text/plain', new DataTransferItem('Owned transfer')));
+		const result = await testObject.$handleDrag('dragTransferTree', [state.handle], 'active-drag', CancellationToken.None);
+		assert.deepStrictEqual({ operations: state.operations.size, text: result?.items[0][1].asString }, { operations: 1, text: 'Owned transfer' });
+	});
+
+	test('drag transfer is released when canceled before provider completion', async () => {
+		const pending = new DeferredPromise<void>();
+		const state = await prepareDragTransfer(async (_items, transfer) => {
+			transfer.set('text/plain', new DataTransferItem('Owned transfer'));
+			await pending.p;
+		});
+		const cancellation = store.add(new CancellationTokenSource());
+		const creation = testObject.$handleDrag('dragTransferTree', [state.handle], 'canceled-drag', cancellation.token);
+		cancellation.cancel();
+		await pending.complete();
+		const result = await creation;
+		assert.deepStrictEqual({ operations: state.operations.size, result }, { operations: 0, result: undefined });
+	});
+
+	test('drag transfer is released when the provider rejects', async () => {
+		const state = await prepareDragTransfer(async () => { throw new Error('Expected drag provider failure'); });
+		await assert.rejects(testObject.$handleDrag('dragTransferTree', [state.handle], 'failed-drag', CancellationToken.None), /Expected drag provider failure/);
+		assert.strictEqual(state.operations.size, 0);
+	});
+
+	test('drag transfer release retires completed data without touching a live operation', async () => {
+		const state = await prepareDragTransfer((_items, transfer) => transfer.set('text/plain', new DataTransferItem('Owned transfer')));
+		await testObject.$handleDrag('dragTransferTree', [state.handle], 'retired-drag', CancellationToken.None);
+		await testObject.$handleDrag('dragTransferTree', [state.handle], 'live-drag', CancellationToken.None);
+		const live = state.operations.get('live-drag');
+		testObject.$releaseDragOperation('retired-drag');
+		testObject.$releaseDragOperation('retired-drag');
+		testObject.$releaseDragOperation('unknown-drag');
+		assert.deepStrictEqual({ keys: [...state.operations.keys()], sameLive: state.operations.get('live-drag') === live }, { keys: ['live-drag'], sameLive: true });
+	});
+
+	test('drag transfer release does not restore data after late provider completion', async () => {
+		const pending = new DeferredPromise<void>();
+		const state = await prepareDragTransfer(async (_items, transfer) => {
+			transfer.set('text/plain', new DataTransferItem('Owned transfer'));
+			await pending.p;
+		});
+		const creation = testObject.$handleDrag('dragTransferTree', [state.handle], 'retired-drag', CancellationToken.None);
+		testObject.$releaseDragOperation('retired-drag');
+		assert.strictEqual(state.operations.size, 0);
+		await pending.complete();
+		await creation;
+		assert.strictEqual(state.operations.size, 0);
+	});
+
+	test('drag transfer release does not accumulate over repeated completed cancellations', async () => {
+		const state = await prepareDragTransfer((_items, transfer) => transfer.set('text/plain', new DataTransferItem('Owned transfer')));
+		for (let index = 0; index < 37; index++) {
+			const uuid = `retired-drag-${index}`;
+			await testObject.$handleDrag('dragTransferTree', [state.handle], uuid, CancellationToken.None);
+			testObject.$releaseDragOperation(uuid);
+		}
+		assert.strictEqual(state.operations.size, 0);
+	});
+
+	test('drag transfer consumption preserves original item identity for a successful drop', async () => {
+		const original = new DataTransferItem({ label: 'Owned transfer' });
+		let dropped: ApiDataTransferItem | undefined;
+		const state = await prepareDragTransfer((_items, transfer) => transfer.set('text/plain', original), async (_target, transfer) => {
+			dropped = transfer.get('text/plain');
+		});
+		await testObject.$handleDrag('dragTransferTree', [state.handle], 'successful-drag', CancellationToken.None);
+		await testObject.$handleDrop('dragTransferTree', 0, { items: [] }, undefined, CancellationToken.None, 'successful-drag', 'dragTransferTree', [state.handle]);
+		assert.deepStrictEqual({ operations: state.operations.size, originalItem: dropped === original }, { operations: 0, originalItem: true });
 	});
 
 	test('construct node tree', () => {
@@ -562,6 +652,73 @@ suite('ExtHostTreeView', function () {
 		treeView2.dispose();
 	});
 
+	/**
+	 * Fires a root change on a view-specific event and waits until the view has refreshed.
+	 * The suite's shared change events also refresh the views created in setup.
+	 */
+	async function refreshRoot(onDidChange: Emitter<{ key: string } | undefined>): Promise<void> {
+		const refreshed = Event.toPromise(target.onRefresh.event);
+		onDidChange.fire(undefined);
+		await refreshed;
+	}
+
+	test('repeated root refreshes do not grow the tree view store (#346620)', () => runWithFakedTimers({}, async () => {
+		const onDidChange = store.add(new Emitter<{ key: string } | undefined>());
+		const treeView = testObject.createTreeView('leakTestProvider', { treeDataProvider: { ...aNodeTreeDataProvider(), onDidChangeTreeData: onDidChange.event } }, extensionsDescription);
+		const treeViews: Map<string, IDisposable> = Reflect.get(testObject, '_treeViews');
+		const viewStore: { _toDispose: Set<IDisposable> } = Reflect.get(treeViews.get('leakTestProvider')!, '_store');
+
+		await testObject.$getChildren('leakTestProvider');
+		await refreshRoot(onDidChange);
+		await testObject.$getChildren('leakTestProvider');
+		const sizeAfterFirstRefresh = viewStore._toDispose.size;
+		for (let i = 0; i < 5; i++) {
+			await refreshRoot(onDidChange);
+			await testObject.$getChildren('leakTestProvider');
+		}
+
+		assert.strictEqual(viewStore._toDispose.size, sizeAfterFirstRefresh);
+		await treeView.dispose();
+	}));
+
+	test('tree nodes replaced by a duplicate element are released on refresh and dispose', () => runWithFakedTimers({}, async () => {
+		const onDidChange = store.add(new Emitter<{ key: string } | undefined>());
+		const shared = { key: 'shared' };
+		const treeView = testObject.createTreeView<{ key: string }>('duplicateElementTreeProvider', {
+			treeDataProvider: {
+				getChildren: element => element ? (element === shared ? [] : [shared]) : [{ key: 'p1' }, { key: 'p2' }],
+				getTreeItem: element => ({
+					label: element.key,
+					collapsibleState: element === shared ? TreeItemCollapsibleState.None : TreeItemCollapsibleState.Collapsed,
+					command: { command: 'testCommand', title: 'Test', arguments: [element.key] }
+				}),
+				onDidChangeTreeData: onDidChange.event
+			}
+		}, extensionsDescription);
+		// Expanding both parents creates a node for the shared element under each of them. The second node replaces the first in the element cache.
+		const expandSharedCommands = async () => {
+			const commands: TreeCommand[] = [];
+			for (const root of unBatchChildren(await testObject.$getChildren('duplicateElementTreeProvider'))!) {
+				commands.push(unBatchChildren(await testObject.$getChildren('duplicateElementTreeProvider', [root.handle]))![0].command!);
+			}
+			return commands;
+		};
+		const isCached = (commands: TreeCommand[]) => commands.map(command => extHostCommands.converter.fromInternal(command) !== undefined);
+
+		const initialCommands = await expandSharedCommands();
+		await refreshRoot(onDidChange);
+		await expandSharedCommands();
+		await refreshRoot(onDidChange);
+		const latestCommands = await expandSharedCommands();
+		const initialCachedAfterRefreshes = isCached(initialCommands);
+		await treeView.dispose();
+
+		assert.deepStrictEqual(
+			{ initialCachedAfterRefreshes, latestCachedAfterDispose: isCached(latestCommands) },
+			{ initialCachedAfterRefreshes: [false, false], latestCachedAfterDispose: [false, false] }
+		);
+	}));
+
 	test('reveal will throw an error if getParent is not implemented', () => {
 		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
 		return treeView.reveal({ key: 'a' })
@@ -573,7 +730,7 @@ suite('ExtHostTreeView', function () {
 		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
 		const expected = {
 			item:
-				{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed },
+			{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed },
 			parentChain: []
 		};
 		return treeView.reveal({ key: 'a' })

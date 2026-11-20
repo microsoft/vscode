@@ -13,20 +13,26 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Concern | Owner |
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
-| Pin and per-sort ordering state | `ISessionsListModelService` |
-| Custom groups and membership | `ISessionGroupsService` |
-| Top-level group/workspace order | `ISessionSectionOrderService` |
+| Pin, per-sort ordering, and automation-session listing state | `ISessionsListModelService` |
+| Order of a session's nested chats | The session's provider |
+| Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
+| Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
+| Pinned canvas rows after Automations | `IPinnedCanvasService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
 
 List-owned state is local presentation state. It is not synchronized back to a provider and must not mutate provider timestamps or metadata.
+
+Grouping-section appearance is persisted by the section's stable identity, independently of its nesting and grouping mode. Temporary absence of a workspace or remote host does not discard its appearance; custom groups and their subgroups keep independent overrides.
 
 ## Inputs
 
 The list consumes sessions from `ISessionsManagementService`. Providers decide whether a model represents a workspace session, quick chat, automation, or archived session through provider-neutral fields.
 
-Automation runs are excluded from the primary Sessions list. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
+Automation runs are excluded from the primary Sessions list unless they are shown there: explicitly from the run's context menu, or automatically according to a setting (always, once the user sends a message in the run's session, or never). Show Automations, in the filter menu's Show submenu, chooses that setting; it is not a list filter, so resetting the filters keeps it. An explicit hide from the run's context menu overrides the setting, and changing the setting does not rewrite either explicit choice. This listing, including an explicit hide, is client-side list state keyed by session, so it works for the automation runs of every provider. A shown session stays in Automations and otherwise follows the placement precedence below. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
 
 ## Placement precedence
+
+Saved drafts and requests scheduled from the new-session input share the Drafts pending-item section, separate from the provider session catalog. Scheduled entries retain durable Automation identity and their own preview and management actions; they are not editable saved-draft copies and do not claim a running session status. They remain in Drafts until the host creates their session at dispatch, including when ordinary saved drafts are disabled. Scheduled follow-ups instead annotate their existing session and appear alongside steering and queued messages in the exact target chat; they do not create duplicate sidebar rows or enter the immediate-send queue. There is no Scheduled section. The scheduled-only filter retains scheduled entries in Drafts, composes with existing filters and the active-session reveal rule, participates in Reset Filters and Undo, and is inactive when Send Later is disabled. The same search and applicable target/scope filters apply to pending rows. Scheduled entries are ordered by send time, followed by ordinary drafts ordered by recent editing. A host-confirmed dispatch removes pending schedule presentation independently of loaded run-history pages; the resulting new session uses normal session listing rather than the recurring-Automation hide-until-reply rule.
 
 A session appears in exactly one primary section. Higher-precedence states win:
 
@@ -34,24 +40,27 @@ A session appears in exactly one primary section. Higher-precedence states win:
 Archived
     > Pinned
     > Custom group
-    > Quick chat
-    > Workspace or date group
+    > External (when dedicated sectioning is enabled)
+    > Quick chat (workspace and repository grouping only)
+    > Workspace, repository, environment, or date group
 ```
 
 - Archived sessions appear only in the final archived section.
 - Pinned sessions appear in the pinned section.
-- A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat.
-- Remaining unpinned quick chats appear in the dedicated chats section.
-- Remaining sessions follow the selected workspace or date grouping.
+- A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat. A session belongs to at most one group at any nesting depth.
+- When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
+- Under workspace or repository grouping, remaining unpinned quick chats appear in the dedicated chats section. Under date or environment grouping there is no chats section; quick chats follow that grouping like other sessions, and so do comparison groups without a workspace.
+- Remaining sessions follow the selected workspace, repository, environment, or date grouping.
 - A regular session created by another regular session is initially placed
   immediately after its creator. While it has neither custom-group membership
   nor an explicit ungrouped preference, it inherits the creator's custom group
   when one becomes available. Subsequent user grouping, ungrouping, and
   reordering are ordinary persisted list state.
+- A session a nested chat was moved to joins the custom group of the session it was moved from, whatever started the move, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
 
-The active session remains visible even when a filter would otherwise exclude it.
+The active session remains visible even when an ordinary filter would otherwise exclude it. Inbox workspace/environment scope is strict: an out-of-scope active session is hidden from the list without closing its conversation.
 
-A caller can acquire a disposable reveal of a session's archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and keeps its action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
+A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite ordinary filters and presentation caps, expands its section, and exposes the requested spotlight target. A reveal outside the current Inbox scope fails explicitly without changing the scope. An archive-action reveal also keeps the action visible without hover or focus. A workspace reveal targets the header of the workspace section that contains the session, or the session row when the list is not grouped by workspace. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
 ## Grouping
 
@@ -59,21 +68,71 @@ A caller can acquire a disposable reveal of a session's archive action for onboa
 
 User-created groups and workspace sections share a user-managed order below the fixed sections. Workspace capping may initially hide inactive workspaces; search and explicit user promotion reveal them.
 
+The editor window's sessions providers list only the sessions of its workspace: its registration passes them a listing scope (`ISessionsListingScope`: its folders, and the GitHub repositories of their `origin`, so that a Copilot Cloud session of the same repository on any branch is in it), while the Agents window, which passes none, lists every session. A provider then lists only the sessions in the scope, by their main chat's first folder, or any of the session's folders when the main chat has none, in `getSessions` and `onDidChangeSessions`: a session whose working directory is, or is inside, a scope folder, or whose root or git repository is a scope folder (such as a worktree of the window's repository), and a session on GitHub of a scope repository. A session without a workspace, such as a quick chat, is in no scope, so only an empty window, which passes no scope, lists it. A scoped list has no Chats section, not even an empty one, under any grouping. Matching is direct: a project root only inside a scope folder, the path of a worktree alone, sharing a repository with a listed session, or being a worktree of a scope folder's repository does not put a session in the scope. A session that leaves the scope is reported as changed, not removed, as removal means deletion. Lookups (`getAllSessions`, `getSession`, `getSessionForChatResource`) still find every session, so a session of another folder opens by its resource. Matching reads only the folder and repository metadata providers report. The list knows only that it is scoped (the `scoped` option): it then hides no workspace section, leaves out comparisons without a listed session, and says when it shows no session.
+
+### Repository grouping
+
+Repository grouping places sessions by the GitHub repository of their primary folder, so the sessions of one repository share a section whichever environment runs them. A cloud session names its repository through its workspace; other sessions report it through their Git metadata. Sessions without a GitHub repository keep their workspace section. A section shows its repository's name, adding the owner only when several repository sections share that name.
+
+Repository sections otherwise behave like workspace sections: they share the user-managed order with custom groups, follow the same capping, and nest comparison groups of their repository.
+
 ### Date grouping
 
-User-created groups remain a contiguous user-managed block. Ungrouped sessions follow in fixed date sections.
+User-created groups and the date sections share a user-managed order below the fixed sections. The date sections keep their fixed relative order and cannot be dragged, while groups default above them and can move between and below them. Ungrouped sessions follow in the date sections.
+
+### Environment grouping
+
+Environment grouping uses the provider-neutral environment identity, combining sessions across harnesses and workspaces on This Computer, in Cloud, or on the same remote host. Environment sections otherwise follow workspace sections' user-managed ordering and capping rules. Their identities remain stable across display-name changes.
+
+### Worktree grouping
+
+Worktree grouping is offered only by a host that asks for it (the editor window's Agents viewlet, through `allowWorktreeGrouping`); a view that does not offer it, such as the Agents window's, keeps its default. It places each session by the local folder its main chat works in, as the provider reports it: the main checkouts first, then the worktrees, each by their latest activity, then an "Other" section for sessions without a local folder. Sections are identified by the folder URI, named by the folder and the branch the provider reports, and show the full path on hover. They otherwise follow workspace sections' ordering, nesting and capping rules.
+
+### Inbox grouping
+
+Inbox is an opt-in presentation of the same catalog, classified into Inbox, Working, On hold, and Acknowledged, with archived inventory in Done or Archived according to the normal archive-action wording. Sessions with pull requests ready to merge appear in Inbox. Acknowledged contains explicitly acknowledged items, not automatically excluded older history, and starts collapsed. Desktop and phone use one scrolling tree. Pinned precedes Inbox, which starts expanded but can be collapsed while populated; its empty-state message stays visible when clear. Empty secondary categories are omitted. All categories, including On hold, list sessions directly without workspace or environment subgroups. Nested chats and comparison containers retain their structure. Selection, explicit reveal, search, and programmatic snapshots cover the whole scoped tree; passive selection restoration must not expand a user-collapsed category. Category expansion is persisted by its existing identity.
+
+The workspace and environment pickers above the tree each select All or one value and filter every category, including Pinned and archived sessions. A workspace is an exact workspace URI plus its execution environment, not a display label or repository shared across machines. No Workspace means an explicitly identified quick chat, not metadata still loading. Scope is remembered separately from other grouping modes and does not change the new-session composer. The pickers replace the environment submenu only in Inbox; ordinary environment exclusions remain saved and apply again outside Inbox. Harness, creating-application, archive and search filters still compose with scope. Creating-application choices follow the selected Inbox environment.
+
+Selecting an incompatible environment explicitly resets the workspace to All. Disconnected or temporarily unavailable selections retain their identities and labels, and metadata hydration refreshes matching rows and picker choices. Reset Filters includes both scope selections and its Undo restores them. An empty scoped Inbox explains that no activity matches rather than reporting all work complete. Comparison placement and visible participants follow the scope without changing saved membership.
+
+Inbox is available when `sessions.list.inboxEnabled` and AI features are enabled, in views that support Inbox. Enabling the setting does not change the current presentation. Desktop and phone toggles share the same mode and restore the previous ordinary grouping when switched off. The selected mode and return grouping are profile-local and survive reloads; a missing or unsupported return grouping falls back to the view's ordinary default. Disabling the setting exits Inbox, including when restoring saved state, and re-enabling it does not reopen Inbox. Commands and agent-tool requests share the availability gate; the tool's `grouping: "inbox"` remains a compatible way to enter Inbox when enabled. Pins remain visible above the categories; archived sessions remain separate. Custom memberships, automatic-section placement, and manual ordering are retained but do not determine Inbox placement. Comparison groups remain intact and follow their highest-attention participant. Switching out of Inbox restores ordinary organization.
+
+Selecting Inbox grouping enables Cmd/Ctrl+Enter for Send in Background and adds focus preservation and an Open Session confirmation to explicit background sends from the new-session composer. Existing Alt+Enter behavior and always-background composers remain available in other groupings.
+
+`ISessionsListModelService` owns profile-local triage state. Completed history from before Inbox attention tracking first starts is excluded unless it has an outstanding question, an actionable notification, or is unread and was modified within the last 7 days. This unread exception uses the session's last-modified time, not its last-turn end time. Once admitted, unread history retains its Inbox placement across reading and reloads. Only the explicit Acknowledge action acknowledges current Inbox activity. Opening, selecting, reading, copying, sending messages, accepting edits, approving tools, and other session actions do not acknowledge it; execution state independently determines Working versus Inbox placement. This acknowledgement does not archive, mark read, stop, delete, or close the session. The persisted `done` triage value places explicitly acknowledged sessions in Acknowledged; synthetic historical-completion state remains excluded. The ordinary Archive/Mark as Done action, icon, keyboard shortcut, and archive wording apply in Inbox too; there is no separate dismissal command. New activity or newly observed notification identities return acknowledged sessions to the inbox. Return to Inbox and expired snoozes override initial placement, including after reload. Put on Hold persists until explicit resumption, regardless of new activity or reloads. Timed and until-activity snoozes share the On hold section but expire automatically into the category appropriate to current activity; none of these states pauses execution. Pinning keeps even held sessions visible. New completions are never acknowledged merely because time passes or a pull request merges.
+
+`ISessionAttentionService.sessionAttention` owns notification-based classification and priority independently of list triage decisions. Enabling `sessions.list.inboxEnabled` starts attention tracking independently of the current grouping and sidebar visibility, so entering Inbox presents current attention state. A visible Inbox-mode list can also acquire explicit tracking demand; releasing that demand does not stop tracking while the setting is enabled. The first tracking activation establishes a persisted, profile-local completion cutoff so late-arriving history does not appear as new work. Tracking respects disabled AI.
+
+Inbox categories have fixed order; rows prioritize the shared notification priority and then the selected created-time or updated-time ordering. Unless explicitly triaged, a session stays in Working while its aggregate status or any unarchived, user-visible, non-tool chat is working, even when another chat has completed, needs input, has failed, or has an attention notification. Session drops can pin, archive, put on hold, or resume into the category determined by current activity. They do not change saved custom-group membership or manual ordering, and comparison participants cannot be moved individually. Provider-owned nested chat moves are unchanged.
+
+### Nested custom groups
+
+User-created groups form a tree without a depth limit. In every grouping mode, only top-level groups take part in the order above; a group lists its child groups and active automatic sections in a shared user-managed order above its own sessions. Actions on a group's sessions, such as marking them done, include its subgroups and currently nested sections. Deleting a group deletes its subgroups, ungroups their explicit session members, and returns their automatic sections to the top level; undo restores section placements unless they have since moved to another group.
+
+A comparison is one sortable entry alongside ordinary sessions, in its automatic section or an explicitly chosen custom group. Its creation time is the comparison's creation time; its updated time is the latest participant update. Manual sort keys are stored under the comparison group's section identity, independently for each ordering mode. Comparison membership and participant display order remain comparison-owned: moving the parent never regroups or reorders individual participants. A comparison cannot hold subgroups.
+
+Outside Inbox, an agent-created comparison without an explicit custom-group placement appears beneath its initiating chat's session when that session has a rendered, unarchived row. This is presentation only: participants remain independent sessions, and comparison lifecycle and bulk actions do not become operations on the caller. If the caller is unavailable, filtered out, or capped, the comparison keeps its ordinary placement. Inbox continues to place it by participant attention state.
+
+A workspace, repository, or environment section can belong to one custom group at any depth. This places the section, not its sessions, in that group: future matching sessions follow it, and higher-precedence placements remain unchanged. Section placement is remembered independently for each grouping mode, including the workspace fallback in Repository mode, and only applies in that mode. Nested sections do not consume the top-level Recent section limit, while their own session limits still apply. Temporarily empty sections retain their parents and child order without rendering an empty automatic header.
 
 ### Quick chats
 
 Quick chats are identified through `ISession.isQuickChat`, not by checking for an absent workspace. They remain session rows; the list never exposes `IChat` objects as top-level rows.
 
+A quick chat can have nested chats like any session whose provider supports multiple chats, and chats move into and out of quick chats; the provider's per-chat movability decides, never the quick-chat flag. Where the grouping has a chats section, a quick chat stays in it even when it holds chats that brought a folder of their own: those chat rows show their folder, and its scratch-folder chats show none.
+
+New Nested Session opens the New Session composer for a nested chat of any session, without the agent (harness) and environment pickers: the nested chat uses the session's agent, provider and host. The folder picker lists folders like the New Session workspace picker (folder name, then its parent folder): it preselects the session's folder, or No Workspace in a session without one, and offers the session's folder, recent folders of the provider, No Workspace, then the provider's browse actions and Open Folder… for a provider on this computer. Folders of the session's other chats are not offered. When the session's folder no longer exists, No Workspace is preselected and the trigger says why; only a definite "not found" counts (a host that can't tell keeps the session folder), and a send waits for that check. Scratch folders, including a quick chat's own, are never offered as folders; the host refuses one. A picked folder joins the session's folders for that chat; No Workspace gives the chat its own scratch folder, also in a workspace session, where it shows no folder. For a Git folder, New Worktree and the branch picker give the chat its own worktree from the picked branch. An agent without multiple working directories offers only the session's folder (No Workspace in a session without one). The choice applies when the first request is sent, to the untitled chat the composer opened with, so the nested session stays one chat: an unchanged default leaves it as it is; otherwise the host gives it the chosen workspace before the request, and refuses (leaving the chat as it was) once the chat has a turn. Hosts that don't advertise `vscode.createChatWorkspace` keep the composer without workspace pickers.
+
 ### Archived sessions
 
-Archiving removes custom-group membership. Restoring a session does not restore its former membership. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
+Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
+
+Providers may defer archived inventory until the archived section is expanded. Showing archived items in the filter exposes the section even without cached rows, but does not itself request inventory. The list acquires management-owned discovery demand while that section is expanded and visible; collapsing or hiding it releases demand without discarding cached history. Local tree refreshes do not refresh provider inventory.
 
 ## Durable user intent
 
-Pin, group, and ordering state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
+Pin, group, ordering, and automation listing state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
 
 List-owned state is removed only when:
 
@@ -83,23 +142,35 @@ List-owned state is removed only when:
 
 Stale entries that match no current session are inert and may be compacted by their owning service.
 
+A new session joins the custom group its draft's owner chose. The main window's New Session composer keeps one pending group, such as from New Session on a group. A composer with a draft slot of its own, such as a chat window's, keeps the group of the session it was opened from for its slot (`ISessionGroupsService.setDraftSlotGroup`), and never takes the main composer's pending group. A slot's intent belongs to its owner, not to one draft: it applies to every send of the slot until its registration (the disposable `setDraftSlotGroup` returns) is disposed. Each accepted request copies it into an association of its own with the accepted session, which becomes membership once that session starts and is dropped when the request ends without starting it; the slot's intent stays as it is either way.
+
 ## Sorting and filtering
 
 The list supports created-time and updated-time sorting. Manual ordering stores list-owned sort keys for each mode without changing provider timestamps.
 
-Filters compose across session type, status, archive/read state, and provider. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. The find widget matches session and section labels and bypasses presentation capping while a search is active.
+Filters compose across harness, environment, creating application within each environment, and archive state. Providers apply External visibility before publishing their catalogs; list filters further narrow those catalogs. Application options come from the current catalog before list filtering, including cached sessions from disconnected environments. Environment and application preferences use stable identifiers, not mutable display names, and survive an option's disappearance. The retired persisted Show Automation Runs filter migrates to the automation listing setting: an enabled filter sets it to always where its effective value is defined. The filter's stored value is removed once the setting lists every run, the filter was off, a policy sets the value, or the user changes the setting after a failed write; until then, a later launch retries the write.
+
+The archived filter governs both archived sessions and archived nested chats; there is no per-session archive-visibility override. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. Searching shows the sessions whose title, chat titles, location, group, branch, pull requests, or remote host contain every word of the query, in any order, ignoring case and accents; a session's nested chats show when their title contains a word. A search bypasses presentation capping and expands the rows that hold its results without persisting that expansion, and the rows return to their previous collapse state when it ends.
 
 ## Drag and drop
 
-Drag and drop changes only list-owned presentation state or opens sessions through the appropriate service:
+Drag and drop changes only list-owned presentation state, archives or restores sessions through the owning services, or opens sessions through the appropriate service.
 
-- sessions may reorder within valid sections;
-- sessions may move into user-created groups;
-- non-archived sessions may move into the pinned section;
-- user groups and workspace sections may reorder where the grouping mode allows;
+A session drop resolves to a destination placement: Pinned, a custom group, an ungrouped section, or Archived. Moving sessions into a placement applies only the state that placement precedence reads: it archives or restores, pins or unpins, and joins or leaves a custom group as needed. A session may enter an ungrouped section only if that is the section it renders in when ungrouped.
+
+- sessions may reorder within valid sections and move into Pinned, a custom group, or their own ungrouped section, which unpins or ungroups them as needed;
+- dropping sessions on the archived section archives them with an undo affordance; dropping archived sessions elsewhere restores them;
+- date sections derive from the sort key, so dropping on a date section header places sessions at the top of that section, and dropping below the last row places non-archived sessions at the end of the date sections; because date grouping also promotes recently updated sessions and caps Recent, a drop into a date section is offered only when the sessions will render in that section;
+- dropping a session on a nested chat row places it after that chat's session;
+- nested chats render in their provider's order (by update time under updated-time sorting); the list never stores an order of its own for them. When moving chats by drag and drop is on and the provider can move a chat, the chat may move to another or a new session, and the provider moves it. Only under Ordering: Created, which shows the provider's order, may it also reorder within its session, by dragging or with Move Up and Move Down, and a drop on a nested row of another session is placed before or after that row. Under Ordering: Updated the rows are not in that order, so these are not offered (no reorder drop feedback, no Move Up and Move Down menu items, and the shortcut does nothing), and a drop on a nested row of another session appends to that session, as a drop on its row does. No move asks for confirmation first. A nested chat the provider can't move, or several nested chats together, can't be dropped, and Move Up and Move Down are unavailable for it;
+- user groups and workspace, repository, or environment sections may reorder where the grouping mode allows, move into custom groups, and return to the top level; a user group never moves into itself or one of its subgroups;
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.
 
-Archived and fixed sections are not reorder targets. Multi-selection preserves relative order.
+Archived sections keep a fixed order. Comparison parents can reorder alongside sessions and move into or out of custom groups; comparison participant membership cannot change by dragging. Multi-selection preserves relative order.
+
+## Agent tools
+
+The `readSessionsList` and `organizeSessionsList` client tools let an agent read and change the list as the user can. Reading reports the view options and the composed tree, including rows and sections that capping hides, using stable header ids (section ids, and `group:<id>` for custom groups) and session ids. Changes go through `SessionsList` and `SessionsView` rather than directly through the owning services, so they follow the same placement precedence, validity rules, and undo affordances as drag and drop and the list's actions. The tools exist only in the Agents window, form the `vscodeSessionsList` client tool set, and are deferred behind tool search on agent hosts.
 
 ## Reactive presentation
 
@@ -107,9 +178,17 @@ Rows derive title, status, workspace, changes, capabilities, and quick-chat iden
 
 Row renderers use tree-supported row classes and APIs rather than traversing tree-owned DOM structure.
 
+Session facades may expose catalog-backed peer-chat identities, titles, interactivity, and status before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
+
+A collapsed session row uses the provider's aggregate status without inspecting individual chat statuses. When expanded, the parent row represents the main chat and visible side chats, while peer rows represent their own chats.
+
+While side chats show in the main window's side pane (`ISideChatPlacementService.inSidePane`), the list does not list them below their sessions, as their own rows or in the Done section. The provider's aggregate status and read state of a collapsed session row still include them.
+
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section collapse, pins, custom groups, manual sort keys, and section order. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state, kept in the storage of the window's own profile: the editor window's Sessions view does not share it with the Agents window. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+
+Pinned canvases are not list state: their rows mirror `IPinnedCanvasService`, which persists them per workspace. Like Automations, they appear in the separate navigation list when it is shown, and otherwise directly below Automations in the sessions tree. They are absent while there are no pins.
 
 ## Change policy
 

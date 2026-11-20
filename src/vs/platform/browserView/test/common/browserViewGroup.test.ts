@@ -5,10 +5,21 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { matchesBrowserViewGroupFilter } from '../../common/browserViewGroup.js';
+import { matchesBrowserViewGroupFilter, matchesBrowserViewSandboxSession } from '../../common/browserViewGroup.js';
 
 suite('BrowserViewGroup', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sandboxed visibility excludes user pages, other agents and non-isolated storage', () => {
+		assert.deepStrictEqual([
+			matchesBrowserViewSandboxSession({ type: 'user' }, undefined, undefined),
+			matchesBrowserViewSandboxSession({ type: 'user' }, 'session', 'session'),
+			matchesBrowserViewSandboxSession({ type: 'agent', sessionId: 'other' }, 'session', 'session'),
+			matchesBrowserViewSandboxSession({ type: 'agent', sessionId: 'session' }, undefined, 'session'),
+			matchesBrowserViewSandboxSession({ type: 'agent', sessionId: 'session' }, 'other', 'session'),
+			matchesBrowserViewSandboxSession({ type: 'agent', sessionId: 'session' }, 'session', 'session'),
+		], [true, false, false, false, false, true]);
+	});
 
 	test('matches browser IDs and audiences', () => {
 		const sessionAudience = [{ type: 'agent', sessionId: 'session' }] as const;

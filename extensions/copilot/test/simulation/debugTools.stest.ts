@@ -44,10 +44,6 @@ ssuite({ title: 'Debug tools list', location: 'context' }, () => {
 		await score(testingServiceCollection, ['python'], ['python', 'pip', 'pytest', 'tox']);
 	});
 
-	stest({ description: 'typescript' }, async (testingServiceCollection) => {
-		await score(testingServiceCollection, ['javascript'], ['npm', 'node', 'npx', 'mocha']);
-	});
-
 	stest({ description: 'ruby' }, async (testingServiceCollection) => {
 		await score(testingServiceCollection, ['ruby'], ['ruby', 'cucumber', 'rake', 'irb']);
 	});

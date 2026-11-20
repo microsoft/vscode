@@ -33,18 +33,19 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
 import { IVersion, tryParseVersion } from '../common/updateUtils.js';
 import { UpdateGlobalActivityBadgeVisibleContext } from '../common/update.js';
+import { ReleaseNotesSource } from './releaseNotesTelemetry.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
-export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean) {
+export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean, source: ReleaseNotesSource = 'other') {
 	if (!releaseNotesManager) {
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
 
-	return releaseNotesManager.show(version, useCurrentFile);
+	return releaseNotesManager.show(version, useCurrentFile, source);
 }
 
 async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
@@ -62,7 +63,7 @@ async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
 async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
 	const instantiationService = accessor.get(IInstantiationService);
 	try {
-		await showReleaseNotesInEditor(instantiationService, version, false);
+		await showReleaseNotesInEditor(instantiationService, version, false, 'updateMenu');
 	} catch (err) {
 		try {
 			await instantiationService.invokeFunction(openLatestReleaseNotesInBrowser);
@@ -192,7 +193,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 			// was there a major/minor update? if so, open release notes (unless post-install info is enabled, which takes over)
 			if (shouldShowReleaseNotes && !shouldShowPostInstallInfo && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
-				showReleaseNotesInEditor(instantiationService, productService.version, false)
+				showReleaseNotesInEditor(instantiationService, productService.version, false, 'automaticUpdate')
 					.then(undefined, () => {
 						notificationService.prompt(
 							severity.Info,

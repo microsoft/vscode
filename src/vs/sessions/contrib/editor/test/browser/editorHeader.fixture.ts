@@ -6,17 +6,21 @@
 import '../../browser/media/editorBreadcrumbs.css';
 import '../../browser/media/editorHeader.css';
 import '../../../../browser/parts/media/editorPart.css';
+import '../../../../browser/media/workbench.css';
+import { $ } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize2 } from '../../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { renderEditorTabBarFixture } from '../../../../../workbench/test/browser/componentFixtures/editor/editorTabBar.fixture.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { renderEditorTabsFixture } from '../../../../../workbench/test/browser/componentFixtures/editor/tabs.fixture.js';
+import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 
 const primaryMenu = MenuId.for('sessions.fixture.editorHeaderPrimary');
 const secondaryMenu = MenuId.for('sessions.fixture.editorHeaderSecondary');
 const layoutMenu = MenuId.for('sessions.fixture.editorHeaderLayout');
 const addTabMenu = MenuId.for('sessions.fixture.editorHeaderAddTab');
 const emptyMenu = MenuId.for('sessions.fixture.editorHeaderEmpty');
+const contextualMenu = MenuId.for('sessions.fixture.editorTabsContextual');
 const primaryAction = {
 	id: 'sessions.fixture.editorHeaderAction',
 	title: localize2('sessions.fixture.editorHeaderAction', "Header Action"),
@@ -79,11 +83,45 @@ MenuRegistry.appendMenuItem(addTabMenu, {
 	command: addFileTabAction,
 	group: 'navigation',
 });
+MenuRegistry.appendMenuItem(contextualMenu, { command: primaryAction, group: 'navigation' });
+MenuRegistry.appendMenuItem(contextualMenu, { command: secondaryAction, group: 'secondary' });
+
+async function renderWrappedActions(ctx: ComponentFixtureContext, tabHeight: 'default' | 'compact' = 'default', pinnedTabsOnSeparateRow = false, width = 300): Promise<void> {
+	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
+	renderEditorTabsFixture(ctx, {
+		modernUI: true,
+		width,
+		useModernUITabs: true,
+		partOptions: { wrapTabs: true, tabHeight, pinnedTabsOnSeparateRow, pinnedTabSizing: 'normal', tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 },
+		headerMenuIds: { editorActions: contextualMenu, tabsBarAddTab: addTabMenu },
+		layoutActionsMenu: layoutMenu,
+		editors: Array.from({ length: 5 }, (_, index) => ({
+			resource: URI.file(`/project/file${index}.ts`), pinned: true, active: index === 4, sticky: pinnedTabsOnSeparateRow && index < 2,
+		})),
+	});
+	let previousLayout: string | undefined;
+	await waitForFixtureCondition(() => {
+		const strips = Array.from(ctx.container.querySelectorAll<HTMLElement>('.tabs-and-actions-container'));
+		const tabs = Array.from(ctx.container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+		const add = ctx.container.querySelector<HTMLElement>('.tabs-bar-add-tab:not(.hidden)');
+		if (tabs.length !== 5 || !add || !strips.some(strip => strip.classList.contains('wrapping')) || tabs.some(tab => tab.offsetHeight === 0)) {
+			return false;
+		}
+		const layout = JSON.stringify({
+			strips: strips.map(strip => strip.offsetHeight),
+			tabs: tabs.map(tab => [tab.offsetTop, tab.offsetWidth, tab.classList.contains('connected-tab-upper-row')]),
+			add: [add.offsetTop, add.offsetWidth],
+		});
+		const stable = layout === previousLayout;
+		previousLayout = layout;
+		return stable && (width !== 180 || tabs.every(tab => tab.offsetTop < add.offsetTop && tab.classList.contains('connected-tab-upper-row')));
+	}, 'Wrapped editor actions did not reach their complete tab and controls layout');
+}
 
 function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false, layoutActions = false, showTabs: 'multiple' | 'single' | 'none' = 'multiple', addTab = false, tabHeight: 'default' | 'compact' = 'default', headerWidth?: number, reserveHeaderSpace = false): void {
 	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
 
-	renderEditorTabBarFixture(ctx, {
+	renderEditorTabsFixture(ctx, {
 		modernUI: true,
 		partOptions: { showTabs, tabHeight },
 		breadcrumbs: breadcrumbs ? { filePath: 'on', icons: true } : undefined,
@@ -100,9 +138,96 @@ function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primar
 	});
 }
 
+function renderConnectedCard(ctx: ComponentFixtureContext, secondTabActive = false, compactLayout = false): void {
+	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
+	ctx.container.classList.toggle('modern-ui-compact', compactLayout);
+	renderEditorTabsFixture(ctx, {
+		modernUI: true,
+		width: compactLayout ? 360 : 358,
+		editors: [
+			{ resource: URI.file('/Changes'), icon: Codicon.diffMultiple, pinned: true, active: true },
+			...(secondTabActive ? [{ resource: URI.file('/README.md'), pinned: true, active: true }] : []),
+		],
+	});
+	const grid = $('.monaco-grid-view');
+	grid.style.margin = '0';
+	grid.appendChild(ctx.container.querySelector('.part.editor')!);
+	ctx.container.appendChild(grid);
+	ctx.container.style.width = '360px';
+}
+
+function renderSingleRowHeader(ctx: ComponentFixtureContext, wrapTabs: boolean, tabHeight: 'default' | 'compact' = 'default'): void {
+	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
+	renderEditorTabsFixture(ctx, {
+		modernUI: true,
+		width: 720,
+		partOptions: { wrapTabs, tabHeight },
+		editors: [
+			{ resource: URI.file('/project/package-lock.json'), pinned: true, active: true },
+			{ resource: URI.file('/project/cgmanifest.json'), pinned: true },
+		],
+		showHeader: true,
+		useModernUITabs: true,
+		breadcrumbs: { filePath: 'on', icons: true },
+		headerMenuIds: { headerLayout: layoutMenu, tabsBarAddTab: addTabMenu },
+		editorContents: '{\n\t"name": "code-oss-dev",\n\t"version": "1.143.0"\n}',
+	});
+}
+
 export default defineThemedFixtureGroup({ path: 'sessions/editorHeader/' }, {
-	FullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true), additionalThemes: ['darkHighContrast'] }),
-	CompactFullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'multiple', false, 'compact'), additionalThemes: ['darkHighContrast'] }),
+	SingleRowConnected: defineComponentFixture({
+		render: ctx => renderSingleRowHeader(ctx, false),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The single-row Connected tab strip has the panel-header height, and the active tab starts at the panel top without an inset.'],
+	}),
+	SingleRowConnectedWrapEnabled: defineComponentFixture({
+		render: ctx => renderSingleRowHeader(ctx, true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Enabling tab wrapping does not change the height or top alignment while all tabs fit on one row.'],
+	}),
+	CompactSingleRowConnected: defineComponentFixture({
+		render: ctx => renderSingleRowHeader(ctx, true, 'compact'),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+	}),
+	WrappedEditorActions: defineComponentFixture({
+		render: ctx => renderWrappedActions(ctx),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Add Tab, contextual editor actions, and layout actions have separate unobscured hit targets on the final wrapped row.'],
+	}),
+	CompactWrappedEditorActions: defineComponentFixture({
+		render: ctx => renderWrappedActions(ctx, 'compact'),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+	}),
+	PinnedWrappedEditorActions: defineComponentFixture({
+		render: ctx => renderWrappedActions(ctx, 'default', true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+	}),
+	ControlsOnlyLastRow: defineComponentFixture({
+		render: ctx => renderWrappedActions(ctx, 'compact', false, 180),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['When only Add Tab and the editor toolbars occupy the final row, every editor tab above is a freestanding pill, including the selected last editor. No active cap crosses the control row.'],
+	}),
+	ConnectedChangesCard: defineComponentFixture({
+		render: ctx => renderConnectedCard(ctx),
+		additionalThemes: ['visualStudioDark', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The Changes tab joins the card outline at both upper corners and at the lower-left junction without gaps or doubled borders.'],
+	}),
+	CompactLayoutChangesCard: defineComponentFixture({
+		render: ctx => renderConnectedCard(ctx, false, true),
+		additionalThemes: ['visualStudioDark', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The compact Changes tab outline continues across the inactive tab strip.'],
+	}),
+	CompactLayoutSecondTabCard: defineComponentFixture({
+		render: ctx => renderConnectedCard(ctx, true, true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The compact active tab outline connects continuously to the tab strip on both sides.'],
+	}),
+	ConnectedSecondTabCard: defineComponentFixture({
+		render: ctx => renderConnectedCard(ctx, true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+	}),
+	FullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'multiple', true), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	CompactFullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'multiple', true, 'compact'), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	BreadcrumbsAndAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true) }),
 	BreadcrumbsAndSecondaryAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false, true) }),
 	BreadcrumbsOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false) }),

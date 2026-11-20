@@ -1343,6 +1343,12 @@ button {
 	color: var(--warn);
 }
 
+.field-hint {
+	margin: 0;
+	font-size: 12px;
+	color: var(--text-secondary);
+}
+
 strong[data-kind='ok'] {
 	color: var(--ok);
 }
@@ -1833,6 +1839,12 @@ code {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.log-delay {
+	color: var(--warn);
+	font-variant-numeric: tabular-nums;
+	flex: none;
 }
 
 /* --- Proxy setup ----------------------------------------------------------- */

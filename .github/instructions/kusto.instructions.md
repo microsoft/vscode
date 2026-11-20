@@ -16,4 +16,6 @@ These instructions contain valuable information about:
 
 Reading these instructions before writing Kusto queries will help you write more accurate and efficient queries, avoid common pitfalls, and leverage existing knowledge about VS Code's telemetry infrastructure.
 
+Query results are internal data. When they inform a change in this public repository, describe the conclusion without numbers in pull requests, issues, comments and commit messages (see "Public Content" in [copilot-instructions.md](../copilot-instructions.md)).
+
 (Make sure to have the main branch of vscode-tools up to date in case there are problems and the repository cloned from https://github.com/microsoft/vscode-tools).

@@ -9,12 +9,11 @@ import { derived, IObservable, ISettableObservable, observableValue } from '../.
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatSendResult, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { buildFixCIPrompt, getFailedChecks } from '../../changes/browser/checksActions.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubCheckStatus } from '../../github/common/types.js';
-import { ISessionCIFixModel, ISessionCIFixState } from './views/sessionsList.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { buildFixCIPrompt, countRequiredChecks } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { ISessionCIFixModel, ISessionCIFixState } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 
 /**
  * Backs the per-session "Fix CI" row shown in the blocked-sessions dropdown for
@@ -76,14 +75,12 @@ export class BlockedSessionsCIFixModel extends Disposable implements ISessionCIF
 					return undefined;
 				}
 
-				const checks = ciModel.checks.read(reader);
-				const failed = getFailedChecks(checks).length;
-				if (failed === 0) {
+				const required = ciModel.requiredChecks.read(reader);
+				const counts = required ? countRequiredChecks(required) : undefined;
+				if (!counts?.failed) {
 					return undefined;
 				}
-				const completed = checks.filter(check => check.status === GitHubCheckStatus.Completed).length;
-				const pending = checks.length - completed;
-				return { failed, pending };
+				return { failed: counts.failed, pending: counts.pending };
 			});
 			this._states.set(session, obs);
 		}

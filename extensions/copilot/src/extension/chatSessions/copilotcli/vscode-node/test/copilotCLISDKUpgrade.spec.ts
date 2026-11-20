@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import { promises as fs } from 'fs';
 import { isBinaryFile } from 'isbinaryfile';
+import { createRequire, syncBuiltinESMExports } from 'module';
+import * as os from 'os';
 import * as path from 'path';
 import { beforeAll, describe, it } from 'vitest';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
@@ -163,6 +166,84 @@ describe('CopilotCLI SDK Upgrade', function () {
 	it('should be able to load the @github/copilot module without errors', async function () {
 		await import('@github/copilot/sdk');
 	});
+
+	// `CopilotCLISessionService` relies on these listing semantics to avoid opening every
+	// session's event log at once (see SESSION_LIST_OPTIONS). Fail loudly if an SDK update changes them.
+	it('lists ids only with metadataLimit 0 and enriches like a full listing', async function () {
+		const originalCopilotHome = process.env.COPILOT_HOME;
+		const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'copilot-sdk-listing-'));
+		process.env.COPILOT_HOME = path.join(tempHome, '.copilot');
+		try {
+			const writeSession = async (sessionId: string, options: { userMessage?: string; name?: string }) => {
+				const sessionDir = path.join(process.env.COPILOT_HOME!, 'session-state', sessionId);
+				await fs.mkdir(sessionDir, { recursive: true });
+				await fs.writeFile(path.join(sessionDir, 'workspace.yaml'), `id: ${sessionId}\ncwd: /work/${sessionId}\n${options.name ? `name: ${options.name}\n` : ''}`);
+				const events = [JSON.stringify({ type: 'session.start', data: { sessionId } })];
+				if (options.userMessage) {
+					events.push(JSON.stringify({ type: 'user.message', data: { content: options.userMessage } }));
+				}
+				await fs.writeFile(path.join(sessionDir, 'events.jsonl'), events.join('\n') + '\n');
+			};
+			await writeSession('00000000-0000-0000-0000-000000000001', { userMessage: 'hello' });
+			await writeSession('00000000-0000-0000-0000-000000000002', {});
+			await writeSession('00000000-0000-0000-0000-000000000003', { name: 'Named' });
+
+			const sdk = await import('@github/copilot/sdk');
+			const sessionManager = new sdk.internal.LocalSessionManager({
+				createFeatureFlagService: sdk.createLocalFeatureFlagServiceCreator(),
+				telemetryService: new sdk.internal.NoopTelemetryService(),
+				autoModeManager: new sdk.AutoModeSessionManager(),
+			}, { flushDebounceMs: undefined, settings: undefined, version: undefined });
+			const summarize = (sessions: readonly { sessionId: string; summary?: string; context?: { cwd?: string } }[]) =>
+				sessions.map(s => ({ id: s.sessionId.slice(-1), summary: s.summary, hasContext: s.context !== undefined })).sort((a, b) => a.id.localeCompare(b.id));
+
+			// Record which session files each step touches through Node's `fs`. The ids-only
+			// listing must not touch any; the full listing is the positive control that proves
+			// this observer still sees the SDK's reads (its detached-status scan opens
+			// `events.jsonl` via `fs/promises`). The SDK reads `workspace.yaml` and the first
+			// user message in native code, which only the returned-metadata checks can cover.
+			type ListingPhase = 'idsOnly' | 'enrich' | 'full';
+			let phase: ListingPhase = 'idsOnly';
+			const sessionFileAccess: Record<ListingPhase, Set<string>> = { idsOnly: new Set(), enrich: new Set(), full: new Set() };
+			const stopObserving = observeSessionFileAccess(fileName => sessionFileAccess[phase].add(fileName));
+			let listed: Awaited<ReturnType<typeof sessionManager.listSessions>>;
+			let enriched: Awaited<ReturnType<typeof sessionManager.enrichSessionMetadata>>;
+			let full: Awaited<ReturnType<typeof sessionManager.listSessions>>;
+			try {
+				listed = await sessionManager.listSessions({ metadataLimit: 0, includeDetached: false });
+				phase = 'enrich';
+				enriched = await sessionManager.enrichSessionMetadata(listed);
+				phase = 'full';
+				full = await sessionManager.listSessions();
+			} finally {
+				stopObserving();
+			}
+
+			assert.deepStrictEqual({
+				listed: summarize(listed),
+				enriched: summarize(enriched),
+				idsOnlyListingFileAccess: [...sessionFileAccess.idsOnly],
+				fullListingOpensEventLogsObservably: sessionFileAccess.full.has('events.jsonl'),
+			}, {
+				listed: [
+					{ id: '1', summary: undefined, hasContext: false },
+					{ id: '2', summary: undefined, hasContext: false },
+					{ id: '3', summary: undefined, hasContext: false },
+				],
+				enriched: summarize(full),
+				idsOnlyListingFileAccess: [],
+				fullListingOpensEventLogsObservably: true,
+			});
+			assert.deepStrictEqual(summarize(enriched).map(s => s.id), ['1', '3']);
+		} finally {
+			if (originalCopilotHome === undefined) {
+				delete process.env.COPILOT_HOME;
+			} else {
+				process.env.COPILOT_HOME = originalCopilotHome;
+			}
+			await fs.rm(tempHome, { recursive: true, force: true });
+		}
+	}, 30000);
 });
 
 const copilotPlatformArchs = new Set([
@@ -253,4 +334,41 @@ async function findAllBinaries(dir: string): Promise<string[]> {
 
 	await findFilesRecursively(dir);
 	return binaryFiles;
+}
+
+type FileSystemFunctions = Record<string, (...args: unknown[]) => unknown>;
+
+const OBSERVED_SESSION_FILES = new Set(['events.jsonl', 'workspace.yaml']);
+
+/**
+ * Reports `events.jsonl` / `workspace.yaml` accesses made through Node's `fs` and `fs/promises`,
+ * including from already-loaded ES modules (via `syncBuiltinESMExports`). Returns a function that
+ * restores the original implementations.
+ */
+function observeSessionFileAccess(onAccess: (fileName: string) => void): () => void {
+	const nodeFs = createRequire(__filename)('fs') as typeof import('fs');
+	const restores: (() => void)[] = [];
+	const wrap = (target: FileSystemFunctions, names: readonly string[]) => {
+		for (const name of names) {
+			const original = target[name];
+			target[name] = (...args: unknown[]) => {
+				const file = args[0];
+				const fileName = typeof file === 'string' ? path.basename(file) : file instanceof URL ? path.posix.basename(file.pathname) : undefined;
+				if (fileName && OBSERVED_SESSION_FILES.has(fileName)) {
+					onAccess(fileName);
+				}
+				return original(...args);
+			};
+			restores.push(() => { target[name] = original; });
+		}
+	};
+	wrap(nodeFs.promises as unknown as FileSystemFunctions, ['open', 'readFile', 'stat']);
+	wrap(nodeFs as unknown as FileSystemFunctions, ['open', 'openSync', 'readFile', 'readFileSync', 'createReadStream', 'stat', 'statSync']);
+	syncBuiltinESMExports();
+	return () => {
+		for (const restore of restores) {
+			restore();
+		}
+		syncBuiltinESMExports();
+	};
 }

@@ -68,6 +68,7 @@ export abstract class VirtualizedItemTemplate<TItem, TBinding extends IVirtualiz
 			if (this._currentBinding.get() !== binding) {
 				throw new BugIndicatingError('Disposed binding does not own its virtualized template');
 			}
+			this._bindingStore.clear();
 			this._currentBinding.set(undefined, undefined);
 		}));
 		this._currentBinding.set(binding, undefined);

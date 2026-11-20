@@ -416,6 +416,38 @@ describe('Virtual Tools - Grouping', () => {
 			// even if exceeding TRIM_THRESHOLD
 			expect(result.length).toBe(150);
 		});
+
+		it('should keep a just-activated group expanded over less recently used groups when trimming', async () => {
+			mockGrouper = createGroupingGrouper();
+			grouping = accessor.get(IInstantiationService).createInstance(TestToolGrouping, []);
+
+			const tools: LanguageModelToolInformation[] = [];
+			for (let i = 0; i < 80; i++) {
+				tools.push(makeTool(`solo${i}`));
+			}
+			for (let i = 0; i < 20; i++) {
+				tools.push(makeTool(`slack_tool${i}`));
+			}
+			for (let i = 0; i < 40; i++) {
+				tools.push(makeTool(`notion_tool${i}`));
+			}
+			grouping.tools = tools;
+			await grouping.compute('', CancellationToken.None);
+
+			grouping.didCall(0, `${VIRTUAL_TOOL_NAME_PREFIX}slack`);
+			grouping.didTakeTurn();
+			await grouping.compute('', CancellationToken.None);
+			grouping.didCall(1, 'slack_tool0');
+			grouping.didTakeTurn();
+
+			grouping.didCall(2, `${VIRTUAL_TOOL_NAME_PREFIX}notion`);
+			const names = (await grouping.compute('', CancellationToken.None)).map(t => t.name);
+
+			expect(names.length).toBeLessThanOrEqual(HARD_TOOL_LIMIT);
+			expect(names).toContain('notion_tool0');
+			expect(names).not.toContain(`${VIRTUAL_TOOL_NAME_PREFIX}notion`);
+			expect(names).toContain(`${VIRTUAL_TOOL_NAME_PREFIX}slack`);
+		});
 	});
 
 	describe('cache invalidation integration', () => {

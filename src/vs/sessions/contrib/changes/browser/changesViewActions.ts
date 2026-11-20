@@ -6,7 +6,6 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -23,25 +22,31 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { DIFF_VIEW_MODE_INLINE_TEMPORARY, SET_DIFF_VIEW_MODE_AUTOMATIC, SET_DIFF_VIEW_MODE_INLINE, SET_DIFF_VIEW_MODE_SIDE_BY_SIDE, TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
-import { IEditorCommandsContext } from '../../../../workbench/common/editor.js';
+import { IEditorCommandsContext, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
 import { readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
-import { Menus } from '../../../browser/menus.js';
-import { CustomViewVisibleContext, SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
-import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
-import { IChangesViewService } from '../common/changesViewService.js';
-import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../editor/common/diffEditorOptionsService.js';
-import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { SessionArtifactIntegrationsEnabledContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
+import { logChangesViewViewModeChange } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { getChangesOfSession, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../../../workbench/services/editor/common/diffEditorOptionsService.js';
+import { CHANGES_HEADER_ACTIONS_ID } from '../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import { SessionChangesEditor } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
+import { isChangesFileResource } from '../../../../workbench/contrib/sessionChanges/browser/changesViewRenderer.js';
+import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -72,20 +77,17 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
 
-		// Bind context key: true when the active session has changes
+		// Bind context key: true when the chat the main window shows has changes
+		const mainWindowHost = getMainWindowHost(sessionHostService);
 		this._register(bindContextKey(ActiveSessionContextKeys.HasChanges, contextKeyService, reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
-			if (!activeSession) {
-				return false;
-			}
-			const changes = activeSession.changes.read(reader);
-			return changes.length > 0;
+			const changes = mainWindowHost.chat.read(reader)?.changes.read(reader);
+			return !!changes && changes.length > 0;
 		}));
 
 		this._register(bindContextKey(ChangesContextKeys.ViewMode, contextKeyService, reader => {
@@ -93,7 +95,7 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 		}));
 
 		const activeEditor = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor);
-		this._register(bindContextKey(SinglePaneDiffEditorInputActiveContext, contextKeyService, reader => activeEditor.read(reader) instanceof DiffEditorInput));
+		this._register(bindContextKey(DesktopDiffEditorInputActiveContext, contextKeyService, reader => activeEditor.read(reader) instanceof DiffEditorInput));
 	}
 }
 
@@ -114,20 +116,21 @@ class OpenPullRequestAction extends Action2 {
 				order: 9,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					ActiveSessionContextKeys.HasPullRequest)
+					ActiveSessionContextKeys.HasPullRequest,
+					// The pull request artifact opens the pull request.
+					SessionArtifactIntegrationsEnabledContext.negate())
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const commandService = accessor.get(ICommandService);
-		const sessionsService = accessor.get(ISessionsService);
-		const activeSession = sessionsService.activeSession.get();
-		if (!activeSession) {
+		const session = resolveSessionCommandTarget(accessor, [sessionArg])?.session;
+		if (!session) {
 			return;
 		}
 
-		await commandService.executeCommand(OPEN_PULL_REQUEST_ACTION_ID, activeSession);
+		await commandService.executeCommand(OPEN_PULL_REQUEST_ACTION_ID, session);
 	}
 }
 
@@ -138,10 +141,10 @@ const agentsChangesEditorActive = ContextKeyExpr.and(
 	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID)
 );
 
-const singlePaneFileDiffEditorActive = ContextKeyExpr.and(
+const desktopFileDiffEditorActive = ContextKeyExpr.and(
 	IsSessionsWindowContext,
-	SinglePaneDiffEditorInputActiveContext,
-	SinglePaneLayoutEnabledContext
+	DesktopDiffEditorInputActiveContext,
+	DesktopLayoutContext
 );
 
 const agentsTextDiffEditorActive = ContextKeyExpr.and(
@@ -170,8 +173,8 @@ const agentsMultiDiffEditorsActive = ContextKeyExpr.or(
 	agentsMultiDiffEditorActive
 );
 
-const singlePaneChangesEditorActive = ContextKeyExpr.and(agentsChangesEditorActive, SinglePaneLayoutEnabledContext);
-const singlePaneTextDiffEditorActive = ContextKeyExpr.and(agentsTextDiffEditorActive, SinglePaneLayoutEnabledContext);
+const desktopChangesEditorActive = ContextKeyExpr.and(agentsChangesEditorActive, DesktopLayoutContext);
+const desktopTextDiffEditorActive = ContextKeyExpr.and(agentsTextDiffEditorActive, DesktopLayoutContext);
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -179,69 +182,64 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: OpenMultiDiffEditorLayoutDebugAction.TITLE,
 		category: Categories.Developer,
 	},
-	when: singlePaneChangesEditorActive
+	when: desktopChangesEditorActive
 });
+
+// The title actions below show in the menus of the Agents window's editor areas, which only they show: those of the main
+// window and of chat windows, never of its editor windows. Each editor area binds whether it is visible in its own context.
+const editorAreaVisible = MainEditorAreaVisibleContext;
 
 // Title-bar (tab-row) gate that does NOT require the editor content area to be
 // visible, so session-level title actions (e.g. Create Pull Request) stay available
 // when the editor area is closed but the docked tab bar is still shown.
-const singlePaneChangesEditorTitle = ContextKeyExpr.and(
-	singlePaneChangesEditorActive,
-	IsAuxiliaryWindowContext.toNegated(),
+const desktopChangesEditorTitle = ContextKeyExpr.and(
+	desktopChangesEditorActive,
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
-	singlePaneChangesEditorTitle,
-	MainEditorAreaVisibleContext
+const desktopChangesEditorTitleVisible = ContextKeyExpr.and(
+	desktopChangesEditorTitle,
+	editorAreaVisible
 );
 
-const singlePaneDiffEditorTitle = ContextKeyExpr.and(
-	ContextKeyExpr.or(singlePaneChangesEditorActive, singlePaneFileDiffEditorActive),
-	IsAuxiliaryWindowContext.toNegated(),
+const desktopDiffEditorTitle = ContextKeyExpr.and(
+	ContextKeyExpr.or(desktopChangesEditorActive, desktopFileDiffEditorActive),
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneTextDiffEditorTitle = ContextKeyExpr.and(
-	singlePaneTextDiffEditorActive,
-	IsAuxiliaryWindowContext.toNegated(),
+const desktopTextDiffEditorTitle = ContextKeyExpr.and(
+	desktopTextDiffEditorActive,
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneMultiDiffEditorTitle = ContextKeyExpr.and(
+const desktopMultiDiffEditorTitle = ContextKeyExpr.and(
 	agentsMultiDiffEditorActive,
-	SinglePaneLayoutEnabledContext,
-	IsAuxiliaryWindowContext.toNegated(),
+	DesktopLayoutContext,
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneTextEditorTitle = ContextKeyExpr.and(
+const desktopTextEditorTitle = ContextKeyExpr.and(
 	agentsTextEditorActive,
-	SinglePaneLayoutEnabledContext,
-	IsAuxiliaryWindowContext.toNegated(),
+	DesktopLayoutContext,
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneDiffEditorTitleVisible = ContextKeyExpr.and(
+const desktopDiffEditorTitleVisible = ContextKeyExpr.and(
 	ContextKeyExpr.or(
-		singlePaneChangesEditorTitle,
-		singlePaneTextDiffEditorTitle,
-		singlePaneMultiDiffEditorTitle
+		desktopChangesEditorTitle,
+		desktopTextDiffEditorTitle,
+		desktopMultiDiffEditorTitle
 	),
-	MainEditorAreaVisibleContext
+	editorAreaVisible
 );
 
-const singlePaneMultiDiffEditorTitleVisible = ContextKeyExpr.and(
-	ContextKeyExpr.or(
-		singlePaneChangesEditorTitle,
-		singlePaneMultiDiffEditorTitle,
-	),
-	MainEditorAreaVisibleContext
-);
+// The Changes editor shows its diff actions in the header row above its diffs instead of in its tab row: Run Code Review
+// and the More Actions menu in Menus.SessionsEditorHeaderSecondary.
+const notChangesEditor = ActiveEditorContext.notEqualsTo(SessionChangesEditor.ID);
 
-const singlePaneTextEditorTitleVisible = ContextKeyExpr.and(
-	singlePaneTextEditorTitle,
-	MainEditorAreaVisibleContext
+const desktopTextEditorTitleVisible = ContextKeyExpr.and(
+	desktopTextEditorTitle,
+	editorAreaVisible
 );
 
 function wordWrapToggled(settingId: string) {
@@ -266,19 +264,19 @@ class ToggleSessionsEditorWordWrapAction extends Action2 {
 				id: Menus.SessionsEditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: singlePaneTextEditorTitleVisible,
+				when: desktopTextEditorTitleVisible,
 			}, {
 				id: MenuId.EditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: ContextKeyExpr.and(agentsTextEditorActive, SinglePaneLayoutEnabledContext.negate()),
+				when: ContextKeyExpr.and(agentsTextEditorActive, DesktopLayoutContext.negate()),
 			}],
 			toggled: wordWrapToggled(SESSIONS_EDITOR_WORD_WRAP_SETTING),
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IEditorCommandsContext): Promise<void> {
-		await toggleSessionsWordWrap(accessor, 'editor', context);
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		await toggleSessionsWordWrap(accessor, 'editor', args.find(isEditorCommandsContext));
 	}
 }
 
@@ -294,20 +292,32 @@ class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
 				id: Menus.SessionsEditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: singlePaneMultiDiffEditorTitleVisible,
+				when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, MainEditorAreaVisibleContext),
+			}, {
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary/1_diff',
+				order: 20,
+				when: desktopChangesEditorTitleVisible,
 			}, {
 				id: MenuId.EditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: ContextKeyExpr.and(agentsMultiDiffEditorsActive, SinglePaneLayoutEnabledContext.negate()),
+				when: ContextKeyExpr.and(agentsMultiDiffEditorsActive, DesktopLayoutContext.negate()),
 			}],
 			toggled: wordWrapToggled(SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING),
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IEditorCommandsContext): Promise<void> {
-		await toggleSessionsWordWrap(accessor, 'diffEditor', context);
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		// Editor title menus pass the active editor's resource before the editor context.
+		await toggleSessionsWordWrap(accessor, 'diffEditor', args.find(isEditorCommandsContext));
 	}
+}
+
+/** The editor of the group whose title an action is invoked from (editor title menus pass the editor context), else the active editor. */
+function getInvokingEditorPane(accessor: ServicesAccessor, args: unknown[]) {
+	const context = args.find(isEditorCommandsContext);
+	return context ? accessor.get(IEditorGroupsService).getGroup(context.groupId)?.activeEditorPane : accessor.get(IEditorService).activeEditorPane;
 }
 
 async function toggleSessionsWordWrap(accessor: ServicesAccessor, target: 'editor' | 'diffEditor', context?: IEditorCommandsContext): Promise<void> {
@@ -361,16 +371,15 @@ class ChangesHeaderActionsAction extends Action2 {
 			title: localize2('changesView.headerActions', "Changes Actions"),
 			f1: false,
 			menu: {
-				id: Menus.TitleBarSessionMenu,
+				id: AgentsWindowMenus.TitleBarSessionMenu,
 				group: 'navigation',
 				order: 5,
+				// Read in each window's own context: for the session it shows, which an editor window's title bar has none of.
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
 					CustomViewVisibleContext.negate(),
-					SinglePaneLayoutEnabledContext,
-					SessionIsCreatedContext,
-					SessionHasChangesContext
+					DesktopLayoutContext,
+					SessionIsCreatedContext
 				)
 			},
 		});
@@ -379,6 +388,17 @@ class ChangesHeaderActionsAction extends Action2 {
 }
 
 registerAction2(ChangesHeaderActionsAction);
+
+MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
+	submenu: Menus.ChangesFilesView,
+	title: localize('filesView', "Files View"),
+	group: 'z_filesView',
+	order: 20,
+	when: ContextKeyExpr.and(desktopDiffEditorTitle, AuxiliaryBarVisibleContext, notChangesEditor),
+});
+
+// The Changes editor offers how the Changes view shows its files in the dropdown of Toggle Details, above the details positions.
+const changesEditorActive = ActiveEditorContext.isEqualTo(SessionChangesEditor.ID);
 
 class SetChangesListViewModeAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.setChangesListViewMode';
@@ -389,15 +409,17 @@ class SetChangesListViewModeAction extends Action2 {
 			title: localize2('agentSessions.setChangesListViewMode', "View as List"),
 			icon: Codicon.listFlat,
 			f1: false,
-			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '2_viewMode',
-				order: 20,
-				when: ContextKeyExpr.and(
-					singlePaneDiffEditorTitle,
-					AuxiliaryBarVisibleContext,
-					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree))
-			}
+			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
+			menu: [{
+				id: Menus.ChangesFilesView,
+				group: '1_viewMode',
+				order: 1,
+			}, {
+				id: Menus.DetailsToggle,
+				group: '1_viewMode',
+				order: 1,
+				when: changesEditorActive,
+			}]
 		});
 	}
 
@@ -418,15 +440,17 @@ class SetChangesTreeViewModeAction extends Action2 {
 			title: localize2('agentSessions.setChangesTreeViewMode', "View as Tree"),
 			icon: Codicon.listTree,
 			f1: false,
-			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '2_viewMode',
-				order: 20,
-				when: ContextKeyExpr.and(
-					singlePaneDiffEditorTitle,
-					AuxiliaryBarVisibleContext,
-					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List))
-			}
+			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
+			menu: [{
+				id: Menus.ChangesFilesView,
+				group: '1_viewMode',
+				order: 2,
+			}, {
+				id: Menus.DetailsToggle,
+				group: '1_viewMode',
+				order: 2,
+				when: changesEditorActive,
+			}]
 		});
 	}
 
@@ -448,18 +472,19 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.collapseAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
+				id: Menus.SessionsEditorHeaderSecondary,
 				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorTitleVisible,
+					desktopChangesEditorTitleVisible,
 					ContextKeyExpr.not('multiDiffEditorAllCollapsed'))
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		// The Changes editor of the title it is invoked from, such as in a chat window, else the active one.
+		const activeEditorPane = getInvokingEditorPane(accessor, args);
 		if (activeEditorPane instanceof SessionChangesEditor) {
 			activeEditorPane.collapseAllDiffs();
 		}
@@ -478,21 +503,21 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.expandAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
+				id: Menus.SessionsEditorHeaderSecondary,
 				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorActive,
-					IsAuxiliaryWindowContext.toNegated(),
+					desktopChangesEditorActive,
 					IsTopRightEditorGroupContext,
-					MainEditorAreaVisibleContext,
+					editorAreaVisible,
 					ContextKeyExpr.has('multiDiffEditorAllCollapsed'))
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		// The Changes editor of the title it is invoked from, such as in a chat window, else the active one.
+		const activeEditorPane = getInvokingEditorPane(accessor, args);
 		if (activeEditorPane instanceof SessionChangesEditor) {
 			activeEditorPane.expandAllDiffs();
 		}
@@ -505,19 +530,35 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 // user's keybinding for it carries over here (issue #324765). The sessions override of
 // IDiffEditorCommandsService updates the Changes editor's own preferred layout.
 
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
+	submenu: Menus.SessionsDiffEditorView,
+	title: localize('diffView', "Diff View"),
+	group: '1_diff',
+	order: 30,
+	when: ContextKeyExpr.and(desktopDiffEditorTitleVisible, notChangesEditor),
+});
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	submenu: Menus.SessionsDiffEditorView,
 	title: localize('diffView', "Diff View"),
 	group: 'secondary/1_diff',
-	order: 20,
-	when: singlePaneDiffEditorTitleVisible,
+	order: 30,
+	when: desktopChangesEditorTitleVisible,
+});
+// The main window offers how a multi diff editor shows its files list and where in the dropdown of Toggle Details. A chat
+// window offers neither Toggle Details nor Toggle Files, so its editor title overflow offers them instead.
+MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
+	submenu: MultiDiffEditorFilesViewAndPositionMenu,
+	title: localize('filesViewAndPosition', "Files View & Position"),
+	group: '2_viewMode',
+	order: 10,
+	when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, editorAreaVisible, ActiveMultiDiffEditorHasFileListContext, IsAuxiliaryWindowContext),
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: Menus.SessionsDiffEditorView,
 	title: localize('diffView', "Diff View"),
 	group: '1_diff',
 	order: 10,
-	when: ContextKeyExpr.and(agentsDiffEditorActive, SinglePaneLayoutEnabledContext.negate()),
+	when: ContextKeyExpr.and(agentsDiffEditorActive, DesktopLayoutContext.negate()),
 });
 MenuRegistry.appendMenuItem(Menus.SessionsDiffEditorView, {
 	command: {
@@ -589,14 +630,19 @@ class OpenChangesAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, _sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
+	async run(accessor: ServicesAccessor, sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const changesViewService = accessor.get(IChangesViewService);
 
-		const sessionChanges = changesViewService.activeSessionChangesObs.get();
+		const target = resolveSessionCommandTarget(accessor, [sessionResource]);
+		const session = target?.session;
+		if (!session) {
+			return;
+		}
+		const sessionChanges = getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat).changesObs.get();
 
 		const changes = sessionChanges?.filter(change =>
-			resources.some(resource => isEqual(change.modifiedUri ?? change.originalUri, resource))
+			resources.some(resource => isChangesFileResource(change, resource))
 		) ?? [];
 
 		await Promise.all(changes.map(change => editorService.openEditor({

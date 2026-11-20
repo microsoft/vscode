@@ -7,8 +7,8 @@ import fs from 'fs';
 import path from 'path';
 import { download, sha256 } from '../lib/download.ts';
 import { getElectronVersion } from '../lib/electronVersion.ts';
-import { root } from './installStateHash.ts';
 
+const root = fs.realpathSync.native(path.dirname(path.dirname(import.meta.dirname)));
 const electronTypesPath = path.join(root, '.build', 'typings', 'electron.d.ts');
 
 function getExpectedChecksum(): string {

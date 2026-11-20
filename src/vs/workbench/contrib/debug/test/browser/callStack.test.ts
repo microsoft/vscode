@@ -17,11 +17,11 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { createDecorationsForStackFrame } from '../../browser/callStackEditorContribution.js';
-import { getContext, getContextForContributedActions, getSpecificSourceName } from '../../browser/callStackView.js';
+import { getContext, getContextForContributedActions, getSessionContextOverlay, getSpecificSourceName, getThreadContextOverlay } from '../../browser/callStackView.js';
 import { debugStackframe, debugStackframeFocused } from '../../browser/debugIcons.js';
 import { getStackFrameThreadAndSessionToFocus } from '../../browser/debugService.js';
 import { DebugSession } from '../../browser/debugSession.js';
-import { IDebugService, IDebugSessionOptions, State } from '../../common/debug.js';
+import { CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES, IDebugService, IDebugSessionOptions, State } from '../../common/debug.js';
 import { DebugModel, StackFrame, Thread } from '../../common/debugModel.js';
 import { Source } from '../../common/debugSource.js';
 import { MockRawSession } from '../common/mockDebug.js';
@@ -46,6 +46,65 @@ export function createTestSession(model: DebugModel, name = 'mockSession', optio
 			};
 		}
 	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!, new NullLogService(), undefined!, undefined!, new TestAccessibilityService());
+}
+
+function createSingleStackFrame(session: DebugSession): StackFrame {
+	const stackFrames: StackFrame[] = [];
+	const thread = new class extends Thread {
+		public override getCallStack(): StackFrame[] {
+			return stackFrames;
+		}
+	}(session, 'mockthread', 1);
+
+	const source = new Source({
+		name: 'internalModule.js',
+		path: 'a/b/c/d/internalModule.js',
+		sourceReference: 10,
+	}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
+	const stackFrame = new StackFrame(thread, 0, source, 'app.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 0, true);
+	stackFrames.push(stackFrame);
+	// The adapter confirms this is the only frame in the stack.
+	thread.stoppedDetails = { totalFrames: 1 };
+	return stackFrame;
+}
+
+function createPartiallyLoadedMultipleFrameStack(session: DebugSession): Thread {
+	const stackFrames: StackFrame[] = [];
+	const thread = new class extends Thread {
+		public override getCallStack(): StackFrame[] {
+			return stackFrames;
+		}
+	}(session, 'mockthread', 1);
+
+	const source = new Source({
+		name: 'internalModule.js',
+		path: 'z/x/c/d/internalModule.js',
+		sourceReference: 11,
+	}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
+	const loadedFrame = new StackFrame(thread, 0, source, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 0, true);
+	stackFrames.push(loadedFrame);
+	// The adapter reports two frames, but only the top frame has been loaded so far.
+	thread.stoppedDetails = { totalFrames: 2 };
+	return thread;
+}
+
+function createPartiallyLoadedStackWithUnknownDepth(session: DebugSession): Thread {
+	const stackFrames: StackFrame[] = [];
+	const thread = new class extends Thread {
+		public override getCallStack(): StackFrame[] {
+			return stackFrames;
+		}
+	}(session, 'mockthread', 1);
+
+	const source = new Source({
+		name: 'internalModule.js',
+		path: 'z/x/c/d/internalModule.js',
+		sourceReference: 11,
+	}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
+	const loadedFrame = new StackFrame(thread, 0, source, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 0, true);
+	stackFrames.push(loadedFrame);
+	// The adapter does not provide totalFrames, so the stack depth is still unknown.
+	return thread;
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame; secondStackFrame: StackFrame } {
@@ -462,6 +521,42 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(contributedContext, firstStackFrame.thread.threadId);
 		contributedContext = getContextForContributedActions(session);
 		assert.strictEqual(contributedContext, session.getId());
+	});
+
+	test('item-level stack depth contexts', () => {
+		const session = createTestSession(model);
+		disposables.add(session);
+		model.addSession(session);
+
+		const singleFrame = createSingleStackFrame(session);
+		const partiallyLoadedMultipleFrameStack = createPartiallyLoadedMultipleFrameStack(session);
+
+		const key = CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES.key;
+		const stackDepth = (overlay: ReturnType<typeof getThreadContextOverlay>) => overlay.find(([contextKey]) => contextKey === key)?.[1];
+
+		assert.strictEqual(stackDepth(getThreadContextOverlay(singleFrame.thread)), false);
+		assert.strictEqual(stackDepth(getThreadContextOverlay(partiallyLoadedMultipleFrameStack)), true);
+
+		const partiallyLoadedUnknownDepthStack = createPartiallyLoadedStackWithUnknownDepth(session);
+		assert.strictEqual(stackDepth(getThreadContextOverlay(partiallyLoadedUnknownDepthStack)), true);
+
+		partiallyLoadedUnknownDepthStack.reachedEndOfCallStack = true;
+		assert.strictEqual(stackDepth(getThreadContextOverlay(partiallyLoadedUnknownDepthStack)), false);
+
+		model.rawUpdate({
+			sessionId: session.getId(),
+			threads: [{
+				id: 1,
+				name: 'partiallyLoadedThread'
+			}],
+			stoppedDetails: {
+				reason: 'breakpoint',
+				threadId: 1,
+				totalFrames: 2,
+				allThreadsStopped: true
+			}
+		});
+		assert.strictEqual(stackDepth(getSessionContextOverlay(session)), true);
 	});
 
 	test('focusStackFrameThreadAndSession', () => {

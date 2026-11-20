@@ -117,6 +117,41 @@ function applyCustomizationEnablement(customization: Customization | ChildCustom
 	}
 }
 
+/** Applies a toggle to a skill served by an MCP server, or returns `undefined` when the server has no such skill. */
+function toggleMcpServerSkill(server: McpServerCustomization, id: string, enablement: readonly CustomizationEnablement[]): McpServerCustomization | undefined {
+	const skills = server.children;
+	const skillIdx = skills ? skills.findIndex(c => c.id === id) : -1;
+	if (!skills || skillIdx < 0) {
+		return undefined;
+	}
+	const newSkills = skills.slice();
+	newSkills[skillIdx] = { ...skills[skillIdx], enabled: enablement[0]?.enabled ?? true };
+	return { ...server, children: newSkills };
+}
+
+/** Applies a toggle to a container child, or a skill of an MCP server child, or returns `undefined` when absent. */
+function toggleContainerChild(container: Exclude<Customization, McpServerCustomization>, id: string, enablement: readonly CustomizationEnablement[]): Customization | undefined {
+	const children = container.children;
+	if (!children) {
+		return undefined;
+	}
+	const childIdx = children.findIndex(c => c.id === id);
+	const newChildren = children.slice();
+	if (childIdx >= 0) {
+		newChildren[childIdx] = applyCustomizationEnablement(children[childIdx], enablement);
+		return { ...container, children: newChildren };
+	}
+	for (let i = 0; i < children.length; i++) {
+		const child = children[i];
+		const toggled = child.type === CustomizationType.McpServer ? toggleMcpServerSkill(child, id, enablement) : undefined;
+		if (toggled) {
+			newChildren[i] = toggled;
+			return { ...container, children: newChildren };
+		}
+	}
+	return undefined;
+}
+
 // ─── Session Reducer ─────────────────────────────────────────────────────────
 
 /**
@@ -175,10 +210,30 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			if (idx < 0) {
 				return state;
 			}
-			const { resource: _ignored, ...changes } = action.changes;
+			const { resource: _resource, provider: _provider, ...changes } = action.changes;
 			const updated = list.slice();
 			updated[idx] = { ...list[idx], ...changes };
 			return { ...state, chats: updated };
+		}
+
+		case ActionType.SessionChatsReordered: {
+			const list = state.chats;
+			if (action.chats.length !== list.length || new Set(action.chats).size !== list.length) {
+				return state;
+			}
+			const summaries = new Map(list.map(summary => [summary.resource, summary]));
+			const reordered = [];
+			for (const resource of action.chats) {
+				const summary = summaries.get(resource);
+				if (!summary) {
+					return state;
+				}
+				reordered.push(summary);
+			}
+			if (reordered.every((summary, index) => summary === list[index])) {
+				return state;
+			}
+			return { ...state, chats: reordered };
 		}
 
 		case ActionType.SessionDefaultChatChanged:
@@ -349,22 +404,14 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			}
 			for (let i = 0; i < list.length; i++) {
 				const container = list[i];
-				if (container.type === CustomizationType.McpServer) {
-					continue;
+				const toggled = container.type === CustomizationType.McpServer
+					? toggleMcpServerSkill(container, action.id, action.enablement)
+					: toggleContainerChild(container, action.id, action.enablement);
+				if (toggled) {
+					const updated = list.slice();
+					updated[i] = toggled;
+					return { ...state, customizations: updated };
 				}
-				const children = container.children;
-				if (!children) {
-					continue;
-				}
-				const childIdx = children.findIndex(c => c.id === action.id);
-				if (childIdx < 0) {
-					continue;
-				}
-				const newChildren = children.slice();
-				newChildren[childIdx] = applyCustomizationEnablement(children[childIdx], action.enablement);
-				const updated = list.slice();
-				updated[i] = { ...container, children: newChildren };
-				return { ...state, customizations: updated };
 			}
 			return state;
 		}
@@ -429,6 +476,14 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				state: { kind: McpServerStatus.Starting },
 				channel: undefined,
 			}));
+		}
+
+		case ActionType.SessionMcpServerBackgroundRequested: {
+			return updateMcpServerCustomization(state, action.id, entry =>
+				entry.state.kind === McpServerStatus.Starting && entry.state.blocking
+					? { ...entry, state: { ...entry.state, blocking: false } }
+					: entry,
+			);
 		}
 
 		case ActionType.SessionMcpServerStopRequested: {

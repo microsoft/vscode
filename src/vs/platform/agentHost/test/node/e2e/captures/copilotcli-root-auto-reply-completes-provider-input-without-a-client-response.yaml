@@ -13,10 +13,15 @@ exchanges:
           id: toolcall_0
           name: ask_user
           input:
-            question: Which option?
-            choices:
-              - Alpha
-              - Beta
+            message: Which option?
+            requestedSchema:
+              properties:
+                option:
+                  type: string
+                  title: Which option?
+                  enum:
+                    - Alpha
+                    - Beta
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
@@ -29,10 +34,15 @@ exchanges:
             - type: tool_use
               name: ask_user
               input:
-                question: Which option?
-                choices:
-                  - Alpha
-                  - Beta
+                message: Which option?
+                requestedSchema:
+                  properties:
+                    option:
+                      type: string
+                      title: Which option?
+                      enum:
+                        - Alpha
+                        - Beta
         - role: user
           content:
             - type: tool_result

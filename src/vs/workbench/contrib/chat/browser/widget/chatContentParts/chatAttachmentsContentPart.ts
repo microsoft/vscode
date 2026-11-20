@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -14,17 +16,27 @@ import { ResourceLabels } from '../../../../../browser/labels.js';
 import { getImageAttachmentLimit, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isTerminalVariableEntry, isWorkspaceVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../../common/chatService/chatService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
-import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, IChatImageBase64Data, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
+import { IChatImageRevealOrigin } from '../../attachments/chatImageReveal.js';
 
 export interface IChatAttachmentsContentPartOptions {
 	readonly variables: readonly IChatRequestVariableEntry[];
+	/** The session of the chat that shows the attachments, `undefined` outside a chat session. */
+	readonly sessionResource: URI | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly modelId?: string;
 	readonly resolvedModelId?: string;
 	readonly domNode?: HTMLElement;
 	readonly limit?: number;
 	readonly showImageInHover?: boolean;
+	/** Render original images directly instead of preparing attachment thumbnails. */
+	readonly imagePresentation?: 'thumbnail' | 'inline';
+	readonly imageReveal?: IChatImageRevealOrigin;
+	readonly imageDimensions?: ResourceMap<dom.IDimension>;
+	readonly imageBase64Data?: ReadonlyMap<string, IChatImageBase64Data>;
+	/** Shared by related pills that preview a GitHub issue or pull request, so that moving between them shows the next preview right away. */
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export class ChatAttachmentsContentPart extends Disposable {
@@ -35,11 +47,17 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private _showingAll = false;
 
 	private _variables: readonly IChatRequestVariableEntry[];
+	private readonly sessionResource: URI | undefined;
 	private readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	private readonly modelId?: string;
 	private readonly resolvedModelId?: string;
 	private readonly limit?: number;
 	private readonly showImageInHover: boolean;
+	private readonly imagePresentation: IChatAttachmentsContentPartOptions['imagePresentation'];
+	private readonly imageReveal: IChatImageRevealOrigin | undefined;
+	private readonly imageDimensions: ResourceMap<dom.IDimension> | undefined;
+	private readonly imageBase64Data: ReadonlyMap<string, IChatImageBase64Data> | undefined;
+	private readonly hoverDelegate: IHoverDelegate | undefined;
 	public readonly domNode: HTMLElement | undefined;
 
 	public contextMenuHandler?: (attachment: IChatRequestVariableEntry, event: MouseEvent) => void;
@@ -52,11 +70,17 @@ export class ChatAttachmentsContentPart extends Disposable {
 	) {
 		super();
 		this._variables = options.variables;
+		this.sessionResource = options.sessionResource;
 		this.contentReferences = options.contentReferences ?? [];
 		this.modelId = options.modelId;
 		this.resolvedModelId = options.resolvedModelId;
 		this.limit = options.limit;
 		this.showImageInHover = options.showImageInHover ?? true;
+		this.imagePresentation = options.imagePresentation;
+		this.imageReveal = options.imageReveal;
+		this.imageDimensions = options.imageDimensions;
+		this.imageBase64Data = options.imageBase64Data;
+		this.hoverDelegate = options.hoverDelegate;
 		this.domNode = options.domNode ?? dom.$('.chat-attached-context');
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
@@ -230,7 +254,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 			const renderedAttachment = isAttachmentPartialOrOmitted || this.currentModelDoesNotSupportImages()
 				? { ...attachment, omittedState: OmittedState.Full }
 				: attachment;
-			widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, renderedAttachment, this.getCurrentLanguageModel(), { shouldFocusClearButton: false, supportsDeletion: false, showImageInHover: this.showImageInHover }, container, this._contextResourceLabels);
+			widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, renderedAttachment, this.getCurrentLanguageModel(), { shouldFocusClearButton: false, supportsDeletion: false, showImageInHover: this.showImageInHover, imagePresentation: this.imagePresentation, imageReveal: this.imageReveal, imageDimensions: this.imageDimensions, imageBase64Data: this.imageBase64Data?.get(attachment.id) }, container, this._contextResourceLabels);
 		} else if (isPromptFileVariableEntry(attachment)) {
 			if (attachment.automaticallyAdded) {
 				return; // Skip automatically added prompt files
@@ -261,8 +285,9 @@ export class ChatAttachmentsContentPart extends Disposable {
 			// skip workspace attachments
 			return;
 		} else {
-			widget = this.chatAttachmentWidgetRegistry.createWidget(attachment, { shouldFocusClearButton: false, supportsDeletion: false }, container)
-				?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+			// These attachments are shown rather than edited, so a GitHub issue or pull request previews its details and opens when activated.
+			widget = this.chatAttachmentWidgetRegistry.createWidget(attachment, { shouldFocusClearButton: false, supportsDeletion: false }, container, this.sessionResource)
+				?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false, supportsReferencePreview: true, hoverDelegate: this.hoverDelegate }, container, this._contextResourceLabels);
 		}
 
 		let ariaLabel: string | null = null;
@@ -274,7 +299,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		if (isAttachmentPartialOrOmitted) {
 			ariaLabel = `${ariaLabel}${description ? ` ${description}` : ''}`;
 			for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				const element = widget.label?.element.querySelector(selector);
 				if (element) {
 					element.classList.add('warning');

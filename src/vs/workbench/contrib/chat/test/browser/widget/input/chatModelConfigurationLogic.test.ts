@@ -7,7 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { ILanguageModelConfigurationSchema } from '../../../../common/languageModels.js';
+import { modelConfigurationSourceKey } from '../../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import {
+	applyModelConfigurationDefaults,
 	computeStoredConfiguration,
 	extractSchemaDefaults,
 	filterConfigurationToSchema,
@@ -99,6 +101,29 @@ suite('chatModelConfigurationLogic', () => {
 			// 'extreme' was valid against an older schema but is no longer an enum member.
 			const filtered = filterConfigurationToSchema({ thinkingEffort: 'extreme' }, effortSchema);
 			assert.deepStrictEqual(filtered, {});
+		});
+
+		test('a started chat falls back to the default when its tier becomes unavailable', () => {
+			const tierSchema: ILanguageModelConfigurationSchema = {
+				type: 'object',
+				properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion-max'], enumItemDisabled: [false, true], default: 'balance' } },
+			};
+			const applied = applyModelConfigurationDefaults({ tier: 'hydrafusion-max', [modelConfigurationSourceKey('tier')]: 'explicit' }, { tier: 'hydrafusion-max' }, tierSchema, ['tier']);
+			assert.strictEqual(applied.tier, 'balance');
+		});
+
+		test('drops an enum value the schema lists as unavailable', () => {
+			const tierSchema: ILanguageModelConfigurationSchema = {
+				type: 'object',
+				properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion-max'], enumItemDisabled: [false, true], default: 'balance' } },
+			};
+			assert.deepStrictEqual({
+				available: filterConfigurationToSchema({ tier: 'balance' }, tierSchema),
+				unavailable: filterConfigurationToSchema({ tier: 'hydrafusion-max' }, tierSchema),
+			}, {
+				available: { tier: 'balance' },
+				unavailable: {},
+			});
 		});
 
 		test('keeps values for non-enum properties (no constraint to validate)', () => {

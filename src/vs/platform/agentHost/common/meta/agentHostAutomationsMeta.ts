@@ -1,0 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+export { AgentHostAutomationHistoryCapabilityMetaKey, AgentHostAutomationHistoryDeletionStateCapabilityMetaKey, AgentHostAutomationHistoryReceiptsCapabilityMetaKey, AgentHostAutonomousAutomationsCapabilityMetaKey, getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, supportsAgentHostAutonomousAutomations, withAgentHostAutomationHistoryState, withAgentHostAutomationScheduleKind, type AgentHostAutomationHistoryState } from './vscode/agentHostAutomationsMeta.js';
+export { getAgentHostAutomationCreationId, withAgentHostAutomationCreationId } from './vscode/agentHostAutomationsMeta.js';
+export { agentHostAutomationSessionOrigin, AgentHostScheduledChatExistingConversationCapabilityMetaKey, getAgentHostOneTimeRun, getAgentHostScheduledChat, isAgentHostScheduledChatOrigin, supportsAgentHostScheduledChatExistingConversation, withAgentHostOneTimeRun, withAgentHostScheduledChat, type IAgentHostScheduledChat, type IAgentHostScheduledChatConversation } from './vscode/agentHostAutomationsMeta.js';

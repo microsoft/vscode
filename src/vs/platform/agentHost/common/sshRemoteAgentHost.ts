@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { decodeHex } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -10,6 +11,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { AgentHostEndpointAddress, AgentHostServerType } from './agentHostEndpointRegistry.js';
 import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from './relayTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError } from './state/sessionTransport.js';
 
 export type { IRelayMessage } from './relayTransport.js';
 
@@ -93,6 +95,13 @@ export interface ISSHAgentHostConfig {
 	readonly preferredAgentLocation?: RemoteAgentHostLocationPreference;
 }
 
+/** Configured hosts resolve their connection settings in the node-side connect attempt. */
+export type SSHAgentHostConnectionRequest = ISSHAgentHostConfig | {
+	readonly sshConfigHost: string;
+	readonly name: string;
+	readonly userInitiated?: boolean;
+};
+
 /**
  * Compute the stable per-host key used to key in-flight SSH connections,
  * the shared endpoint-selection request/candidates, and this host's
@@ -111,6 +120,66 @@ export function computeSSHConnectionKey(config: { sshConfigHost?: string; userna
 	return config.sshConfigHost
 		? `ssh:${config.sshConfigHost}`
 		: `${config.username}@${config.host}:${config.port ?? 22}`;
+}
+
+interface ISSHRemoteAuthority {
+	readonly hostName: string;
+	readonly user?: string;
+	readonly port?: number;
+}
+
+/** Parses the plain or hex-encoded authority used by Remote - SSH. */
+export function parseSSHRemoteAuthority(remoteAuthority: string): ISSHRemoteAuthority | undefined {
+	if (!remoteAuthority.startsWith('ssh-remote+')) {
+		return undefined;
+	}
+	const host = remoteAuthority.slice('ssh-remote+'.length);
+	return host ? readSSHAuthorityObject(host) ?? parseSSHHostString(host) : undefined;
+}
+
+/** The {@link computeSSHConnectionKey} of a Remote - SSH authority, keying the Agents Window's stored settings for that host. */
+export function getSSHRemoteAuthorityConnectionKey(remoteAuthority: string): string | undefined {
+	const ssh = parseSSHRemoteAuthority(remoteAuthority);
+	if (!ssh) {
+		return undefined;
+	}
+	if (ssh.user === undefined && ssh.port === undefined) {
+		return computeSSHConnectionKey({ sshConfigHost: ssh.hostName });
+	}
+	// Without the user, the key depends on SSH config that cannot be resolved here.
+	return ssh.user === undefined ? undefined : computeSSHConnectionKey({ host: ssh.hostName, username: ssh.user, port: ssh.port });
+}
+
+function readSSHAuthorityObject(host: string): ISSHRemoteAuthority | undefined {
+	try {
+		const value: { hostName?: unknown; user?: unknown; port?: unknown } = JSON.parse(decodeHex(host).toString());
+		if (typeof value?.hostName !== 'string' || !value.hostName) {
+			return undefined;
+		}
+		return {
+			hostName: value.hostName,
+			user: typeof value.user === 'string' && value.user ? value.user : undefined,
+			port: typeof value.port === 'number' ? value.port : undefined,
+		};
+	} catch {
+		// Plain host names are not hex-encoded JSON.
+		return undefined;
+	}
+}
+
+/** Mirrors `HostInfo.fromString` of Remote - SSH. An address with more than one colon is an IPv6 address. */
+function parseSSHHostString(host: string): ISSHRemoteAuthority {
+	const { user, address = host } = /^(?:(?<user>.*)@)?(?<address>.+?)$/.exec(host)?.groups ?? {};
+	const toPort = (port: string | undefined) => port ? parseInt(port, 10) : undefined;
+	const bracketed = /^\[(?<hostName>.+?)\](?::(?<port>\d+))?$/.exec(address)?.groups;
+	if (bracketed) {
+		return { hostName: bracketed.hostName, user: user || undefined, port: toPort(bracketed.port) };
+	}
+	if (address.indexOf(':') !== address.lastIndexOf(':')) {
+		return { hostName: address, user: user || undefined };
+	}
+	const withPort = /^(?<hostName>.+?)(?::(?<port>\d+))?$/.exec(address)?.groups;
+	return { hostName: withPort?.hostName ?? address, user: user || undefined, port: toPort(withPort?.port) };
 }
 
 /**
@@ -174,7 +243,7 @@ export interface ISSHRemoteAgentHostService {
 	 *
 	 * Resolves with the connection handle once the agent host is reachable.
 	 */
-	connect(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConnection>;
+	connect(config: SSHAgentHostConnectionRequest): Promise<ISSHAgentHostConnection>;
 
 	/**
 	 * Disconnect an SSH-bootstrapped connection by host address.
@@ -200,7 +269,7 @@ export interface ISSHRemoteAgentHostService {
 	 */
 	listSSHConfigFiles(): Promise<URI[]>;
 
-	/** Resolve full SSH config for a host via `ssh -G`. */
+	/** Resolve current SSH config for a host via a fresh `ssh -G` evaluation. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
 
 	/**
@@ -271,21 +340,28 @@ export function isSSHStrictHostKeyChecking(value: string): value is SSHStrictHos
  */
 export interface ISSHResolvedConfig {
 	readonly hostname: string;
+	/** Host identity used for host-key lookup and storage instead of {@link hostname}. */
+	readonly hostKeyAlias?: string;
 	readonly user: string | undefined;
 	readonly port: number;
 	readonly identityFile: string[];
 	readonly identityAgent: string | undefined;
+	/** Command providing the raw SSH connection over standard input/output. */
+	readonly proxyCommand?: string;
 	readonly forwardAgent: boolean;
 	/**
-	 * `UserKnownHostsFile` paths, in priority order. `ssh -G` emits these as a
-	 * single space-separated list, so this is already split. Typically
-	 * `~/.ssh/known_hosts` and `~/.ssh/known_hosts2`.
+	 * `UserKnownHostsFile` paths, in priority order. The node service recovers
+	 * unquoted paths containing spaces only when filesystem matches are unambiguous.
 	 */
 	readonly userKnownHostsFiles: string[];
 	/** `GlobalKnownHostsFile` paths, e.g. `/etc/ssh/ssh_known_hosts`. */
 	readonly globalKnownHostsFiles: string[];
 	/** Resolved and normalized `StrictHostKeyChecking`, when recognized. */
 	readonly strictHostKeyChecking: SSHStrictHostKeyChecking | undefined;
+	/** `PubkeyAuthentication`; false when public key authentication, including keys from an agent, is disabled. */
+	readonly pubkeyAuthentication?: boolean;
+	/** `PreferredAuthentications`: the authentication methods to try, in order. */
+	readonly preferredAuthentications?: readonly string[];
 }
 
 export interface ISSHConnectProgress {
@@ -371,7 +447,7 @@ export type ISSHEndpointSelection =
  * `KnownHostsMatch` in `../node/sshKnownHosts.js`, redeclared here because
  * this common-layer module cannot import from `node`.
  */
-export type SSHKnownHostsMatch = 'match' | 'mismatch' | 'revoked' | 'ca-only' | 'unknown';
+export type SSHKnownHostsMatch = 'match' | 'mismatch' | 'other-key-type' | 'revoked' | 'ca-only' | 'unknown';
 
 /**
  * Error name for a connect attempt refused because the server's host key was
@@ -402,6 +478,21 @@ export function isSSHHostKeyDeniedError(error: unknown): boolean {
 	return error instanceof Error && error.name === SSH_HOST_KEY_DENIED_ERROR_NAME;
 }
 
+const SSH_AUTHENTICATION_FAILED_ERROR_NAME = 'SSHAuthenticationFailed';
+
+/** Authentication could not complete with the current credentials; retry requires user intervention. */
+export class SSHAuthenticationFailedError extends NonReconnectableTransportError {
+	constructor(message: string) {
+		super(message, AgentHostTransportFailureReason.SSHAuthenticationFailed);
+		this.name = SSH_AUTHENTICATION_FAILED_ERROR_NAME;
+	}
+}
+
+/** Identifies SSH authentication failure after IPC has discarded its prototype and reason. */
+export function isSSHAuthenticationFailedError(error: unknown): boolean {
+	return error instanceof Error && error.name === SSH_AUTHENTICATION_FAILED_ERROR_NAME;
+}
+
 /**
  * Request from the shared process for the renderer to decide whether a
  * server's host key should be trusted. Fired from ssh2's `hostVerifier` during
@@ -423,8 +514,10 @@ export interface ISSHHostKeyVerificationRequest {
 	readonly connectionKey: string;
 	/** Display-friendly host (e.g. SSH config alias or `user@host`). */
 	readonly displayHost: string;
-	/** Resolved hostname the key was presented for. */
+	/** Effective host-key identity: `HostKeyAlias` when configured, otherwise the resolved hostname. */
 	readonly host: string;
+	/** Resolved connection hostname, used to consult trust stored before `HostKeyAlias` was supported. */
+	readonly resolvedHost: string;
 	readonly port: number;
 	/** Host key algorithm, e.g. `ssh-ed25519`. */
 	readonly keyType: string;
@@ -478,6 +571,9 @@ export interface ISSHRemoteAgentHostMainService {
 
 	/** Fires when a message is received from a remote agent host via the SSH relay. */
 	readonly onDidRelayMessage: Event<IRelayMessage>;
+
+	/** Fires with a connection ID while that SSH relay receives part of a message. */
+	readonly onDidRelayActivity: Event<string /* connectionId */>;
 
 	/** Fires when a relay connection to a remote agent host closes. */
 	readonly onDidRelayClose: Event<string /* connectionId */>;
@@ -559,13 +655,20 @@ export interface ISSHRemoteAgentHostMainService {
 	/**
 	 * Bootstrap a remote agent host over SSH. Returns serializable
 	 * connection info for the renderer to register.
+	 *
+	 * @param expectedConnectionId The caller's current relay lease. When it is
+	 * supplied, concurrent renewal of that lease coalesces and a stale lease
+	 * resolves to its current replacement.
 	 */
-	connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult>;
+	connect(config: ISSHAgentHostConfig, expectedConnectionId?: string): Promise<ISSHConnectResult>;
 
 	/**
 	 * Send a message to a remote agent host through the SSH relay.
 	 */
 	relaySend(connectionId: string, message: string): Promise<void>;
+
+	/** Release one renderer-owned relay lease; the shared SSH session closes after its final lease is released. */
+	releaseRelay(connectionId: string): Promise<void>;
 
 	/**
 	 * Disconnect an SSH-bootstrapped connection by host address.
@@ -584,7 +687,7 @@ export interface ISSHRemoteAgentHostMainService {
 	/** List the known SSH configuration file URIs (user config always included). */
 	listSSHConfigFiles(): Promise<URI[]>;
 
-	/** Resolve full SSH config for a host via `ssh -G`. */
+	/** Resolve current SSH config for a host via a fresh `ssh -G` evaluation. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
 
 	/**
@@ -598,5 +701,5 @@ export interface ISSHRemoteAgentHostMainService {
 	 * The renderer computes this from its stored preference for this host's
 	 * {@link computeSSHConnectionKey stable key} before calling reconnect.
 	 */
-	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult>;
+	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult>;
 }

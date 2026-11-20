@@ -9,14 +9,15 @@ import { localize } from '../../nls.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../platform/configuration/common/configurationRegistry.js';
 import product from '../../platform/product/common/product.js';
 import { Registry } from '../../platform/registry/common/platform.js';
-import { ConfigurationKeyValuePairs, ConfigurationMigrationWorkbenchContribution, DynamicWindowConfiguration, DynamicWorkbenchSecurityConfiguration, Extensions, IConfigurationMigrationRegistry, problemsConfigurationNodeBase, windowConfigurationNodeBase, workbenchConfigurationNodeBase } from '../common/configuration.js';
+import { ConfigurationKeyValuePairs, ConfigurationMigration, ConfigurationMigrationWorkbenchContribution, DynamicWindowConfiguration, DynamicWorkbenchSecurityConfiguration, Extensions, IConfigurationMigrationRegistry, problemsConfigurationNodeBase, windowConfigurationNodeBase, workbenchConfigurationNodeBase } from '../common/configuration.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
 import { NotificationsPosition, NotificationsSettings } from '../common/notifications.js';
 import { ACCOUNTS_AVATAR_SETTING } from '../services/authentication/common/authentication.js';
 import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../services/history/common/history.js';
-import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, ModernUIFrostedGlassOpacity } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
+import { NEW_TAB_BUTTON_SETTING } from './parts/editor/newTabButton.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -92,6 +93,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'wrapTabs' }, "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when {0} is not set to '{1}'.", '`#workbench.editor.showTabs#`', '`multiple`'),
 				'default': false
+			},
+			[NEW_TAB_BUTTON_SETTING]: {
+				'type': 'boolean',
+				tags: ['experimental', 'onExp'],
+				'markdownDescription': localize('newTabButton', "Controls whether the editor tab bar shows a button to open a new tab, such as a new untitled file or a chat."),
+				'default': false,
+				// The treatment keeps the name of the setting before its rename, so that existing assignments still apply
+				experiment: { mode: 'auto', name: 'config.workbench.editor.experimental.newTabButton' }
 			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
@@ -169,6 +178,20 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'enum': ['text', 'hidden'],
 				'default': 'text',
 				'markdownDescription': localize("workbench.editor.empty.hint", "Controls if the empty editor text hint should be visible in the editor.")
+			},
+			'workbench.editor.experimental.emptyEditorHintActions': {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['experimental', 'onExp'],
+				'experiment': { mode: 'auto' },
+				'markdownDescription': localize("workbench.editor.experimental.emptyEditorHintActions", "Controls whether the empty editor hint of new untitled files shows a list of actions instead of a single line. Only applies when `#workbench.editor.empty.hint#` is `text`.")
+			},
+			'workbench.editor.experimental.emptyEditorHintOpenInMarkdownEditor': {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['experimental', 'onExp'],
+				'experiment': { mode: 'auto' },
+				'markdownDescription': localize("workbench.editor.experimental.emptyEditorHintOpenInMarkdownEditor", "Controls whether the single line empty editor hint of new untitled files also offers to open the file in the Markdown Editor. Only applies when `#workbench.editor.empty.hint#` is `text`. The list of actions of `#workbench.editor.experimental.emptyEditorHintActions#` takes precedence.")
 			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
@@ -261,11 +284,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': [ModernUIDensity.Default, ModernUIDensity.Compact],
 				'enumDescriptions': [
-					localize('windowDensityLayout.default', "Uses the standard spacing between workbench parts."),
-					localize('windowDensityLayout.compact', "Removes the gaps between workbench parts and reduces their internal spacing to provide more room for content."),
+					localize('windowDensityLayout.default', "Uses the standard spacing between workbench parts and a taller title bar in the Agents window."),
+					localize('windowDensityLayout.compact', "Removes the gaps between workbench parts and reduces their internal spacing to provide more room for content. Uses a shorter title bar in the Agents window."),
 				],
 				'default': ModernUIDensity.Default,
-				'markdownDescription': localize({ key: 'windowDensityLayout', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the spacing density of the workbench layout. Only applies when {0} is enabled.", '`#workbench.experimental.modernUI#`'),
+				'markdownDescription': localize({ key: 'windowDensityLayout', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the spacing density of the workbench layout. Applies in the Agents window and when {0} is enabled in the editor window.", '`#workbench.experimental.modernUI#`'),
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
@@ -687,7 +710,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			[LayoutSettings.ACTIVITY_BAR_AUTO_HIDE]: {
 				'type': 'boolean',
 				'default': false,
-				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarAutoHide' }, "Controls whether the Activity Bar is automatically hidden when there is only one view container to show. This applies to the Primary and Secondary Side Bars when {0} is set to {1} or {2}.", '`#workbench.activityBar.location#`', '`top`', '`bottom`'),
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarAutoHide' }, "Controls whether the Activity Bar is automatically hidden when there is only one view container to show. This applies to the Primary Side Bar when {0} is set to {1} or {2}, and to the Secondary Side Bar regardless of {0}.", '`#workbench.activityBar.location#`', '`top`', '`bottom`'),
 				agentsWindow: { default: false, readOnly: true },
 			},
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: {
@@ -833,7 +856,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			[LayoutSettings.MODERN_UI]: {
 				'type': 'boolean',
-				'default': false,
+				'default': true,
 				'description': localize('modernUI', "Controls whether the Modern UI Update is enabled. When on, the side bars and bottom panel are shown as floating cards with rounded corners and gaps, and a set of refreshed workbench styles is applied, matching the Agents window design."),
 				experiment: { mode: 'auto' },
 			},
@@ -842,6 +865,22 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'tags': ['experimental'],
 				'markdownDescription': localize({ key: 'modernUIUppercaseViewHeaders', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether view headers, side bar titles, and panel tabs use uppercase text when {0} is enabled.", '`#workbench.experimental.modernUI#`'),
+			},
+			[LayoutSettings.MODERN_UI_FROSTED_GLASS]: {
+				type: 'boolean',
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+				included: isNative,
+				markdownDescription: localize({ key: 'modernUIFrostedGlass', comment: ['{0} and {1} are placeholders for setting identifiers.'] }, "Adds a softly blurred background to menus, the Command Palette, and other pop-ups. Available in the Agents window and in editor windows with {0} enabled. Always respects reduced transparency in your operating system's accessibility settings, as well as {1}. Uses solid backgrounds in high contrast themes or when the effect isn't supported. Turn this off if you notice display or performance issues. Your operating system's own menus and dialogs are unchanged.", '`#workbench.experimental.modernUI#`', '`#workbench.reduceTransparency#`'),
+			},
+			[LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY]: {
+				type: 'number',
+				default: ModernUIFrostedGlassOpacity.Default,
+				minimum: ModernUIFrostedGlassOpacity.Minimum,
+				maximum: ModernUIFrostedGlassOpacity.Maximum,
+				scope: ConfigurationScope.APPLICATION,
+				included: isNative,
+				markdownDescription: localize({ key: 'modernUIFrostedGlassOpacity', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls how see-through frosted glass backgrounds are, from 50% to 100%. Lower values reveal more of the blurred content behind them; higher values make the background more solid. Text and controls stay unchanged. Requires {0} and does not override reduced transparency settings in your operating system or VS Code.", '`#workbench.modernUIFrostedGlass#`'),
 			},
 			[LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE]: {
 				'type': 'string',
@@ -852,8 +891,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'default': ModernUIEditorTabStyle.Connected,
 				'tags': ['experimental'],
-				'markdownDescription': localize({ key: 'modernUIEditorTabStyle', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the editor tab style when {0} is enabled. High contrast themes retain explicit selection and focus borders.", '`#workbench.experimental.modernUI#`'),
-				agentsWindow: { default: ModernUIEditorTabStyle.Pill, readOnly: true },
+				'markdownDescription': localize({ key: 'modernUIEditorTabStyle', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the editor tab style when {0} is enabled, and the chat and side-panel tab style in the Agents window. High contrast themes retain explicit selection and focus borders.", '`#workbench.experimental.modernUI#`'),
 			},
 		}
 	});
@@ -873,6 +911,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('folderPath', "`${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
 		localize('rootName', "`${rootName}`: name of the workspace with optional remote name and workspace indicator if applicable (e.g. myFolder, myRemoteFolder [SSH] or myWorkspace (Workspace))."),
 		localize('rootNameShort', "`${rootNameShort}`: shortened name of the workspace without suffixes (e.g. myFolder, myRemoteFolder or myWorkspace)."),
+		localize('folderLocation', "`${folderLocation}`: the label of the alternate location the workspace folder is currently at (e.g. my-location). Empty while the folder is at its primary location."),
 		localize('rootPath', "`${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
 		localize('profileName', "`${profileName}`: name of the profile in which the workspace is opened (e.g. Data Science (Profile)). Ignored if default profile is used."),
 		localize('appName', "`${appName}`: e.g. VS Code."),
@@ -1011,6 +1050,37 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 	});
 
 })();
+
+if (isNative) {
+	Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+		.registerConfigurationMigrations([
+			['workbench.experimental.modernUIFrostedGlass', LayoutSettings.MODERN_UI_FROSTED_GLASS],
+			['workbench.experimental.modernUIFrostedGlassOpacity', LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY],
+		].map(([key, newKey]) => renameSettingMigration(key, newKey)));
+}
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([renameSettingMigration('workbench.editor.experimental.newTabButton', NEW_TAB_BUTTON_SETTING)]);
+
+/**
+ * Moves the value of a renamed setting to its new key, unless the new key already has a value.
+ */
+function renameSettingMigration(key: string, newKey: string): ConfigurationMigration {
+	return {
+		key,
+		includeApplication: true,
+		migrateFn: (value: unknown, valueAccessor) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value !== undefined) {
+				result.push([key, { value: undefined }]);
+				if (valueAccessor(newKey) === undefined) {
+					result.push([newKey, { value }]);
+				}
+			}
+			return result;
+		}
+	};
+}
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{

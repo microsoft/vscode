@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IEnvConfiguration } from '../../../browser/config/editorConfiguration.js';
 import { migrateOptions } from '../../../browser/config/migrateOptions.js';
+import { TabFocus } from '../../../browser/config/tabFocus.js';
 import { ConfigurationChangedEvent, EditorExperimentalGpuAcceleration, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
 import { EditorZoom } from '../../../common/config/editorZoom.js';
 import { TestConfiguration } from './testConfiguration.js';
@@ -14,11 +15,16 @@ import { AccessibilitySupport } from '../../../../platform/accessibility/common/
 
 suite('Common Editor Config', () => {
 
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	// The editor zoom level is global, so restore it for the tests that run later
+	let zoomLevel: number;
+	setup(() => zoomLevel = EditorZoom.getZoomLevel());
+	teardown(() => EditorZoom.setZoomLevel(zoomLevel));
 
 	for (const installed of [false, true]) {
 		test(`optional editor-view option (installed=${installed})`, () => {
-			const option = store.add(new EditorExperimentalGpuAcceleration(installed));
+			const option = disposables.add(new EditorExperimentalGpuAcceleration(installed));
 			assert.deepStrictEqual({
 				values: option.schema.enum,
 				descriptionCount: option.schema.enumDescriptions?.length,
@@ -34,9 +40,9 @@ suite('Common Editor Config', () => {
 	}
 
 	test('editor-view failure removes only the optional choice and notifies once', () => {
-		const option = store.add(new EditorExperimentalGpuAcceleration(true));
+		const option = disposables.add(new EditorExperimentalGpuAcceleration(true));
 		let changes = 0;
-		store.add(option.onDidChangeAvailability(() => changes++));
+		disposables.add(option.onDidChangeAvailability(() => changes++));
 		option.disableEditorView();
 		option.disableEditorView();
 		assert.deepStrictEqual({
@@ -303,6 +309,59 @@ suite('Common Editor Config', () => {
 			}
 		);
 		config.dispose();
+	});
+
+	suite('tabFocusMode', () => {
+		let originalTabFocusMode: boolean;
+		setup(() => originalTabFocusMode = TabFocus.getTabFocusMode());
+		teardown(() => TabFocus.setTabFocusMode(originalTabFocusMode));
+
+		test('inherits the global mode unless explicitly enabled', () => {
+			TabFocus.setTabFocusMode(true);
+			const configs = [undefined, false, true].map(tabFocusMode => disposables.add(new TestConfiguration({ tabFocusMode })));
+			const initialValues = configs.map(config => config.options.get(EditorOption.tabFocusMode));
+			const changes = configs.map(config => {
+				const changes: { changed: boolean; value: boolean }[] = [];
+				disposables.add(config.onDidChange(e => changes.push({
+					changed: e.hasChanged(EditorOption.tabFocusMode),
+					value: config.options.get(EditorOption.tabFocusMode)
+				})));
+				return changes;
+			});
+
+			TabFocus.setTabFocusMode(false);
+			TabFocus.setTabFocusMode(false);
+			TabFocus.setTabFocusMode(true);
+			TabFocus.setTabFocusMode(true);
+
+			const expectedChanges = [{ changed: true, value: false }, { changed: true, value: true }];
+			assert.deepStrictEqual({ initialValues, changes }, {
+				initialValues: [true, true, true],
+				changes: [expectedChanges, expectedChanges, []]
+			});
+		});
+
+		test('emits only effective changes when updating the editor option', () => {
+			TabFocus.setTabFocusMode(true);
+			const config = disposables.add(new TestConfiguration({ tabFocusMode: false }));
+			const changes: { changed: boolean; value: boolean }[] = [];
+			disposables.add(config.onDidChange(e => changes.push({
+				changed: e.hasChanged(EditorOption.tabFocusMode),
+				value: config.options.get(EditorOption.tabFocusMode)
+			})));
+
+			config.updateOptions({ tabFocusMode: true });
+			config.updateOptions({ tabFocusMode: false });
+			TabFocus.setTabFocusMode(false);
+			config.updateOptions({ tabFocusMode: true });
+			config.updateOptions({ tabFocusMode: false });
+
+			assert.deepStrictEqual(changes, [
+				{ changed: true, value: false },
+				{ changed: true, value: true },
+				{ changed: true, value: false }
+			]);
+		});
 	});
 });
 

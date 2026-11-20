@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Embedding, EmbeddingType } from '../../../../platform/embeddings/common/embeddingsComputer';
+import { Embedding, EmbeddingType, EmbeddingVector } from '../../../../platform/embeddings/common/embeddingsComputer';
 import { EmbeddingCacheType, IEmbeddingsCache, RemoteCacheType, RemoteEmbeddingsCache } from '../../../../platform/embeddings/common/embeddingsIndex';
 import { IEnvService } from '../../../../platform/env/common/envService';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -11,19 +11,30 @@ import { sanitizeVSCodeVersion } from '../../../../util/common/vscodeVersion';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IToolEmbeddingsCache } from './toolEmbeddingsComputer';
 
-export const EMBEDDING_TYPE_FOR_TOOL_GROUPING = EmbeddingType.text3small_512;
+export const EMBEDDING_TYPE_FOR_TOOL_GROUPING = EmbeddingType.metis_1024_I16_Binary;
+
+/**
+ * CAPI does not serve Metis to anonymous (`no_auth_limited_copilot`) tokens, which includes
+ * HMAC/proxy-authenticated eval runs, so tool search uses text3small for them instead.
+ */
+export const EMBEDDING_TYPE_FOR_NO_AUTH_TOOL_SEARCH = EmbeddingType.text3small_512;
+
+type ToolEmbeddingCacheData =
+	| Record<string, { readonly embedding: EmbeddingVector }>
+	| readonly { readonly key: string; readonly embedding: EmbeddingVector }[];
 
 export class PreComputedToolEmbeddingsCache implements IToolEmbeddingsCache {
 	private readonly cache: IEmbeddingsCache;
 	private embeddingsMap: Map<string, Embedding> | undefined;
 
 	constructor(
+		embeddingType: EmbeddingType,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEnvService envService: IEnvService
 	) {
 		const cacheVersion = sanitizeVSCodeVersion(envService.getEditorInfo().version);
-		this.cache = instantiationService.createInstance(RemoteEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'toolEmbeddings', cacheVersion, EMBEDDING_TYPE_FOR_TOOL_GROUPING, RemoteCacheType.Tools);
+		this.cache = instantiationService.createInstance(RemoteEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'toolEmbeddings', cacheVersion, embeddingType, RemoteCacheType.Tools);
 	}
 
 	public get embeddingType(): EmbeddingType {
@@ -44,18 +55,21 @@ export class PreComputedToolEmbeddingsCache implements IToolEmbeddingsCache {
 
 	private async _loadEmbeddings() {
 		try {
-			const embeddingsData = await this.cache.getCache();
+			const embeddingsData = await this.cache.getCache<ToolEmbeddingCacheData>();
 			const embeddingsMap = new Map<string, Embedding>();
 
-			if (embeddingsData) {
-				for (const [key, embeddingVector] of Object.entries(embeddingsData)) {
-					if (embeddingVector === undefined) {
-						this._logService.warn(`Tool embedding missing for key: ${key}`);
-						continue;
-					}
+			if (Array.isArray(embeddingsData)) {
+				for (const entry of embeddingsData) {
+					embeddingsMap.set(entry.key, {
+						type: this.embeddingType,
+						value: entry.embedding
+					});
+				}
+			} else if (embeddingsData) {
+				for (const [key, entry] of Object.entries(embeddingsData)) {
 					embeddingsMap.set(key, {
 						type: this.embeddingType,
-						value: embeddingVector.embedding
+						value: entry.embedding
 					});
 				}
 			}
@@ -67,5 +81,3 @@ export class PreComputedToolEmbeddingsCache implements IToolEmbeddingsCache {
 		}
 	}
 }
-
-

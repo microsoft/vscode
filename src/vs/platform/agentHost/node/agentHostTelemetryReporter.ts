@@ -3,24 +3,82 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import type { LanguageModelToolApprovalClassification, LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
+import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentSession, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary } from '../common/agent.js';
+import { AgentSession, type AgentCanvasOpenFailure, type AgentSubagentKind, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary, type IAgentTelemetryContext, type IAgentTurnInteraction } from '../common/agent.js';
 import { isReasoningEffortLevel } from '../common/reasoningEffort.js';
+import { isAutoModeRoutingTier, normalizeAutoModeTier } from '../common/autoModeTiers.js';
+import { isCopilotHydraFusionModelId } from '../common/copilotCliConfig.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
-import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
+import { readAgentErrorTelemetryMeta } from '../common/meta/errorMeta.js';
+import { readLocalModelRowMeta } from '../common/meta/localModelStatus.js';
+import type { IAgentMetadataSource } from '../common/meta/metadata.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
+import type { McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
+import type { SessionArtifactAddOutcome } from '../common/sessionArtifactCollection.js';
+import type { SessionArtifactType } from '../common/sessionArtifacts.js';
 import { MessageKind, type ErrorInfo, type Message, type SessionInputRequestKind, type ToolDefinition } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import { getAgentHostChatId, isSubagentSession, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import { IAgentHostOTelService, NullAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
+import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleController.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostTurnFailureStage, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostPrewarmSkipReason, type CodexModelProvider, type AgentHostProviderSendStage, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
+import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
+import { toCopilotTelemetryData } from './shared/copilotSkuTelemetry.js';
+import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codex/codexAccountTelemetry.js';
+import { groupAgentHostProviderTimings, sanitizeAgentHostProviderTiming, type AgentHostProviderTimingMeasurement, type AgentHostProviderTimingMeasurements, type IAgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
+
+/* __GDPR__
+	"copilot-chat/conversation.messageText": {
+		"owner": "amunger",
+		"comment": "SDK conversation correlation on existing restricted user and model text events.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}" ]
+	}
+*/
+
+/* __GDPR__
+	"copilot-chat/request.options.tools": {
+		"owner": "amunger",
+		"comment": "SDK conversation correlation on the existing restricted offered-tools event.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}" ]
+	}
+*/
+
+type AgentHostProviderTimingEvent = IAgentHostEventTelemetry & AgentHostProviderTimingMeasurements & {
+	schemaVersion: number;
+	group: string;
+	provider: string;
+	agentSessionId: string;
+	chatSessionId: string;
+	turnId: string;
+	result: AgentHostTurnResult;
+	model: string | TelemetryTrustedValue<string> | undefined;
+};
+
+type AgentHostProviderTimingClassification = IAgentHostEventClassification & {
+	[K in AgentHostProviderTimingMeasurement]?: {
+		classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true;
+		comment: 'Allowlisted operation aggregate: start/end offsets and queue/execution durations in milliseconds, or invocation/error/incomplete counts. Milestone fields are first-observation offsets in milliseconds. See the provider timing contract.';
+	};
+} & {
+	owner: 'roblourens';
+	comment: 'Grouped VS Code provider-operation and SDK-observation timings, correlated to a completed host turn.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Version of the provider timing contract.' };
+	group: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Code-defined timing group: input, permissions, sandboxShell, mcp, execution, interactions or milestones.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Agent provider identifier.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Opaque agent session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Opaque chat correlation identifier.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Host turn correlation identifier.' };
+	result: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Terminal host turn outcome, not the operation outcome.' };
+	model: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Privacy-normalized selected model.' };
+};
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -75,6 +133,128 @@ export interface IAgentHostEventTelemetry extends IAgentHostInitiatorTelemetry, 
 
 export type IAgentHostEventClassification = IAgentHostInitiatorClassification & IAgentHostCopilotSkuClassification;
 
+type AgentHostSessionCreatedEvent = IAgentHostInitiatorTelemetry & {
+	provider: string | undefined;
+};
+
+type AgentHostSessionCreatedClassification = IAgentHostInitiatorClassification & {
+	owner: 'roblourens';
+	comment: 'Counts successful AHP session allocations by provider and initiating connection route, excluding discovery and restoration.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider of the newly allocated session, when known.' };
+};
+
+type CanvasExtensionSource = 'project' | 'user' | 'plugin' | 'session' | 'unknown';
+
+type CanvasOpenedEvent = IAgentHostEventTelemetry & {
+	schemaVersion: number;
+	provider: string;
+	agentSessionId: string;
+	extensionSource: CanvasExtensionSource;
+};
+
+type CanvasOpenedClassification = IAgentHostEventClassification & {
+	owner: 'jruales';
+	comment: 'Counts live runtime first-open records, excluding restored history, updates, and provider recovery.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Canvas open event schema version.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent provider opening the canvas.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Existing agent host session identifier, not a URI or canvas instance name.' };
+	extensionSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded extension provenance from discovery metadata, or unknown when unavailable.' };
+};
+
+export interface ICanvasExtensionsReadyEvent {
+	schemaVersion: number;
+	launchKind: 'create' | 'resume';
+	outcome: 'alreadySettled' | 'settled' | 'consentPending' | 'timeout' | 'error' | 'cancelled';
+	durationMs: number;
+	extensionCount?: number;
+	failedExtensionCount?: number;
+	dormantExtensionCount?: number;
+}
+
+type CanvasExtensionsReadyClassification = {
+	owner: 'jruales';
+	comment: 'Measures host canvas readiness, not runtime startup or model TTFT. Settled may include failed providers.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Canvas readiness event schema version.' };
+	launchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the session is being created or resumed.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether extensions were already settled, settled during the wait, stopped waiting because an extension waits for consent to load, timed out, failed, or the operation was cancelled.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds for the host readiness operation, including extension listing, waiting, and canvas listing.' };
+	extensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };
+	failedExtensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };
+	dormantExtensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Extensions in the latest observed status snapshot that wait to start until their tools or canvases are first used, so readiness did not include their startup; omitted when no snapshot was obtained.' };
+};
+
+/** The bounded outcome of a canvas open the host asked the runtime for. */
+export type CanvasHostOpenOutcome = 'opened' | 'consentDenied' | AgentCanvasOpenFailure | 'timeout' | 'error' | 'cancelled';
+
+export interface ICanvasHostOpenEvent {
+	schemaVersion: number;
+	trigger: 'user' | 'restore';
+	extensionStatus: 'dormant' | 'running' | 'other' | 'unknown';
+	extensionSource: CanvasExtensionSource;
+	outcome: CanvasHostOpenOutcome;
+	askedForConsent: boolean;
+	durationMs: number;
+}
+
+type CanvasHostOpenClassification = {
+	owner: 'ulugbekna';
+	comment: 'Measures canvas opens the host asks the runtime for, including starting an extension that waits for first use. Excludes opens by the model and repeated reopens by the runtime itself.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Host canvas open event schema version.' };
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'user when a person opened the canvas from the UI; restore when the host reopened a restored canvas in the background.' };
+	extensionStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The status of the canvas extension just before the open: dormant when the open had to start it, running when it was already started, other when it was starting, failed, or disabled, or unknown when it could not be read in time.' };
+	extensionSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded extension provenance from the runtime extension list, or unknown when unavailable.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'opened; consentDenied when the user did not allow the extension to load; dismissed, reloaded, mismatchedDeclaration, startFailed, or unavailable when the runtime declined the open for that reason; timeout when the open did not finish before its client or the background reopen stopped waiting; error for other failures; cancelled when the session ended first.' };
+	askedForConsent: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the user was shown a request to allow the extension to load during the open, in a turn or by the client, so durationMs includes their response time.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the open request until it ended as its client saw it, including any permission mode sync, extension status read, extension startup, and consent prompt.' };
+};
+
+export type IAgentHostSubagentKindClassification = {
+	subagentKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What the subagent chat represents, set only when isSubagentSession is true: task for a delegated subagent, or fusionPhase for a presentation-only HydraFusion phase chat that shows part of the parent turn.' };
+};
+
+/** The Auto tier a turn was sent with and the HydraFusion model that routed it, when known. */
+export interface IAgentHostFusionTurnTelemetry {
+	autoTier?: string;
+	fusionModel?: string;
+	/** Set when the turn selected a model router; see {@link ModelRouterOutcome}. */
+	modelRouterOutcome?: string;
+}
+
+/** What a model router did for a turn. */
+export type ModelRouterOutcome = 'picked' | 'defaulted' | 'kept' | 'switched' | 'failed';
+const modelRouterOutcomes: ReadonlySet<string> = new Set<ModelRouterOutcome>(['picked', 'defaulted', 'kept', 'switched', 'failed']);
+
+export type IAgentHostFusionTurnClassification = {
+	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Auto tier selected for the turn, e.g. balance, or hydrafusion or hydrafusion-max for Copilot Fusion High or Max; other for an unrecognized tier. Set only for Copilot turns on Auto. A tier override setting or managed policy can change the tier that runs; fusionModel reports what ran.' };
+	fusionModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The HydraFusion model (hydrafusion or hydrafusion-max) the runtime routed the turn with. Absent when the turn did not route through HydraFusion, or was cancelled before routing completed.' };
+	modelRouterOutcome?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How a user-defined model router chose the turn\'s model: picked (the decision model chose a route), defaulted (its first route), kept (stayed on the chat\'s model), switched (moved the chat to another route), or failed (the chat kept its model). Absent when the turn did not select a model router. Router names are never sent.' };
+};
+
+/** Bounds a selected Auto tier to its known values, mapping anything else to `other`. */
+export function toAutoTierTelemetry(tier: string | undefined): string | undefined {
+	if (tier === undefined) {
+		return undefined;
+	}
+	const normalized = normalizeAutoModeTier(tier);
+	return typeof normalized === 'string' && (isAutoModeRoutingTier(normalized) || isCopilotHydraFusionModelId(normalized)) ? normalized : 'other';
+}
+
+/** Keeps only the known HydraFusion models, so an unexpected runtime value is never reported. */
+export function toFusionModelTelemetry(fusionModel: string | undefined): string | undefined {
+	return isCopilotHydraFusionModelId(fusionModel) ? fusionModel : undefined;
+}
+
+function toFusionTurnTelemetry(report: IAgentHostFusionTurnTelemetry): IAgentHostFusionTurnTelemetry {
+	const autoTier = toAutoTierTelemetry(report.autoTier);
+	const fusionModel = toFusionModelTelemetry(report.fusionModel);
+	const modelRouterOutcome = report.modelRouterOutcome !== undefined && modelRouterOutcomes.has(report.modelRouterOutcome) ? report.modelRouterOutcome : undefined;
+	return {
+		...(autoTier !== undefined ? { autoTier } : {}),
+		...(fusionModel !== undefined ? { fusionModel } : {}),
+		...(modelRouterOutcome !== undefined ? { modelRouterOutcome } : {}),
+	};
+}
+
 export interface IAgentHostExecutionModeChangedEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
@@ -95,8 +275,36 @@ export type IAgentHostExecutionModeChangedClassification = IAgentHostEventClassi
 	comment: 'Reports agent host execution mode changes.';
 };
 
+/** How a first-turn workspace snapshot was prepared relative to the send. */
+export type AgentHostWorkspaceSnapshotPreparation = 'prepared' | 'startedAtSend' | 'directoriesChanged';
+
+export interface IAgentHostWorkspaceSnapshotEvent {
+	preparation: AgentHostWorkspaceSnapshotPreparation;
+	rootCount: number;
+	includedRootCount: number;
+	pendingRootCount: number;
+	emptyRootCount: number;
+	failedRootCount: number;
+	waitMs: number;
+	snapshotLength: number;
+}
+
+type IAgentHostWorkspaceSnapshotClassification = {
+	preparation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the snapshot was prepared before the send, started at the send, or restarted because the turn ran in different directories.' };
+	rootCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of working-directory roots the first turn runs in.' };
+	includedRootCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of roots whose file-name tree was included in the first turn.' };
+	pendingRootCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of roots omitted because their tree was not ready within the send wait.' };
+	emptyRootCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of roots omitted because they had no visible files or are Git storage directories.' };
+	failedRootCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of roots omitted because they could not be read.' };
+	waitMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds the first send waited for unfinished roots.' };
+	snapshotLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Length in characters of the file-name tree included in the first turn, or 0 when none was.' };
+	owner: 'bhavyaus';
+	comment: 'Reports whether the first turn of a new Copilot Agent Host conversation included its initial workspace file-name snapshot, and why roots were left out.';
+};
+
 export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTelemetry {
 	provider: string;
+	isOtelEnabled: boolean;
 	hostLaunchKind: AgentHostLaunchKind;
 	initiatorClientId: string | undefined;
 	initiatorClientType: AgentHostClientType;
@@ -105,8 +313,11 @@ export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTele
 	initiatorMachineId?: string;
 	initiatorDevDeviceId?: string;
 	agentSessionId: string;
+	chatSessionId: string;
+	turnId: string;
 	source: AgentHostUserMessageSentSource;
 	messageOriginKind: AgentHostMessageOriginTelemetryKind;
+	messageActorKind: MessageKind;
 	isSubagentSession: boolean;
 	turnCount: number;
 	activeClientId?: string;
@@ -117,6 +328,7 @@ export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTele
 
 export type IAgentHostUserMessageSentClassification = IAgentHostCopilotSkuClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	isOtelEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the resolved Agent Host configuration enables OTel.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent host process was launched by the VS Code main process or VS Code CLI.' };
 	initiatorClientId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The opaque AHP client identifier that initiated the message.' };
 	initiatorClientType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of AHP client that initiated the message.' };
@@ -125,8 +337,11 @@ export type IAgentHostUserMessageSentClassification = IAgentHostCopilotSkuClassi
 	initiatorMachineId?: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; endpoint: 'MacAddressHash'; comment: 'The initiating VS Code client machine identifier.' };
 	initiatorDevDeviceId?: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; endpoint: 'SqmMachineId'; comment: 'The initiating VS Code client development device identifier.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The telemetry-safe chat identifier within the owning agent host session.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The admitted turn identifier, used to deduplicate sends and correlate turn outcomes.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the message was sent directly or from the queued-message flow.' };
 	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The message origin: a user, an agent (session orchestration tools such as create_session/send_message), Agent Merge, an inline session (derived from the VS Code ephemeral-session marker), a tool, an automation, or a system notification.' };
+	messageActorKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The protocol message actor: user, agent, tool, automation, or systemNotification, independent of inline-session and Agent Merge classifications.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the message was sent to a subagent session.' };
 	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed turns in the session when the message was sent.' };
 	activeClientId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the first active client for the session, if any.' };
@@ -134,7 +349,7 @@ export type IAgentHostUserMessageSentClassification = IAgentHostCopilotSkuClassi
 	activeClientCustomizationCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of customizations provided by the active clients, if any.' };
 	attachmentCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of attachments included with the message.' };
 	owner: 'roblourens';
-	comment: 'Tracks messages sent from the agent host process to an agent provider, including which kind of actor produced them.';
+	comment: 'Tracks admitted turns before provider dispatch. Queued messages are counted when drained; rejected requests, steering messages, and same-turn resumes are not new sends.';
 };
 
 export type AgentHostClientConnectionAction = 'connected' | 'disconnected';
@@ -198,27 +413,77 @@ export interface IAgentHostClientConnectionReport {
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
 export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
-type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
-export type { AgentHostTurnFailureStage };
+/** How a turn's model was selected; `onDeviceDirect` is an on-device direct row, `autoOnDevice` is Auto while an on-device model is active. */
+export type AgentHostModelSelectionKind = 'default' | 'auto' | 'autoOnDevice' | 'hydrafusion' | 'hydrafusionMax' | 'explicit' | 'onDeviceDirect';
+
+/** Refines a selection kind with on-device models: direct rows are classified from their `_meta["vscode.localModel"]`, never as unknown explicit models. */
+export function refineModelSelectionKindForLocalModels(kind: AgentHostModelSelectionKind, selectedModel: IAgentMetadataSource | undefined, models: readonly IAgentMetadataSource[]): AgentHostModelSelectionKind {
+	if (kind === 'explicit' && readLocalModelRowMeta(selectedModel)) {
+		return 'onDeviceDirect';
+	}
+	if (kind === 'auto' && models.some(model => readLocalModelRowMeta(model)?.active)) {
+		return 'autoOnDevice';
+	}
+	return kind;
+}
+export type { AgentHostTurnFailureStage, AgentHostTurnSendStage };
 export type AgentHostInitiatorClientConnectionState = 'connected' | 'disconnected' | 'unknown';
 export type AgentHostProviderDiagnosticState = 'available' | 'error' | 'missingChat' | 'missingTurn' | 'unavailable' | 'unsupported';
 
 interface IAgentHostTurnAttributedReport {
+	readonly telemetryContext?: IAgentTelemetryContext;
 	clientContext?: IAgentHostClientTelemetryContext;
 }
 
-export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry {
+export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext>, IAgentHostFusionTurnTelemetry {
+	sdkSessionId?: string;
+	originalTurnId?: string;
+	steeredFromTurn?: string;
+	interactionIds?: string;
+	interactionIdsTruncated?: boolean;
+	steeringDelivery?: IAgentTurnInteraction['steeringDelivery'];
+	codexModelProvider?: CodexModelProvider;
+	usedPrewarmedSession?: boolean;
+	prewarmedSessionDiscardReason?: string;
+	prewarmReadyAfterTurnStartMs?: number;
+	prewarmReadyBeforeTurnStartMs?: number;
+	prewarmLaunchCount?: number;
+	prewarmWarmUpComplete?: boolean;
+	prewarmSkipReason?: AgentHostPrewarmSkipReason;
+	hostRootTurnOrdinal?: number;
+	hostProcessAgeMs?: number;
+	titleGenerationStrategy?: AutomaticTitleGenerationStrategy;
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
 	isSubagentSession: boolean;
+	subagentKind?: AgentSubagentKind;
 	turnId: string;
 	parentTurnId: string | undefined;
 	parentToolCallId: string | undefined;
 	subagentTaskModelSource: AgentSubagentTaskModelSource | undefined;
 	timeToFirstProgress: number | undefined;
+	timeToFirstSubstantiveProgress: number | undefined;
 	timeToFirstEdit: number | undefined;
-	timeToFirstEditClassifierVersion: number | undefined;
+	startedWithSteering: boolean;
+	receivedSteering: boolean;
+	sendStageWorkingDirectoryMs: number | undefined;
+	sendStageModelSelectionMs: number | undefined;
+	sendStageAttachmentsMs: number | undefined;
+	sendStageContributionsMs: number | undefined;
+	sendStageProviderPreparationMs: number | undefined;
+	sendStageCheckpointMs: number | undefined;
+	timeToProviderDispatch: number | undefined;
+	providerStageQueueMs?: number;
+	providerStageClientMs?: number;
+	providerStageSnapshotMs?: number;
+	providerStageConfigMs?: number;
+	providerStageCreateMs?: number;
+	providerStageFinalizeMs?: number;
+	providerStagePersistMs?: number;
+	providerStageRefreshMs?: number;
+	providerStageTurnPrepareMs?: number;
+	providerStageModelResponseMs?: number;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | TelemetryTrustedValue<string> | undefined;
@@ -239,7 +504,24 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry {
 	modelCallCount: number;
 }
 
-export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & {
+export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & {
+	sdkSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Provider SDK session scope for the observed interactions.' };
+	originalTurnId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Known original execution in the steering chain; absent for unresolved or unavailable lineage.' };
+	steeredFromTurn?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Immediate host steering predecessor. Runtime agreement is reported separately by turnSteered.' };
+	interactionIds?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'JSON array of up to 64 distinct interaction IDs observed for this execution turn.' };
+	interactionIdsTruncated?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether more distinct interactions were observed than could be retained.' };
+	steeringDelivery?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider-confirmed delivery of a host steering submission: steering, idle, queued, or unknown while confirmation is unavailable. Omitted for providers or turns without delivery tracking.' };
+	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
+	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the turn claimed a provider session that was started before the first message; absent when it did not.' };
+	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn discarded a provider session started before the first message and launched one instead, such as modelChanged or clientToolsChanged; absent when it did not.' };
+	prewarmReadyAfterTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds after the turn started that the session became ready (0 when it was ready before), which the send spent waiting for it; absent otherwise.' };
+	prewarmReadyBeforeTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds the session had been ready before the turn started (0 when it became ready during the turn); absent otherwise.' };
+	prewarmLaunchCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: the warm launches of the draft, including the used one; more than one means it was warmed again, for example after a model change; absent otherwise.' };
+	prewarmWarmUpComplete?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: whether its background warm-up (MCP startup and tool initialization) had finished; absent otherwise.' };
+	prewarmSkipReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn launched a deferred provider session without one started before the first message to claim or discard, such as disabled, expired or customizationsPending; absent otherwise.' };
+	hostRootTurnOrdinal?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'One-based root-turn ordinal over the agent host process lifetime, captured at turn start and excluding subagent turns.' };
+	hostProcessAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Agent host process age in milliseconds captured at root turn start, not completion.' };
+	titleGenerationStrategy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective persisted automatic title generation strategy captured before sending the root turn: activeAgent, utility, deferred, or agentReview.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
@@ -249,12 +531,31 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	parentToolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the tool call that spawned the subagent owning this turn; stable across resumed turns of the same subagent.' };
 	subagentTaskModelSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the model input for a task-tool subagent came from: the parent agent\'s task argument, the per-subagent settings entry, the custom agent definition, or unset.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
+	timeToFirstSubstantiveProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress that advances the user request, excluding host bookkeeping such as the chat rename tool call.' };
 	timeToFirstEdit: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cumulative provider-dispatch time in milliseconds through the first accepted response that requests a built-in file edit. Excludes prompt construction, retry backoff, tool execution, confirmations, and post-response processing.' };
-	timeToFirstEditClassifierVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Version of the built-in file-edit request classifier used for timeToFirstEdit.' };
+	startedWithSteering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this turn began with confirmed steering delivery when steeringDelivery is present; otherwise the provider-promoted steering classification. Time to first edit is measured per execution turn.' };
+	receivedSteering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a steering message was submitted to this chat while this turn was active, regardless of whether the provider consumed it. Previously recorded time to first edit is preserved.' };
+	sendStageWorkingDirectoryMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent resolving the working directory before dispatching the turn, including first-send worktree creation.' };
+	sendStageModelSelectionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent applying the model and agent selection on the provider before dispatching the turn.' };
+	sendStageAttachmentsMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent resolving chat attachments before dispatching the turn.' };
+	sendStageContributionsMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent running outgoing-turn chat contributions before dispatching the turn.' };
+	sendStageProviderPreparationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host still waited on provider turn preparation before dispatching the turn, after it overlapped the earlier pre-send stages and the checkpoint capture.' };
+	sendStageCheckpointMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent still waiting on the turn-start checkpoint before dispatching the turn, after it overlapped the earlier pre-send stages.' };
+	timeToProviderDispatch: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start until the message was handed to the provider, covering all host pre-send stages.' };
+	providerStageQueueMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider waited behind earlier operations on the same chat, before first progress.' };
+	providerStageClientMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent acquiring or starting its SDK client, before first progress.' };
+	providerStageSnapshotMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent resolving customization, agent and MCP state for a session launch.' };
+	providerStageConfigMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent building the session configuration.' };
+	providerStageCreateMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider SDK create or resume session call took.' };
+	providerStageFinalizeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent on post-create session setup.' };
+	providerStagePersistMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent registering and persisting a newly launched session.' };
+	providerStageRefreshMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent refreshing a live session whose configuration changed.' };
+	providerStageTurnPrepareMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent on per-turn preparation before the SDK send.' };
+	providerStageModelResponseMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from the provider SDK send until first visible progress, or until the turn ended without progress.' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trusted provider model identifier selected at turn start, or a generic value for BYOK and unknown models.' };
-	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the client used the provider default, Auto, or an explicit model.' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn used the provider default, Auto (autoOnDevice while an on-device model is active), HydraFusion or HydraFusion Max (hydrafusion, hydrafusionMax: the HydraFusion model, or Copilot Fusion High or Max, which is Auto at that tier), an explicit model, or an on-device model selected directly (onDeviceDirect).' };
 	isBYOK: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the selected model is a bring-your-own-key model, when model context is available.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	interactionMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host interaction mode configured at turn start.' };
@@ -273,14 +574,22 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	comment: 'Tracks agent host turn completion, including performance, configuration context, completed model responses, and billed AI credit usage when reported by the provider.';
 };
 
-export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry {
+export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry, IAgentHostFusionTurnTelemetry {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
 	isSubagentSession: boolean;
+	subagentKind?: AgentSubagentKind;
 	turnId: string;
 	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	failureStage: AgentHostTurnFailureStage;
+	usedPrewarmedSession?: boolean;
+	prewarmedSessionDiscardReason?: string;
+	prewarmReadyAfterTurnStartMs?: number;
+	prewarmReadyBeforeTurnStartMs?: number;
+	prewarmLaunchCount?: number;
+	prewarmWarmUpComplete?: boolean;
+	prewarmSkipReason?: AgentHostPrewarmSkipReason;
 	errorType: string;
 	errorName: string | undefined;
 	errorCode: string | undefined;
@@ -290,7 +599,7 @@ export interface IAgentHostTurnFailedEvent extends IAgentHostEventTelemetry {
 	callstack: string | undefined;
 }
 
-export type IAgentHostTurnFailedClassification = IAgentHostEventClassification & {
+export type IAgentHostTurnFailedClassification = IAgentHostEventClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the failed agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
@@ -298,6 +607,13 @@ export type IAgentHostTurnFailedClassification = IAgentHostEventClassification &
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the failed turn within the agent host session.' };
 	messageOriginKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of actor or host-owned session classification that started the failed turn.' };
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
+	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the failed turn claimed a provider session that was started before the first message; absent when it did not.' };
+	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the failed turn discarded a provider session started before the first message and launched one instead; absent when it did not.' };
+	prewarmReadyAfterTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds after the turn started that the session became ready (0 when it was ready before), which the send spent waiting for it; absent otherwise.' };
+	prewarmReadyBeforeTurnStartMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: milliseconds the session had been ready before the turn started (0 when it became ready during the turn); absent otherwise.' };
+	prewarmLaunchCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: the warm launches of the draft, including the used one; more than one means it was warmed again, for example after a model change; absent otherwise.' };
+	prewarmWarmUpComplete?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'For a turn that used a pre-warmed provider session: whether its background warm-up (MCP startup and tool initialization) had finished; absent otherwise.' };
+	prewarmSkipReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the failed turn launched a deferred provider session without one started before the first message to claim or discard; absent otherwise.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
 	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception, when available.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The exception or protocol error code, when available.' };
@@ -317,16 +633,34 @@ export interface IAgentHostTurnFailure {
 	errorStack?: string;
 }
 
-export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedReport {
+export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedReport, IAgentHostFusionTurnTelemetry {
+	turnInteraction?: IAgentTurnInteraction;
+	providerTelemetryContext?: IAgentProviderTurnTelemetryContext;
+	codexModelProvider?: CodexModelProvider;
+	hostRootTurnOrdinal?: number;
+	hostProcessAgeMs?: number;
+	titleGenerationStrategy?: AutomaticTitleGenerationStrategy;
 	provider: string;
 	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	subagentKind?: AgentSubagentKind;
 	turnId: string;
 	parentTurnId: string | undefined;
 	parentToolCallId: string | undefined;
 	subagentTaskModelSource: AgentSubagentTaskModelSource | undefined;
 	timeToFirstProgress: number | undefined;
+	timeToFirstSubstantiveProgress: number | undefined;
 	timeToFirstEditMs: number | undefined;
-	timeToFirstEditClassifierVersion: number | undefined;
+	startedWithSteering: boolean;
+	receivedSteering: boolean;
+	/** Elapsed time of each host pre-send stage that ran, in milliseconds. */
+	sendStageDurationsMs?: ReadonlyMap<AgentHostTurnSendStage, number>;
+	/** Elapsed time from turn start to provider dispatch, in milliseconds. */
+	sendDispatchedMs?: number;
+	/** Elapsed time of each provider stage between dispatch and first progress, in milliseconds. */
+	providerStageDurationsMs?: ReadonlyMap<AgentHostProviderSendStage, number>;
+	providerTimings?: readonly IAgentHostProviderTiming[];
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | undefined;
@@ -346,6 +680,20 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	modelCallCount: number;
 }
 
+type ModelCallUsageCountedEvent = {
+	sdkSessionId: string;
+	modelCallId: string;
+	usageCountedInTurnId: string;
+};
+
+type ModelCallUsageCountedClassification = {
+	owner: 'amunger';
+	comment: 'Identifies the accounting turn for a Copilot root model usage report so its placement can be compared with the call owner.';
+	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK session containing the model call.' };
+	modelCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK API call identifier shared with model-call correlation and response telemetry.' };
+	usageCountedInTurnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Agent Host execution turn accumulating the reported root model usage.' };
+};
+
 interface IRequestTokenUsageEvent extends IAgentHostEventTelemetry, Omit<IAgentTokenUsageSummary, 'model'> {
 	provider: string;
 	agentSessionId: string;
@@ -354,6 +702,7 @@ interface IRequestTokenUsageEvent extends IAgentHostEventTelemetry, Omit<IAgentT
 	parentTurnId?: string;
 	parentToolCallId?: string;
 	isSubagentSession: boolean;
+	subagentKind?: AgentSubagentKind;
 	model: string | TelemetryTrustedValue<string>;
 	selectedModel?: string | TelemetryTrustedValue<string>;
 	result: AgentHostTurnResult;
@@ -363,7 +712,7 @@ interface IRequestTokenUsageEvent extends IAgentHostEventTelemetry, Omit<IAgentT
 	reasoningEffortSource: 'sdkReported';
 }
 
-type RequestTokenUsageClassification = IAgentHostEventClassification & {
+type RequestTokenUsageClassification = IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Agent provider.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Opaque owning session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Opaque owning chat identifier.' };
@@ -416,6 +765,11 @@ type RequestTokenUsageClassification = IAgentHostEventClassification & {
  */
 export type AgentHostTurnHangReason = 'noProgress' | 'stalledAfterProgress' | 'waitingOnUser' | 'runningTool';
 
+/** Whether a hang reason is a legitimate wait rather than a real hang; see {@link AgentHostTurnHangReason}. */
+export function isExpectedTurnHang(reason: AgentHostTurnHangReason): boolean {
+	return reason === 'waitingOnUser' || reason === 'runningTool';
+}
+
 const turnActivityKindsByActionType = {
 	[ActionType.ChatTurnStarted]: 'chat.turnStarted',
 	[ActionType.ChatDelta]: 'chat.delta',
@@ -460,11 +814,12 @@ function normalizeTurnActivityKind(activityKind: string): AgentHostTurnActivityT
 	return turnActivityKindsByActionType[activityKind as keyof typeof turnActivityKindsByActionType] ?? 'other';
 }
 
-export interface IAgentHostTurnHungEvent extends IAgentHostEventTelemetry {
+export interface IAgentHostTurnHungEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext>, IAgentHostFusionTurnTelemetry {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
 	isSubagentSession: boolean;
+	subagentKind?: AgentSubagentKind;
 	turnId: string;
 	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	hangReason: AgentHostTurnHangReason;
@@ -488,7 +843,7 @@ export interface IAgentHostTurnHungEvent extends IAgentHostEventTelemetry {
 	permissionLevel: string | undefined;
 }
 
-export type IAgentHostTurnHungClassification = IAgentHostEventClassification & {
+export type IAgentHostTurnHungClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the hung agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
@@ -512,15 +867,19 @@ export type IAgentHostTurnHungClassification = IAgentHostEventClassification & {
 	quietTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds since the last observed turn activity.' };
 	turnElapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the hang report.' };
 	model: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The trusted provider model identifier for the turn, or a generic value for BYOK and unknown models.' };
-	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the client used the provider default, Auto, or an explicit model.' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the turn used the provider default, Auto (autoOnDevice while an on-device model is active), HydraFusion or HydraFusion Max (hydrafusion, hydrafusionMax: the HydraFusion model, or Copilot Fusion High or Max, which is Auto at that tier), an explicit model, or an on-device model selected directly (onDeviceDirect).' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turns that stop making progress for longer than the hang threshold, so permanently stuck sessions are visible as a positive signal instead of missing turnCompleted events.';
 };
 
-export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport {
+export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport, IAgentHostFusionTurnTelemetry {
+	providerTelemetryContext?: IAgentProviderTurnTelemetryContext;
 	provider: string;
 	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	subagentKind?: AgentSubagentKind;
 	turnId: string;
 	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	hangReason: AgentHostTurnHangReason;
@@ -542,11 +901,12 @@ export interface IAgentHostTurnHungReport extends IAgentHostTurnAttributedReport
 	permissionLevel: string | undefined;
 }
 
-export interface IAgentHostHungTurnCompletedEvent extends IAgentHostEventTelemetry {
+export interface IAgentHostHungTurnCompletedEvent extends IAgentHostEventTelemetry, IAgentHostFusionTurnTelemetry {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
 	isSubagentSession: boolean;
+	subagentKind?: AgentSubagentKind;
 	turnId: string;
 	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	hangReason: AgentHostTurnHangReason;
@@ -556,7 +916,7 @@ export interface IAgentHostHungTurnCompletedEvent extends IAgentHostEventTelemet
 	timeAfterHangMs: number;
 }
 
-export type IAgentHostHungTurnCompletedClassification = IAgentHostEventClassification & {
+export type IAgentHostHungTurnCompletedClassification = IAgentHostEventClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the recovered agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
@@ -572,9 +932,12 @@ export type IAgentHostHungTurnCompletedClassification = IAgentHostEventClassific
 	comment: 'Tracks agent host turns that complete after previously being reported as hung, so permanent hangs can be separated from merely slow ones.';
 };
 
-export interface IAgentHostHungTurnCompletedReport extends IAgentHostTurnAttributedReport {
+export interface IAgentHostHungTurnCompletedReport extends IAgentHostTurnAttributedReport, IAgentHostFusionTurnTelemetry {
 	provider: string;
 	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	subagentKind?: AgentSubagentKind;
 	turnId: string;
 	messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	hangReason: AgentHostTurnHangReason;
@@ -584,16 +947,234 @@ export interface IAgentHostHungTurnCompletedReport extends IAgentHostTurnAttribu
 	timeAfterHangMs: number;
 }
 
-type IAgentHostLanguageModelToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostEventTelemetry;
+/**
+ * Why a session summary was sent: `idle` when the session had no active turn
+ * for the idle timeout, `archived` when the session was, `deleted` when the
+ * session was deleted, cleaned up as an ephemeral session, or moved into
+ * another session, and `shutdown` when the agent host began a graceful
+ * shutdown.
+ */
+export type AgentHostSessionSummaryReason = 'idle' | 'archived' | 'deleted' | 'shutdown';
 
-type IAgentHostLanguageModelToolInvokedClassification = LanguageModelToolInvokedClassification & IAgentHostEventClassification;
+/**
+ * Totals for one session's activity period, summed from the reports behind
+ * `agentHost.turnCompleted` and `agentHost.turnHung`. Token and AI credit
+ * totals are `undefined` when no turn in the period reported them, and lower
+ * bounds when only some did. `missingBilledNanoAiuTurnCount` counts the turns
+ * missing from the AI credit totals.
+ */
+export interface IAgentHostSessionSummaryTotals {
+	rootTurnCount: number;
+	userTurnCount: number;
+	subagentTurnCount: number;
+	failedTurnCount: number;
+	cancelledTurnCount: number;
+	usageLimitFailedTurnCount: number;
+	failedSubagentTurnCount: number;
+	unexpectedHangTurnCount: number;
+	recoveredHangTurnCount: number;
+	steeredTurnCount: number;
+	modelCallCount: number;
+	promptTokenCount: number | undefined;
+	promptCacheTokenCount: number | undefined;
+	completionTokenCount: number | undefined;
+	rootBilledNanoAiu: number | undefined;
+	subagentBilledNanoAiu: number | undefined;
+	totalBilledNanoAiu: number | undefined;
+	missingBilledNanoAiuTurnCount: number;
+	durationMs: number;
+	activeMs: number;
+}
+
+export interface IAgentHostSessionSummaryEvent extends IAgentHostEventTelemetry, IAgentHostSessionSummaryTotals, Partial<IAgentHostSessionArtifactCounts> {
+	schemaVersion: number;
+	provider: string;
+	agentSessionId: string;
+	summaryReason: AgentHostSessionSummaryReason;
+	summaryIndex: number;
+	createdInHostProcess: boolean;
+	multipleClientTypes: boolean;
+}
+
+export type IAgentHostSessionSummaryClassification = IAgentHostEventClassification & {
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Version of the session summary contract.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider of the first turn in the summarized period.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, the same value as agentSessionId on the other agentHost events.' };
+	summaryReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the summary was sent: idle (no active turn for the idle timeout), archived, deleted (also when the session was cleaned up as ephemeral or moved into another session), or shutdown (graceful agent host shutdown).' };
+	summaryIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Zero-based index of this summary among the summaries this agent host process sent for the session.' };
+	createdInHostProcess: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session was created in this agent host process rather than restored from an earlier one.' };
+	multipleClientTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether turns in the period came from more than one known client type; a subagent turn counts as the client of the turn that started it. The initiator fields describe the earliest-started root turn with a known client type, else the earliest-started such subagent turn.' };
+	rootTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Root turns that completed in the period, including failed and cancelled turns.' };
+	userTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Completed root turns that a user message started.' };
+	subagentTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Subagent turns that completed in the period.' };
+	failedTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root turns that ended with an error. Each also emitted agentHost.turnFailed.' };
+	cancelledTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root turns that were cancelled.' };
+	usageLimitFailedTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root turns in failedTurnCount that failed because a Copilot quota or rate limit was reached. Subtract it from failedTurnCount to count other failures.' };
+	failedSubagentTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Subagent turns that ended with an error.' };
+	unexpectedHangTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root and subagent turns that agentHost.turnHung reported with an unexpected reason (noProgress or stalledAfterProgress), counted once per turn.' };
+	recoveredHangTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Turns in unexpectedHangTurnCount that completed later in the same period.' };
+	steeredTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Completed root turns during which at least one steering message was submitted.' };
+	modelCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Completed upstream model responses across root and subagent turns. Each turn counts only its own responses, so nothing is counted twice.' };
+	promptTokenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Input tokens summed over root and subagent turns, each turn counting only its own calls; absent when no turn reported them.' };
+	promptCacheTokenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Input tokens read from cache, summed over root and subagent turns, each turn counting only its own calls; absent when no turn reported them.' };
+	completionTokenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Output tokens summed over root and subagent turns, each turn counting only its own calls; absent when no turn reported them.' };
+	rootBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'AI credits in nano-AIU billed directly to root turns, excluding their subagent calls; absent when no root turn reported it.' };
+	subagentBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'AI credits in nano-AIU billed directly to subagent turns; absent when no subagent turn reported it.' };
+	totalBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'rootBilledNanoAiu plus subagentBilledNanoAiu; absent when neither was reported, and a lower bound when missingBilledNanoAiuTurnCount is above zero.' };
+	missingBilledNanoAiuTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Completed root and subagent turns that made model calls but reported no AI credit usage, so they are missing from the AI credit totals.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the first observed turn start to the last observed turn end or hang report in the period.' };
+	activeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Sum of root turn durations in milliseconds. Concurrent root turns in different chats each count.' };
+	artifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Artifacts of every kind recorded across the session\'s chats when the summary was sent. This and the other artifact counts are absent when the session\'s state was no longer loaded, such as after deletion.' };
+	referenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'References of every kind recorded across the session\'s chats when the summary was sent.' };
+	pullRequestArtifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests recorded as artifacts when the summary was sent.' };
+	pullRequestReferenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests recorded as references when the summary was sent.' };
+	issueArtifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Issues recorded as artifacts when the summary was sent.' };
+	issueReferenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Issues recorded as references when the summary was sent.' };
+	ownPullRequestCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Distinct pull requests the host found for the session\'s own branches when the summary was sent, excluding ones a folder-isolated session started with. The baseline for whether the session\'s own pull requests were recorded.' };
+	ownPullRequestArtifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests in ownPullRequestCount recorded as an artifact.' };
+	ownPullRequestReferenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests in ownPullRequestCount recorded only as a reference. The remaining own pull requests were not recorded.' };
+	owner: 'Giuspepe';
+	comment: 'One summary per agent host session and activity period, summing the turn telemetry so per-session metrics need no event joins.';
+};
+
+export interface IAgentHostSessionSummaryReport {
+	readonly clientContext: IAgentHostClientTelemetryContext | undefined;
+	readonly telemetryContext: IAgentTelemetryContext | undefined;
+	readonly provider: string;
+	/** The root session the summary describes. */
+	readonly session: string;
+	readonly summaryReason: AgentHostSessionSummaryReason;
+	readonly summaryIndex: number;
+	readonly createdInHostProcess: boolean;
+	readonly multipleClientTypes: boolean;
+	readonly totals: IAgentHostSessionSummaryTotals;
+	/** Absent when the session's state is no longer loaded. */
+	readonly artifacts: IAgentHostSessionArtifactCounts | undefined;
+}
+
+/**
+ * What the session had recorded when its summary was sent, counted across its
+ * chats. The own pull request counts compare what was recorded with the pull
+ * requests the host found for the session's own branches.
+ */
+export interface IAgentHostSessionArtifactCounts {
+	artifactCount: number;
+	referenceCount: number;
+	pullRequestArtifactCount: number;
+	pullRequestReferenceCount: number;
+	issueArtifactCount: number;
+	issueReferenceCount: number;
+	ownPullRequestCount: number;
+	ownPullRequestArtifactCount: number;
+	ownPullRequestReferenceCount: number;
+}
+
+/** What recorded an artifact or reference: the agent's tool, or the Create Pull Request action. */
+export type AgentHostArtifactRecordingSource = 'agentTool' | 'createPullRequestAction';
+
+/** Who removed an artifact or reference: the agent's tool, or the user from the chat. */
+export type AgentHostArtifactRemovalInitiator = 'agentTool' | 'user';
+
+export interface IAgentHostArtifactRecordedReport extends IAgentHostTurnAttributedReport {
+	readonly provider: string | undefined;
+	/** The session that owns the chat the entry was recorded in. */
+	readonly session: string;
+	/** The chat the entry was recorded in. */
+	readonly chat: string;
+	readonly turnId: string | undefined;
+	readonly toolCallId: string | undefined;
+	readonly source: AgentHostArtifactRecordingSource;
+	readonly kind: SessionArtifactType;
+	/** The classification requested; an existing artifact is never downgraded to a reference. */
+	readonly isArtifact: boolean;
+	readonly outcome: SessionArtifactAddOutcome;
+	readonly isGitHub: boolean;
+	readonly batchSize: number;
+}
+
+type IAgentHostArtifactRecordedEvent = IAgentHostEventTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	turnId: string | undefined;
+	toolCallId: string | undefined;
+	source: AgentHostArtifactRecordingSource;
+	kind: SessionArtifactType;
+	category: 'artifact' | 'reference';
+	outcome: SessionArtifactAddOutcome;
+	isGitHub: boolean;
+	batchSize: number;
+};
+
+type IAgentHostArtifactRecordedClassification = IAgentHostEventClassification & {
+	owner: 'benibenj';
+	comment: 'One event per artifact or reference that an agent or the Create Pull Request action records on an agent host session, to measure what gets recorded and how it is classified.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider of the session, or unknown.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, the same value as agentSessionId on the other agentHost events.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The turn the agent recorded the entry in; absent for the Create Pull Request action.' };
+	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool call that recorded the entry, matching agentHost.toolInvoked; absent for the Create Pull Request action.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What recorded the entry: agentTool (add_artifact_or_reference) or createPullRequestAction.' };
+	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of the entry: pullRequest, issue, commit, website, file or resource.' };
+	category: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the entry was requested as an artifact or a reference. An existing artifact is never downgraded, so with outcome alreadyRecorded the stored entry can be an artifact.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What recording did: added a new entry, promoted an existing reference to an artifact, modeUpdated how the chat shows an existing entry, or alreadyRecorded.' };
+	isGitHub: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the entry is a pull request or issue on GitHub, which artifact integrations can act on.' };
+	batchSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries recorded by the same call.' };
+};
+
+export interface IAgentHostArtifactRemovedReport extends IAgentHostTurnAttributedReport {
+	readonly provider: string | undefined;
+	readonly session: string;
+	/** The chat the agent removed the entry from; absent when the user removed it. */
+	readonly chat: string | undefined;
+	readonly turnId: string | undefined;
+	readonly toolCallId: string | undefined;
+	readonly initiator: AgentHostArtifactRemovalInitiator;
+	readonly kind: SessionArtifactType;
+	readonly isArtifact: boolean;
+	readonly isGitHub: boolean;
+}
+
+type IAgentHostArtifactRemovedEvent = IAgentHostEventTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	turnId: string | undefined;
+	toolCallId: string | undefined;
+	initiator: AgentHostArtifactRemovalInitiator;
+	kind: SessionArtifactType;
+	category: 'artifact' | 'reference';
+	isGitHub: boolean;
+};
+
+type IAgentHostArtifactRemovedClassification = IAgentHostEventClassification & {
+	owner: 'benibenj';
+	comment: 'One event per artifact or reference removed from an agent host session, to measure how often recorded entries are removed again and by whom.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider of the session, or unknown.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, the same value as agentSessionId on the other agentHost events.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The turn the agent removed the entry in; absent when the user removed it.' };
+	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool call that removed the entry, matching agentHost.toolInvoked; absent when the user removed it.' };
+	initiator: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who removed the entry: agentTool (remove_artifact_or_reference) or user.' };
+	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of the removed entry: pullRequest, issue, commit, website, file or resource.' };
+	category: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the removed entry was an artifact or a reference.' };
+	isGitHub: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the removed entry is a pull request or issue on GitHub.' };
+};
+
+type IAgentHostLanguageModelToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostEventTelemetry & {
+	mcpSourceKind?: McpServerSource;
+};
+
+type IAgentHostLanguageModelToolInvokedClassification = LanguageModelToolInvokedClassification & IAgentHostEventClassification & {
+	mcpSourceKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configuration source of an MCP tool: user, workspace, plugin, builtin, managed, or account. Managed MCP tools include Copilot connectors.' };
+};
 
 export interface IAgentHostToolInvokedReport extends IAgentHostTurnAttributedReport {
 	provider: string;
 	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	subagentKind?: AgentSubagentKind;
 	turnId: string;
 	toolId: string;
 	toolSourceKind: string;
+	mcpSourceKind: McpServerSource | undefined;
 	toolCallId: string;
 	result: ToolInvokedResult;
 	invocationTimeMs?: number;
@@ -601,7 +1182,6 @@ export interface IAgentHostToolInvokedReport extends IAgentHostTurnAttributedRep
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	errorCode: string | undefined;
-	errorMessage: string | undefined;
 }
 
 export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostEventTelemetry & {
@@ -609,19 +1189,20 @@ export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentH
 	agentSessionId: string;
 	chatSessionId: string;
 	isSubagentSession: boolean;
+	subagentKind?: AgentSubagentKind;
 	errorCode: string | undefined;
-	msg: string | undefined;
+	mcpSourceKind?: McpServerSource;
 };
 
-export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'provider' | 'chatSessionId' | 'owner' | 'comment'> & IAgentHostEventClassification & {
+export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'provider' | 'chatSessionId' | 'owner' | 'comment'> & IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that invoked the tool.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the Agent Host session.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool call belongs to a subagent session.' };
+	mcpSourceKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configuration source of an MCP tool: user, workspace, plugin, builtin, managed, or account. Managed MCP tools include Copilot connectors.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure code, when available.' };
-	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure message, when available. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	owner: 'roblourens';
-	comment: 'Tracks Agent Host tool invocations with Agent Host correlation and optional failure diagnostics.';
+	comment: 'Tracks Agent Host tool invocations with Agent Host correlation and optional failure codes.';
 };
 
 export interface IAgentHostAskQuestionsToolInvokedEvent extends IAgentHostEventTelemetry {
@@ -636,9 +1217,10 @@ export interface IAgentHostAskQuestionsToolInvokedEvent extends IAgentHostEventT
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
+	subagentKind?: AgentSubagentKind;
 }
 
-export type IAgentHostAskQuestionsToolInvokedClassification = IAgentHostEventClassification & {
+export type IAgentHostAskQuestionsToolInvokedClassification = IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
 	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the current request turn.' };
 	questionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of questions asked' };
 	answeredCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions that were answered' };
@@ -657,6 +1239,9 @@ export type IAgentHostAskQuestionsToolInvokedClassification = IAgentHostEventCla
 export interface IAgentHostAskQuestionsToolInvokedReport extends IAgentHostTurnAttributedReport {
 	provider: string;
 	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	subagentKind?: AgentSubagentKind;
 	requestId: string;
 	questionCount: number;
 	answeredCount: number;
@@ -672,6 +1257,7 @@ type AgentHostToolCallResponseType = 'success' | 'cancelled' | 'failed';
 export interface IAgentHostToolCallDetailsEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	agentSessionId: string;
+	chatSessionId: string;
 	isSubagentSession: boolean;
 	conversationId: string;
 	requestId: string;
@@ -691,8 +1277,9 @@ export interface IAgentHostToolCallDetailsEvent extends IAgentHostEventTelemetry
 export type IAgentHostToolCallDetailsClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hashed chat identifier, scoped to agentSessionId.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool-call aggregate belongs to a subagent session.' };
-	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the current chat conversation.' };
+	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, retained for compatibility.' };
 	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the current turn request.' };
 	responseType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, was cancelled, or failed.' };
 	toolCounts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times each tool was requested during the turn.' };
@@ -712,6 +1299,9 @@ export type IAgentHostToolCallDetailsClassification = IAgentHostEventClassificat
 export interface IAgentHostToolCallDetailsReport extends IAgentHostTurnAttributedReport {
 	provider: string;
 	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	chat: string;
 	turnId: string;
 	clientType: AgentHostClientType;
 	model: string | undefined;
@@ -733,15 +1323,19 @@ export interface IAgentHostToolCallDetailsReport extends IAgentHostTurnAttribute
 export interface IAgentHostToolApprovalReport extends IAgentHostTurnAttributedReport {
 	provider: string;
 	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
 	turnId: string;
 	toolId: string;
 	toolSourceKind: string;
 	confirmKind: AgentHostToolApprovalConfirmKind;
+	decisionSource?: string;
+	permissionResult?: string;
 	confirmationNotNeededReason: string | undefined;
 	requestUnsandboxedExecution: boolean | undefined;
 }
 
-type AgentHostToolApprovalConfirmKind = 'userAction' | 'setting' | 'confirmationNotNeeded' | 'denied';
+type AgentHostToolApprovalConfirmKind = 'userAction' | 'setting' | 'confirmationNotNeeded' | 'denied' | 'unknown';
 
 export interface IAgentHostToolApprovalEvent extends IAgentHostEventTelemetry {
 	provider: string;
@@ -753,6 +1347,9 @@ export interface IAgentHostToolApprovalEvent extends IAgentHostEventTelemetry {
 	toolExtensionId: string | undefined;
 	toolSourceKind: string;
 	confirmKind: AgentHostToolApprovalConfirmKind;
+	decisionSource?: string;
+	permissionResult?: string;
+	approvalTelemetryVersion: number;
 	settingId: string | undefined;
 	lmServiceScope: string | undefined;
 	customButtonKind: string | undefined;
@@ -761,28 +1358,18 @@ export interface IAgentHostToolApprovalEvent extends IAgentHostEventTelemetry {
 	requestUnsandboxedExecution: boolean | undefined;
 }
 
-export type IAgentHostToolApprovalClassification = IAgentHostEventClassification & {
+export type IAgentHostToolApprovalClassification = IAgentHostEventClassification & LanguageModelToolApprovalClassification & {
+	decisionSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK permission decision source. human_response is explicit human attribution; missing is unattributed, not human.' };
+	permissionResult?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK permission result category, distinguishing rule, hook, policy, cancellation and unavailable-responder outcomes.' };
+	approvalTelemetryVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Version of the approval classification. Version 2 requires explicit human attribution for userAction.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool approval belongs to a subagent session.' };
-	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
-	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat request turn that this tool approval is associated with, if available.' };
-	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
-	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
-	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source kind of the tool.' };
-	confirmKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the confirmation was resolved (userAction, setting, confirmationNotNeeded, denied).' };
-	settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is setting, the configuration id that auto-approved the tool.' };
-	lmServiceScope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is lmServicePerTool, the scope (session/workspace/profile).' };
-	customButtonKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the user clicked a custom button on the confirmation widget, whether the button represents approve or deny semantics.' };
-	confirmationNotNeededReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is confirmationNotNeeded, a stable identifier for why the tool did not require confirmation.' };
-	sandboxWrapped: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether this specific invocation runs inside the agent terminal sandbox.' };
-	requestUnsandboxedExecution: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether the model requested to bypass the sandbox for this invocation.' };
-	owner: 'roblourens';
-	comment: 'Provides insight into how tool confirmations are resolved (user action vs. auto-approval) in agent host sessions.';
 };
 
 export interface IAgentHostAutoModeRouterDecisionReport {
 	session: string;
+	chat: string;
 	turnId: string;
 	clientType: AgentHostClientType;
 	chosenModel: string;
@@ -817,6 +1404,55 @@ export interface IAgentHostSkillContentReadReport {
 	pluginVersion: string | undefined;
 }
 
+const skillInvocationTriggers: ReadonlySet<string> = new Set(['agent-invoked', 'user-invoked', 'context-load']);
+
+export interface IAgentHostSkillInvokedReport extends IAgentHostTurnAttributedReport {
+	provider: string;
+	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	/** The root turn the invocation belongs to; for a subagent, the turn it (or its spawning subagent) was invoked in. */
+	turnId: string | undefined;
+	/** The SDK `skill.invoked` event id; equals `event_id` on the forwarded `copilotSdk/skill_invoked`. */
+	sdkEventId: string;
+	trigger: string | undefined;
+	isSubagentInvocation: boolean;
+	/** Where the runtime discovered the skill, bounded to its known values. */
+	skillSource: string;
+	/** Who shipped the skill: `vscode`, `runtime`, or `other`. */
+	skillOrigin: string;
+	/** The skill name, only when VS Code or the bundled runtime shipped the skill. */
+	skillName: string | undefined;
+}
+
+type IAgentHostSkillInvokedEvent = IAgentHostEventTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	chatSessionId: string;
+	turnId: string | undefined;
+	sdkEventId: string;
+	trigger: string;
+	isSubagentInvocation: boolean;
+	skillSource: string;
+	skillOrigin: string;
+	skillName: string | undefined;
+};
+
+type IAgentHostSkillInvokedClassification = IAgentHostEventClassification & {
+	owner: 'bhavyaus';
+	comment: 'Records what triggered each agent host skill invocation and where the skill came from, to tell skills the agent chose apart from skills the user ran and to measure built-in skills. Names only skills that VS Code or the bundled Copilot runtime ship; other skills are identified by hash on copilotSdk/skill_invoked, joined by sdkEventId.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider that invoked the skill.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session; the subagent chat for subagent invocations.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The root turn the invocation belongs to; for a subagent, the turn it or its spawning subagent was invoked in, even after that turn ends.' };
+	sdkEventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SDK skill invocation event identifier; equals event_id on copilotSdk/skill_invoked.' };
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What triggered the invocation: agent-invoked (the model chose the skill), user-invoked (slash command or UI), context-load (preloaded by a custom agent or subagent), or unknown.' };
+	isSubagentInvocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a subagent, rather than the main agent, invoked the skill.' };
+	skillSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the runtime discovered the skill: project, inherited, personal-copilot, personal-agents, custom, plugin, builtin, remote, sdk, mcp, other, or unknown.' };
+	skillOrigin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who shipped the skill: vscode (installed with VS Code or served by the agent host), runtime (built into the Copilot runtime or one of its bundled plugins), or other.' };
+	skillName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of a skill that VS Code or the bundled Copilot runtime ship. Absent for every other skill, whose name could identify a user.' };
+};
+
 export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge' | 'noChanges' | 'tooManyChanges' | 'mergeBaseTooOld' | 'virtualFileSystem' | 'tooManyCommits';
 
 export interface IAgentHostRepoInfoReport {
@@ -841,6 +1477,7 @@ export interface IAgentHostToolCallStalledEvent extends IAgentHostEventTelemetry
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
+	subagentKind?: AgentSubagentKind;
 	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolCallId: string;
 	toolId: string;
@@ -851,7 +1488,7 @@ export interface IAgentHostToolCallStalledEvent extends IAgentHostEventTelemetry
 
 export type AgentHostExecutorClientConnectionState = 'connected' | 'disconnected' | 'unknown';
 
-export type IAgentHostToolCallStalledClassification = IAgentHostEventClassification & {
+export type IAgentHostToolCallStalledClassification = IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the stalled agent host tool call.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the stalled tool call belongs to a subagent session.' };
@@ -868,6 +1505,9 @@ export type IAgentHostToolCallStalledClassification = IAgentHostEventClassificat
 export interface IAgentHostToolCallStalledReport extends IAgentHostTurnAttributedReport {
 	provider: string;
 	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	subagentKind?: AgentSubagentKind;
 	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolCallId: string;
 	toolId: string;
@@ -880,6 +1520,7 @@ export interface IAgentHostStalledToolCallCompletedEvent extends IAgentHostEvent
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
+	subagentKind?: AgentSubagentKind;
 	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolCallId: string;
 	toolId: string;
@@ -890,7 +1531,7 @@ export interface IAgentHostStalledToolCallCompletedEvent extends IAgentHostEvent
 	timeAfterStallMs: number;
 }
 
-export type IAgentHostStalledToolCallCompletedClassification = IAgentHostEventClassification & {
+export type IAgentHostStalledToolCallCompletedClassification = IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the completed agent host tool call.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the completed tool call belongs to a subagent session.' };
@@ -909,6 +1550,9 @@ export type IAgentHostStalledToolCallCompletedClassification = IAgentHostEventCl
 export interface IAgentHostStalledToolCallCompletedReport extends IAgentHostTurnAttributedReport {
 	provider: string;
 	session: string;
+	/** Owning session, recorded when the turn or request started. */
+	owner: string;
+	subagentKind?: AgentSubagentKind;
 	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolCallId: string;
 	toolId: string;
@@ -919,12 +1563,60 @@ export interface IAgentHostStalledToolCallCompletedReport extends IAgentHostTurn
 	timeAfterStallMs: number;
 }
 
+interface IProviderStageMeasurements {
+	providerStageQueueMs?: number;
+	providerStageClientMs?: number;
+	providerStageSnapshotMs?: number;
+	providerStageConfigMs?: number;
+	providerStageCreateMs?: number;
+	providerStageFinalizeMs?: number;
+	providerStagePersistMs?: number;
+	providerStageRefreshMs?: number;
+	providerStageTurnPrepareMs?: number;
+	providerStageModelResponseMs?: number;
+}
+
+const providerStageMeasurementKeys: { readonly [K in AgentHostProviderSendStage]: keyof IProviderStageMeasurements } = {
+	queue: 'providerStageQueueMs',
+	client: 'providerStageClientMs',
+	snapshot: 'providerStageSnapshotMs',
+	config: 'providerStageConfigMs',
+	create: 'providerStageCreateMs',
+	finalize: 'providerStageFinalizeMs',
+	persist: 'providerStagePersistMs',
+	refresh: 'providerStageRefreshMs',
+	turnPrepare: 'providerStageTurnPrepareMs',
+	modelResponse: 'providerStageModelResponseMs',
+};
+
+/** Projects observed provider stages to measurements, omitting stages that never ran. */
+function toProviderStageMeasurements(durations: ReadonlyMap<AgentHostProviderSendStage, number> | undefined): IProviderStageMeasurements {
+	const result: IProviderStageMeasurements = {};
+	for (const [stage, ms] of durations ?? []) {
+		result[providerStageMeasurementKeys[stage]] = ms;
+	}
+	return result;
+}
+
+/** Projects whether a turn used a pre-warmed provider session, why it discarded one, or why it found none to claim, omitting each when absent. */
+function prewarmedSessionTelemetry(context: IAgentProviderTurnTelemetryContext | undefined): Pick<IAgentProviderTurnTelemetryContext, 'usedPrewarmedSession' | 'prewarmedSessionDiscardReason' | 'prewarmSkipReason' | 'prewarmReadyAfterTurnStartMs' | 'prewarmReadyBeforeTurnStartMs' | 'prewarmLaunchCount' | 'prewarmWarmUpComplete'> {
+	return {
+		...(context?.usedPrewarmedSession ? { usedPrewarmedSession: true } : {}),
+		...(context?.prewarmedSessionDiscardReason !== undefined ? { prewarmedSessionDiscardReason: context.prewarmedSessionDiscardReason } : {}),
+		...(context?.prewarmSkipReason !== undefined ? { prewarmSkipReason: context.prewarmSkipReason } : {}),
+		...(context?.prewarmReadyAfterTurnStartMs !== undefined ? { prewarmReadyAfterTurnStartMs: context.prewarmReadyAfterTurnStartMs } : {}),
+		...(context?.prewarmReadyBeforeTurnStartMs !== undefined ? { prewarmReadyBeforeTurnStartMs: context.prewarmReadyBeforeTurnStartMs } : {}),
+		...(context?.prewarmLaunchCount !== undefined ? { prewarmLaunchCount: context.prewarmLaunchCount } : {}),
+		...(context?.prewarmWarmUpComplete !== undefined ? { prewarmWarmUpComplete: context.prewarmWarmUpComplete } : {}),
+	};
+}
+
 export function toTelemetryModel(model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined): 'byokModel' | 'unknown' | TelemetryTrustedValue<string> | undefined {
 	if (model === undefined) {
 		return undefined;
 	}
 	if (modelTelemetryKind === 'trusted') {
-		return new TelemetryTrustedValue(model);
+		return new TelemetryTrustedValue(normalizeModelRouterTelemetryId(model));
 	}
 	return modelTelemetryKind === 'byok' ? 'byokModel' : 'unknown';
 }
@@ -942,11 +1634,234 @@ export function toInitiatorTelemetry(clientContext: IAgentHostClientTelemetryCon
 
 export const IAgentHostTelemetryReporter = createDecorator<AgentHostTelemetryReporter>('agentHostTelemetryReporter');
 
+export function toSubagentKindTelemetry(isSubagent: boolean, kind: AgentSubagentKind | undefined): { subagentKind?: AgentSubagentKind } {
+	return isSubagent ? { subagentKind: kind ?? 'task' } : {};
+}
+
+const INLINE_REASONING_TAGS = [
+	{ open: '<think>', close: '</think>' },
+	{ open: '<thinking>', close: '</thinking>' },
+	{ open: '<analysis>', close: '</analysis>' },
+] as const;
+
+interface IStructuredModelMessageText {
+	readonly role: 'assistant';
+	readonly content: string;
+	readonly reasoning_text?: string;
+}
+
+function parseFenceMarker(text: string, lineStart: number): { char: string; length: number; lineEnd: number } | undefined {
+	let i = lineStart;
+	while (i < text.length && (text[i] === ' ' || text[i] === '\t')) {
+		i++;
+	}
+	const ch = text[i];
+	if (ch !== '`' && ch !== '~') {
+		return undefined;
+	}
+	let end = i;
+	while (end < text.length && text[end] === ch) {
+		end++;
+	}
+	const length = end - i;
+	if (length < 3) {
+		return undefined;
+	}
+	const nl = text.indexOf('\n', end);
+	const lineEnd = nl === -1 ? text.length : nl + 1;
+	return { char: ch, length, lineEnd };
+}
+
+function isClosingFenceLine(text: string, lineStart: number, fenceChar: string, fenceLength: number): number | undefined {
+	let i = lineStart;
+	while (i < text.length && (text[i] === ' ' || text[i] === '\t')) {
+		i++;
+	}
+	if (text[i] !== fenceChar) {
+		return undefined;
+	}
+	let end = i;
+	while (end < text.length && text[end] === fenceChar) {
+		end++;
+	}
+	if (end - i < fenceLength) {
+		return undefined;
+	}
+	while (end < text.length && (text[end] === ' ' || text[end] === '\t' || text[end] === '\r')) {
+		end++;
+	}
+	if (end === text.length) {
+		return text.length;
+	}
+	return text[end] === '\n' ? end + 1 : undefined;
+}
+
+function extractInlineReasoning(text: string): { content: string; reasoningText: string | undefined } {
+	let pos = 0;
+	let chunkStart = 0;
+	let atLineStart = true;
+	let activeFence: { char: string; length: number } | undefined;
+	let foundTag = false;
+	let hasNonWhitespaceContent = false;
+	let nextThink = text.indexOf('<think', 0);
+	let nextAnalysis = text.indexOf('<analysis>', 0);
+	let nextNewline = text.indexOf('\n', 0);
+	const contentParts: string[] = [];
+	const reasoningParts: string[] = [];
+
+	while (pos < text.length) {
+		if (atLineStart) {
+			if (activeFence) {
+				const closedEnd = isClosingFenceLine(text, pos, activeFence.char, activeFence.length);
+				if (closedEnd !== undefined) {
+					activeFence = undefined;
+					pos = closedEnd;
+					atLineStart = true;
+					continue;
+				}
+				if (nextNewline !== -1 && nextNewline < pos) {
+					nextNewline = text.indexOf('\n', pos);
+				}
+				if (nextNewline === -1) {
+					break;
+				}
+				pos = nextNewline + 1;
+				atLineStart = true;
+				continue;
+			}
+			const fence = parseFenceMarker(text, pos);
+			if (fence) {
+				activeFence = { char: fence.char, length: fence.length };
+				pos = fence.lineEnd;
+				atLineStart = true;
+				continue;
+			}
+		}
+
+		if (nextThink !== -1 && nextThink < pos) {
+			nextThink = text.indexOf('<think', pos);
+		}
+		if (nextAnalysis !== -1 && nextAnalysis < pos) {
+			nextAnalysis = text.indexOf('<analysis>', pos);
+		}
+		const nextTag = nextThink === -1
+			? nextAnalysis
+			: nextAnalysis === -1
+				? nextThink
+				: Math.min(nextThink, nextAnalysis);
+		if (nextTag === -1) {
+			break;
+		}
+		if (nextNewline !== -1 && nextNewline < pos) {
+			nextNewline = text.indexOf('\n', pos);
+		}
+		if (nextNewline !== -1 && nextNewline < nextTag) {
+			pos = nextNewline + 1;
+			atLineStart = true;
+			continue;
+		}
+
+		const matchedTag = INLINE_REASONING_TAGS.find(tag => text.startsWith(tag.open, nextTag));
+		if (!matchedTag) {
+			pos = nextTag + 1;
+			atLineStart = false;
+			continue;
+		}
+
+		foundTag = true;
+		const before = text.slice(chunkStart, nextTag);
+		if (before.length > 0 && (hasNonWhitespaceContent || before.trim().length > 0)) {
+			contentParts.push(before);
+			hasNonWhitespaceContent = true;
+		}
+
+		const innerStart = nextTag + matchedTag.open.length;
+		const closeIdx = text.indexOf(matchedTag.close, innerStart);
+		if (closeIdx === -1) {
+			const inner = text.slice(innerStart).trim();
+			if (inner) {
+				reasoningParts.push(inner);
+			}
+			chunkStart = text.length;
+			pos = text.length;
+			break;
+		}
+
+		const inner = text.slice(innerStart, closeIdx).trim();
+		if (inner) {
+			reasoningParts.push(inner);
+		}
+		let afterClose = closeIdx + matchedTag.close.length;
+		if (contentParts.length === 0) {
+			let scan = afterClose;
+			let lastNewlineEnd = -1;
+			while (scan < text.length && (text[scan] === ' ' || text[scan] === '\t' || text[scan] === '\r' || text[scan] === '\n')) {
+				if (text[scan] === '\n') {
+					lastNewlineEnd = scan + 1;
+				}
+				scan++;
+			}
+			// Preserve leading indentation when a newline separates the closing tag from the
+			// answer so indented fenced code blocks retain both indentation and line-start state.
+			afterClose = lastNewlineEnd !== -1 ? lastNewlineEnd : scan;
+		}
+		chunkStart = afterClose;
+		pos = afterClose;
+		atLineStart = contentParts.length === 0 || pos === 0 || text[pos - 1] === '\n';
+	}
+
+	if (!foundTag) {
+		return { content: text, reasoningText: undefined };
+	}
+	if (chunkStart < text.length) {
+		contentParts.push(text.slice(chunkStart));
+	}
+	return {
+		content: contentParts.join(''),
+		reasoningText: reasoningParts.length > 0 ? reasoningParts.join('\n\n') : undefined,
+	};
+}
+
+/**
+ * Formats assistant text for restricted `conversation.messageText` telemetry into a
+ * structured `{ role, content, reasoning_text? }` JSON payload.
+ *
+ * Uses a native substring scan fast path so messages without inline reasoning tags skip
+ * line/fence parsing. Both closed and unclosed `<think>`, `<thinking>`, and `<analysis>`
+ * blocks outside fenced code blocks are extracted into `reasoning_text` in linear time.
+ */
+export function formatModelMessageTextForTelemetry(content: string, wireReasoningText?: string): string {
+	const trimmedWireReasoning = wireReasoningText?.trim();
+	if (content.indexOf('<think') === -1 && content.indexOf('<analysis>') === -1) {
+		const payload: IStructuredModelMessageText = trimmedWireReasoning
+			? { role: 'assistant', content, reasoning_text: trimmedWireReasoning }
+			: { role: 'assistant', content };
+		return JSON.stringify(payload);
+	}
+
+	const extracted = extractInlineReasoning(content);
+	const reasoningParts: string[] = [];
+	if (trimmedWireReasoning) {
+		reasoningParts.push(trimmedWireReasoning);
+	}
+	if (extracted.reasoningText) {
+		reasoningParts.push(extracted.reasoningText);
+	}
+	const reasoningText = reasoningParts.length > 0 ? reasoningParts.join('\n\n') : undefined;
+	const payload: IStructuredModelMessageText = reasoningText
+		? { role: 'assistant', content: extracted.content, reasoning_text: reasoningText }
+		: { role: 'assistant', content: extracted.content };
+	return JSON.stringify(payload);
+}
+
 export class AgentHostTelemetryReporter {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@ITelemetryService private readonly _telemetryService: ITelemetryService) { }
+	constructor(
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService = NullAgentHostOTelService,
+	) { }
 
 	/** The restricted GH/MSFT telemetry surface, present when the agent-host telemetry service is wired. */
 	private get _restricted(): IAgentHostRestrictedTelemetry | undefined {
@@ -954,9 +1869,14 @@ export class AgentHostTelemetryReporter {
 		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
 	}
 
+	private _copilotTelemetryContext(provider: string): IAgentHostCopilotSkuTelemetry {
+		return isAgentHostTelemetryService(this._telemetryService) ? toCopilotTelemetryData(this._telemetryService.getCopilotTelemetryContext(provider)) ?? {} : {};
+	}
+
 	executionModeChanged(provider: string, session: string, previousMode: SessionMode, newMode: SessionMode, turnCount: number, clientContext?: IAgentHostClientTelemetryContext): void {
 		this._telemetryService.publicLog2<IAgentHostExecutionModeChangedEvent, IAgentHostExecutionModeChangedClassification>('agentHost.executionModeChanged', {
 			...toInitiatorTelemetry(clientContext),
+			...this._copilotTelemetryContext(provider),
 			provider,
 			agentSessionId: AgentSession.id(session),
 			isSubagentSession: isSubagentSession(session),
@@ -966,12 +1886,39 @@ export class AgentHostTelemetryReporter {
 		});
 	}
 
-	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean): void {
+	workspaceSnapshotSent(event: IAgentHostWorkspaceSnapshotEvent): void {
+		this._telemetryService.publicLog2<IAgentHostWorkspaceSnapshotEvent, IAgentHostWorkspaceSnapshotClassification>('agentHost.workspaceSnapshot', event);
+	}
+
+	canvasOpened(provider: string, session: string, source: string | undefined, clientContext: IAgentHostClientTelemetryContext | undefined): void {
+		const extensionSource = source === 'project' || source === 'user' || source === 'plugin' || source === 'session' ? source : 'unknown';
+		this._telemetryService.publicLog2<CanvasOpenedEvent, CanvasOpenedClassification>('agentHost.canvasOpened', {
+			...toInitiatorTelemetry(clientContext),
+			...this._copilotTelemetryContext(provider),
+			schemaVersion: 1,
+			provider,
+			agentSessionId: AgentSession.id(session),
+			extensionSource,
+		});
+	}
+
+	canvasExtensionsReady(event: ICanvasExtensionsReadyEvent): void {
+		this._telemetryService.publicLog2<ICanvasExtensionsReadyEvent, CanvasExtensionsReadyClassification>('agentHost.canvasExtensionsReady', event);
+	}
+
+	canvasHostOpen(event: ICanvasHostOpenEvent): void {
+		this._telemetryService.publicLog2<ICanvasHostOpenEvent, CanvasHostOpenClassification>('agentHost.canvasHostOpen', event);
+	}
+
+	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, owner: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean, isSubagentChat: boolean): void {
+		const telemetryContext = this._copilotTelemetryContext(provider);
 		const attachmentCount = message.attachments?.length ?? 0;
 		const activeClients = sessionState?.activeClients ?? [];
-		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
+		const sessionUri = owner;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
+			...telemetryContext,
 			provider,
+			isOtelEnabled: this._otelService.enabled,
 			hostLaunchKind: clientContext.hostLaunchKind,
 			initiatorClientId: clientId,
 			initiatorClientType: clientContext.clientType,
@@ -980,9 +1927,12 @@ export class AgentHostTelemetryReporter {
 			...(clientContext.machineId ? { initiatorMachineId: clientContext.machineId } : {}),
 			...(clientContext.devDeviceId ? { initiatorDevDeviceId: clientContext.devDeviceId } : {}),
 			agentSessionId: AgentSession.id(sessionUri),
+			chatSessionId: getTelemetryChatSessionId(session),
+			turnId,
 			source,
 			messageOriginKind: getMessageOriginTelemetryKind(message, isEphemeralSession),
-			isSubagentSession: isSubagentSession(sessionUri),
+			messageActorKind: message.origin.kind,
+			isSubagentSession: isSubagentChat || isSubagentSession(sessionUri),
 			turnCount: sessionState?.turns.length ?? 0,
 			...(activeClients.length > 0 ? {
 				activeClientId: activeClients[0].clientId,
@@ -992,11 +1942,20 @@ export class AgentHostTelemetryReporter {
 			attachmentCount,
 		});
 		this._restricted?.sendGHTelemetryEvent('agentHost.userMessageSent', {
+			...telemetryContext,
 			provider,
 			initiatorClientType: clientContext.clientType,
 			conversationId: AgentSession.id(sessionUri),
+			chatSessionId: getTelemetryChatSessionId(session),
 			turnId,
 			messageOriginKind: getMessageOriginTelemetryKind(message, isEphemeralSession),
+		});
+	}
+
+	sessionCreated(provider: string | undefined, clientContext: IAgentHostClientTelemetryContext): void {
+		this._telemetryService.publicLog2<AgentHostSessionCreatedEvent, AgentHostSessionCreatedClassification>('agentHost.sessionCreated', {
+			provider,
+			...toInitiatorTelemetry(clientContext),
 		});
 	}
 
@@ -1034,14 +1993,16 @@ export class AgentHostTelemetryReporter {
 	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
 	 * @param tools The tool definitions offered to the model for this call.
 	 */
-	async assistantMessageReceived(session: string, clientType: AgentHostClientType, clientRequestId: string | undefined, tools: readonly ToolDefinition[]): Promise<void> {
+	async assistantMessageReceived(session: string, chat: string, clientType: AgentHostClientType, clientRequestId: string | undefined, tools: readonly ToolDefinition[], sdkSessionId?: string): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !clientRequestId || tools.length === 0) {
 			return;
 		}
 		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', await multiplexProperties({
 			headerRequestId: clientRequestId,
+			...(sdkSessionId ? { sdkSessionId } : {}),
 			conversationId: AgentSession.id(session),
+			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
 			messagesJson: JSON.stringify(tools),
 		}));
@@ -1053,21 +2014,23 @@ export class AgentHostTelemetryReporter {
 	 * for every user and model message, carrying the raw message text to the enhanced GH
 	 * (`copilot_v0_restricted_copilot_event`) and internal MSFT pipelines; the agent host observes
 	 * the same boundary at the SDK `user.message` event. The text is multiplexed across ~8192-char
-	 * chunks (`messageText`, `messageText_02`, …) so long prompts land untruncated, matching the
-	 * extension's `multiplexProperties`.
+	 * compressed chunks (`messageTextChunk`, `messageTextChunk_2`, …), including short text,
+	 * matching the extension's `multiplexProperties`. `messageText` retains the raw prefix.
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
 	 * @param content The user's prompt text. No-ops when empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here (a non-numeric id lands empty).
 	 */
-	async userMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number): Promise<void> {
+	async userMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, sdkSessionId?: string): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
 		}
 		const properties = await multiplexProperties({
 			source: 'user',
+			...(sdkSessionId ? { sdkSessionId } : {}),
 			conversationId: AgentSession.id(session),
+			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
 			messageText: content,
@@ -1079,27 +2042,34 @@ export class AgentHostTelemetryReporter {
 
 	/**
 	 * The model-message counterpart to {@link userMessageText}. Emitted when an `assistant.message`
-	 * arrives (the agent host's per-model-call boundary), carrying the assistant's response text.
-	 * `headerRequestId` is filled with the model call's client-minted `x-request-id`, matching the
-	 * extension. VS Code-only enrichment dims (code-block languages/counts) are not reconstructed here.
+	 * arrives (the agent host's per-model-call boundary), carrying the assistant's structured
+	 * `{ role, content, reasoning_text? }` JSON payload. `headerRequestId` is filled with the
+	 * model call's client-minted `x-request-id`, matching the extension. VS Code-only enrichment
+	 * dims (code-block languages/counts) are not reconstructed here.
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
-	 * @param content The assistant's response text. No-ops when empty.
+	 * @param content The assistant's response text. No-ops when both `content` and `reasoningText` are empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
 	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to `headerRequestId`.
+	 * @param sdkSessionId The SDK session id, when known.
+	 * @param reasoningText Optional structured wire reasoning text from `assistant.message`.
 	 */
-	async modelMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined): Promise<void> {
+	async modelMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined, sdkSessionId?: string, reasoningText?: string): Promise<void> {
 		const restricted = this._restricted;
-		if (!restricted || !content) {
+		if (!restricted || restricted.isRestrictedTelemetryActive === false || (!content && !reasoningText)) {
 			return;
 		}
+		await Promise.resolve();
+		const messageText = formatModelMessageTextForTelemetry(content, reasoningText);
 		const properties = await multiplexProperties({
 			source: 'model',
+			...(sdkSessionId ? { sdkSessionId } : {}),
 			conversationId: AgentSession.id(session),
+			chatSessionId: getTelemetryChatSessionId(chat),
 			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
 			...(clientRequestId ? { headerRequestId: clientRequestId } : {}),
-			messageText: content,
+			messageText,
 		});
 		const measurements = { messageCharLen: content.length };
 		restricted.sendEnhancedGHTelemetryEvent('conversation.messageText', properties, measurements);
@@ -1113,13 +2083,16 @@ export class AgentHostTelemetryReporter {
 		if (report.availableTools.length === 0) {
 			return;
 		}
-		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const session = report.owner;
 		const conversationId = AgentSession.id(session);
+		const chatSessionId = getTelemetryChatSessionId(report.chat);
 		const toolCounts = JSON.stringify(report.toolCounts);
 		this._telemetryService.publicLog2<IAgentHostToolCallDetailsEvent, IAgentHostToolCallDetailsClassification>('toolCallDetails', {
 			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
 			provider: report.provider,
 			agentSessionId: conversationId,
+			chatSessionId,
 			isSubagentSession: isSubagentSession(session),
 			conversationId,
 			requestId: report.turnId,
@@ -1142,9 +2115,11 @@ export class AgentHostTelemetryReporter {
 		}
 		const properties = await multiplexProperties({
 			conversationId,
+			chatSessionId,
 			requestId: report.turnId,
 			messageId: report.turnId,
 			initiatorClientType: report.clientType,
+			...toCopilotTelemetryData(report.telemetryContext),
 			responseType: report.responseType,
 			...(report.model ? { model: report.model } : {}),
 			toolCounts,
@@ -1166,10 +2141,11 @@ export class AgentHostTelemetryReporter {
 
 	/** Emits the workbench-compatible tool-approval telemetry from the agent host on the standard telemetry channel. */
 	toolApproval(report: IAgentHostToolApprovalReport): void {
-		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const session = report.owner;
 		const agentSessionId = AgentSession.id(session);
 		this._telemetryService.publicLog2<IAgentHostToolApprovalEvent, IAgentHostToolApprovalClassification>('chat.toolApproval', {
 			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
 			provider: report.provider,
 			agentSessionId,
 			isSubagentSession: isSubagentSession(session),
@@ -1179,6 +2155,9 @@ export class AgentHostTelemetryReporter {
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
 			confirmKind: report.confirmKind,
+			...(report.decisionSource !== undefined ? { decisionSource: report.decisionSource } : {}),
+			...(report.permissionResult !== undefined ? { permissionResult: report.permissionResult } : {}),
+			approvalTelemetryVersion: 2,
 			settingId: undefined,
 			lmServiceScope: undefined,
 			customButtonKind: undefined,
@@ -1201,6 +2180,7 @@ export class AgentHostTelemetryReporter {
 		const candidateModels = report.candidateModels ?? [];
 		const properties = {
 			conversationId: AgentSession.id(report.session),
+			chatSessionId: getTelemetryChatSessionId(report.chat),
 			vscodeRequestId: report.turnId,
 			initiatorClientType: report.clientType,
 			...(report.predictedLabel !== undefined ? { predictedLabel: report.predictedLabel } : {}),
@@ -1272,6 +2252,29 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
 	}
 
+	/**
+	 * Records what triggered a skill invocation and where the skill came from. Only built-in skills are
+	 * named; other skills keep their hashed identity on the forwarded runtime `copilotSdk/skill_invoked`;
+	 * join the two on `sdkEventId` = `event_id`.
+	 */
+	skillInvoked(report: IAgentHostSkillInvokedReport): void {
+		const agentSessionId = AgentSession.id(report.owner);
+		this._telemetryService.publicLog2<IAgentHostSkillInvokedEvent, IAgentHostSkillInvokedClassification>('agentHost.skillInvoked', {
+			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
+			provider: report.provider,
+			agentSessionId,
+			chatSessionId: getTelemetryChatSessionId(report.session),
+			turnId: report.turnId,
+			sdkEventId: report.sdkEventId,
+			trigger: report.trigger !== undefined && skillInvocationTriggers.has(report.trigger) ? report.trigger : 'unknown',
+			isSubagentInvocation: report.isSubagentInvocation,
+			skillSource: report.skillSource,
+			skillOrigin: report.skillOrigin,
+			skillName: report.skillName,
+		});
+	}
+
 	async reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted) {
@@ -1307,14 +2310,20 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', internalMultiplexedProperties, measurements);
 	}
 
-	requestTokenUsage(report: { clientContext: IAgentHostClientTelemetryContext; provider: string; session: string; requestId: string; parentTurnId?: string; parentToolCallId?: string; selectedModel?: string; selectedModelTelemetryKind?: AgentHostModelTelemetryKind; modelTelemetryKind?: AgentHostModelTelemetryKind; result: AgentHostTurnResult; summary: IAgentTokenUsageSummary }): void {
-		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+	modelCallUsageCounted(report: ModelCallUsageCountedEvent): void {
+		this._telemetryService.publicLog2<ModelCallUsageCountedEvent, ModelCallUsageCountedClassification>('agentHost.modelCallUsageCounted', report);
+	}
+
+	requestTokenUsage(report: { clientContext: IAgentHostClientTelemetryContext; telemetryContext?: IAgentTelemetryContext; provider: string; session: string; owner: string; requestId: string; parentTurnId?: string; parentToolCallId?: string; subagentKind?: AgentSubagentKind; selectedModel?: string; selectedModelTelemetryKind?: AgentHostModelTelemetryKind; modelTelemetryKind?: AgentHostModelTelemetryKind; result: AgentHostTurnResult; summary: IAgentTokenUsageSummary }): void {
+		const session = report.owner;
+		const isSubagent = report.subagentKind !== undefined || isSubagentSession(session);
 		const { model: usageModel, reasoningEffort, ...summary } = report.summary;
 		const model = usageModel === 'auto' ? 'unknown' : toTelemetryModel(usageModel, report.modelTelemetryKind) ?? 'unknown';
 		const selectedModel = toTelemetryModel(report.selectedModel, report.selectedModelTelemetryKind);
 		const effort = isReasoningEffortLevel(reasoningEffort) ? reasoningEffort : undefined;
 		this._telemetryService.publicLog2<IRequestTokenUsageEvent, RequestTokenUsageClassification>('agentHost.requestTokenUsage', {
 			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
 			...summary,
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
@@ -1322,7 +2331,8 @@ export class AgentHostTelemetryReporter {
 			requestId: report.requestId,
 			parentTurnId: report.parentTurnId,
 			parentToolCallId: report.parentToolCallId,
-			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			isSubagentSession: isSubagent,
+			...toSubagentKindTelemetry(isSubagent, report.subagentKind),
 			model,
 			...(selectedModel !== undefined ? { selectedModel } : {}),
 			...(effort !== undefined ? { reasoningEffort: effort } : {}),
@@ -1335,27 +2345,80 @@ export class AgentHostTelemetryReporter {
 	}
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
-		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const session = report.owner;
 		const chatSessionId = getTelemetryChatSessionId(report.session);
-		const isSubagent = isSubagentChatUri(report.session) || isSubagentSession(session);
+		const isSubagent = report.subagentKind !== undefined || isSubagentSession(session);
+		const subagentKindTelemetry = toSubagentKindTelemetry(isSubagent, report.subagentKind);
 		const model = toTelemetryModel(report.model, report.modelTelemetryKind);
+		const providerStages = toProviderStageMeasurements(report.providerStageDurationsMs);
+		const providerTimings = report.providerTimings?.length ? report.providerTimings.map(sanitizeAgentHostProviderTiming).filter(timing => timing !== undefined) : undefined;
+		this._otelService?.emitTurnTiming({
+			provider: report.provider,
+			agentSessionId: AgentSession.id(session),
+			chatId: getAgentHostChatId(report.session),
+			turnId: report.turnId,
+			isSubagentSession: isSubagent,
+			result: report.result,
+			totalTime: report.totalTime,
+			timeToProviderDispatch: report.sendDispatchedMs,
+			timeToFirstProgress: report.timeToFirstProgress,
+			timeToFirstSubstantiveProgress: report.timeToFirstSubstantiveProgress,
+			sendStageWorkingDirectoryMs: report.sendStageDurationsMs?.get('workingDirectory'),
+			sendStageModelSelectionMs: report.sendStageDurationsMs?.get('modelSelection'),
+			sendStageAttachmentsMs: report.sendStageDurationsMs?.get('attachments'),
+			sendStageContributionsMs: report.sendStageDurationsMs?.get('contributions'),
+			sendStageProviderPreparationMs: report.sendStageDurationsMs?.get('providerPreparation'),
+			sendStageCheckpointMs: report.sendStageDurationsMs?.get('checkpoint'),
+			...providerStages,
+			providerTimings,
+			hostRootTurnOrdinal: report.hostRootTurnOrdinal,
+			hostProcessAgeMs: report.hostProcessAgeMs,
+			titleGenerationStrategy: report.titleGenerationStrategy,
+		});
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
+			...(report.turnInteraction ? {
+				sdkSessionId: report.turnInteraction.sdkSessionId,
+				originalTurnId: report.turnInteraction.originalTurnId,
+				steeredFromTurn: report.turnInteraction.steeredFromTurn,
+				interactionIds: JSON.stringify(report.turnInteraction.interactionIds),
+				interactionIdsTruncated: report.turnInteraction.interactionIdsTruncated,
+				...(report.turnInteraction.steeringDelivery ? { steeringDelivery: report.turnInteraction.steeringDelivery } : {}),
+			} : {}),
 			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
+			...(report.provider === 'codex' ? getCodexAccountTelemetryData(report.providerTelemetryContext?.codex) : undefined),
+			...(report.provider === 'codex' ? { codexModelProvider: report.codexModelProvider ?? 'unknown' } : {}),
+			...prewarmedSessionTelemetry(report.providerTelemetryContext),
+			...(report.hostRootTurnOrdinal !== undefined ? { hostRootTurnOrdinal: report.hostRootTurnOrdinal } : {}),
+			...(report.hostProcessAgeMs !== undefined ? { hostProcessAgeMs: report.hostProcessAgeMs } : {}),
+			...(report.titleGenerationStrategy !== undefined ? { titleGenerationStrategy: report.titleGenerationStrategy } : {}),
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			chatSessionId,
 			isSubagentSession: isSubagent,
+			...subagentKindTelemetry,
 			turnId: report.turnId,
 			parentTurnId: report.parentTurnId,
 			parentToolCallId: report.parentToolCallId,
 			subagentTaskModelSource: report.subagentTaskModelSource,
 			timeToFirstProgress: report.timeToFirstProgress,
+			timeToFirstSubstantiveProgress: report.timeToFirstSubstantiveProgress,
 			timeToFirstEdit: report.timeToFirstEditMs,
-			timeToFirstEditClassifierVersion: report.timeToFirstEditClassifierVersion,
+			startedWithSteering: report.startedWithSteering,
+			receivedSteering: report.receivedSteering,
+			sendStageWorkingDirectoryMs: report.sendStageDurationsMs?.get('workingDirectory'),
+			sendStageModelSelectionMs: report.sendStageDurationsMs?.get('modelSelection'),
+			sendStageAttachmentsMs: report.sendStageDurationsMs?.get('attachments'),
+			sendStageContributionsMs: report.sendStageDurationsMs?.get('contributions'),
+			sendStageProviderPreparationMs: report.sendStageDurationsMs?.get('providerPreparation'),
+			sendStageCheckpointMs: report.sendStageDurationsMs?.get('checkpoint'),
+			timeToProviderDispatch: report.sendDispatchedMs,
+			...providerStages,
 			totalTime: report.totalTime,
 			result: report.result,
 			model,
 			modelSelectionKind: report.modelSelectionKind,
+			...toFusionTurnTelemetry(report),
 			isBYOK: report.modelTelemetryKind === undefined ? undefined : report.modelTelemetryKind === 'byok',
 			permissionLevel: report.permissionLevel,
 			interactionMode: report.interactionMode,
@@ -1371,17 +2434,39 @@ export class AgentHostTelemetryReporter {
 			directBilledNanoAiu: report.directBilledNanoAiu,
 			modelCallCount: report.modelCallCount,
 		});
+		if (providerTimings?.length) {
+			const providerTimingContext = {
+				...toInitiatorTelemetry(report.clientContext),
+				...toCopilotTelemetryData(report.telemetryContext),
+				schemaVersion: 2,
+				provider: report.provider,
+				agentSessionId: AgentSession.id(session),
+				chatSessionId,
+				turnId: report.turnId,
+				result: report.result,
+				model,
+			};
+			for (const [group, measurements] of groupAgentHostProviderTimings(providerTimings)) {
+				this._telemetryService.publicLog2<AgentHostProviderTimingEvent, AgentHostProviderTimingClassification>('agentHost.providerTiming', {
+					...providerTimingContext, group, ...measurements,
+				});
+			}
+		}
 		if (report.failure) {
 			const { providerCallId, serviceRequestId } = readAgentErrorTelemetryMeta(report.failure.error);
 			this._telemetryService.publicLogError2<IAgentHostTurnFailedEvent, IAgentHostTurnFailedClassification>('agentHost.turnFailed', {
 				...toInitiatorTelemetry(report.clientContext),
+				...toCopilotTelemetryData(report.telemetryContext),
 				provider: report.provider,
 				agentSessionId: AgentSession.id(session),
 				chatSessionId,
 				isSubagentSession: isSubagent,
+				...subagentKindTelemetry,
 				turnId: report.turnId,
 				messageOriginKind: report.messageOriginKind,
 				failureStage: report.failure.stage,
+				...toFusionTurnTelemetry(report),
+				...prewarmedSessionTelemetry(report.providerTelemetryContext),
 				errorType: report.failure.error.errorType,
 				errorName: report.failure.errorName,
 				errorCode: report.failure.errorCode,
@@ -1399,17 +2484,21 @@ export class AgentHostTelemetryReporter {
 	 * expected waits and which indicate a real hang.
 	 */
 	turnHung(report: IAgentHostTurnHungReport): void {
-		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const session = report.owner;
+		const isSubagent = report.subagentKind !== undefined || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostTurnHungEvent, IAgentHostTurnHungClassification>('agentHost.turnHung', {
 			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
+			...(report.provider === 'codex' ? getCodexAccountTelemetryData(report.providerTelemetryContext?.codex) : undefined),
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(report.session),
-			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			isSubagentSession: isSubagent,
+			...toSubagentKindTelemetry(isSubagent, report.subagentKind),
 			turnId: report.turnId,
 			messageOriginKind: report.messageOriginKind,
 			hangReason: report.hangReason,
-			isExpected: report.hangReason === 'waitingOnUser' || report.hangReason === 'runningTool',
+			isExpected: isExpectedTurnHang(report.hangReason),
 			hadAnyProgress: report.hadAnyProgress,
 			lastActivityKind: normalizeTurnActivityKind(report.lastActivityKind),
 			currentStage: report.currentStage,
@@ -1428,19 +2517,23 @@ export class AgentHostTelemetryReporter {
 			turnElapsedMs: report.turnElapsedMs,
 			model: toTelemetryModel(report.model, report.modelTelemetryKind),
 			modelSelectionKind: report.modelSelectionKind,
+			...toFusionTurnTelemetry(report),
 			permissionLevel: report.permissionLevel,
 		});
 	}
 
 	/** Paired recovery event for a turn previously reported by {@link turnHung}. */
 	hungTurnCompleted(report: IAgentHostHungTurnCompletedReport): void {
-		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const session = report.owner;
+		const isSubagent = report.subagentKind !== undefined || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostHungTurnCompletedEvent, IAgentHostHungTurnCompletedClassification>('agentHost.hungTurnCompleted', {
 			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(report.session),
-			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			isSubagentSession: isSubagent,
+			...toSubagentKindTelemetry(isSubagent, report.subagentKind),
 			turnId: report.turnId,
 			messageOriginKind: report.messageOriginKind,
 			hangReason: report.hangReason,
@@ -1448,21 +2541,80 @@ export class AgentHostTelemetryReporter {
 			hangReportCount: report.hangReportCount,
 			totalTimeMs: report.totalTimeMs,
 			timeAfterHangMs: report.timeAfterHangMs,
+			...toFusionTurnTelemetry(report),
 		});
+	}
+
+	/** Reports one session's activity period. See {@link IAgentHostSessionSummaryTotals} for what each total sums. */
+	sessionSummary(report: IAgentHostSessionSummaryReport): void {
+		this._telemetryService.publicLog2<IAgentHostSessionSummaryEvent, IAgentHostSessionSummaryClassification>('agentHost.sessionSummary', {
+			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
+			schemaVersion: 1,
+			provider: report.provider,
+			agentSessionId: AgentSession.id(report.session),
+			summaryReason: report.summaryReason,
+			summaryIndex: report.summaryIndex,
+			createdInHostProcess: report.createdInHostProcess,
+			multipleClientTypes: report.multipleClientTypes,
+			...report.totals,
+			...report.artifacts,
+		});
+	}
+
+	/** Reports an artifact or reference that was recorded, promoted, or found already recorded. */
+	artifactRecorded(report: IAgentHostArtifactRecordedReport): void {
+		this._telemetryService.publicLog2<IAgentHostArtifactRecordedEvent, IAgentHostArtifactRecordedClassification>('agentHost.artifactRecorded', {
+			...toInitiatorTelemetry(report.clientContext),
+			...this._artifactCopilotTelemetry(report),
+			provider: report.provider ?? 'unknown',
+			agentSessionId: AgentSession.id(report.session),
+			turnId: report.turnId,
+			toolCallId: report.toolCallId,
+			source: report.source,
+			kind: report.kind,
+			category: report.isArtifact ? 'artifact' : 'reference',
+			outcome: report.outcome,
+			isGitHub: report.isGitHub,
+			batchSize: report.batchSize,
+		});
+	}
+
+	artifactRemoved(report: IAgentHostArtifactRemovedReport): void {
+		this._telemetryService.publicLog2<IAgentHostArtifactRemovedEvent, IAgentHostArtifactRemovedClassification>('agentHost.artifactRemoved', {
+			...toInitiatorTelemetry(report.clientContext),
+			...this._artifactCopilotTelemetry(report),
+			provider: report.provider ?? 'unknown',
+			agentSessionId: AgentSession.id(report.session),
+			turnId: report.turnId,
+			toolCallId: report.toolCallId,
+			initiator: report.initiator,
+			kind: report.kind,
+			category: report.isArtifact ? 'artifact' : 'reference',
+			isGitHub: report.isGitHub,
+		});
+	}
+
+	/** The account of the turn that changed the entry, else the provider's current account. */
+	private _artifactCopilotTelemetry(report: IAgentHostTurnAttributedReport & { readonly provider: string | undefined }): IAgentHostCopilotSkuTelemetry {
+		return toCopilotTelemetryData(report.telemetryContext) ?? (report.provider ? this._copilotTelemetryContext(report.provider) : {});
 	}
 
 	toolInvoked(report: IAgentHostToolInvokedReport): void {
 		// `chatSessionId` is the full session URI string (matching the value
 		// previously emitted by `CopilotAgentSession`). Action signals are keyed
 		// by their chat-channel URI, so normalize it back to the session URI.
-		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const session = report.owner;
+		const isSubagent = report.subagentKind !== undefined || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostLanguageModelToolInvokedEvent, IAgentHostLanguageModelToolInvokedClassification>('languageModelToolInvoked', {
 			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
 			result: report.result,
 			chatSessionId: session,
 			toolId: report.toolId,
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
+			...(report.mcpSourceKind ? { mcpSourceKind: report.mcpSourceKind } : {}),
 			toolCallId: report.toolCallId,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,
@@ -1472,13 +2624,16 @@ export class AgentHostTelemetryReporter {
 		});
 		const event: IAgentHostToolInvokedEvent = {
 			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
 			result: report.result,
 			agentSessionId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(report.session),
-			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			isSubagentSession: isSubagent,
+			...toSubagentKindTelemetry(isSubagent, report.subagentKind),
 			toolId: report.toolId,
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
+			...(report.mcpSourceKind ? { mcpSourceKind: report.mcpSourceKind } : {}),
 			toolCallId: report.toolCallId,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,
@@ -1486,15 +2641,16 @@ export class AgentHostTelemetryReporter {
 			turnId: report.turnId,
 			model: toTelemetryModel(report.model, report.modelTelemetryKind),
 			errorCode: report.errorCode,
-			msg: report.errorMessage,
 		};
 		this._telemetryService.publicLog2<IAgentHostToolInvokedEvent, IAgentHostToolInvokedClassification>('agentHost.toolInvoked', event);
 	}
 
 	askQuestionsToolInvoked(report: IAgentHostAskQuestionsToolInvokedReport): void {
-		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const session = report.owner;
+		const isSubagent = report.subagentKind !== undefined || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostAskQuestionsToolInvokedEvent, IAgentHostAskQuestionsToolInvokedClassification>('askQuestionsToolInvoked', {
 			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
 			requestId: report.requestId,
 			questionCount: report.questionCount,
 			answeredCount: report.answeredCount,
@@ -1505,17 +2661,21 @@ export class AgentHostTelemetryReporter {
 			duration: report.duration,
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
-			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			isSubagentSession: isSubagent,
+			...toSubagentKindTelemetry(isSubagent, report.subagentKind),
 		});
 	}
 
 	toolCallStalled(report: IAgentHostToolCallStalledReport): void {
-		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const session = report.owner;
+		const isSubagent = report.subagentKind !== undefined || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostToolCallStalledEvent, IAgentHostToolCallStalledClassification>('agentHost.toolCallStalled', {
 			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
-			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			isSubagentSession: isSubagent,
+			...toSubagentKindTelemetry(isSubagent, report.subagentKind),
 			blockerKind: report.blockerKind,
 			toolCallId: report.toolCallId,
 			toolId: report.toolId,
@@ -1526,12 +2686,15 @@ export class AgentHostTelemetryReporter {
 	}
 
 	stalledToolCallCompleted(report: IAgentHostStalledToolCallCompletedReport): void {
-		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const session = report.owner;
+		const isSubagent = report.subagentKind !== undefined || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostStalledToolCallCompletedEvent, IAgentHostStalledToolCallCompletedClassification>('agentHost.stalledToolCallCompleted', {
 			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
-			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			isSubagentSession: isSubagent,
+			...toSubagentKindTelemetry(isSubagent, report.subagentKind),
 			blockerKind: report.blockerKind,
 			toolCallId: report.toolCallId,
 			toolId: report.toolId,

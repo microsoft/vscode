@@ -7,7 +7,7 @@ import { URI } from '../../base/common/uri.js';
 import type { ITextEditorOptions } from '../../platform/editor/common/editor.js';
 import type { IRange } from './core/range.js';
 
-export const multiDiffEditorVariants = ['noCards', 'noCardsNonCompact'] as const;
+export const multiDiffEditorVariants = ['cards', 'noCards', 'noCardsNonCompact'] as const;
 export type MultiDiffEditorVariant = (typeof multiDiffEditorVariants)[number];
 
 export type IMultiDiffResourceId = { original: URI | undefined; modified: URI | undefined };

@@ -1,0 +1,160 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace EDIT_ZERO with EDIT_ONE in successive.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: edit
+          input:
+            path: ${workdir}/successive.txt
+            old_str: EDIT_ZERO
+            new_str: EDIT_ONE
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace EDIT_ZERO with EDIT_ONE in successive.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/successive.txt
+                old_str: EDIT_ZERO
+                new_str: EDIT_ONE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: File ${workdir}/successive.txt updated with changes.
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace EDIT_ZERO with EDIT_ONE in successive.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/successive.txt
+                old_str: EDIT_ZERO
+                new_str: EDIT_ONE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: File ${workdir}/successive.txt updated with changes.
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Use your file editing tool exactly once to replace EDIT_ONE with EDIT_TWO in successive.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: edit
+          input:
+            path: ${workdir}/successive.txt
+            old_str: EDIT_ONE
+            new_str: EDIT_TWO
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace EDIT_ZERO with EDIT_ONE in successive.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/successive.txt
+                old_str: EDIT_ZERO
+                new_str: EDIT_ONE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: File ${workdir}/successive.txt updated with changes.
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Use your file editing tool exactly once to replace EDIT_ONE with EDIT_TWO in successive.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/successive.txt
+                old_str: EDIT_ONE
+                new_str: EDIT_TWO
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: File ${workdir}/successive.txt updated with changes.
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace EDIT_ZERO with EDIT_ONE in successive.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/successive.txt
+                old_str: EDIT_ZERO
+                new_str: EDIT_ONE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: File ${workdir}/successive.txt updated with changes.
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Use your file editing tool exactly once to replace EDIT_ONE with EDIT_TWO in successive.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/successive.txt
+                old_str: EDIT_ONE
+                new_str: EDIT_TWO
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: File ${workdir}/successive.txt updated with changes.
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Reply exactly "TWO_EDITS_READY". Do not use tools.
+    response:
+      content: TWO_EDITS_READY
+      stopReason: end_turn

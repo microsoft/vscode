@@ -6,6 +6,8 @@
 import { URI } from '../../../base/common/uri.js';
 import { IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
+export const WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX = '.vsctmp';
+
 export interface IBaseBackupInfo {
 	remoteAuthority?: string;
 }

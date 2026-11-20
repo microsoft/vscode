@@ -7,11 +7,13 @@ import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lif
 import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../base/common/async.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { createSandboxNetworkFilter, IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
+import { equals } from '../../../base/common/objects.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
-import { getAgentBrowserViewCreationDefaults } from '../common/browserView.js';
+import { getAgentBrowserViewCreationDefaults, IBrowserViewNetwork } from '../common/browserView.js';
 import { PlaywrightTab, DialogInterruptedError } from './playwrightTab.js';
 import { CDPRequest, CDPResponse, CDPTargetInfo } from '../common/cdp/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -62,6 +64,50 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _sessions = this._register(new DisposableMap<string, PlaywrightSession>());
+	private readonly _networkRestrictions = new Map<string, ISandboxNetworkRestrictions>();
+	private readonly _networks = new Map<string, IBrowserViewNetwork>();
+	private readonly _sessionUpdates = new Map<string, Promise<void>>();
+
+	async setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void> {
+		return this._updateSession(sessionId, async () => {
+			await this.browserViewGroupRemoteService.setSessionNetworkRestrictions(sessionId, restrictions);
+			if (!equals(this._networkRestrictions.get(sessionId), restrictions)) {
+				this._closeConnection(sessionId);
+				this._networkRestrictions.set(sessionId, restrictions);
+			}
+		});
+	}
+
+	async setSessionNetwork(sessionId: string, network: IBrowserViewNetwork | undefined): Promise<void> {
+		return this._updateSession(sessionId, async () => {
+			if (this._networks.get(sessionId)?.authority !== network?.authority) {
+				this._closeConnection(sessionId);
+				if (network) {
+					this._networks.set(sessionId, network);
+				} else {
+					this._networks.delete(sessionId);
+				}
+			}
+		});
+	}
+
+	/** Apply a change to a session's configuration once its pending initialization and earlier changes finish. */
+	private async _updateSession(sessionId: string, apply: () => Promise<void>): Promise<void> {
+		const run = async () => {
+			await this._pendingInits.get(sessionId);
+			await apply();
+		};
+		// A failed update is reported to its caller but must not prevent a later retry.
+		const update = (this._sessionUpdates.get(sessionId) ?? Promise.resolve()).then(run, run);
+		this._sessionUpdates.set(sessionId, update);
+		try {
+			await update;
+		} finally {
+			if (this._sessionUpdates.get(sessionId) === update) {
+				this._sessionUpdates.delete(sessionId);
+			}
+		}
+	}
 
 	/** In-flight session initializations keyed by session ID. */
 	private readonly _pendingInits = new Map<string, Promise<PlaywrightSession>>();
@@ -86,6 +132,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	 * connection if the session does not already exist.
 	 */
 	private async _getOrCreateSession(sessionId: string): Promise<PlaywrightSession> {
+		await this._sessionUpdates.get(sessionId);
 		const existing = this._sessions.get(sessionId);
 		if (existing) {
 			this._touchSession(sessionId);
@@ -113,14 +160,18 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	 */
 	private async _initSession(sessionId: string): Promise<PlaywrightSession> {
 		this.logService.debug(`[PlaywrightService] Initializing session ${sessionId}`);
+		const restrictions = this._networkRestrictions.get(sessionId);
+		const network = this._networks.get(sessionId);
 
 		const group = await this.browserViewGroupRemoteService.createGroup(
-			{ audience: { type: 'agent', sessionId } },
+			{ audience: { type: 'agent', sessionId }, ...(restrictions?.sandboxEnabled ? { sandboxSessionId: sessionId } : {}) },
 			{
 				host: {
 					windowId: this.windowId
 				},
-				...getAgentBrowserViewCreationDefaults(sessionId, this.useSessionStorageAffinity ? sessionId : undefined)
+				...getAgentBrowserViewCreationDefaults(sessionId, restrictions || this.useSessionStorageAffinity ? sessionId : undefined, network),
+				...(restrictions?.sandboxEnabled ? { initialAudiences: [{ type: 'agent' as const, sessionId }] } : {}),
+				...(restrictions ? { sandboxNetworkRestrictions: restrictions } : {}),
 			}
 		);
 
@@ -179,7 +230,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			group,
 			actionScope,
 			this.logService,
-			this.agentNetworkFilterService,
+			restrictions ? createSandboxNetworkFilter(this.agentNetworkFilterService, restrictions) : this.agentNetworkFilterService,
 			this.telemetryService,
 		);
 
@@ -187,8 +238,10 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		// recreated fresh on the next tool call.
 		browser.on('disconnected', () => {
 			this.logService.debug(`[PlaywrightService] Browser disconnected for session ${sessionId}`);
-			this._sessions.deleteAndDispose(sessionId);
-			this._inactivityTimers.deleteAndDispose(sessionId);
+			if (this._sessions.get(sessionId) === session) {
+				this._sessions.deleteAndDispose(sessionId);
+				this._inactivityTimers.deleteAndDispose(sessionId);
+			}
 		});
 
 		this._sessions.set(sessionId, session);
@@ -237,6 +290,13 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	// --- Session lifecycle ---
 
 	async disposeSession(sessionId: string): Promise<void> {
+		this._networkRestrictions.delete(sessionId);
+		this._networks.delete(sessionId);
+		this._closeConnection(sessionId);
+	}
+
+	/** Close a session's Playwright connection, keeping its configuration for the next one. */
+	private _closeConnection(sessionId: string): void {
 		if (this._sessions.has(sessionId)) {
 			this.logService.debug(`[PlaywrightService] Disposing session ${sessionId}`);
 			this._sessions.deleteAndDispose(sessionId);

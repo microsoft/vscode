@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, type AuthenticateParams, type IAgent, type IMcpNotification } from '../../common/agent.js';
+import type { IAgentHostAuthenticationScope } from '../../common/agentHostCredentials.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -19,7 +20,7 @@ import { MockAgent } from './mockAgent.js';
 
 class TestAuthenticationService extends AgentHostAuthenticationService {
 	readonly replayedProviders: IAgent[] = [];
-	readonly authenticateCalls: { params: AuthenticateParams; providers: readonly IAgent[] }[] = [];
+	readonly authenticateCalls: { params: AuthenticateParams; providers: readonly IAgent[]; clientId: string | undefined }[] = [];
 	replayGate: DeferredPromise<void> | undefined;
 	afterReplay: (() => void) | undefined;
 
@@ -29,8 +30,8 @@ class TestAuthenticationService extends AgentHostAuthenticationService {
 		this.afterReplay?.();
 	}
 
-	override async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>) {
-		this.authenticateCalls.push({ params, providers: [...providers] });
+	override async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, _scope?: IAgentHostAuthenticationScope, clientId?: string) {
+		this.authenticateCalls.push({ params, providers: [...providers], clientId });
 		return { authenticated: true };
 	}
 }
@@ -185,7 +186,7 @@ suite('AgentHostProviderService', () => {
 		const notifications: IMcpNotification[] = [];
 		disposables.add(service.onMcpNotification(notification => notifications.push(notification)));
 		const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'session').toString()));
-		const channel = buildMcpChannel(chat, 'server');
+		const channel = buildMcpChannel(chat, 'server', 'copilot');
 		const notification = { channel, method: 'notifications/tools/list_changed' };
 
 		provider.fireMcpNotification(notification);
@@ -290,15 +291,17 @@ suite('AgentHostProviderService', () => {
 		service.registerProvider(second);
 		const params = { resource: 'resource', token: 'token' };
 
-		assert.deepStrictEqual(await service.authenticate(params), { authenticated: true });
+		assert.deepStrictEqual(await service.authenticate(params, undefined, 'originating-client'), { authenticated: true });
 		await assert.rejects(service.shutdown(), /shutdown failed/);
 
 		assert.deepStrictEqual({
 			authenticateProviders: authentication.authenticateCalls[0].providers.map(provider => provider.id),
+			clientId: authentication.authenticateCalls[0].clientId,
 			shutdownCounts: [first.shutdownCount, second.shutdownCount],
 			disposeCounts: [first.disposeCount, second.disposeCount],
 		}, {
 			authenticateProviders: ['first', 'second'],
+			clientId: 'originating-client',
 			shutdownCounts: [1, 1],
 			disposeCounts: [1, 1],
 		});
