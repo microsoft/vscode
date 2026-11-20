@@ -24,7 +24,7 @@ import { DisposableMap, DisposableStore, ImmortalReference, MutableDisposable, t
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
+import { basename, extUriIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -4826,16 +4826,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('rebases the selected agent to its worktree twin from the agent list before the working directory flips', () => {
-		const provider = createProvider(disposables, agentHost);
+	test('rebases the selected agent and its matching draft before the working directory flips', () => {
+		const folderAgent = 'file:///Users/me/vscode/.github/agents/sessions.md';
+		const worktreeAgent = 'file:///Users/me/vscode.worktrees/rebase-worktree/.github/agents/sessions.md';
+		const draft = observableValue<IChatModelInputState>({ debugName: 'draft' }, {
+			inputText: 'keep this', attachments: [], selections: [], selectedModel: undefined, contrib: {},
+			mode: { id: folderAgent, kind: ChatModeKind.Agent },
+		});
+		const model = upcastPartial<IChatModel>({
+			inputModel: upcastPartial<IInputModel>({ state: draft, setState: update => draft.set({ ...draft.get(), ...update }, undefined) }),
+		});
+		const provider = createProvider(disposables, agentHost, undefined, { getChatModel: () => model });
 		fireSessionAdded(agentHost, 'rebase-worktree', { title: 'Rebase Worktree', workingDirectory: 'file:///Users/me/vscode' });
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Rebase Worktree');
 		assert.ok(session);
 
 		// A folder agent is picked while the session still runs in the repo.
-		const folderAgent = 'file:///Users/me/vscode/.github/agents/sessions.md';
-		const worktreeAgent = 'file:///Users/me/vscode.worktrees/rebase-worktree/.github/agents/sessions.md';
 		provider.setAgent?.(session!.sessionId, { uri: folderAgent, name: 'sessions' });
 
 		// The host reports the worktree-pathed agents (the folder twin is gone)
@@ -4843,7 +4850,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// must derive the worktree root from the agent list, not the (still
 		// folder) working directory, so the selection is re-pointed in time.
 		provider.getSessionConfig(session!.sessionId, session!.mainChat.get().resource);
-		agentHost.setSessionState('rebase-worktree', 'copilotcli', {
+		const publishAgent = (uri?: string) => agentHost.setSessionState('rebase-worktree', 'copilotcli', {
 			provider: 'copilotcli',
 			title: 'Rebase Worktree',
 			status: ProtocolSessionStatus.Idle,
@@ -4856,11 +4863,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 				uri: 'plugin://worktree',
 				name: 'worktree plugin',
 				load: { kind: CustomizationLoadStatus.Loaded },
-				children: [{ type: CustomizationType.Agent, id: worktreeAgent, uri: worktreeAgent, name: 'sessions' }],
+				children: uri ? [{ type: CustomizationType.Agent, id: uri, uri, name: 'sessions' }] : [],
 			}],
 		});
-
-		assert.deepStrictEqual(session!.mode.get(), { id: worktreeAgent, kind: 'agent' });
+		publishAgent();
+		const whileMissing = draft.get().mode.id;
+		publishAgent(worktreeAgent);
+		const afterRebase = draft.get();
+		const independentMode = { id: 'file:///other.agent.md', kind: ChatModeKind.Agent };
+		model.inputModel.setState({ mode: independentMode });
+		publishAgent(folderAgent);
+		assert.deepStrictEqual([whileMissing, afterRebase.mode.id, afterRebase.inputText, session!.mode.get()?.id, draft.get().mode], [
+			folderAgent, worktreeAgent, 'keep this', folderAgent, independentMode,
+		]);
 	});
 
 	test('leaves the selected agent untouched when the agent list has no relocated twin', () => {
@@ -7567,6 +7582,45 @@ suite('LocalAgentHostSessionsProvider', () => {
 			logMatchesContainerWorkspace: true,
 		});
 	});
+
+	for (const pendingAvailability of [false, true]) {
+		test(`a Dev Container draft shows its request and Dev Container workspace while the container starts (availability pending: ${pendingAvailability})`, async () => {
+			const availability = new DeferredPromise<boolean>();
+			const connecting = new DeferredPromise<void>();
+			const provider = createProvider(disposables, agentHost, undefined, {
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override isAvailable(): Promise<boolean> { return availability.p; }
+					override getWorkspaceLabel(workspace: URI): string { return `${basename(workspace)} [Dev Container]`; }
+					override async connect(_workspace: URI, token: CancellationToken): Promise<never> {
+						connecting.complete();
+						return raceCancellationError(new DeferredPromise<never>().p, token);
+					}
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			if (!pendingAvailability) {
+				await availability.complete(true);
+				await timeout(0);
+			}
+			provider.preferDevContainer(session.sessionId);
+			const show = () => ({ title: session.title.get(), workspace: session.workspace.get()?.label });
+			const before = show();
+			const preparation = provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello\nworld');
+			const rejected = assert.rejects(preparation, /Canceled/);
+			if (pendingAvailability) {
+				await availability.complete(true);
+			}
+			await connecting.p;
+			const during = show();
+			session.preparationProgress?.get()?.cancel();
+			await rejected;
+			assert.deepStrictEqual({ before, during, after: show() }, {
+				before: { title: '', workspace: 'project' },
+				during: { title: 'hello', workspace: 'project [Dev Container]' },
+				after: { title: '', workspace: 'project' },
+			});
+		});
+	}
 
 	for (const pendingEagerCreate of [false, true]) {
 		test(`canceling Dev Container worktree preparation does not create a worktree (pending eager create: ${pendingEagerCreate})`, async () => {

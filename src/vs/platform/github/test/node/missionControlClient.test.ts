@@ -1273,9 +1273,9 @@ suite('Mission Control client', () => {
 	test('model discovery preserves catalog metadata and uses its API version only for the models route', async () => {
 		const catalog = {
 			data: [{
-				id: 'future-model', name: 'Future', model_picker_enabled: false, policy: { state: 'disabled' },
+				id: 'future-model', name: 'Future', version: '2', model_picker_enabled: false, policy: { state: 'disabled' },
 				billing: { multiplier: 2, tiers: [{ name: 'future-tier', multiplier: 3 }] },
-				capabilities: { supports: { vision: true, reasoning_effort: ['future-effort'] } },
+				capabilities: { family: 'future', supports: { vision: true, tool_calls: true, reasoning_effort: ['future-effort'] } },
 			}],
 			default_model: 'future-model',
 		};

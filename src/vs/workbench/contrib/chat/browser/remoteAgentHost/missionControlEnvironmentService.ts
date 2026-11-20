@@ -242,6 +242,8 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				const retained = previous.get(environment.id);
 				next.set(environment.id, {
 					id: environment.id, name: environment.name, kind: 'user-local', status: environment.status,
+					...(environment.lastHeartbeatAt !== undefined ? { lastHeartbeatAt: environment.lastHeartbeatAt } : {}),
+					...(environment.reportedSessionCount !== undefined ? { reportedSessionCount: environment.reportedSessionCount } : {}),
 					displayName: retained?.displayName,
 				});
 			}
@@ -418,7 +420,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		if (this._accountKey) {
 			const entries: IStorageEntry[] = this.hosts.get().map(host => ({
 				key: `${this._storagePrefix}${host.id}.metadata`,
-				value: JSON.stringify({ id: host.id, name: host.name, kind: 'user-local', status: host.status }),
+				value: JSON.stringify({ id: host.id, name: host.name, kind: 'user-local', status: host.status, lastHeartbeatAt: host.lastHeartbeatAt, reportedSessionCount: host.reportedSessionCount }),
 				scope: StorageScope.PROFILE,
 				target: StorageTarget.MACHINE,
 			}));
@@ -445,6 +447,8 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				}
 				hosts.push({
 					id: host.id, name: host.name, kind: 'user-local', status: host.status,
+					...(typeof host.lastHeartbeatAt === 'number' && Number.isFinite(host.lastHeartbeatAt) && host.lastHeartbeatAt >= 0 ? { lastHeartbeatAt: host.lastHeartbeatAt } : {}),
+					...(typeof host.reportedSessionCount === 'number' && Number.isSafeInteger(host.reportedSessionCount) && host.reportedSessionCount >= 0 ? { reportedSessionCount: host.reportedSessionCount } : {}),
 					displayName: this._storage.get(`${this._storagePrefix}${host.id}.displayName`, StorageScope.PROFILE),
 				});
 			}

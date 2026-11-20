@@ -24016,7 +24016,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [workingDirectory.fsPath, workingDirectory.fsPath]);
 			assert.deepStrictEqual(
 				getStateManager(localService).getSessionState(session.toString())?._meta,
-				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
+				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: { ...gitState, baseBranchFullName: 'main' } }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
 			);
 		});
 
@@ -24272,7 +24272,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual(calls, [workingDirectory.fsPath]);
 				assert.deepStrictEqual(
 					getStateManager(localService).getSessionState(session.toString())?._meta,
-					{ git: gitState },
+					{ git: { ...gitState, baseBranchFullName: 'main' } },
 				);
 			});
 
@@ -46632,13 +46632,22 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				replacesFirst: true,
 				turns: [
-					{ replaced: true, notice: [{ kind: 'disabled', iconId: 'git-pull-request', heading: 'Automatically Repair disabled for Example' }] },
+					{ replaced: true, notice: [{ kind: 'disabled', iconId: 'git-pull-request', heading: '**Automatically Repair disabled** for Example' }] },
 					{ replaced: false, notice: [] },
-					{ replaced: false, notice: [{ kind: 'enabled', iconId: 'git-pull-request', heading: 'Automatically Repair enabled for Example' }] },
+					{ replaced: false, notice: [{ kind: 'enabled', iconId: 'git-pull-request', heading: '**Automatically Repair enabled** for Example' }] },
 				],
 				persisted: [{ current: true, anchor: undefined }, { current: true, anchor: 'human-turn' }],
 				sent: [],
 			});
+		});
+
+		test('names the agent that turned automation off by its harness', async () => {
+			const f = await createArtifactAutomation();
+			await f.model.configure('test.automation', 0, { repair: true });
+			await f.model.configure('test.automation', 1, { repair: false }, { kind: 'agent', chat: f.chat });
+			await timeout(0);
+			const headings = f.stateManager.getChatState(f.chat)!.turns.flatMap(turn => turn.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification && typeof part.content === 'string' ? part.content.split('\n')[0] : undefined));
+			assert.deepStrictEqual(headings, ['Agent copilot **disabled Automatically Repair** for Example']);
 		});
 
 		test('notices merged while a turn runs merge into an earlier notice as a whole', async () => {

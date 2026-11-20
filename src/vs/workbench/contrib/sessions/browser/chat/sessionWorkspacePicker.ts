@@ -41,7 +41,7 @@ import { IProgressService, ProgressLocation } from '../../../../../platform/prog
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
-import { FolderLocationKind, getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../../services/workspaces/common/folderLocationSections.js';
+import { FolderLocationKind, getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../chat/browser/agentSessions/agentHost/agentHostFolderLocationSections.js';
 import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { cloneRepository } from '../cloneRepository.js';

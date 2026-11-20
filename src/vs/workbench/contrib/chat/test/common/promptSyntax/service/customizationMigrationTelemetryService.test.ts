@@ -69,8 +69,9 @@ suite('CustomizationMigrationTelemetryService', () => {
 				{ category: 'promptFiles', scope: 'workspace', customizationType: 'skill', outcome: 'migrated', count: 2 },
 				{ category: 'promptFiles', scope: 'user', customizationType: 'skill', outcome: 'failed', count: 1 },
 				{ category: 'promptFiles', scope: 'user', customizationType: 'skill', outcome: 'skipped', count: 1 },
+				{ category: 'hooks', scope: 'workspace', customizationType: 'hook', outcome: 'migrated', count: 1 },
 			],
-		}), 'migration-flow-id', new Map([[CustomizationMigrationType.PromptFiles, 4]]));
+		}), 'migration-flow-id', new Map([[CustomizationMigrationType.PromptFiles, 4], [CustomizationMigrationType.Hooks, 1]]));
 
 		assert.deepStrictEqual(report, {
 			cancelled: true,
@@ -79,6 +80,11 @@ suite('CustomizationMigrationTelemetryService', () => {
 				requestedCount: 3,
 				migratedCount: 2,
 				failedCount: 1,
+			}, {
+				category: CustomizationMigrationType.Hooks,
+				requestedCount: 1,
+				migratedCount: 1,
+				failedCount: 0,
 			}],
 		});
 	});

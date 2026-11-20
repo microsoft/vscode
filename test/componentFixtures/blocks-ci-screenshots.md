@@ -187,7 +187,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/e973a7bb1098848aeb7083b06dd580e2553b9e3dee82384e9201a7ea62b8d32a)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChatActions/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/28a03ec78b54de1f600a6d58204ec68be7326611dfa25cd87a46edec80ba0356)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e01b4e9ec7662e0577b1e91633aa1b07e28d7080788d0d56320fc00ad99ee207)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChatApprovals/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/6bb9a9018f47a11b949c63e7f6ecd4e558b8b8c169ed5687bfc37be3cde682f9)
@@ -196,7 +196,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/5370914cc0cae9d6dd4677c1610936afde3783bd3b86d05d8890b3a83fe77a83)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChats/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/72a8a6536056d6346030d6f6c7818ac7bf766efbe4bcbf5eb1ff98c1a5dcfc59)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/68781756d8b7462b1fb647314167fd5653f9176a6799e83a8154220fdb9ae1ea)
 
 #### sessions/sessionsList/SessionsList_CompactSessionRename/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/55159b1e807948be4ca3754b80df31b39731aaf283837016e3b0c6a8966e333b)
@@ -214,7 +214,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/7703c4c7a2ec7ef33592293efb5d19ab59b7ab4fd2449ba0697f31de7e6620d0)
 
 #### sessions/sessionsList/SessionsList_NestedChatHierarchyGuides/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/b1fa06195e71ecf99c71e868e8f5de999074d0a16ee7752554b32b253305ca2e)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/9a7520302a72d94d88816a3d8d2462ba08b09cb2c4d49e7f27272787fa94f611)
 
 #### sessions/sessionsList/SessionsList_PeerChatInProgress/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/099a8af9024eaa3576657cbf8ae184bd4d38d5bedf6cdb776c329f23b02040a9)

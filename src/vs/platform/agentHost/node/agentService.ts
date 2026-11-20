@@ -44,7 +44,7 @@ import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransien
 import { filterChatConfigValues, getSessionApprovalProperty, getValidChatConfigValues, toOwnChatConfig, validateChatConfigWrite, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, isAhpAnnotationsChannel, parseAnnotationsUri } from '../common/annotationsUri.js';
-import { changesetSession, parseChangesetUri } from '../common/changesetUri.js';
+import { changesetSession, hasChangesetPath, parseChangesetUri } from '../common/changesetUri.js';
 import { readAgentPermissionResponseMeta, withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
@@ -11953,6 +11953,10 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
 		const resourceStr = resource.toString();
+		const parsedChangeset = parseChangesetUri(resourceStr);
+		if (!parsedChangeset && hasChangesetPath(resourceStr)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not found: ${resourceStr}`);
+		}
 		const subscribe = async (telemetry: IAgentHostSessionOpenTelemetryScope): Promise<IStateSnapshot> => {
 			const restorationSource = async (session: URI): Promise<IAgentHostCredentialSource | undefined> => {
 				await this._restoreCredentialPrincipal(session.toString());
@@ -12010,7 +12014,6 @@ export class AgentService extends Disposable implements IAgentService {
 
 			let snapshot = this._stateManager.getSnapshot(resourceStr);
 			telemetry.setServedFromMemory(!!snapshot);
-			const parsedChangeset = parseChangesetUri(resourceStr);
 			if (snapshot && parsedChangeset) {
 				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, restoreChangesetOwner);
 				snapshot = this._stateManager.getSnapshot(resourceStr);

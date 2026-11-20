@@ -114,7 +114,8 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 		}
 		const pending = this._pendingReconnects.get(sshConfigHost);
 		if (pending) {
-			await pending.catch(() => undefined);
+			await pending;
+			await this._remoteAgentHostService.waitForConnection(address);
 			return;
 		}
 		this._reconnectStates.get(sshConfigHost)?.resetForResume();

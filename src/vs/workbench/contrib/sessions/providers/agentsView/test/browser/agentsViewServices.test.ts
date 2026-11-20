@@ -40,7 +40,7 @@ import { ChatHeader } from '../../../../browser/parts/chatHeader.js';
 import { RemoteHostUnavailableEmptyState } from '../../../../browser/parts/remoteHostUnavailableEmptyState.js';
 import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionActivityBar.js';
 import { SessionHeader } from '../../../../browser/parts/sessionHeader.js';
-import { SessionReadOnlyBanner } from '../../../../browser/parts/sessionReadOnlyBanner.js';
+import { ChatReadOnlyBanner } from '../../../../../chat/browser/widget/chatReadOnlyBanner.js';
 import { SessionRemoteConnection } from '../../../../browser/parts/sessionRemoteConnection.js';
 import { SessionsInboxScope } from '../../../../browser/views/sessionsInboxScope.js';
 import { SessionsListFilters } from '../../../../browser/views/sessionsListFilters.js';
@@ -68,7 +68,7 @@ const CORE_SERVICES = new Set([
 	'fileDialogService', 'fileService', 'IFileDecorationsService', 'hostService', 'hoverService', 'IAuthenticationService', 'IChatService', 'IChatWidgetHistoryService',
 	'ILanguageModelsService', 'ILanguageModelToolsService', 'instantiationService', 'IPromptsService', 'IUriIdentityService', 'IUserDataProfileService', 'IUserDataProfilesService', 'keybindingService',
 	'labelService', 'languageModelsService', 'languageModelToolsService', 'layoutService', 'lifecycleService', 'listService', 'loggerService', 'logService',
-	'managedSettingsService', 'menuService', 'micCaptureService', 'modelService', 'notificationService', 'onboardingScenarioService', 'openerService', 'paneCompositePartService', 'pathService', 'productService', 'progressService',
+	'managedSettingsService', 'markdownRendererService', 'menuService', 'micCaptureService', 'modelService', 'notificationService', 'onboardingScenarioService', 'openerService', 'paneCompositePartService', 'pathService', 'productService', 'progressService',
 	'quickInputService', 'remoteAgentHostService', 'remoteAgentService', 'requestService', 'sessionChatPillVisibilityService', 'speechService', 'storageService', 'telemetryService', 'textModelService',
 	'themeService', 'ttsPlaybackService', 'uriIdentityService', 'viewDescriptorService', 'viewsService', 'voiceClientService', 'voicePlaybackService', 'voiceSessionController', 'workingCopyService',
 	'workspaceContextService', 'workspacesService', 'workspaceTrustManagementService', 'workspaceTrustRequestService',
@@ -105,7 +105,7 @@ function editorWindowSessionsSingletons(): readonly IEditorWindowSessionsSinglet
 const SESSIONS_UI = [
 	SessionsView, SessionsList, ChatView, ChatGroupView, ChatEditorView, ChatEditorContent, NewChatWidget, NewChatInSessionWidget, SharedChatInputComposer, AgentsChatViewHost, EditorWindowChatPartService,
 	NewChatView, SessionChatInputToolbar, SessionInputBanners, SessionArchiveNudge, SessionStatusIcon, ResponseSelectionSideChatController,
-	SessionHeader, ChatCompositeBar, ChatHeader, ChatViewSessionActivityBar, RemoteHostUnavailableEmptyState, SessionReadOnlyBanner, SessionRemoteConnection,
+	SessionHeader, ChatCompositeBar, ChatHeader, ChatViewSessionActivityBar, RemoteHostUnavailableEmptyState, ChatReadOnlyBanner, SessionRemoteConnection,
 	SessionsListNotification, SessionsInboxScope, SessionStorageCleanupNotice, SessionsListFilters,
 ];
 
