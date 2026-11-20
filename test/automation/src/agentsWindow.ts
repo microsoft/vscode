@@ -233,9 +233,11 @@ export class AgentsWindow {
 		await this.quickaccess.runCommand('sessions.openRemotes');
 		const widget = this.code.driver.currentPage.locator(REMOTES_WIDGET);
 		const connect = widget.getByLabel(`Connect to ${name}`, { exact: true });
-		const disconnect = widget.getByLabel(`Disconnect ${name}`, { exact: true });
-		// A hidden button keeps its label, so it still identifies the row and whether the remote is connected.
-		const row = widget.locator('.monaco-list-row').filter({ has: connect.or(disconnect) }).first();
+		// A hidden button keeps its label, so it still identifies the row and whether the remote is connected. `has`
+		// locators match within the row, so they must not repeat the widget scope.
+		const page = this.code.driver.currentPage;
+		const rowButton = page.getByLabel(`Connect to ${name}`, { exact: true }).or(page.getByLabel(`Disconnect ${name}`, { exact: true }));
+		const row = widget.locator('.monaco-list-row').filter({ has: rowButton }).first();
 		await row.waitFor({ timeout: 30_000 });
 		if (await connect.count()) {
 			this.code.logger.log(`[agentsWindow] Remote Environments: connecting ${name}`);
