@@ -80,8 +80,9 @@ import { ChatHistoryView } from './chatHistoryView.js';
 import { DEFAULT_MAX_REASSEMBLY_BYTES } from '../common/webPubSub/chunking.js';
 import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
-import { AgentHostUpgradeMethodCapabilityMetaKey } from '../common/meta/agentHostUpgradeMeta.js';
-import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
+import { AgentHostBuildMetaKey, AgentHostUpgradeMethodCapabilityMetaKey, type IAgentHostBuild } from '../common/meta/agentHostUpgradeMeta.js';
+import product from '../../product/common/product.js';
+import { getAgentHostBuild, getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
 import {
 	AHP_AUTH_REQUIRED,
 	AhpErrorCodes,
@@ -221,6 +222,9 @@ function jsonRpcSuccess(id: number, result: unknown): JsonRpcResponse {
 function jsonRpcError(id: number, code: number, message: string, data?: unknown): JsonRpcResponse {
 	return { jsonrpc: '2.0', id, error: { code, message, ...(data !== undefined ? { data } : {}) } };
 }
+
+/** Identifies this host in `initialize` results. Informational only; clients don't use it to detect features. */
+const agentHostServerInfo: Implementation = { name: 'vscode-agent-host', title: 'VS Code Agent Host', version: product.version };
 
 /** Build a JSON-RPC error response from an unknown thrown value, preserving {@link ProtocolError} fields. */
 function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
@@ -710,6 +714,8 @@ export interface IProtocolServerConfig {
 	 * connected client's GitHub account. Never offered to relay clients.
 	 */
 	readonly githubEnvironment?: IProtocolServerGitHubEnvironment;
+	/** The build advertised with the upgrade method. Defaults to this process's build. */
+	readonly build?: IAgentHostBuild;
 }
 
 export interface IProtocolServerGitHubEnvironment {
@@ -1099,6 +1105,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return githubEnvironment && this._servesGitHubEnvironment(transport) ? { [AgentHostGitHubEnvironmentCapabilityMetaKey]: githubEnvironment.status } : {};
 	}
 
+	private _getUpgradeMeta(): Pick<IAgentHostExtensionInitializeResultMeta, typeof AgentHostUpgradeMethodCapabilityMetaKey | typeof AgentHostBuildMetaKey> {
+		const build = this._config.build ?? getAgentHostBuild();
+		return { [AgentHostUpgradeMethodCapabilityMetaKey]: VSCODE_UPGRADE_METHOD, ...(build ? { [AgentHostBuildMetaKey]: build } : {}) };
+	}
+
 	private _supportsTcpConnections(transport: IProtocolTransport): boolean {
 		return !this._config.relayRoots && !this._config.relayRootMeta
 			&& transport.relayClientId === undefined && !transport.relayPassive;
@@ -1214,6 +1225,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
+				serverInfo: agentHostServerInfo,
 				_meta: {
 					...(this._config.relayRoots || this._config.relayRootMeta ? {
 						[AgentHostNativeImplementationMetaKey]: true,
@@ -1258,7 +1270,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						...this._getGitHubEnvironmentMeta(transport),
 						// Relay clients can't request an upgrade, see the request handler.
 						...(getAgentHostManagementSocketPath() && transport.relayClientId === undefined && !transport.relayPassive
-							? { [AgentHostUpgradeMethodCapabilityMetaKey]: VSCODE_UPGRADE_METHOD } : {}),
+							? this._getUpgradeMeta() : {}),
 						...transport.relayHandshakeMeta,
 					}),
 					...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory),

@@ -77,7 +77,7 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
+		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly serverUpdate: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'type' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
 		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
@@ -119,6 +119,13 @@ function getGitHubEnvironmentState(remote: ICustomizationRemote): { readonly lab
 /** Describes GitHub environment sharing for the row's accessible label. */
 export function getGitHubEnvironmentLabel(remote: ICustomizationRemote): string | undefined {
 	return getGitHubEnvironmentState(remote)?.label;
+}
+
+/** Describes an available server update for a connected remote, shown next to its name and in the row's accessible label. */
+export function getServerUpdateLabel(remote: ICustomizationRemote): string | undefined {
+	return RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus) && remote.canUpdateServer
+		? localize('remotes.serverUpdateAvailable', "A server update is available. Select Update Server in More Actions to install it.")
+		: undefined;
 }
 
 export const remoteAgentRunBehaviorDescription = localize('remotes.runBehaviorDescription', "Choose how agents run on this remote computer. Keep it awake and online while they work.");
@@ -358,6 +365,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					icon, label, count,
 					detail: dom.append(nameRow, dom.$('.remotes-name-detail')),
 					gitHubEnvironment: dom.append(nameRow, dom.$('.remotes-github-environment')),
+					serverUpdate: dom.append(nameRow, dom.$('.remotes-server-update')),
 					countBadge: disposables.add(new CountBadge(count, {}, {
 						...defaultCountBadgeStyles, badgeBackground: undefined, badgeForeground: undefined,
 					})),
@@ -584,6 +592,16 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					dom.append(template.gitHubEnvironment, renderIcon(gitHubEnvironment.icon)).setAttribute('aria-hidden', 'true');
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.gitHubEnvironment, {
 						content: gitHubEnvironment.label, style: HoverStyle.Pointer,
+					}, { groupId: this.hoverGroupId }));
+				}
+				dom.clearNode(template.serverUpdate);
+				const serverUpdate = entry.type === 'remote' ? getServerUpdateLabel(entry.remote) : undefined;
+				template.serverUpdate.hidden = !serverUpdate;
+				if (serverUpdate) {
+					// The row's accessible label already includes this state.
+					dom.append(template.serverUpdate, renderIcon(Codicon.cloudDownload)).setAttribute('aria-hidden', 'true');
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.serverUpdate, {
+						content: serverUpdate, style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));
 				}
 				template.count.hidden = entry.type !== 'group';
