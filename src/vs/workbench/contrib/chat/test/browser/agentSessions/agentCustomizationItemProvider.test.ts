@@ -282,6 +282,33 @@ suite('AgentCustomizationItemProvider', () => {
 		});
 	});
 
+	test('marks hooks of a disabled, degraded hook directory as not running, including after file expansion', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const uri = URI.file('/workspace/.github/hooks/hooks.json');
+		await fileService.writeFile(uri, VSBuffer.fromString(JSON.stringify({ version: 1, hooks: { sessionStart: [{ type: 'command', bash: 'echo hi' }] } })));
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [{
+					type: CustomizationType.Directory, id: 'untrusted', uri: 'agent-discovery://copilot/hooks/untrusted',
+					name: 'Hooks in untrusted folders', contents: CustomizationType.Hook, enabled: false, writable: false,
+					load: { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run until you trust this folder.' },
+					children: [{ type: CustomizationType.Hook, id: 'file', uri: uri.toString(), name: 'hooks.json', enabled: false, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository' }) }],
+				}];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') }, undefined, undefined, fileService,
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		const expanded = await expandHookFileItems(items, upcastPartial<IAICustomizationWorkspaceService>({ getActiveProjectRoot: () => URI.file('/workspace') }), fileService,
+			new TestPathService(URI.file('/client-home')));
+		assert.deepStrictEqual(expanded.map(item => ({ name: item.name, source: item.source, enabled: item.enabled, status: item.status, statusMessage: item.statusMessage, badge: item.badge })), [{
+			name: 'Session Start', source: AICustomizationSources.local, enabled: false, status: 'degraded',
+			statusMessage: 'Won\'t run until you trust this folder.', badge: 'Won\'t run',
+		}]);
+	});
+
 	test('marks managed-policy hooks and organization-managed plugins as organization controlled', async () => {
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getCustomizations(): readonly Customization[] {

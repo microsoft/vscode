@@ -1816,6 +1816,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			getProvider: () => getAgentHostProviderForTelemetry(this.getCurrentSessionType(), this.chatSessionsService),
 			getSessionType: () => this.modelTargetSessionType,
+			startPromptWith: text => this.startPromptWith(text),
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			// Inline chat, editor or terminal, offers no Copilot Fusion effort level: the host runs Fusion at its fast tier there.
@@ -2927,6 +2928,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (model) {
 			this.inputEditor.setPosition(getLastPosition(model));
 		}
+	}
+
+	/** Starts the prompt with the given text, such as a slash command, keeping what is already written after it, and moves focus to it. */
+	startPromptWith(text: string): void {
+		const model = this._inputEditor.getModel();
+		const written = model?.getValue() ?? '';
+		// Already there only as a whole word: `/model-router-review` does not start with `/model-router`.
+		if (model && !(written.startsWith(text) && /^(\s|$)/.test(written.slice(text.length)))) {
+			// An edit, not a new value: the references and attachments of what is already written stay attached, and it can be undone.
+			this._inputEditor.pushUndoStop();
+			this._inputEditor.executeEdits('chat.startPromptWith', [{ range: new Range(1, 1, 1, 1), text: `${text} `, forceMoveMarkers: true }]);
+			this._inputEditor.pushUndoStop();
+			this._inputEditor.setPosition(getLastPosition(model));
+			this._widget?.refreshParsedInput();
+		}
+		this.focus();
 	}
 
 	focus() {

@@ -2498,7 +2498,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
 		const permissions: IAgentHostManagedSettingsPermissions = { disableBypassPermissionsMode: 'disable', deny: ['Shell'] };
-		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true });
+		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true, [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } });
 		let byokResolutions = 0;
 		launcher.resolveByokSessionConfig = async () => { byokResolutions++; return { providers: [], models: [] }; };
 		const pluginDirectory = URI.joinPath(testWorkingDirectory, 'scoped-plugin');
@@ -5180,9 +5180,11 @@ suite('CopilotSessionLauncher working directory trust', () => {
 	 * it was opened with (`'absent'` when the field is left out), plus the
 	 * grant the session wrapper recorded.
 	 */
-	async function trustFor(kind: 'create' | 'resume' | 'fallback', trust: IAgentHostWorkspaceTrust | undefined, plan?: Partial<Pick<CopilotSessionLaunchPlan, 'workingDirectory' | 'workspaceless' | 'worktreeRepository'>>): Promise<{ calls: string[]; recorded: string | undefined }> {
+	async function trustFor(kind: 'create' | 'resume' | 'fallback', trust: IAgentHostWorkspaceTrust | undefined, plan?: Partial<Pick<CopilotSessionLaunchPlan, 'workingDirectory' | 'workspaceless' | 'worktreeRepository' | 'workspace'>>, capture: 'trust' | 'repositoryHooks' = 'trust'): Promise<{ calls: string[]; recorded: string | undefined }> {
 		const calls: string[] = [];
-		const record = (config: CreateSessionOptions | undefined) => calls.push(config?.filesystem && Object.hasOwn(config.filesystem, 'trustWorkingDirectory') ? String(config.filesystem.trustWorkingDirectory) : 'absent');
+		const record = (config: CreateSessionOptions | undefined) => calls.push(capture === 'repositoryHooks'
+			? String(config?.hooks?.enableRepositoryHooks)
+			: config?.filesystem && Object.hasOwn(config.filesystem, 'trustWorkingDirectory') ? String(config.filesystem.trustWorkingDirectory) : 'absent');
 		const session = {
 			sessionId: 'session-1',
 			on: () => () => { },
@@ -5259,6 +5261,25 @@ suite('CopilotSessionLauncher working directory trust', () => {
 		}, {
 			resume: { calls: ['absent'], recorded: undefined },
 			fallback: { calls: ['absent', 'session'], recorded: 'session' },
+		});
+	});
+
+	test('loads repository hooks only for a trusted working directory', async () => {
+		const hooksFor = async (kind: 'create' | 'resume', trust: IAgentHostWorkspaceTrust | undefined, plan?: Parameters<typeof trustFor>[2]) => (await trustFor(kind, trust, plan, 'repositoryHooks')).calls;
+		assert.deepStrictEqual({
+			trusted: await hooksFor('create', trusted(folder)),
+			untrusted: await hooksFor('create', trusted(URI.file('/repos/other'))),
+			noTrustSnapshot: await hooksFor('create', undefined),
+			resumeTrusted: await hooksFor('resume', trusted(folder)),
+			resumeUntrusted: await hooksFor('resume', trusted(URI.file('/repos/other'))),
+			workspaceless: await hooksFor('create', { enabled: false, trustedUris: [] }, { workspaceless: true }),
+		}, {
+			trusted: ['true'],
+			untrusted: ['false'],
+			noTrustSnapshot: ['false'],
+			resumeTrusted: ['true'],
+			resumeUntrusted: ['false'],
+			workspaceless: ['false'],
 		});
 	});
 

@@ -1575,6 +1575,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// skills and instructions, so it is left alone.
 		// Custom agents run on the model they name, without routing, so a router is never one of their models.
 		const availableModelIds = new Set(plan.availableModels?.().filter(model => !isModelRouterModelId(model.id)).map(model => model.id));
+		const repositoryHooksEnabled = plan.workspace?.kind !== 'virtual' && getCopilotWorkingDirectoryTrust(plan, this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey)) !== undefined;
 		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
@@ -1848,7 +1849,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
 			},
 			hooks: {
-				enableRepositoryHooks: plan.workspace?.kind !== 'virtual',
+				// The runtime loads `.github/hooks` whenever this is on and leaves the trust check to the host.
+				enableRepositoryHooks: repositoryHooksEnabled,
 				handlers: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
 					onPreToolUse: input => runtime.handlePreToolUse(input),
 					onPostToolUse: input => runtime.handlePostToolUse(input),
