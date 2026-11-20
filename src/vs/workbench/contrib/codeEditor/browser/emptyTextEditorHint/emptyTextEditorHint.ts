@@ -13,7 +13,6 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
@@ -33,15 +32,12 @@ import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { IUntitledDocumentTelemetryService } from '../../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } from './emptyTextEditorHintTypes.js';
-import { EmptyEditorHintActionsVisible, EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting, IEmptyEditorHintActionsSize } from './emptyEditorHintActions.js';
+import { EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting, IEmptyEditorHintActionsSize } from './emptyEditorHintActions.js';
 import { EmptyEditorHintAction, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
-import { EmptyEditorHintVisible, focusEmptyEditorHintCommandId, forwardTypingToEditor, getFocusEmptyEditorHintAriaLabel } from './emptyEditorHintFocus.js';
+import { EmptyEditorHintVisible, forwardTypingToEditor, getFocusEmptyEditorHintAriaLabel } from './emptyEditorHintFocus.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
-import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
@@ -379,7 +375,7 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 
 		const ariaLabel = hasInlineChatProvider ?
 			localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language and get started. Start typing to dismiss.', ...keybindingLabels) :
-			localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', ...keybindingLabels);
+			localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', keybindingLabels.at(1));
 		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		this.links = [...hintElement.querySelectorAll('a')];
 		for (const link of this.links) {
@@ -457,32 +453,3 @@ export class EmptyTextEditorHintContentWidget extends Disposable implements ICon
 		this.editor.removeContentWidget(this);
 	}
 }
-
-registerEditorContribution(EmptyTextEditorHintContribution.ID, EmptyTextEditorHintContribution, EditorContributionInstantiation.Eager); // eager because it needs to render a help message
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'editor.action.hideEmptyEditorHint',
-	// Below other editor contributions, so Escape still closes their widgets first
-	weight: KeybindingWeight.EditorContrib - 50,
-	primary: KeyCode.Escape,
-	when: ContextKeyExpr.and(EmptyEditorHintActionsVisible, EditorContextKeys.editorTextFocus, EditorContextKeys.hasNonEmptySelection.toNegated(), EditorContextKeys.hasMultipleSelections.toNegated()),
-	handler: accessor => {
-		accessor.get(ICodeEditorService).getFocusedCodeEditor()?.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID)?.closeActionsHint();
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: focusEmptyEditorHintCommandId,
-	// Tab in an empty editor would only insert indentation. Below other editor contributions, so that e.g. accepting a suggestion wins.
-	weight: KeybindingWeight.EditorContrib - 50,
-	primary: KeyCode.Tab,
-	// With tab focus mode, Tab already moves focus and reaches the hint like any other focusable element
-	when: ContextKeyExpr.and(EmptyEditorHintVisible, EditorContextKeys.editorTextFocus, EditorContextKeys.tabMovesFocus.toNegated()),
-	handler: accessor => {
-		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		if (editor && !editor.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID)?.focusHint()) {
-			// The hint is shown by another contribution, e.g. in a notebook cell
-			editor.trigger('keyboard', 'tab', null);
-		}
-	}
-});

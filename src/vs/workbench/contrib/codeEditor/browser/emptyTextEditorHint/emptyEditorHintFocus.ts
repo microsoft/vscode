@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { localize } from '../../../../../nls.js';
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -28,18 +27,27 @@ export function getFocusEmptyEditorHintAriaLabel(keybindingService: IKeybindingS
 /**
  * While focus is in the hint, typing a character moves focus back to the editor. The key is not
  * prevented, so the browser inserts the character into the editor, which then dismisses the hint.
+ * The same applies to the start of an IME composition or a dead key (e.g. `?` before `e`).
  */
 export function forwardTypingToEditor(hintNode: HTMLElement, editor: ICodeEditor): IDisposable {
-	return addDisposableListener(hintNode, EventType.KEY_DOWN, e => {
-		if (isTypedCharacter(new StandardKeyboardEvent(e))) {
+	const store = new DisposableStore();
+	store.add(addDisposableListener(hintNode, EventType.KEY_DOWN, e => {
+		if (startsTextInput(e)) {
 			editor.focus();
 		}
-	});
+	}));
+	store.add(addDisposableListener(hintNode, 'compositionstart', () => editor.focus()));
+	return store;
 }
 
-/** Space is not a typed character: it runs the focused action. AltGr (Ctrl+Alt on Windows) types characters such as `@`. */
-function isTypedCharacter(event: StandardKeyboardEvent): boolean {
-	const key = event.browserEvent.key;
-	const isShortcut = (event.ctrlKey || event.metaKey) && !event.browserEvent.getModifierState('AltGraph');
-	return key.length === 1 && key !== ' ' && !isShortcut;
+/**
+ * Whether the key down starts text input: a character, a dead key or IME processing (key `Process`, key code 229).
+ * Space is not text input: it runs the focused action. AltGr (Ctrl+Alt on Windows) types characters such as `@`.
+ */
+export function startsTextInput(e: KeyboardEvent): boolean {
+	if (e.key === 'Dead' || e.key === 'Process' || e.keyCode === 229 || e.isComposing) {
+		return true;
+	}
+	const isShortcut = (e.ctrlKey || e.metaKey) && !e.getModifierState('AltGraph');
+	return e.key.length === 1 && e.key !== ' ' && !isShortcut;
 }

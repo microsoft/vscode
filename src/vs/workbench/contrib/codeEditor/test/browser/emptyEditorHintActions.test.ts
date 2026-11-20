@@ -32,6 +32,7 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { EmptyEditorHintActionsWidget } from '../../browser/emptyTextEditorHint/emptyEditorHintActions.js';
 import { EmptyTextEditorHintContentWidget } from '../../browser/emptyTextEditorHint/emptyTextEditorHint.js';
+import { startsTextInput } from '../../browser/emptyTextEditorHint/emptyEditorHintFocus.js';
 
 suite('EmptyEditorHintActionsWidget', () => {
 
@@ -168,6 +169,40 @@ suite('EmptyTextEditorHintContentWidget', () => {
 			focused: ['Select a language', 'don\'t show', 'Select a language'],
 			editorFocusCalls: ['Tab', 'Escape', 'x', 'Enter'],
 			commands: [['workbench.action.editor.changeLanguageMode']],
+		});
+	});
+});
+
+suite('startsTextInput', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('characters, dead keys and IME composition start text input, keys that operate the hint do not', () => {
+		const keys: Record<string, KeyboardEventInit> = {
+			'a': { key: 'a' },
+			'AltGr+q (@)': { key: '@', ctrlKey: true, altKey: true, modifierAltGraph: true } as KeyboardEventInit,
+			'dead key': { key: 'Dead' },
+			'IME Process': { key: 'Process', keyCode: 229 },
+			'IME keyCode 229': { key: 'Unidentified', keyCode: 229 },
+			'composing': { key: 'k', isComposing: true },
+			'Space': { key: ' ' },
+			'Enter': { key: 'Enter' },
+			'Tab': { key: 'Tab' },
+			'ArrowDown': { key: 'ArrowDown' },
+			'Ctrl+c': { key: 'c', ctrlKey: true },
+		};
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(keys).map(([name, init]) => [name, startsTextInput(new KeyboardEvent('keydown', init))])), {
+			'a': true,
+			'AltGr+q (@)': true,
+			'dead key': true,
+			'IME Process': true,
+			'IME keyCode 229': true,
+			'composing': true,
+			'Space': false,
+			'Enter': false,
+			'Tab': false,
+			'ArrowDown': false,
+			'Ctrl+c': false,
 		});
 	});
 });
