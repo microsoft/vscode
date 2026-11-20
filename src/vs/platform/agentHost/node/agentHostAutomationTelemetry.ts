@@ -5,14 +5,9 @@
 
 import { StringSHA1 } from '../../../base/common/hash.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { getAgentHostScheduledChat } from '../common/meta/agentHostAutomationsMeta.js';
-import type { AutomationDefinition } from '../common/state/protocol/channels-automation/state.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry, toTelemetryModel } from './agentHostTelemetryReporter.js';
 
 export type AutomationRunOutcome = 'success' | 'error' | 'cancelled' | 'interrupted';
-
-/** Whether a definition is manual-only, recurring, or a one-time scheduled chat. */
-export type AutomationScheduleKind = 'manual' | 'scheduled' | 'scheduledChat';
 
 /** The content-free, saved session configuration; omitted selections retain the provider default. */
 export interface IAutomationConfigurationTelemetry extends IAgentHostCopilotSkuTelemetry {
@@ -32,7 +27,6 @@ export interface IAutomationRunTelemetry extends IAgentHostCopilotSkuTelemetry {
 	readonly automationId: string;
 	readonly runId: string;
 	readonly trigger: 'manual' | 'schedule' | 'catch_up' | 'event';
-	readonly scheduleKind?: AutomationScheduleKind;
 	readonly runCreatedAt: string;
 	readonly provider: IAutomationConfigurationTelemetry['provider'];
 	readonly agentSessionId?: string;
@@ -55,7 +49,6 @@ type AutomationRunClassification = IAgentHostCopilotSkuClassification & {
 	automationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 of the complete automation resource URI, stable across ownership migration.' };
 	runId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Native Agent Host automation run identifier.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the run was manual, scheduled, catch-up or event-triggered.' };
-	scheduleKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the run\'s automation is manual-only, recurring (scheduled), or a one-time scheduled chat (scheduledChat); absent if the automation is not in the catalog.' };
 	runCreatedAt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'UTC timestamp of the durable run claim.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded Agent Host provider, matching the provider dimension in session and turn telemetry.' };
 	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Native Agent Host session identifier, matching agentHost session telemetry; absent without an Agent Host session.' };
@@ -65,7 +58,7 @@ type AutomationRunClassification = IAgentHostCopilotSkuClassification & {
 export type IAutomationDefinitionTelemetry = IAutomationConfigurationTelemetry & {
 	automationId: string;
 	enabled: boolean;
-	scheduleKind: AutomationScheduleKind;
+	scheduleKind: 'manual' | 'scheduled' | 'scheduledChat';
 };
 
 type AutomationCreatedClassification = AutomationConfigurationClassification & {
@@ -167,10 +160,6 @@ export function logAutomationRunCompleted(telemetryService: ITelemetryService, e
 		automationId: hashAutomationTelemetryId(event.automationId),
 		durationMs: Math.max(0, Math.round(event.durationMs)),
 	});
-}
-
-export function getScheduleKind(definition: AutomationDefinition): AutomationScheduleKind {
-	return getAgentHostScheduledChat(definition) ? 'scheduledChat' : definition.triggers.length === 0 ? 'manual' : 'scheduled';
 }
 
 export function getAutomationTelemetryProvider(provider: string | undefined): IAutomationConfigurationTelemetry['provider'] {
