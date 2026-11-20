@@ -185,12 +185,20 @@ suite('ModePickerActionItem Add Context', () => {
 	});
 
 	test('offers an agent meant to be opened by an extension only while it is selected', () => {
-		const fixer: IChatMode = { ...custom, id: 'client-agent:/fixer', name: constObservable('Agent Fix'), label: constObservable('Agent Fix'), visibility: constObservable({ userInvocable: true, agentInvocable: true, pickerWhenSelected: true }) };
-		const fixture = createPicker(false, true, [custom, fixer]);
-		const labels = () => { fixture.open(); return fixture.items.map(item => item.label).filter(label => label === 'Custom' || label === 'Agent Fix'); };
+		const visibility = constObservable({ userInvocable: true, agentInvocable: true, pickerWhenSelected: true });
+		const fixer: IChatMode = { ...custom, id: 'client-agent:/fixer', name: constObservable('Agent Fix'), label: constObservable('Agent Fix'), visibility };
+		const builtInFixer: IChatMode = { ...custom, id: 'client-agent:/builtin-fixer', name: constObservable('Built-in Fix'), label: constObservable('Built-in Fix'), visibility, source: { storage: PromptsStorage.builtIn } };
+		const fixture = createPicker(false, true, [custom, fixer, builtInFixer]);
+		const labels = () => { fixture.open(); return fixture.items.map(item => item.label).filter(label => label === 'Custom' || label === 'Agent Fix' || label === 'Built-in Fix'); };
 		const unselected = labels();
 		fixture.mode.set(fixer, undefined);
-		assert.deepStrictEqual({ unselected, selected: labels() }, { unselected: ['Custom'], selected: ['Agent Fix', 'Custom'] });
+		const fixerSelected = labels();
+		fixture.mode.set(builtInFixer, undefined);
+		assert.deepStrictEqual({ unselected, fixerSelected, builtInFixerSelected: labels() }, {
+			unselected: ['Custom'],
+			fixerSelected: ['Agent Fix', 'Custom'],
+			builtInFixerSelected: ['Built-in Fix', 'Custom'],
+		});
 	});
 
 	for (const enabled of [false, true]) {

@@ -238,10 +238,10 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					return mode.id !== ChatMode.Agent.id && shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 				});
 				const filteredCustomModes = modes.custom.filter(mode => {
-					if (isModeConsideredBuiltIn(mode, this._productService)) {
-						return shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
+					if (!isChatModeOfferedInPicker(mode, currentMode)) {
+						return false;
 					}
-					return isChatModeOfferedInPicker(mode, currentMode);
+					return !isModeConsideredBuiltIn(mode, this._productService) || shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 				});
 				const offeredModes = [...(agentMode ? [agentMode] : []), ...otherBuiltinModes, ...filteredCustomModes];
 				// Filter out 'implement' mode from the dropdown - it's available for handoffs but not user-selectable
