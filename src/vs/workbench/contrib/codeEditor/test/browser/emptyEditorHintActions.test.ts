@@ -29,7 +29,7 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { EmptyEditorHintActionsWidget } from '../../browser/emptyTextEditorHint/emptyEditorHintActions.js';
-import { EmptyTextEditorHintContribution } from '../../browser/emptyTextEditorHint/emptyTextEditorHint.js';
+import { EmptyTextEditorHintContribution } from '../../browser/emptyTextEditorHint/emptyTextEditorHintController.js';
 
 suite('EmptyEditorHintActionsWidget', () => {
 
