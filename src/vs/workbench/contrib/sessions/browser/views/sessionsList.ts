@@ -8302,7 +8302,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			: isSessionItem(child.element) ? this.getInboxPriority(child.element)
 				: isSessionGroupItem(child.element) ? Math.min(InboxNotificationPriority.Later, ...child.element.sessions.map(session => this.getInboxPriority(session)))
 					: InboxNotificationPriority.Later;
-		return children.sort((a, b) => priority(a) - priority(b) || key(b) - key(a));
+		return children.sort((a, b) => key(b) - key(a) || priority(a) - priority(b));
 	}
 
 	private getComparisonDrop(group: ISessionGroupItem, target: SessionListItem, sector: ListViewTargetSector | undefined): SessionHeaderDrop | undefined {
@@ -10692,7 +10692,7 @@ function groupByInboxSection(sessions: ISession[], sorting: SessionsSorting, get
 	return sessionInboxSections.map(id => ({
 		id,
 		label: getSessionInboxSectionLabel(id),
-		sessions: sortSessions(buckets.get(id)!, sorting).sort((a, b) => priorities.get(a)! - priorities.get(b)!),
+		sessions: sortSessions(buckets.get(id)!.sort((a, b) => priorities.get(a)! - priorities.get(b)!), sorting),
 	}));
 }
 

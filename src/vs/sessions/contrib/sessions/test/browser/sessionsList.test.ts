@@ -6518,7 +6518,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		test('Inbox replies advance within the visible scope and attention order, skipping pinned and working sessions', async () => {
+		test('Inbox replies advance within the visible scope and selected order, skipping pinned and working sessions', async () => {
 			const workspaceResource = URI.file('/workspace');
 			const items = [
 				createTestSession('source', { workspaceResource, updatedAt: new Date(4) }),
@@ -6715,7 +6715,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		test('inbox prioritizes attention and recent completion, preserves pins, and never auto-completes idle sessions', () => {
+		test('inbox sorts by recency, preserves pins, and never auto-completes idle sessions', () => {
 			const pinned = createTestSession('pinned', { status: SessionStatus.InProgress }).session;
 			const waiting = createTestSession('waiting', { status: SessionStatus.NeedsInput, updatedAt: new Date(1) }).session;
 			const finished = createTestSession('finished', { updatedAt: new Date(3) }).session;
@@ -6731,7 +6731,7 @@ suite('Sessions - SessionsList', () => {
 				session => session === failing || session === waiting ? InboxNotificationPriority.Now : InboxNotificationPriority.Later);
 			assert.deepStrictEqual(sections.map(section => [section.id, section.label, section.sessions.map(session => session.sessionId)]), [
 				['pinned', 'Pinned', ['pinned']],
-				['inbox:readyForYou', 'Inbox', ['failing', 'waiting', 'finished', 'idle']],
+				['inbox:readyForYou', 'Inbox', ['failing', 'finished', 'idle', 'waiting']],
 				['inbox:working', 'Working', ['working']],
 				['inbox:onHold', 'On hold', ['snoozed']],
 				['inbox:acknowledged', 'Acknowledged', ['done']],
@@ -6739,16 +6739,17 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
-		test('inbox honors Created and Updated sorting within attention priorities', () => {
+		test('inbox honors Created and Updated sorting before attention priorities and ignores manual ordering', () => {
 			const older = createSession('older', { createdAt: new Date(1), updatedAt: new Date(4) });
 			const newer = createSession('newer', { createdAt: new Date(2), updatedAt: new Date(3) });
+			const tied = createSession('tied', { createdAt: new Date(0), updatedAt: new Date(0) });
 			const urgent = createSession('urgent', { createdAt: new Date(0), updatedAt: new Date(0) });
-			const order = (sorting: SessionsSorting) => groupSessionsForList([older, newer, urgent], SessionsGrouping.Inbox, sorting, () => false,
+			const order = (sorting: SessionsSorting) => groupSessionsForList([older, newer, tied, urgent], SessionsGrouping.Inbox, sorting, () => false,
 				session => session === older ? Number.MAX_SAFE_INTEGER : 0, undefined, true, [], () => SessionInboxSection.ReadyForYou,
 				session => session === urgent ? InboxNotificationPriority.Now : InboxNotificationPriority.Later)
 				.find(section => section.id === SessionInboxSection.ReadyForYou)!.sessions.map(session => session.sessionId);
 			assert.deepStrictEqual([order(SessionsSorting.Created), order(SessionsSorting.Updated)], [
-				['urgent', 'newer', 'older'], ['urgent', 'older', 'newer'],
+				['newer', 'older', 'urgent', 'tied'], ['older', 'newer', 'urgent', 'tied'],
 			]);
 		});
 
@@ -6925,9 +6926,9 @@ suite('Sessions - SessionsList', () => {
 			const initial = snapshot();
 			const initialTracking = tracking;
 			grouped.isRead.set(false, undefined);
-			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['ready', 'grouped']), 10, 100);
+			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['grouped', 'ready']), 10, 100);
 			grouped.isRead.set(true, undefined);
-			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['ready', 'grouped']), 10, 100);
+			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['grouped', 'ready']), 10, 100);
 			model.setInboxState([grouped.session], 'done');
 			await retry(async () => assert.deepStrictEqual(snapshot(), [...initial, { id: SessionInboxSection.Acknowledged, sessions: ['grouped'] }]), 10, 100);
 			running.status.set(SessionStatus.NeedsInput, undefined);
@@ -9617,7 +9618,7 @@ suite('Sessions - SessionsList', () => {
 			'Judge: Copilot · Claude Opus 5', 'Synthesizer: Copilot · Claude Opus 5',
 		].join('\n');
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false, presentation: { compact?: boolean; phone?: boolean; originatingChatResource?: URI; folderless?: boolean; groupParentId?: string; findWidgetContainer?: HTMLElement } = {}) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false, presentation: { compact?: boolean; phone?: boolean; originatingChatResource?: URI; folderless?: boolean; groupParentId?: string; findWidgetContainer?: HTMLElement; sorting?: SessionsSorting } = {}) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress, isQuickChat: presentation.folderless });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli', isQuickChat: presentation.folderless });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli', isQuickChat: presentation.folderless });
@@ -9730,7 +9731,7 @@ suite('Sessions - SessionsList', () => {
 			container.style.setProperty('--vscode-strokeThickness', '1px');
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => grouping,
-				sorting: () => SessionsSorting.Created,
+				sorting: () => presentation.sorting ?? SessionsSorting.Created,
 				compact: () => presentation.compact ?? false,
 				findWidgetContainer: presentation.findWidgetContainer,
 				onSessionOpen: () => { },
@@ -9916,31 +9917,33 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		test('inbox keeps comparisons together, prioritizes input over recency, ignores manual sorting, and hides group archiving', () => {
-			const { harness, list, container, attempt1, attempt2, judge, synthesis } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Inbox, undefined, harness => {
-				harness.managementService.sessions.push(createTestSession('Recent', { resourceId: 'recent', createdAt: new Date(2100, 0, 1), updatedAt: new Date(2100, 0, 1) }).session);
-				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
-				harness.instantiationService.stub(ISessionsListModelService, model);
-				model.applySortChanges('created', new Map([['group:comparison-group', Number.MAX_SAFE_INTEGER]]), []);
-				const context = disposables.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
-				harness.instantiationService.stub(IContextKeyService, context);
-				SessionsViewGroupingContext.bindTo(context).set(SessionsGrouping.Inbox);
-				ChatContextKeys.enabled.bindTo(context).set(true);
-				harness.instantiationService.stub(IMenuService, disposables.add(harness.instantiationService.createInstance(MenuService)));
-				disposables.add(harness.instantiationService.createInstance(SessionsArchiveActionsContribution));
+		for (const sorting of [SessionsSorting.Created, SessionsSorting.Updated]) {
+			test(`inbox keeps comparisons together, honors ${sorting} before attention, ignores manual sorting, and hides group archiving`, () => {
+				const { harness, list, container, attempt1, attempt2, judge, synthesis } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Inbox, undefined, harness => {
+					harness.managementService.sessions.push(createTestSession('Recent', { resourceId: 'recent', createdAt: new Date(2100, 0, 1), updatedAt: new Date(2100, 0, 1) }).session);
+					const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+					harness.instantiationService.stub(ISessionsListModelService, model);
+					model.applySortChanges(sorting === SessionsSorting.Created ? 'created' : 'updated', new Map([['group:comparison-group', Number.MAX_SAFE_INTEGER]]), []);
+					const context = disposables.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
+					harness.instantiationService.stub(IContextKeyService, context);
+					SessionsViewGroupingContext.bindTo(context).set(SessionsGrouping.Inbox);
+					ChatContextKeys.enabled.bindTo(context).set(true);
+					harness.instantiationService.stub(IMenuService, disposables.add(harness.instantiationService.createInstance(MenuService)));
+					disposables.add(harness.instantiationService.createInstance(SessionsArchiveActionsContribution));
+				}, false, { sorting });
+				const order = () => list.getTreeSnapshot().flatMap(node => node.type === 'section' && node.id === SessionInboxSection.ReadyForYou ? node.children.flatMap(child => child.type === 'session' ? [child.session.sessionId] : child.type === 'group' ? [child.id] : []) : []);
+				attempt1.status.set(SessionStatus.NeedsInput, undefined);
+				list.update(true);
+				const waiting = order();
+				for (const participant of [attempt1, attempt2, judge, synthesis]) {
+					participant.status.set(SessionStatus.Completed, undefined);
+				}
+				list.update(true);
+				assert.deepStrictEqual({ waiting, completed: order(), archiveButton: !!container.querySelector('.session-comparison-group .action-label[aria-label="Mark All as Done"]'), archived: harness.managementService.archived }, {
+					waiting: ['recent', 'group:comparison-group'], completed: ['recent', 'group:comparison-group'], archiveButton: false, archived: [],
+				});
 			});
-			const order = () => list.getTreeSnapshot().flatMap(node => node.type === 'section' && node.id === SessionInboxSection.ReadyForYou ? node.children.flatMap(child => child.type === 'session' ? [child.session.sessionId] : child.type === 'group' ? [child.id] : []) : []);
-			attempt1.status.set(SessionStatus.NeedsInput, undefined);
-			list.update(true);
-			const waiting = order();
-			for (const participant of [attempt1, attempt2, judge, synthesis]) {
-				participant.status.set(SessionStatus.Completed, undefined);
-			}
-			list.update(true);
-			assert.deepStrictEqual({ waiting, completed: order(), archiveButton: !!container.querySelector('.session-comparison-group .action-label[aria-label="Mark All as Done"]'), archived: harness.managementService.archived }, {
-				waiting: ['group:comparison-group', 'recent'], completed: ['recent', 'group:comparison-group'], archiveButton: false, archived: [],
-			});
-		});
+		}
 
 		test('Inbox scope keeps comparison containers but hides nonmatching participants and their attention', () => {
 			const { harness, list, attempt1, attempt2 } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Inbox, undefined, harness => {
@@ -10008,8 +10011,8 @@ suite('Sessions - SessionsList', () => {
 			model.setInboxState([attempt1.session], undefined);
 			list.update(true);
 			assert.deepStrictEqual({ initial, acknowledged, resumed: snapshot() }, {
-				initial: [[SessionInboxSection.ReadyForYou, ['group:comparison-group', 'recent']]],
-				acknowledged: [[SessionInboxSection.ReadyForYou, []], [SessionInboxSection.Acknowledged, ['group:comparison-group', 'recent']]],
+				initial: [[SessionInboxSection.ReadyForYou, ['recent', 'group:comparison-group']]],
+				acknowledged: [[SessionInboxSection.ReadyForYou, []], [SessionInboxSection.Acknowledged, ['recent', 'group:comparison-group']]],
 				resumed: [[SessionInboxSection.ReadyForYou, ['group:comparison-group']], [SessionInboxSection.Acknowledged, ['recent']]],
 			});
 		});
