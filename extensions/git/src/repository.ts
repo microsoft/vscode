@@ -477,7 +477,14 @@ class DotGitWatcher implements IFileWatcher {
 		// Ignore changes to the "index.lock" file (including worktree index.lock files), and watchman fsmonitor hook (https://git-scm.com/docs/githooks#_fsmonitor_watchman) cookie files.
 		// Watchman creates a cookie file inside the git directory whenever a query is run (https://facebook.github.io/watchman/docs/cookies.html).
 		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => uri.scheme === 'file' && !/\/\.git(\/index\.lock|\/worktrees\/[^/]+\/index\.lock)?$|\/\.watchman-cookie-/.test(uri.path));
-		this.event = anyEvent(filteredRootWatcher, this.emitter.event);
+
+		// Watch the "worktrees" folder so that worktrees that are added or removed outside
+		// of this repository (ex: another window, the command line) trigger a `git status`
+		const worktreesWatcher = watch(path.join(repository.dotGit.commonPath ?? repository.dotGit.path, 'worktrees'));
+		this.disposables.push(worktreesWatcher);
+
+		const filteredWorktreesWatcher = filterEvent(worktreesWatcher.event, uri => uri.scheme === 'file');
+		this.event = anyEvent(filteredRootWatcher, filteredWorktreesWatcher, this.emitter.event);
 
 		repository.onDidRunGitStatus(this.updateTransientWatchers, this, this.disposables);
 		this.updateTransientWatchers();
