@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { strictEqual } from 'assert';
+import { deepStrictEqual, strictEqual } from 'assert';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastDeepPartial, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -21,6 +22,7 @@ import { TestNotificationService } from '../../../../../../platform/notification
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
 import { ITerminalConfigurationService, ITerminalInstance, IXtermTerminal } from '../../../../terminal/browser/terminal.js';
 import { ITerminalContributionContext } from '../../../../terminal/browser/terminalExtensions.js';
+import { ITerminalConfiguration } from '../../../../terminal/common/terminal.js';
 import { TerminalClipboardContribution } from '../../browser/terminal.clipboard.contribution.js';
 import { shouldPasteTerminalText } from '../../browser/terminalClipboard.js';
 
@@ -164,6 +166,38 @@ suite('TerminalClipboard', function () {
 		test('Empty clipboard', async () => {
 			await contribution.paste();
 			strictEqual(pasted, '');
+		});
+	});
+
+	suite('TerminalClipboardContribution.handleMouseEvent', () => {
+		let config: Partial<ITerminalConfiguration>;
+		let contribution: TerminalClipboardContribution;
+
+		setup(() => {
+			config = {};
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(INotificationService, new TestNotificationService());
+			instantiationService.stub(IClipboardService, new TestClipboardService());
+			instantiationService.stub(ITerminalConfigurationService, upcastPartial<ITerminalConfigurationService>({ config: upcastPartial<ITerminalConfiguration>(config) }));
+			contribution = store.add(instantiationService.createInstance(TerminalClipboardContribution, upcastPartial<ITerminalContributionContext>({})));
+		});
+
+		function isMouseUpDefaultPrevented(button: number): boolean {
+			const e = new MouseEvent('mouseup', { button, cancelable: true });
+			mainWindow.dispatchEvent(e);
+			return e.defaultPrevented;
+		}
+
+		test('Middle click in paste mode prevents default of the next middle mouseup so the selection clipboard is not pasted as well', async () => {
+			config.middleClickBehavior = 'paste';
+			deepStrictEqual(await contribution.handleMouseEvent(new MouseEvent('mousedown', { button: 1 })), { handled: true });
+			deepStrictEqual([0, 1, 1].map(isMouseUpDefaultPrevented), [false, true, false]);
+		});
+		test('Middle click in default mode leaves the middle mouseup alone', async () => {
+			config.middleClickBehavior = 'default';
+			strictEqual(await contribution.handleMouseEvent(new MouseEvent('mousedown', { button: 1 })), undefined);
+			strictEqual(isMouseUpDefaultPrevented(1), false);
 		});
 	});
 });
