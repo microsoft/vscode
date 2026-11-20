@@ -371,6 +371,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
 			return e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		})(() => this.updateViewPaneClasses(true)));
+
+		// The title follows the list that is or is to be provided, also while the body is not rendered, such as of a view restored collapsed
+		this._register(autorun(reader => this.setSessionsListTitleActive(!!(this.chatViewHostService.sessionsList.read(reader) ?? this.chatViewHostService.sessionsListExpected.read(reader)))));
 	}
 
 	private onDidChangeAgents(): void {
@@ -985,11 +988,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				setVisibility(false, sessionsTitleContainer);
 				setVisibility(false, newSessionButtonContainer);
 				this.sessionsControl = undefined;
-				this.setSessionsListTitleActive(true);
 				return { sessionsControl: undefined, store };
 			}
-			// A list without a header of its own has its actions in the Chat view's title, which they contribute to it
-			this.setSessionsListTitleActive(!!provided);
 			// A list of its own header and actions, in place of those of the Chat view's list
 			setVisibility(!provided || !provided.hasHeader, sessionsTitleContainer);
 			setVisibility(!provided, newSessionButtonContainer);

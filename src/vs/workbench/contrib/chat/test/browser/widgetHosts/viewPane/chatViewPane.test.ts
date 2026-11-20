@@ -228,13 +228,11 @@ suite('ChatViewPane sessions refresh', () => {
 			relayout: () => { },
 			sessionsControl: undefined as unknown,
 			sessionsTitleContainer: undefined as HTMLElement | undefined,
-			titleActive: false,
-			setSessionsListTitleActive: (active: boolean) => { host.titleActive = active; },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
 		createControl.call(host, document.createElement('div'));
 		const providedControl = control('provided');
-		const state = () => ({ control: host.sessionsControl === providedControl ? 'provided' : `own ${ownLists}`, sessionsOnly: seam.sessionsOnly.get(), sessionsOnlyClass: viewPaneContainer.classList.contains('sessions-only'), title: host.sessionsTitleContainer?.style.display !== 'none', titleActive: host.titleActive, disposed: disposed.splice(0) });
+		const state = () => ({ control: host.sessionsControl === providedControl ? 'provided' : `own ${ownLists}`, sessionsOnly: seam.sessionsOnly.get(), sessionsOnlyClass: viewPaneContainer.classList.contains('sessions-only'), title: host.sessionsTitleContainer?.style.display !== 'none', disposed: disposed.splice(0) });
 		const steps = [state()];
 
 		const registration = seam.provide(upcastPartial<IChatViewSessionsListProvider>({
@@ -245,9 +243,9 @@ suite('ChatViewPane sessions refresh', () => {
 		steps.push(state());
 
 		assert.deepStrictEqual(steps, [
-			{ control: 'own 1', sessionsOnly: false, sessionsOnlyClass: false, title: true, titleActive: false, disposed: [] },
-			{ control: 'provided', sessionsOnly: true, sessionsOnlyClass: true, title: false, titleActive: true, disposed: ['own 1'] },
-			{ control: 'own 2', sessionsOnly: false, sessionsOnlyClass: false, title: true, titleActive: false, disposed: ['provided'] },
+			{ control: 'own 1', sessionsOnly: false, sessionsOnlyClass: false, title: true, disposed: [] },
+			{ control: 'provided', sessionsOnly: true, sessionsOnlyClass: true, title: false, disposed: ['own 1'] },
+			{ control: 'own 2', sessionsOnly: false, sessionsOnlyClass: false, title: true, disposed: ['provided'] },
 		]);
 	});
 
@@ -279,8 +277,6 @@ suite('ChatViewPane sessions refresh', () => {
 			relayout: () => { },
 			sessionsControl: undefined as unknown,
 			sessionsTitleContainer: undefined as HTMLElement | undefined,
-			titleActive: false,
-			setSessionsListTitleActive: (active: boolean) => { host.titleActive = active; },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
 		createControl.call(host, document.createElement('div'));
@@ -291,29 +287,29 @@ suite('ChatViewPane sessions refresh', () => {
 		const seam = createSeam();
 		const { host, counts } = createExpectedListHost(seam);
 		const providedControl = upcastPartial<AgentSessionsControl>({ dispose: () => { }, setVisible: () => { } });
-		const steps = [{ ownLists: counts.ownLists, control: host.sessionsControl, titleActive: host.titleActive }];
+		const steps = [{ ownLists: counts.ownLists, control: host.sessionsControl }];
 
 		store.add(seam.provide(upcastPartial<IChatViewSessionsListProvider>({ create: () => ({ control: providedControl, hasHeader: true }) }), true));
 		seam.sessionsListExpected.set(false, undefined);
-		steps.push({ ownLists: counts.ownLists, control: host.sessionsControl, titleActive: host.titleActive });
+		steps.push({ ownLists: counts.ownLists, control: host.sessionsControl });
 
 		assert.deepStrictEqual(steps, [
-			{ ownLists: 0, control: undefined, titleActive: true },
-			{ ownLists: 0, control: providedControl, titleActive: true },
+			{ ownLists: 0, control: undefined },
+			{ ownLists: 0, control: providedControl },
 		]);
 	});
 
 	test('when the provided sessions list is no longer expected and none registered, the Chat view creates its own list', () => {
 		const seam = createSeam();
-		const { host, counts } = createExpectedListHost(seam);
-		const steps = [{ ownLists: counts.ownLists, titleActive: host.titleActive }];
+		const { counts } = createExpectedListHost(seam);
+		const steps = [{ ownLists: counts.ownLists }];
 
 		seam.sessionsListExpected.set(false, undefined);
-		steps.push({ ownLists: counts.ownLists, titleActive: host.titleActive });
+		steps.push({ ownLists: counts.ownLists });
 
 		assert.deepStrictEqual(steps, [
-			{ ownLists: 0, titleActive: true },
-			{ ownLists: 1, titleActive: false },
+			{ ownLists: 0 },
+			{ ownLists: 1 },
 		]);
 	});
 
