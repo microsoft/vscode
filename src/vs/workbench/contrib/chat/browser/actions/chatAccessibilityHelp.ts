@@ -95,6 +95,7 @@ export function getChatInputSessionLinkAccessibilityHelp(): string {
 	return [
 		localize('chat.inputSessionLinks', "Session links in the chat input can be opened without sending your message. Place the cursor in a session link and run Open Link{0} from the Command Palette.", '<keybinding:editor.action.openLink>'),
 		localize('chat.inputSessionLinkPills', "When {0} shows a session link as an inline pill, place the cursor right after it and press Enter{1} to open it, or open its context menu{2} to copy its link.", ChatConfiguration.InlineAttachmentsEnabled, '<keybinding:workbench.action.chat.openInlineAttachment>', '<keybinding:editor.action.showContextMenu>'),
+		localize('chat.sentSessionLinks', "In a sent message, a session link shows the title and status of the session or chat that it opens. Use Tab to focus it and Enter to open it."),
 	].join('\n');
 }
 

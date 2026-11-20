@@ -5932,6 +5932,76 @@ suite('Sessions - SessionsList', () => {
 
 	suite('groupSessionsForList', () => {
 
+		for (const { count, screenReader, scenario } of [
+			{ count: 3, screenReader: false, scenario: 'reply' },
+			{ count: 1, screenReader: false, scenario: 'reply' },
+			{ count: 3, screenReader: true, scenario: 'reply' },
+			...(['hidden', 'workspace', 'new', 'background', 'navigated', 'settingChanged'] as const).map(scenario => ({ count: 3, screenReader: false, scenario })),
+		]) {
+			test(`Inbox replies with newSession do not show onboarding (items: ${count}, screen reader: ${screenReader}, scenario: ${scenario})`, async () => {
+				const built = Array.from({ length: count }, (_, i) => buildTestSession({ id: `reply-${i}`, title: `Reply ${i}`, minutesAgo: i }));
+				const source = built[0];
+				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
+				const harness = createListHarness(disposables, built.map(item => item.session));
+				const commands = sinon.stub(harness.commandService, 'executeCommand').resolves();
+				disposables.add(toDisposable(() => commands.restore()));
+				const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+				await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, 'newSession');
+				harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isScreenReaderOptimized(): boolean { return screenReader; }
+				});
+				let notifications = 0;
+				harness.instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+					override prompt() { notifications++; return new NoOpNotification(); }
+				});
+				let tours = 0;
+				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+					runScenario: async () => { tours++; return OnboardingOutcome.Aborted; },
+				}));
+				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				const opened: URI[] = [];
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => scenario === 'workspace' ? SessionsGrouping.Workspace : SessionsGrouping.Inbox,
+					sorting: () => SessionsSorting.Updated,
+					onSessionOpen: resource => { opened.push(resource); },
+				}));
+				list.layout(600, 400);
+				if (scenario === 'hidden') {
+					list.setVisible(false);
+				}
+				transaction(tx => {
+					source.status.set(SessionStatus.InProgress, tx);
+					source.mainChat.status.set(SessionStatus.InProgress, tx);
+				});
+				accepted.fire({
+					chatSessionResource: (scenario === 'background' ? built[1] : source).session.mainChat.get().resource,
+					isNewSession: scenario === 'new',
+				});
+				const commandsBeforeFrame = commands.args.slice();
+				if (scenario === 'navigated') {
+					shown.set({ session: built[1].session, chat: built[1].session.mainChat.get() }, undefined);
+				}
+				if (scenario === 'settingChanged') {
+					await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, 'off');
+				}
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+
+				assert.deepStrictEqual({ commandsBeforeFrame, commands: commands.args, opened, tours, notifications }, {
+					commandsBeforeFrame: [],
+					commands: scenario === 'reply' ? [[NEW_SESSION_ACTION_ID]] : [],
+					opened: [],
+					tours: 0,
+					notifications: 0,
+				});
+			});
+		}
+
 		for (const { count, index, expected, mode, screenReader } of [
 			{ count: 3, index: 0, expected: 'reply-1', mode: undefined, screenReader: false },
 			{ count: 3, index: 1, expected: 'reply-2', mode: undefined, screenReader: false },

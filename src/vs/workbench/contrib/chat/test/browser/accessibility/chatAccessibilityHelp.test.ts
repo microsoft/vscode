@@ -172,7 +172,8 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			withoutSending: help.includes('opened without sending your message'),
 			keyboard: help.includes('<keybinding:editor.action.openLink>'),
-		}, { withoutSending: true, keyboard: true });
+			sentMessage: help.includes('In a sent message, a session link shows the title and status'),
+		}, { withoutSending: true, keyboard: true, sentMessage: true });
 	});
 
 	test('documents the shared picker and startup lock for Cloud drafts', () => {

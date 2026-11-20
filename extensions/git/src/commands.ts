@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputCustom, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextDiff, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputCustom, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
@@ -1540,7 +1540,8 @@ export class CommandCenter {
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
-			const resource = this.getSCMResource();
+			// The editor title menu passes the resource of its editor group
+			const resource = this.getSCMResource(resourceStates[0] instanceof Uri ? resourceStates[0] : undefined);
 
 			this.logger.debug(`[CommandCenter][stage] git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
 
@@ -1789,8 +1790,8 @@ export class CommandCenter {
 	}
 
 	@command('git.stageSelectedRanges')
-	async stageSelectedChanges(): Promise<void> {
-		const textEditor = window.activeTextEditor;
+	async stageSelectedChanges(uri?: Uri): Promise<void> {
+		const textEditor = this.getTextEditor(uri);
 
 		if (!textEditor) {
 			return;
@@ -1986,8 +1987,8 @@ export class CommandCenter {
 	}
 
 	@command('git.revertSelectedRanges')
-	async revertSelectedRanges(): Promise<void> {
-		const textEditor = window.activeTextEditor;
+	async revertSelectedRanges(uri?: Uri): Promise<void> {
+		const textEditor = this.getTextEditor(uri);
 
 		if (!textEditor) {
 			return;
@@ -2049,7 +2050,8 @@ export class CommandCenter {
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
-			const resource = this.getSCMResource();
+			// The editor title menu passes the resource of its editor group
+			const resource = this.getSCMResource(resourceStates[0] instanceof Uri ? resourceStates[0] : undefined);
 
 			if (!resource) {
 				return;
@@ -2075,8 +2077,8 @@ export class CommandCenter {
 	}
 
 	@command('git.unstageSelectedRanges')
-	async unstageSelectedRanges(): Promise<void> {
-		const textEditor = window.activeTextEditor;
+	async unstageSelectedRanges(uri?: Uri): Promise<void> {
+		const textEditor = this.getTextEditor(uri);
 
 		if (!textEditor) {
 			return;
@@ -5731,6 +5733,49 @@ export class CommandCenter {
 
 			resultFn?.();
 		}
+	}
+
+	/**
+	 * Returns the text editor whose selections a command should use. Keybindings and the
+	 * Command Palette pass no URI, so the command runs on the active text editor. Menus
+	 * pass the URI of the diff editor they belong to, which is not necessarily the active
+	 * text editor, for example in the title menu of an editor group that isn't active.
+	 * The API doesn't identify the editor group that invoked a menu, so if the URI is shown
+	 * in more than one editor, the editor is only returned if it can be determined without
+	 * ambiguity. Otherwise a message is shown and `undefined` is returned.
+	 */
+	private getTextEditor(uri?: Uri): TextEditor | undefined {
+		const activeTextEditor = window.activeTextEditor;
+		if (!(uri instanceof Uri)) {
+			return activeTextEditor;
+		}
+
+		const uriString = uri.toString();
+		let textEditors = window.visibleTextEditors.filter(e => e.document.uri.toString() === uriString);
+
+		if (textEditors.length > 1) {
+			// The menu belongs to an editor group whose active editor is a diff editor for the URI.
+			// If there is exactly one such group, its editor is the active text editor when the
+			// group is active, and the only other editor for the URI when it isn't.
+			const diffEditorTabGroups = window.tabGroups.all.filter(group =>
+				group.activeTab?.input instanceof TabInputTextDiff &&
+				group.activeTab.input.modified.toString() === uriString);
+
+			if (diffEditorTabGroups.length !== 1) {
+				textEditors = [];
+			} else if (diffEditorTabGroups[0].isActive) {
+				textEditors = textEditors.filter(e => e === activeTextEditor);
+			} else {
+				textEditors = textEditors.filter(e => e !== activeTextEditor);
+			}
+
+			if (textEditors.length !== 1) {
+				window.showInformationMessage(l10n.t('Could not determine the editor to use because the file is open in more than one editor. Focus the editor and run the command from the Command Palette.'));
+				return undefined;
+			}
+		}
+
+		return textEditors[0];
 	}
 
 	private getSCMResource(uri?: Uri): Resource | undefined {
