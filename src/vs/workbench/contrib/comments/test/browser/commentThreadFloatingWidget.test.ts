@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect, isInTheWayOf } from '../../browser/commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getViewZoneOffset, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect, isInTheWayOf, shouldDockFloatingWidgets } from '../../browser/commentThreadFloatingWidgetLayout.js';
 
 suite('Comment thread floating widget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -223,6 +223,46 @@ suite('Comment thread floating widget', () => {
 				newComment: 500,
 				newCommentInWideEditor: 640,
 				newCommentInNarrowEditor: 320,
+			});
+		});
+	});
+
+	suite('shouldDockFloatingWidgets', () => {
+		test('docks the widgets when the editor is too narrow for them to leave enough columns of code beside them', () => {
+			// 20 columns of 8px characters, the gap after the code, the narrowest default width and the margin take 512px.
+			assert.deepStrictEqual({
+				tooNarrow: shouldDockFloatingWidgets(511, 8),
+				wideEnough: shouldDockFloatingWidgets(512, 8),
+				wideEnoughForSmallerFont: shouldDockFloatingWidgets(500, 7),
+				tooNarrowForLargerFont: shouldDockFloatingWidgets(540, 10),
+			}, {
+				tooNarrow: true,
+				wideEnough: false,
+				wideEnoughForSmallerFont: false,
+				tooNarrowForLargerFont: true,
+			});
+		});
+	});
+
+	suite('getViewZoneOffset', () => {
+		test('stacks a view zone below the zones before it after the same line', () => {
+			const zones = [
+				{ id: 'a', afterLineNumber: 3, height: 50 },
+				{ id: 'b', afterLineNumber: 5, height: 20 },
+				{ id: 'c', afterLineNumber: 5, height: 30 },
+				{ id: 'd', afterLineNumber: 5, height: 40 },
+				{ id: 'e', afterLineNumber: 8, height: 60 },
+			];
+			assert.deepStrictEqual({
+				firstAfterLine: getViewZoneOffset(zones, 'b'),
+				lastAfterLine: getViewZoneOffset(zones, 'd'),
+				aloneAfterLine: getViewZoneOffset(zones, 'e'),
+				missing: getViewZoneOffset(zones, 'f'),
+			}, {
+				firstAfterLine: { afterLineNumber: 5, offset: 0 },
+				lastAfterLine: { afterLineNumber: 5, offset: 50 },
+				aloneAfterLine: { afterLineNumber: 8, offset: 0 },
+				missing: undefined,
 			});
 		});
 	});

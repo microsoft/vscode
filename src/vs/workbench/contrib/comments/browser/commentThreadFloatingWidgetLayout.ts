@@ -28,6 +28,11 @@ const COVERABLE_LINES = 2;
 const MAX_WIDTH_BESIDE_LINES = 640;
 /** Portion of the editor height that a widget sizing itself to its content may take up. */
 const AUTO_HEIGHT_RATIO = 0.6;
+/**
+ * How many columns of code a floating widget leaves in view beside it, at least, which shows the start of most lines.
+ * In an editor that is too narrow for that, the widgets are docked below their code instead.
+ */
+const MIN_COLUMNS_BESIDE_WIDGET = 20;
 
 export interface IRect {
 	readonly top: number;
@@ -183,6 +188,46 @@ export function getDefaultFloatingWidgetWidth(editorContentWidth: number, availa
 	const ratio = isNewComment ? NEW_COMMENT_WIDTH_RATIO : DEFAULT_WIDTH_RATIO;
 	const maxWidth = isNewComment ? NEW_COMMENT_MAX_WIDTH : DEFAULT_MAX_WIDTH;
 	return Math.min(clamp(Math.round(editorContentWidth * ratio), DEFAULT_MIN_WIDTH, maxWidth), availableWidth);
+}
+
+/**
+ * Whether the widgets of an editor are docked below their code, in space that the editor makes for them between its
+ * lines, rather than floating over the code. That's when the area that shows the code is too narrow for a widget at the
+ * narrowest width that widgets start out with to leave enough columns of code in view beside it, such as in a narrow
+ * diff editor, where a floating widget covers much of the code wherever it's placed.
+ * @param codeAreaWidth The width of the area that shows the code.
+ * @param characterWidth The width of a character of the code.
+ */
+export function shouldDockFloatingWidgets(codeAreaWidth: number, characterWidth: number): boolean {
+	return codeAreaWidth < MIN_COLUMNS_BESIDE_WIDGET * characterWidth + CODE_GAP + DEFAULT_MIN_WIDTH + EDGE_MARGIN;
+}
+
+/**
+ * A view zone of an editor, which takes up vertical space after a line.
+ */
+export interface IViewZoneSpace {
+	readonly id: string;
+	readonly afterLineNumber: number;
+	readonly height: number;
+}
+
+/**
+ * Where a view zone starts: the zones after a line are stacked below its end, in their order.
+ * @param zones The view zones of the editor, in their order.
+ * @returns The line that the zone is after, and the distance from the end of that line to the top of the zone, or
+ * `undefined` when there is no such zone.
+ */
+export function getViewZoneOffset(zones: readonly IViewZoneSpace[], id: string): { afterLineNumber: number; offset: number } | undefined {
+	const index = zones.findIndex(zone => zone.id === id);
+	if (index === -1) {
+		return undefined;
+	}
+	const { afterLineNumber } = zones[index];
+	let offset = 0;
+	for (let i = index - 1; i >= 0 && zones[i].afterLineNumber === afterLineNumber; i--) {
+		offset += zones[i].height;
+	}
+	return { afterLineNumber, offset };
 }
 
 /**
