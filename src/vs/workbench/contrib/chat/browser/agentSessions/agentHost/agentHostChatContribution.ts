@@ -414,6 +414,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, { clientId: ahService.clientId, resourceUris: this._isLocalAgentHost ? createAgentHostResourceUriMapper(LOCAL_AGENT_HOST_AUTHORITY) : ahService.resourceUris }, undefined,
 			syncedUri => this._activeClientService.getOrigin(syncedUri)));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
+		// Only the Copilot runtime runs the hooks declared in custom agent files.
+		itemProvider.setListsCustomAgentHooks(agent.provider === 'copilotcli');
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		const marketplaceInstallProvider = agent.provider === 'copilotcli'
 			? store.add(this._instantiationService.createInstance(
