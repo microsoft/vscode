@@ -9631,7 +9631,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				const nextPending = new Map<IChatToolInvocation, IChatToolInvocation.StateKind.WaitingForConfirmation | IChatToolInvocation.StateKind.WaitingForPostApproval>();
 				for (const request of model.getRequests()) {
 					const response = request.response;
-					if (!response || response.isCanceled || request.isHiddenFromTranscript) {
+					if (!response || response.isCanceled || request.isHiddenFromTranscript || (request.shouldBeRemovedOnSend && !request.shouldBeRemovedOnSend.afterUndoStop)) {
 						continue;
 					}
 					let changed = responseChanges.get(response);
