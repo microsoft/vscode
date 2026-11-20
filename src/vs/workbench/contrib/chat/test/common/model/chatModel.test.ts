@@ -42,6 +42,8 @@ import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, 
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
+import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
+import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 
@@ -2757,6 +2759,35 @@ suite('ChatResponseModel', () => {
 				{ detail: 'Review the plan to continue...', tools: ['tool'] },
 				{ detail: 'Elicit', tools: ['tool'] },
 				{ detail: 'Tool approval', tools: ['tool'] },
+			]);
+		});
+
+		test('settling a question or plan without another response change clears needed input and releases the keep-alive', () => {
+			let keepAlive = false;
+			instantiationService.stub(IChatService, 'acquireExistingSession', () => {
+				keepAlive = true;
+				return { object: undefined!, dispose: () => keepAlive = false };
+			});
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'ask', parts: [] }, { variables: [] }, 0);
+			const carousel = new ChatQuestionCarouselData([{ id: 'q', title: 'Question', type: 'text' }], true, 'carousel');
+			const plan = new ChatPlanReviewData('Plan', '', [], true);
+			model.acceptResponseProgress(request, carousel);
+			model.acceptResponseProgress(request, plan);
+			request.response!.complete();
+			const state = () => ({ needsInput: model.requestNeedsInput.get()?.detail, keepAlive });
+			const snapshots = [state()];
+
+			carousel.data = {};
+			carousel.isUsed = true;
+			snapshots.push(state());
+			plan.dismiss();
+			snapshots.push(state());
+
+			assert.deepStrictEqual(snapshots, [
+				{ needsInput: 'Answer questions to continue...', keepAlive: true },
+				{ needsInput: 'Review the plan to continue...', keepAlive: true },
+				{ needsInput: undefined, keepAlive: false },
 			]);
 		});
 
