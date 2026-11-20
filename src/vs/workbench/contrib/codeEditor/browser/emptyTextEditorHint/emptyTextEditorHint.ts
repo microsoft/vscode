@@ -12,7 +12,6 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
@@ -32,16 +31,11 @@ import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { IUntitledDocumentTelemetryService } from '../../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } from './emptyTextEditorHintTypes.js';
-import { EmptyEditorHintActionsVisible, EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting, IEmptyEditorHintActionsSize } from './emptyEditorHintActions.js';
+import { EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting, IEmptyEditorHintActionsSize } from './emptyEditorHintActions.js';
 import { canOpenInMarkdownEditor, EmptyEditorHintReopener, markdownEditorId } from './emptyEditorHintReopen.js';
 import { EmptyEditorHintAction, EmptyEditorHintVariant, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
-import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
@@ -462,16 +456,3 @@ function getHintTexts(hasInlineChatProvider: boolean, offerMarkdownEditor: boole
 		ariaLabel: localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', inlineChatKeybinding, languageKeybinding),
 	};
 }
-
-registerEditorContribution(EmptyTextEditorHintContribution.ID, EmptyTextEditorHintContribution, EditorContributionInstantiation.Eager); // eager because it needs to render a help message
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'editor.action.hideEmptyEditorHint',
-	// Below other editor contributions, so Escape still closes their widgets first
-	weight: KeybindingWeight.EditorContrib - 50,
-	primary: KeyCode.Escape,
-	when: ContextKeyExpr.and(EmptyEditorHintActionsVisible, EditorContextKeys.editorTextFocus, EditorContextKeys.hasNonEmptySelection.toNegated(), EditorContextKeys.hasMultipleSelections.toNegated()),
-	handler: accessor => {
-		accessor.get(ICodeEditorService).getFocusedCodeEditor()?.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID)?.closeActionsHint();
-	}
-});
