@@ -1003,7 +1003,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
-	function hiddenDisabledStorage(): IStorageService {
+	function hiddenDisabledStorage(): InMemoryStorageService {
 		const storage = disposables.add(new InMemoryStorageService());
 		storage.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, false, StorageScope.PROFILE, StorageTarget.MACHINE);
 		return storage;
@@ -1182,10 +1182,10 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
-	test('hidden disabled shared cards have their own inline recovery without changing personal cards', async () => {
+	test('hidden disabled shared cards have their own inline recovery without changing personal cards', () => {
 		const storage = hiddenDisabledStorage();
-		const { widget, automationService, disabledFilter, configurationService } = setup('archive', NullHoverService, undefined, storage);
-		await configurationService.setUserConfiguration(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
+		const { widget, automationService, disabledFilter } = setup('archive', NullHoverService, undefined, storage);
+		setShowSharedAutomationsByOthers(storage, true);
 		automationService.setCatalogueState('ready');
 		automationService.setAutomations([
 			automation({ id: 'personal', name: 'Personal enabled' }),
