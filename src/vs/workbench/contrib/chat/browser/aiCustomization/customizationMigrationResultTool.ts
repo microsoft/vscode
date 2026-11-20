@@ -44,7 +44,7 @@ const inputSchema: IJSONSchema = {
 				properties: {
 					category: {
 						type: 'string',
-						enum: ['userData', 'promptFiles', 'configuredLocations', 'mcpServers'],
+						enum: ['userData', 'promptFiles', 'configuredLocations', 'mcpServers', 'hooks'],
 					},
 					scope: {
 						type: 'string',
@@ -52,7 +52,7 @@ const inputSchema: IJSONSchema = {
 					},
 					customizationType: {
 						type: 'string',
-						enum: ['agent', 'instructions', 'skill', 'mcpServer'],
+						enum: ['agent', 'instructions', 'skill', 'mcpServer', 'hook'],
 					},
 					outcome: {
 						type: 'string',

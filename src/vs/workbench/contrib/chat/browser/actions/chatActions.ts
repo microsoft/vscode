@@ -7,14 +7,15 @@ import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ChatCustomizationsLocationContext } from '../../common/customizationsLocation.js';
 import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { language } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -164,6 +165,54 @@ const defaultChat = {
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',
 };
+
+/** Options of `workbench.action.newChatWindow`. */
+export interface INewChatWindowOptions {
+	/** The name of the agent (mode) the new chat starts with, e.g. a custom agent contributed by an extension. */
+	readonly mode?: string;
+	/** Text to put into the chat input, without sending it. */
+	readonly query?: string;
+	/** Options of the new window, merged over the defaults (compact, 640x640). */
+	readonly auxiliary?: IEditorOptions['auxiliary'];
+}
+
+/**
+ * Resolves the named mode once the widget offers it, or `undefined` after the timeout or when the widget goes away.
+ * Custom agents may still be loading in a new window: they arrive by replacing the modes or by changing them in place.
+ */
+function waitForChatMode(widget: IChatWidget, widgetService: IChatWidgetService, name: string, timeoutMs: number): Promise<IChatMode | undefined> {
+	const initial = widget.input.currentChatModesObs.get().findModeByName(name);
+	if (initial) {
+		return Promise.resolve(initial);
+	}
+	return new Promise(resolve => {
+		const store = new DisposableStore();
+		const settle = (mode: IChatMode | undefined) => {
+			store.dispose();
+			resolve(mode);
+		};
+		const modesListener = store.add(new MutableDisposable());
+		store.add(autorun(reader => {
+			const modes = widget.input.currentChatModesObs.read(reader);
+			modesListener.value = modes.onDidChange(() => {
+				const mode = modes.findModeByName(name);
+				if (mode) {
+					settle(mode);
+				}
+			});
+			const mode = modes.findModeByName(name);
+			if (mode) {
+				settle(mode);
+			}
+		}));
+		store.add(widgetService.onDidRemoveWidget(removed => {
+			if (removed === widget) {
+				settle(undefined);
+			}
+		}));
+		disposableTimeout(() => settle(undefined), timeoutMs, store);
+	});
+}
 
 export interface IChatViewOpenOptions {
 	/**
@@ -946,10 +995,23 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor) {
+		async run(accessor: ServicesAccessor, options?: INewChatWindowOptions) {
 			const widgetService = accessor.get(IChatWidgetService);
 			const input = getNewChatEditorInput(accessor);
-			await widgetService.openSession(input.resource, AUX_WINDOW_GROUP, { ...input.options, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } });
+			const widget = await widgetService.openSession(input.resource, AUX_WINDOW_GROUP, { ...input.options, auxiliary: { compact: true, bounds: { width: 640, height: 640 }, ...options?.auxiliary } });
+			if (!widget) {
+				return;
+			}
+			if (options?.query !== undefined) {
+				// Before waiting for the agent, so that what the user types meanwhile is kept.
+				widget.setInput(options.query);
+			}
+			if (options?.mode) {
+				const mode = await waitForChatMode(widget, widgetService, options.mode, 5000);
+				if (mode) {
+					widget.input.setChatMode(mode.id, false);
+				}
+			}
 		}
 	});
 

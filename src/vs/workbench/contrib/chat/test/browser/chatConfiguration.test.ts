@@ -16,7 +16,7 @@ import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationPro
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import { AgentHostCopilotPolicyHelperSettingId, CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch } from '../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
-import { AgentHostCopilotM365EnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING, AgentHostCopilotM365EnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import '../../browser/agentSessionsConfiguration.js';
 import { copilotPolicyHelperConfigurationProperties } from '../../browser/copilotPolicyHelperConfiguration.js';
@@ -28,6 +28,7 @@ const registeredAgentSessionsSettings = [
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
 const agentsPickerSetting = configurationProperties[ChatConfiguration.AgentsPickerInAttachContextMenu];
+const agentsWindowTitleBarIconsSetting = configurationProperties[AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING];
 const copilotM365Setting = configurationProperties[AgentHostCopilotM365EnabledSettingId];
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
@@ -146,6 +147,24 @@ suite('Chat configuration', () => {
 			default: false,
 			scope: ConfigurationScope.WINDOW,
 			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('registers the Agents Window title-bar icon setting as an experiment-controlled preview', () => {
+		assert.deepStrictEqual({
+			type: agentsWindowTitleBarIconsSetting.type,
+			default: agentsWindowTitleBarIconsSetting.default,
+			scope: agentsWindowTitleBarIconsSetting.scope,
+			tags: agentsWindowTitleBarIconsSetting.tags,
+			experiment: agentsWindowTitleBarIconsSetting.experiment,
+			treatment: getConfigurationExperimentName(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING, agentsWindowTitleBarIconsSetting.experiment!),
+		}, {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
+			treatment: 'config.chat.agentsWindowTitleBarIcons.enabled',
 		});
 	});
 
@@ -415,6 +434,22 @@ suite('Chat configuration', () => {
 				['chat.agentSessions.autoArchiveMergedSessionsAfterDays', { value: undefined }],
 				[ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays, { value: 15 }],
 			],
+		});
+	});
+
+	test('removes the shared automation visibility setting from application and user settings', async () => {
+		const key = 'sessions.automations.showSharedByOthers';
+		const migration = migrations.find(migration => migration.key === key);
+		assert.deepStrictEqual({
+			registeredSetting: configurationProperties[key],
+			includeApplication: migration?.includeApplication,
+			enabled: await migration?.migrateFn(true, () => undefined),
+			disabled: await migration?.migrateFn(false, () => undefined),
+		}, {
+			registeredSetting: undefined,
+			includeApplication: true,
+			enabled: { value: undefined },
+			disabled: { value: undefined },
 		});
 	});
 

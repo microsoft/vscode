@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stubChatViewHostServiceDependencies } from '../../../../chat/test/common/chatViewSessionsListServiceTestUtils.js';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -578,6 +579,7 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: Event.None, getViewWithId: () => null }));
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
 		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({}));
+		stubChatViewHostServiceDependencies(instantiationService);
 		const hosts = store.add(instantiationService.createInstance(ChatViewHostService));
 		// As the editor window registers its host, before the chat part exists
 		store.add(hosts.register({ host: scoped!.createInstance(AgentsChatViewHost, constObservable(true)) }));

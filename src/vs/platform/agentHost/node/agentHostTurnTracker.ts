@@ -871,7 +871,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			timeToFirstProgress: timing.firstProgressMs,
 			timeToFirstSubstantiveProgress: timing.firstSubstantiveProgressMs,
 			timeToFirstEditMs: timing.timeToFirstEditMs,
-			startedWithSteering: timing.startedWithSteering,
+			startedWithSteering: turnInteraction?.steeringDelivery !== undefined ? turnInteraction.steeringDelivery === 'steering' : timing.startedWithSteering,
 			receivedSteering: timing.receivedSteering,
 			sendStageDurationsMs: timing.sendStageDurationsMs,
 			sendDispatchedMs: timing.sendDispatchedMs,

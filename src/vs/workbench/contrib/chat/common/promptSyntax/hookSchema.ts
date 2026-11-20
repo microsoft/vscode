@@ -11,7 +11,7 @@ import { isAbsolute } from '../../../../../base/common/path.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { interpolateHookCommandPluginRoot, IParsedHookCommand, PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { HookType, HOOKS_BY_TARGET, HOOK_METADATA } from './hookTypes.js';
+import { getAgentHookMetadata, getLocalFormatHookEventNames, HookType, HOOKS_BY_TARGET, HOOK_METADATA } from './hookTypes.js';
 import { Target } from './promptTypes.js';
 import { IValue, IMapValue } from './promptFileParser.js';
 
@@ -183,11 +183,6 @@ function buildHookProperties(target: Target, arraySchema: IJSONSchema): Record<s
 }
 
 /**
- * Hook properties for the VS Code format.
- */
-const vscodeHookProperties: Record<string, IJSONSchema> = buildHookProperties(Target.VSCode, hookArraySchema);
-
-/**
  * Hook command schema for the Copilot CLI format.
  * Adds `bash`, `powershell`, and `timeoutSec` fields alongside the standard ones.
  */
@@ -246,6 +241,24 @@ const copilotCliHookArraySchema: IJSONSchema = {
  */
 const copilotCliHookProperties: Record<string, IJSONSchema> = buildHookProperties(Target.GitHubCopilot, copilotCliHookArraySchema);
 
+const localFormatDeprecationMessage = nls.localize('hookFile.localFormatDeprecated', 'This event name uses the deprecated Local hook format, so this hook may not work in Copilot sessions. Migrate the hook file and its scripts with the agent: open Chat Customizations and select Migrations.');
+
+/**
+ * Capitalised (Local format) event names, each marked as deprecated, whether or not the file has a "version".
+ * In files without a "version", the Local event names keep the Local command validation they always had.
+ * Elsewhere, capitalised entries are only marked, so valid Claude-style nested entries do not gain new errors.
+ */
+function buildLocalFormatHookProperties(validateLocalCommands: boolean): Record<string, IJSONSchema> {
+	return Object.fromEntries(getLocalFormatHookEventNames().map(name => {
+		const localHookType = HOOKS_BY_TARGET[Target.VSCode][name];
+		return [name, {
+			...(validateLocalCommands && localHookType ? hookArraySchema : {}),
+			description: localHookType ? HOOK_METADATA[localHookType]?.description : getAgentHookMetadata(Target.GitHubCopilot, name)?.description,
+			deprecationMessage: localFormatDeprecationMessage,
+		}];
+	}));
+}
+
 export const hookFileSchema: IJSONSchema = {
 	$schema: 'http://json-schema.org/draft-07/schema#',
 	type: 'object',
@@ -275,7 +288,7 @@ export const hookFileSchema: IJSONSchema = {
 				description: nls.localize('hookFile.version', 'Hook configuration format version.'),
 			},
 			hooks: {
-				properties: copilotCliHookProperties
+				properties: { ...copilotCliHookProperties, ...buildLocalFormatHookProperties(false) }
 			}
 		}
 	},
@@ -283,8 +296,7 @@ export const hookFileSchema: IJSONSchema = {
 		// VS Code / PascalCase format
 		properties: {
 			hooks: {
-				deprecationMessage: nls.localize('hookFile.localFormatDeprecated', 'The Local hook format is deprecated. Use the Copilot CLI format with "version": 1, camelCase event names, and "timeoutSec" instead of "timeout". Migration may require script changes: CLI hooks use different JSON input/output shapes (for example, "toolName" instead of "tool_name" and top-level "permissionDecision" instead of "hookSpecificOutput.permissionDecision"). Renaming configuration fields alone may change behavior.'),
-				properties: vscodeHookProperties
+				properties: buildLocalFormatHookProperties(true)
 			}
 		}
 	},
