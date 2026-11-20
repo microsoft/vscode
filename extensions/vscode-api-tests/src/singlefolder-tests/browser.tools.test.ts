@@ -206,29 +206,40 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			const allowed = await invokeTool('click_element', { pageId, selector: '#opaque' + enterFrame + '#prompt', element: 'Sandboxed prompt with allow-modals' });
 			assert.match(allowed, /Active prompt dialog:/);
 			await answerDialog(allowed, 'Allowed answer');
-			let focus = await invokeTool('run_playwright_code', {
+			await invokeTool('run_playwright_code', {
+				pageId, code: `await page.locator('#message').focus();`,
+			});
+			const interrupted = await invokeTool('run_playwright_code', {
 				pageId,
 				code: `const frame = await (await page.locator('#opaque').elementHandle()).contentFrame();
-					await frame.locator('#message').focus();
 					const dialogs = [];
-					const accept = dialog => { dialogs.push(dialog.type()); return dialog.accept('Focus answer'); };
-					page.on('dialog', accept);
+					const observe = dialog => { dialogs.push(dialog.type()); };
+					page.on('dialog', observe);
 					try {
+						const parentBefore = await page.evaluate(() => ({ focused: document.hasFocus(), active: document.activeElement.id }));
 						return { focus: await frame.evaluate(() => {
 							const before = { focused: document.hasFocus(), active: document.activeElement.id };
+							if (before.focused !== false || before.active !== '') {
+								throw new Error('Expected the inactive frame body to be active without frame focus: ' + JSON.stringify(before));
+							}
 							const result = prompt('Focus check');
 							return { before, after: { focused: document.hasFocus(), active: document.activeElement.id }, result, previous: window.promptResult };
-						}), dialogs };
-					} finally { page.off('dialog', accept); }`,
+						}), parentBefore, parentAfter: await page.evaluate(() => ({ focused: document.hasFocus(), active: document.activeElement.id })), dialogs };
+					} finally { page.off('dialog', observe); }`,
 			});
-			if (focus.includes('Active prompt dialog:')) {
-				focus = await answerDialog(focus, 'Focus answer');
-			}
+			assert.match(interrupted, /Active prompt dialog: "Focus check"/);
+			assert.match(interrupted, /\[deferredResultId=/);
+			const focus = await answerDialog(interrupted, 'Focus answer');
 			assert.match(focus, /"result":\s*"Focus answer"/);
 			assert.match(focus, /"previous":\s*"Allowed answer"/);
 			assert.match(focus, /"dialogs":\s*\["prompt"\]/);
-			const focusResult: { focus: { before: { focused: boolean; active: string }; after: { focused: boolean; active: string } } } = JSON.parse(focus.slice(focus.indexOf('{'), focus.lastIndexOf('}') + 1));
-			assert.deepStrictEqual(focusResult.focus.after, { ...focusResult.focus.before, active: 'message' });
+			const focusResult: { focus: { before: { focused: boolean; active: string }; after: { focused: boolean; active: string } }; parentBefore: { focused: boolean; active: string }; parentAfter: { focused: boolean; active: string } } = JSON.parse(focus.slice(focus.indexOf('{'), focus.lastIndexOf('}') + 1));
+			assert.deepStrictEqual({ before: focusResult.focus.before, after: focusResult.focus.after, parentBefore: focusResult.parentBefore, parentAfter: focusResult.parentAfter }, {
+				before: { focused: false, active: '' },
+				after: { focused: false, active: '' },
+				parentBefore: { focused: true, active: 'message' },
+				parentAfter: { focused: true, active: 'message' },
+			});
 		} finally {
 			await new Promise<void>((resolve, reject) => {
 				server.close(error => error ? reject(error) : resolve());

@@ -34,9 +34,6 @@ let localizedStrings: IBrowserViewPreloadLocalizedStrings = {
 function init() {
 	const { contextBridge, ipcRenderer } = require('electron');
 	const dialogProbeToken: string = ipcRenderer.sendSync('vscode:browserView:dialogProbe');
-	if (typeof dialogProbeToken !== 'string' || !dialogProbeToken) {
-		throw new Error('Missing browser dialog probe token');
-	}
 	const nativeConfirm = window.confirm;
 
 	// #######################################################################
