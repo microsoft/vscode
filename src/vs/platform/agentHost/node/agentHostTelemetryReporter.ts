@@ -441,6 +441,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 	steeredFromTurn?: string;
 	interactionIds?: string;
 	interactionIdsTruncated?: boolean;
+	steeringDelivery?: IAgentTurnInteraction['steeringDelivery'];
 	codexModelProvider?: CodexModelProvider;
 	usedPrewarmedSession?: boolean;
 	prewarmedSessionDiscardReason?: string;
@@ -509,6 +510,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	steeredFromTurn?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Immediate host steering predecessor. Runtime agreement is reported separately by turnSteered.' };
 	interactionIds?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'JSON array of up to 64 distinct interaction IDs observed for this execution turn.' };
 	interactionIdsTruncated?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether more distinct interactions were observed than could be retained.' };
+	steeringDelivery?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider-confirmed delivery of a host steering submission: steering, idle, queued, or unknown while confirmation is unavailable. Omitted for providers or turns without delivery tracking.' };
 	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
 	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the turn claimed a provider session that was started before the first message; absent when it did not.' };
 	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn discarded a provider session started before the first message and launched one instead, such as modelChanged or clientToolsChanged; absent when it did not.' };
@@ -531,7 +533,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	timeToFirstSubstantiveProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress that advances the user request, excluding host bookkeeping such as the chat rename tool call.' };
 	timeToFirstEdit: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cumulative provider-dispatch time in milliseconds through the first accepted response that requests a built-in file edit. Excludes prompt construction, retry backoff, tool execution, confirmations, and post-response processing.' };
-	startedWithSteering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the provider promoted a steering message into this turn. Time to first edit remains a per-turn measurement, not a cumulative measurement across the preceding turn.' };
+	startedWithSteering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this turn began with confirmed steering delivery when steeringDelivery is present; otherwise the provider-promoted steering classification. Time to first edit is measured per execution turn.' };
 	receivedSteering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a steering message was submitted to this chat while this turn was active, regardless of whether the provider consumed it. Previously recorded time to first edit is preserved.' };
 	sendStageWorkingDirectoryMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent resolving the working directory before dispatching the turn, including first-send worktree creation.' };
 	sendStageModelSelectionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent applying the model and agent selection on the provider before dispatching the turn.' };
@@ -677,6 +679,20 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	directBilledNanoAiu: number | undefined;
 	modelCallCount: number;
 }
+
+type ModelCallUsageCountedEvent = {
+	sdkSessionId: string;
+	modelCallId: string;
+	usageCountedInTurnId: string;
+};
+
+type ModelCallUsageCountedClassification = {
+	owner: 'amunger';
+	comment: 'Identifies the accounting turn for a Copilot root model usage report so its placement can be compared with the call owner.';
+	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK session containing the model call.' };
+	modelCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK API call identifier shared with model-call correlation and response telemetry.' };
+	usageCountedInTurnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Agent Host execution turn accumulating the reported root model usage.' };
+};
 
 interface IRequestTokenUsageEvent extends IAgentHostEventTelemetry, Omit<IAgentTokenUsageSummary, 'model'> {
 	provider: string;
@@ -2057,6 +2073,10 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', internalMultiplexedProperties, measurements);
 	}
 
+	modelCallUsageCounted(report: ModelCallUsageCountedEvent): void {
+		this._telemetryService.publicLog2<ModelCallUsageCountedEvent, ModelCallUsageCountedClassification>('agentHost.modelCallUsageCounted', report);
+	}
+
 	requestTokenUsage(report: { clientContext: IAgentHostClientTelemetryContext; telemetryContext?: IAgentTelemetryContext; provider: string; session: string; owner: string; requestId: string; parentTurnId?: string; parentToolCallId?: string; subagentKind?: AgentSubagentKind; selectedModel?: string; selectedModelTelemetryKind?: AgentHostModelTelemetryKind; modelTelemetryKind?: AgentHostModelTelemetryKind; result: AgentHostTurnResult; summary: IAgentTokenUsageSummary }): void {
 		const session = report.owner;
 		const isSubagent = report.subagentKind !== undefined || isSubagentSession(session);
@@ -2125,6 +2145,7 @@ export class AgentHostTelemetryReporter {
 				steeredFromTurn: report.turnInteraction.steeredFromTurn,
 				interactionIds: JSON.stringify(report.turnInteraction.interactionIds),
 				interactionIdsTruncated: report.turnInteraction.interactionIdsTruncated,
+				...(report.turnInteraction.steeringDelivery ? { steeringDelivery: report.turnInteraction.steeringDelivery } : {}),
 			} : {}),
 			...toInitiatorTelemetry(report.clientContext),
 			...toCopilotTelemetryData(report.telemetryContext),

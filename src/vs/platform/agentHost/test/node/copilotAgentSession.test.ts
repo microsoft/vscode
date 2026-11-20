@@ -20765,6 +20765,7 @@ Use the attached image as context.
 					.filter(signal => signal.kind === 'model_call_finished' || signal.kind === 'model_call_completed')
 					.map(signal => ({ kind: signal.kind, modelCallId: signal.modelCallId, turnId: signal.turnId })),
 				[
+					{ kind: 'model_call_completed', modelCallId: 'late-old-usage', turnId: 'old-turn' },
 					{ kind: 'model_call_completed', modelCallId: 'phase-call', turnId: 'replacement-turn' },
 				],
 			);
@@ -26320,6 +26321,168 @@ Use the attached image as context.
 				pendingEvents: session['_pendingFusionEvents'].length,
 				droppedEvents: logService.traces.filter(entry => entry.message.includes('Fusion ownership buffer full')).length,
 			}, { pendingEvents: 256, droppedEvents: 1 });
+		});
+
+		for (const delivery of ['steering', 'idle', 'queued'] as const) {
+			test(`pending input delivered as ${delivery} retains only the appropriate Fusion and SDK state`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('original');
+				mockSession.fire('user.message', { content: 'start', interactionId: 'original-interaction', turnId: fusionTestData.resolved.turnId });
+				mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+				mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+				mockSession.fire('assistant.turn_start', { turnId: 'old-loop', interactionId: 'original-interaction' });
+				await session.sendSteering({ id: 'pending', message: { text: 'next', origin: { kind: MessageKind.User } } });
+				mockSession.fire('user.message', {
+					content: 'next', delivery,
+					interactionId: delivery === 'steering' ? 'original-interaction' : 'new-interaction',
+					turnId: delivery === 'steering' ? 'old-loop' : 'new-loop',
+				});
+				const successor = session.currentTurnId!;
+				const snapshot = session.turnInteractionCorrelation.get(successor);
+				assert.deepStrictEqual({
+					promotions: getActions(signals).filter(action => action.type === ActionType.ChatTurnStarted && action.queuedMessageId === 'pending').length,
+					loopInherited: session['_currentTurn'].value?.sdkTurnIds.has('old-loop'),
+					workflowInherited: session.getFusionTurnId(fusionTestData.resolved.fusionId) === successor,
+					delivery: snapshot?.steeringDelivery,
+					origin: snapshot?.originalTurnId,
+					ready: session.hasRunningTurn,
+				}, {
+					promotions: 1, loopInherited: delivery === 'steering', workflowInherited: delivery === 'steering',
+					delivery, origin: delivery === 'steering' ? 'original' : successor, ready: true,
+				});
+			});
+		}
+
+		for (const delivery of ['idle', 'queued'] as const) {
+			test(`preserves the incoming Fusion prelude before a ${delivery} echo while excluding predecessor work`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('original');
+				mockSession.fire('user.message', { content: 'original', turnId: 'old-loop', interactionId: 'i1' }, { id: 'old-message' });
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved, { id: 'old-route', parentId: 'old-message' });
+				mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+				const oldFusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+				mockSession.fire('tool.execution_start', { toolCallId: 'old-tool', toolName: 'view', arguments: { path: '/old.ts' }, fusion: oldFusion }, { ephemeral: true });
+				await session.sendSteering({ id: 'pending', message: { text: 'new request', origin: { kind: MessageKind.User } } });
+				const incoming = 'incoming-fusion';
+				const newFusion = { ...oldFusion, fusionId: incoming, phaseId: 'incoming-main' };
+				mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, fusionId: incoming, turnId: 'incoming-workflow' }, { id: 'new-route' });
+				mockSession.fire('assistant.fusion_phase_started', { ...fusionMainPassTestData.started, fusionId: incoming, phaseId: newFusion.phaseId });
+				mockSession.fire('tool.execution_start', { toolCallId: 'new-tool', toolName: 'view', arguments: { path: '/new.ts' }, fusion: newFusion }, { ephemeral: true });
+				mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, fusionId: incoming }, { id: 'new-phase', parentId: 'new-route' });
+				const beforePromotion = signals.length;
+				mockSession.fire('user.message', { content: 'new request', delivery, turnId: 'new-loop', interactionId: 'i2' }, { id: 'new-message', parentId: 'new-phase' });
+				const successor = session.currentTurnId!;
+				const toolOwners = ['old-tool', 'new-tool'].map(id => [id, session['_activeToolCalls'].get(id)?.turnId === successor]);
+				const start = signals.length;
+				mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, fusionId: incoming });
+				const completionCount = getActions(signals.slice(start)).filter(action => action.type === ActionType.ChatToolCallComplete).length;
+				mockSession.fire('tool.execution_complete', { toolCallId: 'new-tool', success: true, result: { content: 'new file' }, fusion: newFusion }, { ephemeral: true });
+				mockSession.fire('tool.execution_start', { toolCallId: 'new-tool', toolName: 'view', arguments: { path: '/new.ts' }, fusion: { ...newFusion, commitId: 'new-commit' } });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'new-tool', success: true, result: { content: 'new file' }, fusion: { ...newFusion, commitId: 'new-commit' } });
+				const beforeOld = signals.length;
+				mockSession.fire('assistant.fusion_phase_started', { ...fusionMainPassTestData.started, phaseId: 'late-old-phase' });
+				for (const ephemeral of [true, false]) {
+					mockSession.fire('assistant.message', { messageId: 'late-old-message', content: 'OLD REQUEST CONTENT', toolRequests: [{ toolCallId: 'late-old-tool', name: 'view', arguments: {} }], fusion: ephemeral ? oldFusion : { ...oldFusion, commitId: 'old-commit' }, ...(ephemeral ? {} : { apiCallId: 'late-old-call' }) }, { ephemeral });
+					mockSession.fire('tool.execution_start', { toolCallId: 'late-old-tool', toolName: 'view', arguments: { path: '/old.ts' }, fusion: ephemeral ? oldFusion : { ...oldFusion, commitId: 'old-commit' } }, { ephemeral });
+				}
+				assert.deepStrictEqual({
+					promotions: getActions(signals).filter(action => action.type === ActionType.ChatTurnStarted && action.queuedMessageId === 'pending').length,
+					incomingOwner: session.getFusionTurnId(incoming),
+					oldOwner: session.getFusionTurnId(fusionTestData.resolved.fusionId),
+					completionCount,
+					toolOwners,
+					successorToolActions: getActions(signals.slice(beforePromotion)).flatMap(action => (action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallComplete)
+						&& action.turnId === successor && ['old-tool', 'new-tool'].includes(action.toolCallId) ? [[action.type, action.toolCallId]] : []),
+					lateOldSignals: signals.slice(beforeOld).map(signal => signal.kind === 'model_call_completed' ? { kind: signal.kind, turnId: signal.turnId, modelCallId: signal.modelCallId } : signal.kind),
+					origin: session.turnInteractionCorrelation.get(successor)?.originalTurnId,
+				}, {
+					promotions: 1, incomingOwner: successor, oldOwner: 'original', completionCount: 1,
+					toolOwners: [['old-tool', false], ['new-tool', true]],
+					successorToolActions: [[ActionType.ChatToolCallStart, 'new-tool'], [ActionType.ChatToolCallComplete, 'new-tool']],
+					lateOldSignals: [{ kind: 'model_call_completed', turnId: 'original', modelCallId: 'late-old-call' }], origin: successor,
+				});
+			});
+		}
+
+		test('late output from an earlier Fusion workflow keeps its owner after an idle echo', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('original');
+			mockSession.fire('user.message', { content: 'original', turnId: 'old-loop', interactionId: 'i1' }, { id: 'old-message' });
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved, { id: 'old-route', parentId: 'old-message' });
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			const oldFusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'old-task', toolName: 'task_complete', arguments: { summary: 'Old summary' }, fusion: oldFusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'old-task', success: true, result: { content: 'done' }, fusion: oldFusion }, { ephemeral: true });
+			await session.sendSteering({ id: 'pending', message: { text: 'new request', origin: { kind: MessageKind.User } } });
+			mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, fusionId: 'incoming-fusion', turnId: 'incoming-workflow' }, { id: 'new-route' });
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, fusionId: 'incoming-fusion' }, { id: 'new-phase', parentId: 'new-route' });
+			mockSession.fire('user.message', { content: 'new request', delivery: 'idle', turnId: 'new-loop', interactionId: 'i2' }, { id: 'new-message', parentId: 'new-phase' });
+			const successor = session.currentTurnId!;
+			const start = signals.length;
+
+			const committed = { ...oldFusion, commitId: 'old-commit' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'old-task', toolName: 'task_complete', arguments: { summary: 'Old summary' }, fusion: committed });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'old-task', success: true, result: { content: 'done' }, fusion: committed });
+			mockSession.fire('session.task_complete', { summary: 'Old summary', success: true, outcome: 'completed' });
+			const usage = { model: 'model-a', inputTokens: 10, outputTokens: 5, copilotUsage: { totalNanoAiu: 250_000_000 } };
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'late-usage-call', fusion: oldFusion });
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'ordinary-call' });
+			mockSession.fire('assistant.tool_call_delta', { toolCallId: 'late-stream', toolName: 'view', inputDelta: '{"path":"/old.ts"}' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'late-stream', toolName: 'view', arguments: { path: '/old.ts' }, fusion: committed });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'late-stream', success: true, result: { content: 'old file' }, fusion: committed });
+
+			assert.deepStrictEqual({
+				counted: telemetryService.events.filter(event => event.eventName === 'agentHost.modelCallUsageCounted').map(event => event.data),
+				signals: signals.slice(start).flatMap((signal): object[] => signal.kind === 'model_call_completed'
+					? [{ kind: signal.kind, turnId: signal.turnId, modelCallId: signal.modelCallId }]
+					: signal.kind === 'action' && (signal.action.type === ActionType.ChatUsage
+						|| (signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown)
+						|| (hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'late-stream' && (signal.action.type === ActionType.ChatToolCallStart || signal.action.type === ActionType.ChatToolCallComplete)))
+						? [{ type: signal.action.type, successor: signal.action.turnId === successor }]
+						: []),
+				usageTotals: getActions(signals.slice(start)).flatMap(action => {
+					if (action.type !== ActionType.ChatUsage) {
+						return [];
+					}
+					const meta = readUsageInfoMeta(action.usage);
+					return [{ tokens: meta.turnTokenTotals, credits: meta.copilotUsage?.totalNanoAiu }];
+				}),
+			}, {
+				counted: [
+					{ sdkSessionId: mockSession.sessionId, modelCallId: 'late-usage-call', usageCountedInTurnId: successor },
+					{ sdkSessionId: mockSession.sessionId, modelCallId: 'ordinary-call', usageCountedInTurnId: successor },
+				],
+				signals: [
+					{ kind: 'model_call_completed', turnId: 'original', modelCallId: 'late-usage-call' },
+					{ type: ActionType.ChatUsage, successor: true },
+					{ type: ActionType.ChatUsage, successor: true },
+					{ type: ActionType.ChatToolCallStart, successor: true },
+					{ type: ActionType.ChatToolCallComplete, successor: true },
+				],
+				usageTotals: [
+					{ tokens: [{ model: 'model-a', inputTokens: 10, cachedTokens: 0, outputTokens: 5 }], credits: 250_000_000 },
+					{ tokens: [{ model: 'model-a', inputTokens: 20, cachedTokens: 0, outputTokens: 10 }], credits: 500_000_000 },
+				],
+			});
+		});
+
+		test('reports the accounting turn only for joinable direct root model usage', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			const usage = { model: 'model-a', inputTokens: 10, outputTokens: 5 };
+			session.resetTurnState('root');
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'root-call' });
+			mockSession.fire('assistant.usage', usage);
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'compaction-call', interactionType: 'conversation-compaction' });
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'child-call' }, { agentId: 'unmapped' });
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'child-without-agent-id', initiator: 'sub-agent' });
+			mockSession.fire('session.idle', {});
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'after-idle' });
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.modelCallUsageCounted').map(event => event.data), [
+				{ sdkSessionId: mockSession.sessionId, modelCallId: 'root-call', usageCountedInTurnId: 'root' },
+			]);
 		});
 
 		test('steering during a Fusion phase hands the in-flight workflow to the steering turn', async () => {
