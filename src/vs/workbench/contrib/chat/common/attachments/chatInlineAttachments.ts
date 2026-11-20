@@ -572,8 +572,8 @@ export function getMarkdownTokenRanges(text: string, include: (token: marked.Tok
 		let cursor = within.start;
 		for (const token of tokens) {
 			const searched = new OffsetRange(cursor, within.endExclusive);
-			// Table cells unescape their pipes, which the text still escapes.
-			const range = token.raw ? findTokenText(normalized, token.raw, searched) ?? (inTable ? findTokenText(normalized, token.raw.replace(/\|/g, '\\|'), searched) : undefined) : undefined;
+			// Table cells unescape their pipes, so their source is searched for with the pipes escaped again.
+			const range = token.raw ? findTokenText(normalized, token.raw, searched) ?? (inTable ? findTokenText(normalized, token.raw.split('|').join('\\|'), searched) : undefined) : undefined;
 			if (!range) {
 				continue;
 			}
