@@ -108,6 +108,7 @@ import type { INewSessionInputController } from '../newSessionInputPresentation.
 import { NewChatConnectorRecommendations } from './newChatConnectorRecommendations.js';
 import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { WelcomeName } from './welcomeName.js';
+import { NewSessionWelcomeGraphic } from './newSessionWelcomeGraphic.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -953,6 +954,14 @@ export class NewChatWidget extends Disposable {
 		const chatWidgetContent = this._inputContentElement = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 		this._presentation = this._register(this.options.newSessionPresentation.create(false, this.instantiationService));
 		this._presentation.render(chatWidgetContainer, chatWidgetContent);
+		if (!this._inEditorWindow && !this._detached) {
+			this._register(this.instantiationService.createInstance(NewSessionWelcomeGraphic, {
+				content: chatWidgetContent,
+				layoutRoot: chatWidgetContainer,
+				visible: this.options.inputVisible ?? constObservable(true),
+				composing: observableFromEvent(this, this._newChatInput.onDidChangeInput, () => !!this._newChatInput.getInputValue().trim()),
+			}));
+		}
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
 		const welcomeMessageTitle = dom.append(welcomeMessage, dom.$('h2.new-session-welcome-message-title'));
 		this._welcomeMessageTitle = welcomeMessageTitle;
