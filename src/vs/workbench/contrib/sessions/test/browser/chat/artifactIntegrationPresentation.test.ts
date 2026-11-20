@@ -678,6 +678,49 @@ suite('Artifact Integration Presentation', () => {
 			}, { scrolled: [true, true, true], header: false, overflows: ['fits', 'scrolls'] });
 		});
 
+		test('keyboard navigation reveals the focused row when the panel is shorter than the list', async () => {
+			const f = fixture();
+			f.host.style.height = '300px';
+			const a = f.artifact();
+			setActivities(a, Array.from({ length: 20 }, (_, index) => activity(a, `entry-${index}`, { createdAt: index })));
+			const panel = await open(f, a);
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			const list = panel.querySelector<HTMLElement>('.artifact-activities-list .monaco-list')!;
+			assert.ok(body.clientHeight < list.offsetHeight, `The panel (${body.clientHeight}px) must be shorter than the list (${list.offsetHeight}px)`);
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			const visible: boolean[] = [];
+			for (const id of ['list.focusFirst', 'list.focusDown', 'list.focusDown', 'list.focusDown', 'list.focusDown', 'list.focusLast', 'list.focusFirst']) {
+				f.instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+				await settle(f);
+				const row = list.querySelector('.monaco-list-row.focused')!.getBoundingClientRect();
+				const viewport = body.getBoundingClientRect();
+				visible.push(row.top >= viewport.top - 0.5 && row.bottom <= viewport.bottom + 0.5);
+			}
+			assert.deepStrictEqual(visible, Array(7).fill(true));
+		});
+
+		test('layout and model updates keep the scroll position', async () => {
+			const f = fixture();
+			f.host.style.height = '560px';
+			const a = f.artifact();
+			const entries = (count: number) => Array.from({ length: count }, (_, index) => activity(a, `entry-${index}`, { createdAt: index }));
+			setActivities(a, entries(20));
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			await expand(f, panel);
+			const body = panel.querySelector<HTMLElement>('.artifact-details-body')!;
+			assert.ok(body.scrollHeight - body.clientHeight > 40, 'The panel must have content to scroll');
+			body.scrollTop = 40;
+			body.dispatchEvent(new mainWindow.Event('scroll'));
+			await settle(f);
+			const afterLayout = body.scrollTop;
+			setActivities(a, entries(21));
+			await settle(f);
+			assert.deepStrictEqual({ afterLayout, afterUpdate: body.scrollTop }, { afterLayout: 40, afterUpdate: 40 });
+		});
+
 		test('lists shrink to fit and grow back when scrolling would reveal too little', () => {
 			const lists = [{ preferred: 196, minimum: 112, step: 28 }, { preferred: 168, minimum: 84, step: 28 }];
 			const fit = (overflow: number, slack = 8) => {

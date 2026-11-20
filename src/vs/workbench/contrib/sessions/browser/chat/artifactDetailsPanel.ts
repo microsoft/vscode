@@ -7,6 +7,7 @@ import { $, addDisposableListener, append, DisposableResizeObserver, EventType, 
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { CodeWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
@@ -19,6 +20,7 @@ import { Link } from '../../../../../platform/opener/browser/link.js';
 import { ArtifactActivities } from './artifactActivities.js';
 import { ArtifactAutopilot } from './artifactAutopilot.js';
 import { ArtifactButtons, IArtifactButton } from './artifactButtons.js';
+import { IArtifactBounds } from './artifactDetailsCard.js';
 import { ArtifactDetailsSelection, artifactViewKey, IArtifactDetailsViewData } from './artifactDetailsView.js';
 import { ArtifactStateLists } from './artifactStateLists.js';
 import './media/artifactIntegrations.css';
@@ -119,9 +121,10 @@ export class ArtifactDetailsPanel extends Disposable {
 		this._register(addDisposableListener(this.body, EventType.SCROLL, () => this.scrollable.scanDomNode()));
 		this._register(addDisposableListener(this.body, EventType.FOCUS_IN, event => {
 			if (isHTMLElement(event.target) && event.target.matches(':focus-visible')) {
-				this.reveal(event.target);
+				this.reveal(event.target.getBoundingClientRect());
 			}
 		}));
+		this._register(Event.any(this.stateLists.onDidFocusRowByKeyboard, this.activities.onDidFocusRowByKeyboard)(row => this.reveal(row)));
 		const observer = this._register(new DisposableResizeObserver('ArtifactDetailsPanel', requestLayout, targetWindow));
 		this._register(observer.observe(this.element));
 		this._register(observer.observe(this.header));
@@ -158,7 +161,6 @@ export class ArtifactDetailsPanel extends Disposable {
 
 	layout(maxHeight: number): void {
 		this.element.style.maxHeight = `${maxHeight}px`;
-		this.body.style.maxHeight = '';
 		this.body.style.paddingBottom = '';
 		const expanded = this.stateLists.expanded;
 		const activities = this.activities.listHeight(activitiesHeight.preferred);
@@ -172,7 +174,8 @@ export class ArtifactDetailsPanel extends Disposable {
 				current: this.activities.renderedListHeight, layout: (height: number) => this.activities.layout(height),
 			}] : [],
 		];
-		const natural = this.body.offsetHeight + lists.reduce((sum, list) => sum + list.preferred - list.current, 0);
+		// The body keeps its height limit, which would clamp its scroll position if lifted; its scroll height is its full content.
+		const natural = this.body.scrollHeight + lists.reduce((sum, list) => sum + list.preferred - list.current, 0);
 		const slack = Math.max(0, bottomPadding - minimumBottomPadding);
 		const fit = fitArtifactListHeights(lists, natural - available, slack);
 		if (!expanded) {
@@ -187,11 +190,10 @@ export class ArtifactDetailsPanel extends Disposable {
 		this.scrollable.scanDomNode();
 	}
 
-	/** Scrolls the least distance that shows `element`, or as much of it as fits from its top. */
-	private reveal(element: HTMLElement): void {
+	/** Scrolls the least distance that shows `target`, or as much of it as fits from its top. */
+	private reveal(target: IArtifactBounds): void {
 		this.scrollable.scanDomNode();
 		const viewport = this.body.getBoundingClientRect();
-		const target = element.getBoundingClientRect();
 		const delta = target.top < viewport.top ? target.top - viewport.top : Math.max(0, Math.min(target.bottom - viewport.bottom, target.top - viewport.top));
 		if (delta) {
 			this.scrollable.setScrollPosition({ scrollTop: this.body.scrollTop + delta });
