@@ -2791,6 +2791,20 @@ suite('ChatResponseModel', () => {
 			]);
 		});
 
+		test('settling a question an extension provided clears needed input', () => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'ask', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'questionCarousel', questions: [{ id: 'q', title: 'Question', type: 'text' }], allowSkip: true, resolveId: 'carousel' });
+			request.response!.complete();
+			const pending = model.requestNeedsInput.get()?.detail;
+
+			const carousel = request.response!.response.value.find((part): part is IChatQuestionCarousel => part.kind === 'questionCarousel')!;
+			carousel.data = {};
+			carousel.isUsed = true;
+
+			assert.deepStrictEqual([pending, model.requestNeedsInput.get()?.detail], ['Answer questions to continue...', undefined]);
+		});
+
 		test('tracks authentication and post-approval on an existing tool', async () => {
 			const response = createResponse();
 			const tool = createTool('tool');
