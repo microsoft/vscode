@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct, insert } from '../../../../base/common/arrays.js';
-import { PauseableEmitter } from '../../../../base/common/event.js';
+import { Emitter, PauseableEmitter } from '../../../../base/common/event.js';
 import * as glob from '../../../../base/common/glob.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -29,7 +29,7 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IUntitledTextEditorService } from '../../untitled/common/untitledTextEditorService.js';
 import { findGroup } from '../common/editorGroupFinder.js';
 import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
-import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, EditorMatchRule, EditorMatchRuleSource, editorsAssociationsSettingId, globMatchesResource, EditorMatches, IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorMatchesOptions, IEditorResolverServiceGetEditorsOptions, isUnconfiguredUniversalOptionalEditorMatch, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
+import { DefaultEditorChangeSource, diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, EditorMatchRule, EditorMatchRuleSource, editorsAssociationsSettingId, globMatchesResource, EditorMatches, IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorMatchesOptions, IEditorResolverServiceGetEditorsOptions, isUnconfiguredUniversalOptionalEditorMatch, IWillSetDefaultEditorEvent, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
 import { PreferredGroup } from '../common/editorService.js';
 import { CONFIGURE_DEFAULT_EDITOR_COMMAND_ID } from './openWithEditorPicker.js';
 
@@ -78,6 +78,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	// Events
 	private readonly _onDidChangeEditorRegistrations = this._register(new PauseableEmitter<void>());
 	readonly onDidChangeEditorRegistrations = this._onDidChangeEditorRegistrations.event;
+
+	private readonly _onWillSetDefaultEditor = this._register(new Emitter<IWillSetDefaultEditorEvent>());
+	readonly onWillSetDefaultEditor = this._onWillSetDefaultEditor.event;
 
 	// Constants
 	private static readonly cacheStorageID = 'editorOverrideService.cache';
@@ -548,12 +551,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return Array.from(this._flattenedEditors.values()).flat();
 	}
 
-	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean): void {
+	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean, source?: DefaultEditorChangeSource): void {
 		const settingId = forDiffEditor ? diffEditorsAssociationsSettingId : editorsAssociationsSettingId;
 		const associationType = forDiffEditor ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
 		const matches = this.getEditorMatches(resource, { isDiffEditor: forDiffEditor });
 		const currentAssociation = matches.defaultRule.source === EditorMatchRuleSource.UserAssociation ? matches.defaultRule.association : undefined;
 		const associationPattern = matches.defaultRule.associationPattern;
+		this._onWillSetDefaultEditor.fire({ resource, editorId: editorID, forDiffEditor: !!forDiffEditor, source });
 		if (editorID === matches.naturalDefaultRule.editor.id) {
 			if (currentAssociation && this.getDefaultEditorIdAfterRemovingAssociation(resource, associationType, settingId, associationPattern) === editorID) {
 				this.removeUserAssociationForSetting(settingId, associationPattern);

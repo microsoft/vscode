@@ -119,7 +119,7 @@ function sidePreviewResource(preview: WebviewInput): URI | undefined {
  *   the side (the dropdown of the text editor of the previewed file is highlighted, and trying the
  *   Markdown Editor replaces both).
  *
- * "Try Editor" reopens the file in the Markdown Editor without changing the default editor. A nudge
+ * "Try Editor" makes the Markdown Editor the default for Markdown files and reopens the file in it. A nudge
  * shows right when the user opens or switches to the file or preview, never for editors restored at
  * startup or for files edited since they were opened. The onboarding engine shows at most one of the
  * nudges, once, and only for users whose experiment arm enables that nudge.
@@ -309,6 +309,7 @@ export class MarkdownEditorPromotion extends Disposable {
 			if (shown.sidePreview) {
 				await shown.sidePreview.group.closeEditor(shown.sidePreview.editor);
 			}
+			editorResolverService.setDefaultEditor(shown.resource, MARKDOWN_EDITOR_ID, false, 'markdownEditorNudge');
 			await commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, MARKDOWN_EDITOR_ID, {
 				groupId: shown.group.id,
 				editorIndex: shown.group.getIndexOfEditor(shown.editor),

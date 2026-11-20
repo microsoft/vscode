@@ -177,6 +177,16 @@ export interface IEditorResolverServiceGetEditorMatchesOptions {
 	readonly isDiffEditor?: boolean;
 }
 
+/** The UI that changed a default editor through {@link IEditorResolverService.setDefaultEditor}. */
+export type DefaultEditorChangeSource = 'editorTypePicker' | 'reopenWithPicker' | 'markdownEditorNudge';
+
+export interface IWillSetDefaultEditorEvent {
+	readonly resource: URI;
+	readonly editorId: string;
+	readonly forDiffEditor: boolean;
+	readonly source: DefaultEditorChangeSource | undefined;
+}
+
 export interface IEditorResolverServiceGetAllEditorsOptions {
 	/**
 	 * Excludes registrations whose editor priority is exclusive.
@@ -352,8 +362,12 @@ export interface IEditorResolverService {
 	 * @param editorID The ID of the editor to make the default.
 	 * @param forDiffEditor When `true`, the diff editor association (`workbench.diffEditorAssociations`)
 	 * is updated instead of the general editor association (`workbench.editorAssociations`).
+	 * @param source What made the change, for telemetry about default editor changes.
 	 */
-	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean): void;
+	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean, source?: DefaultEditorChangeSource): void;
+
+	/** Fires when {@link setDefaultEditor} is about to update the associations. */
+	readonly onWillSetDefaultEditor: Event<IWillSetDefaultEditorEvent>;
 
 	/**
 	 * Removes the user's diff editor association (`workbench.diffEditorAssociations`) for the given
