@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { editorRuler, ghostTextForeground } from '../../../../../editor/common/core/editorColorRegistry.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { editorFindMatchHighlightBorder, listHoverBackground, minimapFindMatch, overviewRulerFindMatchForeground, quickInputBackground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusHighlightForeground, quickInputListFocusIconForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND } from '../../../../common/theme.js';
+import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, TAB_DIVIDER, TAB_INACTIVE_FOREGROUND } from '../../../../common/theme.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 
 suite('Default theme colors', () => {
@@ -143,6 +143,37 @@ suite('Default theme colors', () => {
 		});
 
 		assert.ok(contrast >= referenceContrast, `Light 2026 ruler contrast ${contrast} is below Light Modern's ${referenceContrast}`);
+	});
+
+	test('Light 2026 connected tabs have a light strip, visible dividers, and readable labels', async () => {
+		const theme = await loadDefaultTheme('2026-light.json', 'vs');
+		const strip = theme.getColor(EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND)!.makeOpaque(theme.getColor('editor.background')!);
+		const divider = theme.getColor(TAB_DIVIDER)!.makeOpaque(strip);
+		const activeSurfaces = ['editor.background', 'sideBar.background', 'panel.background'];
+		const inactiveForegrounds = [TAB_INACTIVE_FOREGROUND, 'activityBar.inactiveForeground', 'panelTitle.inactiveForeground'];
+
+		assert.deepStrictEqual({
+			lightStrip: strip.getRelativeLuminance() >= 0.85,
+			darkerDivider: divider.getRelativeLuminance() < strip.getRelativeLuminance(),
+			distinctDivider: divider.getContrastRatio(strip) >= 1.3,
+			distinctActiveSurfaces: activeSurfaces.map(id => theme.getColor(id)!.getContrastRatio(strip) >= 1.08),
+			readableInactiveForegrounds: inactiveForegrounds.map(id => theme.getColor(id)!.makeOpaque(strip).getContrastRatio(strip) >= 4.5),
+		}, {
+			lightStrip: true,
+			darkerDivider: true,
+			distinctDivider: true,
+			distinctActiveSurfaces: activeSurfaces.map(() => true),
+			readableInactiveForegrounds: inactiveForegrounds.map(() => true),
+		});
+
+		theme.setCustomColors({
+			[EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND]: '#123456',
+			[TAB_DIVIDER]: '#abcdef',
+		});
+		assert.deepStrictEqual([
+			theme.getColor(EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND)?.toString(),
+			theme.getColor(TAB_DIVIDER)?.toString(),
+		], ['#123456', '#abcdef']);
 	});
 
 	test('minimap find markers stay visible and match the overview ruler in default themes', async () => {

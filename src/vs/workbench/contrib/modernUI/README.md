@@ -30,7 +30,7 @@ Connected pane and horizontal Activity Bar caps use the same convex corner radiu
 
 The default vertical Activity Bar retains its existing selection, hover, background colors, sizing, and overflow behavior independently of the editor tab style.
 
-Horizontal connected pane tabs use the editor's `tab.divider` color for subtle inset separators between adjacent inactive tabs. The default vertical Activity Bar remains separator-free. Dividers are omitted next to the selected tab, before overflow controls, and during drag-and-drop.
+Horizontal connected pane tabs use the editor's `tab.divider` color for subtle inset separators between adjacent inactive tabs. Light 2026 gives this shared color a darker default, including in other tab styles that display dividers. Because Light 2026 defines `tab.divider` explicitly, customize it directly rather than relying on `tab.border` to change the dividers. The default vertical Activity Bar remains separator-free. Dividers are omitted next to the selected tab, before overflow controls, and during drag-and-drop.
 
 Appearance changes made while a pane is hidden defer tab remeasurement until its next visible layout, so reopening a narrow pane retains correct overflow.
 
@@ -82,7 +82,7 @@ Agents chat tabs use the same connected shape, strip colors, and theme-aware str
 
 Explicit top accents and hover-action backgrounds apply equally to bottom connected tabs, upper wrapped pills, and separate pinned rows.
 
-`editorGroupHeader.connectedTabsBackground` defaults to `editorGroupHeader.tabsBackground`, so themes can keep their established strip palette without customization. The bundled connected palettes are Dark 2026 `#202122`, Light 2026 `#EAEAEA`, Dark Modern `#2B2B2B`, Light Modern `#E5E5E5`, the classic dark themes `#303031`, the classic light themes `#E8E8E8`, and Quiet Light `#E4E4E4`. Their original global `editorGroupHeader.tabsBackground` and `tab.inactiveBackground` values remain unchanged. Shared connected theme derivations, including Agents-window tabs, use `editorGroupHeader.tabsBackground` outside Modern UI; only Modern UI editor tabs adopt the dedicated connected-strip palette.
+`editorGroupHeader.connectedTabsBackground` defaults to `editorGroupHeader.tabsBackground`, so themes can keep their established strip palette without customization. The bundled connected palettes are Dark 2026 `#202122`, Light 2026 `#F0F0F3`, Dark Modern `#2B2B2B`, Light Modern `#E5E5E5`, the classic dark themes `#303031`, the classic light themes `#E8E8E8`, and Quiet Light `#E4E4E4`. Their original global `editorGroupHeader.tabsBackground` and `tab.inactiveBackground` values remain unchanged. Shared connected theme derivations, including Agents-window tabs, use `editorGroupHeader.tabsBackground` outside Modern UI; Modern UI editor and pane tabs adopt the dedicated connected-strip palette.
 
 Connected tabs use `tab.inactiveForeground` rather than dimming the general foreground to 50% opacity. The default palettes pair these fills with readable inactive text (at least 4.5:1), including in inactive editor groups. Light Modern and the classic light themes use the existing neutral `#616161`; the classic dark themes use `#A6A6A6`. Explicit legacy foreground customizations still take precedence. HC styling and the original pill label defaults are unchanged.
 
