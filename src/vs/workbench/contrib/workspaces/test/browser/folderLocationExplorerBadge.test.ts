@@ -27,13 +27,13 @@ suite('FolderLocationExplorerBadgeContribution', () => {
 		const locations = new Map<string, IResolvedFolderLocation>();
 		let folders = initialFolders;
 		const onDidChangeLocation = ds.add(new Emitter<void>());
-		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
+		const onDidChangeCanSetLocation = ds.add(new Emitter<void>());
 		const shown: { viewContainerId: string; activity: IActivity }[] = [];
 		const visible = new Set<IActivity>();
 
 		const contribution = ds.add(new FolderLocationExplorerBadgeContribution(
-			{ getLocation: (f: IWorkspaceFolder) => locations.get(f.name), onDidChangeLocation: onDidChangeLocation.event } as unknown as IWorkspaceFolderLocationService,
-			{ getWorkspace: () => ({ folders }), onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event } as unknown as IWorkspaceContextService,
+			{ getLocation: (f: IWorkspaceFolder) => locations.get(f.name), onDidChangeLocation: onDidChangeLocation.event, onDidChangeCanSetLocation: onDidChangeCanSetLocation.event } as unknown as IWorkspaceFolderLocationService,
+			{ getWorkspace: () => ({ folders }) } as unknown as IWorkspaceContextService,
 			{
 				showViewContainerActivity: (viewContainerId: string, activity: IActivity) => {
 					shown.push({ viewContainerId, activity });
@@ -57,7 +57,9 @@ suite('FolderLocationExplorerBadgeContribution', () => {
 				const badge = activity.badge as IconBadge;
 				return { container: shown.find(s => s.activity === activity)!.viewContainerId, icon: badge.icon.id, description: badge.getDescription() };
 			}),
-			setFolders: (value: IWorkspaceFolder[]) => { folders = value; onDidChangeWorkspaceFolders.fire(); }
+			setFolders: (value: IWorkspaceFolder[]) => { folders = value; onDidChangeCanSetLocation.fire(); },
+			/** The service stops reporting a location (such as when entering a saved workspace) without any folder change. */
+			dropLocationsWithoutFolderChange: () => { locations.clear(); onDidChangeCanSetLocation.fire(); }
 		};
 	}
 
@@ -86,5 +88,15 @@ suite('FolderLocationExplorerBadgeContribution', () => {
 		fixture.setLocation('b', location('y'));
 
 		assert.deepStrictEqual(fixture.describe().map(b => b.description), ['2 folders are at another location']);
+	});
+
+	test('clears the badge when the service stops reporting a location without a folder change', () => {
+		const fixture = createFixture([folder('project')]);
+		fixture.setLocation('project', location('feature-x'));
+		const before = fixture.describe().length;
+
+		fixture.dropLocationsWithoutFolderChange();
+
+		assert.deepStrictEqual({ before, after: fixture.describe() }, { before: 1, after: [] });
 	});
 });

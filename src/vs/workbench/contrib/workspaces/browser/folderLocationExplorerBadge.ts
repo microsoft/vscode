@@ -29,7 +29,7 @@ export class FolderLocationExplorerBadgeContribution extends Disposable implemen
 		super();
 
 		this._register(this.folderLocationService.onDidChangeLocation(() => this.update()));
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
+		this._register(this.folderLocationService.onDidChangeCanSetLocation(() => this.update()));
 		this.update();
 	}
 
