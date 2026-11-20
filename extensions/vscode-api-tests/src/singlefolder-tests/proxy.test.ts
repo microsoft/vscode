@@ -100,6 +100,10 @@ import assert from 'assert';
 			await proxyListen;
 			const proxyPort = (sf.server.address() as AddressInfo).port;
 
+			// A CI agent's NO_PROXY may list the test URL. Any http.noProxy entry makes the proxy resolver ignore NO_PROXY.
+			const noProxyChange = waitForConfigChange('http.noProxy');
+			await vscode.workspace.getConfiguration().update('http.noProxy', ['proxy-test.invalid'], vscode.ConfigurationTarget.Global);
+			await noProxyChange;
 			const change = waitForConfigChange('http.proxy');
 			await vscode.workspace.getConfiguration().update('http.proxy', `http://127.0.0.1:${proxyPort}`, vscode.ConfigurationTarget.Global);
 			await change;
@@ -142,6 +146,7 @@ import assert from 'assert';
 			const change = waitForConfigChange('http.proxy');
 			await vscode.workspace.getConfiguration().update('http.proxy', undefined, vscode.ConfigurationTarget.Global);
 			await change;
+			await vscode.workspace.getConfiguration().update('http.noProxy', undefined, vscode.ConfigurationTarget.Global);
 			await vscode.workspace.getConfiguration().update('integration-test.http.proxyAuth', undefined, vscode.ConfigurationTarget.Global);
 		}
 	});

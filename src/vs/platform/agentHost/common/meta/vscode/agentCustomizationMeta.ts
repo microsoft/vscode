@@ -29,6 +29,7 @@ export interface IAgentCustomizationMeta {
 	readonly 'vscode.modelPolicy'?: 'preferred' | 'required';
 	/** Guidance for the Assisted permissions judge while this agent is selected (`vscode: assisted-approval-instructions`). */
 	readonly 'vscode.assistedApprovalInstructions'?: string;
+	readonly 'vscode.welcomeMessage'?: string;
 	/** Client-supplied file URI before host materialization, used only to recover local provenance. */
 	readonly 'vscode.sourceUri'?: string;
 }
@@ -52,6 +53,9 @@ export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCus
 	}
 	if (typeof meta?.['vscode.assistedApprovalInstructions'] === 'string') {
 		result['vscode.assistedApprovalInstructions'] = meta['vscode.assistedApprovalInstructions'];
+	}
+	if (typeof meta?.['vscode.welcomeMessage'] === 'string' && meta['vscode.welcomeMessage'].trim()) {
+		result['vscode.welcomeMessage'] = meta['vscode.welcomeMessage'];
 	}
 	if (meta?.['vscode.chatMode'] === 'ask') {
 		result['vscode.chatMode'] = 'ask';

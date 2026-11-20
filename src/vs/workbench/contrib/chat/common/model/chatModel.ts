@@ -1982,7 +1982,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			this._response.clear();
 		}
 		// Compute elapsed generation time before setting terminal state
-		this._elapsedMs ??= Math.max(0, completedAt - this.confirmationAdjustedTimestamp.get());
+		this._recordElapsedMs(completionTimestamp);
 
 		// Canceled sessions can be considered 'Complete'
 		const state = !!this._result?.errorDetails && this._result.errorDetails.code !== 'canceled' ? ResponseModelState.Failed : ResponseModelState.Complete;
@@ -2016,10 +2016,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			}
 		}
 
-		this._elapsedMs ??= Math.max(0, completedAt - this.confirmationAdjustedTimestamp.get());
+		this._recordElapsedMs(completionTimestamp);
 		this._completionTimestamp = completionTimestamp;
 		this._modelState.set({ value: ResponseModelState.Cancelled, completedAt }, undefined);
 		this._onDidChange.fire({ reason: 'completedRequest' });
+	}
+
+	/** Records the working time up to a known completion. Without one it stays unknown: counting up to now would add the time since. */
+	private _recordElapsedMs(completionTimestamp: number | undefined): void {
+		if (completionTimestamp !== undefined) {
+			this._elapsedMs ??= Math.max(0, completionTimestamp - this.confirmationAdjustedTimestamp.get());
+		}
 	}
 
 	setFollowups(followups: IChatFollowup[] | undefined): void {
@@ -2092,7 +2099,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			modelTotals: this.usage?.modelTotals,
 			sessionCopilotCredits: this.usage?.sessionCopilotCredits,
 			sessionCopilotCreditsStatus: this.usage?.sessionCopilotCreditsStatus,
-			elapsedMs: this.elapsedMs ?? (this.completedAt ? Math.max(0, this.completedAt - this.confirmationAdjustedTimestamp.get()) : undefined),
+			elapsedMs: this.elapsedMs ?? (this.completionTimestamp ? Math.max(0, this.completionTimestamp - this.confirmationAdjustedTimestamp.get()) : undefined),
 		} satisfies WithDefinedProps<Omit<ISerializableChatResponseData, 'timestamp' | 'latestModelCall' | 'contextUsage'>> & Pick<ISerializableChatResponseData, 'latestModelCall' | 'contextUsage'>;
 	}
 }
@@ -2144,6 +2151,9 @@ export interface IChatModel extends IDisposable {
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly loadOlderHistory?: () => Promise<void>;
+	readonly olderHistoryCursor?: IObservable<string | undefined>;
+	readonly olderHistoryUnavailable?: IObservable<boolean>;
 	readonly modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>;
 	/** Provider-reported active shells across all turns; undefined allows transcript-based detection. */
 	readonly backgroundShellCount?: IObservable<number | undefined>;
@@ -3044,6 +3054,9 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined>;
+	loadOlderHistory?: () => Promise<void>;
+	readonly olderHistoryCursor = observableValue<string | undefined>(this, undefined);
+	readonly olderHistoryUnavailable = observableValue(this, false);
 	readonly modelConfigurationState: IObservable<IAgentModelConfigurationReport | undefined> | undefined;
 	readonly backgroundShellCount: IObservable<number | undefined> | undefined;
 	readonly canvasContext: IObservable<ICanvasContext | undefined> | undefined;
@@ -3662,8 +3675,10 @@ export class ChatModel extends Disposable implements IChatModel {
 			throw new BugIndicatingError('Invalid chat request insertion index');
 		}
 		const replacedRequest = insertion?.replace ? this._requests[index] : undefined;
-		const editedFileEvents = [...this.currentEditedFileEvents.values()];
-		this.currentEditedFileEvents.clear();
+		const editedFileEvents = insertion ? [] : [...this.currentEditedFileEvents.values()];
+		if (!insertion) {
+			this.currentEditedFileEvents.clear();
+		}
 		const requestTimestamp = timestamp === undefined
 			? Date.now()
 			: typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp > 0
@@ -3705,6 +3720,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			requestId: request.id,
 			isCompleteAddedRequest,
 			codeBlockInfos: undefined,
+			// A request that started elsewhere has been answered since then, not since it was added here.
+			timestamp: requestTimestamp,
 		});
 		this._requests.splice(index, replacedRequest ? 1 : 0, request);
 		markChat(this.sessionResource, ChatPerfMark.RequestUiUpdated);

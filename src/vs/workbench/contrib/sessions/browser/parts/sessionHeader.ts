@@ -90,6 +90,11 @@ export class SessionHeader extends Disposable {
 		this._bar.setDragsEditor(dragsEditor);
 	}
 
+	/** See {@link SessionHeaderBar.setShowsWorkingProgress}. */
+	setShowsWorkingProgress(shows: boolean): void {
+		this._bar.setShowsWorkingProgress(shows);
+	}
+
 	setVisible(visible: boolean): void {
 		this._bar.setVisible(visible);
 	}

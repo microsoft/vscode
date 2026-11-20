@@ -33,6 +33,7 @@ Clicking an image attachment pill in chat (when `chat.imageCarousel.enabled` is 
 - **Collection ID = chat session identity**: `sessionResource + '_carousel'` for stable dedup via `EditorInput.matches()`.
 - **Preview-gated**: `chat.imageCarousel.enabled` (default `false`, tagged `preview`). When off, clicks fall through to `openResource()`.
 - **Exact image matching**: Finds the clicked image within the constructed collection by URI first, then falls back to byte equality when needed.
+- **Markup close confirmation**: While the editor shows the markup of an image (`ICarouselImage.markUp`) that has changes, closing it first cancels the markup, which asks the user to confirm discarding them. The editor provides this to the input's `closeHandler` through `ImageCarouselEditorInput.markUpCloseHandler`.
 
 ### DOM & rendering
 

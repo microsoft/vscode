@@ -44,6 +44,7 @@ suite('FileEditTracker', () => {
 	let fileService: FileService;
 	let db: SessionDatabase;
 	let tracker: FileEditTracker;
+	const location = { storage: URI.parse('copilot:/test-session'), chat: URI.parse('ahp-chat:/conversation') };
 	let diffComputeService: TestDiffComputeService;
 	let fileEditCoordinator: AgentHostFileEditCoordinator;
 	let instantiationService: IInstantiationService;
@@ -62,7 +63,7 @@ suite('FileEditTracker', () => {
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		let owner = 'copilot:/first-owner';
-		const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, 'copilot:/storage', () => owner, undefined, undefined));
+		const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, { ...location, storage: URI.parse('copilot:/storage') }, () => owner, undefined, undefined));
 		for (const [index, path] of ['/workspace/first.txt', '/workspace/second.txt'].entries()) {
 			if (index === 1) {
 				// The chat changed owner between the two edits.
@@ -94,7 +95,7 @@ suite('FileEditTracker', () => {
 				[IEditArcReporterService, { _serviceBrand: undefined, reportEdit: async (params: IEditArcReporterLaunchParams) => { providers.push(params.provider); } }],
 			);
 			const instantiationService = disposables.add(new InstantiationService(services));
-			const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, 'ahp-session:/standard', () => 'ahp-session:/standard', provider, undefined));
+			const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, { ...location, storage: URI.parse('ahp-session:/standard') }, () => 'ahp-session:/standard', provider, undefined));
 			await fileService.writeFile(URI.file('/workspace/standard.txt'), VSBuffer.fromString('before'));
 			await localTracker.trackEditStart('/workspace/standard.txt');
 			const afterStart = fileEditCoordinator.isEditing(URI.file('/workspace/standard.txt'));
@@ -126,7 +127,7 @@ suite('FileEditTracker', () => {
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		services.set(IEditArcReporterService, new NullEditArcReporterService());
 		instantiationService = disposables.add(new InstantiationService(services));
-		tracker = disposables.add(instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', () => 'copilot:/test-session', undefined, undefined));
+		tracker = disposables.add(instantiationService.createInstance(FileEditTracker, location, () => 'copilot:/test-session', undefined, undefined));
 	});
 
 	teardown(async () => {
@@ -149,7 +150,7 @@ suite('FileEditTracker', () => {
 	test('disposing a tracker releases an edit acquired after waiting for an exclusive change', async () => {
 		const resource = URI.file('/workspace/waiting.txt');
 		disposables.add(fileEditCoordinator.registerCoordinatedProvider('copilotcli'));
-		const coordinated = disposables.add(instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', () => 'copilot:/test-session', 'copilotcli', undefined));
+		const coordinated = disposables.add(instantiationService.createInstance(FileEditTracker, location, () => 'copilot:/test-session', 'copilotcli', undefined));
 		const release = new DeferredPromise<void>();
 		const exclusive = fileEditCoordinator.runExclusive(resource, () => release.p);
 		const started = coordinated.trackEditStart(resource.fsPath);
@@ -355,7 +356,7 @@ suite('FileEditTracker', () => {
 			[IEditArcReporterService, new NullEditArcReporterService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
-		const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, resource.toString(), () => resource.toString(), undefined, undefined));
+		const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, { ...location, storage: resource }, () => resource.toString(), undefined, undefined));
 		let processing: ReturnType<FileEditTracker['takeCompletedEdit']> | undefined;
 		try {
 			await owner.object.createTurn('turn-1');
@@ -424,7 +425,7 @@ suite('FileEditTracker', () => {
 			reportEdit: async () => { arcReportCount++; },
 		});
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
-		const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', () => 'copilot:/test-session', undefined, undefined));
+		const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, location, () => 'copilot:/test-session', undefined, undefined));
 		await fileService.writeFile(URI.file('/workspace/marker.txt'), VSBuffer.fromString('before'));
 
 		await localTracker.trackEditStart('/workspace/marker.txt');
@@ -475,7 +476,7 @@ suite('FileEditTracker', () => {
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		services.set(IEditArcReporterService, new NullEditArcReporterService());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
-		const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', () => 'copilot:/test-session', undefined, undefined));
+		const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, location, () => 'copilot:/test-session', undefined, undefined));
 		await fileService.writeFile(URI.file('/workspace/fallback.txt'), VSBuffer.fromString('before'));
 
 		await localTracker.trackEditStart('/workspace/fallback.txt');
@@ -512,7 +513,7 @@ suite('FileEditTracker', () => {
 			},
 		});
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
-		const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', () => 'copilot:/test-session', undefined, undefined));
+		const localTracker = disposables.add(instantiationService.createInstance(FileEditTracker, location, () => 'copilot:/test-session', undefined, undefined));
 		await fileService.writeFile(URI.file('/workspace/non-blocking.txt'), VSBuffer.fromString('before'));
 
 		await localTracker.trackEditStart('/workspace/non-blocking.txt', 'plan');
@@ -572,7 +573,7 @@ suite('FileEditTracker', () => {
 				[IDiffComputeService, localDiffComputeService],
 				[IEditArcReporterService, { _serviceBrand: undefined, reportEdit: async (params: IEditArcReporterLaunchParams) => { reports.push(params); } }],
 			)));
-			const localTracker = disposables.add(child.createInstance(FileEditTracker, 'copilot:/test-session', () => 'copilot:/test-session', 'copilotcli', undefined));
+			const localTracker = disposables.add(child.createInstance(FileEditTracker, location, () => 'copilot:/test-session', 'copilotcli', undefined));
 			const resource = URI.file('/workspace/precise.txt');
 			await fileService.writeFile(resource, VSBuffer.fromString(before));
 			await localTracker.trackEditStart(resource.fsPath, undefined, toolInput);
@@ -624,7 +625,7 @@ suite('FileEditTracker', () => {
 					override async recordEdit() { attributionReports++; return undefined; }
 				}()],
 			)));
-			const localTracker = disposables.add(child.createInstance(FileEditTracker, 'copilot:/test-session', () => 'copilot:/test-session', 'copilotcli', undefined));
+			const localTracker = disposables.add(child.createInstance(FileEditTracker, location, () => 'copilot:/test-session', 'copilotcli', undefined));
 			const resource = URI.file('/workspace/imprecise.txt');
 			await fileService.writeFile(resource, VSBuffer.fromString(before));
 			await localTracker.trackEditStart(resource.fsPath);
@@ -664,7 +665,7 @@ suite('FileEditTracker', () => {
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		services.set(IEditArcReporterService, new NullEditArcReporterService());
 		const inst: IInstantiationService = disposables.add(new InstantiationService(services));
-		const localTracker = disposables.add(inst.createInstance(FileEditTracker, 'copilot:/test-session', () => 'copilot:/test-session', undefined, undefined));
+		const localTracker = disposables.add(inst.createInstance(FileEditTracker, location, () => 'copilot:/test-session', undefined, undefined));
 
 		await localTracker.trackEditStart('/workspace/brand-new.txt');
 		await fileService.writeFile(URI.file('/workspace/brand-new.txt'), VSBuffer.fromString('fresh'));

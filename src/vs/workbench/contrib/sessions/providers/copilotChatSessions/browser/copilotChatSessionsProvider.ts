@@ -443,10 +443,12 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		if (typeof value !== 'string') {
 			this.selectedOptions.set(optionId, value);
 		}
-		if (optionId === 'repositories') {
-			void this.draftPreparationService.discard(this.resource);
+		if (!this.isAutomationDraft) {
+			if (optionId === 'repositories') {
+				void this.draftPreparationService.discard(this.resource);
+			}
+			this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 		}
-		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
 
 	// --- Option group accessors ---
@@ -484,7 +486,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	// --- Internals ---
 
 	private _getOptionGroups(): IChatSessionProviderOptionGroup[] | undefined {
-		return this.chatSessionsService.getOptionGroupsForSessionType(this.target);
+		return this.isAutomationDraft ? undefined : this.chatSessionsService.getOptionGroupsForSessionType(this.target);
 	}
 
 	private _isOptionGroupVisible(group: IChatSessionProviderOptionGroup): boolean {
@@ -1677,10 +1679,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	get onDidChangeModels(): Event<void> {
-		// Models can change because language models are (un)registered or because
-		// the extension host updates a cloud session's `models` option group.
 		return Event.signal(Event.any(
 			this._onDidChangeSandboxModels.event,
+			this.automations?.onDidChangeModels ?? Event.None,
 			this.languageModelsService.onDidChangeLanguageModels,
 			this.chatSessionsService.onDidChangeOptionGroups
 		));
@@ -1688,6 +1689,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot {
 		const draft = this._newSessions.get(sessionId);
+		if (draft?.isAutomationDraft && this.automations) {
+			return this.automations.getModelsSnapshot(desiredModelId);
+		}
 		if (draft && this._usesSandbox(draft)) {
 			return this._sandboxModelsSnapshot(desiredModelId);
 		}
@@ -1735,8 +1739,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
 		const draft = this._newSessions.get(sessionId);
-		if (draft && this._usesSandbox(draft)) {
-			return { showUnavailableFeatured: false, showManageModelsAction: false, showAutoModel: false };
+		if (draft && (draft.isAutomationDraft || this._usesSandbox(draft))) {
+			return { showUnavailableFeatured: false, showManageModelsAction: false, showAutoModel: false, hasLiveModelCatalog: draft.isAutomationDraft && !!this.automations };
 		}
 
 		// A session type that requires an explicit model selection cannot fall

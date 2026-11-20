@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { EntraTokenProvider, EntraTokenProviderArgs } from '@github/copilot-sdk';
+import type { EntraTokenProvider, EntraTokenProviderArgs } from '@microsoft/copilot-sdk';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { autorun } from '../../../../base/common/observable.js';

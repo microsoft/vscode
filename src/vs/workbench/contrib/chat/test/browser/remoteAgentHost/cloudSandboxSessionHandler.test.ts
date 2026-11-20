@@ -257,6 +257,7 @@ suite('CloudSandboxSessionHandler', () => {
 		const handler = createHandler(undefined, undefined, undefined, undefined, undefined, undefined, (resource, title) => {
 			titles.push({ resource: resource.toString(), title });
 		});
+
 		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
 		const initialTitle = session.title;
 		const live = store.add(new LiveSession(undefined, 'Authoritative live title'));
@@ -266,6 +267,31 @@ suite('CloudSandboxSessionHandler', () => {
 			initialTitle: 'Recorded title', title: 'Authoritative live title',
 			titles: [{ resource: resource.toString(), title: 'Authoritative live title' }],
 		});
+	});
+
+	test('older history follows the live source and is unavailable while suspended', async () => {
+		const handler = createHandler(async () => recordedHistory());
+		const session = store.add(await handler.provideChatSessionContent(resource, CancellationToken.None));
+		const cursor = observableValue<string | undefined>('cursor', 'older');
+		let loads = 0;
+		const live = Object.assign(store.add(new LiveSession()), {
+			olderHistoryCursor: cursor,
+			loadOlderHistory: async () => { loads++; cursor.set('oldest', undefined); },
+		});
+		const cursors = [session.olderHistoryCursor?.get()];
+		handler.setLiveProvider({ provideChatSessionContent: async () => live });
+		await waitForState(session.isInputBlocked!, blocked => !blocked);
+		cursors.push(session.olderHistoryCursor?.get());
+		await session.loadOlderHistory!();
+		cursors.push(session.olderHistoryCursor?.get());
+		handler.clearLiveProvider();
+		await session.loadOlderHistory!();
+		cursors.push(session.olderHistoryCursor?.get());
+		const suspended = session.olderHistoryUnavailable?.get();
+		handler.setLiveProvider({ provideChatSessionContent: async () => store.add(new LiveSession()) });
+		await waitForState(session.isInputBlocked!, blocked => !blocked);
+		assert.deepStrictEqual({ cursors, suspended, reconnected: session.olderHistoryUnavailable?.get(), loads },
+			{ cursors: [undefined, 'older', 'oldest', undefined], suspended: true, reconnected: false, loads: 1 });
 	});
 
 	test('publishes a refreshed recorded title without replacing the open conversation', async () => {
@@ -535,10 +561,12 @@ suite('CloudSandboxSessionHandler', () => {
 		assert.deepStrictEqual({
 			prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt),
 			warnings: session.history.flatMap(item => item.type === 'response' ? item.parts.filter(part => part.kind === 'warning').map(part => part.content.value) : []),
+			incomplete: session.olderHistoryUnavailable?.get(),
 			readOnly: session.isReadOnly?.get(), status: session.historyStatus?.get(),
 		}, {
 			prompts: ['custom-chat:/opaque-main'],
 			warnings: ['This conversation is incomplete. Its recorded history ends mid-response, so the last exchange may be missing.'],
+			incomplete: true,
 			readOnly: true, status: undefined,
 		});
 	});

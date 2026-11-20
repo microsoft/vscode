@@ -15,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
-import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, isSessionCreated, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
 import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, type ISessionReplacedEvent, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions, ISessionDraftConfiguration } from './sessionsProvider.js';
 
@@ -283,6 +283,13 @@ export interface INewSessionRequestAcceptedEvent {
 	readonly background: boolean;
 }
 
+/** Fired by {@link ISessionsManagementService.onDidDispatchNewSessionRequest}. */
+export interface INewSessionRequestDispatchedEvent {
+	/** The session the request was sent in, after its preparation replaced the accepted draft. */
+	readonly session: ISession;
+	readonly owner: INewSessionDraftSlot;
+}
+
 /** Fired by {@link ISessionsManagementService.onDidEndNewSessionRequest}. */
 export interface INewSessionRequestEndedEvent {
 	/** The request's session, with its final id. */
@@ -500,6 +507,14 @@ export interface ISessionsManagementService {
 	 * background request when it is dispatched, for a foreground request after its preparation.
 	 */
 	readonly onDidAcceptNewSessionRequest: Event<INewSessionRequestAcceptedEvent>;
+
+	/**
+	 * Fires at most once for each request {@link onDidAcceptNewSessionRequest} fired for, before it ends: when its message
+	 * was sent, that is, when its provider forwarded the request's {@link ISendRequestOptions.onDidCreateResponse} with a
+	 * response. That can be well before the request ends, such as while the session's agent starts its tools. A provider
+	 * that does not forward it does not report it: its requests only end.
+	 */
+	readonly onDidDispatchNewSessionRequest: Event<INewSessionRequestDispatchedEvent>;
 
 	/**
 	 * Fires once for each request {@link onDidAcceptNewSessionRequest} fired for, when it started its session, failed or
@@ -837,6 +852,49 @@ export function trackNewSessionRequestEnd(sessionsManagementService: ISessionsMa
 			store.dispose();
 			onEnd(event);
 		}
+	}));
+	return store;
+}
+
+/**
+ * Calls `onSent` once with the session of the new-session request of `session` from `owner` as soon as its message was sent
+ * and the session can be opened: its provider reported the request's dispatch ({@link
+ * ISessionsManagementService.onDidDispatchNewSessionRequest}), and lists the session, no longer as a draft. That can be well
+ * before the request ends, such as while the session's agent starts its tools. A session that is listed before its message
+ * is sent, such as a placeholder of a session that is still being provisioned, waits for the dispatch; a request whose
+ * provider does not report it never calls it. Register it before sending, and dispose it when the request ends; it follows
+ * the session's replacements, and disposes itself after the call.
+ */
+export function trackNewSessionRequestSent(sessionsManagementService: ISessionsManagementService, owner: INewSessionDraftSlot, session: ISession, onSent: (session: ISession) => void): IDisposable {
+	let current = session;
+	let dispatched = false;
+	const follow = ({ from, to }: { readonly from: ISession; readonly to: ISession }) => {
+		if (from.sessionId === current.sessionId) {
+			current = to;
+		}
+	};
+	const store = new DisposableStore();
+	const callIfOpenable = () => {
+		const known = sessionsManagementService.getSession(current.resource);
+		if (known && isSessionCreated(known)) {
+			store.dispose();
+			onSent(known);
+		}
+	};
+	store.add(sessionsManagementService.onDidReplaceNewDraftSession(follow));
+	store.add(sessionsManagementService.onDidReplaceSession(follow));
+	store.add(sessionsManagementService.onDidDispatchNewSessionRequest(event => {
+		if (!dispatched && event.owner === owner && event.session.sessionId === current.sessionId) {
+			dispatched = true;
+			callIfOpenable();
+		}
+	}));
+	store.add(sessionsManagementService.onDidChangeSession(changes => {
+		// An empty change asks to read every session again.
+		if (!dispatched || changes.length && !changes.some(change => change.kind !== 'removed' && change.session.sessionId === current.sessionId)) {
+			return;
+		}
+		callIfOpenable();
 	}));
 	return store;
 }

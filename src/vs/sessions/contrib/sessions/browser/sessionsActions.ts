@@ -45,6 +45,7 @@ import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, 
 import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/agentsWindowContextKeys.js';
 import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISideChatPlacementService } from '../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getWindowHost, IFocusedSessionHostService, ISessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -859,7 +860,7 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 			menu: [{
 				id: Menus.SessionChatItemContext,
 				group: '2_organize',
-				order: 3,
+				order: 4,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionChatItemCanMoveContext),
 			}],
 		});
@@ -926,8 +927,8 @@ registerAction2(class MoveChatToSessionAction extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.SessionChatItemContext,
-				group: '1_move',
-				order: 2,
+				group: '2_organize',
+				order: 3,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext),
 			}],
 		});
@@ -971,8 +972,8 @@ registerAction2(class MoveSessionIntoSessionAction extends Action2 {
 			precondition: SessionItemIsMultiSelectionContext.negate(),
 			menu: [{
 				id: MenuId.SessionItemContextMenu,
-				group: '1_move',
-				order: 1,
+				group: '2_organize',
+				order: 3,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionItemHasMoveDestinationContext),
 			}],
 		});
@@ -2065,7 +2066,8 @@ export class SessionConversationActionsContribution extends Disposable implement
 					// Alt-invoke opens the chat to the side (in a new group beside the
 					// active one) instead of in place; the dropdown's select handler
 					// does not forward the mouse event, so read the live modifier state.
-					if (ModifierKeyEmitter.getInstance().keyStatus.altKey) {
+					// Side chats that show in the side pane open there either way.
+					if (ModifierKeyEmitter.getInstance().keyStatus.altKey && !accessor.get(ISideChatPlacementService).inSidePane.get()) {
 						const view = resolvePaneCommandTarget(accessor, [forwardedSession, ...rest])?.view;
 						if (view) {
 							await view.openChatToSide(targetChat.resource);

@@ -43,6 +43,10 @@ on:
         type: string
         default: Change detection unavailable
 
+permissions:
+  contents: read
+  actions: read
+
 env:
   NPM_ARCH: arm64
   VSCODE_ARCH: arm64

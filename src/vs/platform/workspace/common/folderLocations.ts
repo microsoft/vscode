@@ -37,6 +37,8 @@ export interface IResolvedFolderLocation extends IFolderLocation {
 
 /** The alternate locations of one provider, under its label ({@link IWorkspaceFolderLocationProvider.label}). */
 export interface IFolderLocationGroup {
+	/** The id of its provider ({@link IWorkspaceFolderLocationProvider.id}), which identifies it: labels need not be unique. */
+	readonly providerId: string;
 	readonly label: string | undefined;
 	readonly locations: readonly IFolderLocation[];
 }
