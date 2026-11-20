@@ -13,10 +13,21 @@ import { timeout } from '../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
-import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AuxiliaryBarMaximizedContext, AuxiliaryBarMaximizeHiddenContext, ChatPartEnabledContext, ChatPartVisibleContext } from '../../../common/contextkeys.js';
 import '../../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { localize2 } from '../../../../nls.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
+import { ViewDescriptorService } from '../../../services/views/browser/viewDescriptorService.js';
+import { AuxiliaryBarPart } from '../../../browser/parts/auxiliarybar/auxiliaryBarPart.js';
+import { workbenchInstantiationService } from '../workbenchTestServices.js';
 
 import '../../../browser/media/part.css';
 import '../../../contrib/modernUI/browser/media/padding.css';
@@ -152,6 +163,59 @@ suite('Auxiliary Bar - Maximize action', () => {
 			chatPartVisible: { menu: false, maximize: false, toggle: false },
 			claim: { menu: false, maximize: false, toggle: false },
 			restoreWhileMaximized: { menu: true, maximize: false, toggle: true },
+		});
+	});
+});
+
+suite('Auxiliary Bar - Auto-hide view container bar', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
+	const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+
+	class AutoHideAuxiliaryBarPart extends AuxiliaryBarPart {
+		get compositeBarShown(): boolean {
+			return this.shouldShowCompositeBar();
+		}
+	}
+
+	function registerContainerWithView() {
+		const id = `test.autoHide.${generateUuid()}`;
+		// eslint-disable-next-line local/code-no-any-casts
+		const container = viewContainersRegistry.registerViewContainer({ id, title: localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.AuxiliaryBar);
+		// eslint-disable-next-line local/code-no-any-casts
+		const views: IViewDescriptor[] = [{ id: `${id}.view`, name: localize2('view', 'view'), ctorDescriptor: new SyncDescriptor(<any>{}) }];
+		viewsRegistry.registerViews(views, container);
+		store.add(toDisposable(() => {
+			viewsRegistry.deregisterViews(views, container);
+			viewContainersRegistry.deregisterViewContainer(container);
+		}));
+	}
+
+	function createPartFactory(parts: DisposableStore) {
+		const instantiationService = workbenchInstantiationService({}, store);
+		instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
+		instantiationService.stub(IViewDescriptorService, store.add(instantiationService.createInstance(ViewDescriptorService)));
+		return (location: string, autoHide: boolean) => {
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ workbench: { activityBar: { location, autoHide } } }));
+			return parts.add(instantiationService.createInstance(AutoHideAuxiliaryBarPart));
+		};
+	}
+
+	test('hides the bar with a single view container irrespective of the activity bar location, shows it with more', () => {
+		const parts = store.add(new DisposableStore());
+		const createPart = createPartFactory(parts);
+		registerContainerWithView();
+		const single = ['default', 'top', 'bottom', 'hidden'].map(location => createPart(location, true).compositeBarShown);
+		const withoutAutoHide = createPart('default', false).compositeBarShown;
+
+		parts.clear();
+		registerContainerWithView();
+		const several = ['default', 'top', 'bottom', 'hidden'].map(location => createPart(location, true).compositeBarShown);
+
+		assert.deepStrictEqual({ single, withoutAutoHide, several }, {
+			single: [false, false, false, false],
+			withoutAutoHide: true,
+			several: [true, true, true, false],
 		});
 	});
 });
