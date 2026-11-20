@@ -10,17 +10,16 @@ import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObs
 import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { format } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { isDefined, isString } from '../../../../../../base/common/types.js';
+import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
-import { getSessionWorkspaceProperties, readSessionIsolation } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { isAgentMergeMessage } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, readBranchChangesetBaseBranch, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../../services/sessions/common/session.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
@@ -38,8 +37,8 @@ export interface IAgentHostChangeset extends Changeset {
 	readonly changes?: IObservable<readonly ISessionFileChange[] | undefined>;
 	/** Live changes layered over the authoritative changeset until its next cached `Recomputing` or `Ready` snapshot. */
 	readonly streamingChanges?: IObservable<IAgentHostCurrentTurnChanges | undefined>;
-	/** The session's base branch exactly as it was chosen when the session was configured. */
-	readonly baseBranchName?: string;
+	/** The base branch the host compares this changeset against, exactly as it describes it (for example `origin/main`). */
+	readonly baseBranchName?: IObservable<string | undefined>;
 }
 
 /** File changes published by one active turn. */
@@ -178,27 +177,6 @@ export function createChangesets(
 	return sessionChangesets;
 }
 
-/**
- * Returns the base branch exactly as it was chosen for a worktree session, or
- * `undefined` when the session is not isolated in a worktree or the chat works
- * in another folder than the session's primary working directory.
- */
-function getChosenBaseBranchName(sessionState: SessionState | undefined, chatState: ChatState): string | undefined {
-	const config = sessionState?.config;
-	if (!config) {
-		return undefined;
-	}
-	if (chatState.workingDirectories && chatState.workingDirectories[0] !== sessionState.workingDirectories?.[0]) {
-		return undefined;
-	}
-	const workspace = getSessionWorkspaceProperties(config.schema);
-	if (readSessionIsolation(workspace.isolation, config.values[workspace.isolationKey]) !== 'worktree') {
-		return undefined;
-	}
-	const baseBranchName = workspace.baseBranch ? config.values[workspace.baseBranch.key] : undefined;
-	return isString(baseBranchName) && baseBranchName.length > 0 ? baseBranchName : undefined;
-}
-
 export function createChatChangesets(
 	sessionUri: URI,
 	chatUriObs: IObservable<URI | undefined>,
@@ -224,11 +202,14 @@ export function createChatChangesets(
 	let lastChatUri: URI | undefined;
 	let lastDefaultChatUri: string | undefined;
 	let lastDefaultChangesetKind: DefaultChangesetKind | undefined;
-	let lastBaseBranchName: string | undefined;
 	let lastChangesets: readonly ISessionChangeset[] | undefined;
 	const currentTurnFileChanges = currentTurnChanges
 		? derived(reader => currentTurnChanges.read(reader)?.changes)
 		: undefined;
+	const sessionMetaObs = derived(reader => {
+		const state = sessionStateObs.read(reader).read(reader);
+		return state instanceof Error ? undefined : state?._meta;
+	});
 	return derived(reader => {
 		const chatUri = chatUriObs.read(reader);
 		const chatState = chatStateObs.read(reader).read(reader);
@@ -238,9 +219,7 @@ export function createChatChangesets(
 		}
 		const defaultChatUri = sessionState?.defaultChat;
 		const defaultChangesetKind = defaultChangesetKindObs.read(reader);
-		const baseBranchName = getChosenBaseBranchName(sessionState ?? undefined, chatState);
 		if (isEqual(chatUri, lastChatUri) && defaultChatUri === lastDefaultChatUri && defaultChangesetKind === lastDefaultChangesetKind
-			&& baseBranchName === lastBaseBranchName
 			&& chatState.changesets === lastChatCatalogue && sessionState?.changesets === lastSessionCatalogue && lastChangesets !== undefined) {
 			return lastChangesets;
 		}
@@ -256,18 +235,22 @@ export function createChatChangesets(
 		lastChatUri = chatUri;
 		lastDefaultChatUri = defaultChatUri;
 		lastDefaultChangesetKind = defaultChangesetKind;
-		lastBaseBranchName = baseBranchName;
-		lastChangesets = createChangesets(sessionUri, options, isActiveSessionObs, resolvedCatalogue.map(({ changeset, owner }) => ({
-			...changeset,
-			uriTemplate: resolveChangesetUriTemplate((owner === 'session' ? sessionUri : chatUri).toString(), changeset.uriTemplate),
-			changes: changeset.changeKind === ChangesetKind.Turn ? currentTurnFileChanges : undefined,
-			streamingChanges: changeset.changeKind === ChangesetKind.Branch
-				|| changeset.changeKind === ChangesetKind.Uncommitted
-				|| changeset.changeKind === ChangesetKind.Session
-				? currentTurnChanges
-				: undefined,
-			baseBranchName: changeset.changeKind === ChangesetKind.Branch ? baseBranchName : undefined,
-		})), chatUri, defaultChangesetKind);
+		lastChangesets = createChangesets(sessionUri, options, isActiveSessionObs, resolvedCatalogue.map(({ changeset, owner }) => {
+			const uriTemplate = resolveChangesetUriTemplate((owner === 'session' ? sessionUri : chatUri).toString(), changeset.uriTemplate);
+			return {
+				...changeset,
+				uriTemplate,
+				changes: changeset.changeKind === ChangesetKind.Turn ? currentTurnFileChanges : undefined,
+				streamingChanges: changeset.changeKind === ChangesetKind.Branch
+					|| changeset.changeKind === ChangesetKind.Uncommitted
+					|| changeset.changeKind === ChangesetKind.Session
+					? currentTurnChanges
+					: undefined,
+				baseBranchName: changeset.changeKind === ChangesetKind.Branch
+					? derived(reader => readBranchChangesetBaseBranch(sessionMetaObs.read(reader), uriTemplate))
+					: undefined,
+			};
+		}), chatUri, defaultChangesetKind);
 		return lastChangesets;
 	});
 }
@@ -665,7 +648,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	private _description?: string;
 	get description(): string | undefined { return this._description; }
 
-	readonly baseBranchName: string | undefined;
+	readonly baseBranchName: IObservable<string | undefined> | undefined;
 
 	readonly isEnabled = constObservable(true);
 	readonly isDefault: IObservable<boolean>;

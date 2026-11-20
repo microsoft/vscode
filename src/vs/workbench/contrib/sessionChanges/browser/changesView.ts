@@ -798,9 +798,10 @@ export function createChangesPickerLabelObservable(owner: object, changes: IChan
 			return undefined;
 		}
 		const defaultChangeset = findDefaultChangeset(changes.changesetsObs.read(reader) ?? [], reader);
+		const baseBranchName = changeset.baseBranchName?.read(reader);
 		return {
-			label: changeset.baseBranchName
-				? localize({ key: 'changesView.picker.branchLabel', comment: ['{0} is the changeset label, for example Branch. {1} is the base branch exactly as it was chosen for the session, for example origin/main.'] }, "{0} → {1}", changeset.label, changeset.baseBranchName)
+			label: baseBranchName
+				? localize({ key: 'changesView.picker.branchLabel', comment: ['{0} is the changeset label, for example Branch. {1} is the base branch the host compares the changes against, as shown in the Branch row, for example origin/main.'] }, "{0} → {1}", changeset.label, baseBranchName)
 				: changeset.label,
 			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
 			isNonDefault: changeset.id !== defaultChangeset?.id,

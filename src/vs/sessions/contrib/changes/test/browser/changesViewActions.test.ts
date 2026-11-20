@@ -465,7 +465,7 @@ suite('Changes View Actions', () => {
 	});
 
 	test('uses the branch description in the picker tooltip while preserving its accessible label', () => {
-		const createChangeset = (id: string, label: string, description?: string, baseBranchName?: string) => upcastPartial<ISessionChangeset>({
+		const createChangeset = (id: string, label: string, description?: string, baseBranchName?: IObservable<string | undefined>) => upcastPartial<ISessionChangeset>({
 			id,
 			label,
 			description,
@@ -473,9 +473,10 @@ suite('Changes View Actions', () => {
 			isEnabled: constObservable(true),
 			isDefault: constObservable(true),
 		});
-		const branch = createChangeset('branch', 'Branch', 'feature -> main', 'origin/main');
-		const updatedBranch = createChangeset('branch', 'Branch', 'feature -> release', 'origin/release');
-		const withoutDescription = createChangeset('branch', 'Branch', undefined, 'origin/main');
+		const branchBase = observableValue<string | undefined>('picker.branchBase', 'origin/main');
+		const branch = createChangeset('branch', 'Branch', 'feature -> main', branchBase);
+		const updatedBranch = createChangeset('branch', 'Branch', 'feature -> release', constObservable('origin/release'));
+		const withoutDescription = createChangeset('branch', 'Branch', undefined, constObservable('origin/main'));
 		const withoutBase = createChangeset('branch', 'Branch', 'feature -> main');
 		const emptyDescription = createChangeset('branch', 'Branch', '');
 		const session = createChangeset('session', 'Session', 'Session description');
@@ -503,6 +504,8 @@ suite('Changes View Actions', () => {
 		});
 
 		const initial = snapshot();
+		branchBase.set('origin/release/1.108', undefined);
+		const baseChanged = snapshot();
 		selected.set(updatedBranch, undefined);
 		const updated = snapshot();
 		transaction(tx => {
@@ -524,8 +527,9 @@ suite('Changes View Actions', () => {
 		selected.set(undefined, undefined);
 		const noChangeset = snapshot();
 
-		assert.deepStrictEqual({ initial, updated, loadingCatalogue, missing, noBase, empty, otherChangeset, noChangeset }, {
+		assert.deepStrictEqual({ initial, baseChanged, updated, loadingCatalogue, missing, noBase, empty, otherChangeset, noChangeset }, {
 			initial: { label: 'Branch → origin/main', tooltip: 'feature -> main', ariaLabel: 'Branch → origin/main: feature -> main' },
+			baseChanged: { label: 'Branch → origin/release/1.108', tooltip: 'feature -> main', ariaLabel: 'Branch → origin/release/1.108: feature -> main' },
 			updated: { label: 'Branch → origin/release', tooltip: 'feature -> release', ariaLabel: 'Branch → origin/release: feature -> release' },
 			loadingCatalogue: { label: 'Branch → origin/release', tooltip: 'feature -> release', ariaLabel: 'Branch → origin/release: feature -> release' },
 			missing: { label: 'Branch → origin/main', tooltip: 'Branch → origin/main', ariaLabel: 'Branch → origin/main' },

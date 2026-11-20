@@ -23,14 +23,14 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type AgentHostUriMapper, createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildCompareTurnsChangesetUriTemplate, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetFile, type SessionConfigSchema, type SessionConfigState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetFile } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, MessageKind, SESSION_META_BRANCH_CHANGESET_BASES_KEY, SessionLifecycle, SessionStatus, StateComponents, TurnState, type Changeset, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -1017,36 +1017,21 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
-	test('projects the base branch chosen for a worktree session onto Branch Changes only', () => {
+	test('projects the base branch the host publishes for Branch Changes', () => {
 		const sessionUri = URI.parse('ahp-session:/session');
 		const chatUri = URI.parse(buildChatUri(sessionUri.toString(), 'first'));
-		const vscodeSchema: SessionConfigSchema = {
-			type: 'object',
-			properties: {
-				isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
-				branch: { type: 'string', title: 'Branch', enumDynamic: true },
-			},
-		};
-		const otherHostSchema: SessionConfigSchema = {
-			type: 'object',
-			properties: {
-				target: { type: 'string', title: 'Target', enum: ['workspace', 'worktree'] },
-				baseBranch: { type: 'string', title: 'Base Branch', enumDynamic: true },
-			},
-		};
-		const worktreeConfig: SessionConfigState = { schema: vscodeSchema, values: { isolation: 'worktree', branch: 'origin/main' } };
-		const project = (config: SessionConfigState | undefined, chatWorkingDirectories?: string[]) => {
-			const chat: ChatSummary = { resource: chatUri.toString(), title: 'First', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: chatWorkingDirectories };
-			const sessionSubscription = createMutableSubscription({
+		const branchUri = buildBranchChangesetUri(sessionUri.toString());
+		const project = (meta: Record<string, unknown> | undefined) => {
+			const chat: ChatSummary = { resource: chatUri.toString(), title: 'First', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+			const sessionState = {
 				defaultChat: chat.resource,
 				chats: [chat],
-				workingDirectories: ['file:///repo'],
 				changesets: [{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset/session' }],
-				...(config ? { config } : {}),
-			} as unknown as SessionState);
+			} as unknown as SessionState;
+			const sessionSubscription = createMutableSubscription<SessionState>(meta ? { ...sessionState, _meta: meta } : sessionState);
 			const chatSubscription = createMutableSubscription<ChatState>({
 				...createChatState(chat),
-				changesets: [{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: 'changeset/branch' }],
+				changesets: [{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: branchUri }],
 			});
 			const connection = new class extends mock<IAgentConnection>() {
 				override getSubscription<T extends StateComponents>(component: T): IReference<IAgentSubscription<ComponentToState[T]>> {
@@ -1067,27 +1052,38 @@ suite('AgentHostSessionChangesets', () => {
 				mapBackendSessionResource: resource => resource,
 				getBackendDefaultChat: () => chat.resource,
 			}, constObservable(true));
+			let changesets: readonly ISessionChangeset[] | undefined;
 			let baseBranchNames: Record<string, string | undefined> | undefined;
 			disposables.add(autorun(reader => {
-				baseBranchNames = Object.fromEntries(projected.read(reader)?.map(changeset => [changeset.id, changeset.baseBranchName]) ?? []);
+				changesets = projected.read(reader);
+				baseBranchNames = Object.fromEntries(changesets?.map(changeset => [changeset.id, changeset.baseBranchName?.read(reader)]) ?? []);
 			}));
-			return baseBranchNames;
+			return {
+				get changesets() { return changesets; },
+				get baseBranchNames() { return baseBranchNames; },
+				setMeta: (nextMeta: Record<string, unknown>) => sessionSubscription.set({ ...sessionState, _meta: nextMeta }),
+			};
 		};
 
+		const live = project({ [SESSION_META_BRANCH_CHANGESET_BASES_KEY]: { [branchUri]: 'origin/main' } });
+		const published = live.baseBranchNames;
+		const changesetsBeforeUpdate = live.changesets;
+		live.setMeta({ [SESSION_META_BRANCH_CHANGESET_BASES_KEY]: { [branchUri]: 'origin/release/1.108' } });
+
 		assert.deepStrictEqual({
-			worktree: project(worktreeConfig),
-			folder: project({ schema: vscodeSchema, values: { isolation: 'folder', branch: 'feature' } }),
-			otherHost: project({ schema: otherHostSchema, values: { target: 'worktree', baseBranch: 'release/1.108' } }),
-			noConfig: project(undefined),
-			peerChat: project(worktreeConfig, ['file:///other']),
-			sameFolderChat: project(worktreeConfig, ['file:///repo']),
+			published,
+			noMeta: project(undefined).baseBranchNames,
+			malformed: project({ [SESSION_META_BRANCH_CHANGESET_BASES_KEY]: { [branchUri]: 42 } }).baseBranchNames,
+			otherChangeset: project({ [SESSION_META_BRANCH_CHANGESET_BASES_KEY]: { [buildBranchChangesetUri('ahp-session:/other')]: 'origin/main' } }).baseBranchNames,
+			updated: live.baseBranchNames,
+			sameChangesetsAfterUpdate: live.changesets === changesetsBeforeUpdate,
 		}, {
-			worktree: { branch: 'origin/main', session: undefined },
-			folder: { branch: undefined, session: undefined },
-			otherHost: { branch: 'release/1.108', session: undefined },
-			noConfig: { branch: undefined, session: undefined },
-			peerChat: { branch: undefined, session: undefined },
-			sameFolderChat: { branch: 'origin/main', session: undefined },
+			published: { branch: 'origin/main', session: undefined },
+			noMeta: { branch: undefined, session: undefined },
+			malformed: { branch: undefined, session: undefined },
+			otherChangeset: { branch: undefined, session: undefined },
+			updated: { branch: 'origin/release/1.108', session: undefined },
+			sameChangesetsAfterUpdate: true,
 		});
 	});
 
