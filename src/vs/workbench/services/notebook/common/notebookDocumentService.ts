@@ -118,7 +118,7 @@ export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: str
 		outputId: outputId,
 		outputIndex: outputIndex,
 		cellHandle: parsedCell?.handle,
-		cellFragment: uri.fragment,
+		cellFragment: parsedCell ? uri.fragment : undefined,
 		cellIndex: cellIndex,
 	};
 }

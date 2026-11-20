@@ -485,12 +485,14 @@ suite('CellUri', function () {
 		const parsedWithId = CellUri.parseCellOutputUri(outputWithId);
 		assert.strictEqual(parsedWithId?.openIn, 'editor');
 		assert.strictEqual(parsedWithId?.outputId, 'out-1');
+		assert.strictEqual(parsedWithId?.cellFragment, undefined);
 		assert.strictEqual(parsedWithId?.notebook.toString(), nb.toString());
 
 		const outputWithIndex = CellUri.generateCellOutputUriWithIndex(nb, cell, 2);
 		const parsedWithIndex = CellUri.parseCellOutputUri(outputWithIndex);
 		assert.strictEqual(parsedWithIndex?.openIn, 'notebook');
 		assert.strictEqual(parsedWithIndex?.cellHandle, 5);
+		assert.strictEqual(parsedWithIndex?.cellFragment, cell.fragment);
 		assert.strictEqual(parsedWithIndex?.outputIndex, 2);
 		assert.strictEqual(parsedWithIndex?.notebook.toString(), nb.toString());
 
@@ -500,6 +502,7 @@ suite('CellUri', function () {
 		assert.strictEqual(parsedOutputEditor?.cellIndex, 3);
 		assert.strictEqual(parsedOutputEditor?.outputId, 'out-1');
 		assert.strictEqual(parsedOutputEditor?.outputIndex, 0);
+		assert.strictEqual(parsedOutputEditor?.cellFragment, undefined);
 		assert.strictEqual(parsedOutputEditor?.notebook.toString(), nb.toString());
 
 		const propUri = CellUri.generateCellPropertyUri(nb, 5, 'vscode-notebook-cell-metadata');
