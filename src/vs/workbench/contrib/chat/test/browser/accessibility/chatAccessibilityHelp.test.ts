@@ -18,12 +18,13 @@ suite('Chat Accessibility Help', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			confirmation: help.includes('<keybinding:workbench.action.chat.focusConfirmation>'),
+			explainCondition: help.includes('In a conversation that supports side chats, when a terminal command needs approval'),
 			reasoning: help.includes('Focus a thinking header and press Enter or Space'),
 			accessibleReasoning: help.includes('Reasoning content is also available in Accessible View'),
 			spokenProgressSetting: help.includes('accessibility.verboseChatProgressUpdates'),
 			implementationDetails: /authentication progress and its outcome|extracted reasoning heading|Legacy thinking presentation|parabolic ribbon|reserved space/.test(help),
 		}, {
-			confirmation: true, reasoning: true, accessibleReasoning: true, spokenProgressSetting: true, implementationDetails: false,
+			confirmation: true, explainCondition: true, reasoning: true, accessibleReasoning: true, spokenProgressSetting: true, implementationDetails: false,
 		});
 	});
 
@@ -60,8 +61,9 @@ suite('Chat Accessibility Help', () => {
 				tab: help.includes('model picker offers On This Device'),
 				state: help.includes('A model\'s accessible label includes its state'),
 				notice: help.includes('An on-device model notice above the input offers actions'),
+				headerActions: help.includes('Left and Right Arrow in the header to reach model actions such as Load, Stop, Update, and Remove'),
 			};
-		}), [false, true].map(enabled => ({ tab: enabled, state: enabled, notice: enabled })));
+		}), [false, true].map(enabled => ({ tab: enabled, state: enabled, notice: enabled, headerActions: enabled })));
 	});
 
 	test('only includes archive navigation while its suggestion is shown and uses configured wording', () => {
@@ -85,11 +87,14 @@ suite('Chat Accessibility Help', () => {
 	test('keeps keyboard alternatives for attachments, worktrees, and the pet', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, undefined, false, false, undefined, false, false, true, true);
 		assert.deepStrictEqual({
-			attachmentMove: help.includes('select it with Shift and an arrow key, cut<keybinding:editor.action.clipboardCutAction>'),
+			attachmentMove: help.split('\n').find(line => line.startsWith('To move an inline pill with the keyboard')),
 			worktree: help.includes('Use Tab to reach it and Space to check or uncheck it'),
 			pet: help.includes('Use Tab to focus it, Left and Right Arrow to move it'),
 			visualPhysics: /Pointer collisions|gravity pulls|confetti|opaque hex/.test(help),
-		}, { attachmentMove: true, worktree: true, pet: true, visualPhysics: false });
+		}, {
+			attachmentMove: 'To move an inline pill with the keyboard, select it with Shift and an arrow key, cut<keybinding:editor.action.clipboardCutAction>, move the cursor, and paste<keybinding:editor.action.clipboardPasteAction>.',
+			worktree: true, pet: true, visualPhysics: false,
+		});
 	});
 
 	test('keeps remote connection navigation only on persistent chat surfaces', () => {

@@ -71,13 +71,14 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const help = getHelp();
 		assert.deepStrictEqual({
 			authenticate: help.includes('Use Tab to reach Authenticate and Enter or Space'),
+			explainCondition: help.includes('In a conversation that supports side chats, when a terminal command needs approval'),
 			artifactSwitch: help.includes('Use Tab to reach a rule\'s switch and Space to change it'),
 			artifactText: help.includes('Use the Accessible View<keybinding:editor.action.accessibleView> to read full list content'),
 			outcomeGuarantees: help.includes('An incomplete or cancelled attempt is not reported as a success'),
 			focusGuarantees: help.includes('focus moves to its explanation and returns to the control'),
 			visualDetails: /glyph animation|gold star|window.density.layout|reserved space/.test(help),
 		}, {
-			authenticate: true, artifactSwitch: true, artifactText: true, outcomeGuarantees: false, focusGuarantees: false, visualDetails: false,
+			authenticate: true, explainCondition: true, artifactSwitch: true, artifactText: true, outcomeGuarantees: false, focusGuarantees: false, visualDetails: false,
 		});
 	});
 
