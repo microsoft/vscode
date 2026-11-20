@@ -1290,9 +1290,19 @@ export class ChatService extends Disposable implements IChatService {
 				});
 			};
 
+			// The model can be released while its streamed turn still runs (its session was
+			// disposed), so drop the tracker this model added. Disposing it does not cancel the turn.
+			let syntheticRequest: CancellableRequest | undefined;
+			disposables.add(toDisposable(() => {
+				if (syntheticRequest && this._pendingRequests.get(model.sessionResource) === syntheticRequest) {
+					this._pendingRequests.deleteAndDispose(model.sessionResource);
+				}
+			}));
+
 			const trackNewCancellableRequest = () => {
 				const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined, undefined, undefined);
 				this._syntheticPendingRequests.add(cancellableRequest);
+				syntheticRequest = cancellableRequest;
 				this._pendingRequests.set(model.sessionResource, cancellableRequest);
 				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession', ...getChatSessionTelemetryIds(model.sessionResource, this.agentHostConnectionsService) });
 				cancellationListener.value = createCancellationListener(cancellableRequest.cancellationTokenSource.token);
