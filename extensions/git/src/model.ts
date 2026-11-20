@@ -336,8 +336,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		// Initial repository scan function
 		const initialScanFn = () => Promise.all([
-			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] }),
-			this.onDidChangeVisibleTextEditors(window.visibleTextEditors),
+			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] })
+				.then(() => this.onDidChangeVisibleTextEditors(window.visibleTextEditors)),
 			this.scanWorkspaceFolders()
 		]);
 
@@ -668,9 +668,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 					return;
 				}
 
-				const worktreePaths = this.repositories.flatMap(r => r.worktrees.map(w => w.path));
-				const workspaceFolderPaths = (workspace.workspaceFolders ?? []).filter(f => f.uri.scheme === 'file').map(f => f.uri.fsPath);
-				if (isInUnopenedWorktree(uri.fsPath, worktreePaths, workspaceFolderPaths)) {
+				if (await this.isInUnopenedWorktree(uri.fsPath)) {
 					this.logger.trace(`[Model][onDidChangeVisibleTextEditors] Editor resource ${uri.fsPath} is in a worktree that is not a workspace folder`);
 					return;
 				}
@@ -1276,6 +1274,31 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		]);
 
 		return !Array.from(workspaceFolderPaths).some(folder => folder && (pathEquals(folder, repositoryPath) || isDescendant(folder, repositoryPath)));
+	}
+
+	private async isInUnopenedWorktree(fsPath: string): Promise<boolean> {
+		const workspaceFolders = (workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file');
+		if (workspaceFolders.length === 0) {
+			return false;
+		}
+
+		const worktreePaths: string[] = [];
+		await Promise.all(this.repositories
+			.filter(r => !workspace.getConfiguration('git', Uri.file(r.root)).get<boolean>('detectWorktrees'))
+			.map(async r => {
+				try {
+					worktreePaths.push(...(await r.getWorktrees()).map(w => w.path));
+				} catch (err) {
+					this.logger.trace(`[Model][isInUnopenedWorktree] Failed to list worktrees of "${r.root}". Error:${err}`);
+				}
+			}));
+
+		const workspaceFolderPaths = [
+			...workspaceFolders.map(folder => folder.uri.fsPath),
+			...(await Promise.all(workspaceFolders.map(folder => this.getWorkspaceFolderRealPath(folder)))).filter((p): p is string => !!p)
+		];
+
+		return isInUnopenedWorktree(fsPath, worktreePaths, workspaceFolderPaths);
 	}
 
 	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string | undefined> {
