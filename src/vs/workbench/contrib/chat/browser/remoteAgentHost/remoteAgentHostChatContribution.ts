@@ -512,6 +512,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			syncedUri => this._activeClientService.getOrigin(syncedUri)
 		));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
+		// Only the Copilot runtime runs the hooks declared in custom agent files.
+		itemProvider.setListsCustomAgentHooks(agent.provider === 'copilotcli');
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		const modelCatalogueStatus = observableFromEvent(this, connection.rootState.onDidChange, () =>
 			readAgentModelCatalogStatus(connection.rootState.value, agent.provider));

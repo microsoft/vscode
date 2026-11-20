@@ -17,7 +17,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux } from '../../../../base/common/platform.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -4236,7 +4236,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
 		runtimeOverrides: Partial<ICopilotSessionRuntime> = {},
-		planOverrides: Pick<CopilotSessionLaunchPlan, 'modelRouterGuidance' | 'isEphemeral'> = {},
+		planOverrides: Pick<CopilotSessionLaunchPlan, 'modelRouterGuidance' | 'isEphemeral' | 'additionalDirectories'> = {},
 	): Promise<ResumeSessionOptions> {
 		const plan = {
 			kind: 'resume',
@@ -4331,6 +4331,37 @@ suite('CopilotSessionLauncher resume config', () => {
 			chat: /<model_router_guidance>[^]*"Team" chose its "feature" route[^]*Plan first\.[^]*<\/model_router_guidance>$/.test(await content(false)),
 			ephemeral: (await content(true)).includes('model_router_guidance'),
 		}, { chat: true, ephemeral: false });
+	});
+
+	test('sends the hooks of custom agents only when every session folder is trusted', async () => {
+		const store = disposables.add(new DisposableStore());
+		const workspaceAgent = URI.file('/workspace/.github/agents/guard.agent.md');
+		const userAgent = URI.file('/home/user/.copilot/agents/helper.agent.md');
+		// Agents copied from other locations or taken from another chat are not inside a session folder.
+		const copiedAgent = URI.file('/cache/synced/agents/copied.agent.md');
+		const agents = [workspaceAgent, userAgent, copiedAgent];
+		const snapshot: CopilotSessionLaunchPlan['snapshot'] = {
+			discoveredAgents: agents.map(uri => ({ name: basename(uri), uri, customization: { type: CustomizationType.Agent, id: uri.toString(), uri: uri.toString(), name: basename(uri) } })),
+			additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {},
+		};
+		const additional = URI.file('/other');
+		const hooksFor = async (trustedUris: readonly URI[], additionalDirectories?: readonly URI[]) => {
+			const config = await buildResumeConfig(createLauncher(store, { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: trustedUris.map(uri => uri.toString()) } }, '---\nname: agent\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody'), undefined, snapshot, undefined, undefined, { additionalDirectories });
+			return agents.filter(uri => config.agents?.definitions?.find(agent => agent.name === getSdkCustomAgentName(uri))?.hooks !== undefined).map(uri => basename(uri));
+		};
+		assert.deepStrictEqual({
+			trusted: await hooksFor([URI.file('/workspace')]),
+			untrusted: await hooksFor([]),
+			allFoldersTrusted: await hooksFor([URI.file('/workspace'), additional], [additional]),
+			additionalFolderUntrusted: await hooksFor([URI.file('/workspace')], [additional]),
+			primaryFolderUntrusted: await hooksFor([additional], [additional]),
+		}, {
+			trusted: ['guard.agent.md', 'helper.agent.md', 'copied.agent.md'],
+			untrusted: [],
+			allFoldersTrusted: ['guard.agent.md', 'helper.agent.md', 'copied.agent.md'],
+			additionalFolderUntrusted: [],
+			primaryFolderUntrusted: [],
+		});
 	});
 
 	test('custom-agent tool reference remapping remains launch-only', async () => {

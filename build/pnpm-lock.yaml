@@ -313,6 +313,9 @@ importers:
       jws:
         specifier: ^4.0.1
         version: 4.0.1
+      merge-stream:
+        specifier: ^2.0.0
+        version: 2.0.0
       mime:
         specifier: ^1.4.1
         version: 1.6.0

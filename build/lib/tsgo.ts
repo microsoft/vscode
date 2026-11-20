@@ -5,7 +5,7 @@
 
 import ansiColors from 'ansi-colors';
 import * as cp from 'child_process';
-import es from 'event-stream';
+import { through } from './streams.ts';
 import fancyLog from 'fancy-log';
 import { createRequire } from 'module';
 import * as path from 'path';
@@ -83,7 +83,7 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 }
 
 export function createTsgoStream(projectPath: string, config: { taskName: string; noEmit?: boolean }, onComplete?: () => Promise<void> | void): NodeJS.ReadWriteStream {
-	const stream = es.through();
+	const stream = through();
 
 	spawnTsgo(projectPath, config, onComplete).then(() => {
 		stream.emit('end');
