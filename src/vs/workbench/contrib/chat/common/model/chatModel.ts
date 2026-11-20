@@ -994,7 +994,7 @@ export class Response extends AbstractResponse implements IDisposable {
 				} else {
 					this._pendingConfirmationCandidates.delete(part);
 				}
-			} else if (part.isUsed) {
+			} else if (part instanceof ChatQuestionCarouselData || part instanceof ChatPlanReviewData ? part.used.read(reader) : part.isUsed) {
 				this._pendingConfirmationCandidates.delete(part);
 			} else {
 				pending.push(part);
@@ -1748,19 +1748,25 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this.id = params.restoredId ?? 'response_' + generateUuid();
 
 		let lastStartedWaitingAt: number | undefined = undefined;
+		let stateBeforeWaiting: ResponseModelStateT | undefined = undefined;
 		this.confirmationAdjustedTimestamp = derived(reader => {
 			this._timingChanged.read(reader);
 			const pending = this.isPendingConfirmation.read(reader);
 			if (pending) {
-				this._modelState.set({ value: ResponseModelState.NeedsInput }, undefined);
+				const state = this._modelState.read(undefined);
+				if (state.value !== ResponseModelState.NeedsInput) {
+					stateBeforeWaiting = state;
+					this._modelState.set({ value: ResponseModelState.NeedsInput }, undefined);
+				}
 				if (!lastStartedWaitingAt) {
 					lastStartedWaitingAt = pending.startedWaitingAt;
 				}
 			} else if (lastStartedWaitingAt) {
-				// Restore state to Pending if it was set to NeedsInput by this observable
+				// Restore the state this observable replaced with NeedsInput, which is not always Pending: a response can end while it waits
 				if (this._modelState.read(reader).value === ResponseModelState.NeedsInput) {
-					this._modelState.set({ value: ResponseModelState.Pending }, undefined);
+					this._modelState.set(stateBeforeWaiting ?? { value: ResponseModelState.Pending }, undefined);
 				}
+				stateBeforeWaiting = undefined;
 				this._timeSpentWaitingAccumulator += Date.now() - lastStartedWaitingAt;
 				lastStartedWaitingAt = undefined;
 			}
