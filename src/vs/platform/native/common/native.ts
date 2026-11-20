@@ -14,7 +14,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
-import { AgentsWindowOpenSource, IAgentsWindowDraft, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft, IColorScheme, IEmbeddedEditorWindowOptions, IEmbeddedWindowBounds, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IToastOptions {
 	readonly id: string;
@@ -335,6 +335,16 @@ export interface ICommonNativeHostService {
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
 	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
+
+	/**
+	 * Shows an editor window for the given folders or workspace as a view inside this window,
+	 * reusing the one this window already holds for them. Changes are announced on the
+	 * `EMBEDDED_EDITOR_WINDOW_CHANGED_CHANNEL` channel.
+	 */
+	showEmbeddedEditorWindow(toOpen: IWindowOpenable[], options: IEmbeddedEditorWindowOptions): Promise<void>;
+	layoutEmbeddedEditorWindow(bounds: IEmbeddedWindowBounds): Promise<void>;
+	hideEmbeddedEditorWindow(): Promise<void>;
+	openChatInEmbeddedEditorWindow(chatSessionToOpen: UriComponents): Promise<void>;
 
 	/**
 	 * Asks the Agents window to show the Agents Launcher, opening the Agents window first when none is open. An open Agents

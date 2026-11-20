@@ -789,7 +789,28 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
 }
 
+let isEmbeddedMainWindow = false;
+
+/**
+ * Marks the main window as embedded in another window, which provides its title bar and
+ * window controls, so the main window shows no title bar of its own.
+ */
+export function setEmbeddedMainWindow(embedded: boolean): void {
+	isEmbeddedMainWindow = embedded;
+}
+
+/**
+ * Whether the main window is embedded in another window, such as an editor window that the Agents window shows.
+ */
+export function isMainWindowEmbedded(): boolean {
+	return isEmbeddedMainWindow;
+}
+
 export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
+	if (isEmbeddedMainWindow && !isAuxiliaryWindow(window)) {
+		return false;
+	}
+
 	if (!hasCustomTitlebar(configurationService)) {
 		return false;
 	}

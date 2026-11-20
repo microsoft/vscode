@@ -264,7 +264,8 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 		// active window because any other network request will wait on
 		// the credentials and we want the user to present the dialog.
 		const window = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
-		if (!window) {
+		const webContents = window?.webContents;
+		if (!window || !webContents || webContents.isDestroyed()) {
 			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - no opened window found to show dialog in');
 
 			return undefined; // unexpected
@@ -287,7 +288,7 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 			const proxyAuthResponseHandler = async (event: ElectronEvent, channel: string, reply: Credentials & { remember: boolean } | undefined /* canceled */) => {
 				if (channel === payload.replyChannel) {
 					this.logService.trace(`auth#doResolveProxyCredentials - exit - received credentials from window ${window.id}`);
-					window.win?.webContents.off('ipc-message', proxyAuthResponseHandler);
+					webContents.off('ipc-message', proxyAuthResponseHandler);
 
 					// We got credentials from the window
 					if (reply) {
@@ -322,7 +323,7 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 				}
 			};
 
-			window.win?.webContents.on('ipc-message', proxyAuthResponseHandler);
+			webContents.on('ipc-message', proxyAuthResponseHandler);
 		});
 
 		// Remember credentials for the session in case

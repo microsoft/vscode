@@ -43,6 +43,7 @@ import { AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID } from './agentHostWorktreeLo
 import { IAgentHostWorktreeLocations } from './agentHostWorktreeLocationsService.js';
 import { getWorktreeFilterKey, WorktreeLastSessions } from '../../../common/sessionWorktreeFolders.js';
 import { IAgentHostWorktreeChatResolverService } from './agentHostWorktreeChatResolver.js';
+import { isMainWindowEmbedded } from '../../../../../services/layout/browser/layoutService.js';
 
 type WorktreeFolderSwitchDirection = 'toAlternate' | 'toPrimary';
 
@@ -245,8 +246,9 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		return session ? URI.parse(session) : undefined;
 	}
 
+	/** On in an editor window that the Agents window shows, whose folder follows the chat selected there, whatever the setting. */
 	private _isEnabledBySettings(): boolean {
-		return !!this._configurationService.getValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree)
+		return (isMainWindowEmbedded() || !!this._configurationService.getValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree))
 			&& !!this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
 	}
 
@@ -396,7 +398,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	 */
 	private _logTrigger(): void {
 		const folder = this._workspaceContextService.getWorkspace().folders[0];
-		if (folder && this._folderLocationService.canSetLocation(folder) && this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)) {
+		if (!isMainWindowEmbedded() && folder && this._folderLocationService.canSetLocation(folder) && this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)) {
 			logSettingExperimentTrigger(this._telemetryService, ChatConfiguration.EditorWindowEnableWorktree);
 		}
 	}

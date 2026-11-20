@@ -33,7 +33,7 @@ import { IApplicationStorageMainService, IStorageMainService } from '../../stora
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings, getMacOSWindowControlsPosition } from '../../window/common/window.js';
+import { getMenuBarVisibility, IFolderToOpen, IEmbeddedWindowBounds, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings, getMacOSWindowControlsPosition } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, isHiddenWindowMode, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -55,6 +55,7 @@ export interface IWindowCreationOptions {
 	readonly extensionDevelopmentPath?: string[];
 	readonly isExtensionTestHost?: boolean;
 	readonly isSessionsWindow?: boolean;
+	readonly embeddingWindow?: ICodeWindow;
 
 	/**
 	 * Minimize the window, as it was when the application quit.
@@ -193,6 +194,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	protected _win: electron.BrowserWindow | null = null;
 	get win() { return this._win; }
+	get webContents(): electron.WebContents | undefined { return this._win?.webContents; }
+	get contentView(): electron.View | undefined { return this._win?.contentView; }
 	protected setWin(win: electron.BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		this._win = win;
 		// Electron requires the overlay to have been enabled when the window was created.
@@ -276,7 +279,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		// Open devtools if instructed from command line args
 		// (not in hidden mode: undocked DevTools would be shown)
 		if (this.environmentMainService.args['open-devtools'] === true && !isHiddenWindowMode(this.environmentMainService)) {
-			win.webContents.openDevTools();
+			this.webContents?.openDevTools();
 		}
 
 		// macOS: Window Fullscreen Transitions
@@ -519,7 +522,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		// However, in scenarios where the window has multiple child views (e.g. browser WebContentsViews),
 		// the last focused view in the window may not be the workbench.
 		// So we explicitly focus the workbench web contents here to ensure it gets focus.
-		win.webContents.focus();
+		this.webContents?.focus();
 	}
 
 	//#region Window Control Overlays
@@ -756,6 +759,19 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	protected override _win: electron.BrowserWindow;
 
+	private readonly embeddedView: electron.WebContentsView | undefined;
+	private readonly _embeddingWindow: ICodeWindow | undefined;
+	get embeddingWindow(): ICodeWindow | undefined { return this._embeddingWindow; }
+	get embeddedWindows(): readonly ICodeWindow[] { return this.windowsMainService.getWindows().filter(window => window.embeddingWindow === this); }
+	get nativeWindow(): electron.BrowserWindow { return this._win; }
+
+	override get win(): electron.BrowserWindow {
+		const embeddingWin = this._embeddingWindow?.win;
+		return embeddingWin && !embeddingWin.isDestroyed() ? embeddingWin : this._win;
+	}
+	override get webContents(): electron.WebContents { return this.embeddedView ? this.embeddedView.webContents : this._win.webContents; }
+	override get contentView(): electron.View { return this.embeddedView ?? this._win.contentView; }
+
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
@@ -868,6 +884,13 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			if (config.minimized) {
 				options.show = false; // a window that is created visible takes focus
 			}
+			if (config.embeddingWindow) {
+				// The workbench renders in a view of the embedding window, so this window only
+				// represents its lifecycle and is never shown
+				options.show = false;
+				options.skipTaskbar = true;
+				options.webPreferences = { sandbox: true, backgroundThrottling: false };
+			}
 			const iconPath = config.isSessionsWindow && isWindows ? join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico') : undefined;
 			if (iconPath) {
 				options.icon = iconPath;
@@ -879,11 +902,38 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this._win = new electron.BrowserWindow(options);
 			mark('code/didCreateCodeBrowserWindow');
 
+			const embeddingWindow = config.embeddingWindow;
+			if (embeddingWindow) {
+				if (isMacintosh) {
+					this._win.excludedFromShownWindowsMenu = true;
+				}
+
+				const view = this.embeddedView = new electron.WebContentsView({ webPreferences });
+				view.setVisible(false);
+				if (options.backgroundColor) {
+					view.setBackgroundColor(options.backgroundColor);
+				}
+				this._embeddingWindow = embeddingWindow;
+				embeddingWindow.contentView?.addChildView(view);
+				this._register(Event.fromNodeEventEmitter(view.webContents, 'focus')(() => this._lastFocusTime = Date.now()));
+				this._register(toDisposable(() => {
+					const embeddingWin = embeddingWindow.win;
+					if (embeddingWin && !embeddingWin.isDestroyed()) {
+						embeddingWindow.contentView?.removeChildView(view);
+					}
+					if (!view.webContents.isDestroyed()) {
+						view.webContents.close();
+					}
+				}));
+			}
+
 			this._id = this._win.id;
 			this.setWin(this._win, options);
 
 			// Apply some state after window creation
-			this.applyState(this.windowState, hasMultipleDisplays, config.minimized);
+			if (!embeddingWindow) {
+				this.applyState(this.windowState, hasMultipleDisplays, config.minimized);
+			}
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
@@ -954,6 +1004,61 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return this.readyState === ReadyState.READY;
 	}
 
+	layoutEmbedded(bounds: IEmbeddedWindowBounds | undefined): void {
+		const view = this.embeddedView;
+		const embeddingWindow = this._embeddingWindow;
+		if (!view || !embeddingWindow) {
+			throw new Error('Only an embedded window can be laid out in its embedding window');
+		}
+
+		if (!bounds) {
+			if (view.getVisible()) {
+				if (view.webContents.isFocused()) {
+					embeddingWindow.webContents?.focus();
+				}
+				view.setVisible(false);
+			}
+			return;
+		}
+
+		view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
+		view.setBounds({
+			x: Math.round(bounds.x * bounds.zoomFactor),
+			y: Math.round(bounds.y * bounds.zoomFactor),
+			width: Math.round(bounds.width * bounds.zoomFactor),
+			height: Math.round(bounds.height * bounds.zoomFactor)
+		});
+
+		if (bounds.occluded) {
+			view.setVisible(false);
+		} else if (!view.getVisible()) {
+			// Re-adding moves the view above other child views of the embedding window
+			embeddingWindow.contentView?.addChildView(view);
+			view.setVisible(true);
+		}
+	}
+
+	override focus(options?: { mode: FocusMode }): void {
+		const embeddingWindow = this._embeddingWindow;
+		if (!embeddingWindow) {
+			super.focus(options);
+			return;
+		}
+
+		embeddingWindow.focus(options);
+		if (this.embeddedView?.getVisible() || this.windowsMainService.revealEmbeddedWindow(this)) {
+			this.webContents.focus();
+		}
+	}
+
+	override updateWindowControls(options: { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void {
+		if (this._embeddingWindow) {
+			return; // the window controls belong to the embedding window
+		}
+
+		super.updateWindowControls(options);
+	}
+
 	get whenClosedOrLoaded(): Promise<void> {
 		return new Promise<void>(resolve => {
 
@@ -974,18 +1079,18 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		// Window error conditions to handle
 		this._register(Event.fromNodeEventEmitter(this._win, 'unresponsive')(() => this.onWindowError(WindowError.UNRESPONSIVE)));
 		this._register(Event.fromNodeEventEmitter(this._win, 'responsive')(() => this.onWindowError(WindowError.RESPONSIVE)));
-		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'render-process-gone', (event, details) => details)(details => this.onWindowError(WindowError.PROCESS_GONE, { ...details })));
-		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-fail-load', (event, exitCode, reason) => ({ exitCode, reason }))(({ exitCode, reason }) => this.onWindowError(WindowError.LOAD, { reason, exitCode })));
+		this._register(Event.fromNodeEventEmitter(this.webContents, 'render-process-gone', (event, details) => details)(details => this.onWindowError(WindowError.PROCESS_GONE, { ...details })));
+		this._register(Event.fromNodeEventEmitter(this.webContents, 'did-fail-load', (event, exitCode, reason) => ({ exitCode, reason }))(({ exitCode, reason }) => this.onWindowError(WindowError.LOAD, { reason, exitCode })));
 
 		// Prevent windows/iframes from blocking the unload
 		// through DOM events. We have our own logic for
 		// unloading a window that should not be confused
 		// with the DOM way.
 		// (https://github.com/microsoft/vscode/issues/122736)
-		this._register(Event.fromNodeEventEmitter<electron.Event>(this._win.webContents, 'will-prevent-unload')(event => event.preventDefault()));
+		this._register(Event.fromNodeEventEmitter<electron.Event>(this.webContents, 'will-prevent-unload')(event => event.preventDefault()));
 
 		// Remember that we loaded
-		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-finish-load')(() => {
+		this._register(Event.fromNodeEventEmitter(this.webContents, 'did-finish-load')(() => {
 
 			// Associate properties from the load request if provided
 			if (this.pendingLoadConfig) {
@@ -1029,7 +1134,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			const serviceUrl = URI.parse(this.productService.extensionsGallery.serviceUrl);
 			urls.push(`${serviceUrl.scheme}://${serviceUrl.authority}/*`);
 		}
-		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
+		this.webContents.session.webRequest.onBeforeSendHeaders({ urls }, async (details, cb) => {
 			const headers = await this.getMarketplaceHeaders();
 
 			cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) });
@@ -1128,7 +1233,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 				// Unresponsive
 				if (type === WindowError.UNRESPONSIVE) {
-					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || this._win?.webContents?.isDevToolsOpened()) {
+					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || this.webContents.isDevToolsOpened()) {
 						// TODO@electron Workaround for https://github.com/microsoft/vscode/issues/56994
 						// In certain cases the window can report unresponsiveness because a breakpoint was hit
 						// and the process is stopped executing. The most typical cases are:
@@ -1316,7 +1421,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				const proxyRules = newHttpProxy || '';
 				const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
 				this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
-				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+				this.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
 		}
@@ -1393,7 +1498,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		} else {
 			windowUrl = FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true);
 		}
-		this._win.loadURL(windowUrl);
+		this.webContents.loadURL(windowUrl);
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
@@ -1401,12 +1506,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		// Only do this when running out of sources and not when running tests
-		if (!this.environmentMainService.isBuilt && !this.environmentMainService.extensionTestsLocationURI) {
+		if (!this.embeddedView && !this.environmentMainService.isBuilt && !this.environmentMainService.extensionTestsLocationURI) {
 			this._register(new RunOnceScheduler(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
 					this.focus({ mode: FocusMode.Force });
-					this._win.webContents.openDevTools();
+					this.webContents.openDevTools();
 				}
 			}, 10000)).schedule();
 		}
@@ -1659,8 +1764,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	}
 
 	getBounds(): electron.Rectangle {
-		const [x, y] = this._win.getPosition();
-		const [width, height] = this._win.getSize();
+		const win = this.win;
+		const [x, y] = win.getPosition();
+		const [width, height] = win.getSize();
 
 		return { x, y, width, height };
 	}
@@ -1768,13 +1874,13 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	send(channel: string, ...args: unknown[]): void {
 		if (this._win) {
-			if (this._win.isDestroyed() || this._win.webContents.isDestroyed()) {
+			if (this._win.isDestroyed() || this.webContents.isDestroyed()) {
 				this.logService.warn(`Sending IPC message to channel '${channel}' for window that is destroyed`);
 				return;
 			}
 
 			try {
-				this._win.webContents.send(channel, ...args);
+				this.webContents.send(channel, ...args);
 			} catch (error) {
 				this.logService.warn(`Error sending IPC message to channel '${channel}' of window ${this._id}: ${toErrorMessage(error)}`);
 			}
@@ -1857,7 +1963,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private async startCollectingJScallStacks(): Promise<void> {
 		if (!this.jsCallStackCollector.isTriggered()) {
-			const stack = await this._win?.webContents.mainFrame.collectJavaScriptCallStack();
+			const stack = this._win ? await this.webContents.mainFrame.collectJavaScriptCallStack() : undefined;
 
 			// Increment the count for this stack trace
 			if (stack) {
@@ -1885,7 +1991,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				// If the stack appears more than 20 percent of the time, log it
 				// to the error telemetry as UnresponsiveSampleError.
 				if (Math.round((count * 100) / this.jsCallStackEffectiveSampleCount) > 20) {
-					const fakeError = new UnresponsiveError(stack, this.id, this._win?.webContents.getOSProcessId());
+					const fakeError = new UnresponsiveError(stack, this.id, this._win ? this.webContents.getOSProcessId() : undefined);
 					errorHandler.onUnexpectedError(fakeError);
 				}
 				logMessage += `<${count}> ${stack}\n`;
@@ -1900,7 +2006,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	}
 
 	matches(webContents: electron.WebContents): boolean {
-		return this._win?.webContents.id === webContents.id;
+		return !!this._win && this.webContents.id === webContents.id;
 	}
 
 	override dispose(): void {

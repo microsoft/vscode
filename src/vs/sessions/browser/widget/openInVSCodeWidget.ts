@@ -57,7 +57,9 @@ export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
 		}
 
 		const label = this.action.label;
-		const hoverText = this.keybindingService.appendKeybinding(localize('openInVSCodeHover', "Open in VS Code Editor Window"), this.keybindingCommandId);
+		const hoverLabel = this.action.checked ? label : localize('openInVSCodeHover', "Open in VS Code Editor Window");
+		const hoverText = this.keybindingService.appendKeybinding(hoverLabel, this.keybindingCommandId);
+		container.classList.toggle('checked', !!this.action.checked);
 		container.setAttribute('aria-label', hoverText);
 		this._register(this.hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), container, hoverText));
 

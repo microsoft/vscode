@@ -124,7 +124,7 @@ class UtilityProcessWorker extends Disposable {
 
 	spawn(): boolean {
 		const window = this.windowsMainService.getWindowById(this.configuration.reply.windowId);
-		const windowPid = window?.win?.webContents.getOSProcessId();
+		const windowPid = window?.webContents?.getOSProcessId();
 
 		return this.utilityProcess.start({
 			type: this.configuration.process.type,

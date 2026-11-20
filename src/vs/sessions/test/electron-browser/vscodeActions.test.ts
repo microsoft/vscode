@@ -8,9 +8,11 @@ import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable, isFolderToOpen } from '../../../platform/window/common/window.js';
-import { constObservable } from '../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import { getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
+import { OpenSessionInVSCodeAction, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
+import { getChatSessionToOpenInEditor } from '../../electron-browser/editorWindowTarget.js';
+import { IEmbeddedEditorService } from '../../electron-browser/embeddedEditor.js';
 import { IChat, ISession, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -355,6 +357,44 @@ suite('VS Code Actions', () => {
 		), error);
 		assert.deepStrictEqual(calls, ['workspace']);
 	});
+
+	test('Open in Editor toggles the editor inside the Agents window, and falls back to a window without folders', async () => {
+		const calls: string[] = [];
+		const visible = observableValue('embeddedEditorVisible', false);
+		instantiationService.stub(IEmbeddedEditorService, upcastPartial<IEmbeddedEditorService>({
+			enabled: true,
+			visible,
+			show: async (session, chat) => {
+				const folders = (chat ?? session.mainChat.get())?.workspace.get()?.folders;
+				if (!folders?.length) {
+					return false;
+				}
+				calls.push(`show ${session.sessionId} ${chat?.resource}`);
+				visible.set(true, undefined);
+				return true;
+			},
+			hide: async () => {
+				calls.push('hide');
+				visible.set(false, undefined);
+			},
+		}));
+		instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+			override async openWindow(): Promise<void> { calls.push('openWindow'); }
+		}());
+
+		const action = new OpenSessionInVSCodeAction();
+		const run = (session: ISession) => instantiationService.invokeFunction(accessor => action.run(accessor, { session, chat: session.mainChat.get() }));
+		const session = createSession('embedded', true, [URI.file('/repo')]);
+		await run(session);
+		await run(session);
+		await run(createSession('folderless', true));
+
+		assert.deepStrictEqual(calls, [
+			'show test:embedded test:/embedded/chat',
+			'hide',
+			'openWindow',
+		]);
+	});
 });
 
 function createWindow(id: number): IOpenedMainWindow {
@@ -385,6 +425,7 @@ function createSession(id: string, isCreated: boolean, folders?: URI[], resource
 		override readonly workspace = workspace;
 	}();
 	return new class extends mock<ISession>() {
+		override readonly sessionId = `test:${id}`;
 		override readonly resource = resource;
 		override readonly providerId = 'test';
 		override readonly status = constObservable(isCreated ? SessionStatus.Completed : SessionStatus.Untitled);

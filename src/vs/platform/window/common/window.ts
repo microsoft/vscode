@@ -653,7 +653,50 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
 
 	isSessionsWindow?: boolean;
+
+	/**
+	 * Set when the window's workbench is shown inside another window, which provides its
+	 * title bar and window controls.
+	 */
+	embeddingWindowId?: number;
 }
+
+/**
+ * Where an embedded window's workbench shows in its embedding window, in CSS pixels of the
+ * embedding workbench at its zoom factor.
+ */
+export interface IEmbeddedWindowBounds extends IRectangle {
+	readonly zoomFactor: number;
+	readonly cornerRadius: number;
+
+	/**
+	 * Hides the embedded window while content of the embedding window shows over it.
+	 */
+	readonly occluded?: boolean;
+}
+
+export interface IEmbeddedEditorWindowOptions {
+
+	/**
+	 * The chat session to open in the chat view of the editor window.
+	 */
+	readonly chatSessionToOpen?: URI;
+
+	/**
+	 * Where the single local folder to open starts when a new editor window opens for it: an alternate location of it,
+	 * such as a worktree of the repository it is, or `'primary'` for the folder itself. An editor window that already
+	 * shows the folder keeps its location: it follows the chat it shows (`chat.editorWindow.enableWorktree`).
+	 */
+	readonly folderLocation?: IWindowFolderLocation | 'primary';
+
+	readonly bounds: IEmbeddedWindowBounds;
+}
+
+/**
+ * Sent to an embedding window whenever the editor window it shows changes, with the id
+ * of the visible embedded window, or `undefined` once none is visible.
+ */
+export const EMBEDDED_EDITOR_WINDOW_CHANGED_CHANNEL = 'vscode:embeddedEditorWindowChanged';
 
 /**
  * According to Electron docs: `scale := 1.2 ^ level`.

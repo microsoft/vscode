@@ -9,6 +9,7 @@ import { INativeWindowConfiguration, IWindowsConfiguration } from '../../platfor
 import { Workbench } from '../browser/workbench.js';
 import { NativeWindow } from './window.js';
 import { setFullscreen } from '../../base/browser/browser.js';
+import { setEmbeddedMainWindow } from '../services/layout/browser/layoutService.js';
 import { domContentLoaded } from '../../base/browser/dom.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { URI } from '../../base/common/uri.js';
@@ -89,6 +90,9 @@ export class DesktopMain extends Disposable {
 
 		// Apply fullscreen early if configured
 		setFullscreen(!!this.configuration.fullscreen, mainWindow);
+
+		// A window embedded in another window shows that window's title bar
+		setEmbeddedMainWindow(typeof this.configuration.embeddingWindowId === 'number');
 	}
 
 	private reviveUris() {

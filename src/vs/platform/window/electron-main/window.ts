@@ -13,7 +13,7 @@ import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { FocusMode, IApplicationBadge } from '../../native/common/native.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
-import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_EMPTY_WINDOW_SIZE, DEFAULT_WORKSPACE_WINDOW_SIZE, INativeWindowConfiguration } from '../common/window.js';
+import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_EMPTY_WINDOW_SIZE, DEFAULT_WORKSPACE_WINDOW_SIZE, IEmbeddedWindowBounds, INativeWindowConfiguration } from '../common/window.js';
 
 export interface IBaseWindow extends IDisposable {
 
@@ -26,6 +26,17 @@ export interface IBaseWindow extends IDisposable {
 
 	readonly id: number;
 	readonly win: electron.BrowserWindow | null;
+
+	/**
+	 * The web contents that render this window's workbench. This is not `win.webContents`
+	 * for a window that is embedded in another window.
+	 */
+	readonly webContents: electron.WebContents | undefined;
+
+	/**
+	 * The view to add child views of this window's workbench to, such as integrated browsers.
+	 */
+	readonly contentView: electron.View | undefined;
 
 	readonly lastFocusTime: number;
 	focus(options?: { mode: FocusMode }): void;
@@ -58,6 +69,27 @@ export interface ICodeWindow extends IBaseWindow {
 	readonly whenClosedOrLoaded: Promise<void>;
 
 	readonly config: INativeWindowConfiguration | undefined;
+
+	/**
+	 * The window's own native window, which owns its lifecycle. For an embedded
+	 * window this is a hidden window, and `win` is the embedding window.
+	 */
+	readonly nativeWindow: electron.BrowserWindow | null;
+
+	/**
+	 * The window that shows this window's workbench as a view inside its native window.
+	 */
+	readonly embeddingWindow: ICodeWindow | undefined;
+
+	/**
+	 * The windows whose workbench this window shows as a view inside its native window.
+	 */
+	readonly embeddedWindows: readonly ICodeWindow[];
+
+	/**
+	 * Shows this embedded window's workbench at the given bounds of its embedding window, or hides it.
+	 */
+	layoutEmbedded(bounds: IEmbeddedWindowBounds | undefined): void;
 
 	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
