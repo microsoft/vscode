@@ -206,7 +206,7 @@ export interface ICanvasService {
 	 * A retained model keeps its last page while the provider is temporarily unavailable, then
 	 * loads the next source in place. Reloading requires a retained page and a current live source.
 	 */
-	resolveCanvasModel(reference: ICanvasReference, source: URI, reload?: boolean): Promise<ICanvasModelResolution>;
+	resolveCanvasModel(reference: ICanvasReference, source: URI, reload?: boolean, onCreated?: (model: IBrowserViewModel) => void): Promise<ICanvasModelResolution>;
 }
 
 export function isCanvasOwner(first: ICanvasOwner, second: ICanvasOwner): boolean {

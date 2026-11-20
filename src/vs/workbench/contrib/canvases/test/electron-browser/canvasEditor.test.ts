@@ -33,7 +33,7 @@ import { CanvasEditor } from '../../electron-browser/canvasEditor.js';
 suite('CanvasEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean; readonly aiHidden?: boolean; readonly screenshot?: VSBuffer }) {
+	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean; readonly aiHidden?: boolean; readonly screenshot?: VSBuffer; readonly initialLoad?: DeferredPromise<void> }) {
 		const parent = $('.canvas-test-parent');
 		parent.style.width = '400px';
 		parent.style.height = '200px';
@@ -87,7 +87,16 @@ suite('CanvasEditor', () => {
 			enabled: observableValue('enabled', true),
 			isOwnerPresentable: (_reference, reader) => ownerVisible.read(reader),
 			isPresentable: (_reference, reader) => ownerVisible.read(reader),
-			resolveCanvasModel: async (_reference, source, reload = false) => { created++; requested.push(source.toString()); reloads.push(reload); return { model: await view, reused: false }; },
+			resolveCanvasModel: async (_reference, source, reload = false, onCreated) => {
+				created++;
+				requested.push(source.toString());
+				reloads.push(reload);
+				if (harnessOptions?.initialLoad) {
+					onCreated?.(await view);
+					await harnessOptions.initialLoad.p;
+				}
+				return { model: await view, reused: false };
+			},
 		});
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 		instantiationService.stub(IAccessibleViewService, {});
@@ -153,6 +162,17 @@ suite('CanvasEditor', () => {
 			},
 		};
 	}
+
+	test('attaches the canvas host before initial navigation finishes so load-time dialogs can show', async () => {
+		const initialLoad = new DeferredPromise<void>();
+		const harness = createHarness({ initialLoad });
+		await harness.show();
+		await harness.open();
+		await timeout(0);
+		const attachedWhileLoading = harness.attached.includes(harness.model);
+		await initialLoad.complete();
+		assert.strictEqual(attachedWhileLoading, true);
+	});
 
 	test('does not revive hidden native content when an old rectangle is laid out', async () => {
 		const harness = createHarness();

@@ -522,7 +522,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return input;
 	}
 
-	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel> {
+	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner, onCreated?: (model: IBrowserViewModel) => void): Promise<IBrowserViewModel> {
 		// Embedded pages have no network indicator, so they require their owner's network, resolved even while
 		// proxying is disabled, rather than silently load from the local network. It is resolved before any
 		// asynchronous work, so an owner that goes away meanwhile cannot leave the view on the local network.
@@ -560,6 +560,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			hold?.dispose();
 		}
 		try {
+			onCreated?.(model);
 			await model.loadURL(initialUrl);
 			return model;
 		} catch (error) {

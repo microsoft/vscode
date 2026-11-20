@@ -65,8 +65,8 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		return extractTextContent(result);
 	}
 
-	async function waitForCondition(predicate: () => boolean, attempts = 200, delayMs = 50): Promise<void> {
-		for (let i = 0; i < attempts && !predicate(); i++) {
+	async function waitForCondition(predicate: () => boolean | Promise<boolean>, attempts = 200, delayMs = 50): Promise<void> {
+		for (let i = 0; i < attempts && !await predicate(); i++) {
 			await new Promise(resolve => setTimeout(resolve, delayMs));
 		}
 	}
@@ -96,6 +96,144 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 		assert.match(output, /Page ID:/, `Expected output to contain "Page ID:", got: ${output}`);
 	});
+
+	test('queued alert confirm and prompt dialogs can be answered by agents', async function () {
+		this.timeout(60_000);
+		await waitForCondition(() => vscode.lm.tools.some(tool => tool.name === 'open_browser_page'));
+		const output = await invokeTool('open_browser_page', { url: 'about:blank', forceNew: true });
+		const pageId = output.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, output);
+		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+		const alert = await invokeTool('run_playwright_code', {
+			pageId, code: 'await page.evaluate(() => { window.dialogResults = [alert("Queued alert"), confirm("Queued confirm"), prompt("Queued prompt", "initial text")]; });',
+		});
+		assert.match(alert, /Active alert dialog: "Queued alert"/);
+		const confirm = await invokeTool('handle_dialog', { pageId, acceptModal: true });
+		assert.match(confirm, /Active confirm dialog: "Queued confirm"/);
+		const prompt = await invokeTool('handle_dialog', { pageId, acceptModal: false });
+		assert.match(prompt, /Active prompt dialog: "Queued prompt"/);
+		await invokeTool('handle_dialog', { pageId, acceptModal: true, promptText: 'agent answer' });
+		const result = await invokeTool('run_playwright_code', { pageId, code: 'return await page.evaluate(() => window.dialogResults);' });
+		assert.match(result, /\[null,false,"agent answer"\]/);
+	});
+
+	test('Playwright dialog listeners can answer prompts in child frames', async function () {
+		this.timeout(60_000);
+		await waitForCondition(() => vscode.lm.tools.some(tool => tool.name === 'open_browser_page'));
+		const output = await invokeTool('open_browser_page', { url: 'about:blank', forceNew: true });
+		const pageId = output.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, output);
+		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+		await invokeTool('run_playwright_code', {
+			pageId,
+			code: `page.on('dialog', dialog => dialog.accept(dialog.defaultValue() + ' answered'));
+				await page.setContent('<iframe srcdoc="<script>parent.dialogResult = prompt(\\'Frame prompt\\', \\'frame default\\')</script>"></iframe>');`,
+		});
+
+		let result = '';
+		await waitForCondition(async () => {
+			result = await invokeTool('run_playwright_code', {
+				pageId, code: 'return await page.evaluate(() => window.dialogResult);',
+			});
+			return result.includes('frame default answered');
+		});
+		assert.match(result, /frame default answered/);
+	});
+
+	test('click and typing tools can handle dialogs in main, opaque, and nested frames', async function () {
+		this.timeout(90_000);
+		await waitForCondition(() => vscode.lm.tools.some(tool => tool.name === 'click_element'));
+		const frameBody = '<input id="message" aria-label="Message" value="Frame"><button id="alert" onclick="alert(message.value)">Alert</button><button id="confirm" onclick="confirm(message.value)">Confirm</button>';
+		const frame = (id: string, body: string, sandbox = '') => `<iframe id="${id}" ${sandbox} style="width:100%;height:180px" srcdoc="${body.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"></iframe>`;
+		const html = `<html><body>${frameBody}
+			${frame('same', frameBody)}
+			${frame('opaque', frameBody, 'sandbox="allow-scripts allow-modals"')}
+			${frame('outer', frameBody + frame('nested', frameBody))}
+			${frame('blocked', frameBody, 'sandbox="allow-scripts"')}
+		</body></html>`;
+		const server = http.createServer((_request, response) => {
+			response.setHeader('Content-Type', 'text/html');
+			response.end(html);
+		});
+		try {
+			await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+			const output = await invokeTool('open_browser_page', { url: `http://127.0.0.1:${address.port}`, forceNew: true });
+			const pageId = output.match(/Page ID:\s*(\S+)/)?.[1];
+			assert.ok(pageId, output);
+			const enterFrame = ' >> internal:control=enter-frame >> ';
+			await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+			for (const prefix of ['', '#same' + enterFrame, '#opaque' + enterFrame, '#outer' + enterFrame, '#outer' + enterFrame + '#nested' + enterFrame]) {
+				for (const type of ['alert', 'confirm']) {
+					const clicked = await invokeTool('click_element', { pageId, selector: prefix + '#' + type, element: type });
+					assert.ok(clicked.includes(`Active ${type} dialog:`), clicked);
+					await new Promise(resolve => setTimeout(resolve, 300));
+					const handled = await invokeTool('handle_dialog', { pageId, acceptModal: true });
+					assert.ok(!handled.includes('No active modal dialog') && !handled.includes('Timeout'), handled);
+				}
+				const typed = await invokeTool('type_in_page', { pageId, selector: prefix + '#message', element: 'Message', text: 'Typed after handling' });
+				assert.ok(!typed.includes('Timeout'), typed);
+				const pressed = await invokeTool('type_in_page', { pageId, selector: prefix + '#alert', element: 'Alert', key: 'Enter' });
+				assert.ok(pressed.includes('Active alert dialog:'), pressed);
+				await new Promise(resolve => setTimeout(resolve, 300));
+				const handled = await invokeTool('handle_dialog', { pageId, acceptModal: true });
+				assert.ok(!handled.includes('No active modal dialog'), handled);
+			}
+			const blocked = await invokeTool('click_element', { pageId, selector: '#blocked' + enterFrame + '#alert', element: 'Sandboxed alert' });
+			assert.ok(!blocked.includes('Active alert dialog:') && !blocked.includes('Timeout'), blocked);
+		} finally {
+			await new Promise<void>((resolve, reject) => {
+				server.close(error => error ? reject(error) : resolve());
+				server.closeAllConnections();
+			});
+		}
+	});
+
+	for (const type of ['alert', 'confirm', 'prompt'] as const) {
+		test(`removing a child frame cancels its pending ${type}`, async function () {
+			this.timeout(60_000);
+			await waitForCondition(() => vscode.lm.tools.some(tool => tool.name === 'open_browser_page'));
+			let release: http.ServerResponse | undefined;
+			const server = http.createServer((request, response) => {
+				response.setHeader('Content-Type', 'text/html');
+				if (request.url === '/frame') {
+					response.end(`<script>${type}("Removed frame ${type}", "initial")</script>`);
+				} else if (request.url === '/release') {
+					release = response;
+				} else {
+					const address = server.address();
+					assert.ok(address && typeof address !== 'string');
+					response.end(`<title>frame cleanup</title><iframe src="http://localhost:${address.port}/frame"></iframe><script>fetch('/release').then(() => { document.querySelector('iframe').remove(); document.title = 'frame removed'; });</script>`);
+				}
+			});
+			try {
+				await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+				const address = server.address();
+				assert.ok(address && typeof address !== 'string');
+				const output = await invokeTool('open_browser_page', { url: 'about:blank', forceNew: true });
+				const pageId = output.match(/Page ID:\s*(\S+)/)?.[1];
+				assert.ok(pageId, output);
+				await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+				const navigation = await invokeTool('run_playwright_code', { pageId, code: `await page.goto('http://127.0.0.1:${address.port}');` });
+				assert.ok(navigation.includes(`Active ${type} dialog: "Removed frame ${type}"`), navigation);
+				await waitForCondition(() => !!release);
+				assert.ok(release);
+				release.end('remove');
+				let result = '';
+				await waitForCondition(async () => {
+					result = await invokeTool('run_playwright_code', { pageId, code: 'return await page.evaluate(() => document.querySelector("iframe") === null);' });
+					return result.includes('Result: true') && !result.includes(`Active ${type} dialog`);
+				});
+				assert.match(result, /Result: true/);
+			} finally {
+				await new Promise<void>((resolve, reject) => {
+					server.close(error => error ? reject(error) : resolve());
+					server.closeAllConnections();
+				});
+			}
+		});
+	}
 
 	(vscode.env.remoteName ? test.skip : test)('Agent storage is shared, filtered, and isolated from persistent storage', async function () {
 		this.timeout(60_000);

@@ -40,7 +40,7 @@ interface ICanvasPresentation {
 	model: IBrowserViewModel | undefined;
 	/** The live source `model` presents, or `undefined` once its provider became unavailable. */
 	modelSource: URI | undefined;
-	modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel> } | undefined;
+	modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel>; readonly model?: IBrowserViewModel } | undefined;
 	modelDisposeListener: IDisposable | undefined;
 	modelGeneration: number;
 }
@@ -356,7 +356,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return input;
 	}
 
-	async resolveCanvasModel(reference: ICanvasReference, source: URI, reload = false): Promise<ICanvasModelResolution> {
+	async resolveCanvasModel(reference: ICanvasReference, source: URI, reload = false, onCreated?: (model: IBrowserViewModel) => void): Promise<ICanvasModelResolution> {
 		const key = getCanvasReferenceKey(reference);
 		if (!isEqual(this.presentations.get(key)?.canvas?.source, source)) {
 			// A view outside the editor working set, such as a pinned canvas page, observes the canvas
@@ -369,6 +369,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 			|| (reload && (!presentation.model || !this.isLiveSource(reference, source)))) {
 			throw new CancellationError();
 		}
+		const createdModel = presentation.model ?? (isEqual(presentation.modelPromise?.source, source) ? presentation.modelPromise?.model : undefined);
+		if (createdModel) {
+			onCreated?.(createdModel);
+		}
 		if (!reload && presentation.model && isEqual(presentation.modelSource, source)) {
 			return { model: presentation.model, reused: true };
 		}
@@ -380,11 +384,18 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		this.disposePresentationModel(presentation);
 		const generation = ++presentation.modelGeneration;
-		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas', { type: 'agent', sessionId: reference.chat.toString() }).then(model => {
-			const retained = this.presentations.get(key) === presentation
-				&& presentation.modelGeneration === generation
-				&& isEqual(presentation.canvas?.source, source);
-			if (retained) {
+		let loadingModel: IBrowserViewModel | undefined;
+		const isCurrent = () => this.presentations.get(key) === presentation
+			&& presentation.modelGeneration === generation && isEqual(presentation.canvas?.source, source);
+		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas', { type: 'agent', sessionId: reference.chat.toString() }, model => {
+			loadingModel = model;
+			if (isCurrent()) {
+				onCreated?.(model);
+			} else {
+				model.dispose();
+			}
+		}).then(model => {
+			if (isCurrent()) {
 				presentation.model = model;
 				presentation.modelSource = source;
 				presentation.modelDisposeListener = Event.once(model.onWillDispose)(() => {
@@ -405,7 +416,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 				presentation.modelPromise = undefined;
 			}
 		});
-		presentation.modelPromise = { source, value };
+		presentation.modelPromise = { source, value, get model() { return loadingModel; } };
 		return { model: await value, reused: false };
 	}
 
@@ -848,6 +859,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		if (!canvas.source) {
 			// Keep the last page while the provider is unavailable; the next source loads into it in place.
 			presentation.modelSource = undefined;
+			presentation.modelPromise?.model?.dispose();
 			presentation.modelPromise = undefined;
 			presentation.modelGeneration++;
 		}
@@ -855,10 +867,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 
 	private disposePresentationModel(presentation: ICanvasPresentation): void {
 		presentation.modelGeneration++;
+		const model = presentation.model ?? presentation.modelPromise?.model;
 		presentation.modelPromise = undefined;
 		presentation.modelDisposeListener?.dispose();
 		presentation.modelDisposeListener = undefined;
-		const model = presentation.model;
 		presentation.model = undefined;
 		presentation.modelSource = undefined;
 		model?.dispose();

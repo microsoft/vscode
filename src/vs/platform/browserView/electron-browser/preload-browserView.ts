@@ -262,6 +262,9 @@ function init() {
 
 	const mainWorldHelpers = {
 		getElement,
+		prompt(message = '', defaultValue = ''): string | null {
+			return ipcRenderer.sendSync('vscode:browserView:prompt', String(message), String(defaultValue));
+		},
 		/** Opaque token exposed for CDP-side frame matching. */
 		getFrameToken(): string { return frameToken; }
 	};
@@ -274,6 +277,12 @@ function init() {
 		// Expose helpers on `window.__vscode_helpers` in the page's main world
 		// for CDP `Runtime.evaluate` (which runs against the main world) to use.
 		contextBridge.exposeInMainWorld('__vscode_helpers', mainWorldHelpers);
+		// Electron replaces the native prompt with a throwing stub, so no native dialog event is available.
+		contextBridge.executeInMainWorld({
+			func: () => {
+				window.prompt = (window as typeof window & { __vscode_helpers: typeof mainWorldHelpers }).__vscode_helpers.prompt;
+			},
+		});
 	} catch (error) {
 		console.error(error);
 	}

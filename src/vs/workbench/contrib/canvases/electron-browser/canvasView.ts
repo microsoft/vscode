@@ -319,7 +319,12 @@ export class CanvasView extends Disposable {
 		let reused = false;
 		try {
 			const source = canvas.source;
-			const resolution = await this.canvasService.resolveCanvasModel(input.reference, source, reload);
+			const resolution = await this.canvasService.resolveCanvasModel(input.reference, source, reload, model => {
+				if (this._isCurrent(input, source, sequence) && this._claim(model)) {
+					this._setModel(model);
+					this.modelCanvas = getCanvasReferenceKey(input.reference);
+				}
+			});
 			const model = resolution.model;
 			reused = resolution.reused;
 			if (!this._isCurrent(input, source, sequence)) {
