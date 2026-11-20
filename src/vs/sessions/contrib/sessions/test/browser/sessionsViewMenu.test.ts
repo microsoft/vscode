@@ -992,16 +992,21 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	for (const { source, section } of ['toolbar', 'context menu'].flatMap(source =>
-		[SessionInboxSection.ReadyForYou, SessionInboxSection.Working, SessionInboxSection.OnHold].map(section => ({ source, section })))) {
-		test(`Acknowledge from the ${source} quietly moves an already-read active ${section} session to Acknowledged and returns on activity`, async () => {
+	for (const { source, section, acknowledgedExpanded, hasOther, unrelatedSelection } of ['toolbar', 'context menu', 'toolbar click'].flatMap(source => [
+		...(source === 'toolbar click' ? [] : [SessionInboxSection.ReadyForYou, SessionInboxSection.Working, SessionInboxSection.OnHold].map(section => ({ source, section, acknowledgedExpanded: false, hasOther: true, unrelatedSelection: false }))),
+		...[true, false].map(hasOther => ({ source, section: SessionInboxSection.ReadyForYou, acknowledgedExpanded: true, hasOther, unrelatedSelection: false })),
+		...(source === 'toolbar click' ? [{ source, section: SessionInboxSection.ReadyForYou, acknowledgedExpanded: true, hasOther: true, unrelatedSelection: true }] : []),
+	])) {
+		test(`Acknowledge from the ${source} quietly moves an already-read active ${section} session to ${acknowledgedExpanded ? 'expanded' : 'collapsed'} Acknowledged with ${hasOther ? 'another' : 'no other'} Inbox item${unrelatedSelection ? ' preserving unrelated selection' : ''} and returns on activity`, async () => {
 			const built = buildTestSession({ id: 'first', title: 'First', isRead: true, status: section === SessionInboxSection.Working ? SessionStatus.InProgress : SessionStatus.Completed });
 			const other = buildTestSession({ id: 'second', title: 'Second', isRead: false }).session;
+			const existingAcknowledged = buildTestSession({ id: 'acknowledged', title: 'Already Acknowledged' }).session;
 			const session = built.session;
 			const activeSession = constObservable({ ...session, activeChat: session.mainChat });
-			const harness = createListHarness(store, [session, other], { activeSession });
+			const harness = createListHarness(store, [session, ...(hasOther ? [other] : []), existingAcknowledged], { activeSession });
 			const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 			harness.instantiationService.stub(ISessionsListModelService, model);
+			model.setInboxState([existingAcknowledged], 'done');
 			if (section === SessionInboxSection.OnHold) {
 				model.setInboxState([session], 'hold');
 			}
@@ -1024,22 +1029,28 @@ suite('Sessions - View Menu', () => {
 				showContextMenu: (delegate: IContextMenuDelegate) => { shown = delegate; },
 			});
 			let grouping = SessionsGrouping.Inbox;
+			let opened = 0;
 			const container = harness.createContainer();
 			const list = store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
-				grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { opened++; },
 			}));
 			list.layout(600, 400);
 			list.setItemCollapsed({ section }, false);
-			list.setSelectedItems([{ session: session.resource }]);
-			list.setFocusedItem({ session: session.resource });
+			list.setItemCollapsed({ section: SessionInboxSection.Acknowledged }, !acknowledgedExpanded);
+			list.setSelectedItems(unrelatedSelection ? [{ session: other.resource }, { session: existingAcknowledged.resource }] : [{ session: session.resource }]);
+			list.setFocusedItem({ session: source === 'toolbar click' ? existingAcknowledged.resource : session.resource });
 			list.focus();
 			const row = list.getItemRow({ session: session.resource })!;
 			await retry(async () => assert.ok(row.querySelector('.session-title-toolbar [aria-label^="Acknowledge"]')), 10, 100);
 			const button = row.querySelector<HTMLElement>('.session-title-toolbar [aria-label^="Acknowledge"]')!;
-			button.focus();
-			assert.strictEqual(getActiveElement(), button);
-			button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
-			if (source === 'toolbar') {
+			if (source !== 'toolbar click') {
+				button.focus();
+				assert.strictEqual(getActiveElement(), button);
+				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+			}
+			if (source === 'toolbar click') {
+				button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			} else if (source === 'toolbar') {
 				button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
 			} else {
@@ -1049,11 +1060,16 @@ suite('Sessions - View Menu', () => {
 				const action = shown.getActions().find(action => action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID)!;
 				await shown.actionRunner!.run(action, shown.getActionsContext?.());
 			}
-			await retry(async () => assert.deepStrictEqual(list.getVisibleSessions().map(session => session.sessionId), [other.sessionId]), 10, 100);
+			await retry(async () => assert.deepStrictEqual(list.getVisibleSessions().map(session => session.sessionId).sort(), [
+				...(hasOther ? [other.sessionId] : []), ...(acknowledgedExpanded ? [session.sessionId, existingAcknowledged.sessionId] : []),
+			].sort()), 10, 100);
 			const acknowledged = model.getInboxState(session)?.kind;
 			const acknowledgedCategory = list.getItemRow({ section: SessionInboxSection.Acknowledged })?.getAttribute('aria-label');
 			const stillActive = activeSession.get().sessionId;
 			const keyboardFocusRetained = list.element.contains(getActiveElement());
+			const focusedSessions = list.getVisibleSessions().filter(session => list.getItemRow({ session: session.resource })?.classList.contains('focused')).map(session => session.sessionId);
+			const emptyInboxFocused = list.getItemRow({ section: SessionInboxSection.ReadyForYou })?.classList.contains('focused');
+			const selectedSessions = list.getVisibleSessions().filter(session => list.getItemRow({ session: session.resource })?.getAttribute('aria-selected') === 'true').map(session => session.sessionId);
 			grouping = SessionsGrouping.Workspace;
 			list.update();
 			const availableElsewhere = list.getVisibleSessions().includes(session);
@@ -1062,11 +1078,12 @@ suite('Sessions - View Menu', () => {
 			built.status.set(SessionStatus.Completed, undefined);
 			list.update();
 			assert.deepStrictEqual({
-				acknowledged, acknowledgedCategory, notices, stillActive, keyboardFocusRetained, availableElsewhere, resurfaced: list.getVisibleSessions().includes(session),
+				acknowledged, acknowledgedCategory, notices, stillActive, keyboardFocusRetained, focusedSessions, emptyInboxFocused, selectedSessions, opened, availableElsewhere, resurfaced: list.getVisibleSessions().includes(session),
 				read: session.isRead.get(), otherRead: other.isRead.get(), archived: session.isArchived.get(),
 				providerActions: { read: harness.managementService.readSessions, archived: harness.managementService.archived, cancelled: harness.managementService.cancelled, deleted: harness.managementService.deleted },
 			}, {
-				acknowledged: 'done', acknowledgedCategory: 'Acknowledged, 1', notices: [], stillActive: session.sessionId, keyboardFocusRetained: true, availableElsewhere: true, resurfaced: true,
+				acknowledged: 'done', acknowledgedCategory: 'Acknowledged, 2', notices: [], stillActive: session.sessionId, keyboardFocusRetained: true,
+				focusedSessions: hasOther ? [other.sessionId] : [], selectedSessions: [...(hasOther ? [other.sessionId] : []), ...(unrelatedSelection ? [existingAcknowledged.sessionId] : [])], emptyInboxFocused: !hasOther, opened: 0, availableElsewhere: true, resurfaced: true,
 				read: true, otherRead: false, archived: false,
 				providerActions: { read: [], archived: [], cancelled: [], deleted: [] },
 			});

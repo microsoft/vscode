@@ -5111,9 +5111,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 						return false;
 					}
 					const sessions = this.getMultiSelectedSessions(session);
+					const keyboardPosition = action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID ? this.captureKeyboardPosition(session) : undefined;
 					await action.run(sessions);
 					if (action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID) {
-						this.tree.domFocus();
+						this.restoreAcknowledgementPosition(keyboardPosition, sessions);
 					}
 					return true;
 				},
@@ -7147,11 +7148,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/** The session row the user is on while the list has focus, with the session rows around it. */
-	private captureKeyboardPosition(): IKeyboardPosition | undefined {
-		if (!DOM.isAncestorOfActiveElement(this.listContainer)) {
+	private captureKeyboardPosition(session?: ISession): IKeyboardPosition | undefined {
+		if (!session && !DOM.isAncestorOfActiveElement(this.listContainer)) {
 			return undefined;
 		}
-		const focused = this.tree.getFocus()[0];
+		const focused = session ?? this.tree.getFocus()[0];
 		if (!focused || !isSessionItem(focused)) {
 			return undefined;
 		}
@@ -7161,33 +7162,60 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Keeps the user's place in the list when the session row they are on leaves it, such as when that session is
-	 * archived or deleted: the session row that followed it gets focus, or the one before it when it was the last.
+	 * Keeps the user's place when a session is acknowledged, archived, or deleted.
+	 * Inbox triage stays among actionable categories, falling back to a heading when empty.
 	 */
 	private restoreKeyboardPosition(position: IKeyboardPosition | undefined): void {
 		if (!position || !DOM.isAncestorOfActiveElement(this.listContainer)) {
 			return;
 		}
 		const rows = this.getVisibleSessionRows();
-		// A row leaves when it is no longer shown, or moves into the archived section
+		const sectionId = position.rows.get(position.id)?.topLevelRowId;
+		const isInboxSection = (id: string | undefined): boolean => id === SessionInboxSection.ReadyForYou
+			|| id === SessionInboxSection.Working || id === SessionInboxSection.OnHold;
+		const stayInInbox = this.isInboxLayout() && isInboxSection(sectionId);
 		const hasLeft = (id: string): boolean => {
 			const row = rows.get(id);
-			return !row || (row.topLevelRowId === 'archived' && position.rows.get(id)?.topLevelRowId !== 'archived');
+			return !row || ((row.topLevelRowId === 'archived' || row.topLevelRowId === SessionInboxSection.Acknowledged)
+				&& position.rows.get(id)?.topLevelRowId !== row.topLevelRowId);
 		};
 		if (!hasLeft(position.id)) {
 			return;
 		}
 		const ids = [...position.rows.keys()];
 		const index = ids.indexOf(position.id);
-		const next = [...ids.slice(index + 1), ...ids.slice(0, index).reverse()].find(id => !hasLeft(id));
+		const candidates = [...ids.slice(index + 1), ...ids.slice(0, index).reverse()].filter(id =>
+			!hasLeft(id) && (!stayInInbox || isInboxSection(rows.get(id)?.topLevelRowId)));
+		const next = (stayInInbox && candidates.find(id => rows.get(id)?.topLevelRowId === sectionId)) || candidates[0];
 		const session = next && rows.get(next)?.session;
-		if (!session) {
+		const element = session || (stayInInbox && sectionId
+			? this.findItem({ section: sectionId }) ?? this.findItem({ section: SessionInboxSection.ReadyForYou })
+			: undefined);
+		if (!element) {
 			return;
 		}
-		this.tree.setFocus([session]);
-		if (this.tree.getRelativeTop(session) === null) {
-			this.tree.reveal(session);
+		this.tree.setFocus([element]);
+		if (this.tree.getRelativeTop(element) === null) {
+			this.tree.reveal(element);
 		}
+	}
+
+	private restoreAcknowledgementPosition(position: IKeyboardPosition | undefined, sessions: readonly ISession[]): void {
+		this.update();
+		this.tree.domFocus();
+		this.restoreKeyboardPosition(position);
+		const focused = this.tree.getFocus()[0];
+		const selection = this.tree.getSelection().filter(item => {
+			if (!item) {
+				return false;
+			}
+			const session = isSessionItem(item) ? item : isSessionChatItem(item) ? item.session : undefined;
+			return !session || !sessions.includes(session);
+		});
+		if (focused && isSessionItem(focused) && !selection.includes(focused)) {
+			selection.push(focused);
+		}
+		this.tree.setSelection(selection);
 	}
 
 	private revealActiveItem(element: SessionListItem): void {
@@ -9094,6 +9122,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return;
 		}
 
+		const keyboardPosition = this.isInboxLayout() ? this.captureKeyboardPosition(element) : undefined;
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => e.anchor,
@@ -9101,7 +9130,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			actionRunner: this.isInboxLayout() ? disposables.add(new SessionItemActionRunner(() => selectedSessions, async action => {
 				await action.run();
 				if (action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID) {
-					this.tree.domFocus();
+					this.restoreAcknowledgementPosition(keyboardPosition, selectedSessions);
 				}
 				return true;
 			})) : undefined,

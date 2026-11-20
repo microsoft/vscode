@@ -6715,6 +6715,38 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
+		test('opening an acknowledged session keeps it in Acknowledged when its last-turn timestamp hydrates', async () => {
+			const built = buildTestSession({ id: 'acknowledged', title: 'Acknowledged', isRead: false });
+			const lastTurnEnd = observableValue<Date | undefined>('lastTurnEnd', undefined);
+			const session = { ...built.session, lastTurnEnd };
+			const harness = createListHarness(disposables, [session]);
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			const opened: string[] = [];
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+				onSessionOpen: () => {
+					opened.push(session.sessionId);
+					built.isRead.set(true, undefined);
+					lastTurnEnd.set(session.updatedAt.get(), undefined);
+				},
+			}));
+			list.layout(600, 400);
+			model.setInboxState([session], 'done');
+			await retry(async () => assert.ok(list.getItemRow({ section: SessionInboxSection.Acknowledged })), 10, 100);
+			list.setItemCollapsed({ section: SessionInboxSection.Acknowledged }, false);
+			clickRow(list.getItemRow({ session: session.resource })!);
+			await retry(async () => assert.deepStrictEqual(opened, ['acknowledged']), 10, 100);
+			list.update();
+			assert.deepStrictEqual({
+				state: model.getInboxState(session)?.kind,
+				sections: list.getTreeSnapshot().map(node => node.type === 'section' ? node.id : node.type),
+			}, {
+				state: 'done',
+				sections: [SessionInboxSection.ReadyForYou, SessionInboxSection.Acknowledged],
+			});
+		});
+
 		test('inbox prioritizes attention and recent completion, preserves pins, and never auto-completes idle sessions', () => {
 			const pinned = createTestSession('pinned', { status: SessionStatus.InProgress }).session;
 			const waiting = createTestSession('waiting', { status: SessionStatus.NeedsInput, updatedAt: new Date(1) }).session;
