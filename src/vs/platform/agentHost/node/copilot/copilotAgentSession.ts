@@ -1661,6 +1661,8 @@ export class CopilotAgentSession extends Disposable {
 	get isEphemeral(): boolean { return this._launchPlan.isEphemeral === true; }
 	/** Whether this session's runtime was launched with canvases, which only a relaunch changes. */
 	get canvasRuntimeEnabled(): boolean { return this._wrapper?.canvasRuntimeEnabled === true; }
+	/** Whether VS Code's `chat.useHooks` setting allowed hooks when this runtime launched. */
+	get hooksEnabled(): boolean { return this._wrapper?.launchHooksEnabled !== false; }
 	/** The model router agent plan this session was launched with, compared by identity. */
 	get modelRouterGuidance(): IModelRouterGuidance | undefined { return this._launchPlan.isEphemeral ? undefined : this._launchPlan.modelRouterGuidance; }
 
