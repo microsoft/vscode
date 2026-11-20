@@ -10546,7 +10546,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			await this._orchestratorDatabase.prepareSessionStorage?.(session.toString(), provider.id);
 			const providerConfig = config ? this._toProviderConfig(config) : undefined;
-			const generation = await this._sessionRegistry.isSuppressed(session) ? generateUuid() : undefined;
+			const generation = (await this._sessionRegistry.isSuppressed(session) || this._orchestratorDatabase.hasDefaultChatStorageIdentity?.(session.toString())) ? generateUuid() : undefined;
 			const defaultChatUri = URI.parse(mintDefaultChatUri(this._creatorUsesLegacyChatUris(config) ? 'shaped' : 'opaque', session.toString(), generation));
 			this._orchestratorDatabase.recordChatStorageIdentity(session.toString(), defaultChatUri.toString(), { kind: 'default', generation });
 			if (config?.credentials) {

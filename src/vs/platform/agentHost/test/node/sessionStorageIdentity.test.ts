@@ -1427,6 +1427,35 @@ suite('Session storage identity compatibility', () => {
 			assert.strictEqual(next.identity.toStorage(defaultChat), `${buildDefaultChatUri(storageSession)}?generation=regenerated`);
 		});
 
+		test('recreating a session whose default chat storage identity was already recorded allocates a generation', async () => {
+			const db = await database();
+			const fileService = files();
+			const createService = (target: CompatibleAgentHostDatabase) => store.add(createTestAgentService(
+				new NullLogService(), fileService, new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, target.identity), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, target,
+			));
+			const first = createService(db);
+			registerTestAgentProvider(first, store.add(new class extends MockAgent {
+				override async createChat() { return { provisional: true }; }
+			}('copilotcli')));
+			const targetSession = URI.parse('ahp-session:/recreated-provisional');
+			await first.createSession({ legacyChatUris: false, provider: 'copilotcli', session: targetSession });
+			const firstDefault = getTestAgentStateManager(first).getSessionState(targetSession.toString())!.defaultChat!;
+			await first.shutdown();
+			await db.close();
+
+			const secondDb = await database();
+			assert.strictEqual(secondDb.hasDefaultChatStorageIdentity(targetSession.toString()), true);
+			const second = createService(secondDb);
+			registerTestAgentProvider(second, store.add(new MockAgent('copilotcli')));
+			await second.createSession({ legacyChatUris: false, provider: 'copilotcli', session: targetSession });
+			const secondDefault = getTestAgentStateManager(second).getSessionState(targetSession.toString())!.defaultChat!;
+			assert.notStrictEqual(secondDefault, firstDefault);
+			assert.strictEqual(secondDb.identity.toStorage(firstDefault), buildDefaultChatUri('copilotcli:/recreated-provisional'));
+			assert.ok(secondDb.identity.toStorage(secondDefault).startsWith(`${buildDefaultChatUri('copilotcli:/recreated-provisional')}?generation=`));
+			await second.shutdown();
+		});
+
 		test('chat records are immutable: recording again is idempotent and a chat that no longer exists keeps its record', async () => {
 			const db = await database();
 			await db.prepareSessionStorage(session, 'copilotcli');
