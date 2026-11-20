@@ -2102,7 +2102,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Propagate to grid
-		this.workbenchGrid.setViewVisible(this.sideBarPartView, !hidden);
+		this.setViewVisibleKeepingEditorWidth(this.sideBarPartView, !hidden);
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
@@ -2118,6 +2118,29 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar);
 			if (viewletToOpen) {
 				this.openViewContainer(ViewContainerLocation.Sidebar, viewletToOpen);
+			}
+		}
+	}
+
+	/** Shows or hides a part beside the chat part so that the chat part gives or takes its width, and the editor area keeps its own. */
+	private setViewVisibleKeepingEditorWidth(view: ISerializableView, visible: boolean): void {
+		const chatPartView = this.chatPartView;
+		if (!this.initialized || !chatPartView || this.chatPartHidden || !this.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			this.workbenchGrid.setViewVisible(view, visible);
+			return;
+		}
+
+		const isBesideChatPart = () => [Direction.Left, Direction.Right].some(direction => this.workbenchGrid.getNeighborViews(chatPartView, direction, false).includes(view));
+		const besideBefore = !visible && isBesideChatPart();
+		const editorWidthBefore = this.workbenchGrid.getViewSize(this.editorPartView).width;
+
+		this.workbenchGrid.setViewVisible(view, visible);
+
+		if (besideBefore || (visible && isBesideChatPart())) {
+			const difference = this.workbenchGrid.getViewSize(this.editorPartView).width - editorWidthBefore;
+			if (difference !== 0) {
+				const { width, height } = this.workbenchGrid.getViewSize(chatPartView);
+				this.workbenchGrid.resizeView(chatPartView, { width: width + difference, height });
 			}
 		}
 	}
@@ -2480,7 +2503,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Propagate to grid
-		this.workbenchGrid.setViewVisible(this.auxiliaryBarPartView, !hidden);
+		this.setViewVisibleKeepingEditorWidth(this.auxiliaryBarPartView, !hidden);
 
 		// If auxiliary bar becomes hidden, also hide the current active pane composite if any
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {

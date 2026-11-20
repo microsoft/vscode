@@ -39,7 +39,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../../../common/editor.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
@@ -47,10 +47,10 @@ import { ModelRouterDetails } from './modelPickerRouterDetails.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
 import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
-import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
+import { getModelPickerAccessibilityProvider, getModelPickerControlModels, NEW_MODEL_ROUTER_ACTION_ID } from './modelPickerItems.js';
 import { compareModelNames } from './modelPickerLineage.js';
-import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isModelComparisonSupported } from './modelPickerPresentation.js';
-import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
+import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isModelComparisonSupported, isModelRouter } from './modelPickerPresentation.js';
+import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION, MODEL_PICKER_ROUTERS_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { IAgentModelPreferences, resolveAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
 import { createMessageBanner } from './modelPickerHover.js';
@@ -106,6 +106,8 @@ export interface ITabbedModelPickerContext {
 	readonly onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 	readonly onTogglePin: ((modelIdentifier: string, pinned: boolean) => void) | undefined;
 	readonly onManageModels: () => void;
+	/** Starts a new model router with the user. When set, the "Routers" tab offers it, and is shown even with no routers to list. */
+	readonly onCreateModelRouter?: () => void;
 	readonly onDidToggleOtherModels: (collapsed: boolean) => void;
 	/** Reports that the user opened search or typed a search query. */
 	readonly onDidSearch: () => void;
@@ -514,7 +516,9 @@ export class TabbedModelPicker extends Disposable {
 					? currentDestinations.flatMap(candidate => this._buildSearchItems(candidate, candidate === destination ? sections : this._buildSections(candidate, current), current))
 					: isOnDevice
 						? this._buildLocalModelItems(current)
-						: this._buildItems(destination, sections, current);
+						: destination.id === MODEL_PICKER_ROUTERS_DESTINATION
+							? this._buildRouterItems(destination, sections, current)
+							: this._buildItems(destination, sections, current);
 				const hint = step ? { text: step.description, link: undefined, dismiss: undefined } : current.cacheBreakHint ?? current.configurationCacheBreakHint;
 				const baseListOptions = withActionWidgetDropdownMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
@@ -633,9 +637,10 @@ export class TabbedModelPicker extends Disposable {
 		// Fusion's HydraFusion is never a row of its own, even when Fusion does not offer it.
 		const fusionHydraFusion = (model: ILanguageModelChatMetadataAndIdentifier) => !!autoModel?.metadata.autoModelFusion && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService);
 		// On-device direct models are listed only in the "On This Device" tab, never under a provider of their own or among
-		// the cloud models (even while status is unavailable), and comparisons don't offer them.
+		// the cloud models (even while status is unavailable), and comparisons don't offer them. Model routers are listed
+		// only in the "Routers" tab.
 		const localModels = context.localModels;
-		const models = context.models.filter(model => !isLocalModelDirectRow(model) && !localModels?.getDirectModel(model));
+		const models = context.models.filter(model => !isLocalModelDirectRow(model) && !localModels?.getDirectModel(model) && !isModelRouter(model));
 		const destinations = buildModelPickerDestinations(models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || fusionHydraFusion(model), this._hasBuiltInUpsells(context));
 		if (this._showsOnDeviceTab(context)) {
 			destinations.splice(destinations[0]?.id === MODEL_PICKER_BUILT_IN_DESTINATION ? 1 : 0, 0, {
@@ -646,7 +651,46 @@ export class TabbedModelPicker extends Disposable {
 				placeholders: [],
 			});
 		}
+		// Last, after every provider: a router is not one, and picks among their models.
+		const routers = this._routersDestination(context);
+		if (routers) {
+			destinations.push(routers);
+		}
 		return destinations;
+	}
+
+	/**
+	 * The "Routers" tab: the chat's model routers, which no other tab lists. With none to list
+	 * it is still shown when the chat can write one, to say what a router is and offer to.
+	 */
+	private _routersDestination(context: ITabbedModelPickerContext): IModelPickerDestination | undefined {
+		const models = context.models.filter(isModelRouter);
+		const create = this._createModelRouter(context);
+		if (!models.length && !create) {
+			return undefined;
+		}
+		const label = localize('chat.modelPicker.routers', "Routers");
+		return {
+			id: MODEL_PICKER_ROUTERS_DESTINATION,
+			label,
+			icon: Codicon.typeHierarchySub,
+			models,
+			placeholders: models.length || !create ? [] : [{
+				vendor: COPILOT_VENDOR_ID,
+				label,
+				message: localize('chat.modelPicker.routersMessage', "A router picks the model for a chat from routes you write."),
+				action: { label: localize('chat.modelPicker.createRouter', "Create a Router"), run: create },
+			}],
+		};
+	}
+
+	/** Closes the picker and starts a new model router with the user, when the chat offers to. A comparison chooses among what is there. */
+	private _createModelRouter(context: ITabbedModelPickerContext): (() => void) | undefined {
+		const create = context.onCreateModelRouter;
+		return create && !context.comparison?.state.get() ? () => {
+			this._widget.hide();
+			create();
+		} : undefined;
 	}
 
 	/** Whether the "On This Device" tab is shown: the chat offers on-device models, outside a comparison. */
@@ -1073,13 +1117,30 @@ export class TabbedModelPicker extends Disposable {
 		return items;
 	}
 
+	/** The "Routers" tab: its routers as any tab lists its models, then the row that starts another, when the chat can write one. */
+	private _buildRouterItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
+		const items = this._buildItems(destination, sections, context);
+		const create = this._createModelRouter(context);
+		if (!items.length || !create) {
+			return items;
+		}
+		const label = localize('chat.modelPicker.newRouter', "New Router...");
+		return [...items, { kind: ActionListItemKind.Separator }, {
+			item: { id: NEW_MODEL_ROUTER_ACTION_ID, enabled: true, checked: false, class: undefined, tooltip: label, label, run: create },
+			kind: ActionListItemKind.Action,
+			label,
+			group: { title: '', icon: Codicon.add },
+			hideIcon: false,
+		}];
+	}
+
 	/**
 	 * Every model in one destination as flat rows, for searching. Sections would only
 	 * get in the way of a result list, but each row still names its provider.
 	 */
 	private _buildSearchItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
-		// On-device models are found under the name of their tab, which no provider shares.
-		if (destination.id === MODEL_PICKER_ON_DEVICE_DESTINATION) {
+		// On-device models and model routers are found under the name of their tab, which no provider shares.
+		if (destination.id === MODEL_PICKER_ON_DEVICE_DESTINATION || destination.id === MODEL_PICKER_ROUTERS_DESTINATION) {
 			return [...destination.models]
 				.sort((left, right) => compareModelNames(left.metadata.name, right.metadata.name))
 				.map(model => this._createModelItem(model, context, undefined, destination.label));
@@ -1341,8 +1402,10 @@ export class TabbedModelPicker extends Disposable {
 			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)
 			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_CONTEXT, useModelConfigurationSchema);
 		const hasDetails = (!isHydraFusionModel(model) || !!ownTierLabel) && !fusionWithoutConfiguration;
-		// A router's description, or its error, is shown on the row as well as in its details.
+		// A router's description, or its error, is shown on the row as well as in its details: as a
+		// second line in its tab, and in the tooltip of a search result, which stays on one line.
 		const fileDescription = model.metadata.detailsResource ? model.metadata.tooltip : undefined;
+		const descriptionLine = providerLabel ? undefined : fileDescription;
 		return {
 			item: {
 				...action,
@@ -1353,6 +1416,7 @@ export class TabbedModelPicker extends Disposable {
 			},
 			kind: ActionListItemKind.Action,
 			label: rowLabel,
+			...(descriptionLine ? { detail: descriptionLine, heightInLines: 2 } : {}),
 			description: modelBadge || routingBadge || fusionRecommendedBadge ? undefined : action.description,
 			badge: modelBadge?.text ?? routingBadge ?? fusionRecommendedBadge,
 			additionalBadges: [
@@ -1641,7 +1705,8 @@ export class TabbedModelPicker extends Disposable {
 		const isCandidate = (model: ILanguageModelChatMetadataAndIdentifier) => !isAutoModel(model) && !isHydraFusionModel(model)
 			&& !isUserProvidedModel(model, this._languageModelsService)
 			&& !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)
-			&& !context.localModels?.getDirectModel(model);
+			&& !context.localModels?.getDirectModel(model)
+			&& !isModelRouter(model);
 		for (const id of context.pinnedModelIds) {
 			const model = context.models.find(candidate => candidate.identifier === id);
 			if (model && isCandidate(model)) {

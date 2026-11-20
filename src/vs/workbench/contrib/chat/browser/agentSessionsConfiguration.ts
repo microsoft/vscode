@@ -158,6 +158,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: 'sessions.automations.showSharedByOthers',
+	includeApplication: true,
+	migrateFn: () => ({ value: undefined }),
+}, {
 	key: legacyAutoArchiveMergedSessionsAfterDaysSetting,
 	includeApplication: true,
 	migrateFn: (value, accessor) => {

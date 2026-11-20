@@ -441,6 +441,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 	steeredFromTurn?: string;
 	interactionIds?: string;
 	interactionIdsTruncated?: boolean;
+	steeringDelivery?: IAgentTurnInteraction['steeringDelivery'];
 	codexModelProvider?: CodexModelProvider;
 	usedPrewarmedSession?: boolean;
 	prewarmedSessionDiscardReason?: string;
@@ -509,6 +510,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	steeredFromTurn?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Immediate host steering predecessor. Runtime agreement is reported separately by turnSteered.' };
 	interactionIds?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'JSON array of up to 64 distinct interaction IDs observed for this execution turn.' };
 	interactionIdsTruncated?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether more distinct interactions were observed than could be retained.' };
+	steeringDelivery?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider-confirmed delivery of a host steering submission: steering, idle, queued, or unknown while confirmation is unavailable. Omitted for providers or turns without delivery tracking.' };
 	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
 	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the turn claimed a provider session that was started before the first message; absent when it did not.' };
 	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn discarded a provider session started before the first message and launched one instead, such as modelChanged or clientToolsChanged; absent when it did not.' };
@@ -531,7 +533,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	timeToFirstSubstantiveProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress that advances the user request, excluding host bookkeeping such as the chat rename tool call.' };
 	timeToFirstEdit: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cumulative provider-dispatch time in milliseconds through the first accepted response that requests a built-in file edit. Excludes prompt construction, retry backoff, tool execution, confirmations, and post-response processing.' };
-	startedWithSteering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the provider promoted a steering message into this turn. Time to first edit remains a per-turn measurement, not a cumulative measurement across the preceding turn.' };
+	startedWithSteering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this turn began with confirmed steering delivery when steeringDelivery is present; otherwise the provider-promoted steering classification. Time to first edit is measured per execution turn.' };
 	receivedSteering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a steering message was submitted to this chat while this turn was active, regardless of whether the provider consumed it. Previously recorded time to first edit is preserved.' };
 	sendStageWorkingDirectoryMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent resolving the working directory before dispatching the turn, including first-send worktree creation.' };
 	sendStageModelSelectionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent applying the model and agent selection on the provider before dispatching the turn.' };
@@ -677,6 +679,20 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	directBilledNanoAiu: number | undefined;
 	modelCallCount: number;
 }
+
+type ModelCallUsageCountedEvent = {
+	sdkSessionId: string;
+	modelCallId: string;
+	usageCountedInTurnId: string;
+};
+
+type ModelCallUsageCountedClassification = {
+	owner: 'amunger';
+	comment: 'Identifies the accounting turn for a Copilot root model usage report so its placement can be compared with the call owner.';
+	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK session containing the model call.' };
+	modelCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK API call identifier shared with model-call correlation and response telemetry.' };
+	usageCountedInTurnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Agent Host execution turn accumulating the reported root model usage.' };
+};
 
 interface IRequestTokenUsageEvent extends IAgentHostEventTelemetry, Omit<IAgentTokenUsageSummary, 'model'> {
 	provider: string;
@@ -1401,6 +1417,12 @@ export interface IAgentHostSkillInvokedReport extends IAgentHostTurnAttributedRe
 	sdkEventId: string;
 	trigger: string | undefined;
 	isSubagentInvocation: boolean;
+	/** Where the runtime discovered the skill, bounded to its known values. */
+	skillSource: string;
+	/** Who shipped the skill: `vscode`, `runtime`, or `other`. */
+	skillOrigin: string;
+	/** The skill name, only when VS Code or the bundled runtime shipped the skill. */
+	skillName: string | undefined;
 }
 
 type IAgentHostSkillInvokedEvent = IAgentHostEventTelemetry & {
@@ -1411,11 +1433,14 @@ type IAgentHostSkillInvokedEvent = IAgentHostEventTelemetry & {
 	sdkEventId: string;
 	trigger: string;
 	isSubagentInvocation: boolean;
+	skillSource: string;
+	skillOrigin: string;
+	skillName: string | undefined;
 };
 
 type IAgentHostSkillInvokedClassification = IAgentHostEventClassification & {
 	owner: 'bhavyaus';
-	comment: 'Records what triggered each agent host skill invocation, to tell skills the agent chose apart from skills the user ran. Skill identity is on copilotSdk/skill_invoked, joined by sdkEventId.';
+	comment: 'Records what triggered each agent host skill invocation and where the skill came from, to tell skills the agent chose apart from skills the user ran and to measure built-in skills. Names only skills that VS Code or the bundled Copilot runtime ship; other skills are identified by hash on copilotSdk/skill_invoked, joined by sdkEventId.';
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider that invoked the skill.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session; the subagent chat for subagent invocations.' };
@@ -1423,6 +1448,9 @@ type IAgentHostSkillInvokedClassification = IAgentHostEventClassification & {
 	sdkEventId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SDK skill invocation event identifier; equals event_id on copilotSdk/skill_invoked.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What triggered the invocation: agent-invoked (the model chose the skill), user-invoked (slash command or UI), context-load (preloaded by a custom agent or subagent), or unknown.' };
 	isSubagentInvocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a subagent, rather than the main agent, invoked the skill.' };
+	skillSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the runtime discovered the skill: project, inherited, personal-copilot, personal-agents, custom, plugin, builtin, remote, sdk, mcp, other, or unknown.' };
+	skillOrigin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who shipped the skill: vscode (installed with VS Code or served by the agent host), runtime (built into the Copilot runtime or one of its bundled plugins), or other.' };
+	skillName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of a skill that VS Code or the bundled Copilot runtime ship. Absent for every other skill, whose name could identify a user.' };
 };
 
 export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge' | 'noChanges' | 'tooManyChanges' | 'mergeBaseTooOld' | 'virtualFileSystem' | 'tooManyCommits';
@@ -1608,6 +1636,222 @@ export const IAgentHostTelemetryReporter = createDecorator<AgentHostTelemetryRep
 
 export function toSubagentKindTelemetry(isSubagent: boolean, kind: AgentSubagentKind | undefined): { subagentKind?: AgentSubagentKind } {
 	return isSubagent ? { subagentKind: kind ?? 'task' } : {};
+}
+
+const INLINE_REASONING_TAGS = [
+	{ open: '<think>', close: '</think>' },
+	{ open: '<thinking>', close: '</thinking>' },
+	{ open: '<analysis>', close: '</analysis>' },
+] as const;
+
+interface IStructuredModelMessageText {
+	readonly role: 'assistant';
+	readonly content: string;
+	readonly reasoning_text?: string;
+}
+
+function parseFenceMarker(text: string, lineStart: number): { char: string; length: number; lineEnd: number } | undefined {
+	let i = lineStart;
+	while (i < text.length && (text[i] === ' ' || text[i] === '\t')) {
+		i++;
+	}
+	const ch = text[i];
+	if (ch !== '`' && ch !== '~') {
+		return undefined;
+	}
+	let end = i;
+	while (end < text.length && text[end] === ch) {
+		end++;
+	}
+	const length = end - i;
+	if (length < 3) {
+		return undefined;
+	}
+	const nl = text.indexOf('\n', end);
+	const lineEnd = nl === -1 ? text.length : nl + 1;
+	return { char: ch, length, lineEnd };
+}
+
+function isClosingFenceLine(text: string, lineStart: number, fenceChar: string, fenceLength: number): number | undefined {
+	let i = lineStart;
+	while (i < text.length && (text[i] === ' ' || text[i] === '\t')) {
+		i++;
+	}
+	if (text[i] !== fenceChar) {
+		return undefined;
+	}
+	let end = i;
+	while (end < text.length && text[end] === fenceChar) {
+		end++;
+	}
+	if (end - i < fenceLength) {
+		return undefined;
+	}
+	while (end < text.length && (text[end] === ' ' || text[end] === '\t' || text[end] === '\r')) {
+		end++;
+	}
+	if (end === text.length) {
+		return text.length;
+	}
+	return text[end] === '\n' ? end + 1 : undefined;
+}
+
+function extractInlineReasoning(text: string): { content: string; reasoningText: string | undefined } {
+	let pos = 0;
+	let chunkStart = 0;
+	let atLineStart = true;
+	let activeFence: { char: string; length: number } | undefined;
+	let foundTag = false;
+	let hasNonWhitespaceContent = false;
+	let nextThink = text.indexOf('<think', 0);
+	let nextAnalysis = text.indexOf('<analysis>', 0);
+	let nextNewline = text.indexOf('\n', 0);
+	const contentParts: string[] = [];
+	const reasoningParts: string[] = [];
+
+	while (pos < text.length) {
+		if (atLineStart) {
+			if (activeFence) {
+				const closedEnd = isClosingFenceLine(text, pos, activeFence.char, activeFence.length);
+				if (closedEnd !== undefined) {
+					activeFence = undefined;
+					pos = closedEnd;
+					atLineStart = true;
+					continue;
+				}
+				if (nextNewline !== -1 && nextNewline < pos) {
+					nextNewline = text.indexOf('\n', pos);
+				}
+				if (nextNewline === -1) {
+					break;
+				}
+				pos = nextNewline + 1;
+				atLineStart = true;
+				continue;
+			}
+			const fence = parseFenceMarker(text, pos);
+			if (fence) {
+				activeFence = { char: fence.char, length: fence.length };
+				pos = fence.lineEnd;
+				atLineStart = true;
+				continue;
+			}
+		}
+
+		if (nextThink !== -1 && nextThink < pos) {
+			nextThink = text.indexOf('<think', pos);
+		}
+		if (nextAnalysis !== -1 && nextAnalysis < pos) {
+			nextAnalysis = text.indexOf('<analysis>', pos);
+		}
+		const nextTag = nextThink === -1
+			? nextAnalysis
+			: nextAnalysis === -1
+				? nextThink
+				: Math.min(nextThink, nextAnalysis);
+		if (nextTag === -1) {
+			break;
+		}
+		if (nextNewline !== -1 && nextNewline < pos) {
+			nextNewline = text.indexOf('\n', pos);
+		}
+		if (nextNewline !== -1 && nextNewline < nextTag) {
+			pos = nextNewline + 1;
+			atLineStart = true;
+			continue;
+		}
+
+		const matchedTag = INLINE_REASONING_TAGS.find(tag => text.startsWith(tag.open, nextTag));
+		if (!matchedTag) {
+			pos = nextTag + 1;
+			atLineStart = false;
+			continue;
+		}
+
+		foundTag = true;
+		const before = text.slice(chunkStart, nextTag);
+		if (before.length > 0 && (hasNonWhitespaceContent || before.trim().length > 0)) {
+			contentParts.push(before);
+			hasNonWhitespaceContent = true;
+		}
+
+		const innerStart = nextTag + matchedTag.open.length;
+		const closeIdx = text.indexOf(matchedTag.close, innerStart);
+		if (closeIdx === -1) {
+			const inner = text.slice(innerStart).trim();
+			if (inner) {
+				reasoningParts.push(inner);
+			}
+			chunkStart = text.length;
+			pos = text.length;
+			break;
+		}
+
+		const inner = text.slice(innerStart, closeIdx).trim();
+		if (inner) {
+			reasoningParts.push(inner);
+		}
+		let afterClose = closeIdx + matchedTag.close.length;
+		if (contentParts.length === 0) {
+			let scan = afterClose;
+			let lastNewlineEnd = -1;
+			while (scan < text.length && (text[scan] === ' ' || text[scan] === '\t' || text[scan] === '\r' || text[scan] === '\n')) {
+				if (text[scan] === '\n') {
+					lastNewlineEnd = scan + 1;
+				}
+				scan++;
+			}
+			// Preserve leading indentation when a newline separates the closing tag from the
+			// answer so indented fenced code blocks retain both indentation and line-start state.
+			afterClose = lastNewlineEnd !== -1 ? lastNewlineEnd : scan;
+		}
+		chunkStart = afterClose;
+		pos = afterClose;
+		atLineStart = contentParts.length === 0 || pos === 0 || text[pos - 1] === '\n';
+	}
+
+	if (!foundTag) {
+		return { content: text, reasoningText: undefined };
+	}
+	if (chunkStart < text.length) {
+		contentParts.push(text.slice(chunkStart));
+	}
+	return {
+		content: contentParts.join(''),
+		reasoningText: reasoningParts.length > 0 ? reasoningParts.join('\n\n') : undefined,
+	};
+}
+
+/**
+ * Formats assistant text for restricted `conversation.messageText` telemetry into a
+ * structured `{ role, content, reasoning_text? }` JSON payload.
+ *
+ * Uses a native substring scan fast path so messages without inline reasoning tags skip
+ * line/fence parsing. Both closed and unclosed `<think>`, `<thinking>`, and `<analysis>`
+ * blocks outside fenced code blocks are extracted into `reasoning_text` in linear time.
+ */
+export function formatModelMessageTextForTelemetry(content: string, wireReasoningText?: string): string {
+	const trimmedWireReasoning = wireReasoningText?.trim();
+	if (content.indexOf('<think') === -1 && content.indexOf('<analysis>') === -1) {
+		const payload: IStructuredModelMessageText = trimmedWireReasoning
+			? { role: 'assistant', content, reasoning_text: trimmedWireReasoning }
+			: { role: 'assistant', content };
+		return JSON.stringify(payload);
+	}
+
+	const extracted = extractInlineReasoning(content);
+	const reasoningParts: string[] = [];
+	if (trimmedWireReasoning) {
+		reasoningParts.push(trimmedWireReasoning);
+	}
+	if (extracted.reasoningText) {
+		reasoningParts.push(extracted.reasoningText);
+	}
+	const reasoningText = reasoningParts.length > 0 ? reasoningParts.join('\n\n') : undefined;
+	const payload: IStructuredModelMessageText = reasoningText
+		? { role: 'assistant', content: extracted.content, reasoning_text: reasoningText }
+		: { role: 'assistant', content: extracted.content };
+	return JSON.stringify(payload);
 }
 
 export class AgentHostTelemetryReporter {
@@ -1798,20 +2042,25 @@ export class AgentHostTelemetryReporter {
 
 	/**
 	 * The model-message counterpart to {@link userMessageText}. Emitted when an `assistant.message`
-	 * arrives (the agent host's per-model-call boundary), carrying the assistant's response text.
-	 * `headerRequestId` is filled with the model call's client-minted `x-request-id`, matching the
-	 * extension. VS Code-only enrichment dims (code-block languages/counts) are not reconstructed here.
+	 * arrives (the agent host's per-model-call boundary), carrying the assistant's structured
+	 * `{ role, content, reasoning_text? }` JSON payload. `headerRequestId` is filled with the
+	 * model call's client-minted `x-request-id`, matching the extension. VS Code-only enrichment
+	 * dims (code-block languages/counts) are not reconstructed here.
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
-	 * @param content The assistant's response text. No-ops when empty.
+	 * @param content The assistant's response text. No-ops when both `content` and `reasoningText` are empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
 	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to `headerRequestId`.
+	 * @param sdkSessionId The SDK session id, when known.
+	 * @param reasoningText Optional structured wire reasoning text from `assistant.message`.
 	 */
-	async modelMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined, sdkSessionId?: string): Promise<void> {
+	async modelMessageText(session: string, chat: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined, sdkSessionId?: string, reasoningText?: string): Promise<void> {
 		const restricted = this._restricted;
-		if (!restricted || !content) {
+		if (!restricted || restricted.isRestrictedTelemetryActive === false || (!content && !reasoningText)) {
 			return;
 		}
+		await Promise.resolve();
+		const messageText = formatModelMessageTextForTelemetry(content, reasoningText);
 		const properties = await multiplexProperties({
 			source: 'model',
 			...(sdkSessionId ? { sdkSessionId } : {}),
@@ -1820,7 +2069,7 @@ export class AgentHostTelemetryReporter {
 			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
 			...(clientRequestId ? { headerRequestId: clientRequestId } : {}),
-			messageText: content,
+			messageText,
 		});
 		const measurements = { messageCharLen: content.length };
 		restricted.sendEnhancedGHTelemetryEvent('conversation.messageText', properties, measurements);
@@ -2004,8 +2253,9 @@ export class AgentHostTelemetryReporter {
 	}
 
 	/**
-	 * Records what triggered a skill invocation. Skill identity (hashed name, plugin) stays on the
-	 * forwarded runtime `copilotSdk/skill_invoked`; join the two on `sdkEventId` = `event_id`.
+	 * Records what triggered a skill invocation and where the skill came from. Only built-in skills are
+	 * named; other skills keep their hashed identity on the forwarded runtime `copilotSdk/skill_invoked`;
+	 * join the two on `sdkEventId` = `event_id`.
 	 */
 	skillInvoked(report: IAgentHostSkillInvokedReport): void {
 		const agentSessionId = AgentSession.id(report.owner);
@@ -2019,6 +2269,9 @@ export class AgentHostTelemetryReporter {
 			sdkEventId: report.sdkEventId,
 			trigger: report.trigger !== undefined && skillInvocationTriggers.has(report.trigger) ? report.trigger : 'unknown',
 			isSubagentInvocation: report.isSubagentInvocation,
+			skillSource: report.skillSource,
+			skillOrigin: report.skillOrigin,
+			skillName: report.skillName,
 		});
 	}
 
@@ -2055,6 +2308,10 @@ export class AgentHostTelemetryReporter {
 		]);
 		restricted.sendEnhancedGHTelemetryEventForContext(context, 'request.repoInfo', enhancedProperties, measurements);
 		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', internalMultiplexedProperties, measurements);
+	}
+
+	modelCallUsageCounted(report: ModelCallUsageCountedEvent): void {
+		this._telemetryService.publicLog2<ModelCallUsageCountedEvent, ModelCallUsageCountedClassification>('agentHost.modelCallUsageCounted', report);
 	}
 
 	requestTokenUsage(report: { clientContext: IAgentHostClientTelemetryContext; telemetryContext?: IAgentTelemetryContext; provider: string; session: string; owner: string; requestId: string; parentTurnId?: string; parentToolCallId?: string; subagentKind?: AgentSubagentKind; selectedModel?: string; selectedModelTelemetryKind?: AgentHostModelTelemetryKind; modelTelemetryKind?: AgentHostModelTelemetryKind; result: AgentHostTurnResult; summary: IAgentTokenUsageSummary }): void {
@@ -2125,6 +2382,7 @@ export class AgentHostTelemetryReporter {
 				steeredFromTurn: report.turnInteraction.steeredFromTurn,
 				interactionIds: JSON.stringify(report.turnInteraction.interactionIds),
 				interactionIdsTruncated: report.turnInteraction.interactionIdsTruncated,
+				...(report.turnInteraction.steeringDelivery ? { steeringDelivery: report.turnInteraction.steeringDelivery } : {}),
 			} : {}),
 			...toInitiatorTelemetry(report.clientContext),
 			...toCopilotTelemetryData(report.telemetryContext),
