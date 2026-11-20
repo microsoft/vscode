@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../common/agentService.js';
 import { AgentHostSessionResidencyLimitConfigKey, AgentHostSessionResidencyLimitDefault, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
-import { parseAnnotationsUri } from '../common/annotationsUri.js';
+import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { isSessionStatusArchived, parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -159,7 +159,7 @@ export class AgentSessionResidency extends Disposable {
 
 	private _getResidencySession(resource: URI): URI | undefined {
 		// Annotation ownership does not imply a dependency on the resident conversation; changesets still do.
-		return parseAnnotationsUri(resource.toString()) ? undefined : this._resolveSession(resource);
+		return isAnnotationsUri(resource.toString()) ? undefined : this._resolveSession(resource);
 	}
 
 	private _resolveSession(resource: URI): URI | undefined {
@@ -173,7 +173,7 @@ export class AgentSessionResidency extends Disposable {
 		}
 		for (const subscribedResource of this._subscriptions.subscribedResources) {
 			// Subscribed chats resolve through the owner recorded at subscribe time.
-			const subscribedSession = parseAnnotationsUri(subscribedResource.toString()) ? undefined : this._subscriptions.resolveSubscribedSession(subscribedResource);
+			const subscribedSession = isAnnotationsUri(subscribedResource.toString()) ? undefined : this._subscriptions.resolveSubscribedSession(subscribedResource);
 			if (subscribedSession?.toString() === sessionKey) {
 				return true;
 			}

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ISessionsNavigationService } from '../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
+import { SessionsServiceNavigationService } from '../../../../workbench/contrib/sessions/browser/sessionsServiceNavigationService.js';
 import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostCustomizationService } from '../../../../workbench/contrib/sessions/browser/agentHostCustomizationService.js';
 import { ISessionsService, SessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -23,16 +25,19 @@ import { SessionsManagementService } from '../../../../workbench/contrib/session
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionDraftsService, SessionDraftsService } from '../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { IScheduledChatsService, ScheduledChatsService } from '../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
+import { ISideChatPlacementService, SideChatPlacementService } from '../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 
 // The session services are implemented in modules that do not register themselves, so that a window loads them only
 // when its entry point imports this module.
 registerSingleton(ISessionsProvidersService, SessionsProvidersService, InstantiationType.Delayed);
 registerSingleton(IAgentHostCustomizationService, AgentHostCustomizationService, InstantiationType.Delayed);
 registerSingleton(IChatHostOpenerService, ChatHostOpenerService, InstantiationType.Delayed);
+registerSingleton(ISideChatPlacementService, SideChatPlacementService, InstantiationType.Delayed);
 registerSingleton(ISessionsListModelService, SessionsListModelService, InstantiationType.Delayed);
 registerSingleton(ISessionChangesStatsCache, SessionChangesStatsCache, InstantiationType.Delayed);
 registerSingleton(ISessionOpenTelemetryService, SessionOpenTelemetryService, InstantiationType.Delayed);
 registerSingleton(ISessionsService, SessionsService, InstantiationType.Eager);
+registerSingleton(ISessionsNavigationService, SessionsServiceNavigationService, InstantiationType.Delayed);
 registerSingleton(ISessionHostService, SessionHostService, InstantiationType.Delayed);
 registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);
 registerSingleton(ISessionSectionOrderService, SessionSectionOrderService, InstantiationType.Delayed);

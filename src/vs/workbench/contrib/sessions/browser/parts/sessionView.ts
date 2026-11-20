@@ -133,9 +133,6 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	private readonly _headerHeight = observableValue<number>(this, 0);
 
 
-	/** The title of the session header. */
-	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
-
 	/**
 	 * The services of its own scope, which what it shows is created with: disposed after it, as what disposes may still
 	 * use them, such as a composer whose input clears as it goes away; see {@link dispose}.
@@ -538,6 +535,11 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		return standaloneView ? standaloneView.selectNoWorkspace(options) : this._groupsView.selectNoWorkspace(options);
 	}
 
+	selectEnvironment(providerId: string): WorkspaceSelectionResult {
+		const standaloneView = this._visibleStandaloneView;
+		return standaloneView ? standaloneView.selectEnvironment(providerId) : this._groupsView.selectEnvironment(providerId);
+	}
+
 	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */
 	openChatToSide(resource: URI, referenceChatResource?: URI): Promise<void> {
 		return this._groupsView.openChatInNewGroup(resource, referenceChatResource);
@@ -554,6 +556,11 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	splitActiveChat(direction: 'right' | 'bottom'): void {
 		this._groupsView.splitActiveChat(direction);
+	}
+
+	/** Saves the layout of the chats of the session shown, which another view restores when it shows the session. */
+	saveLayout(): void {
+		this._groupsView.saveLayout();
 	}
 
 	moveActiveChatToAdjacentGroup(direction: 'previous' | 'next'): void {

@@ -83,7 +83,8 @@ export function isArtifactIntegrationDescriptor(value: unknown): value is Artifa
 
 export function isArtifactActor(value: unknown): value is ArtifactActor {
 	return isRecord(value) && (value.kind === 'user'
-		|| (value.kind === 'agent' && typeof value.chat === 'string' && value.chat.length > 0 && (value.turnId === undefined || typeof value.turnId === 'string')));
+		|| (value.kind === 'agent' && typeof value.chat === 'string' && value.chat.length > 0 && (value.turnId === undefined || typeof value.turnId === 'string')
+			&& (value.autoApproved === undefined || typeof value.autoApproved === 'boolean')));
 }
 
 export function isArtifactAutomationOption(value: unknown): value is ArtifactAutomationOption {
@@ -112,6 +113,7 @@ export function isArtifactConfiguration(value: unknown): value is ArtifactAutoma
 		&& isDictionary(value.generations, isCounter)
 		&& (value.enabledAt === undefined || isDictionary(value.enabledAt, isCounter))
 		&& (value.grants === undefined || isDictionary(value.grants, isArtifactActor))
+		&& (value.disabledBy === undefined || isDictionary(value.disabledBy, isArtifactActor))
 		&& isRecord(value.disablements) && Object.values(value.disablements).every(item =>
 			isRecord(item) && typeof item.reason === 'string' && isCounter(item.attempts) && (item.lastRunId === undefined || typeof item.lastRunId === 'string'));
 }

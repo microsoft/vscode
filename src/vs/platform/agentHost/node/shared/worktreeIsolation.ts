@@ -514,6 +514,12 @@ export interface IResolveWorkingDirectoryRequest {
 	readonly prompt?: string;
 	readonly githubToken?: string;
 	/**
+	 * The agent session a detached worktree is created for, used to attribute
+	 * its branch-name model call in telemetry. A detached worktree's
+	 * {@link sessionUri} is its own record, not an agent session.
+	 */
+	readonly ownerSession?: URI;
+	/**
 	 * Receives localized activity labels while the worktree is being created,
 	 * so callers can surface live progress. Only called for sessions that
 	 * selected worktree isolation — though such a session can still fall back
@@ -981,7 +987,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 */
 	async resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution> {
 		const gitInfo = request.workingDirectory
-			? await this._getGitInfo(request.workingDirectory)
+			? await this._getGitInfo(request.workingDirectory, request.config?.[SessionConfigKey.Isolation] !== 'folder' || getSessionPullRequestUrl(request.config) !== undefined)
 			: undefined;
 
 		const isolationProperty = schemaProperty<'folder' | 'worktree'>({
@@ -1198,8 +1204,10 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			const worktreesRoot = getWorktreesRoot(repositoryRoot);
 
 			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));
+			const telemetrySession = request.ownerSession ?? (request.sessionUri.scheme === DETACHED_WORKTREE_OWNER_SCHEME ? undefined : request.sessionUri);
 			const newBranchName = await this._branchNameGenerator.generateBranchName({
 				sessionId,
+				agentSessionId: telemetrySession ? AgentSession.id(telemetrySession) : undefined,
 				message: prompt,
 				githubToken,
 				branchPrefix: worktreeBranchPrefix,
@@ -2067,8 +2075,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		} : undefined;
 	}
 
-	private _getGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
-		const key = workingDirectory.toString();
+	private _getGitInfo(workingDirectory: URI, resolveDefaultBranch: boolean): Promise<IIsolationGitInfo | undefined> {
+		const key = JSON.stringify([workingDirectory.toString(), resolveDefaultBranch]);
 		const pending = this._pendingGitInfo.get(key);
 		if (pending) {
 			return pending;
@@ -2076,22 +2084,22 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 		// Overlapping callers share one best-effort read, including changes made
 		// while it is in flight. Once settled, the next caller reads Git afresh.
-		const request = this._readGitInfo(workingDirectory)
+		const request = this._readGitInfo(workingDirectory, resolveDefaultBranch)
 			.finally(() => this._pendingGitInfo.delete(key));
 		this._pendingGitInfo.set(key, request);
 
 		return request;
 	}
 
-	private async _readGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
+	private async _readGitInfo(workingDirectory: URI, resolveDefaultBranch: boolean): Promise<IIsolationGitInfo | undefined> {
 		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true });
 		if (!repositoryRoot) {
 			return undefined;
 		}
 
 		const [headRef, defaultBranch] = await Promise.all([
-			this._gitService.getHEAD(repositoryRoot),
-			this._gitService.getDefaultBranch2(repositoryRoot),
+			this._gitService.getHEAD(repositoryRoot, { nameOnly: !resolveDefaultBranch }),
+			resolveDefaultBranch ? this._gitService.getDefaultBranch2(repositoryRoot) : undefined,
 		]);
 
 		if (!headRef) {

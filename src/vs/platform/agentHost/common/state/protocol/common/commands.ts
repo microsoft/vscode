@@ -10,7 +10,7 @@ import type { URI, Snapshot, ChannelReceiveLimits, ChannelFlowControl, ResumedCh
 import type { ActionEnvelope, StateAction } from './actions.js';
 import type { AutomationRunCancelRequestedAction } from '../channels-automation-run/actions.js';
 import type { AutomationCreateRequestedAction } from '../channels-automation/actions.js';
-import type { AutomationSchedule, AutomationScheduleTrigger, AutomationSessionTemplate, AutomationEntry, AutomationState } from '../channels-automation/state.js';
+import type { AutomationDefinition, AutomationSchedule, AutomationScheduleTrigger, AutomationSessionTemplate, AutomationEntry, AutomationState, AutomationChatTarget, AutomationNewSessionTarget, AutomationPreviousSessionTarget } from '../channels-automation/state.js';
 import type { TelemetryCapabilities } from '../channels-otlp/state.js';
 import type { TcpConnectionsCapability } from '../channels-tcp/state.js';
 
@@ -341,8 +341,9 @@ export interface InitializeResult {
 	 */
 	tcpConnections?: TcpConnectionsCapability;
 	/**
-	 * Present when chats in one session may be backed by different agents
-	 * (see {@link CreateChatParams.provider} and {@link ChatState.provider}).
+	 * Present when chats in one session may be backed by different agent
+	 * providers (see {@link CreateChatParams.provider} and
+	 * {@link ChatState.provider}).
 	 * Clients MUST NOT send `CreateChatParams.provider` without it.
 	 * @stability 1.0
 	 * @see {@link /specification/chat-channel#chat-providers | Chat Channel: Chat providers}
@@ -376,10 +377,8 @@ export interface AutomationCapabilities {
 	create?: AutomationCreateCapability;
 	/** Present when definitions may contain {@link AutomationScheduleTrigger | schedule triggers}. */
 	schedules?: AutomationScheduleCapabilities;
-	/** Present when absolute one-time run triggers and atomic Send Now are supported. */
+	/** Present when definitions may contain {@link AutomationOneTimeTrigger | one-time triggers}. */
 	oneTime?: AutomationOneTimeCapability;
-	/** Present when one-time scheduled chats can target an existing conversation. */
-	existingConversation?: AutomationExistingConversationCapability;
 	/**
 	 * Present when clients may request cancellation of `pending` or `running`
 	 * automation runs.
@@ -396,7 +395,53 @@ export interface AutomationCapabilities {
 	 * client plugins for the host to capture.
 	 */
 	customizations?: AutomationCustomizationsCapability;
+	/**
+	 * Present when definitions may set {@link AutomationDefinition.target}.
+	 * Absence means each run creates a session.
+	 */
+	targets?: AutomationTargetsCapabilities;
 }
+
+/**
+ * Run targets supported for {@link AutomationDefinition.target}.
+ * {@link AutomationNewSessionTarget} is always supported.
+ *
+ * @category Commands
+ */
+export interface AutomationTargetsCapabilities {
+	/**
+	 * Present when {@link AutomationDefinition.target} may be an
+	 * {@link AutomationPreviousSessionTarget}. Clients SHOULD NOT author that
+	 * target when this is absent.
+	 */
+	previousSession?: AutomationPreviousSessionTargetCapability;
+	/**
+	 * Present when {@link AutomationDefinition.target} may be an
+	 * {@link AutomationChatTarget}. Clients SHOULD NOT author that target when
+	 * this is absent.
+	 */
+	chat?: AutomationChatTargetCapability;
+}
+
+/**
+ * Presence capability for {@link AutomationPreviousSessionTarget}.
+ *
+ * The empty object means "supported"; fields are reserved for future
+ * options.
+ *
+ * @category Commands
+ */
+export interface AutomationPreviousSessionTargetCapability { }
+
+/**
+ * Presence capability for {@link AutomationChatTarget}.
+ *
+ * The empty object means "supported"; fields are reserved for future
+ * options.
+ *
+ * @category Commands
+ */
+export interface AutomationChatTargetCapability { }
 
 /**
  * Presence capability for
@@ -410,17 +455,11 @@ export interface AutomationCapabilities {
 export interface AutomationCustomizationsCapability { }
 
 /**
- * Supports one-time runs, durable admission receipts, and conditional definition updates.
- *
- * Hosts MUST preserve supported message attachments durably without requiring a
- * connected client, and reject unsupported content before accepting a definition.
+ * Presence capability for {@link AutomationOneTimeTrigger | one-time triggers}.
  *
  * @category Commands
  */
 export interface AutomationOneTimeCapability { }
-
-/** Supports immutable existing-conversation targets without creating or owning sessions. */
-export interface AutomationExistingConversationCapability { }
 
 /**
  * Presence capability for {@link AutomationCreateRequestedAction |

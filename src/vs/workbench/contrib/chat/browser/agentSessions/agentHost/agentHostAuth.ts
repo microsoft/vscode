@@ -13,10 +13,11 @@ import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { isObject } from '../../../../../../base/common/types.js';
+import type { AuthenticateResult } from '../../../../../../platform/agentHost/common/agent.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
-import { authenticationAccountId, authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { agentEntitlementHintMeta, readAgentEntitlementHint, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
@@ -24,6 +25,7 @@ import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/
 import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -74,6 +76,12 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 	}
 	const selectedModel = agent.models.find(candidate => candidate.id === model.id);
 	return !selectedModel || readAgentModelByokIdentifier(selectedModel) === undefined;
+}
+
+function assertAuthenticationAccepted(result: unknown): void {
+	if (isObject(result) && (result as Partial<AuthenticateResult>).authenticated === false) {
+		throw new Error(localize('agentHost.credentialRejected', "The agent host did not accept the authentication credential."));
+	}
 }
 
 interface IForwardedAuthenticationIdentity {
@@ -134,7 +142,7 @@ export class AgentHostAuthTokenCache {
 		}
 
 		const promise = (async () => {
-			await authenticate();
+			assertAuthenticationAccepted(await authenticate());
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
@@ -335,6 +343,13 @@ function protectedResourceAuthenticationKey(resource: ProtectedResourceMetadata)
  */
 export class AgentHostAuthenticationRecovery {
 	private readonly _resentTokens = new Map<string, string>();
+	/** The credential the last sign-in this recovery prompted for produced, per challenged resource. */
+	private readonly _signedInTokens = new Map<string, string>();
+	/**
+	 * The credential whose sign-in prompt the user last closed. Challenges for it stay silent until a sign-in replaces
+	 * it. Kept by {@link clear}, because closing the dialog is a decision about the credential, not the connection.
+	 */
+	private _dismissedToken: string | undefined;
 	private readonly _pendingRecoveries = new Map<string, Promise<void>>();
 
 	constructor(
@@ -343,17 +358,21 @@ export class AgentHostAuthenticationRecovery {
 
 	clear(): void {
 		this._resentTokens.clear();
+		this._signedInTokens.clear();
 		this._pendingRecoveries.clear();
 	}
 
-	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
+	/**
+	 * @param reason Why the host challenged the resource, when it said.
+	 */
+	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions, reason?: AuthRequiredReason): Promise<void> {
 		const key = protectedResourceAuthenticationKey(resource);
 		const pendingRecovery = this._pendingRecoveries.get(key);
 		if (pendingRecovery) {
 			return pendingRecovery;
 		}
 
-		const recovery = this._recover(accessor, key, resource, resolveAuthenticationOptions(accessor, options))
+		const recovery = this._recover(accessor, key, resource, resolveAuthenticationOptions(accessor, options), reason)
 			.finally(() => {
 				if (this._pendingRecoveries.get(key) === recovery) {
 					this._pendingRecoveries.delete(key);
@@ -363,7 +382,7 @@ export class AgentHostAuthenticationRecovery {
 		return recovery;
 	}
 
-	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
+	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions, reason: AuthRequiredReason | undefined): Promise<void> {
 		throwIfAuthenticationStale(options);
 		const logService = accessor.get(ILogService);
 		const authenticationService = accessor.get(IAuthenticationService);
@@ -381,6 +400,7 @@ export class AgentHostAuthenticationRecovery {
 		throwIfAuthenticationStale(options);
 		if (resolution.kind === 'signedOut') {
 			this._resentTokens.delete(key);
+			this._signedInTokens.delete(key);
 		}
 		if (resolution.kind !== 'resolved') {
 			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
@@ -450,6 +470,37 @@ export class AgentHostAuthenticationRecovery {
 			return;
 		}
 
+		const challengedToken = candidateResolution.kind === 'resolved' ? candidateResolution.session.accessToken : currentSession.accessToken;
+		const deferPrompt = (why: string) => {
+			logService.info(`${options.logPrefix} Not prompting to sign in for ${resource.resource}: ${why}`);
+			reportAgentHostAuthRecovery(this._telemetryService, {
+				trigger: 'hostChallenge',
+				action: 'defer',
+				initialSessionMatch: resolution.match,
+				quarantinePresent,
+			});
+		};
+		// A challenge is never something the user started. A resource the host only needs on demand is signed in to
+		// where it is used, such as the Sign In of a pull request artifact, rather than in a dialog.
+		if (resource.required === false) {
+			deferPrompt('the host only needs it on demand');
+			return;
+		}
+		// Only the prompted credential: the current session may be an exact-scope one the host already rejected,
+		// which stays resolvable after a sign-in replaces the broader fallback that was prompted for.
+		if (this._dismissedToken === challengedToken) {
+			deferPrompt('its sign-in was dismissed and no sign-in has replaced the credential since');
+			return;
+		}
+		// Every credential the client could send was refused, including the one its last sign-in produced. A host that
+		// is not asking for renewal then needs something signing in cannot grant, such as an organization's approval,
+		// so prompting again would only repeat the dialog; the host's `expired` challenges still prompt.
+		const signedInToken = this._signedInTokens.get(key);
+		if (reason === AuthRequiredReason.Required && signedInToken !== undefined && (signedInToken === challengedToken || signedInToken === currentSession.accessToken)) {
+			deferPrompt('the host still requires authentication after sign-in provided its credential');
+			return;
+		}
+
 		options.authTokenCache?.invalidate(resource.resource, scopes);
 		reportAgentHostAuthRecovery(this._telemetryService, {
 			trigger: 'hostChallenge',
@@ -457,13 +508,19 @@ export class AgentHostAuthenticationRecovery {
 			initialSessionMatch: resolution.match,
 			quarantinePresent,
 		});
-		const challengedToken = candidateResolution.kind === 'resolved' ? candidateResolution.session.accessToken : currentSession.accessToken;
-		const interactiveSession = await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, this._telemetryService, resource, options, 'hostChallenge', challengedToken);
+		const result = await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, this._telemetryService, resource, options, 'hostChallenge', challengedToken);
 		throwIfAuthenticationStale(options);
-		if (!interactiveSession) {
+		if (result.kind === 'dismissed') {
+			this._dismissedToken = challengedToken;
+			logService.info(`${options.logPrefix} Sign-in for ${resource.resource} was dismissed; challenges for its credential stay silent until a sign-in replaces it`);
 			return;
 		}
+		if (result.kind !== 'signedIn') {
+			return;
+		}
+		const interactiveSession = result.session;
 		this._resentTokens.set(key, interactiveSession.accessToken);
+		this._signedInTokens.set(key, interactiveSession.accessToken);
 		if (interactiveSession.accessToken === challengedToken) {
 			logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
 		}
@@ -656,6 +713,7 @@ export interface IAgentHostAuthenticateRequest {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	readonly accountId?: string;
 	readonly _meta?: Record<string, unknown>;
 }
 
@@ -737,13 +795,13 @@ async function forwardAuthenticationToken(
 	};
 	if (options.authTokenCache) {
 		const identity = session?.id && session.account ? { sessionId: session.id, accountId: session.account.id } : undefined;
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(readAuthenticationAccount(request)), readAgentEntitlementHint(request), options.target, identity);
+		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), request.accountId, readAgentEntitlementHint(request), options.target, identity);
 	}
-	await options.authenticate(request);
+	assertAuthenticationAccepted(await options.authenticate(request));
 	return true;
 }
 
-function toAuthenticateRequest(
+export function toAuthenticateRequest(
 	resource: string,
 	scopes: readonly string[] | undefined,
 	session: IForwardedAuthenticationSession | undefined,
@@ -751,18 +809,16 @@ function toAuthenticateRequest(
 	entitlement?: IAgentEntitlementHint,
 ): IAgentHostAuthenticateRequest {
 	const expiresAfter = session?.expiresAfter;
-	const account = providerId && session?.account?.id ? {
-		providerId,
-		accountId: session.account.id,
-		...(providerId === 'microsoft' && session.account.label ? { label: session.account.label } : {}),
-		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
-	} : undefined;
+	const accountId = providerId && session?.account?.id
+		? JSON.stringify([providerId, session.account.id, session.authorizationServer?.toString()])
+		: undefined;
 	return {
 		resource,
 		scopes,
 		token: session?.accessToken ?? '',
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
-		...((account || entitlement) ? { _meta: { ...(account ? authenticationAccountMeta(account) : {}), ...(entitlement ? agentEntitlementHintMeta(entitlement) : {}) } } : {}),
+		...(accountId !== undefined ? { accountId } : {}),
+		...(entitlement ? { _meta: agentEntitlementHintMeta(entitlement) } : {}),
 	};
 }
 
@@ -1179,7 +1235,7 @@ export async function resolveAuthenticationInteractively(
 			initialSessionMatch: existingSessionResolution.kind === 'signedOut' ? 'none' : 'unavailable',
 			quarantinePresent: rejectedSession !== undefined,
 		});
-		return (await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, telemetryService, resource, resolvedOptions, 'sessionCreation', rejectedSession?.accessToken)) !== undefined;
+		return (await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, telemetryService, resource, resolvedOptions, 'sessionCreation', rejectedSession?.accessToken)).kind === 'signedIn';
 	}
 
 	return false;
@@ -1196,6 +1252,14 @@ export function getAgentHostSignInOptions(scopes: readonly string[]): IChatSetup
 	};
 }
 
+/** How an interactive sign-in ended. */
+type InteractiveAuthenticationResult =
+	| { readonly kind: 'signedIn'; readonly session: AuthenticationSession }
+	/** The user closed the sign-in dialog. */
+	| { readonly kind: 'dismissed' }
+	/** Sign-in completed without forwarding a new credential. */
+	| { readonly kind: 'noCredential' };
+
 async function forceAuthenticationInteractively(
 	authenticationService: IAuthenticationService,
 	defaultAccountService: IDefaultAccountService,
@@ -1206,7 +1270,7 @@ async function forceAuthenticationInteractively(
 	options: IResolvedAgentHostAuthenticationOptions,
 	trigger: AgentHostAuthTrigger,
 	challengedToken?: string,
-): Promise<AuthenticationSession | undefined> {
+): Promise<InteractiveAuthenticationResult> {
 	throwIfAuthenticationStale(options);
 	const defaultAccount = defaultAccountService.currentDefaultAccount;
 	const watch = StopWatch.create();
@@ -1221,7 +1285,7 @@ async function forceAuthenticationInteractively(
 		}
 		if (setupResult?.success === undefined) {
 			data.result = 'cancelled';
-			return undefined;
+			return { kind: 'dismissed' };
 		}
 		if (!setupResult.success) {
 			throw setupResult.error ?? new Error(localize('agentHost.signInFailed', "Failed to sign in to use GitHub Copilot."));
@@ -1235,7 +1299,7 @@ async function forceAuthenticationInteractively(
 			data.sessionMatch = sessionResolution.kind === 'signedOut' ? 'none' : 'unavailable';
 			data.result = 'noSessionResolved';
 			logService.info(`${options.logPrefix} Interactive authentication did not provide a token for ${resource.resource}`);
-			return undefined;
+			return { kind: 'noCredential' };
 		}
 		const session = sessionResolution.session;
 		data.sessionMatch = sessionResolution.match;
@@ -1243,11 +1307,11 @@ async function forceAuthenticationInteractively(
 		options.authTokenCache?.clear(resource.resource, scopes);
 		if (!await forwardAuthenticationToken(options, resource.resource, scopes, session, sessionResolution.providerId, sessionResolution.entitlement)) {
 			data.result = 'deduplicated';
-			return undefined;
+			return { kind: 'noCredential' };
 		}
 		data.result = 'tokenForwarded';
 		logService.info(`${options.logPrefix} Interactive authentication completed for ${resource.resource}`);
-		return session;
+		return { kind: 'signedIn', session };
 	} catch (error) {
 		data.result = isCancellationError(error) ? 'superseded' : 'failed';
 		throw error;

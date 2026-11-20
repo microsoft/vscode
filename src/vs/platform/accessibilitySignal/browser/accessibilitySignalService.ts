@@ -701,6 +701,12 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.voiceModeStopped'
 	});
 
+	public static readonly dictationDisconnected = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.dictationDisconnected', 'Dictation Disconnected'),
+		sound: Sound.error,
+		settingsKey: 'accessibility.signals.dictationDisconnected'
+	});
+
 	public static readonly editsKept = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.editsKept', 'Edits Kept'),
 		sound: Sound.editsKept,

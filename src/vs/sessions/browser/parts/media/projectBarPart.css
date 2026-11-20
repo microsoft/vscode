@@ -50,17 +50,21 @@
 	cursor: pointer;
 }
 
+.monaco-workbench .projectbar .action-item::before {
+	content: '';
+	position: absolute;
+	inset: var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+	pointer-events: none;
+}
+
 .monaco-workbench .projectbar .action-item:focus {
 	outline: 0 !important; /* project bar indicates focus custom */
 }
 
-.monaco-workbench .projectbar .action-item:focus-visible::before {
-	content: '';
-	position: absolute;
-	inset: 6px;
-	border: 1px solid var(--vscode-focusBorder);
-	border-radius: var(--vscode-cornerRadius-small);
-	pointer-events: none;
+.monaco-workbench .projectbar .action-item:is(:focus-visible, .focus-visible)::before {
+	border-color: var(--vscode-focusBorder);
 }
 
 .monaco-workbench .projectbar .action-item .action-label {
@@ -74,7 +78,7 @@
 	color: var(--vscode-activityBar-inactiveForeground);
 }
 
-.monaco-workbench .projectbar .action-item:hover .action-label {
+.monaco-workbench .projectbar .action-item:is(:hover, .hovered) .action-label {
 	color: var(--vscode-activityBar-foreground);
 }
 
@@ -97,7 +101,7 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
-.monaco-workbench .projectbar .action-item.workspace-entry:hover .action-label.workspace-icon {
+.monaco-workbench .projectbar .action-item.workspace-entry:is(:hover, .hovered) .action-label.workspace-icon {
 	background-color: var(--vscode-activityBar-foreground);
 }
 
@@ -111,7 +115,7 @@
 	border-radius: 0;
 }
 
-.monaco-workbench .projectbar .action-item.workspace-entry:hover .action-label.workspace-icon.codicon-icon {
+.monaco-workbench .projectbar .action-item.workspace-entry:is(:hover, .hovered) .action-label.workspace-icon.codicon-icon {
 	background-color: transparent;
 	color: var(--vscode-activityBar-foreground);
 }
@@ -147,19 +151,22 @@
 }
 
 /* High contrast styling */
-.monaco-workbench.hc-black .projectbar .action-item .action-label,
-.monaco-workbench.hc-light .projectbar .action-item .action-label {
+.monaco-workbench:is(.hc-black, .hc-light) .projectbar .action-item .action-label {
 	padding: 6px;
 }
 
-.monaco-workbench.hc-black .projectbar .action-item.checked .action-label::before,
-.monaco-workbench.hc-light .projectbar .action-item.checked .action-label::before {
-	outline: 1px solid var(--vscode-contrastActiveBorder);
+.monaco-workbench:is(.hc-black, .hc-light) .projectbar .action-item::before {
+	border-radius: 0;
 }
 
-.monaco-workbench.hc-black .projectbar .action-item:hover .action-label::before,
-.monaco-workbench.hc-light .projectbar .action-item:hover .action-label::before {
-	outline: 1px dashed var(--vscode-contrastActiveBorder);
+.monaco-workbench:is(.hc-black, .hc-light) .projectbar .action-item.checked:not(:focus-visible, .focus-visible)::before {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .projectbar .action-item:not(.checked):is(:hover, .hovered):not(:focus-visible, .focus-visible)::before {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 /* ===== Global Composite Bar (Accounts, Settings) at bottom ===== */
@@ -194,7 +201,7 @@
 
 .monaco-workbench .projectbar > .content > .monaco-action-bar .action-item.active .action-label.codicon,
 .monaco-workbench .projectbar > .content > .monaco-action-bar .action-item:focus .action-label.codicon,
-.monaco-workbench .projectbar > .content > .monaco-action-bar .action-item:hover .action-label.codicon {
+.monaco-workbench .projectbar > .content > .monaco-action-bar .action-item:is(:hover, .hovered) .action-label.codicon {
 	color: var(--vscode-activityBar-foreground) !important;
 }
 
@@ -258,6 +265,6 @@
 
 .monaco-workbench .projectbar > .content > .monaco-action-bar .action-item:active .profile-text-overlay,
 .monaco-workbench .projectbar > .content > .monaco-action-bar .action-item:focus .profile-text-overlay,
-.monaco-workbench .projectbar > .content > .monaco-action-bar .action-item:hover .profile-text-overlay {
+.monaco-workbench .projectbar > .content > .monaco-action-bar .action-item:is(:hover, .hovered) .profile-text-overlay {
 	color: var(--vscode-activityBar-foreground);
 }

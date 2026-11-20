@@ -6,6 +6,8 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, defaultAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -14,6 +16,7 @@ import { systemNotificationToChatPart } from '../../../../contrib/chat/browser/a
 import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatSystemNotificationContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+import { TestMenuService } from '../../workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
@@ -42,6 +45,8 @@ function renderNotice(context: ComponentFixtureContext, content: string, kind: A
 			}());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IChatMarkdownAnchorService, anchorService);
+			reg.define(IActionViewItemService, NullActionViewItemService);
+			reg.define(IMenuService, TestMenuService);
 		},
 	});
 
@@ -51,7 +56,7 @@ function renderNotice(context: ComponentFixtureContext, content: string, kind: A
 	}
 
 	const markdownRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
-	const part = disposableStore.add(instantiationService.createInstance(ChatSystemNotificationContentPart, progress, markdownRenderer));
+	const part = disposableStore.add(instantiationService.createInstance(ChatSystemNotificationContentPart, progress, markdownRenderer, undefined));
 	if (expanded) {
 		part.domNode.querySelector<HTMLElement>('.chat-system-notification-disclosure-header')?.click();
 	}

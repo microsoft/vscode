@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, ImmortalReference, IReference } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableValue, waitForState } from '../../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue, waitForState } from '../../../../../../../base/common/observable.js';
 import { deepFreeze } from '../../../../../../../base/common/objects.js';
 import { isEqual } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -141,6 +141,19 @@ suite('Agent Host artifact chat mapping', () => {
 			page: (await pendingPage).runs.map(run => run.chat), result: (await pendingRun).chat,
 			availability: f.model.snapshot.get().contributions[0].view.stateActions[0].chatAvailability,
 		}, { snapshot: [undefined, replacement.toString(), undefined], page: [undefined, replacement.toString(), undefined], result: replacement.toString(), availability: { [replacement.toString()]: { enabled: false } } });
+	});
+
+	test('publishes a new snapshot only when a change to the chats changes its content', () => {
+		const f = fixture();
+		const published: (string | undefined)[][] = [];
+		const listener = autorun(reader => { published.push(f.model.snapshot.read(reader).runs.map(run => run.chat)); });
+		f.chats.set([...f.chats.get()], undefined);
+		f.chats.set([{ client: f.clients[0], backend: f.backend[0] }], undefined);
+		listener.dispose();
+		assert.deepStrictEqual(published, [
+			[f.clients[0].toString(), f.clients[1].toString(), undefined],
+			[f.clients[0].toString(), undefined, undefined],
+		]);
 	});
 });
 
@@ -685,7 +698,7 @@ suite('Agent Host artifact workspace settings', () => {
 				transformed: remoteAddress ? [metadata.resource] : [],
 				forwarded: [{
 					resource: metadata.resource, scopes: ['read'], token: remoteAddress ? 'sealed-token' : 'plain-token',
-					_meta: { 'vscode.authentication.account': { accountId: 'account', providerId: 'test-auth' } },
+					accountId: '["test-auth","account",null]',
 				}],
 			});
 		});
@@ -924,6 +937,15 @@ suite('Agent Host client artifact notices', () => {
 				{ kind: 'release', subscription: 'subscription' },
 			],
 			notices: [f.notice], released: 1, sessionResources: [session], unavailable: undefined,
+		});
+	});
+
+	test('a client integration status notice reaches the host through the artifact transport', async () => {
+		const f = fixture();
+		const notice: ArtifactAutomationNotice = { kind: 'status', session, artifact, content: 'Removed from the merge queue.', iconId: 'beaker' };
+		await f.service.postNotice(notice);
+		assert.deepStrictEqual({ requests: f.requests.map(request => request.kind), notices: f.notices, released: f.released }, {
+			requests: ['acquire', 'notice', 'release'], notices: [notice], released: 1,
 		});
 	});
 

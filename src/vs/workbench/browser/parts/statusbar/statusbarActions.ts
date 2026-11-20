@@ -17,6 +17,7 @@ import { StatusbarViewModel } from './statusbarModel.js';
 import { StatusBarFocused } from '../../../common/contextkeys.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { MANAGE_EXTENSION_COMMAND_ID } from '../../../../platform/extensions/common/extensions.js';
 
 export class ToggleStatusbarEntryVisibilityAction extends Action {
 
@@ -56,7 +57,7 @@ export class ManageExtensionAction extends Action {
 	}
 
 	override run(): Promise<void> {
-		return this.commandService.executeCommand('_extensions.manage', this.extensionId);
+		return this.commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, this.extensionId);
 	}
 }
 

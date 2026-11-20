@@ -7,33 +7,42 @@ import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, runOnChange, transaction } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { isStringArray } from '../../../../../../base/common/types.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { AutomationDetail, AutomationTrigger, CreateAutomationRequest, EditAutomationRequest } from '../../../../../../platform/github/common/missionControl/automations.js';
+import { Model } from '../../../../../../platform/github/common/missionControl/models.js';
 import { Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { getGitHubRepositoryId } from '../../../../../../platform/github/common/githubUrls.js';
 import { RepositoryPicker } from '../../../../chat/browser/agentSessions/repositoryPicker.js';
 import { IGitHubService } from '../../../browser/github/githubService.js';
-import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../chat/common/automations/automation.js';
+import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, isAutomationVisible } from '../../../../chat/common/automations/automation.js';
 import { AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRefreshOptions, IAutomationRunRequestResult, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../chat/common/automations/automationsEnabled.js';
 import { automationTriggerChoices, canEditAutomationTriggers, hasAutomationEventTrigger } from '../../../../chat/common/automations/automationTriggers.js';
+import { observableShowSharedAutomationsByOthers } from '../../../../chat/common/automations/automationViewState.js';
+import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadataAndIdentifier } from '../../../../chat/common/languageModels.js';
+import { resolveModelIdentifier } from '../../../../chat/common/modelSelection.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { AgentSessionProviders } from '../../../../chat/browser/agentSessions/agentSessions.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
-import { ISessionsProviderAutomations } from '../../../common/sessionsProvider.js';
+import { ISessionModelsSnapshot, ISessionsProviderAutomations } from '../../../common/sessionsProvider.js';
 import { CloudAutomationToolCatalog, GitHubCloudAutomationStore, ICloudAutomationEntry, ICloudAutomationHistoryEntry } from './githubCloudAutomationStore.js';
 
 interface ICloudAutomationCatalogueItem {
@@ -44,6 +53,11 @@ interface ICloudAutomationCatalogueItem {
 /** Adapts the account-bound cloud store to the provider-neutral Automation contract. */
 export class CloudAutomationStore extends Disposable implements ISessionsProviderAutomations {
 	private readonly store = observableValue<GitHubCloudAutomationStore | undefined>(this, undefined);
+	private readonly modelsRequested = observableValue(this, false);
+	private readonly modelCatalog = derived(this, reader => this.store.read(reader)?.modelCatalog.read(reader));
+	get onDidChangeModels(): Event<void> {
+		return Event.any(Event.fromObservableLight(this.modelCatalog), this.entitlementService.onDidChangeUsageBasedBilling);
+	}
 	private readonly refreshError = observableValue<string | undefined>(this, undefined);
 	private readonly accountInitialized = observableValue(this, false);
 	private readonly accountInitialization: Promise<void>;
@@ -76,7 +90,13 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		return { automations, itemsById };
 	}).keepObserved(this._store);
 	readonly automations = derived(this, reader => this.catalogue.read(reader).automations);
-	readonly runs = derived(this, reader => (this.store.read(reader)?.history.read(reader) ?? []).map(entry => this.toRun(entry)).filter(run => run !== undefined));
+	private readonly showSharedByOthers: IObservable<boolean>;
+	readonly runs = derived(this, reader => {
+		const showSharedByOthers = this.showSharedByOthers.read(reader);
+		return (this.store.read(reader)?.history.read(reader) ?? [])
+			.filter(({ entry }) => isAutomationVisible(this.toAutomation(entry), showSharedByOthers))
+			.map(entry => this.toRun(entry)).filter(run => run !== undefined);
+	});
 	readonly configuration: IAutomationProviderConfiguration;
 
 	constructor(
@@ -85,13 +105,16 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		resolveRepositoryUri: (workspace: URI) => URI | undefined | Promise<URI | undefined>,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
-		@IChatEntitlementService entitlementService: IChatEntitlementService,
+		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IWorkbenchGitHubService workbenchGitHubService: IWorkbenchGitHubService,
+		@IStorageService storageService: IStorageService,
+		@INotificationService notificationService: INotificationService,
 	) {
 		super();
+		this.showSharedByOthers = observableShowSharedAutomationsByOthers(this, storageService, this._store);
 		this.accountInitialization = (async () => {
 			await defaultAccountService.getDefaultAccount();
 			if (!this._store.isDisposed) {
@@ -162,6 +185,53 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				});
 			}
 		}));
+		this._register(runOnChange(this.showSharedByOthers, () => {
+			if (this.store.get()) {
+				void this.refresh({ background: true }).catch(error => {
+					if (!isCancellationError(error)) {
+						this.logService.warn('[CloudAutomations] Visibility refresh failed', error);
+					}
+				});
+			}
+		}));
+		this._register(autorun(reader => {
+			const store = this.store.read(reader);
+			if (this.modelsRequested.read(reader)) {
+				store?.loadModels();
+			}
+		}));
+		this._register(autorun(reader => {
+			const store = this.store.read(reader);
+			if (store && store.modelCatalog.read(reader)?.kind === 'error') {
+				const notification = notificationService.prompt(Severity.Error, localize('cloudAutomations.modelsLoadFailed', "Could not load models for cloud automations."), [{
+					label: localize('cloudAutomations.retryModels', "Retry"),
+					run: () => {
+						this.assertCurrentStore(store);
+						store.loadModels(true);
+					},
+				}]);
+				reader.store.add(toDisposable(() => notification.close()));
+			}
+		}));
+	}
+
+	getModelsSnapshot(desiredModelId?: string): ISessionModelsSnapshot {
+		this.modelsRequested.set(true, undefined);
+		this.store.get()?.loadModels();
+		const catalog = this.modelCatalog.get();
+		const models = catalog?.kind === 'ready'
+			? catalog.catalog.data
+				.filter(model => model.model_picker_enabled !== false && model.policy?.state !== 'disabled')
+				.map(model => toAutomationModel(model, this.entitlementService.quotas.usageBasedBilling === true))
+			: [];
+		if (models.length > 0 && catalog?.kind === 'ready' && !catalog.catalog.data.some(model => model.id === AUTO_RAW_MODEL_ID)) {
+			models.unshift(toAutomationModel({ id: AUTO_RAW_MODEL_ID, name: localize('cloudAutomations.autoModel', "Auto") }, false));
+		}
+		return {
+			models,
+			desiredModelResolution: resolveModelIdentifier(models, desiredModelId, catalog?.kind === 'ready'),
+			modelTarget: this.sessionTypeId,
+		};
 	}
 
 	private async pickWorkspace(token: CancellationToken): Promise<URI | undefined> {
@@ -252,7 +322,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.logService.trace('[CloudAutomations] History refresh started');
 		this.historyRefresh = (async () => {
 			try {
-				await store.refreshHistory(options);
+				await store.refreshHistory(options, entry => isAutomationVisible(this.toAutomation(entry), this.showSharedByOthers.get()));
 				this.assertCurrentStore(store);
 				this.historyState.set('ready', undefined);
 				this.logService.trace('[CloudAutomations] History refresh completed', { runCount: store.history.get().length });
@@ -521,6 +591,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			name: definition.name, prompt: definition.prompt, schedule,
 			cloudTrigger: { triggers: definition.triggers ?? {}, requireActorWritePermission: definition.require_actor_write_permission },
 			ownership,
+			isCreatedByCurrentUser: !!definition.created_by.login
+				&& definition.created_by.login.toLowerCase() === this.defaultAccountService.currentDefaultAccount?.accountName.toLowerCase(),
 			targetDisplay: { label: `${repository.owner}/${repository.repo}`, icon: Codicon.cloud },
 			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository.owner}/${repository.repo}/agents/automations/${definition.id}` }),
 			target: { kind: 'workspace', providerId: this.providerId, sessionTypeId: this.sessionTypeId, isolation: { kind: 'default' }, folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }) },
@@ -552,6 +624,33 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 }
 
+function toAutomationModel(model: Model, usageBasedBilling: boolean): ILanguageModelChatMetadataAndIdentifier {
+	const pricing = readAgentModelPricingMeta({
+		id: model.id, name: model.name, provider: COPILOT_VENDOR_ID,
+		_meta: createPricingMetaFromBilling(normalizeCAPIBilling(model.billing), model.model_picker_price_category, model.model_picker_category),
+	});
+	return {
+		identifier: model.id,
+		metadata: {
+			extension: new ExtensionIdentifier(''),
+			id: model.id, name: model.id === AUTO_RAW_MODEL_ID ? localize('cloudAutomations.autoModel', "Auto") : model.name, vendor: COPILOT_VENDOR_ID,
+			version: model.version ?? '', family: model.capabilities?.family ?? model.id,
+			tooltip: model.id === AUTO_RAW_MODEL_ID ? localize('cloudAutomations.autoModelDescription', "Automatically select the best model") : undefined,
+			maxInputTokens: model.capabilities?.limits?.max_prompt_tokens ?? 0,
+			maxOutputTokens: model.capabilities?.limits?.max_output_tokens ?? 0,
+			maxContextWindowTokens: model.capabilities?.limits?.max_context_window_tokens,
+			capabilities: { vision: model.capabilities?.supports?.vision ?? false, toolCalling: model.capabilities?.supports?.tool_calls ?? false },
+			isUserSelectable: true, isDefaultForLocation: {},
+			pricing: !usageBasedBilling && pricing.multiplierNumeric !== undefined ? `${pricing.multiplierNumeric}x` : undefined,
+			multiplierNumeric: pricing.multiplierNumeric,
+			inputCost: pricing.inputCost, outputCost: pricing.outputCost, cacheCost: pricing.cacheCost, cacheWriteCost: pricing.cacheWriteCost,
+			longContextInputCost: pricing.longContextInputCost, longContextOutputCost: pricing.longContextOutputCost,
+			longContextCacheCost: pricing.longContextCacheCost, longContextCacheWriteCost: pricing.longContextCacheWriteCost,
+			priceCategory: pricing.priceCategory, category: pricing.category, promo: pricing.promo,
+		},
+	};
+}
+
 function toToolCatalog(catalog: CloudAutomationToolCatalog | undefined, available: boolean): AutomationToolCatalog {
 	if (!available) {
 		return { kind: 'error', message: localize('cloudAutomations.toolsUnavailable', "Cloud automations are unavailable.") };
@@ -575,6 +674,9 @@ function toToolCatalog(catalog: CloudAutomationToolCatalog | undefined, availabl
 function validateLocalOptions(options: IUpdateAutomationOptions): void {
 	if (options.mode !== undefined || options.permissionLevel !== undefined) {
 		throw new Error(localize('cloudAutomations.localConfiguration', "Cloud automations do not support local mode or approval settings."));
+	}
+	if (options.disableConditions?.length) {
+		throw new Error(localize('cloudAutomations.endDates', "Cloud automations do not support end dates."));
 	}
 	if ((options.name !== undefined && !options.name.trim()) || (options.prompt !== undefined && !options.prompt.trim())) {
 		throw new Error(localize('cloudAutomations.requiredFields', "An automation name and prompt are required."));

@@ -46,6 +46,8 @@ export class NullTelemetryService implements ITelemetryService {
 		return;
 	}
 
+	readonly isRestrictedTelemetryActive = false;
+
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties | undefined, measurements?: TelemetryEventMeasurements | undefined): void {
 		return;
 	}

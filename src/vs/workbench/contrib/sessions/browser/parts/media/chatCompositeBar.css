@@ -83,6 +83,15 @@
 	height: 100%;
 }
 
+/* The title and the stats that follow it differ in size, so only their baselines line up. */
+.chat-composite-bar-title-line {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size60);
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
 .session-header-bar[draggable="true"] {
 	cursor: grab;
 }
@@ -131,8 +140,13 @@
 	cursor: text;
 }
 
-.chat-composite-bar-session-title.editable:hover {
+.chat-composite-bar-session-title.editable:not(.editing):not(:focus-within):is(:hover, .hovered) {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+:is(.hc-black, .hc-light) .chat-composite-bar-session-title.editable:not(.editing):not(:focus-within):is(:hover, .hovered) {
+	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
 .chat-composite-bar-session-title.editing {
@@ -175,6 +189,16 @@
 	gap: 2px;
 	flex-shrink: 0;
 	margin-left: auto;
+}
+
+/* The running response's stats follow the title, after a separator that stays clear of the title's hover background. */
+.chat-composite-bar-title-line > .chat-live-response-stats {
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-composite-bar-title-line > .chat-live-response-stats::before {
+	content: '\00b7';
+	margin-inline-end: var(--vscode-spacing-size60);
 }
 
 /* Metadata action fixture host. */

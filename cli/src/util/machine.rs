@@ -8,12 +8,12 @@ use std::{
 	path::{Path, PathBuf},
 	time::Duration,
 };
-use sysinfo::{Pid, PidExt, ProcessExt, System, SystemExt};
+use sysinfo::{Pid, PidExt, ProcessExt, ProcessRefreshKind, System, SystemExt};
 
 pub fn process_at_path_exists(pid: u32, name: &Path) -> bool {
 	let mut sys = System::new();
 	let pid = Pid::from_u32(pid);
-	if !sys.refresh_process(pid) {
+	if !sys.refresh_process_specifics(pid, ProcessRefreshKind::new()) {
 		return false;
 	}
 
@@ -30,13 +30,13 @@ pub fn process_at_path_exists(pid: u32, name: &Path) -> bool {
 }
 pub fn process_exists(pid: u32) -> bool {
 	let mut sys = System::new();
-	sys.refresh_process(Pid::from_u32(pid))
+	sys.refresh_process_specifics(Pid::from_u32(pid), ProcessRefreshKind::new())
 }
 
 pub fn kill_pid(pid: u32) -> bool {
 	let mut sys = System::new();
 	let pid = Pid::from_u32(pid);
-	sys.refresh_process(pid);
+	sys.refresh_process_specifics(pid, ProcessRefreshKind::new());
 
 	if let Some(p) = sys.process(pid) {
 		p.kill()
@@ -48,14 +48,14 @@ pub fn kill_pid(pid: u32) -> bool {
 pub async fn wait_until_process_exits(pid: Pid, poll_ms: u64) {
 	let mut s = System::new();
 	let duration = Duration::from_millis(poll_ms);
-	while s.refresh_process(pid) {
+	while s.refresh_process_specifics(pid, ProcessRefreshKind::new()) {
 		tokio::time::sleep(duration).await;
 	}
 }
 
 pub fn find_running_process(name: &Path) -> Option<u32> {
 	let mut sys = System::new();
-	sys.refresh_processes();
+	sys.refresh_processes_specifics(ProcessRefreshKind::new());
 
 	let name_str = format!("{}", name.display());
 
@@ -119,7 +119,84 @@ fn canonical_exe_inner(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::io::Write;
 	use std::path::PathBuf;
+	use std::process::Stdio;
+	use tokio::io::{AsyncBufReadExt, BufReader};
+
+	#[test]
+	#[ignore = "Only launched by the process lifecycle test"]
+	fn process_fixture() {
+		println!("process-fixture-ready");
+		std::io::stdout().flush().unwrap();
+		std::thread::sleep(Duration::from_secs(60));
+	}
+
+	#[tokio::test]
+	async fn process_refresh_preserves_discovery_and_termination() {
+		let directory = tempfile::tempdir().unwrap();
+		let exe = directory
+			.path()
+			.join(format!("process-fixture{}", std::env::consts::EXE_SUFFIX));
+		std::fs::copy(std::env::current_exe().unwrap(), &exe).unwrap();
+		let mut child = tokio::process::Command::new(&exe)
+			.args([
+				"--exact",
+				"util::machine::tests::process_fixture",
+				"--ignored",
+				"--nocapture",
+			])
+			.stdout(Stdio::piped())
+			.kill_on_drop(true)
+			.spawn()
+			.unwrap();
+		let pid = child.id().unwrap();
+		let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+		tokio::time::timeout(Duration::from_secs(30), async {
+			loop {
+				let line = lines.next_line().await.unwrap().unwrap();
+				if line.contains("process-fixture-ready") {
+					break;
+				}
+			}
+		})
+		.await
+		.unwrap();
+
+		let before = (
+			process_exists(pid),
+			process_at_path_exists(pid, &exe),
+			process_at_path_exists(pid, Path::new("not-the-process-executable")),
+			find_running_process(&exe).is_some_and(|found| process_at_path_exists(found, &exe)),
+		);
+		let waiting = wait_until_process_exits(Pid::from_u32(pid), 10);
+		tokio::pin!(waiting);
+		let returned_while_alive = tokio::time::timeout(Duration::from_millis(50), &mut waiting)
+			.await
+			.is_ok();
+		let killed = kill_pid(pid);
+		if !killed {
+			child.start_kill().unwrap();
+		}
+		let status = tokio::time::timeout(Duration::from_secs(10), child.wait())
+			.await
+			.unwrap()
+			.unwrap();
+		drop(child);
+		let waited_for_exit = tokio::time::timeout(Duration::from_secs(10), waiting)
+			.await
+			.is_ok();
+		assert_eq!(
+			(
+				before,
+				returned_while_alive,
+				killed,
+				waited_for_exit,
+				status.success()
+			),
+			((true, true, false, true), false, true, true, false),
+		);
+	}
 
 	#[test]
 	#[cfg(target_os = "linux")]

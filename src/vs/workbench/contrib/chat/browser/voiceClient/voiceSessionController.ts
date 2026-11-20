@@ -7394,7 +7394,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _isOpenPendingPart(part: IChatProgressResponseContent): boolean {
 		if (part.kind === 'questionCarousel') {
-			return !part.isUsed && !part.answeredExternally;
+			return !part.isUsed && !part.answeredExternally && !part.questions.some(question => question.password);
 		}
 		if (part.kind === 'elicitation2') {
 			return part.state.get() === 'pending';

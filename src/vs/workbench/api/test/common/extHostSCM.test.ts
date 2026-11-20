@@ -5,12 +5,13 @@
 
 import * as assert from 'assert';
 import type * as vscode from 'vscode';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -215,4 +216,102 @@ suite('ExtHostSCM', () => {
 		sourceControl.dispose();
 		await rpcProtocol.sync();
 	});
+
+	test('visibility changes of source controls in the same tick are sent together', async () => {
+		const registrations: number[] = [];
+		const batches: [number, boolean][][] = [];
+		const rpcProtocol = new TestRPCProtocol();
+		rpcProtocol.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
+			override async $registerSourceControl(handle: number): Promise<void> {
+				registrations.push(handle);
+			}
+			override async $setSourceControlsHidden(changes: [number, boolean][]): Promise<void> {
+				batches.push(changes);
+			}
+			override async $unregisterSourceControl(): Promise<void> { }
+		});
+		rpcProtocol.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
+			override $publicLog2(): void { }
+		});
+
+		const commands = new class extends mock<ExtHostCommands>() {
+			override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
+		};
+		const extension = { ...nullExtensionDescription, enabledApiProposals: ['scmProviderOptions'] };
+		const extHostSCM = new ExtHostSCM(rpcProtocol, commands, {} as ExtHostDocuments, new NullLogService());
+
+		const current = extHostSCM.createSourceControl(extension, 'current', 'Git', URI.file('/current'), undefined, undefined, undefined);
+		const warm = extHostSCM.createSourceControl(extension, 'warm', 'Git', URI.file('/warm'), undefined, true, undefined);
+		warm.isHidden = false;
+		current.isHidden = true;
+		current.isHidden = true;
+		await rpcProtocol.sync();
+
+		assert.deepStrictEqual({
+			isHidden: [current.isHidden, warm.isHidden],
+			batches: batches.map(batch => batch.map(([handle, isHidden]) => [registrations.indexOf(handle), isHidden]))
+		}, {
+			isHidden: [true, false],
+			batches: [[[1, false], [0, true]]]
+		});
+
+		current.dispose();
+		warm.dispose();
+		await rpcProtocol.sync();
+	});
+
+	test('a source control that is shown sends its pending resources before it is shown', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const calls: string[] = [];
+		const rpcProtocol = new TestRPCProtocol();
+		rpcProtocol.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
+			override async $registerSourceControl(): Promise<void> { }
+			override async $registerGroups(_handle: number, groups: unknown[], splices: unknown[]): Promise<void> {
+				calls.push(`groups ${groups.length}, splices ${splices.length}`);
+			}
+			override async $spliceResourceStates(_handle: number, splices: unknown[]): Promise<void> {
+				calls.push(`splices ${splices.length}`);
+			}
+			override async $setSourceControlsHidden(changes: [number, boolean][]): Promise<void> {
+				calls.push(`hidden ${changes.map(([, isHidden]) => isHidden)}`);
+			}
+			override async $unregisterGroup(): Promise<void> { }
+			override async $unregisterSourceControl(): Promise<void> { }
+		});
+		rpcProtocol.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
+			override $publicLog2(): void { }
+		});
+
+		const commands = new class extends mock<ExtHostCommands>() {
+			override registerArgumentProcessor(_processor: ArgumentProcessor): void { }
+		};
+		const extension = { ...nullExtensionDescription, enabledApiProposals: ['scmProviderOptions'] };
+		const extHostSCM = new ExtHostSCM(rpcProtocol, commands, {} as ExtHostDocuments, new NullLogService());
+
+		const sourceControl = extHostSCM.createSourceControl(extension, 'warm', 'Git', URI.file('/warm'), undefined, true, undefined);
+		const group = sourceControl.createResourceGroup('changes', 'Changes');
+		group.resourceStates = [{ resourceUri: URI.file('/warm/a.txt') }];
+		sourceControl.isHidden = false;
+		await rpcProtocol.sync();
+
+		sourceControl.isHidden = true;
+		await rpcProtocol.sync();
+		group.resourceStates = [{ resourceUri: URI.file('/warm/b.txt') }];
+		sourceControl.isHidden = false;
+		await rpcProtocol.sync();
+
+		// Nothing is sent again once the pending updates were sent
+		await timeout(200);
+
+		assert.deepStrictEqual(calls, [
+			'groups 1, splices 1',
+			'hidden false',
+			'hidden true',
+			'splices 1',
+			'hidden false',
+		]);
+
+		group.dispose();
+		sourceControl.dispose();
+		await rpcProtocol.sync();
+	}));
 });

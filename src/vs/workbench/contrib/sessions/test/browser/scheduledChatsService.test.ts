@@ -7,17 +7,17 @@ import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { parse } from '../../../../../base/common/marshalling.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IPickOptions, IQuickInputHideEvent, IQuickInputService, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -32,11 +32,11 @@ import { IChatModel, IChatModelInputState } from '../../../chat/common/model/cha
 import { MockChatModel } from '../../../chat/test/common/model/mockChatModel.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../chat/common/automations/automation.js';
-import { AutomationMutationGuard, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../chat/common/automations/automationService.js';
+import { AutomationMutationGuard, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../chat/common/automations/automationsEnabled.js';
-import { ScheduledChatsService } from '../../browser/scheduledChatsService.js';
+import { IScheduledChatRequestOptions, ScheduledChatsService } from '../../browser/scheduledChatsService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
-import { ISessionDraftsService } from '../../browser/sessionDraftsService.js';
+import { IScheduledSessionDraft, ISessionDraftsService } from '../../browser/sessionDraftsService.js';
 import { ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { ISavedSessionDraftTarget } from '../../common/savedSessionDrafts.js';
 import { ChatInputCanScheduleContext } from '../../common/contextkeys.js';
@@ -44,6 +44,10 @@ import { SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } 
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 
 suite('Scheduled chat handoffs', () => {
+	// The custom picker fixture chooses the 15th of next month at 9:30. Tests that use it freeze the clock at a local
+	// midday mid-month, so the picker's initial suggestion never rounds into another month.
+	const fixedNow = new Date(2030, 4, 15, 12, 0).getTime();
+	const customTime = new Date(2030, 5, 15, 9, 30);
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const input: IChatDraft = { inputText: 'Review the changes', attachments: [] };
 	const target: ISavedSessionDraftTarget = { providerId: 'local', sessionTypeId: 'copilot' };
@@ -52,8 +56,8 @@ suite('Scheduled chat handoffs', () => {
 		override readonly sessionType = 'copilot';
 	};
 
-	function create(sendLater = true, savedDrafts = true, pickerWait?: Promise<void>) {
-		const storage = disposables.add(new InMemoryStorageService());
+	function create(sendLater = true, savedDrafts = true, pickerWait?: Promise<void>, existingStorage?: InMemoryStorageService) {
+		const storage = existingStorage ?? disposables.add(new InMemoryStorageService());
 		const config = new TestConfigurationService({
 			[SESSIONS_SEND_LATER_ENABLED_SETTING]: sendLater,
 			[SESSIONS_DRAFTS_ENABLED_SETTING]: savedDrafts,
@@ -61,17 +65,27 @@ suite('Scheduled chat handoffs', () => {
 		});
 		const calls: string[] = [];
 		const openedDrafts: Parameters<ISessionDraftsService['open']>[] = [];
+		let preview: IObservable<IChatScheduledRequest | undefined> | undefined;
+		let scheduledDraft: IScheduledSessionDraft | undefined;
+		const previewInputs: IChatDraft[] = [];
+		const previewTargets: ISavedSessionDraftTarget[] = [];
 		const loadedChats: URI[] = [];
 		const openedChats: URI[] = [];
 		const recoveredInputs: Parameters<IChatModel['inputModel']['setState']>[0][] = [];
 		const requests: ICreateAutomationOptions[] = [];
 		let failCreate = false;
 		let failDelete = false;
+		let openChatError: Error | undefined;
+		let onOpenChat: ((resource: URI) => void) | undefined;
 		let publishBeforeFailure = false;
 		let conflict = false;
 		let occupied = false;
 		let picks = 0;
 		let customTime = false;
+		let sendNow = false;
+		let runResult: IAutomationRunRequestResult = { kind: 'accepted' };
+		let configuration: Awaited<ReturnType<ISessionsManagementService['getAutomationSessionConfiguration']>> = { sessionTemplate: { modelId: 'chosen-model', config: { permission: 'default' } } };
+		const dispatched: IAutomationDescriptor[] = [];
 		const pickerAnchors: Pick<IPickOptions<IQuickPickItem>, 'anchor' | 'anchorPosition'>[] = [];
 		const automations = observableValue<readonly IAutomationDescriptor[]>('automations', []);
 		const runs = observableValue<readonly IAutomationRun[]>('runs', []);
@@ -85,6 +99,7 @@ suite('Scheduled chat handoffs', () => {
 			override readonly availableProviders = constObservable([{ id: 'local', label: 'Local', supportsOneTimeAutomation: true, supportsExistingChatAutomation: true }]);
 			override canCreateAutomation() { return true; }
 			override canRunAutomation() { return true; }
+			override getAutomation(id: string) { return automations.get().find(automation => automation.id === id); }
 			override async refresh() { calls.push('refresh'); }
 			override async createAutomation(options: ICreateAutomationOptions, guard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 				guard?.();
@@ -115,6 +130,7 @@ suite('Scheduled chat handoffs', () => {
 					...expected, enabled: patch.enabled ?? expected.enabled,
 					name: patch.name ?? expected.name, prompt: patch.prompt ?? expected.prompt,
 					request: patch.request ?? expected.request, schedule: patch.schedule ?? expected.schedule,
+					target: patch.target ?? expected.target, sessionTemplate: patch.sessionTemplate ?? expected.sessionTemplate,
 				};
 				automations.set([updated], undefined);
 				return { kind: 'updated' as const, automation: updated };
@@ -126,9 +142,22 @@ suite('Scheduled chat handoffs', () => {
 				}
 				automations.set([], undefined);
 			}
+			override async runAutomation(id: string) {
+				const automation = this.getAutomation(id);
+				assert.ok(automation);
+				calls.push('run');
+				dispatched.push(automation);
+				return runResult;
+			}
 		};
 		const drafts = new class extends mock<ISessionDraftsService>() {
 			override readonly enabled = constObservable(savedDrafts);
+			override async preview(input: IChatDraft, target: ISavedSessionDraftTarget, scheduled: IScheduledSessionDraft) {
+				previewInputs.push(input);
+				previewTargets.push(target);
+				preview = scheduled.request;
+				scheduledDraft = scheduled;
+			}
 			override save(input: IChatDraft, target: ISavedSessionDraftTarget) {
 				calls.push('save');
 				return { id: 'recovery', revision: 'revision', input, target, createdAt: 0, updatedAt: 0 };
@@ -153,26 +182,39 @@ suite('Scheduled chat handoffs', () => {
 				pickerAnchors.push({ anchor: options?.anchor, anchorPosition: options?.anchorPosition });
 				await pickerWait;
 				const choices = (await items).filter((item): item is T => item.type !== 'separator');
-				const item = customTime ? choices.at(-1) : choices[0];
+				const item = sendNow ? choices.find(item => item.label === 'Send Now') : customTime ? choices.at(-1) : choices.find(item => item.label === 'In 5 Minutes');
 				return options?.canPickMany ? item && [item] : item;
 			}
-			override async input(options?: IInputOptions) {
-				pickerAnchors.push({ anchor: options?.anchor, anchorPosition: options?.anchorPosition });
-				return '2099-01-15 09:30';
+			override createQuickWidget(): IQuickWidget {
+				const onDidHide = disposables.add(new Emitter<IQuickInputHideEvent>());
+				const picker = upcastPartial<IQuickWidget>({
+					onDidHide: onDidHide.event,
+					show: () => {
+						pickerAnchors.push({ anchor: picker.anchor, anchorPosition: picker.anchorPosition });
+						const form = picker.widget as HTMLElement;
+						form.querySelectorAll<HTMLElement>('.scheduled-chat-calendar-header .monaco-button')[1].click();
+						[...form.querySelectorAll<HTMLElement>('[role="gridcell"]')].find(cell => cell.textContent === '15')!.click();
+						const time = form.querySelector('select')!;
+						time.selectedIndex = 38;
+						time.dispatchEvent(new InputEvent('change'));
+						form.querySelector<HTMLElement>('.scheduled-chat-time-actions .monaco-button')!.click();
+					},
+					hide: () => onDidHide.fire({ reason: QuickInputHideReason.Gesture }),
+					dispose: () => { },
+				});
+				return picker;
 			}
 		};
 		const service = disposables.add(new ScheduledChatsService(config, automationService,
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = sessionsChanged.event;
 				override getSession(resource: URI) { return sessions.get(resource.toString()); }
-				override async getAutomationSessionConfiguration() { return { sessionTemplate: { modelId: 'chosen-model', config: { permission: 'default' } } }; }
+				override async getAutomationSessionConfiguration() { return configuration; }
 			}, drafts,
 			new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = {};
 				override readonly onDidChangeSentiment = Event.None;
-			}, quickInput, new class extends TestDialogService {
-				override async confirm(): Promise<never> { throw new Error('Scheduling must not open a confirmation dialog'); }
-			}(), storage,
+			}, quickInput, storage,
 			new class extends mock<ITextModelService>() { }, new class extends mock<IFileService>() { },
 			new class extends mock<IWorkingCopyService>() { override isDirty() { return false; } },
 			new class extends mock<IChatService>() {
@@ -195,7 +237,11 @@ suite('Scheduled chat handoffs', () => {
 			}, new class extends mock<ISessionsService>() {
 				override async openChat(_session: ISession, resource: URI) {
 					calls.push('openChat');
+					if (openChatError) {
+						throw openChatError;
+					}
 					openedChats.push(resource);
+					onOpenChat?.(resource);
 				}
 			},
 			new class extends mock<ISessionGroupsService>() {
@@ -209,11 +255,24 @@ suite('Scheduled chat handoffs', () => {
 				}
 			}));
 		return {
-			service, storage, config, calls, openedDrafts, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors,
+			service, storage, config, calls, openedDrafts, previewInputs, previewTargets, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors, dispatched,
+			get preview(): IObservable<IChatScheduledRequest | undefined> {
+				assert.ok(preview);
+				return preview;
+			},
+			get scheduledDraft(): IScheduledSessionDraft {
+				assert.ok(scheduledDraft);
+				return scheduledDraft;
+			},
 			set customTime(value: boolean) { customTime = value; },
+			set sendNow(value: boolean) { sendNow = value; },
+			set runResult(value: IAutomationRunRequestResult) { runResult = value; },
+			set configuration(value: typeof configuration) { configuration = value; },
 			get picks() { return picks; },
 			set failCreate(value: boolean) { failCreate = value; },
 			set failDelete(value: boolean) { failDelete = value; },
+			set openChatError(value: Error | undefined) { openChatError = value; },
+			set onOpenChat(value: (resource: URI) => void) { onOpenChat = value; },
 			set publishBeforeFailure(value: boolean) { publishBeforeFailure = value; },
 			set conflict(value: boolean) { conflict = value; },
 			set occupied(value: boolean) { occupied = value; },
@@ -232,15 +291,19 @@ suite('Scheduled chat handoffs', () => {
 		const model = disposables.add(new MockChatModel(resource));
 		let text = input.inputText;
 		let enabled = true;
+		let visible = true;
 		let scheduled: readonly IChatScheduledRequest[] = [];
+		const revealed: { id: string; editing: IChatScheduledRequest['editing'] }[] = [];
 		const context = disposables.add(new MockContextKeyService());
 		const anchor = $('div');
 		const widget = upcastPartial<IChatWidget>({
+			get visible() { return visible; },
 			scopedContextKeyService: context,
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<IChatViewModel>({ model, sessionResource: resource, setScheduledRequests: requests => { scheduled = requests; } }),
 			getInput: () => text,
 			setInput: value => { text = value ?? ''; },
+			revealScheduledRequest: id => { revealed.push({ id, editing: scheduled.find(request => request.id === id)?.editing }); },
 			getContrib: () => undefined,
 			attachmentModel: upcastPartial<ChatAttachmentModel>({ clearAndSetContext: () => { } }),
 			input: upcastPartial<ChatInputPart>({
@@ -250,11 +313,11 @@ suite('Scheduled chat handoffs', () => {
 			}),
 		});
 		disposables.add(service.registerChatInput(widget, constObservable(currentSession), constObservable(resource), constObservable(true)));
-		return { widget, context, interactivity, resource, anchor, get scheduled() { return scheduled; }, get text() { return text; }, get enabled() { return enabled; } };
+		return { widget, context, interactivity, resource, anchor, revealed, set visible(value: boolean) { visible = value; }, get scheduled() { return scheduled; }, get text() { return text; }, get enabled() { return enabled; } };
 	}
 
 	for (const existingChat of [false, true]) {
-		test(`anchors the time picker and custom input above the send controls (existing chat: ${existingChat})`, async () => {
+		test(`anchors the time picker and custom calendar above the send controls (existing chat: ${existingChat})`, () => runWithFakedTimers({ startTime: fixedNow }, async () => {
 			const fixture = create();
 			fixture.customTime = true;
 			const source = registerInput(fixture.service);
@@ -267,7 +330,7 @@ suite('Scheduled chat handoffs', () => {
 				{ anchor: source.anchor, anchorPosition: 'above' },
 				{ anchor: source.anchor, anchorPosition: 'above' },
 			]);
-		});
+		}));
 	}
 
 	test('opening the time picker retains dropdown availability but prevents duplicate scheduling', async () => {
@@ -284,7 +347,7 @@ suite('Scheduled chat handoffs', () => {
 		});
 	});
 
-	test('rescheduling anchors both time pickers above the scheduled message', async () => {
+	test('rescheduling anchors both time pickers above the scheduled message', () => runWithFakedTimers({ startTime: fixedNow }, async () => {
 		const fixture = create();
 		const source = registerInput(fixture.service);
 		await fixture.service.scheduleChatInput(source.widget);
@@ -296,9 +359,9 @@ suite('Scheduled chat handoffs', () => {
 			runAt: fixture.automations.get()[0].schedule.runAt,
 		}, {
 			anchors: [{ anchor, anchorPosition: 'above' }, { anchor, anchorPosition: 'above' }],
-			runAt: new Date(2099, 0, 15, 9, 30).toISOString(),
+			runAt: customTime.toISOString(),
 		});
-	});
+	}));
 
 	test('scheduled messages belong only to their exact session and chat, and disappear after dispatch', async () => {
 		const fixture = create();
@@ -336,12 +399,12 @@ suite('Scheduled chat handoffs', () => {
 			enabled: fixture.automations.get()[0].enabled,
 		}, {
 			actions: ['Edit', 'Send Now', 'Reschedule...', 'Cancel Schedule'].map(label => ({ label, hasIcon: true })),
-			editIsShared: true, calls: [], loadedChats: [], openedChats: [],
+			editIsShared: true, calls: ['openChat'], loadedChats: [], openedChats: [conversation.chatResource],
 			input: [], editingText: input.inputText, enabled: true,
 		});
 	});
 
-	test('scheduled conversation edits update text and send time without occupying the chat input', async () => {
+	test('scheduled conversation edits update text and send time without occupying the chat input', () => runWithFakedTimers({ startTime: fixedNow }, async () => {
 		const fixture = create();
 		const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/session/secondary') };
 		fixture.sessions.set(conversation.sessionResource.toString(), session);
@@ -363,9 +426,74 @@ suite('Scheduled chat handoffs', () => {
 			recoveryText: parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs[0].input.inputText,
 		}, {
 			text: 'Changed scheduled message', prompt: 'Changed scheduled message', enabled: true,
-			runAt: new Date(2099, 0, 15, 9, 30).toISOString(), calls: ['update'], recoveredInputs: [],
+			runAt: customTime.toISOString(), calls: ['openChat', 'update'], recoveredInputs: [],
 			editing: undefined, anchors: [true, true], recoveryText: 'Changed scheduled message',
 		});
+	}));
+
+	test('editing a visible scheduled message reveals its editor without reopening the chat or replacing the composer draft', async () => {
+		const fixture = create();
+		const source = registerInput(fixture.service);
+		fixture.sessions.set('agent-host-copilot:/session', session);
+		await fixture.service.scheduleChatInput(source.widget);
+		source.widget.setInput('Unsent composer draft');
+		await source.scheduled[0].editAction!.run();
+		assert.deepStrictEqual({
+			opened: fixture.openedChats, composer: source.text, editing: source.scheduled[0].editing?.text,
+			revealed: source.revealed.map(reveal => ({ id: reveal.id, editing: reveal.editing === source.scheduled[0].editing })),
+		}, {
+			opened: [], composer: 'Unsent composer draft', editing: input.inputText,
+			revealed: [{ id: source.scheduled[0].id, editing: true }],
+		});
+	});
+
+	test('resuming a scheduled edit from another chat reveals it without resetting unsaved text, context or time', async () => {
+		const fixture = create();
+		const source = registerInput(fixture.service);
+		const other = registerInput(fixture.service, URI.parse('agent-host-copilot:/session/other'));
+		fixture.sessions.set('agent-host-copilot:/session', session);
+		await fixture.service.scheduleChatInput(source.widget);
+		source.widget.setInput('Unsent composer draft');
+		other.widget.setInput('Other chat draft');
+		await source.scheduled[0].editAction!.run();
+		const editing = source.scheduled[0].editing!;
+		editing.text = 'Unsaved scheduled edit';
+		editing.input = { inputText: editing.text, attachments: [{ kind: 'generic', id: 'unsaved', name: 'Unsaved context', value: 'Context' }] };
+		editing.runAt = '2099-01-15T10:00:00Z';
+		const editedInput = editing.input;
+		source.visible = false;
+		fixture.openChatError = new Error('Navigation failed');
+		await assert.rejects(async () => fixture.service.items.get()[0].editAction!.run(), /Navigation failed/);
+		assert.strictEqual(source.scheduled[0].editing, editing, 'A failed return must retain the active edit');
+		fixture.openChatError = undefined;
+		fixture.onOpenChat = resource => {
+			assert.strictEqual(resource.toString(), source.resource.toString());
+			source.visible = true;
+			other.visible = false;
+		};
+		await fixture.service.items.get()[0].editAction!.run();
+		assert.deepStrictEqual({
+			opened: fixture.openedChats, drafts: [source.text, other.text],
+			revealed: source.revealed.map(reveal => reveal.editing === editing),
+			sameState: source.scheduled[0].editing === editing, sameInput: editing.input === editedInput,
+			text: editing.text, attachments: editing.input.attachments.map(attachment => attachment.id), runAt: editing.runAt,
+		}, {
+			opened: [source.resource], drafts: ['Unsent composer draft', 'Other chat draft'], revealed: [true, true],
+			sameState: true, sameInput: true, text: 'Unsaved scheduled edit', attachments: ['unsaved'], runAt: '2099-01-15T10:00:00Z',
+		});
+	});
+
+	test('a failed navigation from scheduled-message Edit leaves the schedule available to retry', async () => {
+		const fixture = create();
+		const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/session/secondary') };
+		fixture.sessions.set(conversation.sessionResource.toString(), session);
+		await fixture.service.schedule(input, target, session, 'composition', conversation);
+		fixture.openChatError = new Error('Could not open the conversation');
+		await assert.rejects(async () => fixture.service.items.get()[0].editAction!.run(), /Could not open the conversation/);
+		assert.deepStrictEqual({
+			editing: fixture.service.items.get()[0].editing, enabled: fixture.automations.get()[0].enabled,
+			text: fixture.automations.get()[0].request?.text,
+		}, { editing: undefined, enabled: true, text: input.inputText });
 	});
 
 	test('scheduled conversation edit conflicts preserve edits and cancellation keeps the original schedule', async () => {
@@ -513,6 +641,13 @@ suite('Scheduled chat handoffs', () => {
 		});
 	});
 
+	test('the first time option schedules the request in 5 minutes', () => runWithFakedTimers({}, async () => {
+		const fixture = create();
+		const now = Date.now();
+		await fixture.service.schedule(input, target, session, 'composition');
+		assert.strictEqual(fixture.requests[0].schedule.runAt, new Date(now + 5 * 60_000).toISOString());
+	}));
+
 	test('persists immutable input and configuration before accepting a schedule', async () => {
 		const fixture = create();
 		await fixture.service.schedule(input, target, session, 'composition');
@@ -523,6 +658,160 @@ suite('Scheduled chat handoffs', () => {
 			schedule: stored.handoffs[0].schedule, accepted: stored.handoffs[0].automationId,
 			creationId: stored.handoffs[0].id, picks: fixture.picks,
 		}, { prompt: input.inputText, model: 'chosen-model', schedule: request.schedule, accepted: 'opaque:definition', creationId: request.creationId, picks: 1 });
+	});
+
+	function toolRequest(conversation?: IAutomationDescriptor['conversation']): IScheduledChatRequestOptions {
+		return {
+			name: 'Check build', prompt: input.inputText,
+			schedule: { interval: 'once', runAt: '2099-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local', sessionTypeId: 'copilot' },
+			conversation,
+		};
+	}
+
+	test('tool scheduling uses durable handoffs without opening a picker or claiming composer input', async () => {
+		const fixture = create();
+		const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/peer') };
+		const result = await fixture.service.scheduleRequest(toolRequest(conversation), 'chat/call');
+		assert.deepStrictEqual({
+			status: result.status, picks: fixture.picks, claimed: [...fixture.service.claimedDraftIds.get()],
+			pending: fixture.service.hasPendingHandoff('composer', input),
+			conversation: fixture.requests[0].conversation, request: fixture.requests[0].request,
+			recovered: fixture.recoveredInputs,
+		}, {
+			status: 'accepted', picks: 0, claimed: [], pending: false, conversation,
+			request: { text: input.inputText, origin: { kind: 'user' } }, recovered: [],
+		});
+	});
+
+	test('tool retries after reload reuse the saved identity and do not duplicate accepted schedules', async () => {
+		const first = create();
+		first.failCreate = true;
+		const unknown = await first.service.scheduleRequest(toolRequest(), 'chat/call');
+		const pending = first.service.getPendingRequests();
+		first.service.dispose();
+		const restored = create(true, true, undefined, first.storage);
+		const accepted = await restored.service.scheduleRequest(toolRequest(), 'chat/call');
+		await restored.service.scheduleRequest(toolRequest(), 'chat/call');
+		assert.deepStrictEqual({
+			outcomes: [unknown.status, accepted.status],
+			pendingIds: pending.map(request => request.automationId),
+			creates: restored.requests,
+			remaining: restored.service.getPendingRequests(),
+			composerClaim: restored.service.hasPendingHandoff('composer', input),
+		}, {
+			outcomes: ['unknown', 'accepted'], pendingIds: ['opaque:definition'],
+			creates: [first.requests[0]], remaining: [], composerClaim: false,
+		});
+	});
+
+	test('tool operation identities serialize duplicates but allow intentionally identical new requests', async () => {
+		const fixture = create();
+		await Promise.all([
+			fixture.service.scheduleRequest(toolRequest(), 'chat/call'),
+			fixture.service.scheduleRequest(toolRequest(), 'chat/call'),
+		]);
+		await fixture.service.scheduleRequest(toolRequest(), 'chat/another-call');
+		assert.deepStrictEqual({ count: fixture.requests.length, identities: new Set(fixture.requests.map(request => request.creationId)).size, picks: fixture.picks }, { count: 2, identities: 2, picks: 0 });
+	});
+
+	test('a restored overdue tool handoff reuses captured configuration instead of reading live settings again', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const first = create();
+		first.failCreate = true;
+		const options = { ...toolRequest(), schedule: { ...toolRequest().schedule, runAt: new Date(Date.now() + 60_000).toISOString() } };
+		await first.service.scheduleRequest(options, 'chat/call', undefined, async () => ({ modelId: 'original', config: { autoApprove: 'default' } }));
+		first.service.dispose();
+		await timeout(60_001);
+		const restored = create(true, true, undefined, first.storage);
+		const result = await restored.service.scheduleRequest(options, 'chat/call', undefined, async () => {
+			throw new Error('Live configuration is unavailable');
+		});
+		assert.deepStrictEqual({ status: result.status, template: restored.requests[0].sessionTemplate }, {
+			status: 'accepted', template: { modelId: 'original', config: { autoApprove: 'default' } },
+		});
+	}));
+
+	test('tool replay compares resource identity and persisted templates rather than URI caches or undefined keys', async () => {
+		for (const existingChat of [false, true]) {
+			const first = create();
+			const folderUri = URI.file('/workspace');
+			const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/peer') };
+			const options: IScheduledChatRequestOptions = existingChat ? toolRequest(conversation) : {
+				...toolRequest(), sessionTemplate: { modelId: undefined, config: { mode: 'plan' } },
+				target: { kind: 'workspace', folderUri, isolation: { kind: 'default' }, providerId: 'local', sessionTypeId: 'copilot' },
+			};
+			folderUri.toString();
+			void folderUri.fsPath;
+			conversation.chatResource.toString();
+			first.failCreate = true;
+			await first.service.scheduleRequest(options, 'chat/call');
+			first.service.dispose();
+			const restored = create(true, true, undefined, first.storage);
+			const replay = await restored.service.scheduleRequest({
+				...options,
+				...(options.target.kind === 'workspace' ? { target: { ...options.target, folderUri: URI.file('/workspace') } } : {}),
+				conversation: existingChat ? {
+					sessionResource: URI.parse('agent-host-copilot:/session'),
+					chatResource: URI.parse('agent-host-copilot:/peer'),
+				} : undefined,
+			}, 'chat/call');
+			assert.deepStrictEqual({ status: replay.status, creates: restored.requests.length }, { status: 'accepted', creates: 1 });
+		}
+	});
+
+	test('catalogue reconciliation durably records lost acknowledgements before definition removal', async () => {
+		const fixture = create();
+		fixture.failCreate = true;
+		await fixture.service.scheduleRequest(toolRequest(), 'chat/call');
+		fixture.automations.set([{
+			...fixture.requests[0], id: 'opaque:definition', enabled: true,
+			createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+		}], undefined);
+		const acceptedId = parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs[0].automationId;
+		fixture.automations.set([], undefined);
+		fixture.service.dispose();
+		const restored = create(true, true, undefined, fixture.storage);
+		await assert.rejects(restored.service.scheduleRequest(toolRequest(), 'chat/call'), /already accepted.*will not be recreated/);
+		assert.deepStrictEqual({ acceptedId, pending: restored.service.getPendingRequests(), creates: restored.requests }, {
+			acceptedId: 'opaque:definition', pending: [], creates: [],
+		});
+	});
+
+	for (const complete of [false, true]) {
+		test(`tool ${complete ? 'dispatch' : 'recovery'} compacts payloads to durable replay receipts`, async () => {
+			const fixture = create();
+			await fixture.service.scheduleRequest({ ...toolRequest(), sessionTemplate: { modelId: 'captured' } }, 'chat/call');
+			if (complete) {
+				fixture.automations.set(fixture.automations.get().map(automation => ({ ...automation, oneTimeDispatchedAt: '2026-01-01T00:00:00.000Z' })), undefined);
+			} else {
+				await fixture.service.items.get()[0].actions.find(action => action.id === 'sessions.scheduled.edit')!.run();
+			}
+			const handoffs = parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs;
+			const receipts = parse(fixture.storage.get('sessions.scheduledChatReceipts', StorageScope.PROFILE)!).receipts;
+			assert.deepStrictEqual({ handoffs, receipts, pending: fixture.service.getPendingRequests(), known: fixture.service.hasRequest('chat/call') }, {
+				handoffs: [], receipts: [{ operationId: 'chat/call', automationId: 'opaque:definition' }], pending: [], known: true,
+			});
+		});
+	}
+
+	test('tool scheduling rejects past instants and changed operations without replaying a different request', async () => {
+		const fixture = create();
+		await assert.rejects(fixture.service.scheduleRequest({ ...toolRequest(), schedule: { ...toolRequest().schedule, runAt: '2000-01-01T00:00:00.000Z' } }, 'past'), /future send time/);
+		await fixture.service.scheduleRequest(toolRequest(), 'chat/call');
+		await assert.rejects(fixture.service.scheduleRequest({ ...toolRequest(), prompt: 'Different request' }, 'chat/call'), /different saved request/);
+		await assert.rejects(fixture.service.scheduleRequest({ ...toolRequest(), sessionTemplate: { modelId: 'different-model' } }, 'chat/call'), /different saved request/);
+		fixture.automations.set([], undefined);
+		await assert.rejects(fixture.service.scheduleRequest(toolRequest(), 'chat/call'), /will not be recreated/);
+		assert.deepStrictEqual({ creates: fixture.requests.length, pending: fixture.service.getPendingRequests() }, { creates: 1, pending: [] });
+	});
+
+	test('tool prompt edits update recovery content as well as the durable request', async () => {
+		const fixture = create();
+		await fixture.service.scheduleRequest(toolRequest(), 'chat/call');
+		const automation = fixture.automations.get()[0];
+		await fixture.service.updateRequest(automation, { prompt: 'Changed', request: { ...automation.request!, text: 'Changed' } });
+		const stored = parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!);
+		assert.deepStrictEqual({ request: stored.handoffs[0].request.text, recovery: stored.handoffs[0].input.inputText, host: fixture.automations.get()[0].request?.text }, { request: 'Changed', recovery: 'Changed', host: 'Changed' });
 	});
 
 	test('lost acknowledgements replay the same identity, time and captured message without asking for a new time', async () => {
@@ -589,31 +878,158 @@ suite('Scheduled chat handoffs', () => {
 	});
 
 	for (const savedDrafts of [true, false]) {
-		test(`opening a scheduled draft cancels and restores it with saved drafts ${savedDrafts ? 'enabled' : 'disabled'}`, async () => {
+		test(`opening a scheduled draft uses the New Session area and preserves its schedule with saved drafts ${savedDrafts ? 'enabled' : 'disabled'}`, async () => {
 			const fixture = create(true, savedDrafts);
 			await fixture.service.schedule(input, target, session, 'composition');
-			const creationId = fixture.automations.get()[0].creationId;
+			const original = fixture.automations.get()[0];
+			fixture.occupied = true;
+			await fixture.service.items.get()[0].open();
 			await fixture.service.items.get()[0].open();
 			assert.deepStrictEqual({
-				calls: fixture.calls, remaining: fixture.service.items.get(), openedDrafts: fixture.openedDrafts,
+				calls: fixture.calls, remaining: fixture.service.items.get().map(item => item.id), openedDrafts: fixture.openedDrafts,
+				unchanged: fixture.automations.get()[0] === original,
+				inputs: fixture.previewInputs,
+				text: fixture.preview.get()?.text,
 			}, {
-				calls: savedDrafts ? ['disable', 'save', 'delete', 'open'] : ['disable', 'recover', 'delete'],
-				remaining: [], openedDrafts: savedDrafts ? [[creationId, { removeFromDrafts: true }]] : [],
+				calls: [], remaining: [original.id], openedDrafts: [], unchanged: true,
+				inputs: [{ ...input, references: undefined }, { ...input, references: undefined }], text: input.inputText,
 			});
 		});
 	}
+
+	test('scheduled previews without a local handoff retain descriptor configuration and isolation when saved unchanged', async () => {
+		for (const isolationMode of ['worktree', 'workspace', undefined, 'quickChat']) {
+			const fixture = create();
+			const sessionTemplate = { modelId: 'saved-model', config: { permission: 'saved-permission' } };
+			fixture.configuration = { sessionTemplate };
+			const workspace = isolationMode !== 'quickChat';
+			const scheduledTarget: ISavedSessionDraftTarget = {
+				...target,
+				...(workspace ? { folderUri: URI.file('/workspace') } : {}),
+				configuration: { sessionTemplate, ...(workspace ? { isolationMode, branch: isolationMode === 'worktree' ? 'saved-branch' : undefined } : {}) },
+			};
+			await fixture.service.schedule(input, scheduledTarget, session, 'composition');
+			const original = fixture.automations.get()[0];
+			fixture.storage.remove('sessions.scheduledChatHandoffs', StorageScope.PROFILE);
+			await fixture.service.items.get()[0].open();
+			const restored = fixture.previewTargets[0];
+			assert.deepStrictEqual(restored, scheduledTarget);
+			fixture.configuration = restored.configuration;
+			await fixture.scheduledDraft.save(fixture.previewInputs[0], restored, session);
+			const saved = fixture.automations.get()[0];
+			assert.deepStrictEqual({ target: saved.target, sessionTemplate: saved.sessionTemplate }, {
+				target: original.target, sessionTemplate: original.sessionTemplate,
+			});
+		}
+	});
+
+	test('an open scheduled draft follows rescheduling and dispatch without changing the automation', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		const preview = fixture.preview;
+		const original = fixture.automations.get()[0];
+		const updated = { ...original, prompt: 'Updated', request: { ...original.request!, text: 'Updated' }, schedule: { ...original.schedule, runAt: '2099-01-15T10:00:00Z' } };
+		fixture.automations.set([updated], undefined);
+		const beforeDispatch = { text: preview.get()?.text, description: preview.get()?.description };
+		fixture.automations.set([{ ...updated, oneTimeDispatchedAt: new Date().toISOString() }], undefined);
+		assert.deepStrictEqual({ beforeDispatch, afterDispatch: preview.get(), calls: fixture.calls }, {
+			beforeDispatch: { text: 'Updated', description: `Scheduled for ${new Date(updated.schedule.runAt).toLocaleString(undefined, { timeZoneName: 'short' })}` },
+			afterDispatch: undefined, calls: [],
+		});
+	});
+
+	test('saving from New Session updates the request and target while retaining its schedule', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		const runAt = fixture.automations.get()[0].schedule.runAt;
+		const changedTarget = { ...target, folderUri: URI.file('/different-workspace') };
+		await fixture.scheduledDraft.save({ ...input, inputText: 'Edited in New Session' }, changedTarget, session);
+		const saved = fixture.automations.get()[0];
+		fixture.conflict = true;
+		await assert.rejects(() => fixture.scheduledDraft.save({ ...input, inputText: 'Conflicting edit' }, changedTarget, session), /changed or has started/);
+		assert.deepStrictEqual({
+			text: saved.request?.text, runAt: saved.schedule.runAt, enabled: saved.enabled,
+			target: saved.target.kind === 'workspace' ? saved.target.folderUri.toString() : undefined,
+			template: saved.sessionTemplate, unchangedAfterConflict: fixture.automations.get()[0] === saved,
+		}, {
+			text: 'Edited in New Session', runAt, enabled: true, target: changedTarget.folderUri.toString(),
+			template: { modelId: 'chosen-model', config: { permission: 'default' } }, unchangedAfterConflict: true,
+		});
+	});
+
+	test('Send Now from the New Session picker dispatches the edited request using the original automation', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		const original = fixture.automations.get()[0];
+		const anchor = $('div');
+		const edited: IChatDraft = {
+			inputText: 'Send the edited request',
+			attachments: [{ kind: 'file', id: 'notes', name: 'notes.txt', value: URI.file('/workspace/notes.txt') }],
+		};
+		const changedTarget = { ...target, folderUri: URI.file('/different-workspace') };
+		fixture.configuration = { sessionTemplate: { modelId: 'updated-model', config: { permission: 'autopilot' } } };
+		fixture.sendNow = true;
+		await fixture.scheduledDraft.reschedule(anchor, async () => {
+			await fixture.scheduledDraft.save(edited, changedTarget, session);
+			await fixture.scheduledDraft.sendNow();
+		});
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			requestsCreated: fixture.requests.length,
+			dispatched: fixture.dispatched.map(automation => ({
+				id: automation.id, runAt: automation.schedule.runAt, text: automation.request?.text,
+				attachments: automation.request?.attachments,
+				target: automation.target.kind === 'workspace' ? automation.target.folderUri.toString() : undefined,
+				template: automation.sessionTemplate,
+			})),
+			anchored: fixture.pickerAnchors.at(-1)?.anchor === anchor,
+		}, {
+			calls: ['update', 'run'], requestsCreated: 1,
+			dispatched: [{
+				id: original.id, runAt: original.schedule.runAt, text: edited.inputText,
+				attachments: [{ type: 'resource', label: 'notes.txt', uri: 'file:///workspace/notes.txt', displayKind: 'document' }],
+				target: changedTarget.folderUri.toString(),
+				template: { modelId: 'updated-model', config: { permission: 'autopilot' } },
+			}],
+			anchored: true,
+		});
+	});
+
+	test('Send Now propagates a host failure before a new session starts', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		fixture.runResult = {
+			kind: 'dispatched',
+			run: upcastPartial<IAutomationRun>({ status: 'failed', errorMessage: 'Session creation failed' }),
+			whenCompleted: Promise.resolve(),
+		};
+		await assert.rejects(() => fixture.scheduledDraft.sendNow(), /Session creation failed/);
+	});
+
+	test('Send Now respects feature disablement after opening a draft', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		await fixture.config.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, false);
+		await assert.rejects(() => fixture.scheduledDraft.sendNow(), /disabled/);
+		assert.deepStrictEqual(fixture.dispatched, []);
+	});
 
 	test('with saved drafts disabled an occupied composer leaves cancelled content recoverable', async () => {
 		const fixture = create(true, false);
 		await fixture.service.schedule(input, target, session, 'composition');
 		fixture.occupied = true;
-		await assert.rejects(async () => fixture.service.items.get()[0].open(), /Composer occupied/);
+		await assert.rejects(async () => fixture.service.items.get()[0].actions.find(action => action.id === 'sessions.scheduled.edit')!.run(), /Composer occupied/);
 		assert.deepStrictEqual({
 			calls: fixture.calls, enabled: fixture.automations.get()[0].enabled,
 			retained: !!fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE),
 		}, { calls: ['disable', 'recover'], enabled: false, retained: true });
 		fixture.occupied = false;
-		await fixture.service.items.get()[0].open();
+		await fixture.service.items.get()[0].actions.find(action => action.id === 'sessions.scheduled.edit')!.run();
 		assert.deepStrictEqual({ calls: fixture.calls, remaining: fixture.service.items.get() }, {
 			calls: ['disable', 'recover', 'recover', 'delete'], remaining: [],
 		});

@@ -74,6 +74,7 @@ import { EditSuggestionId } from '../../../../../editor/common/textModelEditSour
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
+import { IChatUserImageAttachmentService } from '../../../../contrib/chat/browser/attachments/chatUserImageAttachments.js';
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
@@ -117,6 +118,7 @@ import { IChatSlashCommandService } from '../../../../contrib/chat/common/partic
 import { IChatGoalSummaryService } from '../../../../contrib/chat/browser/chatGoalSummaryService.js';
 import { IChatDebugService } from '../../../../contrib/chat/common/chatDebugService.js';
 import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../../../contrib/chat/common/localChatAvailability.js';
 
 export function registerSubagentFixtureServices(reg: ServiceRegistration): void {
 	reg.define(ISessionSummaryHoverService, SessionSummaryHoverService);
@@ -325,8 +327,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;
 		override readonly onDidAddWidget = Event.None;
+		override readonly onDidRemoveWidget = Event.None;
 		override readonly onDidBackgroundSession = Event.None;
 		override readonly onDidChangeFocusedWidget = Event.None;
+		override readonly onDidChangeWidgetVisibility = Event.None;
 		override readonly onDidChangeFocusedSession = Event.None;
 		override getAllWidgets(): readonly IChatWidget[] { return []; }
 		override getWidgetByInputUri() { return undefined; }
@@ -365,6 +369,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatInputNoticeHubService, new class extends mock<IChatInputNoticeHubService>() {
 		override registerHost() { return Disposable.None; }
 		override toggleNoticeFocus() { return false; }
+	}());
+	reg.defineInstance(IChatUserImageAttachmentService, new class extends mock<IChatUserImageAttachmentService>() {
+		override readonly onDidAttachImages = Event.None;
+		override didAttachImages() { }
 	}());
 	reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 		override readonly isExtensionDevelopment = false;
@@ -539,6 +547,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly managedSandboxEnforced = constObservable(false);
 		override readonly managedSandboxAllowsBypass = constObservable(true);
 	}());
+	reg.define(ILocalChatAvailabilityService, LocalChatAvailabilityService);
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);
 	reg.defineInstance(IChatArtifactsService, new class extends mock<IChatArtifactsService>() {

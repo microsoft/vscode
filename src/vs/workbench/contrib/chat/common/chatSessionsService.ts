@@ -250,6 +250,8 @@ export interface IChatSessionsExtensionPoint {
 	 * declaratively-contributed extensions supply a static boolean and omit this.
 	 */
 	readonly onDidChangeRequiresCopilotSignIn?: Event<void>;
+	/** Signals changes to dynamic creation availability without withdrawing the session type or its open drafts. */
+	readonly onDidChangeAvailability?: Event<void>;
 	/**
 	 * Whether this session type can delegate to another session.
 	 * Defaults to true.
@@ -574,6 +576,12 @@ export interface IChatSession extends IDisposable {
 	readonly title?: string;
 
 	readonly history: readonly IChatSessionHistoryItem[];
+	/** Requests one older page, if available. The resulting history is published through onDidChangeHistory. */
+	readonly loadOlderHistory?: () => Promise<void>;
+	/** The opaque cursor for the next older page, or undefined when no page is available. */
+	readonly olderHistoryCursor?: IObservable<string | undefined>;
+	/** The displayed history is known to be incomplete but the missing messages cannot currently be read. */
+	readonly olderHistoryUnavailable?: IObservable<boolean>;
 	/** Initial history loading failed; any rendered error or partial history is not an authoritative snapshot. */
 	readonly historyLoadError?: {
 		readonly message: string;
@@ -587,6 +595,8 @@ export interface IChatSession extends IDisposable {
 	readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 	/** Updates model and usage decoration in place for otherwise unchanged turns with stable request IDs. */
 	readonly preserveHistoryItemIdentity?: boolean;
+	/** Once this provider reports a request ID in history, a later omission removes it, even for requests started locally. */
+	readonly ownsHistoryRequestIds?: boolean;
 
 	readonly options?: ReadonlyChatSessionOptionsMap;
 
@@ -628,6 +638,11 @@ export interface IChatSession extends IDisposable {
 		 * model instead of falling back to the request history's.
 		 */
 		readonly selectedModelId?: string;
+		/**
+		 * The configuration (e.g. thinking effort) that the transferred draft
+		 * gives {@link selectedModelId}, kept for the same cold restore.
+		 */
+		readonly selectedModelConfiguration?: IStringDictionary<unknown>;
 	};
 
 	requestHandler?: (

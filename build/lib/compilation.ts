@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import es from 'event-stream';
+import { through } from './streams.ts';
+import duplexer from 'duplexer';
 import fs from 'fs';
 import { gulp, bom, sourcemaps } from './gulp/facade.ts';
 import path from 'path';
@@ -71,7 +72,7 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 		const isRuntimeJs = (f: File) => f.path.endsWith('.js') && !f.path.includes('fixtures');
 		const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
 
-		const input = es.through();
+		const input = through();
 		const output = input
 			.pipe(util.$if(isUtf8Test, bom())) // this is required to preserve BOM in test files that loose it otherwise
 			.pipe(util.$if(!build && isRuntimeJs, util.appendOwnPathSourceURL()))
@@ -89,7 +90,7 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 			.pipe(tsFilter.restore)
 			.pipe(reporter.end(!!emitError));
 
-		return es.duplex(input, output);
+		return duplexer(input, output);
 	}
 	pipeline.projectPath = projectPath;
 	return pipeline;
@@ -148,7 +149,7 @@ export function watchTypeCheckTask(src: string): task.Task {
 		const watchInput = watch(`${src}/**`, { base: src, readDelay: 200 });
 		const tsgoStream = watchInput.pipe(generator.stream).pipe(util.debounce(() => {
 			const stream = createTsgoStream(projectPath, { taskName: 'watch-client-noEmit', noEmit: true });
-			const result = es.through();
+			const result = through();
 			stream.on('end', () => {
 				result.emit('end');
 			});
@@ -175,7 +176,7 @@ class MonacoGenerator {
 
 	constructor(isWatch: boolean) {
 		this._isWatch = isWatch;
-		this.stream = es.through();
+		this.stream = through();
 		this._watchedFiles = {};
 		const onWillReadFile = (moduleId: string, filePath: string) => {
 			if (!this._isWatch) {
@@ -264,9 +265,9 @@ function createApiProposalNamesGenerator() {
 
 	const proposalFiles: string[] = [];
 
-	const input = es.through();
+	const input = through();
 	const output = input
-		.pipe(es.through((f: File) => {
+		.pipe(through((f: File) => {
 			proposalFiles.push(f.path);
 		}, function () {
 			const contents = generateApiProposalNames(proposalFiles, eol);
@@ -288,7 +289,7 @@ function createApiProposalNamesGenerator() {
 			this.emit('end');
 		}));
 
-	return es.duplex(input, output);
+	return duplexer(input, output);
 }
 
 const apiProposalNamesReporter = createReporter('api-proposal-names');
@@ -307,9 +308,9 @@ export const compileApiProposalNamesTask = task.define('compile-api-proposal-nam
 function generateExtensionPointNames() {
 	const collectedNames: string[] = [];
 
-	const input = es.through();
+	const input = through();
 	const output = input
-		.pipe(es.through(function (file: File) {
+		.pipe(through(function (file: File) {
 			const contents = file.contents?.toString('utf-8');
 			if (contents && contents.includes('registerExtensionPoint')) {
 				const sourceFile = ts.createSourceFile(file.path, contents, ts.ScriptTarget.Latest, true);
@@ -335,7 +336,7 @@ function generateExtensionPointNames() {
 			this.emit('end');
 		}));
 
-	return es.duplex(input, output);
+	return duplexer(input, output);
 }
 
 const extensionPointNamesReporter = createReporter('extension-point-names');

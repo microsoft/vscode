@@ -1611,6 +1611,24 @@
             "description": "%configuration.markdown.editor.highlightActiveBlock%",
             "scope": "resource"
           },
+          "markdown.editor.initialMode": {
+            "type": "string",
+            "enum": [
+              "read",
+              "edit"
+            ],
+            "enumDescriptions": [
+              "%configuration.markdown.editor.initialMode.read%",
+              "%configuration.markdown.editor.initialMode.edit%"
+            ],
+            "default": "read",
+            "markdownDescription": "%configuration.markdown.editor.initialMode%",
+            "scope": "window",
+            "tags": [
+              "experimental",
+              "onExP"
+            ]
+          },
           "markdown.editor.renderWhitespace": {
             "type": "boolean",
             "default": false,
@@ -2165,7 +2183,6 @@
     "lodash.throttle": "^4.1.1",
     "mocha": "^10.8.2",
     "playwright": "^1.61.1",
-    "tslib": "^2.6.3",
     "vscode-languageserver-types": "^3.17.2",
     "vscode-markdown-languageservice": "0.5.0",
     "zod": "4.4.3"

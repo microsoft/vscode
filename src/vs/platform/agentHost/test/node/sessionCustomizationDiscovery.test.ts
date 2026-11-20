@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { CopilotClient } from '@github/copilot-sdk';
+import type { CopilotClient } from '@microsoft/copilot-sdk';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { basename } from '../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -22,9 +23,13 @@ import { McpServerStatus } from '../../common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../common/state/protocol/mcpAppDefaults.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { readCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
+import { readCustomizationTeamProvided } from '../../common/meta/customizationTeamMeta.js';
 import { hasReadableCustomizationContent } from '../../common/agentHostCustomizationUri.js';
 import { readSkillArgumentHint } from '../../common/meta/skillCustomizationMeta.js';
 import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostWorkspaceTrustConfigKey, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
 
@@ -33,6 +38,7 @@ suite('SessionCustomizationDiscovery', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let instantiationService: TestInstantiationService;
+	let configurationService: AgentConfigurationService;
 	let workspace: URI;
 	let userHome: URI;
 
@@ -42,11 +48,18 @@ suite('SessionCustomizationDiscovery', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
+		configurationService = disposables.add(new AgentConfigurationService(disposables.add(new AgentHostStateManager(new NullLogService())), new NullLogService()));
+		setWorkspaceTrust({ enabled: false, trustedUris: [] });
+		instantiationService.stub(IAgentConfigurationService, configurationService);
 
 		workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		userHome = URI.from({ scheme: Schemas.inMemory, path: '/home' });
 	});
 
+
+	function setWorkspaceTrust(trust: IAgentHostWorkspaceTrust): void {
+		configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: trust });
+	}
 
 	async function seed(path: string, content = ''): Promise<URI> {
 		const uri = URI.from({ scheme: Schemas.inMemory, path });
@@ -419,6 +432,80 @@ suite('SessionCustomizationDiscovery', () => {
 		});
 	}
 
+	test('lists hooks of a folder not trusted in VS Code as not running, without the fallback or its repository rows', async () => {
+		setWorkspaceTrust({ enabled: true, trustedUris: [] });
+		await seed('/workspace/.github/hooks/a.json');
+		await seed('/workspace/.github/hooks/nested/b.json');
+		await seed('/workspace/.github/hooks/readme.md');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const requests: Parameters<CopilotClient['rpc']['hooks']['discover']>[0][] = [];
+		const client = hookDiscoveryClient(async request => {
+			requests.push(request);
+			// The runtime reports repository hooks when its own trusted folders cover the folder.
+			return {
+				hooks: [
+					{ id: 'runtime-trusted-repository', hookType: 'sessionStart', origin: 'repository', projectPath: workspace.fsPath, enabled: true },
+					{ id: 'runtime-repository-without-location', hookType: 'sessionStart', origin: 'repository', enabled: true },
+					{ id: 'user', hookType: 'sessionStart', origin: 'user', enabled: true },
+				], warnings: [], errors: [],
+			};
+		});
+		const result = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual({
+			requests,
+			directories: result.filter(item => item.contents === CustomizationType.Hook && item.children?.length).map(item => ({
+				enabled: item.type === CustomizationType.Directory ? item.enabled : undefined,
+				load: item.type === CustomizationType.Directory ? item.load : undefined,
+				children: item.children?.map(child => ({ id: child.id, path: child.uri.startsWith('inmemory') ? URI.parse(child.uri).path : undefined, enabled: child.type === CustomizationType.Hook ? child.enabled : undefined, source: readCustomizationDiscoveryMeta(child)?.source })),
+			})),
+		}, {
+			requests: [{ projectPaths: [workspace.fsPath] }],
+			directories: [
+				{ enabled: true, load: { kind: CustomizationLoadStatus.Loaded }, children: [{ id: 'user', path: undefined, enabled: true, source: 'user' }] },
+				{
+					enabled: false,
+					load: { kind: CustomizationLoadStatus.Degraded, message: 'Won\'t run until you trust this folder.' },
+					children: [
+						{ id: result.find(item => item.uri.endsWith('/hooks/untrusted'))?.children?.[0].id, path: '/workspace/.github/hooks/a.json', enabled: false, source: 'repository' },
+						{ id: result.find(item => item.uri.endsWith('/hooks/untrusted'))?.children?.[1].id, path: '/workspace/.github/hooks/nested/b.json', enabled: false, source: 'repository' },
+					],
+				},
+			],
+		});
+	});
+
+	test('lists custom agent files that declare hooks as not running when any session folder is untrusted', async () => {
+		const second = inMemoryPathToUri('/second');
+		const guard = await seed('/second/.github/agents/guard.agent.md', '---\nname: guard\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody');
+		const helper = await seed('/home/.copilot/agents/helper.agent.md', '---\nname: helper\nhooks:\n  sessionStart:\n    - type: command\n      bash: echo hi\n---\nBody');
+		const plain = await seed('/workspace/.github/agents/plain.agent.md', '---\nname: plain\n---\nBody');
+		const notRunningFor = async (trustedUris: readonly URI[]) => {
+			setWorkspaceTrust({ enabled: true, trustedUris: trustedUris.map(uri => uri.toString()) });
+			const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, second], userHome, inMemoryPathToUri));
+			const client = hookDiscoveryClient(async () => ({ hooks: [], warnings: [], errors: [] }));
+			client.rpc.agents.discover = async () => ({ agents: [guard, helper, plain].map(uri => ({ id: uri.path, name: basename(uri), description: '', path: uri.fsPath, source: 'project' })) }) as unknown as Awaited<ReturnType<CopilotClient['rpc']['agents']['discover']>>;
+			const result = await discovery.discover(client, CancellationToken.None);
+			return result.find(item => item.uri.endsWith('/hooks/untrusted'))?.children?.map(child => URI.parse(child.uri).path).sort() ?? [];
+		};
+		assert.deepStrictEqual({
+			allTrusted: await notRunningFor([workspace, second]),
+			secondUntrusted: await notRunningFor([workspace]),
+		}, {
+			allTrusted: [],
+			secondUntrusted: ['/home/.copilot/agents/helper.agent.md', '/second/.github/agents/guard.agent.md'],
+		});
+	});
+
+	test('rediscovers hooks when workspace trust changes', async () => {
+		setWorkspaceTrust({ enabled: true, trustedUris: [] });
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		let changes = 0;
+		disposables.add(discovery.onDidChange(() => changes++));
+		setWorkspaceTrust({ enabled: true, trustedUris: [] });
+		setWorkspaceTrust({ enabled: true, trustedUris: [workspace.toString()] });
+		assert.strictEqual(changes, 1);
+	});
+
 	test('workspace hook fallback failure preserves successful native discovery', async () => {
 		await seed('/workspace/.github/hooks/test.json');
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
@@ -633,8 +720,8 @@ suite('SessionCustomizationDiscovery', () => {
 			plugins: [
 				{ id: 'required', name: 'required', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/required', managed: true, managedDesiredEnabled: true },
 				{ id: 'blocked', name: 'blocked', marketplace: 'enterprise', enabled: false, rootPath: '/plugins/blocked', managed: true, managedDesiredEnabled: false },
-				{ id: 'supplied', name: 'supplied', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/supplied', managed: true },
-				{ id: 'unmanaged', name: 'unmanaged', marketplace: 'public', enabled: true, rootPath: '/plugins/unmanaged', managed: false, managedDesiredEnabled: true },
+				{ id: 'supplied', name: 'supplied', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/supplied', managed: true, team: true },
+				{ id: 'unmanaged', name: 'unmanaged', marketplace: 'public', enabled: true, rootPath: '/plugins/unmanaged', managed: false, managedDesiredEnabled: true, team: true },
 				{ id: 'childless', name: 'childless', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/childless', managed: true, managedDesiredEnabled: true },
 				{ id: 'not-installed', name: 'not-installed', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false },
 				{ id: 'blocked-not-installed', name: 'blocked-not-installed', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: false, installed: false },
@@ -644,16 +731,42 @@ suite('SessionCustomizationDiscovery', () => {
 		const result = await discovery.discover(client, CancellationToken.None);
 		assert.deepStrictEqual(Object.fromEntries(result.filter(item => item.type === CustomizationType.Plugin).map(plugin => [plugin.name, {
 			organization: readCustomizationOrganizationMeta(plugin),
+			// Team assignment is provenance only, so it is published alongside organization control rather than instead of it.
+			team: readCustomizationTeamProvided(plugin),
 			uri: plugin.uri,
 			load: plugin.load?.kind,
 			children: plugin.children?.length,
 		}])), {
-			required: { organization: { requiredEnabled: true }, uri: inMemoryPathToUri('/plugins/required').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
-			blocked: { organization: { requiredEnabled: false }, uri: inMemoryPathToUri('/plugins/blocked').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
-			supplied: { organization: {}, uri: inMemoryPathToUri('/plugins/supplied').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
-			unmanaged: { organization: undefined, uri: inMemoryPathToUri('/plugins/unmanaged').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
-			childless: { organization: { requiredEnabled: true }, uri: inMemoryPathToUri('/plugins/childless').toString(), load: CustomizationLoadStatus.Loaded, children: 0 },
-			'not-installed': { organization: { requiredEnabled: true }, uri: 'agent-discovery://copilot/plugins/not-installed', load: CustomizationLoadStatus.Error, children: 0 },
+			required: { organization: { requiredEnabled: true }, team: false, uri: inMemoryPathToUri('/plugins/required').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			blocked: { organization: { requiredEnabled: false }, team: false, uri: inMemoryPathToUri('/plugins/blocked').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			supplied: { organization: {}, team: true, uri: inMemoryPathToUri('/plugins/supplied').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			unmanaged: { organization: undefined, team: true, uri: inMemoryPathToUri('/plugins/unmanaged').toString(), load: CustomizationLoadStatus.Loaded, children: 1 },
+			childless: { organization: { requiredEnabled: true }, team: false, uri: inMemoryPathToUri('/plugins/childless').toString(), load: CustomizationLoadStatus.Loaded, children: 0 },
+			'not-installed': { organization: { requiredEnabled: true }, team: false, uri: 'agent-discovery://copilot/plugins/not-installed', load: CustomizationLoadStatus.Error, children: 0 },
+		});
+	});
+
+	test('publishes a required plugin that failed to install from the session inventory, since global records omit it', async () => {
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async () => ({ hooks: [], errors: [], warnings: [] }));
+		client.rpc.plugins.list = async () => ({ plugins: [{ id: 'installed', name: 'installed', marketplace: 'enterprise', enabled: false, rootPath: '/plugins/installed' }] });
+		const sessionPlugins = async () => [
+			{ id: 'installed', name: 'installed', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/installed', managed: true, managedDesiredEnabled: true, installed: true },
+			{ id: 'missing', name: 'missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false },
+			{ id: 'blocked-missing', name: 'blocked-missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: false, installed: false },
+			{ id: 'session-only', name: 'session-only', marketplace: '', enabled: true, rootPath: '/plugins/session-only' },
+		];
+		const discover = async (plugins?: () => Promise<Awaited<ReturnType<typeof sessionPlugins>> | undefined>) => (await discovery.discover(client, CancellationToken.None, plugins))
+			.filter(item => item.type === CustomizationType.Plugin)
+			.map(plugin => ({ name: plugin.name, uri: plugin.uri, load: plugin.load?.kind, organization: readCustomizationOrganizationMeta(plugin) }));
+		assert.deepStrictEqual({
+			withoutSession: await discover(),
+			sessionNotReady: await discover(async () => undefined),
+			sessionFailed: await discover(async () => { throw new Error('session closed'); }),
+			session: await discover(sessionPlugins),
+		}, {
+			withoutSession: [], sessionNotReady: [], sessionFailed: [],
+			session: [{ name: 'missing', uri: 'agent-discovery://copilot/plugins/missing', load: CustomizationLoadStatus.Error, organization: { requiredEnabled: true } }],
 		});
 	});
 

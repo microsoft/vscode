@@ -975,6 +975,37 @@ suite('PromptValidator', () => {
 			});
 		}
 
+		test('github-copilot reports malformed HTTP hook and remote MCP URLs', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				'  preToolUse:',
+				'    - type: http',
+				'      url: "not-a-url"',
+				'    - type: http',
+				'      url: "https://"',
+				'mcp-servers:',
+				'  invalid:',
+				'    type: http',
+				'    url: "not-a-url"',
+				'    tools: [fetch]',
+				'  missingHost:',
+				'    type: http',
+				'    url: "https://"',
+				'    tools: [fetch]',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'url' property in an HTTP hook action must be an HTTP or HTTPS URL.`,
+				`The 'url' property in an HTTP hook action must be an HTTP or HTTPS URL.`,
+				`The 'url' property for MCP server 'invalid' must be an HTTP or HTTPS URL.`,
+				`The 'url' property for MCP server 'missingHost' must be an HTTP or HTTPS URL.`,
+			]);
+		});
+
 		const githubCopilotSchemaCases: [name: string, header: string[], expected: string[]][] = [
 			['github-copilot agent rejects invalid hook action combinations', [
 				'description: Test',
@@ -1088,6 +1119,16 @@ suite('PromptValidator', () => {
 
 		test('recognizes spec-defined github-copilot namespaces without inventory entries', async () => {
 			copilotToolInventory = [];
+			otherCopilotToolInventory = [];
+			const content = '---\ndescription: Test\ntarget: github-copilot\ntools: [github/*, playwright/*]\n---';
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('keeps spec-defined github-copilot namespaces recognized when inventories also contain them', async () => {
+			copilotToolInventory = [
+				{ name: 'github/*', availability: 'disabled' },
+				{ name: 'playwright/*', availability: 'unavailable' },
+			];
 			otherCopilotToolInventory = [];
 			const content = '---\ndescription: Test\ntarget: github-copilot\ntools: [github/*, playwright/*]\n---';
 			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);

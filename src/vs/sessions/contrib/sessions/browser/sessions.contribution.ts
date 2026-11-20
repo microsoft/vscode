@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement, ViewContainer, IViewContainersRegistry, ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -18,6 +17,8 @@ import { SessionsAccountTelemetryContribution } from './sessionsAccountTelemetry
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
+import { AutomationHistoryActionsContribution } from '../../automations/browser/automationRunHistory.js';
+import '../../automations/browser/automationsEditor.js';
 import './views/sessionsViewActions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -33,11 +34,9 @@ import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/cha
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { AutomationSessionsListingContribution } from './automationSessionsListing.js';
 import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestart.js';
-import { ISessionAttentionService } from '../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
-import { SessionAttentionService } from '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
-import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, USE_WORKTREE_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
-
-registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);
+import '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, SessionsSidebarCustomizationsCategories, USE_WORKTREE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { sessionsListConfigurationProperties } from '../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -103,14 +102,6 @@ export const sessionsConfiguration = {
 			description: localize('sessions.sendLater.enabled', "Schedule requests from new-session and existing-chat inputs to be sent later in the Agents window. Requires Automations and a supported local agent host. Disabling this setting does not cancel scheduled requests; manage them in Automations."),
 			experiment: { mode: 'auto' },
 		},
-		[SESSIONS_LIST_INLINE_ACTIONS_SETTING]: {
-			type: 'boolean',
-			tags: ['experimental'],
-			description: localize('sessions.list.inlineActions', "Show Fix Checks, Address Comments, or their combined action below eligible sessions and chats in the Sessions list. Actions run in the background. This does not enable Agent Merge or change action permissions."),
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			experiment: { mode: 'auto' },
-		},
 		[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING]: {
 			type: 'boolean',
 			tags: ['experimental'],
@@ -121,19 +112,28 @@ export const sessionsConfiguration = {
 				name: SESSIONS_LIST_REARRANGE_TREATMENT,
 			},
 		},
-		[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: {
-			type: 'boolean',
-			tags: ['preview'],
-			description: localize('sessions.list.groupExternalSessions', "Controls whether external sessions are shown in a separate External section instead of workspace or time groups. Pinned sessions and custom groups keep their placement."),
-			default: false,
-			experiment: { mode: 'auto' }
-		},
-		[SESSIONS_LIST_INBOX_ENABLED_SETTING]: {
+		[SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: localize('sessions.list.inboxEnabled', "Uses Inbox Mode as the default Sessions list grouping when no grouping has been chosen. Inbox Mode is always available in the Grouping menu. Explicit grouping choices are preserved."),
+			markdownDescription: localize('sessions.sidebar.customizationsAtBottom', "Controls whether Customizations remains a separate section below the Sessions list instead of joining the separate navigation list above the Sessions header. Only applies when `#sessions.sidebar.separateNavigation#` is enabled."),
 			default: false,
+			experiment: { mode: 'auto' },
 		},
+		[SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING]: {
+			type: 'string',
+			enum: [SessionsSidebarCustomizationsCategories.All, SessionsSidebarCustomizationsCategories.Reduced],
+			enumDescriptions: [
+				localize('sessions.sidebar.customizationsCategories.all', "Show all customization categories."),
+				localize('sessions.sidebar.customizationsCategories.reduced', "Show Overview, Plugins, MCP Servers, Skills, and Instructions. More shows the other categories, and Less hides them again."),
+			],
+			tags: ['experimental'],
+			description: localize('sessions.sidebar.customizationsCategories', "Controls which customization categories the Customizations section below the Sessions list shows."),
+			default: SessionsSidebarCustomizationsCategories.Reduced,
+			experiment: { mode: 'auto' },
+		},
+		[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING],
+		[SESSIONS_LIST_INBOX_ENABLED_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INBOX_ENABLED_SETTING],
+		[SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING],
 		[SESSIONS_LIST_AGENT_TOOLS_SETTING]: {
 			type: 'boolean',
 			tags: ['preview'],
@@ -141,72 +141,13 @@ export const sessionsConfiguration = {
 			default: true,
 			experiment: { mode: 'auto' }
 		},
-		[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: {
-			type: 'string',
-			tags: ['experimental'],
-			enum: [
-				ExternalSessionApplicationBadgeMode.Off,
-				ExternalSessionApplicationBadgeMode.Title,
-				ExternalSessionApplicationBadgeMode.Details,
-			],
-			enumDescriptions: [
-				localize('sessions.list.externalApplicationBadge.off', "Do not show the creating application."),
-				localize('sessions.list.externalApplicationBadge.title', "Show the creating application next to the session title."),
-				localize('sessions.list.externalApplicationBadge.details', "Show the creating application first in the session details."),
-			],
-			description: localize('sessions.list.externalApplicationBadge', "Controls where sessions created in an application other than VS Code show the creating application."),
-			default: ExternalSessionApplicationBadgeMode.Title,
-			experiment: { mode: 'auto' }
-		},
-		[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: {
-			type: 'boolean',
-			tags: ['experimental', 'advanced'],
-			description: localize('sessions.list.externalApplicationBadgeShowFrom', "Controls whether session application badges include the word 'From'."),
-			default: false,
-			experiment: { mode: 'auto' }
-		},
-		[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING]: {
-			type: 'boolean',
-			tags: ['preview'],
-			description: localize('sessions.list.showEmptyDefaultGroups', "Controls whether the Chats group is shown in the sessions list even when it is empty."),
-			default: true,
-			experiment: { mode: 'auto' }
-		},
-		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: {
-			type: 'boolean',
-			tags: ['preview'],
-			description: localize('sessions.list.showUnreadInCollapsedSections', "Controls whether collapsed sections in the sessions list show needs-attention, CI-failure, or unread indicators for the unarchived sessions they contain."),
-			default: false,
-			experiment: { mode: 'auto' }
-		},
-		[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING]: {
-			type: 'boolean',
-			tags: ['experimental', 'advanced'],
-			description: localize('sessions.list.showArchivedByDefault', "Controls whether the Done or Archived section is shown by default in the sessions list. This default is ignored after the corresponding filter is changed."),
-			default: true,
-			scope: ConfigurationScope.APPLICATION,
-			experiment: { mode: 'auto' }
-		},
-		[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: {
-			type: 'string',
-			tags: ['experimental', 'advanced'],
-			enum: [AutomationSessionsListMode.Always, AutomationSessionsListMode.AfterReply, AutomationSessionsListMode.Never],
-			enumDescriptions: [
-				localize('sessions.list.showAutomationSessions.always', "Show every automation session in the sessions list."),
-				localize('sessions.list.showAutomationSessions.afterReply', "Show an automation session in the sessions list once you send a message in it."),
-				localize('sessions.list.showAutomationSessions.never', "Show automation sessions only in Automations."),
-			],
-			description: localize('sessions.list.showAutomationSessions', "Controls when automation sessions automatically also appear in the sessions list. They always remain in Automations. Use Show in Sessions List or Hide from Sessions List in a session's context menu to override this for that session."),
-			default: AutomationSessionsListMode.AfterReply,
-			experiment: { mode: 'auto' }
-		},
-		[SESSIONS_LIST_INDENT_ITEMS_SETTING]: {
-			type: 'boolean',
-			tags: ['experimental', 'advanced'],
-			description: localize('sessions.list.indentItems', "Controls whether sessions and other rows in the sessions list are indented below their section header to show the list's hierarchy."),
-			default: false,
-			experiment: { mode: 'auto' }
-		},
+		[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING],
+		[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING],
+		[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING],
+		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING],
+		[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING],
+		[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING],
+		[SESSIONS_LIST_INDENT_ITEMS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INDENT_ITEMS_SETTING],
 		[SESSIONS_CHAT_TABS_SETTING]: {
 			type: 'string',
 			tags: ['preview'],
@@ -219,13 +160,7 @@ export const sessionsConfiguration = {
 			default: SESSIONS_CHAT_TABS_DEFAULT,
 			experiment: { mode: 'auto' },
 		},
-		[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: {
-			type: 'boolean',
-			description: localize('sessions.markAsDoneConfetti', "Controls whether a confetti animation is shown when marking a session as done."),
-			default: true,
-			experiment: { mode: 'auto' }
-			// https://github.com/microsoft/vscode/issues/335801
-		},
+		[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: sessionsListConfigurationProperties[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING],
 		[NEW_SESSION_BUTTON_STYLE_SETTING]: {
 			type: 'string',
 			enum: ['default', 'lightweight', 'lightweightWithKeybindingBackground'],
@@ -239,17 +174,13 @@ export const sessionsConfiguration = {
 			},
 			description: localize('sessions.newSessionButton.style', "Controls the visual style of the New Session button."),
 		},
-		[USE_WORKTREE_SETTING]: {
-			type: 'boolean',
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.useWorktree', "Controls whether New Worktree is checked for a workspace that has not started a session before. Each workspace otherwise uses the choice from its last started session."),
-		},
+		[USE_WORKTREE_SETTING]: sessionsListConfigurationProperties[USE_WORKTREE_SETTING],
 	},
 } satisfies IConfigurationNode;
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(sessionsConfiguration);
 
+registerWorkbenchContribution2(AutomationHistoryActionsContribution.ID, AutomationHistoryActionsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);

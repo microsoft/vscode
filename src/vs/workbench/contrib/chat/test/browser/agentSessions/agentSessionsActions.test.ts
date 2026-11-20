@@ -29,20 +29,29 @@ import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybindin
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../../../services/layout/browser/layoutService.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
-import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, OpenAgentSessionCustomizationsAction, RenameAgentSessionAction, RestoreAgentSessionAction, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation } from '../../../browser/agentSessions/agentSessions.js';
+import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, OpenAgentSessionCustomizationsAction, OpenSessionsListItemCustomizationsAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, RenameAgentSessionAction, RestoreAgentSessionAction, ShowAgentSessionsSidebar, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../../common/chatSessionCommands.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import '../../../browser/agentSessions/agentHost/agentHostSettings.contribution.js';
+import '../../../browser/agentSessions/agentHost/agentSessionSettings.contribution.js';
 import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
 
 suite('AgentSessionsActions', () => {
@@ -103,6 +112,110 @@ suite('AgentSessionsActions', () => {
 			commandId: AICustomizationManagementCommands.OpenEditor,
 			target: { sessionResource: session.resource },
 		}));
+	});
+
+	test('contributes the Chat view session actions to the shared sessions list menu in the right group order and window', () => {
+		const actions = [OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, OpenSessionsListItemCustomizationsAction, MarkAllAgentSessionsReadAction];
+		for (const action of actions) {
+			disposables.add(registerAction2(action));
+		}
+		// The menu is shared, so other windows' entries (for example the Agents window's Mark as Read) may be registered too.
+		const ownCommands = new Set([...actions.map(action => new action().desc.id), 'workbench.action.chat.openAgentHostSettings', 'workbench.action.chat.openAgentSessionSettings']);
+		// Menus render the navigation group first.
+		const groupRank = (group: string | undefined) => group === 'navigation' ? 0 : 1;
+		const evaluate = (isSessionsWindow: boolean, providerId = 'local-agent-host') => {
+			const values: Record<string, boolean | string> = {
+				[IsSessionsWindowContext.key]: isSessionsWindow,
+				[ChatContextKeys.enabled.key]: true,
+				[AGENT_HOST_ENABLED_CONTEXT_KEY.key]: true,
+				sessionProviderId: providerId,
+			};
+			const context: IContext = { getValue: <T>(key: string) => values[key] as T | undefined };
+			return MenuRegistry.getMenuItems(MenuId.SessionItemContextMenu).filter(isIMenuItem)
+				.filter(item => ownCommands.has(item.command.id))
+				.filter(item => item.when?.evaluate(context) ?? true)
+				.sort((a, b) => groupRank(a.group) - groupRank(b.group) || (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
+				.map(item => `${item.group}@${item.order}: ${item.command.id}`);
+		};
+		assert.deepStrictEqual({ editor: evaluate(false), remote: evaluate(false, 'agenthost-devcontainer'), agents: evaluate(true) }, {
+			editor: [
+				'navigation@2.1: workbench.action.chat.openSessionInEditorGroup',
+				'navigation@2.2: workbench.action.chat.openSessionInNewEditorGroup',
+				'navigation@2.3: workbench.action.chat.openSessionInNewWindow',
+				'navigation@6: agentSession.openCustomizations.sessionsList',
+				'1_state@5: workbench.action.chat.markAllAgentSessionsRead',
+				'4_manage@2.5: workbench.action.chat.openAgentHostSettings',
+				'4_manage@2.6: workbench.action.chat.openAgentSessionSettings',
+			],
+			// Host and session settings only target the local host.
+			remote: [
+				'navigation@2.1: workbench.action.chat.openSessionInEditorGroup',
+				'navigation@2.2: workbench.action.chat.openSessionInNewEditorGroup',
+				'navigation@2.3: workbench.action.chat.openSessionInNewWindow',
+				'navigation@6: agentSession.openCustomizations.sessionsList',
+				'1_state@5: workbench.action.chat.markAllAgentSessionsRead',
+			],
+			// The Agents window registers its own entries for these actions.
+			agents: [],
+		});
+	});
+
+	test('disables single-session actions while the shared sessions list has several rows selected', () => {
+		disposables.add(registerAction2(OpenSessionsListItemCustomizationsAction));
+		for (const id of ['agentSession.openCustomizations.sessionsList', 'workbench.action.chat.openAgentSessionSettings']) {
+			const precondition = MenuRegistry.getMenuItems(MenuId.SessionItemContextMenu).filter(isIMenuItem).find(item => item.command.id === id)?.command.precondition;
+			// The legacy Chat view key can be inherited as stale from a parent context.
+			const enabled = (multiSelection: boolean, staleLegacyMultiSelection: boolean) => !!precondition?.evaluate({
+				getValue: <T>(key: string) => ({ [ChatContextKeys.enabled.key]: true, [AGENT_HOST_ENABLED_CONTEXT_KEY.key]: true, 'sessionItem.isMultiSelection': multiSelection, [ChatContextKeys.hasMultipleAgentSessionsSelected.key]: staleLegacyMultiSelection } as Record<string, boolean>)[key] as T | undefined,
+			});
+			assert.deepStrictEqual({ id, single: enabled(false, false), singleWithStaleLegacy: enabled(false, true), multiple: enabled(true, false) }, { id, single: true, singleWithStaleLegacy: true, multiple: false });
+		}
+	});
+
+	test('keeps disabling the Chat view Open Customizations action for several legacy rows', () => {
+		const precondition = new OpenAgentSessionCustomizationsAction().desc.precondition;
+		const enabled = (legacyMultiSelection: boolean) => !!precondition?.evaluate({
+			getValue: <T>(key: string) => ({ [ChatContextKeys.enabled.key]: true, [ChatContextKeys.hasMultipleAgentSessionsSelected.key]: legacyMultiSelection } as Record<string, boolean>)[key] as T | undefined,
+		});
+		assert.deepStrictEqual({ single: enabled(false), multiple: enabled(true) }, { single: true, multiple: false });
+	});
+
+	test('runs the Chat view open actions on rows of the shared sessions list', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const opened: { resource: string; group: unknown; auxiliary: boolean }[] = [];
+		const session = upcastPartial<IAgentSession>({ resource: URI.parse('agent-host-copilot:/selected-session'), isArchived: () => false });
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+			getSession: (resource: URI) => resource.toString() === session.resource.toString() ? session : undefined,
+		}));
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() { }(), 'getActiveViewWithId', () => undefined);
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+			openSession: async (resource, group, options) => {
+				opened.push({ resource: resource.toString(), group, auxiliary: !!options?.auxiliary });
+				return undefined;
+			},
+		}));
+		// The list passes its selected sessions, which only share the resource with agent sessions.
+		const listRow = [{ resource: session.resource }];
+		for (const action of [new OpenAgentSessionInEditorGroupAction(), new OpenAgentSessionInNewEditorGroupAction(), new OpenAgentSessionInNewWindowAction()]) {
+			await instantiationService.invokeFunction(accessor => action.run(accessor, listRow));
+		}
+		await instantiationService.invokeFunction(accessor => new OpenAgentSessionInEditorGroupAction().run(accessor, [{ resource: URI.parse('agent-host-copilot:/unknown') }]));
+
+		assert.deepStrictEqual(opened, [
+			{ resource: session.resource.toString(), group: ACTIVE_GROUP, auxiliary: false },
+			{ resource: session.resource.toString(), group: SIDE_GROUP, auxiliary: false },
+			{ resource: session.resource.toString(), group: AUX_WINDOW_GROUP, auxiliary: true },
+		]);
+
+		const calls: { commandId: string; target: { sessionResource: URI } }[] = [];
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (commandId: string, target: { sessionResource: URI }) => {
+				calls.push({ commandId, target });
+				return undefined;
+			},
+		}));
+		await instantiationService.invokeFunction(accessor => new OpenAgentSessionCustomizationsAction().run(accessor, listRow));
+		assert.deepStrictEqual(calls, [{ commandId: AICustomizationManagementCommands.OpenEditor, target: { sessionResource: session.resource } }]);
 	});
 
 	test('scopes read and unread shortcuts to the editor Sessions list on every platform', () => {
@@ -543,5 +656,50 @@ suite('AgentSessionsActions', () => {
 		await instantiationService.invokeFunction(accessor => action.run(accessor, child));
 
 		assert.strictEqual(archiveCalls, 0);
+	});
+
+	test('Show Agent Sessions Sidebar widens the Chat view until its body fits side by side, past the chrome of its part, or maximizes it, and leaves one wide enough', async () => {
+		const run = async (partWidth: number, bodyWidth: number, applies: boolean, staleStackedBodyWidth?: number) => {
+			const calls: string[] = [];
+			let width = partWidth;
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
+				getPanelPosition: () => Position.BOTTOM,
+				getSize: () => ({ width, height: 800 }),
+				setSize: (_part, size) => { calls.push(`setSize ${size.width}`); if (applies) { width = size.width; } },
+				isAuxiliaryBarMaximized: () => false,
+				setAuxiliaryBarMaximized: maximized => { calls.push(`maximized ${maximized}`); return true; },
+				mainContainerDimension: { width: 1200, height: 800 },
+			}));
+			instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({ getViewLocationById: () => ViewContainerLocation.AuxiliaryBar }));
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true, [ChatConfiguration.ChatViewSessionsOrientation]: 'sideBySide' }));
+			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+				getActiveViewWithId: (<T>() => upcastPartial<ChatViewPane>({
+					// With a stale stacked width, the Chat view is laid out side by side now
+					getSessionsViewerOrientation: () => staleStackedBodyWidth === undefined ? AgentSessionsViewerOrientation.Stacked : AgentSessionsViewerOrientation.SideBySide,
+					getLastDimensions: orientation => orientation === AgentSessionsViewerOrientation.Stacked ? { width: staleStackedBodyWidth ?? bodyWidth, height: 800 } : staleStackedBodyWidth === undefined ? undefined : { width: bodyWidth, height: 800 },
+					updateConfiguredSessionsViewerOrientation: () => { },
+				}) as T) as IViewsService['getActiveViewWithId'],
+			}));
+			instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({ getPartId: () => Parts.AUXILIARYBAR_PART }));
+			await instantiationService.invokeFunction(accessor => new ShowAgentSessionsSidebar().run(accessor));
+			// The calls besides leaving the maximized state, which the action does before it widens
+			return calls.filter(call => call !== 'maximized false');
+		};
+
+		assert.deepStrictEqual({
+			// The part fits 601 but its body of 591 does not fit 600: it widens past the part's chrome of 9
+			narrowBody: await run(600, 591, true),
+			// The window cannot give the part that width
+			refused: await run(600, 591, false),
+			wideEnough: await run(700, 691, true),
+			// The chrome comes from the current layout, not from the other orientation's older one
+			staleOtherOrientation: await run(700, 691, true, 591),
+		}, {
+			narrowBody: ['setSize 609'],
+			refused: ['setSize 609', 'maximized true'],
+			wideEnough: [],
+			staleOtherOrientation: [],
+		});
 	});
 });

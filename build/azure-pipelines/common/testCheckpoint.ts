@@ -27,6 +27,7 @@ export const testIds = [
 	'smoke-agents-basic-proxy',
 	'smoke-wsl-kerberos-proxy',
 	'smoke-wsl-basic-proxy',
+	'smoke-wsl-basic-pac-proxy',
 	'smoke-browser-chromium',
 	'smoke-remote',
 	'copilot-unit',

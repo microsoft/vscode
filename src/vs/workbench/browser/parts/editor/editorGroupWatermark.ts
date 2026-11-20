@@ -87,7 +87,7 @@ const toggleTerminal: WatermarkEntry = {
 };
 const startDebugging: WatermarkEntry = {
 	text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start',
-	icon: registerIcon('watermark-debug', Codicon.debugStart, localize('watermark.debugIcon', "Icon for starting debugging in the editor watermark.")),
+	icon: registerIcon('watermark-debug', Codicon.run, localize('watermark.debugIcon', "Icon for starting debugging in the editor watermark.")),
 	when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) }
 };
 const openSettings: WatermarkEntry = {

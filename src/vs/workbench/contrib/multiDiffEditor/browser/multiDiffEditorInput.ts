@@ -44,7 +44,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			throw new BugIndicatingError('MultiDiffEditorInput requires either multiDiffSource or resources');
 		}
 		const multiDiffSource = input.multiDiffSource ?? URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
-		return instantiationService.createInstance(
+		const editorInput = instantiationService.createInstance(
 			MultiDiffEditorInput,
 			multiDiffSource,
 			input.label,
@@ -57,10 +57,12 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			}),
 			input.isTransient ?? false
 		);
+		editorInput._showFileList = input.showFileList ?? true;
+		return editorInput;
 	}
 
 	public static fromSerialized(data: ISerializedMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
-		return instantiationService.createInstance(
+		const editorInput = instantiationService.createInstance(
 			MultiDiffEditorInput,
 			URI.parse(data.multiDiffSourceUri),
 			data.label,
@@ -71,6 +73,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			)),
 			false
 		);
+		editorInput._showFileList = data.showFileList ?? true;
+		return editorInput;
 	}
 
 	static readonly ID: string = 'workbench.input.multiDiffEditor';
@@ -85,6 +89,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	override get editorId(): string { return DEFAULT_EDITOR_ASSOCIATION.id; }
 	override getIcon(): ThemeIcon { return MultiDiffEditorIcon; }
+
+	private _showFileList = true;
+	/** Whether the editor offers a list of the changed files alongside the diffs, see {@link IResourceMultiDiffEditorInput.showFileList}. */
+	get showFileList(): boolean { return this._showFileList; }
 
 	constructor(
 		public readonly multiDiffSource: URI,
@@ -183,6 +191,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				modifiedUri: resource.modifiedUri?.toString(),
 				goToFileUri: resource.goToFileUri?.toString(),
 			})),
+			showFileList: this.showFileList,
 		};
 	}
 
@@ -524,6 +533,8 @@ interface ISerializedMultiDiffEditorInput {
 		modifiedUri: string | undefined;
 		goToFileUri: string | undefined;
 	}[] | undefined;
+	/** Missing in editors serialized before the option existed. */
+	showFileList?: boolean;
 }
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {

@@ -114,14 +114,25 @@ export class SessionArtifacts {
 		return outcome.result;
 	}
 
-	async remove(artifactId: string, onRemoved?: (artifact: ISessionArtifact) => void | Promise<void>): Promise<void> {
+	/** Removes the entry and resolves to it, as this change found it, or to `undefined` when it was not recorded. */
+	async remove(artifactId: string, onRemoved?: (artifact: ISessionArtifact) => void | Promise<void>): Promise<ISessionArtifact | undefined> {
 		if (!artifactId.trim()) {
 			throw new Error('artifactId must be a non-empty string');
 		}
-		await this.mutate(collection => collection.remove(artifactId), async result => {
+		const result = await this.mutate(collection => collection.remove(artifactId), async result => {
 			if (result.removed) {
 				await onRemoved?.(result.removed);
 			}
 		});
+		return result.removed;
 	}
+}
+
+/**
+ * The session and provider to attribute an artifact change in `chat` to. A change queued while its chat moved applies
+ * to the session that owns the chat afterwards, so read the owner once the change is done; `session` is the fallback.
+ */
+export function getArtifactChangeOwner(stateManager: AgentHostStateManager, chat: string, session: string): { readonly session: string; readonly provider: string | undefined } {
+	const owner = stateManager.getChatOwner(chat) ?? session;
+	return { session: owner, provider: stateManager.getSessionSummary(owner)?.provider };
 }
