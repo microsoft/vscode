@@ -518,19 +518,26 @@ suite('SettingsEditor2', () => {
 			editor['renderTree'] = () => { };
 			editor['reportModifiedSetting'] = () => { };
 
+			// A change made in the Layout tab names the settings file of the layout, so that it is not written to another layout
+			editor['onDidChangeSetting']('test.setting', 'debugValue', SettingValueType.String, false, ConfigurationScope.WINDOW);
+			await timeout(2000);
+
 			// The Default layout becomes active before a change made in the Layout tab is written
 			editor['onDidChangeSetting']('test.setting', 'layoutValue', SettingValueType.String, false, ConfigurationScope.WINDOW);
 			configuration.layoutSettings = undefined;
 			settingsTarget = ConfigurationTarget.USER_LOCAL;
 			await timeout(2000);
-			const afterSwitch = [...updates];
+			const afterSwitch = updates.slice(1);
 
 			editor['onDidChangeSetting']('test.setting', 'userValue', SettingValueType.String, false, ConfigurationScope.WINDOW);
 			await timeout(2000);
 
 			assert.deepStrictEqual({ afterSwitch, updates }, {
 				afterSwitch: [],
-				updates: [['test.setting', 'userValue', { resource: undefined, overrideIdentifiers: undefined }, ConfigurationTarget.USER_LOCAL, { handleDirtyFile: 'save' }]]
+				updates: [
+					['test.setting', 'debugValue', { resource: undefined, overrideIdentifiers: undefined }, ConfigurationTarget.LAYOUT, { handleDirtyFile: 'save', layoutSettingsResource: URI.file('/layouts/debug/settings.json') }],
+					['test.setting', 'userValue', { resource: undefined, overrideIdentifiers: undefined }, ConfigurationTarget.USER_LOCAL, { handleDirtyFile: 'save' }]
+				]
 			});
 		}));
 	});

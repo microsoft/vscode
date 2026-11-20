@@ -158,6 +158,12 @@ export interface IConfigurationUpdateOptions {
 	 * How to handle dirty file when updating the configuration.
 	 */
 	handleDirtyFile?: 'save' | 'revert';
+	/**
+	 * The settings file of the named layout to write to when the target is {@link ConfigurationTarget.LAYOUT}.
+	 * Defaults to the settings file of the layout that is active when the value is updated. The write fails
+	 * if another layout, or none, is active when the value is written.
+	 */
+	layoutSettingsResource?: URI;
 }
 
 export interface IConfigurationService {

@@ -442,10 +442,10 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	switchLayout(layout: INamedLayout): Promise<INamedLayout>;
-	switchLayout(layout: INamedLayout, options: { readonly ifActiveLayoutId: string }): Promise<INamedLayout | undefined>;
-	switchLayout(layout: INamedLayout, options?: { readonly ifActiveLayoutId: string }): Promise<INamedLayout | undefined> {
+	switchLayout(layout: INamedLayout, options: { readonly condition: () => boolean }): Promise<INamedLayout | undefined>;
+	switchLayout(layout: INamedLayout, options?: { readonly condition: () => boolean }): Promise<INamedLayout | undefined> {
 		return this.sequencer.queue(async () => {
-			if (options && options.ifActiveLayoutId !== this.activeLayoutId) {
+			if (options && !options.condition()) {
 				return undefined;
 			}
 

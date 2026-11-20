@@ -242,7 +242,7 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
-	test('a switch returns the layout that was active when it ran, a conditional switch only runs while the given layout is active', async () => {
+	test('a switch returns the layout that was active when it ran, a conditional switch only runs if its condition holds when it runs', async () => {
 		const testObject = createService(new TestParticipant());
 		const defaultLayout = testObject.activeLayout;
 		const debugLayout = await testObject.createLayout('Debug');
@@ -251,8 +251,8 @@ suite('NamedLayoutsService', () => {
 		// Queued one after another: each switch runs after the switches queued before it
 		const switchToDebug = testObject.switchLayout(debugLayout);
 		const switchToDefault = testObject.switchLayout(defaultLayout);
-		const switchToDebugIfDebugIsActive = testObject.switchLayout(debugLayout, { ifActiveLayoutId: debugLayout.id });
-		const switchToDebugIfDefaultIsActive = testObject.switchLayout(debugLayout, { ifActiveLayoutId: DEFAULT_NAMED_LAYOUT_ID });
+		const switchToDebugIfDebugIsActive = testObject.switchLayout(debugLayout, { condition: () => testObject.activeLayout.id === debugLayout.id });
+		const switchToDebugIfDefaultIsActive = testObject.switchLayout(debugLayout, { condition: () => testObject.activeLayout.id === DEFAULT_NAMED_LAYOUT_ID });
 
 		assert.deepStrictEqual({
 			switchToDebug: (await switchToDebug).id,

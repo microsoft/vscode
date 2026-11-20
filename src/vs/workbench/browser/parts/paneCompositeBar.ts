@@ -245,6 +245,7 @@ export class PaneCompositeBar extends Disposable {
 		// View Container Changes
 		this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => this.onDidChangeViewContainers(added, removed)));
 		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeViewContainerLocation(viewContainer, from, to)));
+		this._register(this.viewDescriptorService.onDidChangeViewContainerBadgeEnablement(ids => this.compositeBar.refreshBadges(ids)));
 
 		// View Container Visibility Changes
 		this._register(this.paneCompositePart.onDidPaneCompositeOpen(e => this.onDidChangeViewContainerVisibility(e.getId(), true)));

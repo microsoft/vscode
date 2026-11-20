@@ -321,12 +321,13 @@ export interface INamedLayoutsService {
 	switchLayout(layout: INamedLayout): Promise<INamedLayout>;
 
 	/**
-	 * Like {@link switchLayout}, but only switches if the layout with the given identifier is
-	 * active when the switch runs, so that it does not undo a switch that was queued before it.
+	 * Like {@link switchLayout}, but only switches if the given condition holds when the switch
+	 * runs, so that it does not undo a switch that was queued before it. The condition is
+	 * evaluated after the switches and other changes of the layouts queued before it ran.
 	 *
-	 * @returns The layout that was active when the switch ran, or `undefined` if another layout was active.
+	 * @returns The layout that was active when the switch ran, or `undefined` if the condition did not hold.
 	 */
-	switchLayout(layout: INamedLayout, options: { readonly ifActiveLayoutId: string }): Promise<INamedLayout | undefined>;
+	switchLayout(layout: INamedLayout, options: { readonly condition: () => boolean }): Promise<INamedLayout | undefined>;
 
 	/**
 	 * Deletes the given named layout. If it is active, the default layout is applied first.

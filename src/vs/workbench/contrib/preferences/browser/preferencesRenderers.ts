@@ -92,12 +92,13 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	updatePreference(key: string, value: unknown, source: IIndexedSetting): void {
 		const overrideIdentifiers = source.overrideOf ? overrideIdentifiersFromKey(source.overrideOf.key) : null;
 		const resource = this.preferencesModel.uri;
+		const configurationTarget = this.preferencesModel.configurationTarget;
 		// Only the settings of the active layout can be written, the settings file of another layout is not redirected to it
-		if (this.preferencesModel.configurationTarget === ConfigurationTarget.LAYOUT && !isEqual(resource, this.configurationService.layoutSettings?.resource)) {
+		if (configurationTarget === ConfigurationTarget.LAYOUT && !isEqual(resource, this.configurationService.layoutSettings?.resource)) {
 			this.notificationService.info(nls.localize('layoutNotActive', "The layout of this settings file is not active. Switch to the layout to change its settings here."));
 			return;
 		}
-		this.configurationService.updateValue(key, value, { overrideIdentifiers, resource }, this.preferencesModel.configurationTarget)
+		this.configurationService.updateValue(key, value, { overrideIdentifiers, resource }, configurationTarget, configurationTarget === ConfigurationTarget.LAYOUT ? { layoutSettingsResource: resource } : undefined)
 			.then(() => this.onSettingUpdated(source));
 	}
 

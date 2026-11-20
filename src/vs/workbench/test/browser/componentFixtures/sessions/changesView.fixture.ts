@@ -204,6 +204,7 @@ class FixtureViewDescriptorService extends mock<IViewDescriptorService>() {
 	override readonly viewContainers = [changesViewContainer];
 	override readonly onDidChangeViewContainers = Event.None;
 	override readonly onDidChangeContainerLocation = Event.None;
+	override readonly onDidChangeViewContainerBadgeEnablement = Event.None;
 	override readonly onDidChangeContainer = Event.None;
 	override readonly onDidChangeLocation = Event.None;
 

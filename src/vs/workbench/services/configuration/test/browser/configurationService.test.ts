@@ -2760,6 +2760,26 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		});
 	}));
 
+	test('a change of the settings of a layout is not written to another layout that became active before it was written', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const key = 'configurationLayoutTest.layoutSetting';
+		const debugResource = joinPath(ROOT, 'layouts', 'debug', 'settings.json');
+		const focusResource = joinPath(ROOT, 'layouts', 'focus', 'settings.json');
+		const readFile = (resource: URI) => fileService.readFile(resource).then(content => content.value.toString(), () => undefined);
+		testObject.setLayoutSettings({ name: 'Debug', resource: debugResource, locked: false });
+
+		// The write waits for the configuration editing, meanwhile another layout becomes active
+		const untargeted = testObject.updateValue(key, 'debugValue', {}, ConfigurationTarget.LAYOUT, { donotNotifyError: true }).then(() => undefined, error => error.message);
+		const fromDebugSettingsFile = testObject.updateValue(key, 'debugValue', {}, ConfigurationTarget.LAYOUT, { donotNotifyError: true, layoutSettingsResource: debugResource }).then(() => undefined, error => error.message);
+		testObject.setLayoutSettings({ name: 'Focus', resource: focusResource, locked: false });
+
+		assert.deepStrictEqual({ untargeted: await untargeted, fromDebugSettingsFile: await fromDebugSettingsFile, debug: await readFile(debugResource), focus: await readFile(focusResource) }, {
+			untargeted: `Unable to write ${key} to Layout Settings because the layout it was changed in is no longer active.`,
+			fromDebugSettingsFile: `Unable to write ${key} to Layout Settings because the layout it was changed in is no longer active.`,
+			debug: undefined,
+			focus: undefined
+		});
+	}));
+
 	test('remove setting from all targets', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const key = 'configurationService.folder.testSetting';
 		await testObject.updateValue(key, 'workspaceValue', ConfigurationTarget.WORKSPACE);

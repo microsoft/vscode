@@ -12,6 +12,7 @@ import { ExtHostContext, ExtHostWindowLayoutsShape, MainContext, MainThreadWindo
 
 function toWindowLayoutDto(layout: INamedLayout): WindowLayoutDto {
 	return {
+		id: layout.id,
 		label: layout.name,
 		contribution: layout.contribution ? { extensionId: layout.contribution.extensionId, id: layout.contribution.id } : undefined
 	};
@@ -27,11 +28,17 @@ export class MainThreadWindowLayouts extends Disposable implements MainThreadWin
 	private readonly proxy: ExtHostWindowLayoutsShape;
 
 	/**
-	 * Maps the tokens of switches that can still be restored to the layout that
-	 * was active before the switch and the layout the extension switched to.
+	 * Maps the tokens of switches that can still be restored to the layout that was active
+	 * before the switch, and to the number of changes of the active layout after the switch.
 	 */
-	private readonly restorableSwitches = new Map<number, { readonly previousLayoutId: string; readonly layoutId: string }>();
+	private readonly restorableSwitches = new Map<number, { readonly previousLayoutId: string; readonly activeLayoutChanges: number }>();
 	private nextToken = 1;
+
+	/**
+	 * Counts the changes of the active layout. The service changes the active layout in its
+	 * sequenced tasks, so a restore can find out when it runs whether a switch ran meanwhile.
+	 */
+	private activeLayoutChanges = 0;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -44,6 +51,7 @@ export class MainThreadWindowLayouts extends Disposable implements MainThreadWin
 
 		this._register(this.namedLayoutsService.onDidChangeActiveLayout(layout => {
 			// Restoring must not undo a later switch
+			this.activeLayoutChanges++;
 			this.restorableSwitches.clear();
 			this.proxy.$acceptActiveLayout(toWindowLayoutDto(layout));
 		}));
@@ -63,14 +71,15 @@ export class MainThreadWindowLayouts extends Disposable implements MainThreadWin
 			throw new Error(`The extension '${extensionId}' does not contribute a layout with the id '${id}'.`);
 		}
 
-		// The layout that was active is determined when the switch runs, after the switches queued before it
+		// The layout that was active is determined when the switch runs, after the switches queued before it.
+		// The service resolves the switch before it runs the changes queued after it
 		const previousLayout = await this.namedLayoutsService.switchLayout(layout);
 
 		const token = this.nextToken++;
 		// Switching to the active layout changes nothing that could be restored, and fires
 		// no event that clears the map, so such switches are not stored
 		if (previousLayout.id !== layout.id && this.namedLayoutsService.activeLayout.id === layout.id) {
-			this.restorableSwitches.set(token, { previousLayoutId: previousLayout.id, layoutId: layout.id });
+			this.restorableSwitches.set(token, { previousLayoutId: previousLayout.id, activeLayoutChanges: this.activeLayoutChanges });
 		}
 
 		return { token, previousLayout: toWindowLayoutDto(previousLayout) };
@@ -84,8 +93,8 @@ export class MainThreadWindowLayouts extends Disposable implements MainThreadWin
 			return false;
 		}
 
-		// Whether the layout the extension switched to is still active is checked when the
-		// restore runs, so that it does not undo a switch that was queued before it
-		return !!await this.namedLayoutsService.switchLayout(previousLayout, { ifActiveLayoutId: restorableSwitch.layoutId });
+		// Whether the active layout changed since the switch is checked when the restore runs,
+		// so that it does not undo a switch that was queued before it
+		return !!await this.namedLayoutsService.switchLayout(previousLayout, { condition: () => this.activeLayoutChanges === restorableSwitch.activeLayoutChanges });
 	}
 }

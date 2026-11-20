@@ -51,6 +51,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly _onDidChangeContainerLocation: Emitter<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }> = this._register(new Emitter<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>());
 	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }> = this._onDidChangeContainerLocation.event;
 
+	private readonly _onDidChangeViewContainerBadgeEnablement = this._register(new Emitter<readonly string[]>());
+	readonly onDidChangeViewContainerBadgeEnablement = this._onDidChangeViewContainerBadgeEnablement.event;
+
 	private readonly viewContainerModels = this._register(new DisposableMap<ViewContainer, { viewContainerModel: ViewContainerModel; disposables: DisposableStore } & IDisposable>());
 	private readonly viewsVisibilityActionDisposables = this._register(new DisposableMap<ViewContainer, IDisposable>());
 	private canRegisterViewsVisibilityActions: boolean = false;
@@ -647,7 +650,15 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		this.viewContainersCustomLocations = newViewContainerCustomizations;
 		this.viewDescriptorsCustomLocations = newViewDescriptorCustomizations;
+
+		// Badges that another window or a named layout enabled or disabled are shown or hidden
+		const previousBadgeEnablementStates = this.viewContainerBadgeEnablementStates;
 		this.viewContainerBadgeEnablementStates = new Map<string, boolean>(Object.entries(this.viewCustomizations.viewContainerBadgeEnablementStates));
+		const changedBadgeEnablementIds = [...new Set([...previousBadgeEnablementStates.keys(), ...this.viewContainerBadgeEnablementStates.keys()])]
+			.filter(id => (previousBadgeEnablementStates.get(id) ?? true) !== this.getViewContainerBadgeEnablementState(id));
+		if (changedBadgeEnablementIds.length) {
+			this._onDidChangeViewContainerBadgeEnablement.fire(changedBadgeEnablementIds);
+		}
 	}
 
 	// Generated Container Id Format

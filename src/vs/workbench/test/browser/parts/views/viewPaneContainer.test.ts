@@ -55,6 +55,7 @@ suite('ViewPaneContainer', () => {
 			override getViewContainerLocation() { return location; }
 			override canMoveViews() { return false; }
 			override readonly onDidChangeContainerLocation = Event.None;
+			override readonly onDidChangeViewContainerBadgeEnablement = Event.None;
 		}());
 		const element = append(mainWindow.document.body, $('.view-pane-container-test'));
 		store.add(toDisposable(() => element.remove()));

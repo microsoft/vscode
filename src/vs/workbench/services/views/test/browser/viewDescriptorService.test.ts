@@ -783,4 +783,26 @@ suite('ViewDescriptorService', () => {
 		});
 	});
 
+	test('switching to a layout state with other badge enablement notifies about the view containers whose badges changed', function () {
+		const testObject = aViewDescriptorService();
+		const sharedLayoutStateService = instantiationService.get(ISharedLayoutStateService);
+		testObject.setViewContainerBadgeEnablementState('enabledInLocalState', false);
+		testObject.setViewContainerBadgeEnablementState('disabledEverywhere', false);
+		const changes: (readonly string[])[] = [];
+		disposables.add(testObject.onDidChangeViewContainerBadgeEnablement(ids => changes.push(ids)));
+
+		sharedLayoutStateService.setLocalState(sharedLayoutStateService.getState());
+		testObject.setViewContainerBadgeEnablementState('enabledInLocalState', true);
+		testObject.setViewContainerBadgeEnablementState('disabledInLocalState', false);
+		const localState = sharedLayoutStateService.getState();
+		sharedLayoutStateService.setLocalState(undefined);
+		const afterShared = { enabledInLocalState: testObject.getViewContainerBadgeEnablementState('enabledInLocalState'), disabledInLocalState: testObject.getViewContainerBadgeEnablementState('disabledInLocalState') };
+		sharedLayoutStateService.setLocalState(localState);
+
+		assert.deepStrictEqual({ afterShared, changes: changes.map(ids => [...ids].sort((a, b) => compare(a, b))) }, {
+			afterShared: { enabledInLocalState: false, disabledInLocalState: true },
+			changes: [['disabledInLocalState', 'enabledInLocalState'], ['disabledInLocalState', 'enabledInLocalState']]
+		});
+	});
+
 });

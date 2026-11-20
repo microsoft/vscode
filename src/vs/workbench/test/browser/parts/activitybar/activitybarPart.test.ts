@@ -923,6 +923,7 @@ suite('ActivitybarPart', () => {
 		stubMenubarServices(instantiationService);
 		instantiationService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
 			override readonly onDidChangeContainerLocation = Event.None;
+			override readonly onDidChangeViewContainerBadgeEnablement = Event.None;
 			override readonly onDidChangeViewContainers = Event.None;
 			override getViewContainersByLocation() { return []; }
 		});

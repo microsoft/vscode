@@ -3823,6 +3823,11 @@ export interface MainThreadThemingShape extends IDisposable {
 }
 
 export interface WindowLayoutDto {
+
+	/**
+	 * Identifies the layout, also among layouts with the same label. Not exposed to extensions.
+	 */
+	readonly id: string;
 	readonly label: string;
 	readonly contribution: { readonly extensionId: string; readonly id: string } | undefined;
 }

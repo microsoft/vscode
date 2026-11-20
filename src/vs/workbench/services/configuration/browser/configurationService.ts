@@ -434,6 +434,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			}
 		}
 
+		// The value is written to the layout that is active now, also if another layout becomes active before it is written
+		if (targets.includes(ConfigurationTarget.LAYOUT) && !options?.layoutSettingsResource) {
+			options = { ...options, layoutSettingsResource: this._layoutSettings?.resource };
+		}
+
 		await Promises.settled(targets.map(target => this.writeConfigurationValue(key, value, target, overrides, options)));
 	}
 

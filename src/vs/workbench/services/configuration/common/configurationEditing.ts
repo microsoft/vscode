@@ -104,6 +104,11 @@ export const enum ConfigurationEditingErrorCode {
 	ERROR_NO_LAYOUT_ACTIVE,
 
 	/**
+	 * Error when trying to write to the settings of a named layout that is no longer active.
+	 */
+	ERROR_LAYOUT_NOT_ACTIVE,
+
+	/**
 	 * Error when trying to write to the layout target while the active named layout is locked.
 	 */
 	ERROR_LAYOUT_LOCKED,
@@ -182,7 +187,7 @@ export class ConfigurationEditing {
 	}
 
 	async writeConfiguration(target: EditableConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
-		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
+		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {}, options.layoutSettingsResource);
 		return this.queueWriteConfiguration(operation, options);
 	}
 
@@ -402,6 +407,7 @@ export class ConfigurationEditing {
 			case ConfigurationEditingErrorCode.ERROR_INVALID_RESOURCE_LANGUAGE_CONFIGURATION: return nls.localize('errorInvalidResourceLanguageConfiguration', "Unable to write to Language Settings because {0} is not a resource language setting.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write to {0} because no workspace is opened. Please open a workspace first and try again.", this.stringifyTarget(target));
 			case ConfigurationEditingErrorCode.ERROR_NO_LAYOUT_ACTIVE: return nls.localize('errorNoLayoutActive', "Unable to write {0} to Layout Settings because no named layout is active.", operation.key);
+			case ConfigurationEditingErrorCode.ERROR_LAYOUT_NOT_ACTIVE: return nls.localize('errorLayoutNotActive', "Unable to write {0} to Layout Settings because the layout it was changed in is no longer active.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_LAYOUT_LOCKED: return nls.localize('errorLayoutLocked', "Unable to write {0} because the layout '{1}' is locked. Unlock the layout to change its settings.", operation.key, this.configurationService.layoutSettings?.name ?? '');
 			case ConfigurationEditingErrorCode.ERROR_INVALID_LAYOUT_CONFIGURATION: return nls.localize('errorInvalidLayoutConfiguration', "Unable to write {0} to Layout Settings because a layout cannot define it.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_LAYOUT_LANGUAGE_CONFIGURATION: return nls.localize('errorInvalidLayoutLanguageConfiguration', "Unable to write to Layout Settings because a layout cannot define language specific values.");
@@ -603,8 +609,12 @@ export class ConfigurationEditing {
 
 		if (target === EditableConfigurationTarget.LAYOUT) {
 			const layoutSettings = this.configurationService.layoutSettings;
-			if (!layoutSettings) {
+			if (!layoutSettings || !operation.resource) {
 				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_NO_LAYOUT_ACTIVE, target, operation);
+			}
+			// Another layout may have become active since the value was updated, its settings are not changed
+			if (!this.uriIdentityService.extUri.isEqual(operation.resource, layoutSettings.resource)) {
+				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_LAYOUT_NOT_ACTIVE, target, operation);
 			}
 			if (layoutSettings.locked) {
 				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_LAYOUT_LOCKED, target, operation);
@@ -634,7 +644,7 @@ export class ConfigurationEditing {
 
 	}
 
-	private getConfigurationEditOperation(target: EditableConfigurationTarget, config: IConfigurationValue, overrides: IConfigurationUpdateOverrides): IConfigurationEditOperation {
+	private getConfigurationEditOperation(target: EditableConfigurationTarget, config: IConfigurationValue, overrides: IConfigurationUpdateOverrides, layoutSettingsResource?: URI): IConfigurationEditOperation {
 
 		// Check for standalone workspace configurations
 		if (config.key && target !== EditableConfigurationTarget.LAYOUT) {
@@ -662,7 +672,10 @@ export class ConfigurationEditing {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const configurationScope = configurationProperties[key]?.scope;
 		let jsonPath = overrides.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
-		if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE || target === EditableConfigurationTarget.LAYOUT) {
+		if (target === EditableConfigurationTarget.LAYOUT) {
+			return { key, jsonPath, value: config.value, resource: layoutSettingsResource ?? this.configurationService.layoutSettings?.resource, target };
+		}
+		if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
 			return { key, jsonPath, value: config.value, resource: this.getConfigurationFileResource(target, key, '', null, configurationScope) ?? undefined, target };
 		}
 
@@ -693,9 +706,6 @@ export class ConfigurationEditing {
 		}
 		if (target === EditableConfigurationTarget.USER_REMOTE) {
 			return this.remoteSettingsResource;
-		}
-		if (target === EditableConfigurationTarget.LAYOUT) {
-			return this.configurationService.layoutSettings?.resource ?? null;
 		}
 		const workbenchState = this.contextService.getWorkbenchState();
 		if (workbenchState !== WorkbenchState.EMPTY) {

@@ -24,6 +24,7 @@ class TestSidebarLayoutService extends TestLayoutService {
 class TestViewDescriptorService extends mock<IViewDescriptorService>() {
 	override readonly onDidChangeViewContainers = Event.None;
 	override readonly onDidChangeContainerLocation = Event.None;
+	override readonly onDidChangeViewContainerBadgeEnablement = Event.None;
 
 	override getDefaultViewContainer(_location: ViewContainerLocation) {
 		return undefined;

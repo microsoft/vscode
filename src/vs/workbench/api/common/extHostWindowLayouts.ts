@@ -6,6 +6,7 @@
 import type * as vscode from 'vscode';
 import { Emitter } from '../../../base/common/event.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { DEFAULT_NAMED_LAYOUT_ID } from '../../services/namedLayouts/common/namedLayouts.js';
 import { ExtHostWindowLayoutsShape, IMainContext, MainContext, MainThreadWindowLayoutsShape, WindowLayoutDto } from './extHost.protocol.js';
 
 function toWindowLayout(layout: WindowLayoutDto): vscode.WindowLayout {
@@ -24,6 +25,12 @@ export class ExtHostWindowLayouts implements ExtHostWindowLayoutsShape {
 
 	private _activeLayout: vscode.WindowLayout = Object.freeze({ label: 'Default', contribution: undefined });
 
+	/**
+	 * Identifies the active layout. Layouts of users can have the same label, for example when
+	 * they were created on different machines.
+	 */
+	private activeLayoutId = DEFAULT_NAMED_LAYOUT_ID;
+
 	constructor(mainContext: IMainContext) {
 		this.proxy = mainContext.getProxy(MainContext.MainThreadWindowLayouts);
 	}
@@ -33,13 +40,13 @@ export class ExtHostWindowLayouts implements ExtHostWindowLayoutsShape {
 	}
 
 	$acceptActiveLayout(layout: WindowLayoutDto): void {
-		const activeLayout = toWindowLayout(layout);
-		if (activeLayout.label === this._activeLayout.label && activeLayout.contribution?.extensionId === this._activeLayout.contribution?.extensionId && activeLayout.contribution?.id === this._activeLayout.contribution?.id) {
+		if (layout.id === this.activeLayoutId) {
 			return;
 		}
 
-		this._activeLayout = activeLayout;
-		this._onDidChangeActiveLayout.fire(activeLayout);
+		this.activeLayoutId = layout.id;
+		this._activeLayout = toWindowLayout(layout);
+		this._onDidChangeActiveLayout.fire(this._activeLayout);
 	}
 
 	async switchLayout(extension: IExtensionDescription, id: string): Promise<vscode.WindowLayoutSwitch> {

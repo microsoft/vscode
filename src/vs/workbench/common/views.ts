@@ -636,6 +636,12 @@ export interface IViewDescriptorService {
 	getViewContainerBadgeEnablementState(id: string): boolean;
 	setViewContainerBadgeEnablementState(id: string, badgesEnabled: boolean): void;
 
+	/**
+	 * Fires with the identifiers of the view containers whose badges another window or a named
+	 * layout enabled or disabled. Not fired for {@link setViewContainerBadgeEnablementState}.
+	 */
+	readonly onDidChangeViewContainerBadgeEnablement: Event<readonly string[]>;
+
 	// Views
 	getViewDescriptorById(id: string): IViewDescriptor | null;
 	getViewContainerByViewId(id: string): ViewContainer | null;

@@ -30,10 +30,10 @@ suite('MainThreadWindowLayouts', () => {
 			override readonly layouts = [defaultLayout, debugLayout, focusLayout];
 			override activeLayout = defaultLayout;
 			override switchLayout(layout: INamedLayout): Promise<INamedLayout>;
-			override switchLayout(layout: INamedLayout, options: { readonly ifActiveLayoutId: string }): Promise<INamedLayout | undefined>;
-			override switchLayout(layout: INamedLayout, options?: { readonly ifActiveLayoutId: string }): Promise<INamedLayout | undefined> {
+			override switchLayout(layout: INamedLayout, options: { readonly condition: () => boolean }): Promise<INamedLayout | undefined>;
+			override switchLayout(layout: INamedLayout, options?: { readonly condition: () => boolean }): Promise<INamedLayout | undefined> {
 				return sequencer.queue(async () => {
-					if (options && options.ifActiveLayoutId !== this.activeLayout.id) {
+					if (options && !options.condition()) {
 						return undefined;
 					}
 					const previousLayout = this.activeLayout;
@@ -85,6 +85,23 @@ suite('MainThreadWindowLayouts', () => {
 			restored: false,
 			activeLayout: DEFAULT_NAMED_LAYOUT_ID,
 			switches: [debugLayout.id, focusLayout.id, DEFAULT_NAMED_LAYOUT_ID]
+		});
+	});
+
+	test('a restore does not undo switches queued before it that end with the layout the extension switched to', async () => {
+		const { testObject, namedLayoutsService, switches } = setup();
+		const extensionSwitch = await testObject.$switchLayout('publisher.extension', 'focus');
+
+		// The user switches away and back before the restore runs
+		const userSwitchToDebug = namedLayoutsService.switchLayout(debugLayout);
+		const userSwitchToFocus = namedLayoutsService.switchLayout(focusLayout);
+		const restored = await testObject.$restoreLayout(extensionSwitch.token);
+		await Promise.all([userSwitchToDebug, userSwitchToFocus]);
+
+		assert.deepStrictEqual({ restored, activeLayout: namedLayoutsService.activeLayout.id, switches }, {
+			restored: false,
+			activeLayout: focusLayout.id,
+			switches: [focusLayout.id, debugLayout.id, focusLayout.id]
 		});
 	});
 });
