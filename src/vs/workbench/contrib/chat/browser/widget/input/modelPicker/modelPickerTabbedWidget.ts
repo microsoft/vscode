@@ -836,8 +836,10 @@ export class TabbedModelPicker extends Disposable {
 			controlModels: isBuiltIn ? context.controlModels : {},
 			preferredSpeedVariants: this._preferredSpeedVariants,
 			// Only the built-in provider curates a shortlist. A provider the user added
-			// gets a tab of its own, which is already the whole of what it offers.
-			showSuggested: isBuiltIn,
+			// gets a tab of its own, which is already the whole of what it offers. An agent
+			// that requires models has already narrowed the list to the ones it allows,
+			// so none of them is folded away.
+			showSuggested: isBuiltIn && !context.agentModelPreferences?.required,
 			// Only the built-in provider has a curated catalogue to compare against.
 			showUnavailable: isBuiltIn && context.unavailableContext.show,
 			alwaysShowUnavailableModelIds: isBuiltIn && isHydraFusionUpgradeOnly(this._entitlementService.entitlement)

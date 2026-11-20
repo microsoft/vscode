@@ -31,6 +31,7 @@ import { supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryD
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { readAgentHostAuthenticationEncryption } from '../../common/meta/agentHostAuthenticationEncryption.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
+import { readAgentHostBuild, readAgentHostUpgradeMethod } from '../../common/meta/agentHostUpgradeMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -1386,6 +1387,41 @@ suite('ProtocolServerHandler', () => {
 
 		transport.simulateClose();
 		transport.dispose();
+	});
+
+	test('initialize advertises the upgrade method and build to direct clients only when a managing CLI is present', () => {
+		const originalEnv = process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+		disposables.add(toDisposable(() => {
+			if (originalEnv === undefined) {
+				delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+			} else {
+				process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = originalEnv;
+			}
+		}));
+		const build = { commit: 'host-commit', quality: 'insider', date: '2026-11-19T00:00:00.000Z' };
+		const buildServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, buildServer, { build },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+		));
+		const advertised = (clientId: string, relay: boolean) => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, relay ? clientId : undefined));
+			buildServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }));
+			const { result } = findResponse(transport.sent, 1) as { result: InitializeResult };
+			transport.simulateClose();
+			return { method: readAgentHostUpgradeMethod(result), build: readAgentHostBuild(result), serverInfo: result.serverInfo?.name };
+		};
+		delete process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
+		const withoutCli = advertised('client-without-cli', false);
+		process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET = '/tmp/mock-supervisor.sock';
+		assert.deepStrictEqual({ withoutCli, direct: advertised('client-direct', false), relay: advertised('client-relay', true) }, {
+			withoutCli: { method: undefined, build: undefined, serverInfo: 'vscode-agent-host' },
+			direct: { method: '_vscodeUpgrade', build, serverInfo: 'vscode-agent-host' },
+			relay: { method: undefined, build: undefined, serverInfo: 'vscode-agent-host' },
+		});
 	});
 
 	test('_vscodeUpgrade RPC returns MethodNotFound when no supervisor is available', async () => {
@@ -3989,6 +4025,193 @@ suite('ProtocolServerHandler', () => {
 		assert.ok(resp, 'should have sent response');
 		const result = (resp as unknown as { result: { snapshot: IStateSnapshot } }).result;
 		assert.strictEqual(result.snapshot.resource.toString(), sessionUri.toString());
+	});
+
+	suite('paged chat history', () => {
+		const channel = defaultChatUri;
+		let id = 100;
+		function seed(texts: string[]): Turn[] {
+			const turns = texts.map((text, i): Turn => ({ id: `turn-${i}`, message: { text, origin: { kind: MessageKind.User } }, responseParts: [], state: TurnState.Complete, usage: undefined }));
+			stateManager.createSession(makeSessionSummary());
+			stateManager.seedDefaultChatTurns(sessionUri, turns);
+			return turns;
+		}
+
+		async function call(transport: MockProtocolTransport, method: string, params: object): Promise<JsonRpcResponse> {
+			const response = waitForResponse(transport, ++id);
+			transport.simulateMessage(request(id, method, params));
+			return await response as JsonRpcResponse;
+		}
+
+		async function subscribe(transport: MockProtocolTransport, count?: number): Promise<ChatState> {
+			const response = await call(transport, 'subscribe', { channel, view: { turns: count } });
+			assert.ok(hasKey(response, { result: true }));
+			return (response.result as SubscribeResult).snapshot!.state as ChatState;
+		}
+
+		function actions(transport: MockProtocolTransport) {
+			return findNotifications(transport.sent, 'action').map(message => message.params as ActionEnvelope).filter(e => e.channel === channel);
+		}
+
+		test('pages the requesting subscription before acknowledging, without changing another view or shared history', async () => {
+			const turns = seed(['a', 'b', 'c', 'd', 'e']);
+			const full = connectClient('full');
+			const one = connectClient('one');
+			const two = connectClient('two');
+			const [all, tail, pair] = await Promise.all([subscribe(full), subscribe(one, 1), subscribe(two, 2)]);
+			const state = stateManager.getChatState(channel);
+			assert.deepStrictEqual([all.turns, tail.turns, pair.turns], [turns, turns.slice(-1), turns.slice(-2)]);
+			assert.ok(tail.turnsNextCursor && pair.turnsNextCursor && tail.turnsNextCursor !== pair.turnsNextCursor);
+			const wrong = await call(two, 'fetchTurns', { channel, cursor: tail.turnsNextCursor });
+			assert.ok(hasKey(wrong, { error: true }) && wrong.error.code === JsonRpcErrorCodes.InvalidParams);
+			two.sent.length = 0;
+			await call(two, 'fetchTurns', { channel, cursor: pair.turnsNextCursor });
+			const page = actions(two)[0].action;
+			assert.ok(page.type === ActionType.ChatTurnsLoaded && page.turnsNextCursor);
+			assert.deepStrictEqual([two.sent.length, isJsonRpcResponse(two.sent[1]), page.turns], [2, true, turns.slice(1, 3)]);
+			const stale = await call(two, 'fetchTurns', { channel, cursor: pair.turnsNextCursor });
+			assert.ok(hasKey(stale, { error: true }) && stale.error.code === JsonRpcErrorCodes.InvalidParams);
+			await call(two, 'fetchTurns', { channel });
+			assert.deepStrictEqual(actions(two)[1].action, { type: ActionType.ChatTurnsLoaded, turns: turns.slice(0, 1) });
+			assert.deepStrictEqual([actions(full), actions(one)], [[], []]);
+			assert.strictEqual(stateManager.getChatState(channel), state);
+		});
+
+		test('rebases an undisplayed truncation and bounds a host history refresh', async () => {
+			const turns = seed(['a', 'b', 'c', 'd', 'e']);
+			const paged = connectClient('paged-truncate');
+			const full = connectClient('full-truncate');
+			const old = await subscribe(paged, 1);
+			await subscribe(full);
+			stateManager.dispatchServerAction(channel, { type: ActionType.ChatTruncated, turnId: turns[2].id });
+			const [reset, load] = actions(paged);
+			assert.deepStrictEqual(reset.action, { type: ActionType.ChatTruncated });
+			assert.ok(load.action.type === ActionType.ChatTurnsLoaded && load.action.turnsNextCursor && load.serverSeq > reset.serverSeq);
+			assert.deepStrictEqual(load.action.turns, [turns[2]]);
+			assert.deepStrictEqual(actions(full).map(e => e.action), [{ type: ActionType.ChatTruncated, turnId: turns[2].id }]);
+			assert.ok(hasKey(await call(paged, 'fetchTurns', { channel, cursor: old.turnsNextCursor }), { error: true }));
+			await call(paged, 'fetchTurns', { channel, cursor: load.action.turnsNextCursor });
+			const older = actions(paged).at(-1)!.action;
+			assert.ok(older.type === ActionType.ChatTurnsLoaded);
+			assert.deepStrictEqual(older.turns, [turns[1]]);
+			stateManager.refreshChatHistory(channel, stateManager.getChatState(channel)!.turns, turns);
+			const refreshed = actions(paged).at(-1)!.action;
+			assert.ok(refreshed.type === ActionType.ChatTurnsLoaded && refreshed.turnsNextCursor);
+			assert.deepStrictEqual(refreshed.turns, turns.slice(-1));
+		});
+
+		test('loads an undisplayed fork source for its observer before creation', async () => {
+			const turns = seed(['a', 'b', 'c', 'd']);
+			const client = connectClient('fork-pager');
+			const other = connectClient('other-pager');
+			await subscribe(client, 1);
+			await subscribe(other, 1);
+			let beforeCreate: string[][] = [];
+			agentService.createChat = async () => {
+				beforeCreate = actions(client).map(e => e.action.type === ActionType.ChatTurnsLoaded ? e.action.turns.map(t => t.id) : []);
+			};
+			const result = await call(client, 'createChat', {
+				channel: sessionUri, chat: buildChatUri(sessionUri, 'fork'),
+				source: { kind: 'fork', chat: channel, turnId: turns[1].id },
+			});
+			assert.deepStrictEqual([hasKey(result, { result: true }), beforeCreate, actions(other)], [true, [[turns[2].id], [turns[1].id]], []]);
+		});
+
+		test('requires a new subscription after relay authorization expires', async () => {
+			seed(['a', 'b']);
+			const expired = disposables.add(new Emitter<void>());
+			const client = new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-pager');
+			client.relayAuthenticated = true;
+			client.onDidRelayAuthenticationExpire = expired.event;
+			server.simulateConnection(client);
+			await call(client, 'initialize', { channel: ROOT_STATE_URI, clientId: 'relay-pager', protocolVersions: [PROTOCOL_VERSION] });
+			const { turnsNextCursor: cursor } = await subscribe(client, 1);
+			client.relayAuthenticated = false;
+			expired.fire();
+			const denied = await call(client, 'fetchTurns', { channel, cursor });
+			client.relayAuthenticated = true;
+			const unsubscribed = await call(client, 'fetchTurns', { channel, cursor });
+			const fresh = await subscribe(client, 1);
+			const stale = await call(client, 'fetchTurns', { channel, cursor });
+			assert.deepStrictEqual([denied, unsubscribed, stale].map(reply => hasKey(reply, { error: true }) && reply.error.code), [
+				AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes.InvalidParams,
+			]);
+			assert.ok(fresh.turnsNextCursor && fresh.turnsNextCursor !== cursor);
+			assert.deepStrictEqual(actions(client), []);
+		});
+
+		test('shapes the fresh response when replacing a previously windowed subscription', async () => {
+			const turns = seed(['a', 'b', 'c']);
+			const client = connectClient('switch-to-pages');
+			await call(client, 'subscribe', { channel, flowControl: { receive: agentHostStateReceiveLimits } });
+			const stale = stateManager.getSnapshot(channel)!;
+			agentService.subscribe = async () => stale;
+			stateManager.dispatchServerAction(channel, chatTurnStarted('active', 'in progress', '2026-01-01T00:00:00Z'));
+			const state = await subscribe(client, 1);
+			assert.deepStrictEqual([state.activeTurn?.id, state.turns], ['active', turns.slice(-1)]);
+			assert.ok(state.turnsNextCursor);
+		});
+
+		test('uses UTF-8 bytes, retains one large turn, and fails oversized fetch and active baseline without disconnect', async () => {
+			const large = '界'.repeat(800_000);
+			const huge = 'x'.repeat(32 * 1024 * 1024);
+			const turns = seed([huge, large + large, large, large]);
+			const client = connectClient('byte-budget');
+			const tail = await subscribe(client, 10);
+			assert.deepStrictEqual(tail.turns.map(t => t.id), [turns[3].id]);
+			await call(client, 'fetchTurns', { channel });
+			await call(client, 'fetchTurns', { channel });
+			const pages = actions(client).map(e => e.action.type === ActionType.ChatTurnsLoaded ? e.action.turns.map(t => t.id) : []);
+			assert.deepStrictEqual(pages, [[turns[2].id], [turns[1].id]]);
+			const failed = await call(client, 'fetchTurns', { channel });
+			assert.ok(hasKey(failed, { error: true }) && /size limit/.test(failed.error.message));
+			client.simulateMessage(notification('unsubscribe', { channel }));
+			stateManager.dispatchServerAction(channel, chatTurnStarted('active', huge, '2026-01-01T00:00:00Z'));
+			const oversized = await call(client, 'subscribe', { channel, view: { turns: 1 } });
+			assert.ok(hasKey(oversized, { error: true }) && /without history/.test(oversized.error.message));
+			assert.deepStrictEqual([client.isDisposed, hasKey(await call(client, 'ping', {}), { result: true })], [false, true]);
+		});
+
+		test('reconnect replays a lost turn echo without discarding received pages or changing their cursor', async () => {
+			const turns = seed(['a', 'b', 'c', 'd']);
+			const previous = connectClient('resume-pager');
+			await subscribe(previous, 1);
+			await call(previous, 'fetchTurns', { channel });
+			const [{ action, serverSeq: lastSeenServerSeq }] = actions(previous);
+			assert.ok(action.type === ActionType.ChatTurnsLoaded && action.turnsNextCursor);
+			const start = chatTurnStarted('accepted', 'Continue', '2026-01-01T00:00:00Z');
+			const origin = { clientId: 'resume-pager', clientSeq: 12 };
+			stateManager.dispatchClientAction(channel, start, origin);
+			previous.simulateClose();
+			const transport = new MockProtocolTransport();
+			server.simulateConnection(transport);
+			const response = await call(transport, 'reconnect', { channel: ROOT_STATE_URI, clientId: origin.clientId, subscriptions: [channel], lastSeenServerSeq });
+			assert.ok(hasKey(response, { result: true }));
+			const result = response.result as ReconnectResult;
+			assert.ok(result.type === 'replay');
+			await call(transport, 'fetchTurns', { channel, cursor: action.turnsNextCursor });
+			const [older] = actions(transport);
+			assert.deepStrictEqual([result.actions.map(e => [e.action, e.origin]), older.action.type === ActionType.ChatTurnsLoaded && older.action.turns], [[[start, origin]], [turns[1]]]);
+		});
+
+		test('reconnect baselines a requested paged chat without replaying private pages', async () => {
+			const turns = seed(['a', 'b', 'c']);
+			const previous = connectClient('reconnecting-pager');
+			const old = await subscribe(previous, 1);
+			const lastSeenServerSeq = stateManager.serverSeq;
+			await call(previous, 'fetchTurns', { channel });
+			previous.simulateClose();
+			const transport = new MockProtocolTransport();
+			server.simulateConnection(transport);
+			const response = await call(transport, 'reconnect', { channel: ROOT_STATE_URI, clientId: 'reconnecting-pager', subscriptions: [channel], lastSeenServerSeq });
+			assert.ok(hasKey(response, { result: true }));
+			const result = response.result as ReconnectResult;
+			assert.ok(result.type === 'snapshot');
+			const chat = result.snapshots[0].state as ChatState;
+			assert.deepStrictEqual(chat.turns, turns.slice(-1));
+			assert.ok(chat.turnsNextCursor && chat.turnsNextCursor !== old.turnsNextCursor);
+			assert.ok(hasKey(await call(transport, 'fetchTurns', { channel, cursor: old.turnsNextCursor }), { error: true }));
+		});
 	});
 
 	suite('windowed state delivery', () => {

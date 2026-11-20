@@ -26,6 +26,7 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { isContributionEnabled } from '../../common/enablement.js';
 import { AICustomizationItemNormalizer, EmptyItemProviderItemSource, IAICustomizationItemSource, IAICustomizationListItem, ItemProviderItemSource, PureItemProviderItemSource } from './aiCustomizationItemSource.js';
 import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
+import { markLocalFormatHookItems } from './localFormatHooks.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { isAgentHostTarget } from '../agentSessions/agentSessions.js';
@@ -345,7 +346,10 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this.fetchSeq.set(section, seq);
 		const promptType = sectionToPromptType(section);
 		const observable = this.perSectionSource.get(section)!;
-		const pending = source.fetchAICustomizationItems(promptType).then(items => {
+		const pending = source.fetchAICustomizationItems(promptType).then(items => promptType === PromptsType.hook
+			? markLocalFormatHookItems(items, this.agentPluginService.plugins.get(), this.fileService)
+			: items
+		).then(items => {
 			if (this._store.isDisposed) {
 				return;
 			}

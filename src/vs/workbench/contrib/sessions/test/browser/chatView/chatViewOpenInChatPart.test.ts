@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { stubChatViewHostServiceDependencies } from '../../../../chat/test/common/chatViewSessionsListServiceTestUtils.js';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -122,7 +123,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const shown = { view: observableValue<URI | undefined>('view', options.chatViewShows), part: observableValue<URI | undefined>('part', undefined) };
 		// The chat part's host registers as chats open in the chat part, or later, where it is late
 		const hostReady = observableValue('hostReady', !options.lateHost);
-		const replaced = derived(reader => registrations.read(reader) > 0 && hostReady.read(reader));
+		const replaced = derived(reader => registrations.read(reader) > 0 && hostReady.read(reader) && chatPartOptions.some(o => o.enabled.read(reader)));
 		const hostInUse = () => replaced.get() ? 'part' : 'view';
 		// What asked the hosts to show something, as the seam counts it
 		const requests = observableValue('requests', 0);
@@ -272,6 +273,19 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		});
 	});
 
+	test('editorArea shows the Chat view as chatArea does, only its sessions, and chatPanel keeps its chat', () => {
+		const shows = (chatOpenIn: string) => {
+			const fixture = setup({ chatOpenIn });
+			return { registered: fixture.registered, sessionsOnly: fixture.sessionsOnly.get(), localChatHidden: fixture.localChatAvailability.hidden.get() };
+		};
+		const chatArea = shows('chatArea');
+		assert.deepStrictEqual({ editorArea: shows('editorArea'), chatArea, chatPanel: shows('chatPanel') }, {
+			editorArea: chatArea,
+			chatArea: { registered: [{ chatsOpenElsewhere: true }], sessionsOnly: true, localChatHidden: true },
+			chatPanel: { registered: [], sessionsOnly: false, localChatHidden: false },
+		});
+	});
+
 	test('editorArea shows the chat of the active chat editor as the window chat, and closes the editors of a chat', () => {
 		const first = URI.parse('agent-host-copilot:/session-1');
 		const second = URI.parse('agent-host-copilot:/session-2');
@@ -342,7 +356,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 	test('registers sessions only with the Chat view once, and holds it while on', () => {
 		const { registered, sessionsOnly } = setup({ setting: true });
-		assert.deepStrictEqual({ registered, sessionsOnly: sessionsOnly.get() }, { registered: [{ sessionsOnly: true }], sessionsOnly: true });
+		assert.deepStrictEqual({ registered, sessionsOnly: sessionsOnly.get() }, { registered: [{ chatsOpenElsewhere: true }], sessionsOnly: true });
 	});
 
 	test('takes New Chat of the Chat view into the chat part', () => {
@@ -481,6 +495,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			const createInstance = instantiationService.createInstance.bind(instantiationService) as (ctor: unknown, ...args: unknown[]) => unknown;
 			instantiationService.createInstance = ((ctor: unknown, ...args: unknown[]) => ctor === ChangesMultiDiffSourceResolver ? Disposable.None : createInstance(ctor, ...args)) as typeof instantiationService.createInstance;
 
+			stubChatViewHostServiceDependencies(instantiationService, { environmentStubbed: true });
 			const hostService = instantiationService.createInstance(ChatViewHostService);
 			stub(IChatViewHostService, hostService);
 			const chatPartService = store.add(instantiationService.createInstance(EditorWindowChatPartService));

@@ -8,10 +8,11 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extname, isEqual } from '../../../../base/common/resources.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -119,7 +120,7 @@ function sidePreviewResource(preview: WebviewInput): URI | undefined {
  *   the side (the dropdown of the text editor of the previewed file is highlighted, and trying the
  *   Markdown Editor replaces both).
  *
- * "Try Editor" reopens the file in the Markdown Editor without changing the default editor. A nudge
+ * "Try Editor" makes the Markdown Editor the default for Markdown files and reopens the file in it. A nudge
  * shows right when the user opens or switches to the file or preview, never for editors restored at
  * startup or for files edited since they were opened. The onboarding engine shows at most one of the
  * nudges, once, and only for users whose experiment arm enables that nudge.
@@ -137,6 +138,7 @@ export class MarkdownEditorPromotion extends Disposable {
 		@IStorageService storageService: IStorageService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageService languageService: ILanguageService,
 	) {
 		super();
 
@@ -308,6 +310,12 @@ export class MarkdownEditorPromotion extends Disposable {
 			}
 			if (shown.sidePreview) {
 				await shown.sidePreview.group.closeEditor(shown.sidePreview.editor);
+			}
+			// Associate the file's extension only, never a broader pattern of the current default rule
+			// (e.g. `*`), and only if the extension itself is Markdown, not a `.txt` file in Markdown mode.
+			const extension = extname(shown.resource);
+			if (extension && languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(`/file${extension}`)) === 'markdown') {
+				editorResolverService.setDefaultEditor(shown.resource, MARKDOWN_EDITOR_ID, false, { source: 'markdownEditorNudge', associationPattern: `*${extension}` });
 			}
 			await commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, MARKDOWN_EDITOR_ID, {
 				groupId: shown.group.id,
