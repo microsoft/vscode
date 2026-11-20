@@ -1631,17 +1631,14 @@ export class NewChatWidget extends Disposable {
 		};
 	}
 
-	/** Counts the user's changes of the requested target, so that a late result of an older one does not undo a newer. */
-	private _userTargetGeneration = 0;
-
 	/** The user's choice of New Worktree, which the requested target keeps as its placement for the composer's next draft. */
 	private async _setNewWorktreeByUser(newWorktree: NewWorktreeChoice, selected: boolean): Promise<boolean> {
 		const previous = this._draftHost?.requestedTarget?.get();
 		this._requestTarget(target => ({ ...target, placement: selected ? 'worktree' : undefined, placementIsPreference: undefined }));
-		const choice = this._userTargetGeneration;
+		const chosen = this._draftHost?.requestedTarget?.get();
 		const applied = await newWorktree.setSelected(selected);
-		// Only the latest choice is undone, and only while the composer still aims at what it did when it was made
-		if (!applied && choice === this._userTargetGeneration && !this._store.isDisposed) {
+		// Undone only while the composer still aims at the very target this choice made: any later choice or retarget replaces it
+		if (!applied && !this._store.isDisposed && chosen && this._draftHost?.requestedTarget?.get() === chosen) {
 			this._requestTarget(target => ({ ...target, placement: previous?.placement, placementIsPreference: previous?.placementIsPreference }));
 		}
 		return applied;
@@ -2049,7 +2046,6 @@ export class NewChatWidget extends Disposable {
 
 	/** Replaces the host's requested target with what `change` makes of it, for a change by the user. */
 	private _requestTarget(change: (target: INewSessionTarget) => INewSessionTarget): void {
-		this._userTargetGeneration++;
 		const host = this._draftHost;
 		if (host?.setRequestedTarget) {
 			host.setRequestedTarget(change(host.requestedTarget?.get() ?? {}), 'user');
