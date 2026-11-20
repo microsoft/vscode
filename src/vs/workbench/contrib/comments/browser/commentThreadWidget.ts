@@ -90,6 +90,14 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	/**
+	 * Resolves once the reply is set up, which can be after the thread is displayed. Until then, the thread doesn't
+	 * have its full size.
+	 */
+	get whenReplyInitialized(): Promise<void> {
+		return this._commentReply?.whenInitialized ?? Promise.resolve();
+	}
+
+	/**
 	 * Measures the width the thread needs to show its title actions, reply and additional actions in full, and the
 	 * width at which none of its content wraps or is cut off. Neither depends on the thread's width.
 	 */

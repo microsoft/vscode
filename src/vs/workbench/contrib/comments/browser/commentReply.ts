@@ -60,6 +60,11 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	private _reviewThreadReplyButton!: HTMLElement;
 	private _editorHeight = MIN_EDITOR_HEIGHT;
 
+	/**
+	 * Resolves once the reply is set up, which is after it's created, as its editor gets its model asynchronously.
+	 */
+	readonly whenInitialized: Promise<void>;
+
 	constructor(
 		readonly owner: string,
 		container: HTMLElement,
@@ -87,7 +92,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this.commentEditorIsEmpty.set(!this._pendingComment);
 
-		this.initialize(focus);
+		this.whenInitialized = this.initialize(focus);
 	}
 
 	private async initialize(focus: boolean) {

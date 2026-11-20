@@ -10,6 +10,7 @@ import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { IResizeEvent, ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Color } from '../../../../base/common/color.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
@@ -260,13 +261,25 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
 			this._show();
 		}
+		this._bindCommentThreadListeners();
 
 		// If this is a new comment thread awaiting user input then we need to reveal it.
 		if (shouldReveal) {
-			this._makeVisible();
+			// The reply only has its full size once it's set up, which can be after the thread is displayed. The widget is
+			// placed and revealed at that size, so that it fits in the view next to its code rather than the view
+			// scrolling to make room for it.
+			await this._commentThreadWidget.whenReplyInitialized.catch(onUnexpectedError);
+			if (this._isDisposed) {
+				return;
+			}
+			if (this._isAttached && !this._layout?.isChosenByUser) {
+				// The widget was shown before the reply was set up, so it was placed for a smaller size.
+				this._placeAmongOtherWidgets();
+			}
+			// The reply couldn't take focus while the widget wasn't shown. A new comment for code in view goes within the
+			// view, rather than the editor scrolling away from where it's being written.
+			this._makeVisible(undefined, CommentWidgetFocus.Editor, true);
 		}
-
-		this._bindCommentThreadListeners();
 	}
 
 	async update(commentThread: languages.CommentThread<IRange>): Promise<void> {
@@ -496,13 +509,24 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		}
 	}
 
-	private _makeVisible(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None): void {
+	/**
+	 * Shows the widget, reveals it and the commented code in the editor, and moves focus into it as requested.
+	 * @param placeWithinView Whether to place the widget for code that is in view within the view, rather than scroll
+	 * the editor to it.
+	 */
+	private _makeVisible(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None, placeWithinView = false): void {
 		if (!this._isExpanded) {
 			this._show();
 		}
-		this._revealInEditor();
+		this._revealInEditor(placeWithinView);
 		if (commentUniqueId !== undefined) {
 			this._commentThreadWidget.revealComment(commentUniqueId);
+		}
+
+		if (focus !== CommentWidgetFocus.None) {
+			// The editor moves the widget to where it was just placed or scrolled to when it next renders. Focusing the
+			// widget before then, where it was, could make the browser scroll the editor to it.
+			this.editor.render();
 		}
 
 		if (focus === CommentWidgetFocus.Widget) {
@@ -513,25 +537,29 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	}
 
 	/**
-	 * Scrolls the editor so that the commented code and the widget are visible, if they aren't already. An editor that
-	 * grows with its content can't scroll the view that it's shown in, so when its code is in that view, the widget is
-	 * placed again within the view instead, if it reaches below it.
+	 * Scrolls the editor so that the commented code and the widget are visible, if they aren't already. When requested,
+	 * a widget for code that is in view, but that reaches below the view, is placed again within the view first, so that
+	 * the code doesn't move. An editor that grows with its content can't scroll the view that it's shown in, so for such
+	 * an editor, that's always done instead of scrolling.
 	 */
-	private _revealInEditor(): void {
+	private _revealInEditor(placeWithinView: boolean): void {
 		if (!this._layout) {
 			return;
 		}
-		const height = this._resizable.size.height;
-		const widgetTop = this._getDocumentTop(this._layout, height);
 		const code = this._codeGeometry.getVerticalBounds();
-		const viewport = this._host.getRoom()?.getViewport();
-		if (viewport && code.top >= viewport.top && code.bottom <= viewport.top + viewport.height) {
-			const viewportBottom = viewport.top + viewport.height;
-			if (!this._layout.isChosenByUser && widgetTop + height > viewportBottom - EDGE_MARGIN) {
-				this._placeAmongOtherWidgets(undefined, viewportBottom);
-			}
+		const room = this._host.getRoom();
+		const viewport = this._getViewport();
+		const viewportBottom = viewport.top + viewport.height;
+		const isCodeInView = code.top >= viewport.top && code.bottom <= viewportBottom;
+		let height = this._resizable.size.height;
+		if (isCodeInView && (placeWithinView || room) && !this._layout.isChosenByUser && this._getDocumentTop(this._layout, height) + height > viewportBottom - EDGE_MARGIN) {
+			this._placeAmongOtherWidgets(undefined, viewportBottom);
+			height = this._resizable.size.height;
+		}
+		if (isCodeInView && room) {
 			return;
 		}
+		const widgetTop = this._getDocumentTop(this._layout, height);
 		const scrollTop = getRevealScrollTop(code, { top: widgetTop, bottom: widgetTop + height }, this.editor.getScrollTop(), this.editor.getLayoutInfo().height);
 		if (scrollTop !== undefined) {
 			this.editor.setScrollTop(scrollTop);
@@ -572,10 +600,12 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		// Laying the widget out makes the browser lay it out, so its size at the default width is measured at most once.
 		let defaultSize: ISize | undefined;
 		const measureDefaultSize = () => defaultSize ??= this._layOutAtWidth(defaultWidth, widthRange);
-		let placement = code && !isNewComment ? this._placeBesideLines(area, code, defaultWidth, measureDefaultSize, contentWidths.natural, widthRange) : undefined;
+		// A new comment goes right after its code when it can, so that it's close to where it's written.
+		let placement = code && isNewComment ? this._placeBesideCode({ ...area, ...measureDefaultSize() }, code, widthRange) : undefined;
+		placement ??= code && this._placeBesideLines(area, code, defaultWidth, measureDefaultSize, contentWidths.natural, widthRange);
 		if (!placement) {
 			const request = { ...area, ...measureDefaultSize() };
-			placement = (code && isNewComment ? this._placeBesideCode(request, code, widthRange) : undefined) ?? { ...computeFloatingWidgetPlacement(request), width: request.width };
+			placement = { ...computeFloatingWidgetPlacement(request), width: request.width };
 		}
 		const { top, left, centered, width } = placement;
 		return { offsetTop: centered ? undefined : top - this._codeGeometry.getVerticalBounds().top, left, width, height: undefined, isChosenByUser: false };
@@ -647,7 +677,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 
 	/**
 	 * Places a new comment right after the end of its code, level with it, when there is room, so that it's close to
-	 * where it's written.
+	 * where it's written. `undefined` when there isn't, or when other widgets or the end of the area that the widget is
+	 * kept within move it away from its code, where it would hide the lines next to it.
 	 */
 	private _placeBesideCode(request: IFloatingWidgetPlacementRequest, code: IRect, widthRange: ISizeRange): ISizedFloatingWidgetPlacement | undefined {
 		const width = getWidthBesideCode(code, request.height, request.width, widthRange.min, request.maxRight, request.obstacles);
@@ -655,13 +686,16 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			return undefined;
 		}
 		const size = this._layOutAtWidth(width, widthRange);
-		return { ...computeFloatingWidgetPlacement({ ...request, ...size, besideCode: true }), width: size.width };
+		const placement = computeFloatingWidgetPlacement({ ...request, ...size, besideCode: true });
+		return placement.top === code.top ? { ...placement, width: size.width } : undefined;
 	}
 
 	/**
-	 * Places an existing comment right after the end of the lines next to its code, and as wide as its content fills,
-	 * when there is room, so that it's close to its code. See {@link getPlacementBesideLines} for which lines it may
-	 * hide. Where other widgets move it to, it hides no more of the lines there.
+	 * Places a comment right after the end of the lines next to its code, and as wide as its content fills, when there
+	 * is room, so that it's close to its code. See {@link getPlacementBesideLines} for which lines it may hide. When
+	 * other widgets or the end of the area that the widget is kept within move it next to lines that leave it less room,
+	 * it's placed right after those instead, once, so that it hides no more of them while staying as close to its code
+	 * as it can.
 	 *
 	 * Laying the widget out at a new width takes far longer than estimating where lines end, so it's laid out once,
 	 * unless its height decides how wide it is. Which lines it's next to depends on its height, which is only known once
@@ -697,15 +731,25 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		if (!beside || !size || size.height > maxHeight) {
 			return undefined;
 		}
-		const placement = computeFloatingWidgetPlacement({ ...area, ...size, linesRight: beside.linesRight });
-		if (!placement.centered) {
-			// Other widgets moved the widget away from the code, next to other lines.
-			const moved = getPlacement(this._codeGeometry.estimateLineRects(placement.top, placement.top + size.height), placement.top, size.height);
-			if (!moved || moved.linesRight > beside.linesRight || moved.width < size.width) {
+		const getPlacementAt = (top: number) => getPlacement(this._codeGeometry.estimateLineRects(top, top + size.height), top, size.height);
+		let linesRight = beside.linesRight;
+		// The widget is placed again only once, so that the widgets that move it can't keep moving it.
+		for (let attempt = 0; attempt < 2; attempt++) {
+			const placement = computeFloatingWidgetPlacement({ ...area, ...size, linesRight });
+			if (placement.centered) {
+				return { ...placement, width: size.width };
+			}
+			// The widget was moved away from the code, next to other lines.
+			const moved = getPlacementAt(placement.top);
+			if (!moved || moved.width < size.width) {
 				return undefined;
 			}
+			if (moved.linesRight <= linesRight) {
+				return { ...placement, width: size.width };
+			}
+			linesRight = moved.linesRight;
 		}
-		return { ...placement, width: size.width };
+		return undefined;
 	}
 
 	/**
